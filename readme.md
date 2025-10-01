@@ -73,8 +73,10 @@ python src/main.py
 - `.venv/`：Python 虚拟环境目录（可选）
 - `.gitignore`：Git 忽略文件列表
 ## 贡献
+
 欢迎通过 GitHub 提交 Issue 或 Pull Request 贡献代码！  
 请遵守 [Code of Conduct](CODE_OF_CONDUCT.md) 和 [贡献指南](CONTRIBUTING.md)。
+
 ---
 ## 许可证
 
