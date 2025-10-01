@@ -70,7 +70,7 @@ python src/main.py
 - `LICENSE`：开源许可证
 - `releases/`：发布的可执行文件
 - `assets/`：图标和资源文件
-- `.venv/`：Python 虚拟环境目录（可选）
+- `.venv/`：Python 虚拟环境目录
 - `.gitignore`：Git 忽略文件列表
 ## 贡献
 
@@ -85,4 +85,5 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
