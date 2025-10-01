@@ -24,7 +24,7 @@ LaTeXSnipper 是一款用于将图片中的数学公式快速识别并转换为 
 2. 下载最新版 `LaTeXSnipper.exe`
 3. 双击运行即可，无需额外安装 Python
 
-> ⚠️ 注意：首次运行可能需要下载模型文件（约 100MB），请保持网络通畅。
+> ⚠️ 注意：首次运行可能需要下载模型文件，请保持网络通畅。
 
 ### 方法二：从源码安装
 
@@ -85,5 +85,6 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
