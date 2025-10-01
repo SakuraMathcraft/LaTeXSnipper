@@ -47,7 +47,7 @@ pip install -r requirements.txt
 python src/main.py
 ```
 ⚠️ 注意：第一次运行时，Pix2Tex 模型会自动下载，请保持网络连接。
-### 使用说明
+## 使用说明
 
 1. 打开 LaTeXSnipper。
 
@@ -58,7 +58,7 @@ python src/main.py
 4. 程序会自动识别公式，并将对应 LaTeX 代码复制到剪贴板。
 
 5. 粘贴到你的文档中即可。
-### 文件说明
+## 文件说明
 - `src/`：源代码目录
   - `main.py`：主程序入口
   - `gui.py`：图形界面相关代码
@@ -83,6 +83,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
