@@ -2,7 +2,7 @@
 ![LaTeXSnipper Logo](icon.ico)
 
 
-LaTeXSnipper 是一款用于将图片中的数学公式快速识别并转换为 LaTeX 代码的桌面工具。通过简单的截图操作，即可得到对应的 LaTeX 公式，大幅提升数学文档编辑效率。
+LaTeXSnipper 是一款基于pix2tex模型，用于将图片中的数学公式快速识别并转换为 LaTeX 代码的桌面工具。通过简单的截图操作，即可得到对应的 LaTeX 公式，大幅提升数学文档编辑效率。
 
 ---
 
@@ -85,6 +85,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
