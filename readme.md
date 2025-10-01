@@ -24,8 +24,6 @@ LaTeXSnipper 是一款基于pix2tex模型，用于将图片中的数学公式快
 2. 下载最新版 `LaTeXSnipper.exe`
 3. 双击运行即可，无需额外安装 Python
 
-> ⚠️ 注意：首次运行可能需要下载模型文件，请保持网络通畅。
-
 ### 方法二：从源码安装
 
 1. 克隆仓库：
@@ -48,7 +46,7 @@ pip install -r requirements.txt
 ```bash
 python src/main.py
 ```
-⚠️ 注意：第一次运行时，Pix2Tex 模型会自动下载（约 100MB），请保持网络连接。
+⚠️ 注意：第一次运行时，Pix2Tex 模型会自动下载，请保持网络连接。
 ### 使用说明
 
 1. 打开 LaTeXSnipper。
@@ -85,6 +83,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
