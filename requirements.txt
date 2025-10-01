@@ -1,0 +1,8 @@
+mss~=10.1.0
+pillow~=11.3.0
+PyQt6~=6.9.1
+pix2tex~=0.1.4
+pyperclip~=1.11.0
+PyAutoGUI~=0.9.54
+psutil~=7.1.0
+keyboard~=0.13.5
