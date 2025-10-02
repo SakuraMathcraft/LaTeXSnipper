@@ -11,7 +11,7 @@ LaTeXSnipper 是一款基于pix2tex和pix2text开源模型，用于将图片中�
 - 截图识别数学公式，生成 LaTeX 代码
 - 支持多行公式和复杂符号
 - 自动复制 LaTeX 代码到剪贴板
-- 内置 Pix2Tex OCR 模型，离线识别
+- 内置 Pix2Tex OCR 模型和pix2text模型，离线识别
 - 界面简洁，易于操作
 
 ---
@@ -83,6 +83,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
