@@ -28,7 +28,7 @@ LaTeXSnipper 是一款基于pix2tex和pix2text开源模型，用于将图片中�
 请确保已安装 Microsoft Visual C++ Redistributable(https://aka.ms/vs/17/release/vc_redist.x64.exe)
 否则可能会出现缺少 DLL 的报错。
 本地部署报错和安装示意：
-![LaTeXSnipper Logo](屏幕截图 2025-10-02 212428.ico)
+![LaTeXSnipper Logo](environment.png)
 ### 方法二：从源码安装
 
 1. 克隆仓库：
@@ -88,6 +88,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
