@@ -51,7 +51,7 @@ pip install -r requirements.txt
 ```bash
 python src/main.py
 ```
-⚠️ 注意：第一次运行时，Pix2Tex 模型会自动下载，请保持网络连接。
+⚠️ 注意：第一次运行时，Pix2Tex和Pix2Text模型会自动下载，请保持网络连接。
 ## 使用说明
 ![LaTeXSnipper Logo](signal.png)
 1. 打开 LaTeXSnipper。
@@ -88,6 +88,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
