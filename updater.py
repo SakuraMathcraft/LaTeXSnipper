@@ -110,7 +110,7 @@ def check_update_dialog(parent=None):
     dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
 
     lay = QVBoxLayout(dlg)
-    title = QLabel("版本更新(如遇错误请重试或者重启程序)")
+    title = QLabel("版本更新")
     title.setStyleSheet("font-size:18px;font-weight:600;margin-bottom:4px;")
     lay.addWidget(title)
 

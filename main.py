@@ -1,9 +1,58 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"   # 强制 CPU 模式
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128" # 避免显存碎片化
-os.environ["ORT_DISABLE_OPENCL"] = "1"  # 避免 OpenCL 相关错误
-os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")  # 避免 albumentations 检查更新
-os.environ.setdefault("ORT_DISABLE_AZURE", "1") # 避免 Azure 相关错误
+import os, sys, subprocess, importlib, importlib.metadata
+FORCE_CPU = False # 若为 True 则强制使用 CPU
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
+os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+os.environ.setdefault("ORT_DISABLE_AZURE", "1")
+def _ensure_typing_ext():
+    """确保 typing_extensions 含 TypeIs（Torch 2.2+ 需要）"""
+    try:
+        import typing_extensions as te
+        if not hasattr(te, "TypeIs"):
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install",
+                "--no-cache-dir", "typing_extensions>=4.12.2"
+            ])
+    except Exception as e:
+        print("[Boot] typing_extensions check skipped:", e)
+def _ensure_hf_hub():
+    try:
+        import huggingface_hub
+        from packaging.version import Version
+        if Version(huggingface_hub.__version__) < Version("0.34.0"):
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install",
+                "--no-cache-dir", "huggingface-hub>=0.34.0,<1.0"
+            ])
+    except Exception as e:
+        print("[Boot] huggingface-hub check skipped:", e)
+def _select_device():
+    if FORCE_CPU:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        return "cpu(forced)"
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return f"cuda:0 (name={torch.cuda.get_device_name(0)})"
+        return "cpu"
+    except Exception as e:
+        return f"cpu(no_torch:{e})"
+_ensure_typing_ext()
+_ensure_hf_hub()
+print("[INFO] 设备:", _select_device())
+def _ensure_std_streams():
+    # 尝试恢复原始引用
+    if getattr(sys, "stdout", None) is None and hasattr(sys, "__stdout__"):
+        sys.stdout = sys.__stdout__
+    if getattr(sys, "stderr", None) is None and hasattr(sys, "__stderr__"):
+        sys.stderr = sys.__stderr__
+    # 若仍为 None, 绑定到空设备
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = sys.stdout  # 复用 stdout 或者单独 open(os.devnull,'w')
+
+_ensure_std_streams()
 import faulthandler; faulthandler.enable()
 from PyQt6.QtCore import QTimer
 import sys
@@ -11,7 +60,7 @@ import json
 from io import BytesIO
 from PyQt6.QtCore import QEvent
 from PyQt6.QtWidgets import (QVBoxLayout, QListWidget, QMenu, QInputDialog, QPushButton,
-                             QMessageBox, QFileDialog)
+                             QMessageBox, QFileDialog, QSizePolicy)
 from PyQt6.QtCore import Qt, QObject, QThread, QCoreApplication
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
 import pyperclip
@@ -150,6 +199,7 @@ class HoverWidget(QWidget):
     def leaveEvent(self, event):
         self.setStyleSheet(self.base_style)
         return super().leaveEvent(event)
+
 class FavoritesWindow(QWidget):
     def __init__(self, cfg: ConfigManager, parent=None):
         super().__init__(parent)
@@ -157,36 +207,74 @@ class FavoritesWindow(QWidget):
         self.setWindowFlag(Qt.WindowType.Window, True)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle("公式收藏夹")
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(480, 460)
 
         icon_path = resource_path("assets/icon.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        self.layout = QVBoxLayout(self)
+        self._splitter_user_dragged = False
+
+        main_lay = QVBoxLayout(self)
+        main_lay.setContentsMargins(6, 6, 6, 6)
+        main_lay.setSpacing(6)
+
+        # 顶部按钮
         btn_save_path = QPushButton("选择保存路径")
         btn_save_path.setStyleSheet(BTN_PRIMARY)
         btn_save_path.clicked.connect(self.select_file)
-        self.layout.addWidget(btn_save_path)
+        main_lay.addWidget(btn_save_path, 0)
 
+        # 列表
         self.list_widget = QListWidget()
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
-        self.layout.addWidget(self.list_widget)
+        self.list_widget.setWordWrap(True)
+        self.list_widget.setUniformItemSizes(False)
+        self.list_widget.setMinimumHeight(120)
+        self.list_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        # 预览区域(Scroll + 容器 + 真实预览控件)
         self.render_area = QScrollArea()
         self.render_area.setWidgetResizable(True)
+        self.render_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.render_container = QWidget()
         self.render_layout = QVBoxLayout(self.render_container)
-        self.render_layout.setContentsMargins(6, 6, 6, 6)
+        self.render_layout.setContentsMargins(8, 8, 8, 8)
+        self.render_layout.setSpacing(4)
         self.render_area.setWidget(self.render_container)
-        self.layout.addWidget(self.render_area)
 
+        # 预览控件（WebEngine 或纯文本）
+        self._web_ok = (QWebEngineView is not None) and (not DISABLE_WEBENGINE_PREVIEW)
+        if self._web_ok:
+            self._preview_view = QWebEngineView(self.render_container)
+            self._preview_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            self.render_layout.addWidget(self._preview_view, 1)
+        else:
+            self._preview_view = QLabel("（无预览内容）")
+            self._preview_view.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            self._preview_view.setWordWrap(True)
+            self._preview_view.setStyleSheet("font-size:13px;")
+            self._preview_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            self.render_layout.addWidget(self._preview_view, 1)
+
+        # Splitter
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.splitter.addWidget(self.list_widget)
+        self.splitter.addWidget(self.render_area)
+        # 初步权重（真正尺寸在 showEvent 里再调）
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.splitterMoved.connect(self._on_user_splitter_move)
+        main_lay.addWidget(self.splitter, 1)
+
+        # 底部关闭按钮
         close_btn = QPushButton("关闭窗口")
         close_btn.setStyleSheet(BTN_PRIMARY)
         close_btn.clicked.connect(self.close)
-        self.layout.addWidget(close_btn)
+        main_lay.addWidget(close_btn, 0)
 
+        # 数据
         self.favorites = []
         favorites_path = self.cfg.get("favorites_path")
         if not favorites_path:
@@ -194,78 +282,98 @@ class FavoritesWindow(QWidget):
             self.cfg.set("favorites_path", favorites_path)
         self.file_path = favorites_path
         self.load_favorites()
-        self.preview_view = None
+
+    # ---------- 事件 ----------
+    def showEvent(self, e):
+        super().showEvent(e)
+        # 延迟一次，保证窗口实际尺寸已稳定
+        QTimer.singleShot(0, self._apply_splitter_ratio)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        # 若用户已经拖动过，不再强制
+        if not self._splitter_user_dragged:
+            self._apply_splitter_ratio()
+
+    def _on_user_splitter_move(self, *args):
+        self._splitter_user_dragged = True  # 一旦拖动，停止自动调整
+
+    def _apply_splitter_ratio(self):
+        if self._splitter_user_dragged:
+            return
+        total = max(self.splitter.height(), 200)
+        top = total // 3
+        bottom = total - top
+        # 确保下方至少比上方大（1:2 左右）
+        self.splitter.setSizes([top, bottom])
+
+    # ---------- 状态 ----------
     def _set_status(self, msg: str):
         p = self.parent()
         if p and hasattr(p, "set_action_status"):
             p.set_action_status(msg)
-    def add_favorite(self, text):
-        t = (text or "").strip()
-        if not t:
-            self._set_status("空内容忽略")
-            return
-        if t in self.favorites:
-            self._set_status("收藏夹里已存在该公式，忽略")
-            self.show(); self.raise_(); self.activateWindow()
-            return
-        self.favorites.append(t)
-        self.refresh_list()
-        self.save_favorites()
-        self.show(); self.raise_(); self.activateWindow()
-        self._set_status("已加入收藏")
+
+    # ---------- 菜单 ----------
     def show_context_menu(self, pos):
         item = self.list_widget.itemAt(pos)
         if not item:
             return
-        menu = QMenu()
-        a_del = menu.addAction("删除")
-        a_edit = menu.addAction("编辑")
+        menu = QMenu(self)
         a_prev = menu.addAction("渲染预览")
+        a_edit = menu.addAction("编辑")
+        a_del = menu.addAction("删除")
         act = menu.exec(self.list_widget.mapToGlobal(pos))
-        if act == a_del:
-            try:
-                self.favorites.remove(item.text())
-            except ValueError:
-                return
+        if act == a_prev:
+            self.render_favorite(item.text())
+        elif act == a_edit:
+            self._edit_item(item)
+        elif act == a_del:
+            self._delete_item(item)
+
+    def _edit_item(self, item):
+        old = item.text()
+        dlg = EditFormulaDialog(old, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new = dlg.value()
+            if new and new != old:
+                idx = self.list_widget.row(item)
+                self.favorites[idx] = new
+                item.setText(new)
+                self.save_favorites()
+                self._set_status("已更新")
+
+    def _delete_item(self, item):
+        idx = self.list_widget.row(item)
+        if 0 <= idx < len(self.favorites):
+            del self.favorites[idx]
             self.refresh_list()
             self.save_favorites()
-            self._set_status("已删除收藏")
-        elif act == a_edit:
-            new_text, ok = QInputDialog.getText(self, "编辑公式", "修改：", text=item.text())
-            if ok and new_text.strip():
-                idx = self.favorites.index(item.text())
-                self.favorites[idx] = new_text.strip()
-                self.refresh_list()
-                self.save_favorites()
-                self._set_status("已修改收藏")
-        elif act == a_prev:
-            self.render_favorite(item.text())
-            self._set_status("已渲染预览")
+            self._set_status("已删除")
+
+    # ---------- 列表/文件 ----------
     def refresh_list(self):
         self.list_widget.clear()
         self.list_widget.addItems(self.favorites)
 
     def select_file(self):
-        path, _ = QFileDialog.getSaveFileName(self, "选择收藏夹保存路径", os.getcwd(), "JSON Files (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "选择收藏夹保存路径",
+                                             os.path.dirname(self.file_path),
+                                             "JSON Files (*.json)")
         if path:
             self.file_path = path
             self.cfg.set("favorites_path", path)
             self.save_favorites()
-            QMessageBox.information(self, "提示", f"已设置收藏保存路径: {path}")
+            self._set_status("已更新保存路径")
 
-    # ===== 5. FavoritesWindow.load_favorites 修正占位（只替换该方法）=====
     def load_favorites(self):
         if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, list):
-                    self.favorites = [str(x) for x in data if isinstance(x, (str, int, float))]
-                else:
-                    self.favorites = []
+                    self.favorites = [str(x) for x in data]
             except Exception as e:
-                print("加载收藏失败:", e)
-                self.favorites = []
+                print("[Favorites] 加载失败:", e)
         self.refresh_list()
 
     def save_favorites(self):
@@ -273,33 +381,34 @@ class FavoritesWindow(QWidget):
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(self.favorites, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"收藏保存失败: {e}")
+            print("[Favorites] 保存失败:", e)
 
+    # ---------- 对外 ----------
+    def add_favorite(self, text: str):
+        t = (text or "").strip()
+        if not t:
+            self._set_status("空公式，忽略")
+            return
+        if t in self.favorites:
+            self._set_status("已存在")
+            return
+        self.favorites.append(t)
+        self.refresh_list()
+        self.save_favorites()
+        self.show(); self.raise_(); self.activateWindow()
+        self._set_status("已加入收藏")
 
-# ---- 5. 修改 FavoritesWindow.render_favorite ----
     def render_favorite(self, latex_code: str):
         code = (latex_code or "").strip()
         if not code:
             return
-        if DISABLE_WEBENGINE_PREVIEW or self.cfg.get("disable_webengine_preview"):
-            QMessageBox.information(self, "预览(降级)", code)
-            return
-        if self.preview_view is None:
-            try:
-                from PyQt6.QtWebEngineWidgets import QWebEngineView
-                self.preview_view = QWebEngineView(self.render_container)
-                self.preview_view.setFixedHeight(160)
-                self.render_layout.addWidget(self.preview_view)
-            except Exception as e:
-                QMessageBox.warning(self, "错误", f"创建预览失败: {e}")
-                return
-        try:
-            self.preview_view.setHtml(
-                "<html><body style='background:#f0f0f0;font-size:12px;color:#666;'>加载中...</body></html>")
+        if self._web_ok and isinstance(self._preview_view, QWebEngineView):
             html = build_math_html(code)
-            QTimer.singleShot(0, lambda: self.preview_view.setHtml(html))
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"渲染失败: {e}")
+            self._preview_view.setHtml(html)
+        else:
+            self._preview_view.setText(code)
+        self._set_status("已渲染")
+
 # ---------------- 设置窗口 ----------------
 class SettingsWindow(QDialog):
     model_changed = pyqtSignal(str)
@@ -310,8 +419,8 @@ class SettingsWindow(QDialog):
         self.resize(300, 180)
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("选择公式识别模型:"))
-        self.btn_pix2tex = QPushButton("pix2tex")
-        self.btn_pix2text = QPushButton("pix2text")
+        self.btn_pix2tex = QPushButton("pix2tex(cpu)")
+        self.btn_pix2text = QPushButton("pix2text(gpu)")
         for b in (self.btn_pix2tex, self.btn_pix2text):
             b.setStyleSheet(BTN_PRIMARY)
         lay.addWidget(self.btn_pix2tex)
@@ -371,8 +480,9 @@ class MainWindow(QWidget):
             self.model = ModelWrapper()
             self.model.status_signal.connect(self.show_status_message)
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"模型初始化失败: {e}")
-            self.model = None
+            QMessageBox.critical(None, "错误", f"模型初始化失败: {e}")
+            QTimer.singleShot(0, lambda: os._exit(1))  # 直接杀死进程
+            return
 
         # 历史
         self.history_path = os.path.join(os.path.expanduser("~"), DEFAULT_HISTORY_NAME)
@@ -448,13 +558,21 @@ class MainWindow(QWidget):
         tray_menu.addAction("退出", self.truly_exit)
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
-
+        self.update_tray_tooltip()
         # 初始化界面
         self.load_history()
         self.update_history_ui()
         self.refresh_status_label()
 
+        self.update_tray_menu()
+
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
+
+    # --- 新增方法：托盘提示更新 ---
+    def update_tray_tooltip(self):
+        hk = self.cfg.get("hotkey", "Ctrl+F")
+        if getattr(self, "tray_icon", None):
+            self.tray_icon.setToolTip(f"LaTeXSnipper - 截图识别快捷键: {hk}")
 
     def _safe_call(self, name, fn):
         print(f"[SlotEnter] {name}")
@@ -472,6 +590,55 @@ class MainWindow(QWidget):
             base += f" | {self.action_status}"
         self.status_label.setText(base)
 
+    def _on_history_row_context(self, row: QWidget, pos):
+        menu = QMenu(self)
+        act_prev = menu.addAction("预览")
+        act_edit = menu.addAction("编辑公式")
+        act_copy = menu.addAction("复制")
+        act_fav = menu.addAction("加入收藏")
+        act_del = menu.addAction("删除")
+        chosen = menu.exec(row.mapToGlobal(pos))
+        if chosen == act_prev:
+            self.preview_formula(row._latex_text)
+        elif chosen == act_edit:
+            self._edit_history_row(row)
+        elif chosen == act_copy:
+            self.copy_history_item(row._latex_text)
+        elif chosen == act_fav:
+            self.favorites_window.add_favorite(row._latex_text)
+        elif chosen == act_del:
+            self.delete_history_item(row, row._latex_text)
+    def _history_row_index(self, row: QWidget):
+        # layout 最后一个是 stretch, 所以有效行数 = count - 1
+        total = self.history_layout.count() - 1
+        for i in range(total):
+            item = self.history_layout.itemAt(i)
+            w = item.widget() if item else None
+            if w is row:
+                return i
+        return None
+    def _edit_history_row(self, row: QWidget):
+        old_latex = getattr(row, "_latex_text", "")
+        dlg = EditFormulaDialog(old_latex, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_latex = dlg.value()
+        if not new_latex or new_latex == old_latex:
+            return
+        # 更新 row 内部文本
+        row._latex_text = new_latex
+        lbl = row.findChild(QLabel)
+        if lbl:
+            lbl.setText(new_latex)
+        # 定位并更新 self.history
+        idx = self._history_row_index(row)
+        if idx is not None and 0 <= idx < len(self.history):
+            self.history[idx] = new_latex
+            try:
+                self.save_history()
+            except Exception as e:
+                print("[WARN] 保存历史失败:", e)
+        self.set_action_status("已更新公式")
     def _qpixmap_to_pil(self, pixmap):
         buf = QBuffer()
         if not buf.open(QIODevice.OpenModeFlag.ReadWrite):
@@ -552,6 +719,10 @@ class MainWindow(QWidget):
                 lambda r=row: self.favorites_window.add_favorite(r._latex_text))
         add_btn("删除", "删除该条记录", "delete",
                 lambda r=row: self.delete_history_item(r, r._latex_text))
+        row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        row.customContextMenuRequested.connect(
+            lambda pos, r=row: self._on_history_row_context(r, pos)
+        )
         return row
     def add_history_record(self, text: str):
         t = (text or "").strip()
@@ -593,11 +764,15 @@ class MainWindow(QWidget):
 
     def update_history_ui(self):
         if self.history:
-            self.clear_history_button.setEnabled(True)
+            # 有历史
+            self.clear_history_button.setText("清空历史记录")
             self.clear_history_button.setToolTip("清空所有历史记录")
         else:
-            self.clear_history_button.setEnabled(False)
-            self.clear_history_button.setToolTip("当前无历史记录")
+            # 无历史但仍可点，点击会弹出提示（逻辑已在 clear_history 内）
+            self.clear_history_button.setText("清空历史记录（无记录）")
+            self.clear_history_button.setToolTip("当前无历史记录，点击会提示")
+        # 始终保持可点
+        self.clear_history_button.setEnabled(True)
 
     def save_history(self):
         try:
@@ -685,14 +860,45 @@ class MainWindow(QWidget):
         self.predict_thread.finished.connect(_cleanup)
         self.predict_thread.start()
 
+    # 2. 托盘菜单项显示快捷键
+    def update_tray_menu(self):
+        hk = self.cfg.get("hotkey", "Ctrl+F")
+        tray_menu = QMenu()
+        tray_menu.addAction("打开主窗口", self.show_window)
+        tray_menu.addAction(f"截图识别（{hk}）", self.start_capture)
+        tray_menu.addAction("退出", self.truly_exit)
+        self.tray_icon.setContextMenu(tray_menu)
+
     def on_predict_ok(self, latex: str):
         self.set_model_status("完成")
+        if getattr(self, "tray_icon", None):
+            hk = self.cfg.get("hotkey", "Ctrl+F")
+            # 识别完成托盘提示（不打扰主窗口使用）
+            try:
+                self.tray_icon.showMessage(
+                    "识别完成",
+                    f"公式已识别。使用快捷键 {hk} 可再次截图。",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    3500
+                )
+            except Exception:
+                pass
         self.show_confirm_dialog(latex)
 
     def on_predict_fail(self, msg: str):
         self.set_model_status("失败")
+        if getattr(self, "tray_icon", None):
+            hk = self.cfg.get("hotkey", "Ctrl+F")
+            try:
+                self.tray_icon.showMessage(
+                    "识别失败",
+                    f"{msg}\n可使用快捷键 {hk} 重试。",
+                    QSystemTrayIcon.MessageIcon.Critical,
+                    4000
+                )
+            except Exception:
+                pass
         QMessageBox.warning(self, "错误", msg)
-
     # ---------- 结果确认 & 预览 ----------
     def show_confirm_dialog(self, latex_code: str):
         code = (latex_code or "").strip()
@@ -768,19 +974,23 @@ class MainWindow(QWidget):
         b = QPushButton("关闭"); b.setStyleSheet(BTN_PRIMARY); b.clicked.connect(dlg.accept)
         lay.addWidget(b)
         dlg.exec()
+
     def clear_history(self):
+        # 若无记录给提示
         if not self.history:
-            self.set_action_status("无历史记录")
+            QMessageBox.information(self, "提示", "当前没有历史记录可清空。")
             return
         ret = QMessageBox.question(
-            self, "确认", "确定清空全部历史记录？",
+            self, "确认", "确认清空所有历史记录？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        if ret == QMessageBox.StandardButton.Yes:
-            self.history.clear()
-            self.save_history()
-            self.rebuild_history_ui()
-            self.set_action_status("已清空历史")
+        if ret != QMessageBox.StandardButton.Yes:
+            return
+        self.history.clear()
+        self.save_history()
+        self.rebuild_history_ui()
+        self.update_history_ui()  # 确保按钮状态刷新
+        self.set_action_status("已清空历史")
     def register_hotkey(self, seq: str):
         if not self.hotkey:
             # 全局热键已禁用，忽略
@@ -844,7 +1054,8 @@ class MainWindow(QWidget):
         self.cfg.set("hotkey", text)
         dialog.accept()
         QMessageBox.information(self, "提示", f"已更新: {text}")
-
+        self.update_tray_tooltip()
+        self.update_tray_menu()
     # ---------- 其它 UI ----------
     def open_settings(self):
         if self.settings_window and self.settings_window.isVisible():
@@ -868,6 +1079,7 @@ class MainWindow(QWidget):
         self.show()
         self.raise_()
         self.activateWindow()
+        self.set_action_status("主窗口已显示")
 
     # ---------- 关闭 / 资源清理 ----------
     def _cleanup_webengine_views(self):
@@ -885,14 +1097,16 @@ class MainWindow(QWidget):
         except Exception:
             pass
 
+    # python
     def _graceful_shutdown(self):
         if getattr(self, "_shutdown_done", False):
             return
+        self._shutdown_done = True  # 防止多次调用
         if self.predict_thread:
             try:
                 if self.predict_thread.isRunning():
                     self.predict_thread.quit()
-                    self.predict_thread.wait(1500)
+                    self.predict_thread.wait(3000)  # 等待线程结束
             except Exception:
                 pass
         if self.predict_worker:
@@ -903,6 +1117,7 @@ class MainWindow(QWidget):
         self.predict_thread = None
         self.predict_worker = None
         self._predict_busy = False
+
     # ------ 5) 修改 closeEvent（替换原实现） ------
     def closeEvent(self, event):
         if self._force_exit:
@@ -967,6 +1182,34 @@ class PredictionWorker(QObject):
                 self.finished.emit(res.strip())
         except Exception as e:
             self.failed.emit(str(e))
+# ---------------- 编辑公式对话框 ----------------
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+
+class EditFormulaDialog(QDialog):
+    def __init__(self, latex: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("编辑公式")
+        self.resize(560, 360)
+        lay = QVBoxLayout(self)
+        self.editor = QTextEdit(self)
+        self.editor.setAcceptRichText(False)
+        # 自动换行：按窗口宽度换行
+        self.editor.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        # Tab 键跳焦点（可选）
+        self.editor.setTabChangesFocus(True)
+        self.editor.setPlainText(latex or "")
+        lay.addWidget(self.editor, 1)
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            parent=self
+        )
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def value(self) -> str:
+        return self.editor.toPlainText().strip()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
