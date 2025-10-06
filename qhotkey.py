@@ -1,5 +1,7 @@
+
 import ctypes
 import ctypes.wintypes
+from typing import Optional, Union
 from PyQt6.QtCore import QObject, pyqtSignal, Qt, QAbstractNativeEventFilter, QAbstractEventDispatcher
 from PyQt6.QtGui import QKeySequence
 
@@ -11,23 +13,20 @@ MOD_SHIFT   = 0x0004
 MOD_WIN     = 0x0008
 WM_HOTKEY   = 0x0312
 
-# 仅替换 WinHotkeyFilter 内的 nativeEventFilter 方法
+
 class WinHotkeyFilter(QAbstractNativeEventFilter):
     def __init__(self, owner_getter):
         super().__init__()
         self._owner_getter = owner_getter  # lambda: GlobalHotkey
 
     def nativeEventFilter(self, eventType, message):
-        # PyQt6: eventType 为 bytes，比如 b"windows_generic_MSG"
         if eventType != b"windows_generic_MSG":
             return False, 0
         try:
-            # message 可能是 int 或 sip.voidptr，可转为 int 地址
             try:
                 addr = int(message)
             except Exception:
                 return False, 0
-            # 读取 MSG 结构
             msg = ctypes.wintypes.MSG.from_address(addr)
             if msg.message == WM_HOTKEY:
                 owner = self._owner_getter()
@@ -35,9 +34,9 @@ class WinHotkeyFilter(QAbstractNativeEventFilter):
                     owner.activated.emit()
                     return True, 0
         except Exception as e:
-            # 只打印一次简短错误，避免刷屏，可按需加节流
             print("[Hotkey] nativeEventFilter error:", e)
         return False, 0
+
 
 class GlobalHotkey(QObject):
     activated = pyqtSignal()
@@ -137,8 +136,8 @@ class QHotkey(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._seq_obj: QKeySequence | None = None
-        self._seq_str: str | None = None
+        self._seq_obj: Optional[QKeySequence] = None
+        self._seq_str: Optional[str] = None
         self._global = GlobalHotkey(self)
         self._global.activated.connect(self.activated.emit)
 
@@ -169,7 +168,7 @@ class QHotkey(QObject):
             raise ValueError("不支持的按键")
         return "+".join(parts)
 
-    def register(self, seq: QKeySequence | str | None = None):
+    def register(self, seq: Union[QKeySequence, str, None] = None):
         if seq is not None:
             if isinstance(seq, str):
                 seq = QKeySequence(seq)
