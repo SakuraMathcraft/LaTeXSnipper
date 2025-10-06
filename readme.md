@@ -22,7 +22,7 @@ LaTeXSnipper 是一款基于pix2tex和pix2text开源模型，用于将图片中�
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
 2. 下载最新版 `LaTeXSnipper.exe`
-3. 双击运行即可，无需额外安装 Python
+3. 双击运行即可，无需额外捣鼓环境依赖
 
 ### 方法二：从源码安装
 ⚠️ 注意（Windows 用户必读）
