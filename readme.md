@@ -24,14 +24,13 @@ LaTeXSnipper 是一款基于pix2tex和pix2text开源模型，用于将图片中�
 2. 下载最新版 `LaTeXSnipper.exe`
 3. 双击运行即可，无需额外安装 Python
 
+### 方法二：从源码安装
 ⚠️ 注意（Windows 用户必读）
 请确保已安装 Microsoft Visual C++ Redistributable(https://aka.ms/vs/17/release/vc_redist.x64.exe)
 否则可能会出现缺少 DLL 的报错。
 
 本地部署报错和安装示意：
 ![LaTeXSnipper Logo](environment.png)
-### 方法二：从源码安装
-
 1. 克隆仓库：
 ```bash
 git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
