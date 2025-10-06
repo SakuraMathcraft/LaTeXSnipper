@@ -67,12 +67,10 @@ python src/main.py
 ## 文件说明
 - `src/`：源代码目录
   - `main.py`：主程序入口
-  - `gui.py`：图形界面相关代码
-  - `ocr.py`：OCR 识别相关代码
 - `requirements.txt`：Python 依赖列表
 - `README.md`：项目说明文档
 - `LICENSE`：开源许可证
-- `releases/`：发布的可执行文件
+- `releases/`：发布的可执行文件以及复现源码
 - `assets/`：图标和资源文件
 - `.venv/`：Python 虚拟环境目录
 - `.gitignore`：Git 忽略文件列表
@@ -89,6 +87,7 @@ python src/main.py
 ---
 ## 联系方式
 如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
+
 
 
 
