@@ -1,5 +1,5 @@
 {
   "version": "beta_v0.1",
   "url": "https://github.com/SakuraMathcraft/LaTeXSnipper/releases/tag/v0.1-beta",
-  "changelog": "betav0.1 更新内容:\n- 新增: GPU识别功能，公式编辑\n- 修复: 启动时偶发崩溃；快捷键失效问题\n- 改进: UI 加载速度；多线程优化\n\n提示: 更详细的更新日志, 请到 Releases 页面(目前还是beta阶段)查看。"
+  "changelog": "beta_v0.1 更新内容:\n- 新增: GPU识别功能，公式编辑\n- 修复: 启动时偶发崩溃；快捷键失效问题\n- 改进: UI 加载速度；多线程优化\n\n提示: 更详细的更新日志, 请到 Releases 页面(目前还是beta阶段)查看。"
 }
