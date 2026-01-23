@@ -34,13 +34,13 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="https://via.placeholder.com/400x300?text=Formula+Recognition" alt="公式识别">
+      <img width="1141" height="745" alt="latexsnipper5" src="https://github.com/user-attachments/assets/05d512b9-d453-4138-bd33-e682c1d4510c" />
       <br/>
       <b>📐 智能识别</b><br/>
       毫秒级识别各类数学公式
     </td>
     <td align="center" width="50%">
-      <img src="https://via.placeholder.com/400x300?text=Multi-Format+Export" alt="多格式导出">
+      <img width="756" height="668" alt="latexsnipper7" src="https://github.com/user-attachments/assets/bdd73f8d-0aee-41be-b951-da395defc4b0" />
       <br/>
       <b>🔄 多格式转换</b><br/>
       支持 6+ 种输出格式
@@ -48,13 +48,13 @@
   </tr>
   <tr>
     <td align="center">
-      <img src="https://via.placeholder.com/400x300?text=Real-time+Preview" alt="实时预览">
+      <img width="888" height="675" alt="latexsnipper6" src="https://github.com/user-attachments/assets/5bc3ff1e-d54d-4069-b390-26d4506af95d" />
       <br/>
       <b>👀 实时预览</b><br/>
       识别效果即时反馈
     </td>
     <td align="center">
-      <img src="https://via.placeholder.com/400x300?text=Offline+Processing" alt="离线处理">
+      <img width="579" height="619" alt="latexsnipper4" src="https://github.com/user-attachments/assets/7de1c473-5292-42f3-b34e-2a318eca68af" />
       <br/>
       <b>🔐 离线运行</b><br/>
       隐私保护，无需联网
@@ -297,7 +297,7 @@ pyinstaller LaTeXSnipper.spec
   <tr>
     <td align="center">
       <a href="https://github.com/SakuraMathcraft">
-        <img src="https://avatars.githubusercontent.com/u/YOUR_ID?v=4" width="80px" alt="SakuraMathcraft"/>
+        <img width="99" height="102" alt="me" src="https://github.com/user-attachments/assets/b0e05780-40ed-4473-b854-1a259f738a9b" />
         <br/>
         <b>SakuraMathcraft</b>
         <br/>
@@ -378,6 +378,7 @@ pyinstaller LaTeXSnipper.spec
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
 
 
