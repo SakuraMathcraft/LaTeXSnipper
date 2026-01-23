@@ -133,7 +133,7 @@ python src/main.py
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+Alt+X` | 启动截图识别（可在设置中自定义） |
+| `Ctrl+F` | 启动截图识别（可在设置中自定义） |
 | `ESC` | 取消当前截图操作 |
 
 ### 导出格式说明
@@ -378,5 +378,6 @@ pyinstaller LaTeXSnipper.spec
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
 
