@@ -1,0 +1,35 @@
+# LaTeXSnipper 打包基础依赖
+# 这些是打包进 EXE 的最小依赖集，用于显示 UI 和下载其他依赖
+
+# Qt UI 框架
+PyQt6>=6.0.0
+PyQt6-Qt6>=6.0.0
+PyQt6-sip>=13.0.0
+PyQt6-WebEngine>=6.0.0
+
+# Fluent Design 组件库
+qfluentwidgets>=1.0.0
+
+# 图像处理（基础）
+Pillow>=9.0.0
+mss>=9.0.0
+
+# 数学公式转换
+latex2mathml>=2.0.0
+
+# 剪贴板
+pyperclip>=1.8.0
+
+# 全局热键
+keyboard>=0.13.0
+pyautogui>=0.9.0
+
+# 网络请求（用于下载依赖和检查更新）
+requests>=2.25.0
+urllib3>=1.26.0
+
+# 版本管理
+packaging>=21.0
+
+# 注意：torch, pix2tex, pix2text 等大型依赖不在此列表
+# 它们通过"依赖管理向导"在运行时下载

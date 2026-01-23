@@ -1,107 +1,220 @@
-# LaTeXSnipper
-![LaTeXSnipper Logo](icon.ico)
+# LaTeXSnipper ✨
 
+> 一键截图，即得 LaTeX 公式 | Screenshot → LaTeX Formula
 
-LaTeXSnipper 是一款基于pix2tex和pix2text开源模型，用于将图片中的数学公式快速识别并转换为 LaTeX 代码的桌面工具。通过简单的截图操作，即可得到对应的 LaTeX 公式，大幅提升数学文档编辑效率。
+![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=social)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Version](https://img.shields.io/badge/version-1.0-brightgreen)
 
----
-
-## 功能
-
-- 截图识别数学公式，生成 LaTeX 代码
-- 支持多行公式和复杂符号
-- 自动复制 LaTeX 代码到剪贴板
-- 内置 Pix2Tex OCR 模型和pix2text模型，离线识别
-- 界面简洁，易于操作
+LaTeXSnipper 是一款**开源跨平台**桌面工具，基于 pix2tex 和 pix2text 深度学习模型，将图片中的数学公式快速识别并转换为多种格式代码。通过简单的截图操作，即可得到对应的 LaTeX、MathML、Markdown 等多格式公式，**大幅提升数学文档编辑效率**。
 
 ---
 
-## 安装
+## ✨ 核心功能
 
-### 方法一：下载可执行文件（最新版已停用，仅适用于预览版1.0和1.1）
+| 功能 | 说明 |
+|------|------|
+| 📸 **智能识别** | 截图识别数学公式，支持行内/行间/混合内容 |
+| 🔄 **多格式转换** | 支持 LaTeX、Markdown、MathML、HTML、OMML、SVG 等格式 |
+| 🚀 **离线运行** | 内置模型，无需联网，隐私安全 |
+| 🎯 **实时预览** | 公式识别即时预览，效果一目了然 |
+| ⚡ **快捷便利** | 一键复制到剪贴板，集成系统快捷键 |
+| 📦 **零依赖** | 便携式 exe 可执行文件，开箱即用 |
+| 🔧 **高度可定制** | 支持模型选择、导出格式、快捷键自定义 |
+
+---
+
+## 🚀 快速开始
+
+### 方法一：下载可执行文件 (推荐) ⭐
+
+**Windows 用户最简单的方式，无需安装 Python**
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper.exe`
-3. 双击运行即可，无需额外捣鼓环境依赖
+2. 下载最新版 `LaTeXSnipper-v1.0.exe`
+3. 双击运行即可，首次启动会自动下载必要模型（约 500MB+）
+4. ✅ 完成！开始截图识别公式
 
-### 方法二：从源码安装
-⚠️ 注意（Windows 用户必读）
-请确保已安装 Microsoft Visual C++ Redistributable(https://aka.ms/vs/17/release/vc_redist.x64.exe)
-否则可能会出现缺少 DLL 的报错。
+**⚠️ 重要说明（Windows 用户必读）**
 
-本地部署报错和安装示意：
-![LaTeXSnipper Logo](environment.png)
-1. 克隆仓库：
+请确保已安装 [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)  
+否则可能出现缺少 `msvcp140.dll` 等报错。一键下载安装即可。
+
+### 方法二：从源码安装 (开发者)
+
 ```bash
+# 克隆仓库
 git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
 cd LaTeXSnipper
-```
-2. 创建并激活虚拟环境：
-```bash
+
+# 创建并激活虚拟环境
 python -m venv .venv
 .\.venv\Scripts\activate  # Windows
-# 或 macOS/Linux:
-# source .venv/bin/activate
-```
-3. 安装依赖：
-```bash
+# macOS/Linux: source .venv/bin/activate
+
+# 安装依赖
 pip install -r requirements.txt
-```
-4. 运行程序：
-```bash
+
+# 运行程序
 python src/main.py
 ```
-⚠️ 注意：第一次运行时，Pix2Tex和Pix2Text模型会自动下载，请保持网络连接。
-## 使用说明
-![LaTeXSnipper Logo](signal.png)
-1. 打开 LaTeXSnipper。
 
-2. 点击“截图公式”按钮或使用快捷键。
-
-3. 框选屏幕上的数学公式区域。
-
-4. 程序会自动识别公式，并将对应 LaTeX 代码复制到剪贴板。
-
-5. 粘贴到你的文档中即可。
-## 文件说明
-- `src/`：源代码目录
-  - `main.py`：主程序入口
-- `requirements.txt`：Python 依赖列表
-- `README.md`：项目说明文档
-- `LICENSE`：开源许可证
-- `releases/`：发布的可执行文件以及复现源码
-- `assets/`：图标和资源文件
-- `.venv/`：Python 虚拟环境目录
-- `.gitignore`：Git 忽略文件列表
-## 贡献
-
-欢迎通过 GitHub 提交 Issue 或 Pull Request 贡献代码！  
-请遵守 [Code of Conduct](CODE_OF_CONDUCT.md) 和 [贡献指南](CONTRIBUTING.md)。
+⚠️ 首次运行需保持网络连接，pix2tex 模型会自动下载。
 
 ---
-## 许可证
 
-本项目遵循 MIT 许可证，详见 [LICENSE](LICENSE) 文件。
+## 📖 使用说明
+
+### 基础流程
+
+1. **打开应用** - 启动 LaTeXSnipper
+2. **截图公式** - 点击"截图公式"按钮或按下配置的快捷键
+3. **框选区域** - 用鼠标拖拽框选屏幕上的数学公式
+4. **自动识别** - 程序自动识别公式内容
+5. **实时预览** - 在预览面板中查看多格式转换结果
+6. **复制使用** - 点击复制相应格式代码到剪贴板
+7. **粘贴文档** - 粘贴到你的 LaTeX、Word、Markdown 等文档中
+
+### 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+Alt+X` | 启动截图识别（可在设置中自定义） |
+| `ESC` | 取消当前截图操作 |
+
+### 导出格式说明
+
+- **LaTeX** - 标准数学模式，可直接用于 LaTeX 文档
+- **Markdown** - 支持行内 `$...$` 和 block `$$...$$` 格式
+- **MathML** - W3C 标准数学标记语言
+- **HTML** - HTML5 数学公式表示
+- **OMML** - Office Open XML 格式（Word 兼容）
+- **SVG** - 向量图形格式，可嵌入网页
+
+### 依赖层级说明
+
+LaTeXSnipper 支持灵活的依赖安装策略：
+
+| 层级 | 包含内容 | 用途 |
+|-----|--------|------|
+| **BASIC** | PyQt6、requests、PIL 等 | 基础界面和网络功能 |
+| **CORE** | pix2tex、latex2mathml、matplotlib | 核心公式识别和转换 |
+| **HEAVY_CPU** | PyTorch CPU 版 | CPU 上运行深度学习模型 |
+| **HEAVY_GPU** | PyTorch GPU 版、CUDA | GPU 加速识别（需要 NVIDIA 显卡） |
+| **OCR** | PaddleOCR | 文字识别功能 |
+
+首次启动时会引导选择安装层级，可根据硬件和需求灵活选择。
 
 ---
-## 联系方式
-如有问题或建议，可联系项目维护者 [SakuraMathcraft](https://github.com/SakuraMathcraft)。
 
+## 🏗️ 项目结构
 
+```
+LaTeXSnipper/
+├── src/                          # 源代码
+│   ├── main.py                  # 主程序入口
+│   ├── deps_bootstrap.py        # 依赖管理和引导安装
+│   ├── updater.py               # 更新检查模块
+│   ├── config.json              # 配置文件
+│   ├── backend/                 # 后端模块
+│   │   ├── model.py             # 模型管理
+│   │   ├── capture_overlay.py   # 截图覆盖层
+│   │   └── qhotkey/             # 全局快捷键
+│   ├── core/                    # 核心功能
+│   │   ├── utils.py             # 工具函数
+│   │   ├── constants.py         # 常量定义
+│   │   └── config.py            # 配置管理
+│   ├── ui/                      # UI 组件
+│   │   ├── dialogs.py           # 对话框
+│   │   └── widgets.py           # 自定义控件
+│   └── assets/                  # 资源文件
+│       └── MathJax-3.2.2/       # MathJax 库
+├── requirements.txt              # 项目依赖
+├── LaTeXSnipper.spec            # PyInstaller 打包配置
+├── LICENSE                       # MIT 许可证
+└── README.md                     # 本文件
+```
 
+---
 
+## 🔧 开发信息
 
+### 技术栈
 
+- **UI 框架** - PyQt6 + QFluentWidgets（流畅设计语言）
+- **模型识别** - pix2tex（公式识别）、pix2text（文字识别）
+- **格式转换** - latex2mathml、sympy
+- **渲染预览** - MathJax 3.2.2、matplotlib
+- **打包工具** - PyInstaller
 
+### 本地开发
 
+```bash
+# 安装开发依赖
+pip install -r requirements.txt
 
+# 运行测试
+python src/test.py
 
+# 打包可执行文件
+pyinstaller LaTeXSnipper.spec
+```
 
+### 故障排查
 
+| 问题 | 解决方案 |
+|-----|--------|
+| 缺少 DLL | 安装 [VC++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| 模型下载失败 | 检查网络连接或设置代理，可手动下载放入 `deps/` |
+| 识别结果不准 | 尝试调整截图区域，确保完整捕获公式 |
+| 界面闪烁 | 尝试禁用硬件加速或更新显卡驱动 |
 
+---
 
+## 🤝 贡献指南
 
+欢迎通过以下方式贡献代码：
 
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交改动 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 开启 Pull Request
 
+请确保你的代码：
 
+- 遵循现有的代码风格
+- 包含必要的注释和文档
+- 通过所有测试
 
+---
+
+## 📝 许可证
+
+本项目遵循 **MIT 许可证**，详见 [LICENSE](LICENSE) 文件。
+
+你可以自由地使用、修改和分发此项目，只需在许可证中保留原始署名。
+
+---
+
+## 📧 联系方式
+
+- **问题反馈** - [GitHub Issues](https://github.com/SakuraMathcraft/LaTeXSnipper/issues)
+- **功能建议** - [GitHub Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions)
+- **维护者** - [SakuraMathcraft](https://github.com/SakuraMathcraft)
+
+---
+
+## 🙏 致谢
+
+感谢以下开源项目的支持：
+
+- [pix2tex](https://github.com/lukas-blecher/LaTeX-OCR) - LaTeX 公式 OCR
+- [pix2text](https://github.com/breezedeus/pix2text) - 文字识别
+- [MathJax](https://www.mathjax.org/) - 数学公式渲染
+- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - UI 框架
+- [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) - 流畅设计
+
+---
+
+**Made with ❤️ by SakuraMathcraft**
