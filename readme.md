@@ -4,6 +4,7 @@
 
 > 🎯 **一键截图，即得 LaTeX 公式** | Screenshot → LaTeX Formula in Seconds
 <img width="1919" height="1019" alt="latexsnipper" src="https://github.com/user-attachments/assets/e5a8e930-165b-4f69-a871-f05dc5ad6a81" />
+
 ### 📊 项目统计
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
@@ -377,4 +378,5 @@ pyinstaller LaTeXSnipper.spec
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
