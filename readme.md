@@ -3,8 +3,7 @@
 <div align="center">
 
 > 🎯 **一键截图，即得 LaTeX 公式** | Screenshot → LaTeX Formula in Seconds
-
-![应用主界面](https://via.placeholder.com/800x500?text=LaTeXSnipper+Main+Interface)
+<img width="1919" height="1019" alt="latexsnipper" src="https://github.com/user-attachments/assets/e5a8e930-165b-4f69-a871-f05dc5ad6a81" />
 
 ### 📊 项目统计
 
@@ -12,7 +11,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v1.0-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v1.01-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.9+-blue?style=flat-square)
 
@@ -22,7 +21,7 @@
 
 ---
 
-**LaTeXSnipper** 是一款**开源跨平台**桌面工具，基于深度学习模型（pix2tex 和 pix2text），将图片中的数学公式快速识别并转换为多种格式代码。
+**LaTeXSnipper** 是一款**开源跨平台**桌面工具，基于深度学习模型（pix2tex 和 pix2text以及unimernet），将图片中的数学公式快速识别并转换为多种格式代码。
 
 通过简单的截图操作，即可得到对应的 **LaTeX、MathML、Markdown** 等多格式公式，**大幅提升数学文档编辑效率**！
 
@@ -35,13 +34,13 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="https://via.placeholder.com/400x300?text=Formula+Recognition" alt="公式识别">
+      <img width="1141" height="745" alt="latexsnipper5" src="https://github.com/user-attachments/assets/05d512b9-d453-4138-bd33-e682c1d4510c" />
       <br/>
       <b>📐 智能识别</b><br/>
       毫秒级识别各类数学公式
     </td>
     <td align="center" width="50%">
-      <img src="https://via.placeholder.com/400x300?text=Multi-Format+Export" alt="多格式导出">
+      <img width="756" height="668" alt="latexsnipper7" src="https://github.com/user-attachments/assets/bdd73f8d-0aee-41be-b951-da395defc4b0" />
       <br/>
       <b>🔄 多格式转换</b><br/>
       支持 6+ 种输出格式
@@ -49,13 +48,13 @@
   </tr>
   <tr>
     <td align="center">
-      <img src="https://via.placeholder.com/400x300?text=Real-time+Preview" alt="实时预览">
+      <img width="888" height="675" alt="latexsnipper6" src="https://github.com/user-attachments/assets/5bc3ff1e-d54d-4069-b390-26d4506af95d" />
       <br/>
       <b>👀 实时预览</b><br/>
       识别效果即时反馈
     </td>
     <td align="center">
-      <img src="https://via.placeholder.com/400x300?text=Offline+Processing" alt="离线处理">
+      <img width="579" height="619" alt="latexsnipper4" src="https://github.com/user-attachments/assets/7de1c473-5292-42f3-b34e-2a318eca68af" />
       <br/>
       <b>🔐 离线运行</b><br/>
       隐私保护，无需联网
@@ -83,11 +82,11 @@
 
 ### 方法一：下载可执行文件 (推荐) ⭐
 
-**Windows 用户最简单的方式，无需安装 Python**
+**Windows 用户最简单的方式，内置 Python**
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper-v1.0.exe`
-3. 双击运行即可，首次启动会自动下载必要模型（约 500MB+）
+2. 下载最新版 `LaTeXSnipper-v1.01.exe`
+3. 双击运行即可，首次启动会自动下载必要模型（约 2GB+）
 4. ✅ 完成！开始截图识别公式
 
 **⚠️ 重要说明（Windows 用户必读）**
@@ -95,7 +94,7 @@
 请确保已安装 [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)  
 否则可能出现缺少 `msvcp140.dll` 等报错。一键下载安装即可。
 
-### 方法二：从源码安装 (开发者)
+### 方法二：从源码安装(可能报错，需要调试)
 
 ```bash
 # 克隆仓库
@@ -134,7 +133,7 @@ python src/main.py
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+Alt+X` | 启动截图识别（可在设置中自定义） |
+| `Ctrl+F` | 启动截图识别（可在设置中自定义） |
 | `ESC` | 取消当前截图操作 |
 
 ### 导出格式说明
@@ -158,7 +157,7 @@ LaTeXSnipper 支持灵活的依赖安装策略：
 | **HEAVY_GPU** | PyTorch GPU 版、CUDA | GPU 加速识别（需要 NVIDIA 显卡） |
 | **OCR** | PaddleOCR | 文字识别功能 |
 
-首次启动时会引导选择安装层级，可根据硬件和需求灵活选择。
+首次启动时会引导选择安装层级，可根据硬件和需求灵活选择（一般情况下默认安装BASIC和CORE即可）。
 
 ---
 
@@ -197,30 +196,17 @@ LaTeXSnipper/
 ### 技术栈
 
 - **UI 框架** - PyQt6 + QFluentWidgets（流畅设计语言）
-- **模型识别** - pix2tex（公式识别）、pix2text（文字识别）
+- **模型识别** - pix2tex、pix2text、unimernet
 - **格式转换** - latex2mathml、sympy
-- **渲染预览** - MathJax 3.2.2、matplotlib
+- **渲染预览** - MathJax 3.2.2、pdf/xelatex
 - **打包工具** - PyInstaller
-
-### 本地开发
-
-```bash
-# 安装开发依赖
-pip install -r requirements.txt
-
-# 运行测试
-python src/test.py
-
-# 打包可执行文件
-pyinstaller LaTeXSnipper.spec
-```
 
 ### 故障排查
 
 | 问题 | 解决方案 |
 |-----|--------|
 | 缺少 DLL | 安装 [VC++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
-| 模型下载失败 | 检查网络连接或设置代理，可手动下载放入 `deps/` |
+| 模型下载失败 | 检查网络连接或设置代理，可手动下载放入 `models/` |
 | 识别结果不准 | 尝试调整截图区域，确保完整捕获公式 |
 | 界面闪烁 | 尝试禁用硬件加速或更新显卡驱动 |
 
@@ -254,7 +240,7 @@ pyinstaller LaTeXSnipper.spec
 
 请确保你的代码：
 
-- 遵循现有的代码风格
+- 可以优化我们的史山代码
 - 包含必要的注释和文档
 - 通过所有测试
 
@@ -268,7 +254,7 @@ pyinstaller LaTeXSnipper.spec
 - 🐛 **报告 Bug** - 帮助我们改进项目
 - 💬 **分享反馈** - 你的建议很宝贵
 - 🔗 **分享给朋友** - 让更多人知道这个项目
-- 💰 **赞助开发者** - [赞助链接](#) (可选)
+- 💰 **赞助开发者** - [赞助链接](#)(暂未开放)
 
 ---
 
@@ -298,7 +284,7 @@ pyinstaller LaTeXSnipper.spec
   <tr>
     <td align="center">
       <a href="https://github.com/SakuraMathcraft">
-        <img src="https://avatars.githubusercontent.com/u/YOUR_ID?v=4" width="80px" alt="SakuraMathcraft"/>
+        <img width="99" height="102" alt="me" src="https://github.com/user-attachments/assets/b0e05780-40ed-4473-b854-1a259f738a9b" />
         <br/>
         <b>SakuraMathcraft</b>
         <br/>
@@ -309,36 +295,6 @@ pyinstaller LaTeXSnipper.spec
 </table>
 
 **欢迎贡献！** 如有帮助，请提交 PR 或 Issue。
-
----
-
-## 💡 常见问题 (FAQ)
-
-### ❓ 识别准确率如何？
-
-我们使用了经过优化的 pix2tex 模型，对于清晰的数学公式识别准确率可达 **85%-95%**。对于以下情况准确率较低：
-
-- 手写模糊公式
-- 分辨率过低的截图
-- 超大公式（建议分块识别）
-
-### ❓ 支持离线使用吗？
-
-**完全支持！** LaTeXSnipper 内置所有模型，首次下载后即可完全离线使用，不依赖任何在线 API。
-
-### ❓ 支持 macOS 和 Linux 吗？
-
-目前主要支持 **Windows**。macOS 和 Linux 版本仍在开发中，欢迎贡献！
-
-### ❓ 如何提高识别速度？
-
-1. 使用 GPU 版 PyTorch（需要 NVIDIA 显卡）
-2. 优化截图区域（只包含公式，不包含多余内容）
-3. 关闭实时预览功能（加快处理）
-
-### ❓ 可以用于商业用途吗？
-
-可以！MIT 许可证允许商业使用，只需保留许可证说明即可。
 
 ---
 
@@ -379,3 +335,11 @@ pyinstaller LaTeXSnipper.spec
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
+
+
+
+
+
+
+
