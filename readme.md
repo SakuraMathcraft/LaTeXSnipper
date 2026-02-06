@@ -170,6 +170,7 @@ LaTeXSnipper/
 │   ├── deps_bootstrap.py        # 依赖管理和引导安装
 │   ├── updater.py               # 更新检查模块
 │   ├── config.json              # 配置文件
+│   ├── settings_window.py       # 设置模块
 │   ├── backend/                 # 后端模块
 │   │   ├── model.py             # 模型管理
 │   │   ├── capture_overlay.py   # 截图覆盖层
@@ -335,6 +336,7 @@ LaTeXSnipper/
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
 
 
