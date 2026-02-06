@@ -1,0 +1,7 @@
+{
+  "installed_layers": [
+    "BASIC",
+    "CORE",
+    "HEAVY_GPU"
+  ]
+}

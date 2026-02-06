@@ -1,0 +1,160 @@
+    def _open_deps_wizard(self):
+        """打开依赖管理向导"""
+        from deps_bootstrap import ensure_deps, needs_restart_for_install
+        from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
+        # 检测是否有冲突模块已加载
+        need_restart, loaded_mods = needs_restart_for_install()
+        if need_restart:
+            # 有模块已加载，提示用户重启
+            mod_list = ", ".join(loaded_mods[:5])
+            if len(loaded_mods) > 5:
+                mod_list += f" 等 {len(loaded_mods)} 个模块"
+            msg = MessageBox(
+                "检测到模块冲突",
+                f"• 以下模块已被程序加载:{mod_list}\n"
+                "• 这可能导致依赖安装失败(文件被占用)\n"
+                "• 建议重启程序并直接打开向导。是否立即重启？\n"
+                "• ESC取消操作",
+                self
+            )
+            msg.yesButton.setText("重启程序")
+            msg.cancelButton.setText("继续安装")
+            # ESC 键检测：用户按 ESC 不执行任何操作
+            esc_pressed = [False]
+            from PyQt6.QtCore import Qt as QtCore_Qt
+            from PyQt6.QtGui import QKeyEvent
+            original_keyPressEvent = msg.keyPressEvent
+            def custom_keyPressEvent(event: QKeyEvent):
+                if event.key() == QtCore_Qt.Key.Key_Escape:
+                    esc_pressed[0] = True
+                    msg.close()
+                else:
+                    original_keyPressEvent(event)
+            msg.keyPressEvent = custom_keyPressEvent
+            result = msg.exec()
+            # 如果用户按 ESC，直接返回不执行任何操作
+            if esc_pressed[0]:
+                return
+            if result:
+                # 用户选择重启
+                self._restart_with_wizard()
+                return
+            # 用户选择继续，显示警告
+            InfoBar.warning(
+                title="注意",
+                content="如遇安装失败，请关闭程序后手动安装",
+                parent=self.parent() if self.parent() else None,
+                duration=5000,
+                position=InfoBarPosition.TOP
+            )
+        # 关闭当前设置窗口
+        self.close()
+        # 强制显示向导界面（always_show_ui=True, from_settings=True）
+        try:
+            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
+            if ok:
+                InfoBar.success(
+                    title="提示",
+                    content="依赖安装完成，部分更改可能需要重启程序生效。",
+                    parent=self.parent() if self.parent() else None,
+                    duration=5000,
+                    position=InfoBarPosition.TOP
+                )
+        except Exception as e:
+            InfoBar.error(
+                title="错误",
+                content=f"依赖向导出错: {e}",
+                parent=self.parent() if self.parent() else None,
+                duration=5000,
+                position=InfoBarPosition.TOP
+            )
+    def _restart_with_wizard(self):
+        """重启程序并打开依赖向导"""
+        import subprocess
+        import sys
+        import os
+        # 设置环境变量，让新进程知道要打开向导
+        env = os.environ.copy()
+        env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
+        env["LATEXSNIPPER_FORCE_VERIFY"] = "1"
+        env["LATEXSNIPPER_RESTART"] = "1"
+        # 获取当前 Python 和脚本路径
+        python_exe = sys.executable
+        script_path = os.path.abspath(sys.argv[0])
+        try:
+            # 启动新进程
+            if script_path.endswith('.py'):
+                subprocess.Popen(
+                    [python_exe, script_path, "--force-deps-check"],
+                    env=env,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                )
+            else:
+                # 打包后的 exe
+                subprocess.Popen(
+                    [script_path, "--force-deps-check"],
+                    env=env,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                )
+            # 关闭当前程序
+            from PyQt6.QtWidgets import QApplication
+            QApplication.instance().quit()
+        except Exception as e:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.error(
+                title="重启失败",
+                content=f"无法重启程序: {e}",
+                parent=self,
+                duration=5000,
+                position=InfoBarPosition.TOP
+            )
+    def _show_info(self, title: str, content: str, level: str = "info"):
+        """显示 Fluent 浮动提示"""
+        from qfluentwidgets import InfoBar, InfoBarPosition
+        # 始终浮在设置窗口，避免遮挡主窗口
+        parent = self
+        func = getattr(InfoBar, level, InfoBar.info)
+        func(
+            title=title,
+            content=content,
+            parent=parent,
+            duration=4000,
+            position=InfoBarPosition.TOP
+        )
+    def select_model(self, model_name: str):
+        # 只发射信号，由信号连接的 on_model_changed 处理
+        self.model_changed.emit(model_name)
+        self.update_model_selection()
+        self._update_compute_mode_label()
+    def _update_compute_mode_label(self):
+        """更新计算模式状态标签"""
+        try:
+            import torch
+            cuda_available = torch.cuda.is_available()
+            if cuda_available:
+                gpu_name = torch.cuda.get_device_name(0)
+                self.lbl_compute_mode.setText(f"🟢 GPU 可用: {gpu_name}")
+                self.lbl_compute_mode.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px;")
+            else:
+                self.lbl_compute_mode.setText("🟡 仅 CPU 模式 (未检测到 GPU层依赖)")
+                self.lbl_compute_mode.setStyleSheet("color: #f57c00; font-size: 11px; padding: 4px;")
+        except Exception:
+            self.lbl_compute_mode.setText("⚪ 计算模式未知")
+            self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+    def update_model_selection(self):
+        # sync model combo selection state
+        current = None
+        desired = None
+        if self.parent() and hasattr(self.parent(), "desired_model"):
+            desired = self.parent().desired_model
+        elif self.parent() and hasattr(self.parent(), "cfg"):
+            desired = self.parent().cfg.get("desired_model", None)
+        if self.parent() and hasattr(self.parent(), "current_model"):
+            current = self.parent().current_model
+        target = desired or current
+        if target and str(target).startswith("pix2text"):
+            target_key = "pix2text"
+        else:
+            target_key = target
+        if target_key:
+            for i, (key, _) in enumerate(self._model_options):

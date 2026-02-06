@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+env/
+
+# Build
+build/
+dist/
+*.spec
+
+# Large binary files
+*.exe
+*.dll
+*.zip
+*.tar
+*.gz
+
+# Embedded runtime (do not version)
+src/deps/python311/
+src/models/
+
+# Logs
+*.log

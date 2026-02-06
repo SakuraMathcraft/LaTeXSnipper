@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/deps/python311" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/deps/python311/DLLs" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/deps/python311/Lib" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/deps/python311/Lib/site-packages" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/DLLs" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/Lib" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/Lib/site-packages" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/Lib/site-packages/pythonwin" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/Lib/site-packages/win32" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/deps/python311/Lib/site-packages/win32/lib" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
+    </content>
+    <orderEntry type="jdk" jdkName="Python 3.11 (2)" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+</module>
