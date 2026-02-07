@@ -11,7 +11,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v1.01-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v1.02-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.9+-blue?style=flat-square)
 
@@ -85,7 +85,7 @@
 **Windows 用户最简单的方式，内置 Python**
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper-v1.01.exe`
+2. 下载最新版 `LaTeXSnipper-v1.02.exe`
 3. 双击运行即可，首次启动会自动下载必要模型（约 2GB+）
 4. ✅ 完成！开始截图识别公式
 
@@ -155,9 +155,8 @@ LaTeXSnipper 支持灵活的依赖安装策略：
 | **CORE** | pix2tex、latex2mathml、matplotlib | 核心公式识别和转换 |
 | **HEAVY_CPU** | PyTorch CPU 版 | CPU 上运行深度学习模型 |
 | **HEAVY_GPU** | PyTorch GPU 版、CUDA | GPU 加速识别（需要 NVIDIA 显卡） |
-| **OCR** | PaddleOCR | 文字识别功能 |
 
-首次启动时会引导选择安装层级，可根据硬件和需求灵活选择（一般情况下默认安装BASIC和CORE即可）。
+当前安装向导仅保留以上 4 个层级。首次启动时会引导选择安装层级，可根据硬件和需求灵活选择（一般情况下默认安装 BASIC 和 CORE 即可）。
 
 ---
 
@@ -170,7 +169,6 @@ LaTeXSnipper/
 │   ├── deps_bootstrap.py        # 依赖管理和引导安装
 │   ├── updater.py               # 更新检查模块
 │   ├── config.json              # 配置文件
-│   ├── settings_window.py       # 设置模块
 │   ├── backend/                 # 后端模块
 │   │   ├── model.py             # 模型管理
 │   │   ├── capture_overlay.py   # 截图覆盖层
@@ -336,7 +334,6 @@ LaTeXSnipper/
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
-
 
 
 
