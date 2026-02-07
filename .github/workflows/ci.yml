@@ -34,6 +34,17 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      - name: Install critical dependencies for import verification
+        run: |
+          python -m pip install PyQt6~=6.9.1 PyQt6-WebEngine~=6.9.0 PyQt6-Fluent-Widgets pywin32~=308
+
+      - name: Verify critical imports
+        run: |
+          python -c "import PyQt6; print('✓ PyQt6 import successful')"
+          python -c "from PyQt6 import QtWebEngineWidgets; print('✓ PyQt6-WebEngine import successful')"
+          python -c "import qfluentwidgets; print('✓ qfluentwidgets import successful')"
+          python -c "import win32api; print('✓ win32api import successful')"
+
       - name: Byte-compile source tree
         run: python -m compileall -q src
 
