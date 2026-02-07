@@ -1,5 +1,6 @@
 
-import os, json, time, threading, re, base64, requests
+import os, sys, json, time, threading, re, base64, requests
+from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Dict
@@ -61,6 +62,93 @@ _session = requests.Session()
 _session.headers.update({
     "User-Agent": "LaTeXSnipper-Updater/1.0 (+https://github.com/SakuraMathcraft/LaTeXSnipper)"
 })
+
+def _resolve_ca_bundle_path() -> str | None:
+    """
+    Resolve a usable TLS CA bundle path for frozen builds.
+    Prefer certifi; fallback to pip vendored certifi bundle if needed.
+    """
+    candidates: list[str] = []
+
+    # 1) certifi default path
+    try:
+        import certifi  # type: ignore
+        p = certifi.where()
+        if p:
+            candidates.append(str(p))
+    except Exception:
+        pass
+
+    # 2) pip vendored certifi fallback
+    try:
+        from pip._vendor import certifi as pip_certifi  # type: ignore
+        p = pip_certifi.where()
+        if p:
+            candidates.append(str(p))
+    except Exception:
+        pass
+
+    # 3) common frozen/runtime locations
+    roots = []
+    try:
+        roots.append(Path(__file__).resolve().parent)
+    except Exception:
+        pass
+    try:
+        roots.append(Path(sys.executable).resolve().parent)
+    except Exception:
+        pass
+    try:
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            roots.append(Path(meipass))
+    except Exception:
+        pass
+
+    rels = [
+        Path("certifi") / "cacert.pem",
+        Path("_internal") / "certifi" / "cacert.pem",
+        Path("pip") / "_vendor" / "certifi" / "cacert.pem",
+        Path("_internal") / "pip" / "_vendor" / "certifi" / "cacert.pem",
+    ]
+    for root in roots:
+        for rel in rels:
+            candidates.append(str(root / rel))
+
+    seen = set()
+    for raw in candidates:
+        if not raw:
+            continue
+        p = str(Path(raw))
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if Path(p).is_file():
+                return p
+        except Exception:
+            continue
+    return None
+
+def _configure_tls_verify():
+    """
+    Bind requests session to a valid CA bundle path when available.
+    This avoids frozen-path CA issues caused by missing certifi data.
+    """
+    ca_path = _resolve_ca_bundle_path()
+    if ca_path:
+        _session.verify = ca_path
+        # Set envs for child requests/urllib callers in this process.
+        os.environ["REQUESTS_CA_BUNDLE"] = ca_path
+        os.environ["SSL_CERT_FILE"] = ca_path
+        if DEBUG_LOG:
+            print(f"[Updater] TLS CA bundle: {ca_path}")
+    else:
+        if DEBUG_LOG:
+            print("[Updater] WARN: no CA bundle file found; update check may fail on HTTPS.")
+
+_configure_tls_verify()
 
 # ---------------- 数据结构 ----------------
 @dataclass

@@ -18,8 +18,6 @@ CONFLICT_MODULES = {
     "pix2tex", "pix2text",
     # onnxruntime
     "onnxruntime", "onnxruntime_gpu",
-    # OCR 相关
-    "cnocr", "cnstd", "rapidocr", "easyocr",
     # 其他常见冲突模块
     "transformers", "timm", "cv2", "numpy", "scipy",
 }
@@ -201,7 +199,14 @@ class InstallWorker(QThread):
                 for p in self.pkgs:
                     pkg_name = re.split(r'[<>=!~ ]', p, 1)[0].lower()
                     if pkg_name in installed_before:
-                        skipped.append(f"{pkg_name} ({installed_before[pkg_name]})")
+                        cur_ver = installed_before[pkg_name]
+                        if _version_satisfies_spec(pkg_name, cur_ver, p):
+                            skipped.append(f"{pkg_name} ({cur_ver})")
+                        else:
+                            pending.append(p)
+                            self.log_updated.emit(
+                                f"[INFO] {pkg_name} 版本不满足要求，准备重装: 当前 {cur_ver}，要求 {p}"
+                            )
                     else:
                         pending.append(p)
             
@@ -253,16 +258,17 @@ class InstallWorker(QThread):
                         # 使用自动检测的 CUDA 对应 URL
                         torch_url = detected_torch_url
                     elif want_gpu_torch:
-                        # 有 GPU 但未检测到 CUDA，回退到 cu118
-                        torch_url = "https://download.pytorch.org/whl/cu118"
+                        # 有 GPU 但未检测到 CUDA，使用保守兜底源
+                        torch_url = TORCH_GPU_FALLBACK_INDEX_URL
                     elif want_cpu_torch:
-                        torch_url = "https://download.pytorch.org/whl/cpu"
+                        torch_url = TORCH_CPU_INDEX_URL
 
                 try:
                     ok = _pip_install(
                         self.pyexe, pkg, self.stop_event, self.log_q,
                         use_mirror=self.mirror, flags=flags, pause_event=self.pause_event,
-                        torch_url=torch_url, force_reinstall=self.force_reinstall, no_cache=self.no_cache
+                        torch_url=torch_url, force_reinstall=self.force_reinstall, no_cache=self.no_cache,
+                        proc_setter=lambda p: setattr(self, "proc", p)
                     )
                 except Exception as e:
                     ok = False
@@ -278,14 +284,76 @@ class InstallWorker(QThread):
                     fail_count += 1
                     failed_pkgs.append(pkg)
 
-            all_ok = (fail_count == 0)
-            
+            if self.stop_event.is_set():
+                self.log_updated.emit("[CANCEL] 安装已取消。")
+                self._emit_done_safe(False)
+                return
+
+            runtime_stack_ok = True
+            runtime_stack_err = ""
+            # CORE/HEAVY 相关场景下，额外检查 torch/torchvision 二进制一致性。
+            if any(x in (self.chosen_layers or []) for x in ("CORE", "HEAVY_CPU", "HEAVY_GPU")):
+                stack_ok, stack_err = _verify_torch_stack_runtime(self.pyexe, timeout=45)
+                if not stack_ok:
+                    runtime_stack_ok = False
+                    runtime_stack_err = stack_err
+                    self.log_updated.emit("[WARN] 检测到 torch/torchvision 二进制不兼容，尝试自动修复...")
+                    self.log_updated.emit(f"[DIAG] {stack_err[:400]}")
+                    repair_torch_url = None
+                    if want_gpu_torch:
+                        repair_torch_url = detected_torch_url or TORCH_GPU_FALLBACK_INDEX_URL
+                    elif want_cpu_torch:
+                        repair_torch_url = TORCH_CPU_INDEX_URL
+                    repaired = _repair_torch_stack(
+                        self.pyexe,
+                        self.stop_event,
+                        self.pause_event,
+                        self.log_q,
+                        mirror=self.mirror,
+                        torch_url=repair_torch_url,
+                        proc_setter=lambda p: setattr(self, "proc", p),
+                    )
+                    if repaired:
+                        stack_ok2, stack_err2 = _verify_torch_stack_runtime(self.pyexe, timeout=60)
+                        runtime_stack_ok = stack_ok2
+                        if stack_ok2:
+                            self.log_updated.emit("[OK] torch/torchvision 自动修复成功 ✅")
+                        else:
+                            runtime_stack_err = stack_err2
+                            self.log_updated.emit(f"[ERR] torch 栈仍异常: {stack_err2[:400]}")
+
             # 无论成功与否，都尝试修复关键版本
             # 这是必要的，因为 pix2text 和 pix2tex 有依赖冲突
-            _fix_critical_versions(self.pyexe, self.log_updated.emit)
+            _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
+
+            # 关键版本修复后再做一次 torch 栈复核：
+            # torch 索引源可能把 numpy 升到 2.x，修复后需要重新确认 _C 可正常加载。
+            if any(x in (self.chosen_layers or []) for x in ("CORE", "HEAVY_CPU", "HEAVY_GPU")):
+                stack_ok_after_fix, stack_err_after_fix = _verify_torch_stack_runtime(self.pyexe, timeout=60)
+                if stack_ok_after_fix:
+                    if not runtime_stack_ok:
+                        self.log_updated.emit("[OK] 关键版本修复后 torch/torchvision 验证通过 ✅")
+                    runtime_stack_ok = True
+                    runtime_stack_err = ""
+                else:
+                    runtime_stack_ok = False
+                    runtime_stack_err = stack_err_after_fix
+                    self.log_updated.emit(f"[WARN] 关键版本修复后 torch 栈仍异常: {stack_err_after_fix[:400]}")
+
+            all_ok = (fail_count == 0) and runtime_stack_ok
             
             if all_ok:
                 self.log_updated.emit("[OK] 所有依赖安装成功 ✅")
+            elif fail_count == 0 and not runtime_stack_ok:
+                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但运行时验证失败 ❌")
+                self.log_updated.emit("[WARN] 失败类型：torch/torchvision 二进制加载异常")
+                if runtime_stack_err:
+                    self.log_updated.emit(f"[DIAG] {runtime_stack_err[:600]}")
+                self.log_updated.emit("")
+                self.log_updated.emit("💡 建议操作:")
+                self.log_updated.emit("  1. 在依赖向导中仅选择 HEAVY_CPU 或 HEAVY_GPU 之一重装")
+                self.log_updated.emit("  2. 如仍失败，先卸载 torch/torchvision/torchaudio 后再安装匹配版本")
+                self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
             else:
                 self.log_updated.emit(f"[WARN] 部分安装失败，共 {fail_count}/{total} 个 ❌")
                 self.log_updated.emit("")
@@ -316,6 +384,7 @@ class InstallWorker(QThread):
         except Exception as e:
             tb = traceback.format_exc()
             self.log_updated.emit(f"[FATAL] 安装线程未捕获异常: {e}\n{tb}")
+            self._emit_done_safe(False)
 
 import os, sys, json, subprocess, threading, queue, urllib.request, re
 from pathlib import Path
@@ -334,6 +403,8 @@ STATE_FILE = ".deps_state.json"
 # 需要特殊处理的包
 TORCH_NAMES = {"torch", "torchvision", "torchaudio"}
 QT_PKGS = {"pyqt6", "pyqt6-qt6", "pyqt6-webengine", "pyqt6-webengine-qt6"}
+TORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
+TORCH_GPU_FALLBACK_INDEX_URL = "https://download.pytorch.org/whl/cu118"
 
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
@@ -344,7 +415,7 @@ CRITICAL_VERSIONS = {
     "pydantic-core": "pydantic-core==2.23.4",
 }
 
-def _fix_critical_versions(pyexe: str, log_fn=None):
+def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
     """
     安装完成后强制修复关键依赖版本。
     
@@ -360,16 +431,30 @@ def _fix_critical_versions(pyexe: str, log_fn=None):
     if log_fn:
         log_fn("[INFO] 正在修复关键依赖版本（解决 pix2tex/pix2text 冲突）...")
     
+    installed_before = _current_installed(pyexe)
+
     for pkg, spec in CRITICAL_VERSIONS.items():
         try:
+            cur = installed_before.get(pkg)
+            if cur and _version_satisfies_spec(pkg, cur, spec):
+                if log_fn:
+                    log_fn(f"  [SKIP] {pkg} 当前版本 {cur} 已满足 {spec}")
+                continue
             # 使用 --no-deps 避免触发依赖解析
-            cmd = [pyexe, "-m", "pip", "install", spec, "--no-deps", "--force-reinstall"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall"]
+            if use_mirror:
+                cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
+            timeout_sec = 300 if pkg == "numpy" else 180
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
             if log_fn:
                 if result.returncode == 0:
                     log_fn(f"  [OK] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
                 else:
-                    log_fn(f"  [WARN] 修复 {pkg} 失败: {result.stderr[:100]}")
+                    err = (result.stderr or result.stdout or "").strip().replace("\r", "")
+                    log_fn(f"  [WARN] 修复 {pkg} 失败: {err[:240]}")
+        except subprocess.TimeoutExpired:
+            if log_fn:
+                log_fn(f"  [WARN] 修复 {pkg} 超时，已跳过")
         except Exception as e:
             if log_fn:
                 log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
@@ -385,15 +470,10 @@ import numpy as np
 import PIL
 import requests
 import lxml
+# 在 Windows 上，先导入 PyQt6 可能导致 onnxruntime DLL 初始化失败
+# 因此先加载 onnxruntime，再加载 Qt
+import onnxruntime as onnxruntime
 import PyQt6
-# onnxruntime 可能是 CPU 版本或 GPU 版本，都可以
-try:
-    import onnxruntime
-except ImportError:
-    try:
-        import onnxruntime_gpu as onnxruntime
-    except ImportError:
-        raise ImportError("onnxruntime (CPU 或 GPU 版本) 未安装")
 print("BASIC OK")
 """,
     "CORE": """
@@ -417,14 +497,6 @@ if not torch.cuda.is_available():
     raise RuntimeError("CUDA not available")
 print("CUDA device:", torch.cuda.get_device_name(0))
 print("HEAVY_GPU OK")
-""",
-    "OCR": """
-import rapidocr
-print("OCR OK")
-""",
-    "OPTIONAL": """
-import pandas
-print("OPTIONAL OK")
 """,
 }
 
@@ -457,8 +529,30 @@ def _clear_model_caches(pyexe: str, log_fn=None) -> list:
             _log(f"[WARN] 清理失败: {p} ({e})")
     try:
         # pip cache purge
-        subprocess.run([pyexe, "-m", "pip", "cache", "purge"], timeout=120, capture_output=True, text=True)
-        _log("[INFO] 已执行 pip cache purge")
+        res = subprocess.run(
+            [pyexe, "-m", "pip", "cache", "purge"],
+            timeout=120, capture_output=True, text=True
+        )
+        if res.returncode == 0:
+            _log("[INFO] 已执行 pip cache purge")
+        else:
+            msg = (res.stderr or res.stdout or "").strip()
+            _log(f"[WARN] pip cache purge 返回非零: {res.returncode} {msg[:200]}")
+            # fallback: 尝试删除 pip cache dir
+            try:
+                dres = subprocess.run(
+                    [pyexe, "-m", "pip", "cache", "dir"],
+                    timeout=30, capture_output=True, text=True
+                )
+                pip_cache_dir = (dres.stdout or "").strip()
+                if dres.returncode == 0 and pip_cache_dir:
+                    p = Path(pip_cache_dir)
+                    if p.exists():
+                        shutil.rmtree(p, ignore_errors=True)
+                        removed.append(str(p))
+                        _log(f"[INFO] 已清理 pip cache dir: {p}")
+            except Exception as e:
+                _log(f"[WARN] fallback 清理 pip cache dir 失败: {e}")
     except Exception as e:
         _log(f"[WARN] pip cache purge 失败: {e}")
 
@@ -499,18 +593,25 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: boo
         return True, ""
 
     try:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
             [pyexe, "-c", code],
             capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
+            env=env,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         )
         if result.returncode == 0:
             return True, ""
         else:
             # 提取关键错误信息
-            err = result.stderr.strip()
+            err = (result.stderr or result.stdout or "").strip()
+            if not err:
+                err = f"验证进程返回码 {result.returncode}，但无可用输出"
             # 截取最后几行，通常是最有用的
-            err_lines = err.split('\n')[-5:]
+            err_lines = err.replace("\r", "").split('\n')[-15:]
             return False, '\n'.join(err_lines)
     except subprocess.TimeoutExpired:
         return False, "验证超时"
@@ -534,6 +635,91 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None, stri
             if log_fn:
                 log_fn(f"[WARN] {layer} 层验证失败: {err[:200]}")
     return verified
+
+def _verify_torch_stack_runtime(pyexe: str, timeout: int = 45) -> tuple[bool, str]:
+    """
+    验证 torch/torchvision 二进制是否匹配。
+    注意：不直接 `from torchvision import _C`，该导入在部分版本会误报 SystemError，
+    即使 torchvision ops 后端已经正常加载。
+    """
+    code = (
+        "import torch\n"
+        "import torchvision\n"
+        "from torchvision import extension as _tv_ext\n"
+        "from torchvision import ops as _tv_ops\n"
+        "if not getattr(_tv_ext, '_HAS_OPS', False):\n"
+        "    raise RuntimeError('torchvision ops backend not loaded')\n"
+        "boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0]], dtype=torch.float32)\n"
+        "scores = torch.tensor([0.9], dtype=torch.float32)\n"
+        "_ = _tv_ops.nms(boxes, scores, 0.5)\n"
+        "print('torch', torch.__version__)\n"
+        "print('torchvision', torchvision.__version__)\n"
+    )
+    try:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        result = subprocess.run(
+            [str(pyexe), "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        if result.returncode == 0:
+            return True, ""
+        err = (result.stderr or result.stdout or "").strip()
+        return False, "\n".join(err.splitlines()[-12:])
+    except subprocess.TimeoutExpired:
+        return False, "torch 栈验证超时"
+    except Exception as e:
+        return False, str(e)
+
+def _repair_torch_stack(
+    pyexe: str,
+    stop_event,
+    pause_event,
+    log_q,
+    mirror: bool = False,
+    torch_url: str | None = None,
+    proc_setter=None,
+) -> bool:
+    """
+    卸载并重装 torch 三件套，修复 torchvision._C 等二进制入口点错误。
+    """
+    if stop_event.is_set():
+        return False
+    try:
+        log_q.put("[INFO] 正在卸载旧的 torch/torchvision/torchaudio ...")
+        subprocess.run([str(pyexe), "-m", "pip", "uninstall", "-y", "torch", "torchvision", "torchaudio"],
+                       timeout=240, creationflags=flags)
+    except Exception as e:
+        log_q.put(f"[WARN] 卸载 torch 三件套异常: {e}")
+
+    pkgs = ["torch==2.7.1", "torchvision==0.22.1", "torchaudio==2.7.1"]
+    for spec in pkgs:
+        if stop_event.is_set():
+            return False
+        ok = _pip_install(
+            pyexe,
+            spec,
+            stop_event,
+            log_q,
+            use_mirror=(mirror and not bool(torch_url)),
+            flags=flags,
+            torch_url=torch_url,
+            pause_event=pause_event,
+            force_reinstall=True,
+            # torch 轮子体积很大；修复重试时保留缓存，避免每次都重新下载数 GB
+            no_cache=False,
+            proc_setter=proc_setter,
+        )
+        if not ok:
+            return False
+    return True
 
 # 分层依赖（保持原始规格；含 +cu 与 ~= 的组合后续会自动规范化）
 LAYER_MAP = {
@@ -576,29 +762,6 @@ LAYER_MAP = {
         "torchaudio==2.7.1",
         "onnxruntime-gpu~=1.18.1",  # 1.18.x 支持 CUDA 11.8，1.19+ 需要 CUDA 12.x
     ],
-    "OCR": [
-        "rapidocr~=3.2.0", "cnocr~=2.3.2.1", "cnstd~=1.2.6.1", "easyocr~=1.7.1",
-        "opencv-python~=4.9.0.80", "pyclipper~=1.3.0.post5", "shapely~=2.0.2",
-        "scipy~=1.13.1", "scikit-image~=0.22.0", "imageio~=2.34.0",
-        "tifffile~=2024.2.12",
-        "albumentations~=1.4.21", "albucore~=0.0.20",
-        "ultralytics~=8.2.32", "thop~=0.1.1-2209072238"
-    ],
-    "OPTIONAL": [
-        "datasets~=2.17.0", "evaluate~=0.4.1",
-        "pandas~=2.3.3", "polars~=1.34.0",
-        "seaborn~=0.13.2",
-        "wandb~=0.16.3", "responses~=0.18.0",
-        "coloredlogs~=15.0.1", "platformdirs~=4.4.0",
-        "appdirs~=1.4.4", "xxhash~=3.4.1",
-        "multiprocess~=0.70.16", "pyarrow~=15.0.0",
-        "unidecode~=1.3.8",
-        "tzdata~=2024.1",
-        "jinja2~=3.1.3", "markupsafe~=2.1.5",
-        "pyparsing~=3.1.1",
-        "fonttools~=4.49.0", "cycler~=0.12.1",
-        "kiwisolver~=1.4.5", "contourpy~=1.2.0",
-    ]
 }
 
 SKIP_PREFIX = {"pip","setuptools","wheel","python","openssl","zlib","ninja"}
@@ -621,6 +784,40 @@ def _save_json(p: Path, data, log_q=None):
         print(msg)
         if log_q:
             log_q.put(msg)
+
+def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
+    """
+    规范化层状态：
+    - 移除已废弃层
+    - 移除未知层
+    - 将清洗后的内容回写到状态文件
+    """
+    if state is None:
+        state = _load_json(state_path, {"installed_layers": []})
+
+    raw_installed = state.get("installed_layers", [])
+    raw_failed = state.get("failed_layers", [])
+
+    if not isinstance(raw_installed, list):
+        raw_installed = []
+    if not isinstance(raw_failed, list):
+        raw_failed = []
+
+    installed = [l for l in raw_installed if l in LAYER_MAP]
+    failed = [l for l in raw_failed if l in LAYER_MAP]
+
+    changed = (installed != raw_installed) or (failed != raw_failed)
+    payload = {"installed_layers": installed}
+    if failed:
+        payload["failed_layers"] = failed
+
+    if changed:
+        _save_json(state_path, payload)
+        dropped = sorted(set(raw_installed + raw_failed) - set(installed + failed))
+        if dropped:
+            print(f"[INFO] 已忽略并移除废弃/未知层: {', '.join(dropped)}")
+
+    return payload
 
 def _site_packages_root(pyexe: Path):
     """
@@ -757,6 +954,43 @@ def _current_installed(pyexe):
     except Exception as e:
         print(f"[WARN] 获取已安装包列表失败: {e}")
         return {}
+
+def _split_spec_name(spec: str) -> tuple[str, str]:
+    """Return (package_name_lower, constraint_part)."""
+    m = re.match(r"\s*([A-Za-z0-9_.\-]+)\s*(.*)$", spec or "")
+    if not m:
+        return "", ""
+    return m.group(1).lower(), (m.group(2) or "").strip()
+
+def _normalize_torch_version(ver: str) -> str:
+    """Normalize local-tag torch versions like 2.7.1+cpu -> 2.7.1 for spec check."""
+    v = (ver or "").strip()
+    if "+" in v:
+        v = v.split("+", 1)[0]
+    return v
+
+def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> bool:
+    """
+    Check whether installed version satisfies requirement spec.
+    Uses PEP440 SpecifierSet; torch family ignores local tag suffix (+cpu/+cu118).
+    """
+    name, constraint = _split_spec_name(spec)
+    if not name:
+        return True
+    if not constraint:
+        return True
+    if pkg_name and name != pkg_name.lower():
+        return True
+    try:
+        from packaging.specifiers import SpecifierSet
+        from packaging.version import Version
+        check_ver = installed_ver or ""
+        if name in TORCH_NAMES:
+            check_ver = _normalize_torch_version(check_ver)
+        return Version(check_ver) in SpecifierSet(constraint)
+    except Exception:
+        # Fallback: if parsing failed, do not block installation flow.
+        return True
 
 def _filter_packages(pkgs):
     res = []
@@ -1056,7 +1290,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
 
 #  扩展 _pip_install：为 torch 系列包支持专用 index-url（cu118），，并支持 pause_event
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch_url=None, pause_event=None,
-                 force_reinstall=False, no_cache=False):
+                 force_reinstall=False, no_cache=False, proc_setter=None):
     """
     安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。
     新增: 当 pkg 属于 TORCH_NAMES 且 torch_url 非空时，使用 --index-url= torch_url，
@@ -1174,10 +1408,26 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                     env=env,
                     creationflags=flags
                 )
+            if proc_setter is not None:
+                try:
+                    proc_setter(proc)
+                except Exception:
+                    pass
 
             # 收集输出用于错误诊断
             output_lines = []
             for line in proc.stdout:
+                if stop_event.is_set():
+                    log_q.put("[CANCEL] 用户取消安装，正在终止当前 pip 进程...")
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                    except Exception:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+                    return False
                 # 运行中支持暂停/继续
                 if pause_event is not None:
                     while not pause_event.is_set():
@@ -1196,6 +1446,9 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                 log_q.put(f"[OK] {pkg} 安装成功 ✅")
                 return True
             else:
+                if stop_event.is_set():
+                    log_q.put("[CANCEL] 用户取消安装。")
+                    return False
                 # 分析失败原因
                 full_output = "\n".join(output_lines[-50:])  # 最后50行
                 failure_reason = _diagnose_install_failure(full_output, proc.returncode)
@@ -1241,6 +1494,12 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
             tb = traceback.format_exc()
             log_q.put(f"[FATAL] {pkg} 安装异常: {e}\n{tb}")
             return False
+        finally:
+            if proc_setter is not None:
+                try:
+                    proc_setter(None)
+                except Exception:
+                    pass
 
     # 检查 pip 可用
     try:
@@ -1261,7 +1520,7 @@ class GpuSwitchWorker(QThread):
     progress_updated = pyqtSignal(int)
     done = pyqtSignal(bool)  # True=成功
 
-    def __init__(self, pyexe, state_path, stop_event, log_q, mirror=False, torch_url="https://download.pytorch.org/whl/cu118"):
+    def __init__(self, pyexe, state_path, stop_event, log_q, mirror=False, torch_url=TORCH_GPU_FALLBACK_INDEX_URL):
         super().__init__()
         self.pyexe = str(pyexe)
         self.state_path = Path(state_path)
@@ -1419,12 +1678,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     failed_layer_names = []
     if os.path.exists(state_file):
         try:
-            with open(state_file, "r", encoding="utf-8") as f:
-                state = json.load(f)
-                claimed_layers = state.get("installed_layers", [])
-                # 移除已废弃/未知层（如 PIX2TEXT_GPU）
-                claimed_layers = [l for l in claimed_layers if l in LAYER_MAP]
-                failed_layer_names = [l for l in state.get("failed_layers", []) if l in LAYER_MAP]
+            state = _load_json(Path(state_file), {"installed_layers": []})
+            state = _sanitize_state_layers(Path(state_file), state)
+            claimed_layers = state.get("installed_layers", [])
+            failed_layer_names = state.get("failed_layers", [])
         except Exception:
             pass
 
@@ -1433,6 +1690,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 直接使用 from_settings 参数
     failed_layers = []
     verified_layers = []
+    verified_in_ui = False
     skip_verify = (not from_settings and not force_verify and "BASIC" in claimed_layers and "CORE" in claimed_layers)
     if skip_verify:
         installed_layers["layers"] = claimed_layers
@@ -1440,6 +1698,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         verified_layers = []
         failed_layers = []
         if claimed_layers and pyexe and os.path.exists(pyexe):
+            verified_in_ui = True
             print("[INFO] 正在验证已安装的功能层...")
             for layer in claimed_layers:
                 ok, err = _verify_layer_runtime(
@@ -1542,10 +1801,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             import subprocess
             def make_del_func(layer_name):
                 def _del():
-                    reply = QMessageBox.warning(
-                        dlg, "删除确认",
+                    reply = _exec_close_only_message_box(
+                        dlg,
+                        "删除确认",
                         f"确定要删除层 [{layer_name}] 及其所有依赖包吗？此操作不可恢复！",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                        icon=QMessageBox.Icon.Warning,
+                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        default_button=QMessageBox.StandardButton.No,
                     )
                     if reply == QMessageBox.StandardButton.Yes:
                         # 卸载该层所有包
@@ -1560,7 +1822,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         if layer_name in installed_layers["layers"]:
                             installed_layers["layers"].remove(layer_name)
                             _save_json(state_file, {"installed_layers": installed_layers["layers"]})
-                        QMessageBox.information(dlg, "删除成功", f"已删除层: {layer_name} 及其依赖包，请重启依赖向导以刷新。")
+                        _exec_close_only_message_box(
+                            dlg,
+                            "删除成功",
+                            f"已删除层: {layer_name} 及其依赖包，请重启依赖向导以刷新。",
+                            icon=QMessageBox.Icon.Information,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
                         dlg.close()
                 return _del
             del_btn.clicked.connect(make_del_func(layer))
@@ -1599,7 +1867,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         gpu_info_label.setText(f"✅ 检测到 NVIDIA GPU (CUDA {cuda_ver})，将使用 {torch_tag} 版本 PyTorch")
         gpu_info_label.setStyleSheet("color:#28a745;font-size:12px;margin:4px 0;")
     elif has_gpu:
-        gpu_info_label.setText("⚠️ 检测到 GPU 但未找到 CUDA，将尝试使用 cu118 版本")
+        gpu_info_label.setText("⚠️ 检测到 GPU 但未找到 CUDA，将尝试使用默认 GPU 轮子源")
         gpu_info_label.setStyleSheet("color:#856404;font-size:12px;margin:4px 0;")
     else:
         gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议安装 HEAVY_CPU 层")
@@ -1659,11 +1927,11 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "📦 层级说明：\n"
         "• BASIC：基础依赖层（UI、网络、图像处理、onnxruntime 等），必须安装。\n"
         "• CORE：核心识别层（pix2tex、LaTeX 转换、SVG/MathML 导出），必须安装。\n"
-        "• 公式识别 pix2tex：需要 BASIC + CORE + (HEAVY_CPU 或 HEAVY_GPU)。\n"
+        "• 公式识别 pix2tex：运行需要 BASIC + CORE + 一个 HEAVY 层（CPU 或 GPU）。\n"
+        "• 仅选择 BASIC + CORE 下载时，会自动补一个 HEAVY 层：优先 HEAVY_GPU（检测到可用 CUDA），否则 HEAVY_CPU。\n"
         "• HEAVY_CPU：PyTorch CPU 版（无 GPU 设备时选择）。\n"
         "• HEAVY_GPU：PyTorch GPU 版 + CUDA（有 NVIDIA GPU 时选择）。\n"
-        "• OCR：OCR 文字识别层（rapidocr、cnocr、easyocr 等）。\n"
-        "• OPTIONAL：可视化与增强功能（pandas 等）。\n\n"
+        "\n"
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥，只能选择其一！\n"
         "• onnxruntime 和 onnxruntime-gpu 互斥，会自动卸载冲突版本。\n"
@@ -1674,7 +1942,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     desc.setStyleSheet("color:#555;font-size:11px;")
     lay.addWidget(desc)
     chosen = {"layers": None, "mirror": False, "deps_path": deps_dir, "force_enter": False,
-              "reinstall": False, "purge_cache": False}
+              "reinstall": False, "purge_cache": False, "verified_in_ui": verified_in_ui}
     # 动态更新按钮和警告
     def update_ui():
         required = {"BASIC", "CORE"}
@@ -1695,10 +1963,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             installed_layers["layers"] = []
             if os.path.exists(state_file):
                 try:
-                    with open(state_file, "r", encoding="utf-8") as f:
-                        state = json.load(f)
-                        installed_layers["layers"] = [l for l in state.get("installed_layers", []) if l in LAYER_MAP]
-                        failed_layer_names = [l for l in state.get("failed_layers", []) if l in LAYER_MAP]
+                    state = _load_json(Path(state_file), {"installed_layers": []})
+                    state = _sanitize_state_layers(Path(state_file), state)
+                    installed_layers["layers"] = state.get("installed_layers", [])
+                    failed_layer_names = state.get("failed_layers", [])
                 except Exception:
                     pass
             env_info.setText(
@@ -1730,9 +1998,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
                 # 提示用户需要重启
                 msg = f"依赖路径已更改为：\n{d}\n\n是否立即重启程序以应用新路径？\n\n选择\"是\"将关闭程序，请手动重新启动。"
-                reply = QMessageBox.question(
-                    dlg, "路径已更改", msg,
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                reply = _exec_close_only_message_box(
+                    dlg,
+                    "路径已更改",
+                    msg,
+                    icon=QMessageBox.Icon.Question,
+                    buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    default_button=QMessageBox.StandardButton.No,
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     # In packaged mode, avoid auto-restart loops
@@ -1764,7 +2036,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_path.clicked.connect(choose_path)
 
     def enter():
-        """进入按钮：环境完整则直接进入，否则强制进入"""
+        """进入按钮：环境完整则进入；缺关键层时无条件强制进入（下载请点“下载”）"""
         sel = [L for L, c in checks.items() if c.isChecked()]
         chosen["layers"] = sel
         chosen["mirror"] = (mirror_box.currentData() == "tuna")
@@ -1779,16 +2051,11 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             chosen["force_enter"] = False
             dlg.accept()
             return
-        
-        # 缺少关键层但用户未选择任何层 → 强制进入
-        if not sel:
-            chosen["force_enter"] = True
-            dlg.done(1)  # done(1) 表示强制进入
-            return
-        
-        # 缺少关键层且用户选择了层 → 进行下载
-        chosen["force_enter"] = False
-        dlg.accept()
+
+        # 缺少关键层：无论是否勾选，都按“强制进入”处理
+        # 若要下载，用户应点击“下载”按钮
+        chosen["force_enter"] = True
+        dlg.done(1)
 
     btn_enter.clicked.connect(enter)
 
@@ -1813,9 +2080,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             QApplication.restoreOverrideCursor()
         if show_msg:
             if removed:
-                QMessageBox.information(dlg, "清理完成", f"已清理 {len(removed)} 项缓存。")
+                custom_warning_dialog("清理完成", f"已清理 {len(removed)} 项缓存。", dlg)
             else:
-                QMessageBox.information(dlg, "清理完成", "未发现可清理的缓存。")
+                custom_warning_dialog("清理完成", "未发现可清理的缓存。", dlg)
         return removed
 
     def clear_cache_action():
@@ -1824,18 +2091,38 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_clear_cache.clicked.connect(clear_cache_action)
 
     def reinstall_action():
+        from PyQt6.QtCore import Qt
         sel = [L for L, c in checks.items() if c.isChecked()]
         if not sel:
             custom_warning_dialog("提示", "请至少选择一个依赖层进行重装。", dlg)
             return
-        reply = QMessageBox.question(
-            dlg, "重装确认",
-            "是否在重装前先清理模型/ pip 缓存？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+        msg = QMessageBox(dlg)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setWindowTitle("重装确认")
+        msg.setText("是否在重装前先清理模型 / pip 缓存？")
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel
         )
-        if reply == QMessageBox.StandardButton.Cancel:
+        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        msg.setWindowFlags(
+            (
+                msg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        reply = msg.exec()
+        if reply == int(QMessageBox.StandardButton.Cancel):
             return
-        if reply == QMessageBox.StandardButton.Yes:
+        if reply == int(QMessageBox.StandardButton.Yes):
             _run_clear_cache(show_msg=True)
             chosen["purge_cache"] = True
         chosen["layers"] = sel
@@ -1851,6 +2138,30 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     from PyQt6.QtWidgets import QApplication, QMessageBox
     import sys
 
+    def _ask_exit_confirm() -> QMessageBox.StandardButton:
+        msg = QMessageBox(dlg)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setWindowTitle("退出确认")
+        msg.setText("确定要退出安装向导并关闭程序吗？")
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        msg.setWindowFlags(
+            (
+                msg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        return QMessageBox.StandardButton(msg.exec())
+
     # ---------- 安全退出逻辑 ----------
     def safe_exit():
         """安全退出程序"""
@@ -1861,11 +2172,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         except Exception:
             pass
 
-        reply = QMessageBox.question(
-            dlg, "退出确认",
-            "确定要退出安装向导并关闭程序吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        reply = _ask_exit_confirm()
 
         if reply == QMessageBox.StandardButton.Yes:
             QTimer.singleShot(100, lambda: QApplication.instance().quit())
@@ -1876,9 +2183,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         """在安装完成后刷新依赖状态"""
         nonlocal failed_layer_names
         try:
-            new_state = _load_json(state_path, {"installed_layers": []})
-            installed_layers["layers"] = [l for l in new_state.get("installed_layers", []) if l in LAYER_MAP]
-            failed_layer_names = [l for l in new_state.get("failed_layers", []) if l in LAYER_MAP]
+            new_state = _sanitize_state_layers(Path(state_path))
+            installed_layers["layers"] = new_state.get("installed_layers", [])
+            failed_layer_names = new_state.get("failed_layers", [])
 
             # 更新警告与按钮文本
             if "BASIC" in installed_layers["layers"] and "CORE" in installed_layers["layers"]:
@@ -1918,11 +2225,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # ---------- 退出按钮逻辑：直接退出程序 ----------
     def _exit_app():
         """退出按钮：先确认，然后直接退出程序"""
-        reply = QMessageBox.question(
-            dlg, "退出确认",
-            "确定要退出安装向导并关闭程序吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        reply = _ask_exit_confirm()
         if reply == QMessageBox.StandardButton.Yes:
             dlg.reject()  # 先关闭对话框
             QTimer.singleShot(50, lambda: QApplication.instance().quit())
@@ -1976,12 +2279,50 @@ def _progress_dialog():
     lay.addWidget(info); lay.addWidget(logw,1); lay.addWidget(progress); lay.addLayout(btn_row)
     return dlg, info, logw, btn_cancel, btn_pause, progress
 
+def _apply_close_only_window_flags(win):
+    from PyQt6.QtCore import Qt
+    flags = (
+        win.windowFlags()
+        | Qt.WindowType.CustomizeWindowHint
+        | Qt.WindowType.WindowTitleHint
+        | Qt.WindowType.WindowCloseButtonHint
+        | Qt.WindowType.WindowSystemMenuHint
+    )
+    flags = (
+        flags
+        & ~Qt.WindowType.WindowMinimizeButtonHint
+        & ~Qt.WindowType.WindowMaximizeButtonHint
+        & ~Qt.WindowType.WindowMinMaxButtonsHint
+        & ~Qt.WindowType.WindowContextHelpButtonHint
+    )
+    win.setWindowFlags(flags)
+
+def _exec_close_only_message_box(
+    parent,
+    title: str,
+    text: str,
+    icon,
+    buttons,
+    default_button=None,
+):
+    from PyQt6.QtWidgets import QMessageBox
+    msg = QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.setIcon(icon)
+    msg.setStandardButtons(buttons)
+    if default_button is not None:
+        msg.setDefaultButton(default_button)
+    _apply_close_only_window_flags(msg)
+    return QMessageBox.StandardButton(msg.exec())
+
 def custom_warning_dialog(title, message, parent=None):
     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QHBoxLayout
     from qfluentwidgets import PushButton, FluentIcon
     from PyQt6.QtGui import QIcon
 
     dlg = QDialog(parent)
+    _apply_close_only_window_flags(dlg)
     dlg.setWindowTitle(title)
     dlg.setModal(True)
 
@@ -2000,6 +2341,10 @@ def custom_warning_dialog(title, message, parent=None):
     btn_row.addStretch()
     btn_row.addWidget(ok_btn)
     lay.addLayout(btn_row)
+
+    # 按内容自适应，随后固定，避免出现过大空白
+    dlg.adjustSize()
+    dlg.setFixedSize(dlg.sizeHint())
 
     return dlg.exec() == QDialog.DialogCode.Accepted
 
@@ -2021,24 +2366,44 @@ def show_dependency_wizard(always_show_ui: bool = True) -> bool:
         print("[WARN] show_dependency_wizard 需要已有 QApplication 实例。请在主程序创建后再调用。")
         _repair_in_progress = False
         return False
-    QMessageBox.warning(
+    _exec_close_only_message_box(
         None,
         "依赖修复",
-        "检测到依赖环境损坏或缺失，请在接下来的窗口中重新选择安装目录或修复依赖。"
+        "检测到依赖环境损坏或缺失，请在接下来的窗口中重新选择安装目录或修复依赖。",
+        icon=QMessageBox.Icon.Warning,
+        buttons=QMessageBox.StandardButton.Ok,
     )
 
     try:
         ok = ensure_deps(always_show_ui=always_show_ui)
         if not ok:
-            QMessageBox.critical(None, "修复失败", "依赖修复未成功，请退出程序后重新运行。")
+            _exec_close_only_message_box(
+                None,
+                "修复失败",
+                "依赖修复未成功，请退出程序后重新运行。",
+                icon=QMessageBox.Icon.Critical,
+                buttons=QMessageBox.StandardButton.Ok,
+            )
         else:
-            QMessageBox.information(None, "修复完成", "依赖环境修复成功，请重新启动程序。")
+            _exec_close_only_message_box(
+                None,
+                "修复完成",
+                "依赖环境修复成功，请重新启动程序。",
+                icon=QMessageBox.Icon.Information,
+                buttons=QMessageBox.StandardButton.Ok,
+            )
         return ok
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
         print(f"[FATAL] show_dependency_wizard 失败: {e}\n{tb}")
-        QMessageBox.critical(None, "严重错误", f"依赖修复失败：{e}")
+        _exec_close_only_message_box(
+            None,
+            "严重错误",
+            f"依赖修复失败：{e}",
+            icon=QMessageBox.Icon.Critical,
+            buttons=QMessageBox.StandardButton.Ok,
+        )
         return False
     finally:
         _repair_in_progress = False
@@ -2247,12 +2612,24 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 installer = _download_python311_installer(tmp_dir)
                 ok = _silent_install_python311(installer, py_root)
                 if not ok or not pyexe.exists():
-                    QMessageBox.critical(None, "安装失败", "Python 3.11.0 静默安装失败，请检查网络或权限后重试。")
+                    _exec_close_only_message_box(
+                        None,
+                        "安装失败",
+                        "Python 3.11.0 静默安装失败，请检查网络或权限后重试。",
+                        icon=QMessageBox.Icon.Critical,
+                        buttons=QMessageBox.StandardButton.Ok,
+                    )
                     return False
                 print(f"[OK] 已安装私有 Python: {pyexe}")
             except Exception as e:
                 print(f"[ERR] 自动安装 Python 失败: {e}")
-                QMessageBox.critical(None, "安装失败", f"自动安装 Python 失败：{e}")
+                _exec_close_only_message_box(
+                    None,
+                    "安装失败",
+                    f"自动安装 Python 失败：{e}",
+                    icon=QMessageBox.Icon.Critical,
+                    buttons=QMessageBox.StandardButton.Ok,
+                )
                 return False
 
     # 初始化 pip（无 venv）
@@ -2280,13 +2657,52 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     os.environ["LATEXSNIPPER_PYEXE"] = str(pyexe)
 
     state_path = deps_path / STATE_FILE
-    state = _load_json(state_path, {"installed_layers": []})
-    installed = {"layers": [l for l in state.get("installed_layers", []) if l in LAYER_MAP]}
+    state = _sanitize_state_layers(state_path)
+    installed = {"layers": state.get("installed_layers", [])}
 
     state_path = deps_path / STATE_FILE
 
-    needed = set(require_layers)
+    needed = {l for l in require_layers if l in LAYER_MAP}
     missing_layers = [L for L in needed if L not in installed["layers"]]
+
+    def _reverify_installed_layers_if_needed(reason: str = "") -> bool:
+        """
+        从设置页进入或显式强制校验时，
+        在“直接进入/跳过下载”前复验已安装层。
+        返回是否满足 required layers。
+        """
+        nonlocal state, installed, missing_layers
+        if not (from_settings or force_verify):
+            return needed.issubset(installed["layers"])
+        if not pyexe or not os.path.exists(pyexe):
+            return needed.issubset(installed["layers"])
+
+        claimed = [l for l in installed.get("layers", []) if l in LAYER_MAP]
+        if not claimed:
+            missing_layers = [L for L in needed if L not in installed["layers"]]
+            return needed.issubset(installed["layers"])
+
+        if reason:
+            print(f"[INFO] 触发已安装层复验: {reason}")
+        print("[INFO] 从设置入口复验已安装功能层...")
+        verified = _verify_installed_layers(
+            str(pyexe),
+            claimed,
+            log_fn=lambda m: print(m),
+            strict=force_verify
+        )
+        failed = [l for l in claimed if l not in verified]
+        payload = {"installed_layers": verified}
+        if failed:
+            payload["failed_layers"] = failed
+        _save_json(state_path, payload)
+
+        state = payload
+        installed["layers"] = verified
+        missing_layers = [L for L in needed if L not in installed["layers"]]
+        if failed:
+            print(f"[WARN] 复验失败层: {', '.join(failed)}")
+        return needed.issubset(installed["layers"])
 
     while True:
         if (missing_layers and prompt_ui) or always_show_ui:
@@ -2312,6 +2728,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
             # 检查是否强制进入（缺少关键层但用户选择直接进入）
             if chosen.get("force_enter", False):
+                # 从设置入口触发的依赖管理，不允许跳过校验直接进主程序
+                if from_settings or force_verify:
+                    custom_warning_dialog(
+                        "不能强制进入",
+                        "当前入口为设置页依赖管理，检测到关键层不完整。\n请先下载/修复依赖后再进入主程序。",
+                        None
+                    )
+                    print("[WARN] 设置入口下禁止强制进入，返回依赖向导。")
+                    continue
                 print("[INFO] 用户选择强制进入，跳过依赖安装")
                 return True
             reinstall = chosen.get("reinstall", False)
@@ -2320,6 +2745,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     l in state.get("installed_layers", []) for l in chosen["layers"]
                 )
                 if already_have and not reinstall:
+                    if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
+                        print("[WARN] 复验后关键层不完整，返回向导。")
+                        continue
                     print("[INFO] 所选层已存在，跳过下载。")
                     return True
 
@@ -2329,30 +2757,51 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             purge_cache = bool(chosen.get("purge_cache", False))
             deps_path = Path(deps_dir)
             state_path = deps_path / STATE_FILE
-            state = _load_json(state_path, {"installed_layers": []})
+            state = _sanitize_state_layers(state_path)
             installed["layers"] = state.get("installed_layers", [])
             # 安装后复核关键层，必要时再次弹向导
-            missing_layers = [L for L in set(require_layers) if L not in installed["layers"]]
+            missing_layers = [L for L in needed if L not in installed["layers"]]
             need_install = bool(chosen_layers) and bool(missing_layers)
             if not chosen_layers and needed.issubset(installed["layers"]):
+                if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("enter_without_install"):
+                    print("[WARN] 复验后关键层不完整，返回向导。")
+                    continue
                 return True
             need_install = bool(chosen_layers)
 
         if need_install:
             if chosen_layers:
                 if "HEAVY_GPU" in chosen_layers and not _gpu_available():
-                    r = QMessageBox.question(None, "GPU 未检测",
-                                             "未检测到 NVIDIA GPU，继续安装 CUDA 轮子可能失败，是否继续？",
-                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    r = _exec_close_only_message_box(
+                        None,
+                        "GPU 未检测",
+                        "未检测到 NVIDIA GPU，继续安装 CUDA 轮子可能失败，是否继续？",
+                        icon=QMessageBox.Icon.Question,
+                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        default_button=QMessageBox.StandardButton.No,
+                    )
                     if r != QMessageBox.StandardButton.Yes:
                         chosen_layers = [c for c in chosen_layers if c != "HEAVY_GPU"]
 
                 pkgs = []
                 for layer in chosen_layers:
                     pkgs.extend(LAYER_MAP[layer])
-                # 核心层需要 torch：如果用户既没选 HEAVY_CPU 也没选 HEAVY_GPU，自动添加 HEAVY_CPU
+
+                # 核心层需要 torch：若未显式选择 heavy 层，则按环境自动补层
+                # - 检测到可用 CUDA：补 HEAVY_GPU
+                # - 否则：补 HEAVY_CPU
                 if "CORE" in chosen_layers and "HEAVY_CPU" not in chosen_layers and "HEAVY_GPU" not in chosen_layers:
-                    pkgs.extend(LAYER_MAP.get("HEAVY_CPU", []))
+                    auto_heavy = "HEAVY_CPU"
+                    try:
+                        if _gpu_available():
+                            ci = get_cuda_info()
+                            if ci.get("torch_url"):
+                                auto_heavy = "HEAVY_GPU"
+                    except Exception:
+                        auto_heavy = "HEAVY_CPU"
+                    chosen_layers = list(chosen_layers) + [auto_heavy]
+                    pkgs.extend(LAYER_MAP.get(auto_heavy, []))
+                    print(f"[INFO] CORE 未指定 heavy 层，已自动补充 {auto_heavy}")
 
                 # ⚠️ 选择 HEAVY_GPU 时，排除 BASIC 层的 onnxruntime（避免与 onnxruntime-gpu 冲突）
                 if "HEAVY_GPU" in chosen_layers:
@@ -2367,9 +2816,31 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 state_lock = threading.Lock()
 
                 dlg, info, logw, btn_cancel, btn_pause, progress = _progress_dialog()
-                btn_cancel.clicked.connect(lambda: (stop_event.set(), dlg.reject()))
+                from PyQt6 import sip
+                ui_closed = {"value": False}
+                timer_holder = {"obj": None}
                 paused = False
-                pause_event = threading.Event()
+
+                def _is_alive(obj):
+                    try:
+                        return obj is not None and not sip.isdeleted(obj)
+                    except Exception:
+                        return False
+
+                def _append_log(text: str):
+                    if _is_alive(logw):
+                        try:
+                            logw.append(text)
+                        except RuntimeError:
+                            pass
+
+                def _set_progress(val: int):
+                    if _is_alive(progress):
+                        try:
+                            progress.setValue(val)
+                        except RuntimeError:
+                            pass
+
                 def toggle_pause():
                     nonlocal paused
                     paused = not paused
@@ -2389,14 +2860,39 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     chosen_layers, log_q, mirror=use_mirror,
                     force_reinstall=reinstall, no_cache=(reinstall or purge_cache)
                 )
+
+                def request_cancel():
+                    ui_closed["value"] = True
+                    stop_event.set()
+                    t = timer_holder.get("obj")
+                    if t is not None:
+                        try:
+                            t.stop()
+                        except Exception:
+                            pass
+                    try:
+                        if worker.isRunning():
+                            worker.stop()
+                    except Exception:
+                        pass
+                    if _is_alive(dlg):
+                        try:
+                            dlg.reject()
+                        except RuntimeError:
+                            pass
+
+                btn_cancel.clicked.connect(request_cancel)
                 # === 绑定信号 ===
-                worker.log_updated.connect(logw.append)
-                worker.progress_updated.connect(progress.setValue)
+                worker.log_updated.connect(_append_log)
+                worker.progress_updated.connect(_set_progress)
 
                 def on_install_done(success: bool):
+                    if ui_closed["value"] or stop_event.is_set() or (not _is_alive(dlg)):
+                        return
+
                     if success:
-                        logw.append("\n[OK] 所有依赖安装完成 ✅")
-                        logw.append("[INFO] 正在验证安装的功能层...")
+                        _append_log("\n[OK] 所有依赖安装完成 ✅")
+                        _append_log("[INFO] 正在验证安装的功能层...")
                         
                         # 安装后进行运行时验证
                         verify_ok_layers = []
@@ -2405,10 +2901,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             v_ok, v_err = _verify_layer_runtime(pyexe, lyr, timeout=60)
                             if v_ok:
                                 verify_ok_layers.append(lyr)
-                                logw.append(f"  [OK] {lyr} 验证通过")
+                                _append_log(f"  [OK] {lyr} 验证通过")
                             else:
                                 verify_fail_layers.append(lyr)
-                                logw.append(f"  [FAIL] {lyr} 验证失败: {v_err[:100]}")
+                                _append_log(f"  [FAIL] {lyr} 验证失败:\n{v_err[:1000]}")
                         
                         # 只写入验证通过的层，并记录失败层
                         try:
@@ -2425,23 +2921,47 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             print(f"[WARN] 无法写入 .deps_state.json: {e}")
                         
                         if verify_fail_layers:
-                            logw.append(f"\n[WARN] 以下层安装但验证失败: {', '.join(verify_fail_layers)}")
-                            QMessageBox.warning(dlg, "部分验证失败", 
-                                f"以下功能层安装但无法正常工作:\n{', '.join(verify_fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复，或者清理缓存/重装。")
+                            _append_log(f"\n[WARN] 以下层安装但验证失败: {', '.join(verify_fail_layers)}")
+                            if _is_alive(dlg):
+                                _exec_close_only_message_box(
+                                    dlg,
+                                    "部分验证失败",
+                                    f"以下功能层安装但无法正常工作:\n{', '.join(verify_fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复，或者清理缓存/重装。",
+                                    icon=QMessageBox.Icon.Warning,
+                                    buttons=QMessageBox.StandardButton.Ok,
+                                )
                         else:
-                            QMessageBox.information(dlg, "安装完成", "所有依赖已安装并验证通过！点击完成返回依赖向导。")
+                            if _is_alive(dlg):
+                                _exec_close_only_message_box(
+                                    dlg,
+                                    "安装完成",
+                                    "所有依赖已安装并验证通过！点击完成返回依赖向导。",
+                                    icon=QMessageBox.Icon.Information,
+                                    buttons=QMessageBox.StandardButton.Ok,
+                                )
                     else:
-                        logw.append("\n[ERR] 安装存在失败，请查看日志 ❌")
-                        QMessageBox.warning(dlg, "安装不完整", "有依赖安装失败，请查看日志并重试。")
-                    progress.setValue(progress.maximum())
+                        _append_log("\n[ERR] 安装存在失败，请查看日志 ❌")
+                        if _is_alive(dlg):
+                            _exec_close_only_message_box(
+                                dlg,
+                                "安装不完整",
+                                "有依赖安装失败，请查看日志并重试。",
+                                icon=QMessageBox.Icon.Warning,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                    if _is_alive(progress):
+                        _set_progress(progress.maximum())
                     # 统一改“完成”，返回向导
-                    btn_cancel.setText("完成")
-                    btn_pause.setEnabled(False)
-                    try:
-                        btn_cancel.clicked.disconnect()
-                    except Exception:
-                        pass
-                    btn_cancel.clicked.connect(lambda: dlg.close())
+                    if _is_alive(btn_cancel):
+                        btn_cancel.setText("完成")
+                    if _is_alive(btn_pause):
+                        btn_pause.setEnabled(False)
+                    if _is_alive(btn_cancel):
+                        try:
+                            btn_cancel.clicked.disconnect()
+                        except Exception:
+                            pass
+                        btn_cancel.clicked.connect(lambda: dlg.close() if _is_alive(dlg) else None)
                     # 刷新向导 UI
                     try:
                         if hasattr(dlg, "refresh_ui"):
@@ -2453,6 +2973,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 # === UI线程日志轮询（防阻塞/防信号风暴）===
                 timer = QTimer(dlg)
+                timer_holder["obj"] = timer
                 timer.setInterval(50)
 
                 def drain_log_queue():
@@ -2467,16 +2988,29 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             lines_to_emit.append(line)
                             drained += 1
                     if lines_to_emit:
-                        worker.log_updated.emit("\n".join(lines_to_emit))
+                        _append_log("\n".join(lines_to_emit))
 
                 timer.timeout.connect(drain_log_queue)
                 timer.start()
 
                 def on_close_event(event):
+                    ui_closed["value"] = True
                     try:
                         timer.stop()
+                        try:
+                            worker.log_updated.disconnect(_append_log)
+                        except Exception:
+                            pass
+                        try:
+                            worker.progress_updated.disconnect(_set_progress)
+                        except Exception:
+                            pass
+                        try:
+                            worker.done.disconnect(on_install_done)
+                        except Exception:
+                            pass
                         worker.stop()
-                        worker.wait(5)  # 等待最长 5 秒
+                        worker.wait(5000)  # 等待最长 5 秒
                     except Exception as e:
                         print(f"[WARN] 关闭事件清理异常: {e}")
                     finally:
@@ -2488,7 +3022,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 result = dlg.exec()
                 if worker.isRunning():
                     worker.stop()
-                    worker.wait(1)
+                    worker.wait(3000)
 
                 if result != QDialog.DialogCode.Accepted:
                     # 用户在进度窗口点“退出下载”，回到依赖选择窗口
