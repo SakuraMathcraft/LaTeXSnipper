@@ -4,14 +4,20 @@ import os, sys, pathlib, datetime, faulthandler, json, subprocess
 import sys, os, subprocess, importlib
 
 def _early_ensure_pyqt6_and_pywin32():
-    import sys, subprocess, importlib
+    import os, sys, subprocess, importlib
+    pyexe = sys.executable
+    exe_name = os.path.basename(pyexe).lower()
+    # 仅在源码解释器模式启用早期 pip 自修复；打包 exe 不支持 `-m pip` 语义
+    can_pip_repair = (not getattr(sys, "frozen", False)) and exe_name.startswith("python")
+    if not can_pip_repair:
+        print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
+        return
 
     # 检查 PyQt6
     try:
         import PyQt6
     except ImportError:
         print("[WARN] 未检测到 PyQt6，尝试自动安装...")
-        pyexe = sys.executable
         subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-WebEngine~=6.9.0", "PyQt6-Fluent-Widgets"])
         importlib.invalidate_caches()
         import PyQt6
@@ -22,7 +28,6 @@ def _early_ensure_pyqt6_and_pywin32():
             from PyQt6 import QtWebEngineWidgets  # noqa: F401
         except Exception:
             print("[WARN] 未检测到 PyQt6-WebEngine，尝试自动安装...")
-            pyexe = sys.executable
             subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-WebEngine~=6.9.0"])
             importlib.invalidate_caches()
 
@@ -31,7 +36,6 @@ def _early_ensure_pyqt6_and_pywin32():
         import qfluentwidgets  # noqa: F401
     except ImportError:
         print("[WARN] 未检测到 PyQt6-Fluent-Widgets，尝试自动安装...")
-        pyexe = sys.executable
         subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-Fluent-Widgets"])
         importlib.invalidate_caches()
         import qfluentwidgets  # noqa: F401
@@ -42,7 +46,6 @@ def _early_ensure_pyqt6_and_pywin32():
         import win32api
     except ImportError:
         print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-        pyexe = sys.executable
         subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "pywin32"])
         importlib.invalidate_caches()
         # 关键：安装后直接提示用户重启
@@ -56,7 +59,6 @@ def _early_ensure_pyqt6_and_pywin32():
         import pyperclip  # noqa: F401
     except ImportError:
         print("[WARN] 未检测到 pyperclip，尝试自动安装...")
-        pyexe = sys.executable
         try:
             subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "pyperclip"])
             importlib.invalidate_caches()
@@ -75,7 +77,6 @@ def _early_ensure_pyqt6_and_pywin32():
         import requests  # noqa: F401
     except ImportError:
         print("[WARN] 未检测到 requests，尝试自动安装...")
-        pyexe = sys.executable
         try:
             subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "requests"])
             importlib.invalidate_caches()
@@ -1962,17 +1963,30 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
     import importlib as _imp
     _db = _imp.import_module("deps_bootstrap")
     try:
-        _db.ensure_deps(prompt_ui=True, always_show_ui=True, require_layers=("BASIC", "CORE"), deps_dir=str(BASE_DIR))
+        _ok = _db.ensure_deps(
+            prompt_ui=True,
+            always_show_ui=True,
+            require_layers=("BASIC", "CORE"),
+            deps_dir=str(BASE_DIR),
+        )
+        if _ok:
+            os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
     except Exception as e:
         print(f"[WARN] deps wizard failed: {e}")
 
 def ensure_deps(*args, **kwargs):
     # 已就绪则直接返回 True，避免再次尝试 venv/构建 UI
-    if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1":
+    # 但从设置页进入（from_settings/force_verify）时必须执行真实校验，不能被短路
+    from_settings = bool(kwargs.get("from_settings", False))
+    force_verify = bool(kwargs.get("force_verify", False))
+    if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not (from_settings or force_verify):
         return True
     # 真需要时再按需引入并调用（通常用不到）
     import deps_bootstrap as _db
-    return _db.ensure_deps(*args, **kwargs)
+    ok = _db.ensure_deps(*args, **kwargs)
+    if ok:
+        os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+    return ok
 def show_dependency_wizard(always_show_ui=False):
     # 默认不展示；仅在明确需要时才展示（always_show_ui=True）
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
@@ -2044,11 +2058,51 @@ def parse_requirements(req_path):
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidgetItem
 from qfluentwidgets import BodyLabel, PrimaryPushButton, MessageBox
 
+def _apply_close_only_window_flags(win):
+    """提示/工具窗口统一为仅保留右上角关闭按钮。"""
+    flags = (
+        win.windowFlags()
+        | Qt.WindowType.CustomizeWindowHint
+        | Qt.WindowType.WindowTitleHint
+        | Qt.WindowType.WindowCloseButtonHint
+        | Qt.WindowType.WindowSystemMenuHint
+    )
+    flags = (
+        flags
+        & ~Qt.WindowType.WindowMinimizeButtonHint
+        & ~Qt.WindowType.WindowMaximizeButtonHint
+        & ~Qt.WindowType.WindowMinMaxButtonsHint
+        & ~Qt.WindowType.WindowContextHelpButtonHint
+    )
+    win.setWindowFlags(flags)
+
+def _exec_close_only_message_box(
+    parent,
+    title: str,
+    text: str,
+    icon=QMessageBox.Icon.Information,
+    buttons=QMessageBox.StandardButton.Ok,
+    default_button=None,
+    informative_text: str | None = None,
+):
+    msg = QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.setIcon(icon)
+    msg.setStandardButtons(buttons)
+    if default_button is not None:
+        msg.setDefaultButton(default_button)
+    if informative_text:
+        msg.setInformativeText(informative_text)
+    _apply_close_only_window_flags(msg)
+    return QMessageBox.StandardButton(msg.exec())
+
 def show_gpu_install_tip(parent=None):
     cmd = r'.\.venv\Scripts\python.exe -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118'
     pyperclip.copy(cmd)
 
     dlg = QDialog(parent)
+    _apply_close_only_window_flags(dlg)
     dlg.setWindowTitle("安装 GPU 依赖")
     lay = QVBoxLayout(dlg)
     lay.addWidget(BodyLabel("如需 GPU 加速，请在终端运行以下命令安装 CUDA 版本："))
@@ -2062,6 +2116,7 @@ def show_gpu_install_tip(parent=None):
 
 def show_missing_deps_dialog(missing_pkgs, parent=None):
     dlg = QDialog(parent)
+    _apply_close_only_window_flags(dlg)
     dlg.setWindowTitle("缺失依赖")
     dlg.setModal(True)
 
@@ -2147,24 +2202,29 @@ else:
 
 _ocr_loaded = False
 _rapidocr_engine = None
+_rapidocr_module = None
 def get_ocr_backend():
     """
-    懒加载 OCR 依赖；若未安装则提示用户安装 OCR 层。
+    懒加载 OCR 依赖；若未安装则静默禁用 OCR 功能。
     """
-    global _ocr_loaded
+    global _ocr_loaded, _rapidocr_module
+    if _rapidocr_module is not None:
+        return _rapidocr_module
+
     if not _ocr_loaded:
         try:
-            import rapidocr  # noqa: F401
+            import rapidocr as _rapidocr  # noqa: F401
         except ModuleNotFoundError:
-            # 触发安装 OCR 层
-            ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE", "OCR"))
-        # 再次导入（现在应已安装）
-        import rapidocr
+            print("[OCR] rapidocr 未安装，OCR 功能已禁用。")
+            return None
+        _rapidocr_module = _rapidocr
         _ocr_loaded = True
-    return rapidocr
+    return _rapidocr_module
 def run_ocr(img_src):
     global _rapidocr_engine
     rapidocr = get_ocr_backend()
+    if rapidocr is None:
+        return ""
 
     # 延迟导入依赖
     from pathlib import Path
@@ -3034,12 +3094,7 @@ class FavoritesWindow(_QMainWindow):
         super().__init__(parent)
         self.cfg = cfg
         self.setWindowFlag(Qt.WindowType.Window, True)
-        # 移除最小化和最大化按钮，只保留关闭按钮
-        self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.WindowCloseButtonHint |
-            Qt.WindowType.WindowTitleHint
-        )
+        _apply_close_only_window_flags(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle("公式收藏夹")
         self.setMinimumSize(400, 350)
@@ -3582,12 +3637,16 @@ class FavoritesWindow(_QMainWindow):
     def _clear_all_favorites(self):
         """清空所有收藏"""
         if not self.favorites:
-            QMessageBox.information(self, "提示", "收藏夹已经是空的")
+            _exec_close_only_message_box(self, "提示", "收藏夹已经是空的")
             return
 
-        ret = QMessageBox.question(
-            self, "确认", f"确定要清空所有 {len(self.favorites)} 条收藏吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ret = _exec_close_only_message_box(
+            self,
+            "确认",
+            f"确定要清空所有 {len(self.favorites)} 条收藏吗？",
+            icon=QMessageBox.Icon.Question,
+            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            default_button=QMessageBox.StandardButton.No,
         )
         if ret != QMessageBox.StandardButton.Yes:
             return
@@ -6083,7 +6142,7 @@ th {{
         """显示识别结果确认对话框"""
         code = (latex_code or "").strip()
         if not code:
-            QMessageBox.information(self, "提示", "结果为空")
+            _exec_close_only_message_box(self, "提示", "结果为空")
             return
 
         # 获取当前识别模式（优先使用实际使用的模型，便于正确标注类型）
@@ -6096,8 +6155,8 @@ th {{
             current_mode = getattr(self, "current_model", "pix2tex")
         
         dlg = QDialog(self)
+        _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("识别结果")
-        dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
         dlg.resize(700, 500)
 
         lay = QVBoxLayout(dlg)
@@ -6473,11 +6532,15 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
     def clear_history(self):
         # 若无记录给提示
         if not self.history:
-            QMessageBox.information(self, "提示", "当前没有历史记录可清空。")
+            _exec_close_only_message_box(self, "提示", "当前没有历史记录可清空。")
             return
-        ret = QMessageBox.question(
-            self, "确认", "确认清空所有历史记录？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ret = _exec_close_only_message_box(
+            self,
+            "确认",
+            "确认清空所有历史记录？",
+            icon=QMessageBox.Icon.Question,
+            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            default_button=QMessageBox.StandardButton.No,
         )
         if ret != QMessageBox.StandardButton.Yes:
             return
@@ -6517,8 +6580,9 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
     def set_shortcut(self):
 
         dlg = QDialog(self)
+        _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("设置快捷键")
-        dlg.resize(320, 120)
+        dlg.setFixedSize(320, 120)
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
         edit = QTextEdit()
@@ -6554,7 +6618,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             return
         self.cfg.set("hotkey", text)
         dialog.accept()
-        QMessageBox.information(self, "提示", f"已更新: {text}")
+        _exec_close_only_message_box(self, "提示", f"已更新: {text}")
         self.update_tray_tooltip()
         self.update_tray_menu()
     # ---------- 其它 UI ----------
@@ -6916,7 +6980,6 @@ if __name__ == "__main__":
             pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
-            from deps_bootstrap import ensure_deps
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:
                 sys.exit(1)
@@ -6935,7 +6998,6 @@ if __name__ == "__main__":
     else:
         # 开发环境，保留原有依赖检测和私有解释器重启逻辑
         from PyQt6.QtWidgets import QApplication
-        from deps_bootstrap import ensure_deps
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         force_deps_check = '--force-deps-check' in sys.argv

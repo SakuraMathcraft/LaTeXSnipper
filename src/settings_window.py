@@ -14,6 +14,20 @@ class SettingsWindow(QDialog):
     pix2text_pkg_probe_done = pyqtSignal(bool)
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setWindowFlags(
+            (
+                self.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowSystemMenuHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowMaximizeButtonHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+        )
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         self.resize(340, 320)
         lay = QVBoxLayout(self)
@@ -1522,7 +1536,7 @@ class SettingsWindow(QDialog):
         self.close()
         # 强制显示向导界面（always_show_ui=True, from_settings=True）
         try:
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
+            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if ok:
                 InfoBar.success(
                     title="提示",
@@ -1549,6 +1563,8 @@ class SettingsWindow(QDialog):
         env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
         env["LATEXSNIPPER_FORCE_VERIFY"] = "1"
         env["LATEXSNIPPER_RESTART"] = "1"
+        # 避免新进程被“依赖已就绪”短路
+        env.pop("LATEXSNIPPER_DEPS_OK", None)
         # 获取当前 Python 和脚本路径
         python_exe = sys.executable
         script_path = os.path.abspath(sys.argv[0])
