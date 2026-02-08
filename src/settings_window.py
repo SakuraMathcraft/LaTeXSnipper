@@ -1,4 +1,4 @@
-import os, sys, subprocess
+﻿import os, sys, subprocess
 from pathlib import Path
 import pyperclip
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QTimer
@@ -599,11 +599,35 @@ class SettingsWindow(QDialog):
         dlg.exec()
     def _reinstall_env_torch(self, env_key: str):
         items = ["CPU", "GPU"]
-        choice, ok = QInputDialog.getItem(self, "重装 PyTorch", "选择要重装的版本:", items, 0, False)
-        if not ok:
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("重装 PyTorch")
+        dlg.setLabelText("选择要重装的版本:")
+        dlg.setComboBoxItems(items)
+        dlg.setComboBoxEditable(False)
+        dlg.setTextValue(items[0])
+        dlg.setWindowFlags(
+            (
+                dlg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        dlg.setFixedSize(dlg.sizeHint())
+        if dlg.exec() != int(QDialog.DialogCode.Accepted):
             return
+        choice = dlg.textValue()
         mode = "gpu" if choice == "GPU" else "cpu"
         self._install_env_torch(env_key, mode, include_model=False)
+
     def _init_model_combo(self):
         # 初始化模型下拉框的选择状态
         current = "pix2tex"
@@ -745,7 +769,9 @@ class SettingsWindow(QDialog):
             mode = self.parent().cfg.get("pix2text_mode", "formula")
         for i in range(self.pix2text_mode_combo.count()):
             if self.pix2text_mode_combo.itemData(i) == mode:
+                prev = self.pix2text_mode_combo.blockSignals(True)
                 self.pix2text_mode_combo.setCurrentIndex(i)
+                self.pix2text_mode_combo.blockSignals(prev)
                 break
     def _pix2text_mode_to_model(self, mode_key: str) -> str:
         mapping = {
@@ -1656,3 +1682,4 @@ class SettingsWindow(QDialog):
         self._update_unimernet_visibility()
 # ---------------- 主窗口 ----------------
 from PyQt6.QtCore import Qt
+

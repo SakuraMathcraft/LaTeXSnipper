@@ -5747,20 +5747,49 @@ th {{
 
     def _prompt_pdf_output_options(self):
         """选择 PDF 识别的导出格式与模板。"""
+        def _pick_item(title: str, label: str, items: list[str], current: int = 0):
+            dlg = QInputDialog(self)
+            dlg.setWindowTitle(title)
+            dlg.setLabelText(label)
+            dlg.setComboBoxItems(items)
+            dlg.setComboBoxEditable(False)
+            if 0 <= current < len(items):
+                dlg.setTextValue(items[current])
+            dlg.setWindowFlags(
+                (
+                    dlg.windowFlags()
+                    | Qt.WindowType.CustomizeWindowHint
+                    | Qt.WindowType.WindowTitleHint
+                    | Qt.WindowType.WindowCloseButtonHint
+                    | Qt.WindowType.WindowSystemMenuHint
+                )
+                & ~Qt.WindowType.WindowMinimizeButtonHint
+                & ~Qt.WindowType.WindowMaximizeButtonHint
+                & ~Qt.WindowType.WindowMinMaxButtonsHint
+                & ~Qt.WindowType.WindowContextHelpButtonHint
+            )
+            dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+            dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+            dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+            dlg.setFixedSize(dlg.sizeHint())
+            if dlg.exec() != int(QDialog.DialogCode.Accepted):
+                return None
+            return dlg.textValue()
+
         fmt_items = ["Markdown", "LaTeX"]
-        fmt, ok = QInputDialog.getItem(self, "导出格式", "请选择导出格式：", fmt_items, 0, False)
-        if not ok:
+        fmt = _pick_item("导出格式", "请选择导出格式：", fmt_items, 0)
+        if not fmt:
             return None
         style_items = ["论文 (article)", "期刊 (IEEEtran)"]
-        style, ok = QInputDialog.getItem(self, "文档模板", "请选择文档模板：", style_items, 0, False)
-        if not ok:
+        style = _pick_item("文档模板", "请选择文档模板：", style_items, 0)
+        if not style:
             return None
         fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
         style_key = "paper" if style.startswith("论文") else "journal"
         # 速度/精度选择
         speed_items = ["快 (150 DPI)", "平衡 (200 DPI)", "清晰 (300 DPI)"]
-        speed, ok = QInputDialog.getItem(self, "速度/精度", "请选择识别速度/精度：", speed_items, 1, False)
-        if not ok:
+        speed = _pick_item("速度/精度", "请选择识别速度/精度：", speed_items, 1)
+        if not speed:
             return None
         dpi_map = {"快 (150 DPI)": 150, "平衡 (200 DPI)": 200, "清晰 (300 DPI)": 300}
         dpi = dpi_map.get(speed, 200)
@@ -5781,17 +5810,17 @@ th {{
         if not self._model_supports_pdf(self.current_model):
             custom_warning_dialog("提示", "当前模型不支持 PDF 识别，请切换到 pix2text/UniMERNet。", self)
             return
-        if self.current_model.startswith("pix2text") and self.current_model not in ("pix2text_page", "pix2text_mixed"):
+        if self.current_model.startswith("pix2text") and self.current_model != "pix2text_mixed":
             from qfluentwidgets import MessageBox
             tip = MessageBox(
                 "推荐模式",
-                "PDF 识别建议使用 pix2text_page（整页识别）。\n是否切换并继续？",
+                "PDF 识别建议使用 pix2text_mixed（混合识别）。\n是否切换并继续？",
                 self
             )
             tip.yesButton.setText("切换并继续")
             tip.cancelButton.setText("取消")
             if tip.exec():
-                self.on_model_changed("pix2text_page")
+                self.on_model_changed("pix2text_mixed")
                 if not self._model_supports_pdf(self.current_model):
                     custom_warning_dialog("提示", "当前模型仍不支持 PDF 识别。", self)
                     return
@@ -5819,16 +5848,33 @@ th {{
             return
 
         default_pages = min(total_pages, 5) if total_pages > 0 else 1
-        pages, ok = QInputDialog.getInt(
-            self,
-            "选择页数",
-            f"PDF 共 {total_pages} 页，选择要识别的页数：",
-            default_pages,
-            1,
-            max(total_pages, 1)
+        page_dlg = QInputDialog(self)
+        page_dlg.setWindowTitle("选择页数")
+        page_dlg.setLabelText(f"PDF 共 {total_pages} 页，选择要识别的页数：")
+        page_dlg.setInputMode(QInputDialog.InputMode.IntInput)
+        page_dlg.setIntRange(1, max(total_pages, 1))
+        page_dlg.setIntValue(default_pages)
+        page_dlg.setIntStep(1)
+        page_dlg.setWindowFlags(
+            (
+                page_dlg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
         )
-        if not ok:
+        page_dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        page_dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        page_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        page_dlg.setFixedSize(page_dlg.sizeHint())
+        if page_dlg.exec() != int(QDialog.DialogCode.Accepted):
             return
+        pages = page_dlg.intValue()
 
         opts = self._prompt_pdf_output_options()
         if not opts:
@@ -5855,6 +5901,20 @@ th {{
         self.pdf_progress = QProgressDialog("正在识别 PDF（取消将在当前页结束后生效）...", "取消", 0, pages, self)
         self.pdf_progress.setWindowModality(Qt.WindowModality.WindowModal)
         self.pdf_progress.setMinimumDuration(0)
+        self.pdf_progress.setWindowFlags(
+            (
+                self.pdf_progress.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        self.pdf_progress.setFixedSize(420, 120)
         self.pdf_progress.canceled.connect(self._on_pdf_cancel_requested)
         self.pdf_predict_worker.progress.connect(self._on_pdf_progress)
 
@@ -5938,6 +5998,16 @@ th {{
     def _show_document_dialog(self, text: str, fmt_key: str):
         dlg = QDialog(self)
         dlg.setWindowTitle("PDF 识别结果")
+        # 显式使用可移动的标准窗口样式，避免在部分路径下出现不可拖动。
+        dlg.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+        )
+        dlg.setSizeGripEnabled(True)
         dlg.resize(780, 520)
         lay = QVBoxLayout(dlg)
         info = BodyLabel("识别结果（可编辑/复制/保存）：")
@@ -5987,6 +6057,12 @@ th {{
 
     def _on_pdf_predict_ok(self, content: str):
         self.set_model_status("完成")
+        try:
+            if self.pdf_progress:
+                self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
+                self.pdf_progress.close()
+        except Exception:
+            pass
         try:
             used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
@@ -6789,14 +6865,18 @@ class PdfPredictWorker(QObject):
     def run(self):
         import time
         t0 = time.perf_counter()
+        def _set_elapsed():
+            self.elapsed = time.perf_counter() - t0
         try:
             import fitz  # PyMuPDF
         except Exception as e:
+            _set_elapsed()
             self.failed.emit(f"缺少 PyMuPDF 依赖: {e}")
             return
         try:
             doc = fitz.open(self.pdf_path)
         except Exception as e:
+            _set_elapsed()
             self.failed.emit(f"PDF 打开失败: {e}")
             return
 
@@ -6805,6 +6885,7 @@ class PdfPredictWorker(QObject):
         try:
             for i in range(total):
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                    _set_elapsed()
                     self.failed.emit("已取消")
                     return
                 page = doc.load_page(i)
@@ -6812,6 +6893,7 @@ class PdfPredictWorker(QObject):
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 res = self.model_wrapper.predict(img, model_name=self.model_name)
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                    _set_elapsed()
                     self.failed.emit("已取消")
                     return
                 results.append((res or "").strip())
@@ -6825,8 +6907,10 @@ class PdfPredictWorker(QObject):
         sep = "\n\n---\n\n" if self.output_format == "markdown" else "\n\n% --- Page ---\n\n"
         content = sep.join([r for r in results if r])
         if not content.strip():
+            _set_elapsed()
             self.failed.emit("识别结果为空")
             return
+        _set_elapsed()
         self.finished.emit(content.strip())
 # ---------------- 编辑对话框 ----------------
 from PyQt6.QtCore import Qt
