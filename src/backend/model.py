@@ -90,6 +90,9 @@ class ModelWrapper(QObject):
                 self._pix2tex_load_error = str(e)
                 self._emit(f"[WARN] pix2tex 初始化失败，程序将继续启动: {e}")
                 self._emit("[HINT] 可在【设置】→【依赖管理向导】中修复依赖")
+            # 开发模式也仅在默认模型为 pix2text 时预加载，避免无关探测日志
+            if self._should_probe_pix2text():
+                self._lazy_load_pix2text()
     
     def _probe_subprocess_models(self, probe_pix2text: bool = False):
         """subprocess no outputsubprocess no outputsubprocess no output"""
@@ -138,15 +141,13 @@ class ModelWrapper(QObject):
             self._emit(f"[WARN] pix2tex error: {e}")
 
         if probe_pix2text:
+            self._emit("[INFO] 预加载 pix2text（启动阶段）...")
             self._lazy_load_pix2text()
 
     def _should_probe_pix2text(self) -> bool:
-        """打包模式下是否需要预探测 pix2text"""
-        # 显式默认模式是 pix2text 系列
-        if self._default_model.startswith("pix2text"):
-            return True
-        # 检查已安装功能层
-        return self._has_pix2text_layer()
+        """是否需要预探测/预加载 pix2text"""
+        # 仅在默认模型就是 pix2text 系列时预探测，避免启动阶段干扰日志
+        return self._default_model.startswith("pix2text")
 
     def _has_pix2text_layer(self) -> bool:
         try:
@@ -379,7 +380,16 @@ class ModelWrapper(QObject):
             try:
                 self._emit("[INFO] 开始加载 pix2tex (首次启动会安装权重，请耐心等待)...")
                 from pix2tex.cli import LatexOCR
-                self.pix2tex_model = LatexOCR()  # 不传 device
+                import warnings
+                # 已知第三方依赖告警：不影响推理，仅会污染启动日志。
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message=r"^Pydantic serializer warnings:[\s\S]*UniformParams",
+                        category=UserWarning,
+                        module=r"pydantic\.main",
+                    )
+                    self.pix2tex_model = LatexOCR()  # 不传 device
                 real_dev = getattr(self.pix2tex_model, "device", None)
                 if real_dev is None and hasattr(self.pix2tex_model, "model"):
                     try:
@@ -1357,6 +1367,9 @@ for line in sys.stdin:
                 if not _run_bootstrap(deps_python):
                     self._pix2text_import_failed = True
                     return False
+            else:
+                ver = (result or {}).get("ver", "") or "unknown"
+                self._emit(f"[INFO] pix2text probe ok (ver={ver})")
 
             self._pix2text_subprocess_ready = True
             self._pix2text_import_failed = False
@@ -1467,7 +1480,14 @@ from PIL import Image
 
 try:
     import torch
+    import warnings
     from pix2tex.cli import LatexOCR
+    warnings.filterwarnings(
+        "ignore",
+        message=r"^Pydantic serializer warnings:[\s\S]*UniformParams",
+        category=UserWarning,
+        module=r"pydantic\.main",
+    )
     ocr = LatexOCR()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(json.dumps({"ready": True, "ok": True, "device": dev}), flush=True)
@@ -1568,9 +1588,16 @@ for line in sys.stdin:
             import sys, json, base64, io
             from PIL import Image
             try:
+                import warnings
                 from pix2tex.cli import LatexOCR
                 img_data = base64.b64decode(sys.argv[1])
                 img = Image.open(io.BytesIO(img_data))
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"^Pydantic serializer warnings:[\s\S]*UniformParams",
+                    category=UserWarning,
+                    module=r"pydantic\.main",
+                )
                 model = LatexOCR()
                 result = model(img)
                 if not isinstance(result, str):

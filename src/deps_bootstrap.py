@@ -189,26 +189,75 @@ class InstallWorker(QThread):
                     except Exception as e:
                         self.log_updated.emit(f"[WARN] 卸载 PyTorch 失败: {e}")
 
+            # 判断 torch 安装源策略
+            # - 选择 HEAVY_GPU：自动检测 CUDA 版本，使用对应的 CUDA 源
+            # - 选择 HEAVY_CPU 或自动补充：使用 CPU 源
+            want_gpu_torch = "HEAVY_GPU" in (self.chosen_layers or [])
+            want_cpu_torch = not want_gpu_torch and ("CORE" in (self.chosen_layers or []) or "HEAVY_CPU" in (self.chosen_layers or []))
+
+            # 获取 CUDA 信息（自动检测）
+            cuda_info = get_cuda_info()
+            detected_torch_url = cuda_info.get("torch_url")  # 基于检测到的 CUDA 版本
+            if want_gpu_torch and detected_torch_url:
+                torch_url_for_ort = detected_torch_url
+            elif want_gpu_torch:
+                torch_url_for_ort = TORCH_GPU_FALLBACK_INDEX_URL
+            else:
+                torch_url_for_ort = TORCH_CPU_INDEX_URL
+            resolved_onnx_gpu_spec = _onnxruntime_gpu_spec_for_torch_url(
+                torch_url_for_ort,
+                prefer_gpu=want_gpu_torch
+            )
+
+            if want_gpu_torch:
+                if detected_torch_url:
+                    self.log_updated.emit(f"[INFO] 检测到 CUDA {cuda_info.get('version')}，将使用 {cuda_info.get('torch_tag')} 版本 PyTorch")
+                else:
+                    self.log_updated.emit("[WARN] 未检测到可适配的 CUDA（或 CUDA<11.8），GPU 层将回退 CPU 版 PyTorch")
+                self.log_updated.emit(f"[INFO] ONNX Runtime GPU 将使用: {resolved_onnx_gpu_spec}")
+
+            def _resolve_layer_pkg_spec(pkg_spec: str) -> str:
+                root_name = re.split(r'[<>=!~ ]', pkg_spec, 1)[0].strip().lower()
+                if root_name in TORCH_NAMES:
+                    if want_gpu_torch and detected_torch_url:
+                        torch_url_for_spec = detected_torch_url
+                    elif want_gpu_torch:
+                        torch_url_for_spec = TORCH_GPU_FALLBACK_INDEX_URL
+                    elif want_cpu_torch:
+                        torch_url_for_spec = TORCH_CPU_INDEX_URL
+                    else:
+                        torch_url_for_spec = TORCH_CPU_INDEX_URL
+                    spec_map = _torch_specs_for_index_url(torch_url_for_spec, prefer_gpu=want_gpu_torch)
+                    return spec_map.get(root_name, pkg_spec)
+                if root_name == "onnxruntime-gpu" and want_gpu_torch:
+                    return resolved_onnx_gpu_spec
+                if root_name == "onnxruntime-gpu" and not want_gpu_torch:
+                    return ORT_GPU_DEFAULT_SPEC
+                if root_name not in TORCH_NAMES:
+                    return pkg_spec
+                return pkg_spec
+
             # 检查哪些包需要安装
             pending = []
             skipped = []
             if self.force_reinstall:
-                pending = list(self.pkgs)
+                pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
                 self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
             else:
                 for p in self.pkgs:
-                    pkg_name = re.split(r'[<>=!~ ]', p, 1)[0].lower()
+                    effective_p = _resolve_layer_pkg_spec(p)
+                    pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
                     if pkg_name in installed_before:
                         cur_ver = installed_before[pkg_name]
-                        if _version_satisfies_spec(pkg_name, cur_ver, p):
+                        if _version_satisfies_spec(pkg_name, cur_ver, effective_p):
                             skipped.append(f"{pkg_name} ({cur_ver})")
                         else:
-                            pending.append(p)
+                            pending.append(effective_p)
                             self.log_updated.emit(
-                                f"[INFO] {pkg_name} 版本不满足要求，准备重装: 当前 {cur_ver}，要求 {p}"
+                                f"[INFO] {pkg_name} 版本不满足要求，准备重装: 当前 {cur_ver}，要求 {effective_p}"
                             )
                     else:
-                        pending.append(p)
+                        pending.append(effective_p)
             
             if skipped:
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
@@ -225,21 +274,6 @@ class InstallWorker(QThread):
             done_count = 0
             fail_count = 0
             failed_pkgs = []  # 记录失败的包
-            # 判断 torch 安装源策略
-            # - 选择 HEAVY_GPU：自动检测 CUDA 版本，使用对应的 CUDA 源
-            # - 选择 HEAVY_CPU 或自动补充：使用 CPU 源
-            want_gpu_torch = "HEAVY_GPU" in (self.chosen_layers or [])
-            want_cpu_torch = not want_gpu_torch and ("CORE" in (self.chosen_layers or []) or "HEAVY_CPU" in (self.chosen_layers or []))
-            
-            # 获取 CUDA 信息（自动检测）
-            cuda_info = get_cuda_info()
-            detected_torch_url = cuda_info.get("torch_url")  # 基于检测到的 CUDA 版本
-            
-            if want_gpu_torch:
-                if detected_torch_url:
-                    self.log_updated.emit(f"[INFO] 检测到 CUDA {cuda_info.get('version')}，将使用 {cuda_info.get('torch_tag')} 版本 PyTorch")
-                else:
-                    self.log_updated.emit("[WARN] 未检测到 CUDA，GPU 层将使用默认源（可能是 CPU 版本）")
             
             for i, pkg in enumerate(pending, start=1):
                 while not self.pause_event.is_set():
@@ -404,7 +438,66 @@ STATE_FILE = ".deps_state.json"
 TORCH_NAMES = {"torch", "torchvision", "torchaudio"}
 QT_PKGS = {"pyqt6", "pyqt6-qt6", "pyqt6-webengine", "pyqt6-webengine-qt6"}
 TORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
-TORCH_GPU_FALLBACK_INDEX_URL = "https://download.pytorch.org/whl/cu118"
+# 不再固定回退 cu118；GPU 版本无法判定时，使用 CPU 源更安全
+TORCH_GPU_FALLBACK_INDEX_URL = TORCH_CPU_INDEX_URL
+TORCH_BUILD_MATRIX = {
+    "cu118": ("2.7.1", "0.22.1", "2.7.1"),
+    "cu121": ("2.5.1", "0.20.1", "2.5.1"),
+    "cu124": ("2.5.1", "0.20.1", "2.5.1"),
+    "cu126": ("2.7.1", "0.22.1", "2.7.1"),
+    "cu128": ("2.7.1", "0.22.1", "2.7.1"),
+    "cu129": ("2.8.0", "0.23.0", "2.8.0"),
+    "cu130": ("2.9.0", "0.24.0", "2.9.0"),
+}
+TORCH_CPU_BUILD = ("2.9.0", "0.24.0", "2.9.0")
+ORT_GPU_BY_TAG = {
+    # CUDA 11.8 使用 1.18.x；CUDA 12+ 使用 1.19.x
+    "cu118": "onnxruntime-gpu~=1.18.1",
+}
+ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu~=1.19.2"
+
+def _torch_specs_for_index_url(torch_url: str | None, prefer_gpu: bool = False) -> dict:
+    """
+    根据 index-url 返回 torch 三件套版本规格：
+    {'torch': 'torch==x', 'torchvision': 'torchvision==y', 'torchaudio': 'torchaudio==z'}
+    """
+    tag = "cpu"
+    if torch_url:
+        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
+        if m:
+            tag = m.group(1).lower()
+    if tag == "cpu":
+        t, tv, ta = TORCH_CPU_BUILD
+    else:
+        if tag not in TORCH_BUILD_MATRIX:
+            # 非预期标签时，GPU 场景回退最高可用，CPU 场景回退 CPU
+            if prefer_gpu:
+                t, tv, ta = TORCH_BUILD_MATRIX["cu130"]
+            else:
+                t, tv, ta = TORCH_CPU_BUILD
+        else:
+            t, tv, ta = TORCH_BUILD_MATRIX[tag]
+    return {
+        "torch": f"torch=={t}",
+        "torchvision": f"torchvision=={tv}",
+        "torchaudio": f"torchaudio=={ta}",
+    }
+
+def _onnxruntime_gpu_spec_for_torch_url(torch_url: str | None, prefer_gpu: bool = False) -> str:
+    """
+    根据 torch index-url 推断 onnxruntime-gpu 规格。
+    规则：
+    - cu118 -> onnxruntime-gpu~=1.18.1
+    - 其他已知/未知 CUDA 标签 -> onnxruntime-gpu~=1.19.2
+    """
+    if not prefer_gpu:
+        return ORT_GPU_DEFAULT_SPEC
+    tag = "cpu"
+    if torch_url:
+        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
+        if m:
+            tag = m.group(1).lower()
+    return ORT_GPU_BY_TAG.get(tag, ORT_GPU_DEFAULT_SPEC)
 
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
@@ -699,7 +792,8 @@ def _repair_torch_stack(
     except Exception as e:
         log_q.put(f"[WARN] 卸载 torch 三件套异常: {e}")
 
-    pkgs = ["torch==2.7.1", "torchvision==0.22.1", "torchaudio==2.7.1"]
+    spec_map = _torch_specs_for_index_url(torch_url, prefer_gpu=bool(torch_url and torch_url != TORCH_CPU_INDEX_URL))
+    pkgs = [spec_map["torch"], spec_map["torchvision"], spec_map["torchaudio"]]
     for spec in pkgs:
         if stop_event.is_set():
             return False
@@ -748,19 +842,19 @@ LAYER_MAP = {
         "matplotlib~=3.8.4",  # LaTeX 公式转 SVG 的支持
         "pymupdf~=1.23.0",  # PDF 识别依赖
     ],
-    # HEAVY_CPU: PyTorch CPU 版，用于无 GPU 但需要深度学习推理的场景
+    # HEAVY_CPU: PyTorch CPU 版层（torch 三件套版本会在安装时按策略动态改写）
     "HEAVY_CPU": [
         "torch==2.7.1",
         "torchvision==0.22.1",
         "torchaudio==2.7.1",
         "optimum~=1.16.2",
     ],
-    # HEAVY_GPU: PyTorch GPU 版（CUDA 11.8），用于有 NVIDIA GPU 的加速推理场景
+    # HEAVY_GPU: PyTorch GPU 版层（torch 与 onnxruntime-gpu 版本会在安装时按 CUDA 动态改写）
     "HEAVY_GPU": [
         "torch==2.7.1",
         "torchvision==0.22.1",
         "torchaudio==2.7.1",
-        "onnxruntime-gpu~=1.18.1",  # 1.18.x 支持 CUDA 11.8，1.19+ 需要 CUDA 12.x
+        "onnxruntime-gpu~=1.19.2",
     ],
 }
 
@@ -1058,7 +1152,7 @@ def _detect_cuda_version() -> tuple:
             return (major, minor, f"{major}.{minor}")
     
     # 方法3: 通过 nvidia-smi 检测（驱动支持的最高版本 - 回退方案）
-    # 注意：这不是实际安装的 CUDA 版本！
+    # 注意：这不是实际安装的 CUDA Toolkit 版本，但可用于选择兼容 wheel
     try:
         r = subprocess.run(
             ["nvidia-smi"], 
@@ -1074,9 +1168,7 @@ def _detect_cuda_version() -> tuple:
             if match:
                 major, minor = int(match.group(1)), int(match.group(2))
                 print(f"[WARN] 未找到 nvcc，使用驱动支持版本 CUDA {major}.{minor}（可能不准确）")
-                # 如果驱动版本很高但没有安装 CUDA Toolkit，建议使用较保守的版本
-                # 回退到 cu118 作为安全选择
-                return (11, 8, "11.8 (推断)")
+                return (major, minor, f"{major}.{minor} (推断)")
     except Exception:
         pass
     
@@ -1086,14 +1178,11 @@ def _get_torch_index_url(cuda_version: tuple) -> str:
     """
     根据 CUDA 版本返回对应的 PyTorch 下载 URL。
     
-    PyTorch 官方支持的 CUDA 版本（截至 2.7.x）：
-    - cu118: CUDA 11.8
-    - cu121: CUDA 12.1
-    - cu124: CUDA 12.4
-    - cu126: CUDA 12.6 (最新稳定)
-    
+    PyTorch 官方 previous-versions 常见 CUDA 标签：
+    - cu118 / cu121 / cu124 / cu126 / cu128 / cu129 / cu130
+
     注意：CUDA 向后兼容，所以 CUDA 13.x 驱动可以运行 CUDA 12.x 编译的程序。
-    
+
     返回: index-url 字符串，如果没有 CUDA 则返回 None（使用 CPU 版本）
     """
     major, minor, _ = cuda_version
@@ -1101,38 +1190,38 @@ def _get_torch_index_url(cuda_version: tuple) -> str:
     if major is None:
         return None  # 无 CUDA，使用 CPU 版本
     
-    # PyTorch 官方 CUDA 轮子版本映射
-    # 格式: (major, minor): (cu_tag, url)
+    # PyTorch CUDA 轮子标签映射（按 CUDA 版本阈值递增）
     cuda_urls = [
         ((11, 8), ("cu118", "https://download.pytorch.org/whl/cu118")),
         ((12, 1), ("cu121", "https://download.pytorch.org/whl/cu121")),
         ((12, 4), ("cu124", "https://download.pytorch.org/whl/cu124")),
         ((12, 6), ("cu126", "https://download.pytorch.org/whl/cu126")),
+        ((12, 8), ("cu128", "https://download.pytorch.org/whl/cu128")),
+        ((12, 9), ("cu129", "https://download.pytorch.org/whl/cu129")),
+        ((13, 0), ("cu130", "https://download.pytorch.org/whl/cu130")),
     ]
-    
-    # 将用户 CUDA 版本转换为可比较的数值
-    user_cuda = major * 100 + minor
-    
-    # 找到最高的兼容版本（不超过用户版本，或用户版本更高时使用最新的）
+
+    # 低于 11.8 时不适配 GPU 轮子
+    if (major, minor) < (11, 8):
+        print(f"[WARN] CUDA {major}.{minor} 低于 11.8，跳过 GPU 版 PyTorch 自动适配")
+        return None
+
+    # 找到最高的兼容版本（不超过用户版本）
     best_match = None
-    best_cuda_num = 0
-    
+    best_ver = (0, 0)
     for (cmaj, cmin), (tag, url) in cuda_urls:
-        cuda_num = cmaj * 100 + cmin
-        # 如果用户 CUDA >= 此版本，则可以使用
-        if cuda_num <= user_cuda and cuda_num > best_cuda_num:
-            best_cuda_num = cuda_num
+        if (cmaj, cmin) <= (major, minor) and (cmaj, cmin) >= best_ver:
+            best_ver = (cmaj, cmin)
             best_match = (tag, url)
-    
-    # 如果用户 CUDA 比所有支持的都高（如 CUDA 13.x），使用最新的可用版本
-    if best_match is None and user_cuda > 0:
-        # 使用最高的可用版本（cu126）
+
+    # 如果用户 CUDA 高于当前表上限，回退到最高可用标签
+    if best_match is None and (major, minor) > (0, 0):
         best_match = cuda_urls[-1][1]
-        print(f"[INFO] CUDA {major}.{minor} 高于 PyTorch 支持的最高版本，将使用 {best_match[0]}")
-    
+        print(f"[INFO] CUDA {major}.{minor} 高于当前映射上限，将使用 {best_match[0]}")
+
     if best_match:
         return best_match[1]
-    
+
     return None
 
 # 全局缓存检测到的 CUDA 信息
@@ -1158,19 +1247,10 @@ def get_cuda_info() -> dict:
     major, minor, version_str = _detect_cuda_version()
     torch_url = _get_torch_index_url((major, minor, version_str)) if major else None
     
-    # 确定 torch tag
+    # 确定 torch tag（通用提取，支持 cu128/cu129/cu130 等）
     if torch_url:
-        # 从 URL 中提取 tag
-        if "cu118" in torch_url:
-            torch_tag = "cu118"
-        elif "cu121" in torch_url:
-            torch_tag = "cu121"
-        elif "cu124" in torch_url:
-            torch_tag = "cu124"
-        elif "cu126" in torch_url:
-            torch_tag = "cu126"
-        else:
-            torch_tag = "cuda"
+        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
+        torch_tag = m.group(1) if m else "cuda"
     else:
         torch_tag = "cpu"
     
@@ -1288,7 +1368,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     else:
         return f"❓ 未知错误 (code={returncode}) - 请查看上方日志获取详情"
 
-#  扩展 _pip_install：为 torch 系列包支持专用 index-url（cu118），，并支持 pause_event
+#  扩展 _pip_install：为 torch 系列包支持专用 index-url（按检测 CUDA 自动选择），并支持 pause_event
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch_url=None, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
     """
@@ -1569,11 +1649,13 @@ class GpuSwitchWorker(QThread):
 
     def _install_gpu_stack(self) -> bool:
         self.log_q.put("[STEP] 安装 GPU 版 PyTorch 栈 ...")
+        spec_map = _torch_specs_for_index_url(self.torch_url, prefer_gpu=True)
+        ort_gpu_spec = _onnxruntime_gpu_spec_for_torch_url(self.torch_url, prefer_gpu=True)
         pkgs = [
-            "torch==2.7.1",
-            "torchvision==0.22.1",
-            "torchaudio==2.7.1",
-            "onnxruntime-gpu~=1.19.2"
+            spec_map["torch"],
+            spec_map["torchvision"],
+            spec_map["torchaudio"],
+            ort_gpu_spec
         ]
         total = len(pkgs)
         ok_all = True
@@ -1581,7 +1663,7 @@ class GpuSwitchWorker(QThread):
             if self.stop_event.is_set():
                 self.log_q.put("[CANCEL] 用户取消。")
                 return False
-            # torch 三件套走 cu118 源；onnxruntime-gpu 走 PyPI/镜像
+            # torch 三件套走检测到的 CUDA 源；onnxruntime-gpu 走 PyPI/镜像
             is_torch = re.split(r'[<>=!~ ]', p, 1)[0].strip().lower() in TORCH_NAMES
             ok = _pip_install(
                 self.pyexe, p, self.stop_event, self.log_q,
