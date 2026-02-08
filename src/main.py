@@ -2098,7 +2098,72 @@ def _exec_close_only_message_box(
     return QMessageBox.StandardButton(msg.exec())
 
 def show_gpu_install_tip(parent=None):
-    cmd = r'.\.venv\Scripts\python.exe -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118'
+    import re
+    import subprocess
+
+    matrix = [
+        ((11, 8), ("cu118", "2.7.1", "0.22.1", "2.7.1")),
+        ((12, 1), ("cu121", "2.5.1", "0.20.1", "2.5.1")),
+        ((12, 4), ("cu124", "2.5.1", "0.20.1", "2.5.1")),
+        ((12, 6), ("cu126", "2.7.1", "0.22.1", "2.7.1")),
+        ((12, 8), ("cu128", "2.7.1", "0.22.1", "2.7.1")),
+        ((12, 9), ("cu129", "2.8.0", "0.23.0", "2.8.0")),
+        ((13, 0), ("cu130", "2.9.0", "0.24.0", "2.9.0")),
+    ]
+    cpu_cmd = r'.\.venv\Scripts\python.exe -m pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cpu'
+
+    def _parse_cuda_ver(text: str):
+        t = (text or "").lower()
+        m = re.search(r"release\s*(\d+)\.(\d+)", t) or re.search(r"\bv(\d+)\.(\d+)", t) or re.search(r"cuda version:\s*(\d+)\.(\d+)", t)
+        if not m:
+            return None
+        return int(m.group(1)), int(m.group(2))
+
+    def _pick_plan(ver):
+        if not ver:
+            return None
+        major, minor = ver
+        if (major, minor) < (11, 8):
+            return None
+        best = None
+        for v, p in matrix:
+            if v <= (major, minor):
+                best = p
+        return best or matrix[-1][1]
+
+    cuda_ver = None
+    source = ""
+    try:
+        r = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5)
+        cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
+        if cuda_ver:
+            source = "nvcc"
+    except Exception:
+        pass
+    if not cuda_ver:
+        try:
+            r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5)
+            cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
+            if cuda_ver:
+                source = "nvidia-smi"
+        except Exception:
+            pass
+
+    plan = _pick_plan(cuda_ver)
+    if plan:
+        tag, t_ver, tv_ver, ta_ver = plan
+        cmd = (
+            f'.\\.venv\\Scripts\\python.exe -m pip install '
+            f'torch=={t_ver} torchvision=={tv_ver} torchaudio=={ta_ver} '
+            f'--index-url https://download.pytorch.org/whl/{tag}'
+        )
+        note = f"已根据 {source} 自动匹配到 CUDA {cuda_ver[0]}.{cuda_ver[1]} -> {tag}"
+    else:
+        cmd = cpu_cmd
+        if cuda_ver:
+            note = f"检测到 CUDA {cuda_ver[0]}.{cuda_ver[1]}（低于 11.8），改用 CPU 版命令"
+        else:
+            note = "未检测到 CUDA，改用 CPU 版命令"
     pyperclip.copy(cmd)
 
     dlg = QDialog(parent)
@@ -2106,6 +2171,7 @@ def show_gpu_install_tip(parent=None):
     dlg.setWindowTitle("安装 GPU 依赖")
     lay = QVBoxLayout(dlg)
     lay.addWidget(BodyLabel("如需 GPU 加速，请在终端运行以下命令安装 CUDA 版本："))
+    lay.addWidget(BodyLabel(note))
     lay.addWidget(BodyLabel(cmd))
     lay.addWidget(BodyLabel("命令已复制到剪贴板。"))
     btn = PushButton(FluentIcon.CLOSE, "关闭")
@@ -3706,6 +3772,89 @@ class FavoritesWindow(_QMainWindow):
         self.show(); self.raise_(); self.activateWindow()
         self._set_status("已加入收藏")
 
+class PdfResultWindow(_QMainWindow):
+    """PDF 识别结果独立窗口（非模态，避免阻塞主窗口）。"""
+    def __init__(self, status_cb=None, window_icon: QIcon | None = None):
+        super().__init__(None)
+        self._status_cb = status_cb
+        self._fmt_key = "markdown"
+        self.setWindowTitle("PDF 识别结果")
+        if window_icon is not None:
+            try:
+                self.setWindowIcon(window_icon)
+            except Exception:
+                pass
+        self.resize(780, 520)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+        )
+        container = QWidget(self)
+        lay = QVBoxLayout(container)
+        lay.addWidget(BodyLabel("识别结果（可编辑/复制/保存）："))
+        self.editor = QPlainTextEdit(self)
+        self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        lay.addWidget(self.editor, 1)
+        btn_row = QHBoxLayout()
+        self.btn_copy = PushButton(FluentIcon.COPY, "复制")
+        self.btn_save = PushButton(FluentIcon.SAVE, "保存")
+        self.btn_close = PushButton(FluentIcon.CLOSE, "关闭")
+        for b in (self.btn_copy, self.btn_save, self.btn_close):
+            b.setFixedHeight(34)
+            btn_row.addWidget(b)
+        lay.addLayout(btn_row)
+        self.setCentralWidget(container)
+        self.btn_copy.clicked.connect(self._do_copy)
+        self.btn_save.clicked.connect(self._do_save)
+        self.btn_close.clicked.connect(self.close)
+
+    def set_content(self, text: str, fmt_key: str):
+        self._fmt_key = fmt_key
+        self.editor.setPlainText(text or "")
+
+    def _emit_status(self, msg: str):
+        try:
+            if callable(self._status_cb):
+                self._status_cb(msg)
+        except Exception:
+            pass
+
+    def _do_copy(self):
+        try:
+            pyperclip.copy(self.editor.toPlainText())
+            self._emit_status("已复制文档")
+        except Exception as e:
+            custom_warning_dialog("错误", f"复制失败: {e}", self)
+
+    def _do_save(self):
+        suffix = "md" if self._fmt_key == "markdown" else "tex"
+        filter_ = "Markdown (*.md)" if self._fmt_key == "markdown" else "LaTeX (*.tex)"
+        path, _ = QFileDialog.getSaveFileName(self, "保存识别结果", f"识别结果.{suffix}", filter_)
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(self.editor.toPlainText())
+            self._emit_status("已保存文档")
+        except Exception as e:
+            custom_warning_dialog("错误", f"保存失败: {e}", self)
+
+    def closeEvent(self, event):
+        try:
+            doc = self.editor.document()
+            doc.setUndoRedoEnabled(False)
+            doc.clearUndoRedoStacks()
+            self.editor.blockSignals(True)
+        except Exception:
+            pass
+        print("[DEBUG] PDF 结果窗口关闭")
+        return super().closeEvent(event)
+
 class MainWindow(_QMainWindow):
     """主窗口 - 使用 QMainWindow 以正确支持 setCentralWidget"""
     def __init__(self):
@@ -3731,6 +3880,8 @@ class MainWindow(_QMainWindow):
         self._pdf_output_format = None
         self._pdf_doc_style = None
         self._pdf_dpi = None
+        self._pdf_result_window = None
+        self._unimernet_env_state = None
         self.settings_window = None
         self._pix2tex_warmup_notified = False
 
@@ -3754,6 +3905,9 @@ class MainWindow(_QMainWindow):
 
         # 尝试初始化模型
         try:
+            # 在 ModelWrapper 初始化前先注入隔离环境变量
+            self._apply_pix2text_env()
+            self._apply_unimernet_env()
             self.model = ModelWrapper(self.current_model)
             self.model.status_signal.connect(self.show_status_message)
             print("[DEBUG] ModelWrapper 初始化完成")
@@ -5502,22 +5656,58 @@ th {{
             pass
         return p
 
+    def _resolve_unimernet_model_dir(self, variant: str | None = None, create_if_missing: bool = False) -> Path:
+        """
+        运行时优先使用外部 UniMERNet 环境同级的权重目录：
+        <...>/unimernet_env/Scripts/python.exe -> <...>/unimernet_{variant}
+        若不存在则回退到默认 MODEL_DIR/unimernet_{variant}。
+        """
+        v = (variant or self._get_unimernet_variant()).lower()
+        default_dir = MODEL_DIR / f"unimernet_{v}"
+
+        try:
+            pyexe = (self.cfg.get("unimernet_pyexe", "") or "").strip()
+            if pyexe and os.path.exists(pyexe):
+                py_path = Path(pyexe)
+                env_root = py_path.parent.parent if py_path.name.lower() == "python.exe" else py_path.parent
+                sibling_dir = env_root.parent / f"unimernet_{v}"
+                if sibling_dir.exists() and sibling_dir.is_dir():
+                    return sibling_dir
+        except Exception:
+            pass
+
+        if create_if_missing:
+            try:
+                default_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+        return default_dir
+
     def _is_unimernet_model_available(self, variant: str | None = None) -> bool:
         try:
             v = (variant or self._get_unimernet_variant()).lower()
-            p = MODEL_DIR / f"unimernet_{v}"
-            if not p.exists() or not p.is_dir():
-                return False
-            weight_candidates = [
-                p / "pytorch_model.pth",
-                p / f"unimernet_{v}.pth",
-                p / "pytorch_model.bin",
-                p / "model.safetensors",
-            ]
-            if any(x.exists() for x in weight_candidates):
-                return True
-            # fallback: any .pth in dir
-            return any(p.glob("*.pth"))
+            candidates = []
+            primary = self._resolve_unimernet_model_dir(v, create_if_missing=False)
+            candidates.append(primary)
+            fallback = MODEL_DIR / f"unimernet_{v}"
+            if fallback not in candidates:
+                candidates.append(fallback)
+
+            for p in candidates:
+                if not p.exists() or not p.is_dir():
+                    continue
+                weight_candidates = [
+                    p / "pytorch_model.pth",
+                    p / f"unimernet_{v}.pth",
+                    p / "pytorch_model.bin",
+                    p / "model.safetensors",
+                ]
+                if any(x.exists() for x in weight_candidates):
+                    return True
+                # fallback: any .pth in dir
+                if any(p.glob("*.pth")):
+                    return True
+            return False
         except Exception:
             return False
 
@@ -5525,7 +5715,7 @@ th {{
         variant = self._get_unimernet_variant()
         label_map = {"base": "Base", "small": "Small", "tiny": "Tiny"}
         display_variant = label_map.get(variant, variant)
-        model_dir = MODEL_DIR / f"unimernet_{variant}"
+        model_dir = self._resolve_unimernet_model_dir(variant, create_if_missing=False)
         candidates = [
             model_dir / f"unimernet_{variant}.pth",
             model_dir / "pytorch_model.pth",
@@ -5555,16 +5745,50 @@ th {{
             pass
 
     def _apply_unimernet_env(self):
+        env_pyexe = ""
+        env_model_path = ""
         try:
-            os.environ["UNIMERNET_MODEL_PATH"] = str(self._get_unimernet_model_dir())
+            env_model_path = str(self._resolve_unimernet_model_dir(create_if_missing=False))
+            os.environ["UNIMERNET_MODEL_PATH"] = env_model_path
         except Exception:
             pass
         try:
             pyexe = self.cfg.get("unimernet_pyexe", "")
             if pyexe and os.path.exists(pyexe):
                 os.environ["UNIMERNET_PYEXE"] = pyexe
+                env_pyexe = pyexe
             else:
                 os.environ.pop("UNIMERNET_PYEXE", None)
+        except Exception:
+            pass
+        try:
+            new_state = (
+                (env_pyexe or os.environ.get("UNIMERNET_PYEXE", "") or "").strip(),
+                (env_model_path or os.environ.get("UNIMERNET_MODEL_PATH", "") or "").strip(),
+            )
+            old_state = getattr(self, "_unimernet_env_state", None)
+            self._unimernet_env_state = new_state
+            if old_state is not None and old_state != new_state:
+                self._restart_unimernet_worker("环境切换")
+        except Exception:
+            pass
+
+    def _restart_unimernet_worker(self, reason: str = "环境更新"):
+        m = getattr(self, "model", None)
+        if not m:
+            return
+        try:
+            if hasattr(m, "_stop_unimernet_worker"):
+                m._stop_unimernet_worker()
+        except Exception:
+            pass
+        try:
+            m._unimernet_subprocess_ready = False
+            m._unimernet_import_failed = False
+        except Exception:
+            pass
+        try:
+            print(f"[INFO] UniMERNet worker 已重启: {reason}")
         except Exception:
             pass
 
@@ -5591,7 +5815,7 @@ th {{
 
     def _open_unimernet_download_page(self):
         variant = self._get_unimernet_variant()
-        model_dir = self._get_unimernet_model_dir()
+        model_dir = self._resolve_unimernet_model_dir(variant, create_if_missing=True)
         url = f"https://huggingface.co/wanderkid/unimernet_{variant}"
         try:
             QDesktopServices.openUrl(QUrl(url))
@@ -5622,7 +5846,7 @@ th {{
         pyexe = self.cfg.get("pix2text_pyexe", "")
         pip_prefix = f"\"{pyexe}\" -m pip" if (pyexe and os.path.exists(pyexe)) else "python -m pip"
         install_cmd = "\n".join([
-            f"{pip_prefix} install -U pix2text==1.1.4",
+            f"{pip_prefix} install -U pix2text",
             f"{pip_prefix} -c \"from pix2text import Pix2Text; Pix2Text()\"",
         ])
         env_note = ""
@@ -5630,7 +5854,7 @@ th {{
             env_note = "\u26a0️ \u672a\u914d\u7f6e pix2text \u9694\u79bb\u73af\u5883，\u5c06\u4f7f\u7528\u5f53\u524d Python\u3002\n\n"
         msg = (
             f"{env_note}pix2text \u5efa\u8bae\u5b89\u88c5\u5728\u72ec\u7acb\u73af\u5883，\u9996\u6b21\u521d\u59cb\u5316\u4f1a\u81ea\u52a8\u4e0b\u8f7d\u6a21\u578b\u6743\u91cd。\n\n"
-            f"1) \u5b89\u88c5：\n   {pip_prefix} install -U pix2text==1.1.4\n\n"
+            f"1) \u5b89\u88c5：\n   {pip_prefix} install -U pix2text\n\n"
             f"2) \u89e6\u53d1\u4e0b\u8f7d：\n   {pip_prefix} -c \"from pix2text import Pix2Text; Pix2Text()\"\n\n"
             "\u70b9\u51fb“\u590d\u5236\u547d\u4ee4”\u53ef\u76f4\u63a5\u7c98\u8d34\u6267\u884c。"
         )
@@ -5667,7 +5891,7 @@ th {{
         """Show UniMERNet setup instructions and copy commands."""
         from qfluentwidgets import MessageBox
         variant = self._get_unimernet_variant()
-        model_dir = self._get_unimernet_model_dir()
+        model_dir = self._resolve_unimernet_model_dir(variant, create_if_missing=True)
         pyexe = self.cfg.get("unimernet_pyexe", "")
         pip_prefix = f"\"{pyexe}\" -m pip" if (pyexe and os.path.exists(pyexe)) else "python -m pip"
         install_cmd = "\n".join([
@@ -5899,7 +6123,8 @@ th {{
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         self.pdf_progress = QProgressDialog("正在识别 PDF（取消将在当前页结束后生效）...", "取消", 0, pages, self)
-        self.pdf_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        # 进度框改为非模态，避免父窗口被锁死后无法恢复交互
+        self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
         self.pdf_progress.setMinimumDuration(0)
         self.pdf_progress.setWindowFlags(
             (
@@ -5920,18 +6145,10 @@ th {{
 
         def _cleanup():
             self._predict_busy = False
-            if self.pdf_progress:
-                try:
-                    self.pdf_progress.close()
-                except Exception:
-                    pass
-                self.pdf_progress = None
-            if self.pdf_predict_worker:
-                self.pdf_predict_worker.deleteLater()
-                self.pdf_predict_worker = None
-            if self.pdf_predict_thread:
-                self.pdf_predict_thread.deleteLater()
-                self.pdf_predict_thread = None
+            self._release_pdf_progress()
+            # 线程收尾阶段避免 deleteLater 触发跨线程对象析构时序问题
+            self.pdf_predict_worker = None
+            self.pdf_predict_thread = None
 
         self.pdf_predict_thread.started.connect(self.pdf_predict_worker.run)
         self.pdf_predict_worker.finished.connect(self._on_pdf_predict_ok)
@@ -5942,6 +6159,43 @@ th {{
         self.pdf_predict_thread.start()
         try:
             self.pdf_progress.show()
+        except Exception:
+            pass
+
+    def _release_pdf_progress(self):
+        pd = getattr(self, "pdf_progress", None)
+        self.pdf_progress = None
+        if not pd:
+            return
+        try:
+            pd.canceled.disconnect(self._on_pdf_cancel_requested)
+        except Exception:
+            pass
+        try:
+            pd.setWindowModality(Qt.WindowModality.NonModal)
+        except Exception:
+            pass
+        try:
+            pd.hide()
+        except Exception:
+            pass
+        try:
+            pd.setParent(None)
+        except Exception:
+            pass
+        try:
+            pd.deleteLater()
+        except Exception:
+            pass
+        try:
+            app = QApplication.instance()
+            if app:
+                app.processEvents()
+        except Exception:
+            pass
+        try:
+            # 防止 QProgressDialog 模态残留导致主窗口及其子窗口被禁用
+            self.setEnabled(True)
         except Exception:
             pass
 
@@ -5996,73 +6250,17 @@ th {{
         return preamble + text + "\n\\end{document}\n"
 
     def _show_document_dialog(self, text: str, fmt_key: str):
-        dlg = QDialog(self)
-        dlg.setWindowTitle("PDF 识别结果")
-        # 显式使用可移动的标准窗口样式，避免在部分路径下出现不可拖动。
-        dlg.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowSystemMenuHint
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint
-        )
-        dlg.setSizeGripEnabled(True)
-        dlg.resize(780, 520)
-        lay = QVBoxLayout(dlg)
-        info = BodyLabel("识别结果（可编辑/复制/保存）：")
-        lay.addWidget(info)
-        te = QTextEdit()
-        te.setPlainText(text)
-        lay.addWidget(te, 1)
-
-        btn_row = QHBoxLayout()
-        btn_copy = PushButton(FluentIcon.COPY, "复制")
-        btn_save = PushButton(FluentIcon.SAVE, "保存")
-        btn_close = PushButton(FluentIcon.CLOSE, "关闭")
-        btn_row.addWidget(btn_copy)
-        btn_row.addWidget(btn_save)
-        btn_row.addWidget(btn_close)
-        lay.addLayout(btn_row)
-
-        def _do_copy():
-            try:
-                pyperclip.copy(te.toPlainText())
-                self.set_action_status("已复制文档")
-            except Exception as e:
-                custom_warning_dialog("错误", f"复制失败: {e}", self)
-
-        def _do_save():
-            suffix = "md" if fmt_key == "markdown" else "tex"
-            filter_ = "Markdown (*.md)" if fmt_key == "markdown" else "LaTeX (*.tex)"
-            path, _ = QFileDialog.getSaveFileName(
-                self,
-                "保存识别结果",
-                f"识别结果.{suffix}",
-                filter_
-            )
-            if not path:
-                return
-            try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(te.toPlainText())
-                self.set_action_status("已保存文档")
-            except Exception as e:
-                custom_warning_dialog("错误", f"保存失败: {e}", self)
-
-        btn_copy.clicked.connect(_do_copy)
-        btn_save.clicked.connect(_do_save)
-        btn_close.clicked.connect(dlg.accept)
-        dlg.exec()
+        if not self._pdf_result_window:
+            self._pdf_result_window = PdfResultWindow(status_cb=self.set_action_status, window_icon=self.icon)
+        self._pdf_result_window.set_content(text, fmt_key)
+        print(f"[DEBUG] PDF 结果窗口打开 length={len(text or '')}")
+        self._pdf_result_window.show()
+        self._pdf_result_window.raise_()
+        self._pdf_result_window.activateWindow()
 
     def _on_pdf_predict_ok(self, content: str):
         self.set_model_status("完成")
-        try:
-            if self.pdf_progress:
-                self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
-                self.pdf_progress.close()
-        except Exception:
-            pass
+        self._release_pdf_progress()
         try:
             used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
@@ -6091,9 +6289,11 @@ th {{
         if not doc:
             custom_warning_dialog("提示", "识别结果为空", self)
             return
-        self._show_document_dialog(doc, fmt_key)
+        # 延迟到下一轮事件循环打开，确保线程 quit/cleanup 与模态释放先完成
+        QTimer.singleShot(0, lambda d=doc, f=fmt_key: self._show_document_dialog(d, f))
 
     def _on_pdf_predict_fail(self, msg: str):
+        self._release_pdf_progress()
         if msg == "已取消":
             self.set_model_status("已取消")
             return
@@ -6788,6 +6988,11 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             except Exception:
                 pass
             self.pdf_progress = None
+        if self._pdf_result_window:
+            try:
+                self._pdf_result_window.close()
+            except Exception:
+                pass
 
     # ------ 5) 修改 closeEvent（替换原实现） ------
     def closeEvent(self, event):

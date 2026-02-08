@@ -533,22 +533,99 @@ class SettingsWindow(QDialog):
         self._schedule_env_torch_probe(env_key)
         if env_key == "pix2text":
             self._schedule_pix2text_pkg_probe()
-    def _detect_cuda_tag(self) -> str | None:
-        import subprocess
+    def _torch_cuda_matrix(self) -> list[dict]:
+        """
+        PyTorch 官方 previous-versions 对应关系（按 CUDA 标签与三件套版本）。
+        仅维护 NVIDIA CUDA；低于 11.8 不适配 GPU wheel。
+        """
+        return [
+            {"cuda": (11, 8), "tag": "cu118", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
+            {"cuda": (12, 1), "tag": "cu121", "torch": "2.5.1", "vision": "0.20.1", "audio": "2.5.1"},
+            {"cuda": (12, 4), "tag": "cu124", "torch": "2.5.1", "vision": "0.20.1", "audio": "2.5.1"},
+            {"cuda": (12, 6), "tag": "cu126", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
+            {"cuda": (12, 8), "tag": "cu128", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
+            {"cuda": (12, 9), "tag": "cu129", "torch": "2.8.0", "vision": "0.23.0", "audio": "2.8.0"},
+            {"cuda": (13, 0), "tag": "cu130", "torch": "2.9.0", "vision": "0.24.0", "audio": "2.9.0"},
+        ]
+
+    def _torch_cpu_plan(self) -> dict:
+        # CPU 版默认给最新一档，便于与高版本依赖对齐
+        return {"tag": "cpu", "torch": "2.9.0", "vision": "0.24.0", "audio": "2.9.0"}
+
+    def _onnxruntime_gpu_spec_for_tag(self, tag: str | None) -> str:
+        if (tag or "").lower() == "cu118":
+            return "onnxruntime-gpu~=1.18.1"
+        return "onnxruntime-gpu~=1.19.2"
+
+    def _onnxruntime_cpu_spec(self) -> str:
+        return "onnxruntime~=1.19.2"
+
+    def _parse_cuda_ver_from_text(self, text: str) -> tuple[int, int] | None:
+        import re
+        t = (text or "").lower()
+        m = re.search(r"release\s*(\d+)\.(\d+)", t)
+        if not m:
+            m = re.search(r"\bv(\d+)\.(\d+)", t)
+        if not m:
+            m = re.search(r"cuda version:\s*(\d+)\.(\d+)", t)
+        if not m:
+            return None
+        return int(m.group(1)), int(m.group(2))
+
+    def _pick_torch_cuda_plan(self, major: int, minor: int) -> dict | None:
+        matrix = self._torch_cuda_matrix()
+        if (major, minor) < (11, 8):
+            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，低于 11.8，当前不适配 GPU 版 PyTorch"
+            return None
+        best = None
+        for p in matrix:
+            if p["cuda"] <= (major, minor):
+                best = p
+        if best is None:
+            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，未匹配到可用 GPU 版本"
+            return None
+        if (major, minor) > matrix[-1]["cuda"]:
+            self._cuda_detect_note = (
+                f"检测到 CUDA {major}.{minor}，高于当前映射上限，回退使用 {best['tag']}"
+            )
+        else:
+            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，将使用 {best['tag']}"
+        return best
+
+    def _detect_torch_gpu_plan(self) -> dict | None:
+        self._cuda_detect_note = ""
+        # 优先 nvcc（真实 Toolkit）
         try:
             res = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5)
             out = (res.stdout or "") + "\n" + (res.stderr or "")
-            out = out.lower()
-            # sample: release 11.8, V11.8.89
-            if "release 11.8" in out or "v11.8" in out:
-                return "cu118"
-            if "release 12.1" in out or "v12.1" in out:
-                return "cu121"
-            if "release 12.4" in out or "v12.4" in out:
-                return "cu124"
+            ver = self._parse_cuda_ver_from_text(out)
+            if ver:
+                major, minor = ver
+                plan = self._pick_torch_cuda_plan(major, minor)
+                if plan:
+                    self._cuda_detect_note = f"通过 nvcc 检测到 CUDA Toolkit {major}.{minor}，将使用 {plan['tag']}"
+                return plan
         except Exception:
-            return None
+            pass
+        # 回退 nvidia-smi（驱动能力推断）
+        try:
+            res = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5)
+            out = (res.stdout or "") + "\n" + (res.stderr or "")
+            ver = self._parse_cuda_ver_from_text(out)
+            if ver:
+                major, minor = ver
+                plan = self._pick_torch_cuda_plan(major, minor)
+                if plan:
+                    self._cuda_detect_note = f"未找到 nvcc，按驱动 CUDA {major}.{minor} 推断，建议使用 {plan['tag']}"
+                return plan
+        except Exception:
+            pass
+        self._cuda_detect_note = "未检测到 nvcc / nvidia-smi，无法自动推断 GPU 版本"
         return None
+
+    def _detect_cuda_tag(self) -> str | None:
+        plan = self._detect_torch_gpu_plan()
+        return plan["tag"] if plan else None
     def _install_env_torch(self, env_key: str, mode: str, include_model: bool = True):
         pyexe = self.pix2text_pyexe_input.text().strip() if env_key == "pix2text" else self.unimernet_pyexe_input.text().strip()
         if not pyexe or not os.path.exists(pyexe):
@@ -556,27 +633,38 @@ class SettingsWindow(QDialog):
             return
         extra_index = " --extra-index-url https://pypi.org/simple"
         if mode == "gpu":
-            tag = self._detect_cuda_tag()
-            if not tag:
-                self._show_info("CUDA 未检测到", "未检测到 nvcc，无法自动选择 GPU 版本，请先安装 CUDA Toolkit。", "warning")
+            gpu_plan = self._detect_torch_gpu_plan()
+            if not gpu_plan:
+                note = getattr(self, "_cuda_detect_note", "")
+                title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
+                self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
                 return
-            cmd = f"\"{pyexe}\" -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/{tag}{extra_index}"
+            cmd = (
+                f"\"{pyexe}\" -m pip install "
+                f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
+                f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
+            )
         else:
-            cmd = f"\"{pyexe}\" -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cpu{extra_index}"
+            cpu_plan = self._torch_cpu_plan()
+            cmd = (
+                f"\"{pyexe}\" -m pip install "
+                f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
+                f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
+            )
         model_cmd = ""
         if env_key == "pix2text":
             model_cmd = f"\"{pyexe}\" -m pip install -U pix2text"
         elif env_key == "unimernet":
             model_cmd = f"\"{pyexe}\" -m pip install -U \"unimernet[full]\""
-        if include_model:
-            if mode == "gpu":
-                full_cmd = cmd + ("\n" + model_cmd if model_cmd else "")
-            else:
-                full_cmd = model_cmd or cmd
+        if include_model and model_cmd:
+            full_cmd = cmd + "\n" + model_cmd
         else:
             full_cmd = cmd
+        detect_note = ""
+        if mode == "gpu" and getattr(self, "_cuda_detect_note", ""):
+            detect_note = f"CUDA 检测: {self._cuda_detect_note}\n\n"
         msg = (
-            f"将使用隔离环境安装 {mode.upper()} 版 PyTorch：\n\n"
+            f"{detect_note}将使用隔离环境安装 {mode.upper()} 版 PyTorch：\n\n"
             f"{full_cmd}\n\n"
             "安装完成后请重新检测。"
         )
@@ -670,6 +758,15 @@ class SettingsWindow(QDialog):
         self._update_pix2text_visibility()
         self._update_unimernet_visibility()
     def _get_unimernet_model_dir(self, variant: str) -> Path:
+        # 与主窗口保持一致：优先使用外部 UniMERNet 环境同级权重目录
+        parent = self.parent()
+        try:
+            if parent and hasattr(parent, "_resolve_unimernet_model_dir"):
+                resolved = parent._resolve_unimernet_model_dir(variant, create_if_missing=False)
+                if resolved:
+                    return Path(resolved)
+        except Exception:
+            pass
         return self._get_model_dir_base() / f"unimernet_{variant}"
     def _is_unimernet_variant_available(self, variant: str) -> bool:
         try:
@@ -701,6 +798,8 @@ class SettingsWindow(QDialog):
             suffix = "（已下载）" if available else "（未下载）"
             self.unimernet_combo.setItemText(i, f"{label}{suffix}")
     def _init_unimernet_variant(self):
+        # 先加载 pyexe，再按最终解析路径刷新“已下载/未下载”状态
+        self._init_unimernet_pyexe()
         self._refresh_unimernet_variants()
         current = "base"
         if self.parent() and hasattr(self.parent(), "cfg"):
@@ -709,7 +808,6 @@ class SettingsWindow(QDialog):
             if self.unimernet_combo.itemData(i) == current:
                 self.unimernet_combo.setCurrentIndex(i)
                 break
-        self._init_unimernet_pyexe()
         self._schedule_env_torch_probe("unimernet")
     def _on_unimernet_variant_changed(self, index: int):
         if index < 0:
@@ -717,6 +815,7 @@ class SettingsWindow(QDialog):
         variant = self.unimernet_combo.itemData(index)
         if self.parent() and hasattr(self.parent(), "cfg"):
             self.parent().cfg.set("unimernet_variant", variant)
+        self._refresh_unimernet_variants()
         if self.parent() and hasattr(self.parent(), "model") and self.parent().model:
             try:
                 self.parent().model._unimernet_subprocess_ready = False
@@ -941,6 +1040,7 @@ class SettingsWindow(QDialog):
                 self.parent()._apply_unimernet_env()
             except Exception:
                 pass
+        self._refresh_unimernet_variants()
         self._schedule_env_torch_probe("unimernet")
     def _on_unimernet_pyexe_clear(self):
         self.unimernet_pyexe_input.clear()
@@ -951,6 +1051,7 @@ class SettingsWindow(QDialog):
                 self.parent()._apply_unimernet_env()
             except Exception:
                 pass
+        self._refresh_unimernet_variants()
         self._schedule_env_torch_probe("unimernet")
     def _on_unimernet_pyexe_create(self):
         """一键创建 UniMERNet 隔离环境。"""
@@ -968,6 +1069,7 @@ class SettingsWindow(QDialog):
                     self.parent()._apply_unimernet_env()
                 except Exception:
                     pass
+            self._refresh_unimernet_variants()
             try:
                 InfoBar.info(
                     title="环境已存在",
@@ -1005,6 +1107,7 @@ class SettingsWindow(QDialog):
                 self.parent()._apply_unimernet_env()
             except Exception:
                 pass
+        self._refresh_unimernet_variants()
         try:
             InfoBar.success(
                 title="隔离环境创建完成",
@@ -1410,6 +1513,20 @@ class SettingsWindow(QDialog):
             "pix2text": "pix2text 独立环境",
             "unimernet": "UniMERNet 独立环境",
         }.get(env_key, "主环境（程序 / pix2tex / 核心依赖）")
+        gpu_plan = self._detect_torch_gpu_plan()
+        cpu_plan = self._torch_cpu_plan()
+        gpu_cmd = ""
+        if gpu_plan:
+            gpu_cmd = (
+                f"pip install torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} "
+                f"torchaudio=={gpu_plan['audio']} --index-url https://download.pytorch.org/whl/{gpu_plan['tag']}"
+            )
+        gpu_onnx_cmd = f"pip install {self._onnxruntime_gpu_spec_for_tag(gpu_plan['tag'] if gpu_plan else None)}"
+        cpu_onnx_cmd = f"pip install {self._onnxruntime_cpu_spec()}"
+        cpu_cmd = (
+            f"pip install torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} "
+            f"torchaudio=={cpu_plan['audio']} --index-url https://download.pytorch.org/whl/cpu"
+        )
         help_lines = [
             "echo.",
             "echo ================================================================================",
@@ -1431,11 +1548,14 @@ class SettingsWindow(QDialog):
             "echo.",
             "echo [PyTorch GPU]",
             "echo   nvcc --version",
-            "echo   pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu118",
+            f"echo   {gpu_cmd if gpu_cmd else 'CUDA<11.8 或未检测到 CUDA，当前不适配 GPU 版命令'}",
+            "echo.",
+            "echo [PyTorch CPU]",
+            f"echo   {cpu_cmd}",
             "echo.",
             "echo [ONNX Runtime]",
-            "echo   pip install onnxruntime-gpu==1.18.1",
-            "echo   pip install onnxruntime==1.18.1",
+            f"echo   {gpu_onnx_cmd}",
+            f"echo   {cpu_onnx_cmd}",
             "echo.",
         ]
         if env_key == "main":
@@ -1447,10 +1567,11 @@ class SettingsWindow(QDialog):
         elif env_key == "pix2text":
             help_lines += [
                 "echo [依赖]",
-                "echo   pip install -U torch==2.7.1 torchvision==0.22.1 onnxruntime==1.22.1 optimum==2.0.0 torchmetrics==1.7.4 pymupdf==1.26.7",
+                "echo   # 先安装上方 PyTorch + ONNX Runtime 命令中的对应一条",
+                "echo   pip install -U optimum==2.0.0 torchmetrics==1.7.4 pymupdf==1.26.7",
                 "echo.",
                 "echo [模型]",
-                "echo   pip install -U pix2text==1.1.4",
+                "echo   pip install -U pix2text",
                 "echo   python -c \"from pix2text import Pix2Text; Pix2Text()\"",
                 "echo.",
             ]
