@@ -1,4 +1,4 @@
-
+﻿
 from PyQt6.QtCore import QObject, pyqtSignal
 
 import subprocess, sys, json, os, shutil, re, textwrap
@@ -955,7 +955,21 @@ try:
     import warnings
     warnings.filterwarnings("ignore")
     device = _pick_device()
-    p2t = Pix2Text.from_config(device=device)
+
+    def _build_p2t(dev):
+        errs = []
+        try:
+            return Pix2Text.from_config(device=dev)
+        except Exception as e:
+            errs.append(f"from_config: {e}")
+        try:
+            # fallback: same as manual bootstrap command used by users
+            return Pix2Text()
+        except Exception as e:
+            errs.append(f"Pix2Text(): {e}")
+            raise RuntimeError("; ".join(errs))
+
+    p2t = _build_p2t(device)
     print(json.dumps({"ready": True, "ok": True, "device": device}), flush=True)
 except Exception as e:
     print(json.dumps({"ready": True, "ok": False, "error": str(e)}), flush=True)
@@ -1143,7 +1157,11 @@ for line in sys.stdin:
                 warnings.filterwarnings("ignore")
 
                 device = _pick_device()
-                p2t = Pix2Text.from_config(device=device)
+                try:
+                    p2t = Pix2Text.from_config(device=device)
+                except Exception:
+                    # fallback for first-run bootstrap in isolated env
+                    p2t = Pix2Text()
                 img_path = sys.argv[1]
                 mode = sys.argv[2] if len(sys.argv) > 2 else "formula"
                 img = Image.open(img_path)
@@ -1245,6 +1263,61 @@ for line in sys.stdin:
     def _lazy_load_pix2text(self):
         if self._pix2text_subprocess_ready or self._pix2text_import_failed:
             return self._pix2text_subprocess_ready
+
+        def _extract_json(text: str):
+            txt = (text or "").strip()
+            if not txt:
+                return None
+            for line in reversed(txt.splitlines()):
+                s = line.strip()
+                if not s:
+                    continue
+                if s.startswith("{") and s.endswith("}"):
+                    try:
+                        return json.loads(s)
+                    except Exception:
+                        pass
+            m = re.search(r"\{.*\}", txt, re.S)
+            if not m:
+                return None
+            try:
+                return json.loads(m.group())
+            except Exception:
+                return None
+
+        def _run_bootstrap(pyexe: str) -> bool:
+            bootstrap_code = textwrap.dedent(r"""
+                import json
+                try:
+                    from pix2text import Pix2Text
+                    import warnings
+                    warnings.filterwarnings("ignore")
+                    Pix2Text()
+                    print(json.dumps({"ok": True}))
+                except Exception as e:
+                    print(json.dumps({"ok": False, "error": str(e)}))
+            """).strip()
+            try:
+                proc = subprocess.run(
+                    [pyexe, "-c", bootstrap_code],
+                    capture_output=True,
+                    timeout=900,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+            except subprocess.TimeoutExpired:
+                self._emit("[WARN] pix2text bootstrap timeout (>900s)")
+                return False
+            boot_out = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            boot_result = _extract_json(boot_out)
+            if boot_result and boot_result.get("ok"):
+                self._emit("[INFO] pix2text bootstrap success")
+                return True
+            err = (boot_result or {}).get("error") or (boot_out[:200] if boot_out else "unknown")
+            self._emit(f"[WARN] pix2text bootstrap failed: {err}")
+            return False
+
         try:
             deps_python = get_pix2text_python()
             probe_code = textwrap.dedent(r"""
@@ -1262,27 +1335,39 @@ for line in sys.stdin:
                 except Exception as e:
                     print(json.dumps({"ok": False, "error": str(e)}))
             """).strip()
-            proc = subprocess.run(
-                [deps_python, "-c", probe_code],
-                capture_output=True, timeout=20, text=True,
-                encoding="utf-8", errors="replace"
-            )
-            output = (proc.stdout or "").strip()
-            m = re.search(r"\{.*\}", output)
-            if not m:
-                self._pix2text_import_failed = True
-                return False
-            result = json.loads(m.group())
-            if result.get("ok"):
-                self._pix2text_subprocess_ready = True
-                try:
-                    self._ensure_pix2text_worker()
-                except Exception:
-                    pass
-                return True
-            self._pix2text_import_failed = True
-            return False
-        except Exception:
+            probe_timed_out = False
+            try:
+                proc = subprocess.run(
+                    [deps_python, "-c", probe_code],
+                    capture_output=True,
+                    timeout=120,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                output = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+                result = _extract_json(output)
+            except subprocess.TimeoutExpired:
+                probe_timed_out = True
+                result = None
+                self._emit("[WARN] pix2text probe timeout (>120s), fallback to bootstrap init")
+
+            if probe_timed_out or not (result and result.get("ok")):
+                self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
+                if not _run_bootstrap(deps_python):
+                    self._pix2text_import_failed = True
+                    return False
+
+            self._pix2text_subprocess_ready = True
+            self._pix2text_import_failed = False
+            try:
+                if not self._ensure_pix2text_worker():
+                    self._emit("[WARN] pix2text worker not ready after probe/bootstrap")
+            except Exception as e:
+                self._emit(f"[WARN] pix2text worker start skipped: {e}")
+            return True
+        except Exception as e:
+            self._emit(f"[WARN] pix2text lazy load exception: {e}")
             self._pix2text_import_failed = True
             return False
 
@@ -1545,4 +1630,7 @@ for line in sys.stdin:
                 self.last_used_model = "pix2tex"
                 return self._run_pix2tex(pil_img)
             raise
+
+
+
 
