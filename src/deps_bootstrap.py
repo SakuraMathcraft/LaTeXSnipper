@@ -1,4 +1,4 @@
-﻿import threading
+import threading
 import urllib.request
 import shutil
 import os
@@ -573,7 +573,6 @@ print("BASIC OK")
 import pix2tex
 from pix2tex.cli import LatexOCR
 import latex2mathml.converter
-import sympy
 import matplotlib
 import matplotlib.mathtext
 import fitz
@@ -830,14 +829,10 @@ LAYER_MAP = {
         "onnxruntime~=1.19.2",
         "PyQt6-Fluent-Widgets~=1.9.2",
     ],
-    # ❗ CORE 现在只负责 pix2tex + Web 预览 + 数学库 + SVG 导出
+    # ❗ CORE 只保留应用直接使用的依赖；pix2tex 的传递依赖交由 pip 自动解析
     "CORE": [
         "pix2tex~=0.1.4",
         "protobuf>=3.20,<5",  # wandb 需要旧版 protobuf，6.x 会导致 Result 属性缺失
-        "sympy~=1.13.3", "mpmath~=1.3.0",
-        "networkx~=3.2.1",
-        "humanfriendly~=10.0",
-        "onnx~=1.15.0",
         "latex2mathml>=2.0.0",  # LaTeX 转 MathML 的支持
         "matplotlib~=3.8.4",  # LaTeX 公式转 SVG 的支持
         "pymupdf~=1.23.0",  # PDF 识别依赖

@@ -11,7 +11,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v1.02-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v1.03-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.9+-blue?style=flat-square)
 
@@ -85,7 +85,7 @@
 **Windows 用户最简单的方式，内置 Python**
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper-v1.02.exe`
+2. 下载最新版 `LaTeXSnipper-v1.03.exe`
 3. 双击运行即可，首次启动会自动下载必要模型（约 2GB+）
 4. ✅ 完成！开始截图识别公式
 
