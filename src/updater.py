@@ -22,7 +22,7 @@ except ImportError:
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
 _UPDATE_DIALOG: Optional[QDialog] = None
-__version__ = "v1.02"
+__version__ = "v1.03"
 
 PRIMARY_URL = "https://raw.githubusercontent.com/SakuraMathcraft/LaTeXSnipper/main/version.json"
 MIRROR_URLS = [

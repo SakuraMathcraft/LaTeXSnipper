@@ -108,6 +108,22 @@ class EditFormulaDialog(QDialog):
     def __init__(self, latex: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("编辑")
+        flags = (
+            self.windowFlags()
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+        )
+        flags = (
+            flags
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        flags |= Qt.WindowType.WindowMaximizeButtonHint
+        self.setWindowFlags(flags)
         self.resize(560, 360)
 
         lay = QVBoxLayout(self)

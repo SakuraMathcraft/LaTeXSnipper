@@ -2076,6 +2076,64 @@ def _apply_close_only_window_flags(win):
     )
     win.setWindowFlags(flags)
 
+def _apply_no_minimize_window_flags(win):
+    """工具窗口保留最大化/关闭，去掉最小化按钮。"""
+    flags = (
+        win.windowFlags()
+        | Qt.WindowType.CustomizeWindowHint
+        | Qt.WindowType.WindowTitleHint
+        | Qt.WindowType.WindowCloseButtonHint
+        | Qt.WindowType.WindowSystemMenuHint
+        | Qt.WindowType.WindowMaximizeButtonHint
+    )
+    flags = (
+        flags
+        & ~Qt.WindowType.WindowMinimizeButtonHint
+        & ~Qt.WindowType.WindowMinMaxButtonsHint
+        & ~Qt.WindowType.WindowContextHelpButtonHint
+    )
+    flags |= Qt.WindowType.WindowMaximizeButtonHint
+    win.setWindowFlags(flags)
+
+def _show_formula_rename_dialog(parent, current_name: str = "", title: str = "重命名公式",
+                                prompt: str = "输入公式名称（留空则清除名称）："):
+    """统一的公式重命名弹窗：仅保留右上角关闭按钮，固定尺寸。"""
+    from PyQt6.QtWidgets import QLineEdit
+
+    dlg = QDialog(parent)
+    _apply_close_only_window_flags(dlg)
+    dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+    dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+    dlg.setWindowFlag(Qt.WindowType.MSWindowsFixedSizeDialogHint, True)
+    dlg.setWindowTitle(title)
+    dlg.setModal(True)
+
+    lay = QVBoxLayout(dlg)
+    lay.addWidget(QLabel(prompt))
+
+    edit = QLineEdit(dlg)
+    edit.setText(current_name or "")
+    edit.selectAll()
+    edit.setClearButtonEnabled(True)
+    lay.addWidget(edit)
+
+    btn_row = QHBoxLayout()
+    btn_ok = QPushButton("OK", dlg)
+    btn_cancel = QPushButton("Cancel", dlg)
+    btn_ok.clicked.connect(dlg.accept)
+    btn_cancel.clicked.connect(dlg.reject)
+    edit.returnPressed.connect(dlg.accept)
+    btn_row.addWidget(btn_ok)
+    btn_row.addWidget(btn_cancel)
+    lay.addLayout(btn_row)
+
+    dlg.adjustSize()
+    dlg.setFixedSize(max(340, dlg.width()), dlg.height())
+    QTimer.singleShot(0, edit.setFocus)
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return "", False
+    return edit.text().strip(), True
+
 def _exec_close_only_message_box(
     parent,
     title: str,
@@ -3352,6 +3410,10 @@ class FavoritesWindow(_QMainWindow):
         
         # 获取收藏的类型
         content_type = self._favorite_types.get(latex, "pix2tex")
+        # 继承名称（先写入历史名称映射，确保新插入行立即显示标签）
+        name = self._favorite_names.get(latex, "")
+        if name and hasattr(p, '_formula_names'):
+            p._formula_names[latex] = name
         
         # 使用 add_history_record 方法添加（会自动处理类型）
         if hasattr(p, 'add_history_record'):
@@ -3365,16 +3427,8 @@ class FavoritesWindow(_QMainWindow):
                 p.save_history()
             if hasattr(p, 'rebuild_history_ui'):
                 p.rebuild_history_ui()
-        
-        # 继承名称
-        name = self._favorite_names.get(latex, "")
-        if name and hasattr(p, '_formula_names'):
-            p._formula_names[latex] = name
-            if hasattr(p, 'save_history'):
-                p.save_history()
-        
-        self._set_status("已添加到历史记录")
-    
+            self._set_status("已添加到历史记录")
+
     def _export_as(self, format_type: str, latex: str):
         """导出公式为指定格式（统一使用 matplotlib SVG）"""
         result = ""
@@ -3462,7 +3516,6 @@ class FavoritesWindow(_QMainWindow):
     
     def _latex_to_svg_code(self, latex: str) -> str:
         """将 LaTeX 转换为 SVG 代码"""
-        from backend.model import latex_to_svg
         return latex_to_svg(latex)
     
     def _latex_to_mathml(self, latex: str) -> str:
@@ -3522,42 +3575,42 @@ class FavoritesWindow(_QMainWindow):
 
     def _rename_item(self, latex: str):
         """重命名收藏夹中的公式"""
-        from qfluentwidgets import MessageBoxBase, SubtitleLabel, LineEdit
-
-        class RenameDialog(MessageBoxBase):
-            def __init__(self, current_name: str, parent=None):
-                super().__init__(parent)
-                self.titleLabel = SubtitleLabel("公式命名")
-                self.nameEdit = LineEdit()
-                self.nameEdit.setPlaceholderText("输入公式名称（留空则清除）")
-                self.nameEdit.setText(current_name)
-                self.nameEdit.setClearButtonEnabled(True)
-
-                self.viewLayout.addWidget(self.titleLabel)
-                self.viewLayout.addWidget(self.nameEdit)
-
-                self.widget.setMinimumWidth(300)
-
-            def value(self):
-                return self.nameEdit.text().strip()
-
         # 使用收藏夹自己的名称字典
         current_name = self._favorite_names.get(latex, "")
-        dlg = RenameDialog(current_name, self)
-        if dlg.exec():
-            new_name = dlg.value()
-            if new_name:
-                self._favorite_names[latex] = new_name
-                self._set_status(f"已命名为: {new_name}")
-            elif latex in self._favorite_names:
-                del self._favorite_names[latex]
-                self._set_status("已清除名称")
+        if not current_name:
+            p = self.parent()
+            if p and hasattr(p, "_formula_names"):
+                current_name = p._formula_names.get(latex, "")
+        new_name, ok = _show_formula_rename_dialog(
+            self,
+            current_name=current_name,
+            title="公式命名",
+            prompt="输入公式名称（留空则清除名称）：",
+        )
+        if not ok:
+            return
+        if new_name:
+            self._favorite_names[latex] = new_name
+            p = self.parent()
+            if p and hasattr(p, "_formula_names"):
+                p._formula_names[latex] = new_name
+                if hasattr(p, "save_history"):
+                    p.save_history()
+            self._set_status(f"已命名为: {new_name}")
+        elif latex in self._favorite_names:
+            del self._favorite_names[latex]
+            p = self.parent()
+            if p and hasattr(p, "_formula_names") and latex in p._formula_names:
+                del p._formula_names[latex]
+                if hasattr(p, "save_history"):
+                    p.save_history()
+            self._set_status("已清除名称")
 
-            # 保存收藏夹
-            self.save_favorites()
+        # 保存收藏夹
+        self.save_favorites()
 
-            # 刷新列表显示
-            self.refresh_list()
+        # 刷新列表显示
+        self.refresh_list()
 
     def _edit_item(self, item, latex: str):
         """编辑公式内容"""
@@ -3612,6 +3665,10 @@ class FavoritesWindow(_QMainWindow):
 
             # 获取名称和类型（优先使用收藏夹自己的）
             name = self._favorite_names.get(formula, "")
+            if not name:
+                p = self.parent()
+                if p and hasattr(p, "_formula_names"):
+                    name = p._formula_names.get(formula, "")
             content_type = self._favorite_types.get(formula, "pix2tex")
             type_display = type_names.get(content_type, "")
 
@@ -3637,19 +3694,41 @@ class FavoritesWindow(_QMainWindow):
             QListWidget {
                 border: none;
                 background: transparent;
+                outline: none;
             }
             QListWidget::item {
                 border-bottom: 1px solid #e0e0e0;
                 padding: 8px 6px;
                 color: #333;
                 background: transparent;
+                outline: none;
+                border-left: none;
+                border-right: none;
             }
             QListWidget::item:hover {
                 background: #e3f2fd;
             }
             QListWidget::item:selected {
-                background: #42a5f5;
-                color: white;
+                background: #d9ecff;
+                color: #1f2d3d;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item:selected:active {
+                background: #d9ecff;
+                color: #1f2d3d;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item:selected:!active {
+                background: #d9ecff;
+                color: #1f2d3d;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item:focus {
+                border: none;
+                outline: none;
             }
         """)
 
@@ -4251,23 +4330,35 @@ class MainWindow(_QMainWindow):
 
     def _rename_history_row(self, row: QWidget):
         """重命名公式"""
-        from PyQt6.QtWidgets import QInputDialog
         latex = self._safe_row_text(row)
         if not latex:
             return
         current_name = self._formula_names.get(latex, "")
-        new_name, ok = QInputDialog.getText(
-            self, "重命名公式",
-            "输入公式名称（留空则清除名称）:",
-            text=current_name
+        new_name, ok = _show_formula_rename_dialog(
+            self,
+            current_name=current_name,
+            title="重命名公式",
+            prompt="输入公式名称（留空则清除名称）：",
         )
         if not ok:
             return
-        new_name = new_name.strip()
         if new_name:
             self._formula_names[latex] = new_name
+            if hasattr(self, "favorites_window") and self.favorites_window:
+                self.favorites_window._favorite_names[latex] = new_name
+                self.favorites_window.save_favorites()
+                self.favorites_window.refresh_list()
         elif latex in self._formula_names:
             del self._formula_names[latex]
+            if (
+                hasattr(self, "favorites_window")
+                and self.favorites_window
+                and latex in self.favorites_window._favorite_names
+            ):
+                del self.favorites_window._favorite_names[latex]
+                self.favorites_window.save_favorites()
+                self.favorites_window.refresh_list()
+        self.save_history()
 
         # 同步更新渲染列表中的标签
         idx = getattr(row, '_index', 0)
@@ -4340,9 +4431,10 @@ class MainWindow(_QMainWindow):
 
         # 更新 row 内部文本
         row._latex_text = new_latex
-        lbl = row.findChild(QLabel)
+        lbl = getattr(row, "_content_label", None)
         if lbl:
             lbl.setText(new_latex)
+            lbl.setToolTip("点击加载到编辑器并渲染")
         # 定位并更新 self.history
         idx = self._history_row_index(row)
         if idx is not None and 0 <= idx < len(self.history):
@@ -5166,6 +5258,7 @@ th {{
         lbl.setFont(label_font)
         lbl.setStyleSheet("color: #333; padding: 2px;")
         hl.addWidget(lbl, 1)
+        row._content_label = lbl
 
         # 点击标签时加载到编辑器（仅左键）
         import weakref
@@ -6813,7 +6906,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         ret = _exec_close_only_message_box(
             self,
             "确认",
-            "确认清空所有历史记录？",
+            f"确定要清空所有 {len(self.history)} 条历史记录吗？",
             icon=QMessageBox.Icon.Question,
             buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             default_button=QMessageBox.StandardButton.No,
@@ -7126,6 +7219,7 @@ class EditFormulaDialog(QDialog):
     def __init__(self, latex: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("编辑")
+        _apply_no_minimize_window_flags(self)
         self.resize(700, 500)
 
         lay = QVBoxLayout(self)
