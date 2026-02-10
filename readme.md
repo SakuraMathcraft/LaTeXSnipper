@@ -68,7 +68,7 @@
 
 | 功能 | 说明 |
 |------|------|
-| 📸 **智能识别** | 截图识别数学公式，支持行内/行间/混合内容 |
+| 📸 **智能识别** | 截图识别数学公式，支持公式/文本/混合内容 |
 | 🔄 **多格式转换** | 支持 LaTeX、Markdown、MathML、HTML、OMML、SVG 等格式 |
 | 🚀 **离线运行** | 内置模型，无需联网，隐私安全 |
 | 🎯 **实时预览** | 公式识别即时预览，效果一目了然 |
@@ -113,7 +113,7 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
-⚠️ 首次运行需保持网络连接，pix2tex 模型会自动下载。
+⚠️ 首次运行需保持网络连接，pix2tex 模型权重会自动下载。
 
 ---
 
@@ -255,19 +255,7 @@ LaTeXSnipper/
 - 🔗 **分享给朋友** - 让更多人知道这个项目
 - 💰 **赞助开发者** - [赞助链接](#)(暂未开放)
 
----
-
-## 📱 关注我们
-
-<div align="center">
-
-[![GitHub](https://img.shields.io/badge/GitHub-SakuraMathcraft-181717?style=flat-square&logo=github)](https://github.com/SakuraMathcraft)
-[![Issues](https://img.shields.io/badge/Issues-Report%20Bug-d1481e?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/issues)
-[![Discussions](https://img.shields.io/badge/Discussions-Join%20Community-6e40aa?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions)
-
-</div>
-
----
+---
 
 ## 📄 许可证
 
@@ -295,15 +283,6 @@ LaTeXSnipper/
 
 **欢迎贡献！** 如有帮助，请提交 PR 或 Issue。
 
----
-
-## �📧 联系方式
-
-- **问题反馈** - [GitHub Issues](https://github.com/SakuraMathcraft/LaTeXSnipper/issues)
-- **功能建议** - [GitHub Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions)
-- **维护者** - [SakuraMathcraft](https://github.com/SakuraMathcraft)
-
----
 
 ## 🙏 致谢
 
@@ -319,9 +298,7 @@ LaTeXSnipper/
 
 **Made with ❤️ by SakuraMathcraft**
 
-<div align="center">
-
-**[⬆ 返回顶部](#)**
+<div align="center">
 
 ### 📦 快速链接
 
