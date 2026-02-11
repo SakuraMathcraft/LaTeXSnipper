@@ -21,7 +21,7 @@
 
 ---
 
-**LaTeXSnipper** 是一款**开源跨平台**桌面工具，基于深度学习模型（pix2tex 和 pix2text以及unimernet），将图片中的数学公式快速识别并转换为多种格式代码。
+**LaTeXSnipper** 是一款**开源跨平台**桌面工具，基于深度学习模型（pix2tex 和 pix2text），将图片中的数学公式快速识别并转换为多种格式代码。
 
 通过简单的截图操作，即可得到对应的 **LaTeX、MathML、Markdown** 等多格式公式，**大幅提升数学文档编辑效率**！
 
@@ -255,7 +255,8 @@ LaTeXSnipper/
 - 🔗 **分享给朋友** - 让更多人知道这个项目
 - 💰 **赞助开发者** - [赞助链接](#)(暂未开放)
 
----
+---
+
 
 ## 📄 许可证
 
@@ -298,7 +299,8 @@ LaTeXSnipper/
 
 **Made with ❤️ by SakuraMathcraft**
 
-<div align="center">
+<div align="center">
+
 
 ### 📦 快速链接
 
@@ -311,6 +313,7 @@ LaTeXSnipper/
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
 
 
