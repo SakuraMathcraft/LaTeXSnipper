@@ -54,7 +54,7 @@
       识别效果即时反馈
     </td>
     <td align="center">
-      <img width="796" height="828" alt="依赖选择" src="https://github.com/user-attachments/assets/8665141d-db53-408a-9fb0-8877bc118fae" />
+      <img width="779" height="803" alt="依赖选择" src="https://github.com/user-attachments/assets/9c191b78-8c2c-423f-8747-aebae64ec640" />
       <br/>
       <b>🔐 离线运行</b><br/>
       隐私保护，无需联网
@@ -277,6 +277,7 @@ LaTeXSnipper/
 > **⚡ 提示**: 有任何问题？查看 [FAQ](#faq) 或提交 [Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues/new)
 
 </div>
+
 
 
 
