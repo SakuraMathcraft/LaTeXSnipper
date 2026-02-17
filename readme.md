@@ -181,9 +181,10 @@ LaTeXSnipper/
 
 ### ⭐ Star 历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
 
----
+</div>
+
 
 ## 🤝 贡献指南
 
