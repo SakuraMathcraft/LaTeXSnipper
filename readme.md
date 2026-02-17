@@ -181,13 +181,7 @@ LaTeXSnipper/
 
 ### ⭐ Star 历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
-
-### 📊 提交活跃度
-
-![Activity Graph](https://activity-graph.herokuapp.com/graph?username=SakuraMathcraft&theme=react-dark&hide_border=true&area=true)
-
-</div>
+[![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
 
 ---
 
