@@ -878,6 +878,42 @@ def _read_install_base_dir() -> Path | None:
             pass
     return None
 
+def _get_bundled_deps_dir_for_packaged() -> Path | None:
+    """
+    打包模式首启时自动探测内置依赖目录:
+    期望目录结构: <_internal>/deps/python311/python.exe
+    """
+    if not _is_packaged_mode():
+        return None
+    candidates: list[Path] = []
+    try:
+        if hasattr(sys, "_MEIPASS"):
+            meipass = Path(sys._MEIPASS)
+            candidates.append(meipass / "deps")
+    except Exception:
+        pass
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend([
+            exe_dir / "_internal" / "deps",
+            exe_dir / "deps",
+        ])
+    except Exception:
+        pass
+    seen: set[str] = set()
+    for base in candidates:
+        try:
+            key = str(base.resolve()).lower()
+        except Exception:
+            key = str(base).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        pyexe = base / "python311" / "python.exe"
+        if pyexe.exists():
+            return base
+    return None
+
 def _select_install_base_dir() -> Path:
     """
     弹出目录选择对话框。返回用户选择的目录。
@@ -927,8 +963,9 @@ def resolve_install_base_dir() -> Path:
     
     流程：
     1. 检查配置文件中的 install_base_dir
-    2. 如果为空，弹出目录选择对话框
-    3. 检查选定目录是否已有 python311/
+    2. 打包模式首启时，若存在内置 `_internal/deps/python311`，自动采用并写入配置
+    3. 若仍为空，弹出目录选择对话框
+    4. 检查选定目录是否已有 python311/
        - 有：使用该目录，保存配置，返回
        - 无：弹出确认框"确认要部署到此处吗？"
            - 确认：执行安装器（交互式），成功后保存配置，返回
@@ -937,8 +974,22 @@ def resolve_install_base_dir() -> Path:
     import time
     import subprocess
     
-    # 第1步：读取或选择依赖目录
+    # 第1步：读取配置中的依赖目录
     p = _read_install_base_dir()
+
+    # 打包模式首启：若无配置，自动使用内置 deps（免手动选择/安装）
+    if not p:
+        bundled = _get_bundled_deps_dir_for_packaged()
+        if bundled:
+            try:
+                bundled.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
+            _save_install_base_dir(bundled)
+            p = bundled
+
+    # 第2步：仍无目录则弹出选择框
     if not p:
         print("[INFO] 首次启动，请选择依赖安装目录...")
         try:
@@ -951,13 +1002,13 @@ def resolve_install_base_dir() -> Path:
     py311_dir = p / "python311"
     py_exe = py311_dir / "python.exe"
     
-    # 第2步：检查 Python 是否已存在
+    # 第3步：检查 Python 是否已存在
     if py_exe.exists():
         print(f"[OK] ✓ Python 3.11 已在: {py_exe}")
         _save_install_base_dir(p)
         return p
     
-    # 第3步：python311 不存在，需要安装
+    # 第4步：python311 不存在，需要安装
     print(f"[INFO] 检测到依赖未安装，位置: {py311_dir}")
     
     # 弹出确认框
@@ -3575,10 +3626,10 @@ class FavoritesWindow(_QMainWindow):
 
     def _rename_item(self, latex: str):
         """重命名收藏夹中的公式"""
+        p = self.parent()
         # 使用收藏夹自己的名称字典
         current_name = self._favorite_names.get(latex, "")
         if not current_name:
-            p = self.parent()
             if p and hasattr(p, "_formula_names"):
                 current_name = p._formula_names.get(latex, "")
         new_name, ok = _show_formula_rename_dialog(
@@ -3591,17 +3642,15 @@ class FavoritesWindow(_QMainWindow):
             return
         if new_name:
             self._favorite_names[latex] = new_name
-            p = self.parent()
             if p and hasattr(p, "_formula_names"):
                 p._formula_names[latex] = new_name
                 if hasattr(p, "save_history"):
                     p.save_history()
             self._set_status(f"已命名为: {new_name}")
-        elif latex in self._favorite_names:
-            del self._favorite_names[latex]
-            p = self.parent()
-            if p and hasattr(p, "_formula_names") and latex in p._formula_names:
-                del p._formula_names[latex]
+        else:
+            self._favorite_names.pop(latex, None)
+            if p and hasattr(p, "_formula_names"):
+                p._formula_names.pop(latex, None)
                 if hasattr(p, "save_history"):
                     p.save_history()
             self._set_status("已清除名称")
@@ -3611,6 +3660,31 @@ class FavoritesWindow(_QMainWindow):
 
         # 刷新列表显示
         self.refresh_list()
+        # 同步刷新主窗口历史记录（否则历史中的同公式名称不会立即更新）
+        if p and hasattr(p, "rebuild_history_ui"):
+            p.rebuild_history_ui()
+        # 同步刷新主窗口预览中的标签（否则预览标签可能保持旧名称）
+        if p and hasattr(p, "_rendered_formulas"):
+            updated = False
+            new_rendered = []
+            for formula, label in getattr(p, "_rendered_formulas", []):
+                if formula != latex:
+                    new_rendered.append((formula, label))
+                    continue
+                s = (label or "").strip()
+                prefix = ""
+                if s.startswith("#"):
+                    prefix = s.split(" ", 1)[0]
+                if new_name:
+                    new_label = f"{prefix} {new_name}".strip() if prefix else new_name
+                else:
+                    new_label = prefix
+                new_rendered.append((formula, new_label))
+                updated = True
+            if updated:
+                p._rendered_formulas = new_rendered
+                if hasattr(p, "_refresh_preview"):
+                    p._refresh_preview()
 
     def _edit_item(self, item, latex: str):
         """编辑公式内容"""
@@ -3960,7 +4034,12 @@ class MainWindow(_QMainWindow):
         self._pdf_doc_style = None
         self._pdf_dpi = None
         self._pdf_result_window = None
+        self._pix2text_env_state = None
         self._unimernet_env_state = None
+        self._main_torch_cache_ttl_sec = 45.0
+        self._main_torch_cache_ts = 0.0
+        self._main_torch_cache_info = None
+        self._main_torch_cache_py = ""
         self.settings_window = None
         self._pix2tex_warmup_notified = False
 
@@ -3993,7 +4072,7 @@ class MainWindow(_QMainWindow):
 
             # 根据当前模式和对应模型的实际状态设置状态文本
             if self.model.is_model_ready(self.current_model):
-                self.model_status = f"已加载 ({self.current_model})"
+                self.model_status = "已加载"
             elif self.current_model == "pix2tex" and self.model.get_error():
                 self.model_status = f"加载失败"
             elif self.current_model.startswith("pix2text") and self.model._pix2text_import_failed:
@@ -4348,29 +4427,29 @@ class MainWindow(_QMainWindow):
                 self.favorites_window._favorite_names[latex] = new_name
                 self.favorites_window.save_favorites()
                 self.favorites_window.refresh_list()
-        elif latex in self._formula_names:
-            del self._formula_names[latex]
+        else:
+            self._formula_names.pop(latex, None)
             if (
                 hasattr(self, "favorites_window")
                 and self.favorites_window
-                and latex in self.favorites_window._favorite_names
             ):
-                del self.favorites_window._favorite_names[latex]
+                self.favorites_window._favorite_names.pop(latex, None)
                 self.favorites_window.save_favorites()
                 self.favorites_window.refresh_list()
         self.save_history()
 
         # 同步更新渲染列表中的标签
-        idx = getattr(row, '_index', 0)
-        if new_name:
-            new_label = f"#{idx} {new_name}" if idx > 0 else new_name
-        elif idx > 0:
-            new_label = f"#{idx}"
-        else:
-            new_label = ""
-        # 更新 _rendered_formulas 中的标签
+        # 更新 _rendered_formulas 中的标签（保留原编号前缀）
         for i, (formula, label) in enumerate(self._rendered_formulas):
             if formula == latex:
+                s = (label or "").strip()
+                prefix = ""
+                if s.startswith("#"):
+                    prefix = s.split(" ", 1)[0]
+                if new_name:
+                    new_label = f"{prefix} {new_name}".strip() if prefix else new_name
+                else:
+                    new_label = prefix
                 self._rendered_formulas[i] = (formula, new_label)
 
         # 刷新 UI
@@ -4401,8 +4480,6 @@ class MainWindow(_QMainWindow):
                 base += f" | 权重: {self._get_unimernet_weight_label()}"
             except Exception:
                 pass
-        if self.action_status:
-            base += f" | {self.action_status}"
         self.status_label.setText(base)
 
     def _history_row_index(self, row: QWidget):
@@ -5440,7 +5517,6 @@ th {{
                 else:
                     self.desired_model = "pix2tex"
                 self.cfg.set("desired_model", self.desired_model)
-                self.set_model_status(f"已加载 ({preferred})")
                 if self.settings_window:
                     self.settings_window.update_model_selection()
                 return
@@ -5481,19 +5557,46 @@ th {{
                     else:
                         self.desired_model = "pix2tex"
                     self.cfg.set("desired_model", self.desired_model)
-                    self.set_model_status(f"已加载 ({preferred})")
                     if self.settings_window:
                         self.settings_window.update_model_selection()
-                    if preferred == "pix2tex" and not self._pix2tex_warmup_notified:
-                        self._pix2tex_warmup_notified = True
+                    if preferred == "pix2tex":
+                        if not self._pix2tex_warmup_notified:
+                            self._pix2tex_warmup_notified = True
+                            InfoBar.success(
+                                title="模型预热完成",
+                                content="pix2tex 预热完成，可直接识别",
+                                parent=self._get_infobar_parent(),
+                                duration=3000,
+                                position=InfoBarPosition.TOP
+                            )
+                    elif preferred.startswith("pix2text"):
                         InfoBar.success(
                             title="模型预热完成",
-                            content="pix2tex 预热完成，可直接识别",
+                            content="pix2text 预热完成，可直接识别",
                             parent=self._get_infobar_parent(),
-                            duration=3000,
+                            duration=2500,
+                            position=InfoBarPosition.TOP
+                        )
+                    elif preferred == "unimernet":
+                        InfoBar.success(
+                            title="模型预热完成",
+                            content="UniMERNet 预热完成，可直接识别",
+                            parent=self._get_infobar_parent(),
+                            duration=2500,
                             position=InfoBarPosition.TOP
                         )
                 QTimer.singleShot(0, apply)
+            else:
+                def _show_fail():
+                    from qfluentwidgets import InfoBar, InfoBarPosition
+                    InfoBar.warning(
+                        title="模型预热未完成",
+                        content=f"{preferred} 预热失败，将在首次识别时重试",
+                        parent=self._get_infobar_parent(),
+                        duration=3500,
+                        position=InfoBarPosition.TOP
+                    )
+                QTimer.singleShot(0, _show_fail)
 
         import threading
         threading.Thread(target=worker, daemon=True).start()
@@ -5606,7 +5709,15 @@ th {{
                 )
         else:
             # 切换到 pix2tex
-            if model_has_error:
+            if self.model and self.model.is_ready():
+                InfoBar.success(
+                    title="模式切换成功",
+                    content="已切换到 pix2tex 公式识别",
+                    parent=info_parent,
+                    duration=3000,
+                    position=InfoBarPosition.TOP
+                )
+            elif model_has_error:
                 error_msg = self.model.get_error() if self.model else "未知错误"
                 short_error = error_msg[:50] + "..." if len(error_msg) > 50 else error_msg
                 InfoBar.error(
@@ -5614,14 +5725,6 @@ th {{
                     content=f"pix2tex 不可用: {short_error}\n请在【设置】→【依赖管理向导】中修复",
                     parent=info_parent,
                     duration=8000,
-                    position=InfoBarPosition.TOP
-                )
-            elif self.model and self.model.is_ready():
-                InfoBar.success(
-                    title="模式切换成功",
-                    content="已切换到 pix2tex 公式识别",
-                    parent=info_parent,
-                    duration=3000,
                     position=InfoBarPosition.TOP
                 )
             else:
@@ -5651,7 +5754,7 @@ th {{
         if self.model:
             # 使用 is_model_ready 方法检查对应模型的状态
             if self.model.is_model_ready(m):
-                self.set_model_status(f"已加载 ({m})")
+                self.set_model_status("已加载")
             elif m == "pix2tex" and self.model.get_error():
                 self.set_model_status(f"加载失败")
             elif m.startswith("pix2text") and self.model._pix2text_import_failed:
@@ -5827,13 +5930,97 @@ th {{
             return f"{display_variant} ({found.name})"
         return f"{display_variant} (未检测到权重)"
 
+    def _get_isolated_torch_mode(self, env_key: str) -> str:
+        try:
+            mode = (self.cfg.get(f"{env_key}_torch_mode", "auto") or "auto").strip().lower()
+        except Exception:
+            mode = "auto"
+        return mode if mode in ("auto", "cpu", "gpu") else "auto"
+
+    def _get_main_torch_info_cached(self, allow_block: bool = True) -> tuple[dict, str]:
+        try:
+            now = datetime.datetime.now().timestamp()
+            ttl = float(getattr(self, "_main_torch_cache_ttl_sec", 45.0) or 45.0)
+            cache_ts = float(getattr(self, "_main_torch_cache_ts", 0.0) or 0.0)
+            cache_info = getattr(self, "_main_torch_cache_info", None)
+            cache_py = getattr(self, "_main_torch_cache_py", "") or ""
+            if (now - cache_ts) <= ttl and isinstance(cache_info, dict) and cache_py:
+                return dict(cache_info), str(cache_py)
+            if not allow_block:
+                return (dict(cache_info) if isinstance(cache_info, dict) else {}), str(cache_py)
+        except Exception:
+            pass
+        try:
+            from backend.torch_runtime import infer_main_python, detect_torch_info
+            main_py = infer_main_python()
+            main_info = detect_torch_info(main_py, timeout_sec=6)
+            self._main_torch_cache_ts = datetime.datetime.now().timestamp()
+            self._main_torch_cache_info = dict(main_info) if isinstance(main_info, dict) else {}
+            self._main_torch_cache_py = str(main_py or "")
+            return dict(self._main_torch_cache_info), self._main_torch_cache_py
+        except Exception:
+            return {}, ""
+
+    def _resolve_shared_torch_site_for_mode(self, mode: str, allow_block: bool = True) -> str:
+        try:
+            from backend.torch_runtime import mode_satisfies, python_site_packages
+            main_info, main_py = self._get_main_torch_info_cached(allow_block=allow_block)
+            if not mode_satisfies(main_info, mode):
+                return ""
+            site = python_site_packages(main_py)
+            if site and (site / "torch").exists():
+                return str(site)
+        except Exception:
+            pass
+        return ""
+
+    def _apply_shared_torch_for_env(self, env_key: str, env_pyexe: str, allow_block: bool = True):
+        prefix = env_key.upper()
+        mode = self._get_isolated_torch_mode(env_key)
+        os.environ[f"{prefix}_TORCH_MODE"] = mode
+
+        shared_site = ""
+        try:
+            from backend.torch_runtime import ensure_shared_torch_link
+            # 始终优先下发共享 torch 路径；隔离环境是否存在本地 torch 不再影响共享策略。
+            shared_site = self._resolve_shared_torch_site_for_mode(mode, allow_block=allow_block)
+            ensure_shared_torch_link(env_pyexe, shared_site if shared_site else None)
+        except Exception:
+            pass
+        if shared_site:
+            os.environ[f"{prefix}_SHARED_TORCH_SITE"] = shared_site
+        else:
+            os.environ.pop(f"{prefix}_SHARED_TORCH_SITE", None)
+
     def _apply_pix2text_env(self):
+        env_pyexe = ""
         try:
             pyexe = self.cfg.get("pix2text_pyexe", "")
             if pyexe and os.path.exists(pyexe):
                 os.environ["PIX2TEXT_PYEXE"] = pyexe
+                env_pyexe = pyexe
             else:
                 os.environ.pop("PIX2TEXT_PYEXE", None)
+        except Exception:
+            pass
+        try:
+            # 启动首次可阻塞探测；后续切换不阻塞，走缓存结果。
+            allow_block = getattr(self, "_pix2text_env_state", None) is None
+            self._apply_shared_torch_for_env("pix2text", env_pyexe, allow_block=allow_block)
+        except Exception:
+            pass
+        try:
+            new_state = (
+                (env_pyexe or os.environ.get("PIX2TEXT_PYEXE", "") or "").strip(),
+                (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or "").strip(),
+                (os.environ.get("PIX2TEXT_TORCH_MODE", "auto") or "auto").strip(),
+            )
+            old_state = getattr(self, "_pix2text_env_state", None)
+            self._pix2text_env_state = new_state
+            old_key = (old_state[0], old_state[2]) if isinstance(old_state, tuple) and len(old_state) >= 3 else old_state
+            new_key = (new_state[0], new_state[2])
+            if old_state is not None and old_key != new_key:
+                self._restart_pix2text_worker("环境切换")
         except Exception:
             pass
 
@@ -5855,9 +6042,16 @@ th {{
         except Exception:
             pass
         try:
+            allow_block = getattr(self, "_unimernet_env_state", None) is None
+            self._apply_shared_torch_for_env("unimernet", env_pyexe, allow_block=allow_block)
+        except Exception:
+            pass
+        try:
             new_state = (
                 (env_pyexe or os.environ.get("UNIMERNET_PYEXE", "") or "").strip(),
                 (env_model_path or os.environ.get("UNIMERNET_MODEL_PATH", "") or "").strip(),
+                (os.environ.get("UNIMERNET_SHARED_TORCH_SITE", "") or "").strip(),
+                (os.environ.get("UNIMERNET_TORCH_MODE", "auto") or "auto").strip(),
             )
             old_state = getattr(self, "_unimernet_env_state", None)
             self._unimernet_env_state = new_state
@@ -5882,6 +6076,25 @@ th {{
             pass
         try:
             print(f"[INFO] UniMERNet worker 已重启: {reason}")
+        except Exception:
+            pass
+
+    def _restart_pix2text_worker(self, reason: str = "环境更新"):
+        m = getattr(self, "model", None)
+        if not m:
+            return
+        try:
+            if hasattr(m, "_stop_pix2text_worker"):
+                m._stop_pix2text_worker()
+        except Exception:
+            pass
+        try:
+            m._pix2text_subprocess_ready = False
+            m._pix2text_import_failed = False
+        except Exception:
+            pass
+        try:
+            print(f"[INFO] pix2text worker 已重启: {reason}")
         except Exception:
             pass
 
@@ -5937,31 +6150,63 @@ th {{
     def _show_pix2text_setup_tip(self):
         from qfluentwidgets import MessageBox
         pyexe = self.cfg.get("pix2text_pyexe", "")
-        pip_prefix = f"\"{pyexe}\" -m pip" if (pyexe and os.path.exists(pyexe)) else "python -m pip"
-        install_cmd = "\n".join([
-            f"{pip_prefix} install -U pix2text",
-            f"{pip_prefix} -c \"from pix2text import Pix2Text; Pix2Text()\"",
-        ])
+        py_prefix = f"\"{pyexe}\"" if (pyexe and os.path.exists(pyexe)) else "python"
+        pip_prefix = f"{py_prefix} -m pip"
+        shared_site_hint = ""
+        try:
+            mode_pref = self._get_isolated_torch_mode("pix2text")
+            shared_site_hint = self._resolve_shared_torch_site_for_mode(mode_pref)
+        except Exception:
+            shared_site_hint = ""
+        shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
+        verify_cmd = (
+            f"{py_prefix} -c \"import os,sys; "
+            f"s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
+            "import os as _o; import importlib.util as _iu; "
+            "added=(bool(s) and _o.path.isdir(s) and s not in sys.path); "
+            "(sys.path.insert(0,s) if added else None); "
+            "tl=(_o.path.join(s,'torch','lib') if s else ''); "
+            "(_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); "
+            "_o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); "
+            "import torch; "
+            "import torchvision; "
+            "(__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
+            "(sys.path.remove(s) if (added and s in sys.path) else None); "
+            "from pix2text import Pix2Text; "
+            "print('pix2text ok')\""
+        )
+        install_lines = [
+            f"{pip_prefix} install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            f"{pip_prefix} uninstall -y optimum optimum-onnx optimum-intel",
+            f"{pip_prefix} install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            f"{pip_prefix} install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            verify_cmd,
+        ]
+        install_cmd = "\n".join(install_lines)
         env_note = ""
         if not (pyexe and os.path.exists(pyexe)):
-            env_note = "\u26a0️ \u672a\u914d\u7f6e pix2text \u9694\u79bb\u73af\u5883，\u5c06\u4f7f\u7528\u5f53\u524d Python\u3002\n\n"
+            env_note = "⚠️ 未配置 pix2text 隔离环境，将使用当前 Python。\n\n"
         msg = (
-            f"{env_note}pix2text \u5efa\u8bae\u5b89\u88c5\u5728\u72ec\u7acb\u73af\u5883，\u9996\u6b21\u521d\u59cb\u5316\u4f1a\u81ea\u52a8\u4e0b\u8f7d\u6a21\u578b\u6743\u91cd。\n\n"
-            f"1) \u5b89\u88c5：\n   {pip_prefix} install -U pix2text\n\n"
-            f"2) \u89e6\u53d1\u4e0b\u8f7d：\n   {pip_prefix} -c \"from pix2text import Pix2Text; Pix2Text()\"\n\n"
-            "\u70b9\u51fb“\u590d\u5236\u547d\u4ee4”\u53ef\u76f4\u63a5\u7c98\u8d34\u6267\u884c。"
+            f"{env_note}pix2text 建议安装在独立环境，首次初始化会自动下载模型权重。\n\n"
+            f"将复制 {len(install_lines)} 条完整命令到剪贴板，弹窗只显示预览：\n"
+            "1) 升级 pip/setuptools/wheel\n"
+            "2) 固定关键链路版本并安装 pix2text\n"
+            "3) 执行初始化校验（支持复用主环境 torch）\n\n"
+            "点击“复制命令”后可直接粘贴执行。"
         )
         parent = self.settings_window if getattr(self, "settings_window", None) else self
-        dlg = MessageBox("pix2text \u4f9d\u8d56\u63d0\u793a", msg, parent)
+        dlg = MessageBox("pix2text 依赖提示", msg, parent)
         dlg.setWindowModality(Qt.WindowModality.NonModal)
         dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-        dlg.yesButton.setText("\u590d\u5236\u547d\u4ee4\u5e76\u6253\u5f00\u7ec8\u7aef")
-        dlg.cancelButton.setText("\u4ec5\u590d\u5236\u547d\u4ee4")
+        dlg.yesButton.setText("复制命令并打开终端")
+        dlg.cancelButton.setText("仅复制命令")
         self._pix2text_tip_dlg = dlg
 
         def _do_copy(open_terminal: bool):
             try:
-                pyperclip.copy(install_cmd)
+                # Ensure CRLF for Windows cmd paste (Win10 console is sensitive to LF-only).
+                cmd_clip = install_cmd.replace("\r\n", "\n").replace("\n", "\r\n")
+                pyperclip.copy(cmd_clip)
             except Exception:
                 pass
             if open_terminal:
@@ -6015,7 +6260,9 @@ th {{
 
         def _do_copy(open_terminal: bool):
             try:
-                pyperclip.copy(install_cmd)
+                # Ensure CRLF for Windows cmd paste (Win10 console is sensitive to LF-only).
+                cmd_clip = install_cmd.replace("\r\n", "\n").replace("\n", "\r\n")
+                pyperclip.copy(cmd_clip)
             except Exception:
                 pass
             if open_terminal:
@@ -6316,7 +6563,7 @@ th {{
                 self.pdf_predict_thread.requestInterruption()
             except Exception:
                 pass
-        self.set_model_status("已取消")
+        self.set_action_status("已取消", auto_clear_ms=3000)
 
     def _wrap_document_output(self, content: str, fmt_key: str, style_key: str) -> str:
         text = (content or "").strip()
@@ -6352,10 +6599,17 @@ th {{
         self._pdf_result_window.activateWindow()
 
     def _on_pdf_predict_ok(self, content: str):
-        self.set_model_status("完成")
-        self._release_pdf_progress()
+        used = None
         try:
             used = getattr(getattr(self, "model", None), "last_used_model", None)
+        except Exception:
+            used = None
+        if not used:
+            used = getattr(self, "current_model", "pix2tex")
+        self.set_model_status("完成")
+        self.set_action_status("PDF 识别完成", auto_clear_ms=3500)
+        self._release_pdf_progress()
+        try:
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
@@ -6388,9 +6642,10 @@ th {{
     def _on_pdf_predict_fail(self, msg: str):
         self._release_pdf_progress()
         if msg == "已取消":
-            self.set_model_status("已取消")
+            self.set_action_status("已取消", auto_clear_ms=3000)
             return
         self.set_model_status("失败")
+        self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
         try:
             used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
@@ -6470,9 +6725,16 @@ th {{
         self.tray_icon.setContextMenu(tray_menu)
 
     def on_predict_ok(self, latex: str):
-        self.set_model_status("完成")
+        used = None
         try:
             used = getattr(getattr(self, "model", None), "last_used_model", None)
+        except Exception:
+            used = None
+        if not used:
+            used = getattr(self, "current_model", "pix2tex")
+        self.set_model_status("完成")
+        self.set_action_status("识别完成", auto_clear_ms=3000)
+        try:
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
@@ -7044,6 +7306,20 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             print("[关闭] 配置已保存")
         except Exception as e:
             print(f"[关闭] 保存配置失败: {e}")
+
+        # 显式关闭模型子进程 worker，避免残留后台进程
+        try:
+            m = getattr(self, "model", None)
+            if m:
+                for fn_name in ("_stop_unimernet_worker", "_stop_pix2text_worker", "_stop_pix2tex_worker"):
+                    fn = getattr(m, fn_name, None)
+                    if callable(fn):
+                        try:
+                            fn()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         
         if self.predict_thread:
             try:

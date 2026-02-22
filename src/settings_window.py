@@ -1,5 +1,6 @@
 ﻿import os, sys, subprocess
 from pathlib import Path
+import time
 import pyperclip
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QTimer
 from PyQt6.QtGui import QDesktopServices
@@ -7,6 +8,15 @@ from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayou
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
 from deps_bootstrap import custom_warning_dialog
+from backend.torch_runtime import (
+    TORCH_CUDA_MATRIX,
+    TORCH_CPU_PLAN,
+    parse_cuda_ver_from_text,
+    pick_torch_cuda_plan,
+    detect_torch_gpu_plan,
+    detect_torch_info,
+    inject_shared_torch_env,
+)
 class SettingsWindow(QDialog):
     """设置窗口 - 使用 QDialog 作为基类"""
     model_changed = pyqtSignal(str)
@@ -35,6 +45,14 @@ class SettingsWindow(QDialog):
         lay.setContentsMargins(16, 16, 16, 16)
         self._pix2text_pkg_ready = False
         self._torch_probe_seq = {"pix2text": 0, "unimernet": 0}
+        # 缓存慢探测结果，避免频繁点击时阻塞 UI
+        self._probe_cache_ttl_sec = 45.0
+        self._cached_gpu_plan = None
+        self._cached_gpu_note = ""
+        self._cached_gpu_ts = 0.0
+        self._cached_main_torch_info = None
+        self._cached_main_torch_py = ""
+        self._cached_main_torch_ts = 0.0
         # 模型选择区域
         lay.addWidget(QLabel("选择识别模式:"))
         # 使用下拉框支持更多识别模式
@@ -327,6 +345,21 @@ class SettingsWindow(QDialog):
         # 编译器切换时自动切换路径
         if hasattr(self, 'latex_compiler_combo'):
             self.latex_compiler_combo.currentIndexChanged.connect(self._on_latex_compiler_changed)
+        # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
+        QTimer.singleShot(120, self._warm_probe_cache_async)
+
+    def _warm_probe_cache_async(self):
+        def worker():
+            try:
+                self._detect_torch_gpu_plan(allow_block=True)
+            except Exception:
+                pass
+            try:
+                self._get_main_torch_info_cached(allow_block=True)
+            except Exception:
+                pass
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
     def _on_latex_compiler_changed(self):
         """切换 LaTeX 编译器时自动切换路径"""
         idx = self.latex_compiler_combo.currentIndex()
@@ -385,10 +418,7 @@ class SettingsWindow(QDialog):
             try:
                 res = subprocess.run([pyexe, "-c", code], capture_output=True, text=True, timeout=5)
             except subprocess.TimeoutExpired:
-                fallback = self._infer_torch_info_from_env(pyexe)
-                if fallback:
-                    return fallback
-                return {"present": False, "error": "timeout"}
+                return False
             return res.returncode == 0
         except Exception:
             return False
@@ -435,52 +465,27 @@ class SettingsWindow(QDialog):
             return {}
         return {}
 
-    def _probe_torch_info(self, pyexe: str) -> dict:
-        import json
-        import subprocess
+    def _probe_torch_info(self, pyexe: str, env_key: str = "") -> dict:
         if not pyexe or not os.path.exists(pyexe):
             return {"present": False, "error": "python.exe not found"}
-        code = ""
-        code += "import json\n"
-        code += "try:\n"
-        code += " import torch\n"
-        code += " info = {\"present\": True, \"cuda_version\": torch.version.cuda, \"cuda_available\": torch.cuda.is_available()}\n"
-        code += "except Exception as e:\n"
-        code += " info = {\"present\": False, \"error\": str(e)}\n"
-        code += "print(json.dumps(info))\n"
+        run_env = os.environ.copy()
         try:
-            try:
-                res = subprocess.run([pyexe, "-c", code], capture_output=True, text=True, timeout=5)
-            except subprocess.TimeoutExpired:
-                fallback = self._infer_torch_info_from_env(pyexe)
-                if fallback:
-                    return fallback
-                return {"present": False, "error": "timeout"}
-            stdout = (res.stdout or "").strip()
-            stderr = (res.stderr or "").strip()
-            lines = []
-            if stdout:
-                lines.extend(stdout.splitlines())
-            if stderr:
-                lines.extend(stderr.splitlines())
-            for line in reversed(lines):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    if isinstance(data, dict):
-                        return data
-                except Exception:
-                    continue
-            if stdout or stderr:
-                return {"present": False, "error": (stderr or stdout)}
+            key = "PIX2TEXT_SHARED_TORCH_SITE" if env_key == "pix2text" else "UNIMERNET_SHARED_TORCH_SITE"
+            shared_site = os.environ.get(key, "")
+            run_env = inject_shared_torch_env(run_env, shared_site)
+        except Exception:
+            pass
+        try:
+            info = detect_torch_info(pyexe, timeout_sec=5, run_env=run_env)
+            if info.get("present"):
+                return info
             fallback = self._infer_torch_info_from_env(pyexe)
             if fallback:
                 return fallback
+            return info
         except Exception as e:
             return {"present": False, "error": str(e)}
-        return {"present": False, "error": "no output"}
+        return {"present": False, "error": "probe failed"}
     def _set_env_torch_ui(self, env_key: str, info: dict, pyexe: str):
         label = self.pix2text_torch_status if env_key == "pix2text" else self.unimernet_torch_status
         install_gpu = self.pix2text_torch_install_gpu if env_key == "pix2text" else self.unimernet_torch_install_gpu
@@ -519,7 +524,7 @@ class SettingsWindow(QDialog):
         label = self.pix2text_torch_status if env_key == "pix2text" else self.unimernet_torch_status
         label.setText(f"{env_key} 设备: 检测中...")
         def worker():
-            info = self._probe_torch_info(pyexe)
+            info = self._probe_torch_info(pyexe, env_key=env_key)
             try:
                 self.env_torch_probe_done.emit(env_key, info, pyexe)
             except Exception:
@@ -534,23 +539,11 @@ class SettingsWindow(QDialog):
         if env_key == "pix2text":
             self._schedule_pix2text_pkg_probe()
     def _torch_cuda_matrix(self) -> list[dict]:
-        """
-        PyTorch 官方 previous-versions 对应关系（按 CUDA 标签与三件套版本）。
-        仅维护 NVIDIA CUDA；低于 11.8 不适配 GPU wheel。
-        """
-        return [
-            {"cuda": (11, 8), "tag": "cu118", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
-            {"cuda": (12, 1), "tag": "cu121", "torch": "2.5.1", "vision": "0.20.1", "audio": "2.5.1"},
-            {"cuda": (12, 4), "tag": "cu124", "torch": "2.5.1", "vision": "0.20.1", "audio": "2.5.1"},
-            {"cuda": (12, 6), "tag": "cu126", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
-            {"cuda": (12, 8), "tag": "cu128", "torch": "2.7.1", "vision": "0.22.1", "audio": "2.7.1"},
-            {"cuda": (12, 9), "tag": "cu129", "torch": "2.8.0", "vision": "0.23.0", "audio": "2.8.0"},
-            {"cuda": (13, 0), "tag": "cu130", "torch": "2.9.0", "vision": "0.24.0", "audio": "2.9.0"},
-        ]
+        # 统一复用 backend.torch_runtime 里的单一版本矩阵，避免多处硬编码漂移。
+        return [dict(p) for p in TORCH_CUDA_MATRIX]
 
     def _torch_cpu_plan(self) -> dict:
-        # CPU 版默认给最新一档，便于与高版本依赖对齐
-        return {"tag": "cpu", "torch": "2.9.0", "vision": "0.24.0", "audio": "2.9.0"}
+        return dict(TORCH_CPU_PLAN)
 
     def _onnxruntime_gpu_spec_for_tag(self, tag: str | None) -> str:
         if (tag or "").lower() == "cu118":
@@ -561,119 +554,327 @@ class SettingsWindow(QDialog):
         return "onnxruntime~=1.19.2"
 
     def _parse_cuda_ver_from_text(self, text: str) -> tuple[int, int] | None:
-        import re
-        t = (text or "").lower()
-        m = re.search(r"release\s*(\d+)\.(\d+)", t)
-        if not m:
-            m = re.search(r"\bv(\d+)\.(\d+)", t)
-        if not m:
-            m = re.search(r"cuda version:\s*(\d+)\.(\d+)", t)
-        if not m:
-            return None
-        return int(m.group(1)), int(m.group(2))
+        return parse_cuda_ver_from_text(text)
 
     def _pick_torch_cuda_plan(self, major: int, minor: int) -> dict | None:
-        matrix = self._torch_cuda_matrix()
-        if (major, minor) < (11, 8):
-            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，低于 11.8，当前不适配 GPU 版 PyTorch"
-            return None
-        best = None
-        for p in matrix:
-            if p["cuda"] <= (major, minor):
-                best = p
-        if best is None:
-            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，未匹配到可用 GPU 版本"
-            return None
-        if (major, minor) > matrix[-1]["cuda"]:
-            self._cuda_detect_note = (
-                f"检测到 CUDA {major}.{minor}，高于当前映射上限，回退使用 {best['tag']}"
-            )
-        else:
-            self._cuda_detect_note = f"检测到 CUDA {major}.{minor}，将使用 {best['tag']}"
-        return best
+        plan, note = pick_torch_cuda_plan(major, minor)
+        self._cuda_detect_note = note
+        return dict(plan) if plan else None
 
-    def _detect_torch_gpu_plan(self) -> dict | None:
-        self._cuda_detect_note = ""
-        # 优先 nvcc（真实 Toolkit）
+    def _detect_torch_gpu_plan(self, allow_block: bool = True) -> dict | None:
+        now = time.monotonic()
+        ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
+        cached_plan = getattr(self, "_cached_gpu_plan", None)
+        cached_note = getattr(self, "_cached_gpu_note", "")
+        cached_ts = float(getattr(self, "_cached_gpu_ts", 0.0) or 0.0)
+        if (now - cached_ts) <= ttl and (cached_plan is not None or cached_note):
+            self._cuda_detect_note = cached_note
+            return dict(cached_plan) if isinstance(cached_plan, dict) else None
+        if not allow_block:
+            self._cuda_detect_note = cached_note
+            return dict(cached_plan) if isinstance(cached_plan, dict) else None
+        plan, note = detect_torch_gpu_plan(timeout_sec=5)
+        self._cached_gpu_plan = dict(plan) if plan else None
+        self._cached_gpu_note = note or ""
+        self._cached_gpu_ts = now
+        self._cuda_detect_note = note
+        return dict(plan) if plan else None
+
+    def _get_main_torch_info_cached(self, allow_block: bool = True) -> tuple[dict, str]:
+        now = time.monotonic()
+        ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
+        cached_info = getattr(self, "_cached_main_torch_info", None)
+        cached_py = getattr(self, "_cached_main_torch_py", "")
+        cached_ts = float(getattr(self, "_cached_main_torch_ts", 0.0) or 0.0)
+        if (now - cached_ts) <= ttl and isinstance(cached_info, dict) and cached_py:
+            return dict(cached_info), str(cached_py)
+        if not allow_block:
+            return (dict(cached_info) if isinstance(cached_info, dict) else {}), str(cached_py or "")
         try:
-            res = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5)
-            out = (res.stdout or "") + "\n" + (res.stderr or "")
-            ver = self._parse_cuda_ver_from_text(out)
-            if ver:
-                major, minor = ver
-                plan = self._pick_torch_cuda_plan(major, minor)
-                if plan:
-                    self._cuda_detect_note = f"通过 nvcc 检测到 CUDA Toolkit {major}.{minor}，将使用 {plan['tag']}"
-                return plan
+            from backend.torch_runtime import infer_main_python, detect_torch_info
+            main_py = infer_main_python()
+            main_info = detect_torch_info(main_py, timeout_sec=6)
         except Exception:
-            pass
-        # 回退 nvidia-smi（驱动能力推断）
-        try:
-            res = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5)
-            out = (res.stdout or "") + "\n" + (res.stderr or "")
-            ver = self._parse_cuda_ver_from_text(out)
-            if ver:
-                major, minor = ver
-                plan = self._pick_torch_cuda_plan(major, minor)
-                if plan:
-                    self._cuda_detect_note = f"未找到 nvcc，按驱动 CUDA {major}.{minor} 推断，建议使用 {plan['tag']}"
-                return plan
-        except Exception:
-            pass
-        self._cuda_detect_note = "未检测到 nvcc / nvidia-smi，无法自动推断 GPU 版本"
-        return None
+            return {}, ""
+        self._cached_main_torch_info = dict(main_info) if isinstance(main_info, dict) else {}
+        self._cached_main_torch_py = str(main_py or "")
+        self._cached_main_torch_ts = now
+        return dict(self._cached_main_torch_info), self._cached_main_torch_py
 
     def _detect_cuda_tag(self) -> str | None:
         plan = self._detect_torch_gpu_plan()
         return plan["tag"] if plan else None
+
+    def _resolve_shared_torch_site_for_mode(self, mode: str, allow_block: bool = True) -> str:
+        """获取可复用的主环境 torch site-packages 路径。"""
+        if allow_block:
+            try:
+                p = self.parent()
+                if p and hasattr(p, "_resolve_shared_torch_site_for_mode"):
+                    s = p._resolve_shared_torch_site_for_mode(mode)
+                    if s and os.path.isdir(s):
+                        return s
+            except Exception:
+                pass
+        try:
+            from backend.torch_runtime import mode_satisfies, python_site_packages
+            main_info, main_py = self._get_main_torch_info_cached(allow_block=allow_block)
+            if not main_info.get("present"):
+                return ""
+            if not mode_satisfies(main_info, mode):
+                return ""
+            site = python_site_packages(main_py)
+            if site and (site / "torch").exists():
+                return str(site)
+        except Exception:
+            pass
+        return ""
+
+    def _pix2text_install_steps(
+        self,
+        pyexe: str,
+        mode: str,
+        shared_site_hint: str = "",
+        gpu_tag: str = "",
+    ) -> list[str]:
+        """
+        可控分步安装，避免 pip 长时间回溯。
+        仅共享 torch；不固定 numpy，不额外约束其它包。
+        """
+        common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
+        shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
+        verify_code = (
+            "import os,sys; "
+            f"s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
+            "added=(bool(s) and os.path.isdir(s) and s not in sys.path); "
+            "(sys.path.insert(0,s) if added else None); "
+            "tl=(os.path.join(s,'torch','lib') if s else ''); "
+            "(os.add_dll_directory(tl) if (tl and os.path.isdir(tl) and hasattr(os,'add_dll_directory')) else None); "
+            "os.environ['PATH']=((tl+os.pathsep+os.environ.get('PATH','')) if (tl and os.path.isdir(tl)) else os.environ.get('PATH','')); "
+            "import torch; "
+            "import torchvision; "
+            "import importlib.util as _iu; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
+            "(sys.path.remove(s) if (added and s in sys.path) else None); "
+            "from pix2text import Pix2Text; "
+            "print('pix2text ok')"
+        )
+        steps = [
+            f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
+            f"\"{pyexe}\" -m pip uninstall -y optimum optimum-onnx optimum-intel",
+            f"\"{pyexe}\" -m pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"pix2text==1.1.6\" {common_flags}",
+        ]
+        if (mode or "").strip().lower() == "gpu":
+            onnx_gpu_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
+            # pix2text 依赖链可能拉回 CPU onnxruntime，这里在末尾强制修正一次最终状态。
+            steps += [
+                f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
+                f"\"{pyexe}\" -m pip install -U \"{onnx_gpu_spec}\" {common_flags}",
+            ]
+        steps.append(f"\"{pyexe}\" -c \"{verify_code}\"")
+        return steps
+
+    def _unimernet_install_steps(self, pyexe: str, mode: str, gpu_tag: str = "") -> list[str]:
+        common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
+        steps = [
+            f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"unimernet[full]\" {common_flags}",
+        ]
+        if (mode or "").strip().lower() == "gpu":
+            onnx_gpu_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
+            # 末尾再修正一次，防止依赖链将 ORT 回退到 CPU 版。
+            steps += [
+                f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
+                f"\"{pyexe}\" -m pip install -U \"{onnx_gpu_spec}\" {common_flags}",
+            ]
+        return steps
+
+    def _shared_torch_verify_cmd(self, pyexe: str, env_key: str, mode: str) -> str:
+        """构造可复用主环境 torch 的校验命令（含 DLL/路径注入）。"""
+        shared_site_hint = ""
+        if env_key in ("pix2text", "unimernet"):
+            try:
+                shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
+            except Exception:
+                shared_site_hint = ""
+        shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
+        verify_code = (
+            "import os,sys; import os as _o; import importlib.util as _iu; "
+            f"s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
+            "added=(bool(s) and _o.path.isdir(s) and s not in sys.path); "
+            "(sys.path.insert(0,s) if added else None); "
+            "tl=(_o.path.join(s,'torch','lib') if s else ''); "
+            "(_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); "
+            "_o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); "
+            "import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
+            "print('torch', getattr(torch,'__version__','')); "
+            "print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda','')); "
+            "(sys.path.remove(s) if (added and s in sys.path) else None)"
+        )
+        return f"\"{pyexe}\" -c \"{verify_code}\""
+
     def _install_env_torch(self, env_key: str, mode: str, include_model: bool = True):
         pyexe = self.pix2text_pyexe_input.text().strip() if env_key == "pix2text" else self.unimernet_pyexe_input.text().strip()
         if not pyexe or not os.path.exists(pyexe):
             self._show_info("环境未配置", "请先选择或创建隔离环境。", "warning")
             return
-        extra_index = " --extra-index-url https://pypi.org/simple"
-        if mode == "gpu":
-            gpu_plan = self._detect_torch_gpu_plan()
-            if not gpu_plan:
-                note = getattr(self, "_cuda_detect_note", "")
-                title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
-                self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
-                return
-            cmd = (
-                f"\"{pyexe}\" -m pip install "
-                f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
-                f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
-            )
-        else:
-            cpu_plan = self._torch_cpu_plan()
-            cmd = (
-                f"\"{pyexe}\" -m pip install "
-                f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
-                f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
-            )
+        mode = (mode or "auto").strip().lower()
+        if mode not in ("cpu", "gpu"):
+            mode = "cpu"
+        # Persist per-env torch preference for runtime shared-layer routing.
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                self.parent().cfg.set(f"{env_key}_torch_mode", mode)
+        except Exception:
+            pass
+        try:
+            if self.parent() and hasattr(self.parent(), f"_apply_{env_key}_env"):
+                getattr(self.parent(), f"_apply_{env_key}_env")()
+        except Exception:
+            pass
+
+        reuse_note = ""
+        torch_cmd = ""
+        detect_note = ""
+        selected_gpu_tag = ""
+        try:
+            from backend.torch_runtime import mode_satisfies
+
+            main_info, _main_py = self._get_main_torch_info_cached(allow_block=True)
+            if mode_satisfies(main_info, mode):
+                main_mode = (main_info.get("mode") or mode).upper()
+                main_ver = main_info.get("torch_version", "") or "unknown"
+                reuse_note = f"已复用主环境 PyTorch（{main_mode}, ver={main_ver}），隔离环境无需重复安装 torch。"
+                if mode == "gpu":
+                    cv = str(main_info.get("cuda_version") or "").strip().lower()
+                    if cv.startswith("cu"):
+                        selected_gpu_tag = cv
+            else:
+                extra_index = " --extra-index-url https://pypi.org/simple"
+                if mode == "gpu":
+                    gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
+                    detect_note = getattr(self, "_cuda_detect_note", "")
+                    if gpu_plan:
+                        selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
+                        torch_cmd = (
+                            f"\"{pyexe}\" -m pip install "
+                            f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
+                            f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
+                        )
+                    else:
+                        torch_cmd = ""
+                else:
+                    cpu_plan = self._torch_cpu_plan()
+                    torch_cmd = (
+                        f"\"{pyexe}\" -m pip install "
+                        f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
+                        f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
+                    )
+                    detect_note = "使用 CPU 版本"
+        except Exception:
+            # fallback to legacy command generation
+            extra_index = " --extra-index-url https://pypi.org/simple"
+            if mode == "gpu":
+                gpu_plan = self._detect_torch_gpu_plan()
+                if not gpu_plan:
+                    note = getattr(self, "_cuda_detect_note", "")
+                    title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
+                    self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
+                    return
+                selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
+                torch_cmd = (
+                    f"\"{pyexe}\" -m pip install "
+                    f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
+                    f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
+                )
+            else:
+                cpu_plan = self._torch_cpu_plan()
+                torch_cmd = (
+                    f"\"{pyexe}\" -m pip install "
+                    f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
+                    f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
+                )
+
+        if mode == "gpu" and not selected_gpu_tag:
+            try:
+                gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
+                if gpu_plan:
+                    selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
+            except Exception:
+                pass
+
+        if mode == "gpu" and not reuse_note and not torch_cmd:
+            note = detect_note or getattr(self, "_cuda_detect_note", "") or "未检测到可适配 GPU 版本"
+            title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
+            self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
+            return
+
         model_cmd = ""
         if env_key == "pix2text":
-            model_cmd = f"\"{pyexe}\" -m pip install -U pix2text"
+            shared_site_hint = ""
+            if not torch_cmd:
+                try:
+                    shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
+                except Exception:
+                    shared_site_hint = ""
+            model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, shared_site_hint, selected_gpu_tag))
         elif env_key == "unimernet":
-            model_cmd = f"\"{pyexe}\" -m pip install -U \"unimernet[full]\""
+            model_cmd = "\n".join(self._unimernet_install_steps(pyexe, mode, selected_gpu_tag))
+
+        cmd_parts = []
+        if torch_cmd:
+            cmd_parts.append(torch_cmd)
         if include_model and model_cmd:
-            full_cmd = cmd + "\n" + model_cmd
+            cmd_parts.append(model_cmd)
+        full_cmd = "\n".join(cmd_parts) if cmd_parts else self._shared_torch_verify_cmd(pyexe, env_key, mode)
+
+        if mode == "gpu" and getattr(self, "_cuda_detect_note", "") and not detect_note:
+            detect_note = self._cuda_detect_note
+        detect_prefix = f"CUDA 检测: {detect_note}\n\n" if detect_note else ""
+        reuse_prefix = (reuse_note + "\n\n") if reuse_note else ""
+        def _short(line: str, n: int = 92) -> str:
+            line = (line or "").strip()
+            return (line[: n - 3] + "...") if len(line) > n else line
+        def _preview_cmd() -> str:
+            model_lines = [ln for ln in (model_cmd or "").splitlines() if ln.strip()]
+            out = []
+            if torch_cmd:
+                out.append("1) PyTorch 安装/切换")
+                out.append(f"   {_short(torch_cmd)}")
+            if include_model and model_lines:
+                idx = 2 if torch_cmd else 1
+                out.append(f"{idx}) {env_key} 模型安装与校验（共 {len(model_lines)} 步）")
+                head = min(2, len(model_lines))
+                for i in range(head):
+                    out.append(f"   - {_short(model_lines[i])}")
+                if len(model_lines) > head:
+                    out.append(f"   - ... 其余 {len(model_lines) - head} 步已省略（复制后可见完整命令）")
+            if not out:
+                out.append(_short(full_cmd))
+            return "\n".join(out)
+        preview_cmd = _preview_cmd()
+        if torch_cmd:
+            lead_msg = f"将在隔离环境安装 {mode.upper()} 版 PyTorch：\n\n"
+        elif include_model and model_cmd:
+            lead_msg = "当前无需安装 torch，仅需执行模型安装/校验：\n\n"
         else:
-            full_cmd = cmd
-        detect_note = ""
-        if mode == "gpu" and getattr(self, "_cuda_detect_note", ""):
-            detect_note = f"CUDA 检测: {self._cuda_detect_note}\n\n"
+            lead_msg = "当前无需安装 torch，仅需执行共享 torch 校验：\n\n"
         msg = (
-            f"{detect_note}将使用隔离环境安装 {mode.upper()} 版 PyTorch：\n\n"
-            f"{full_cmd}\n\n"
-            "安装完成后请重新检测。"
+            f"{reuse_prefix}{detect_prefix}"
+            + lead_msg
+            +
+            f"{preview_cmd}\n\n"
+            "安装完成后请重新检测。\n"
+            "提示：弹窗仅显示预览，完整命令会复制到剪贴板。"
         )
         dlg = MessageBox("安装 PyTorch", msg, self)
         dlg.yesButton.setText("复制命令并打开终端")
         dlg.cancelButton.setText("仅复制命令")
         def _do_copy(open_terminal: bool):
             try:
-                pyperclip.copy(full_cmd)
+                # Ensure CRLF for Windows cmd paste (Win10 console is sensitive to LF-only).
+                cmd_clip = full_cmd.replace("\r\n", "\n").replace("\n", "\r\n")
+                pyperclip.copy(cmd_clip)
             except Exception:
                 pass
             if open_terminal:
@@ -685,6 +886,7 @@ class SettingsWindow(QDialog):
         dlg.yesButton.clicked.connect(lambda: _do_copy(True))
         dlg.cancelButton.clicked.connect(lambda: _do_copy(False))
         dlg.exec()
+        self._schedule_env_torch_probe(env_key)
     def _reinstall_env_torch(self, env_key: str):
         items = ["CPU", "GPU"]
         dlg = QInputDialog(self)
@@ -1513,7 +1715,17 @@ class SettingsWindow(QDialog):
             "pix2text": "pix2text 独立环境",
             "unimernet": "UniMERNet 独立环境",
         }.get(env_key, "主环境（程序 / pix2tex / 核心依赖）")
-        gpu_plan = self._detect_torch_gpu_plan()
+        shared_site_for_terminal = ""
+        if env_key in ("pix2text", "unimernet"):
+            try:
+                mode_pref = "auto"
+                if cfg:
+                    mode_pref = (cfg.get(f"{env_key}_torch_mode", "auto") or "auto").strip().lower()
+                # 终端入口使用缓存，避免首次打开卡在 CUDA/torch 探测。
+                shared_site_for_terminal = self._resolve_shared_torch_site_for_mode(mode_pref, allow_block=False)
+            except Exception:
+                shared_site_for_terminal = ""
+        gpu_plan = self._detect_torch_gpu_plan(allow_block=False)
         cpu_plan = self._torch_cpu_plan()
         gpu_cmd = ""
         if gpu_plan:
@@ -1540,15 +1752,16 @@ class SettingsWindow(QDialog):
             "echo [隔离策略]",
             "echo   - 主环境: 程序 + pix2tex + 基础/核心依赖",
             "echo   - pix2text / UniMERNet: 独立隔离环境",
+            "echo   - 优先复用主环境 torch；仅在模式不匹配时再补装本地 torch",
+            f"echo   - 共享 torch 路径: {shared_site_for_terminal or '未注入'}",
             "echo.",
             "echo [版本修复 - 常见冲突]",
-            "echo   pip install numpy==1.26.4",
             "echo   pip install protobuf==4.25.8",
             "echo   pip install pydantic==2.9.2 pydantic-core==2.23.4",
             "echo.",
             "echo [PyTorch GPU]",
             "echo   nvcc --version",
-            f"echo   {gpu_cmd if gpu_cmd else 'CUDA<11.8 或未检测到 CUDA，当前不适配 GPU 版命令'}",
+            f"echo   {gpu_cmd if gpu_cmd else 'CUDA 低于 11.8 或未检测到 CUDA，当前不适配 GPU 版命令'}",
             "echo.",
             "echo [PyTorch CPU]",
             f"echo   {cpu_cmd}",
@@ -1566,13 +1779,13 @@ class SettingsWindow(QDialog):
             ]
         elif env_key == "pix2text":
             help_lines += [
-                "echo [依赖]",
-                "echo   # 先安装上方 PyTorch + ONNX Runtime 命令中的对应一条",
-                "echo   pip install -U optimum==2.0.0 torchmetrics==1.7.4 pymupdf==1.26.7",
-                "echo.",
                 "echo [模型]",
-                "echo   pip install -U pix2text",
-                "echo   python -c \"from pix2text import Pix2Text; Pix2Text()\"",
+                "echo   # 分步安装（不固定 numpy，仅固定关键链路版本）",
+                "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+                "echo   pip uninstall -y optimum optimum-onnx optimum-intel",
+                "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+                "echo   pip install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+                "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); from pix2text import Pix2Text; print('pix2text ok')\"",
                 "echo.",
             ]
         else:
@@ -1597,7 +1810,18 @@ class SettingsWindow(QDialog):
             "echo ================================================================================",
             "echo.",
         ]
-        help_str = " && ".join(help_lines)
+        help_text = "\n".join(help_lines) + "\n"
+        shared_env_lines = ""
+        if shared_site_for_terminal:
+            shared_env_lines = (
+                f'set "LATEXSNIPPER_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
+                f'set "{env_key.upper()}_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
+            )
+        elif env_key in ("pix2text", "unimernet"):
+            shared_env_lines = (
+                'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
+                f'set "{env_key.upper()}_SHARED_TORCH_SITE="\n'
+            )
         try:
             if as_admin:
                 import tempfile
@@ -1605,7 +1829,8 @@ class SettingsWindow(QDialog):
                     + "chcp 65001 >nul\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + help_str.replace("echo", "echo") + "\n" \
+                    + shared_env_lines \
+                    + help_text \
                     + "cmd /k\n"
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="utf-8") as f:
                     f.write(batch_content)
@@ -1621,7 +1846,8 @@ class SettingsWindow(QDialog):
                     + "chcp 65001 >nul\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + help_str.replace("echo", "echo") + "\n" \
+                    + shared_env_lines \
+                    + help_text \
                     + "cmd /k\n"
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="utf-8") as f:
                     f.write(batch_content_normal)
