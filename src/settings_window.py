@@ -2,9 +2,8 @@
 from pathlib import Path
 import time
 import pyperclip
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QTimer
-from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QComboBox, QFileDialog, QInputDialog, QMessageBox)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
 from deps_bootstrap import custom_warning_dialog
@@ -39,12 +38,14 @@ class SettingsWindow(QDialog):
         )
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
-        self.resize(340, 320)
+        # 默认宽度加大，避免 InfoBar 文案被截断
+        self.resize(620, 320)
+        self.setMinimumWidth(620)
         lay = QVBoxLayout(self)
         lay.setSpacing(8)
         lay.setContentsMargins(16, 16, 16, 16)
         self._pix2text_pkg_ready = False
-        self._torch_probe_seq = {"pix2text": 0, "unimernet": 0}
+        self._torch_probe_seq = {"pix2text": 0}
         # 缓存慢探测结果，避免频繁点击时阻塞 UI
         self._probe_cache_ttl_sec = 45.0
         self._cached_gpu_plan = None
@@ -63,9 +64,7 @@ class SettingsWindow(QDialog):
         # 添加识别模式选项
         # 添加识别模式选项
         self._model_options = [
-            ("pix2tex", "pix2tex - 公式识别（轻量）"),
-            ("pix2text", "pix2text - 公式识别（高精度）"),
-            ("unimernet", "UniMERNet - 强化公式识别（实验）"),
+            ("pix2text", "pix2text - 公式识别"),
         ]
         for key, label in self._model_options:
             self.model_combo.addItem(label, userData=key)
@@ -80,9 +79,9 @@ class SettingsWindow(QDialog):
         pix2text_env_layout = QHBoxLayout(self.pix2text_env_widget)
         pix2text_env_layout.setContentsMargins(0, 0, 0, 0)
         pix2text_env_layout.setSpacing(6)
-        pix2text_env_layout.addWidget(QLabel("pix2text 环境:"))
+        pix2text_env_layout.addWidget(QLabel("pix2text 运行环境:"))
         self.pix2text_pyexe_input = QLineEdit()
-        self.pix2text_pyexe_input.setPlaceholderText("选择 pix2text 隔离环境 python.exe")
+        self.pix2text_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
         self.pix2text_pyexe_input.setFixedHeight(30)
         pix2text_env_layout.addWidget(self.pix2text_pyexe_input)
         self.pix2text_pyexe_browse = PushButton(FluentIcon.FOLDER, "浏览")
@@ -98,7 +97,7 @@ class SettingsWindow(QDialog):
         self.pix2text_pyexe_create.clicked.connect(self._on_pix2text_pyexe_create)
         pix2text_env_layout.addWidget(self.pix2text_pyexe_create)
         lay.addWidget(self.pix2text_env_widget)
-        self.pix2text_env_hint = QLabel("提示：建议 pix2text 使用独立环境，避免与 pix2tex 冲突。")
+        self.pix2text_env_hint = QLabel("提示：v1.05 起 pix2text 与主依赖环境统一，不再使用隔离环境。")
         self.pix2text_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_env_hint.setWordWrap(True)
         lay.addWidget(self.pix2text_env_hint)
@@ -107,37 +106,14 @@ class SettingsWindow(QDialog):
         self.pix2text_torch_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_torch_status.setWordWrap(True)
         lay.addWidget(self.pix2text_torch_status)
-        self.pix2text_torch_btn_row = QWidget()
-        pix2text_torch_btn_layout = QHBoxLayout(self.pix2text_torch_btn_row)
-        pix2text_torch_btn_layout.setContentsMargins(0, 0, 0, 0)
-        pix2text_torch_btn_layout.setSpacing(6)
-        self.pix2text_torch_install_gpu = PushButton(FluentIcon.SETTING, "安装/切换 GPU 版本")
-        self.pix2text_torch_install_gpu.setFixedHeight(30)
-        self.pix2text_torch_install_gpu.clicked.connect(lambda: self._install_env_torch("pix2text", "gpu"))
-        pix2text_torch_btn_layout.addWidget(self.pix2text_torch_install_gpu)
-        self.pix2text_torch_reinstall = PushButton(FluentIcon.SYNC, "重装")
-        self.pix2text_torch_reinstall.setFixedHeight(30)
-        self.pix2text_torch_reinstall.clicked.connect(lambda: self._reinstall_env_torch("pix2text"))
-        pix2text_torch_btn_layout.addWidget(self.pix2text_torch_reinstall)
-        self.pix2text_torch_refresh = PushButton(FluentIcon.UPDATE, "刷新检测")
-        self.pix2text_torch_refresh.setFixedHeight(30)
-        self.pix2text_torch_refresh.clicked.connect(lambda: self._refresh_env_status("pix2text"))
-        pix2text_torch_btn_layout.addWidget(self.pix2text_torch_refresh)
-        lay.addWidget(self.pix2text_torch_btn_row)
-        # pix2text 部署/下载
-        self.pix2text_dl_widget = QWidget()
-        pix2text_dl_layout = QHBoxLayout(self.pix2text_dl_widget)
-        pix2text_dl_layout.setContentsMargins(0, 0, 0, 0)
-        pix2text_dl_layout.setSpacing(6)
-        self.pix2text_download_btn = PushButton(FluentIcon.DOWNLOAD, "下载模型(默认CPU)")
-        self.pix2text_download_btn.setFixedHeight(30)
-        self.pix2text_download_btn.clicked.connect(self._on_pix2text_download_clicked)
-        pix2text_dl_layout.addWidget(self.pix2text_download_btn)
-        self.pix2text_open_btn = PushButton(FluentIcon.GLOBE, "打开缓存目录")
-        self.pix2text_open_btn.setFixedHeight(30)
-        self.pix2text_open_btn.clicked.connect(self._on_pix2text_open_download_clicked)
-        pix2text_dl_layout.addWidget(self.pix2text_open_btn)
-        lay.addWidget(self.pix2text_dl_widget)
+        # v1.05: 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
+        self.pix2text_torch_btn_row = None
+        self.pix2text_torch_install_gpu = None
+        self.pix2text_torch_reinstall = None
+        self.pix2text_torch_refresh = None
+        self.pix2text_dl_widget = None
+        self.pix2text_download_btn = None
+        self.pix2text_open_btn = None
         # pix2text 识别类型（仅在 pix2text 可用时显示）
         self.pix2text_mode_widget = QWidget()
         pix2text_mode_layout = QHBoxLayout(self.pix2text_mode_widget)
@@ -154,77 +130,17 @@ class SettingsWindow(QDialog):
         self.pix2text_mode_combo.currentIndexChanged.connect(self._on_pix2text_mode_changed)
         pix2text_mode_layout.addWidget(self.pix2text_mode_combo)
         lay.addWidget(self.pix2text_mode_widget)
-        # UniMERNet 模型权重选择
-        self.unimernet_widget = QWidget()
-        unimernet_layout = QHBoxLayout(self.unimernet_widget)
-        unimernet_layout.setContentsMargins(0, 0, 0, 0)
-        unimernet_layout.setSpacing(6)
-        unimernet_layout.addWidget(QLabel("UniMERNet 模型权重:"))
-        self.unimernet_combo = ComboBox()
-        self.unimernet_combo.setFixedHeight(30)
-        self.unimernet_combo.addItem("Base (1.3GB)", userData="base")
-        self.unimernet_combo.addItem("Small (773MB)", userData="small")
-        self.unimernet_combo.addItem("Tiny (441MB)", userData="tiny")
-        self.unimernet_combo.currentIndexChanged.connect(self._on_unimernet_variant_changed)
-        unimernet_layout.addWidget(self.unimernet_combo)
-        self.unimernet_download_btn = PushButton(FluentIcon.DOWNLOAD, "下载模型(默认CPU)")
-        self.unimernet_download_btn.setFixedHeight(30)
-        self.unimernet_download_btn.clicked.connect(self._on_unimernet_download_clicked)
-        unimernet_layout.addWidget(self.unimernet_download_btn)
-        self.unimernet_open_btn = PushButton(FluentIcon.GLOBE, "打开下载页/目录")
-        self.unimernet_open_btn.setFixedHeight(30)
-        self.unimernet_open_btn.clicked.connect(self._on_unimernet_open_download_clicked)
-        unimernet_layout.addWidget(self.unimernet_open_btn)
-        lay.addWidget(self.unimernet_widget)
-        # UniMERNet 隔离环境选择
-        self.unimernet_env_widget = QWidget()
-        unimernet_env_layout = QHBoxLayout(self.unimernet_env_widget)
-        unimernet_env_layout.setContentsMargins(0, 0, 0, 0)
-        unimernet_env_layout.setSpacing(6)
-        unimernet_env_layout.addWidget(QLabel("UniMERNet 环境:"))
-        self.unimernet_pyexe_input = QLineEdit()
-        self.unimernet_pyexe_input.setPlaceholderText("选择隔离环境 python.exe")
-        self.unimernet_pyexe_input.setFixedHeight(30)
-        unimernet_env_layout.addWidget(self.unimernet_pyexe_input)
-        self.unimernet_pyexe_browse = PushButton(FluentIcon.FOLDER, "浏览")
-        self.unimernet_pyexe_browse.setFixedHeight(30)
-        self.unimernet_pyexe_browse.clicked.connect(self._on_unimernet_pyexe_browse)
-        unimernet_env_layout.addWidget(self.unimernet_pyexe_browse)
-        self.unimernet_pyexe_clear = PushButton(FluentIcon.DELETE, "清除")
-        self.unimernet_pyexe_clear.setFixedHeight(30)
-        self.unimernet_pyexe_clear.clicked.connect(self._on_unimernet_pyexe_clear)
-        unimernet_env_layout.addWidget(self.unimernet_pyexe_clear)
-        self.unimernet_pyexe_create = PushButton(FluentIcon.DEVELOPER_TOOLS, "一键创建")
-        self.unimernet_pyexe_create.setFixedHeight(30)
-        self.unimernet_pyexe_create.clicked.connect(self._on_unimernet_pyexe_create)
-        unimernet_env_layout.addWidget(self.unimernet_pyexe_create)
-        lay.addWidget(self.unimernet_env_widget)
-        self.unimernet_env_hint = QLabel("提示：建议使用独立虚拟环境，避免影响主依赖。")
-        self.unimernet_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.unimernet_env_hint.setWordWrap(True)
-        lay.addWidget(self.unimernet_env_hint)
-        # UniMERNet 推理设备检测
-        self.unimernet_torch_status = QLabel("UniMERNet 设备: 未检测")
-        self.unimernet_torch_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.unimernet_torch_status.setWordWrap(True)
-        lay.addWidget(self.unimernet_torch_status)
-        self.unimernet_torch_btn_row = QWidget()
-        unimernet_torch_btn_layout = QHBoxLayout(self.unimernet_torch_btn_row)
-        unimernet_torch_btn_layout.setContentsMargins(0, 0, 0, 0)
-        unimernet_torch_btn_layout.setSpacing(6)
-        self.unimernet_torch_install_gpu = PushButton(FluentIcon.SETTING, "安装/切换 GPU 版本")
-        self.unimernet_torch_install_gpu.setFixedHeight(30)
-        self.unimernet_torch_install_gpu.clicked.connect(lambda: self._install_env_torch("unimernet", "gpu"))
-        unimernet_torch_btn_layout.addWidget(self.unimernet_torch_install_gpu)
-        self.unimernet_torch_reinstall = PushButton(FluentIcon.SYNC, "重装")
-        self.unimernet_torch_reinstall.setFixedHeight(30)
-        self.unimernet_torch_reinstall.clicked.connect(lambda: self._reinstall_env_torch("unimernet"))
-        unimernet_torch_btn_layout.addWidget(self.unimernet_torch_reinstall)
-        self.unimernet_torch_refresh = PushButton(FluentIcon.UPDATE, "刷新检测")
-        self.unimernet_torch_refresh.setFixedHeight(30)
-        self.unimernet_torch_refresh.clicked.connect(lambda: self._refresh_env_status("unimernet"))
-        unimernet_torch_btn_layout.addWidget(self.unimernet_torch_refresh)
-        lay.addWidget(self.unimernet_torch_btn_row)
+        # v1.05: 彻底移除 UniMERNet UI（仅保留 pix2text）。
+        self.unimernet_widget = None
+        self.unimernet_env_widget = None
+        self.unimernet_env_hint = None
+        self.unimernet_torch_status = None
+        self.unimernet_torch_btn_row = None
+        # v1.05: 不再支持隔离环境创建/选择，固定使用主依赖环境 python。
+        self.pix2text_pyexe_browse.hide()
+        self.pix2text_pyexe_clear.hide()
+        self.pix2text_pyexe_create.hide()
+        self.pix2text_pyexe_input.setReadOnly(True)
         self.lbl_compute_mode = QLabel()
         self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         lay.addWidget(self.lbl_compute_mode)
@@ -297,6 +213,18 @@ class SettingsWindow(QDialog):
         self.btn_update = PushButton(FluentIcon.UPDATE, "检查更新")
         self.btn_update.setFixedHeight(36)
         lay.addWidget(self.btn_update)
+        # 启动行为
+        lay.addWidget(QLabel("启动行为:"))
+        self.startup_console_checkbox = QCheckBox("启动时显示终端（调试）")
+        startup_console_pref = False
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                startup_console_pref = self.parent().cfg.get("show_startup_console", False)
+        except Exception:
+            startup_console_pref = False
+        self.startup_console_checkbox.setChecked(self._to_bool(startup_console_pref))
+        self.startup_console_checkbox.setToolTip("默认关闭。关闭后双击程序将按桌面应用方式启动（后台加载，不弹终端）")
+        lay.addWidget(self.startup_console_checkbox)
         # 分隔
         lay.addSpacing(8)
         # 高级功能：打开终端（慎用）
@@ -307,9 +235,7 @@ class SettingsWindow(QDialog):
         terminal_layout.setSpacing(6)
         self.terminal_env_combo = ComboBox()
         self.terminal_env_combo.setFixedHeight(36)
-        self.terminal_env_combo.addItem("主环境（程序 / pix2tex）", userData="main")
-        self.terminal_env_combo.addItem("pix2text 隔离环境", userData="pix2text")
-        self.terminal_env_combo.addItem("UniMERNet 隔离环境", userData="unimernet")
+        self.terminal_env_combo.addItem("主环境（程序 / pix2text）", userData="main")
         terminal_layout.addWidget(self.terminal_env_combo)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
@@ -331,6 +257,7 @@ class SettingsWindow(QDialog):
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.terminal_env_combo.currentIndexChanged.connect(self._on_terminal_env_changed)
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
+        self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
         # 渲染引擎相关信号
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
         self.btn_browse_latex.clicked.connect(self._browse_latex_path)
@@ -389,26 +316,34 @@ class SettingsWindow(QDialog):
         # 触发路径变更逻辑（如按钮状态等）
         self._on_latex_path_changed()
     def _on_terminal_env_changed(self, index: int):
-        mapping = {0: "main", 1: "pix2text", 2: "unimernet"}
+        mapping = {0: "main"}
         self._terminal_env_key = mapping.get(index, "main")
+
+    def _to_bool(self, value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return False
+
+    def _on_startup_console_changed(self, state: int):
+        # PyQt6 的 CheckState 不是可直接 int() 的枚举，直接读控件状态最稳妥。
+        enabled = bool(self.startup_console_checkbox.isChecked())
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                self.parent().cfg.set("show_startup_console", enabled)
+        except Exception:
+            pass
+        try:
+            if self.parent() and hasattr(self.parent(), "apply_startup_console_preference"):
+                self.parent().apply_startup_console_preference(enabled)
+        except Exception:
+            pass
+        self._show_info("设置已保存", "终端显示偏好已更新（建议重启程序后完全生效）", "success")
     def _get_terminal_env_key(self) -> str:
-        try:
-            text = self.terminal_env_combo.currentText()
-        except Exception:
-            text = ""
-        text_lower = (text or "").lower()
-        if "pix2text" in text_lower:
-            return "pix2text"
-        if "unimernet" in text_lower:
-            return "unimernet"
-        if "主环境" in text or "main" in text_lower:
-            return "main"
-        try:
-            idx = self.terminal_env_combo.currentIndex()
-        except Exception:
-            idx = 0
-        mapping = {0: "main", 1: "pix2text", 2: "unimernet"}
-        return mapping.get(idx, "main")
+        return "main"
     def _probe_module_installed(self, pyexe: str, module: str) -> bool:
         import subprocess
         if not pyexe or not os.path.exists(pyexe):
@@ -470,7 +405,7 @@ class SettingsWindow(QDialog):
             return {"present": False, "error": "python.exe not found"}
         run_env = os.environ.copy()
         try:
-            key = "PIX2TEXT_SHARED_TORCH_SITE" if env_key == "pix2text" else "UNIMERNET_SHARED_TORCH_SITE"
+            key = "PIX2TEXT_SHARED_TORCH_SITE"
             shared_site = os.environ.get(key, "")
             run_env = inject_shared_torch_env(run_env, shared_site)
         except Exception:
@@ -487,41 +422,30 @@ class SettingsWindow(QDialog):
             return {"present": False, "error": str(e)}
         return {"present": False, "error": "probe failed"}
     def _set_env_torch_ui(self, env_key: str, info: dict, pyexe: str):
-        label = self.pix2text_torch_status if env_key == "pix2text" else self.unimernet_torch_status
-        install_gpu = self.pix2text_torch_install_gpu if env_key == "pix2text" else self.unimernet_torch_install_gpu
-        reinstall_btn = self.pix2text_torch_reinstall if env_key == "pix2text" else self.unimernet_torch_reinstall
+        env_key = "pix2text"
+        label = self.pix2text_torch_status
         if info.get("error") == "timeout":
             label.setText(f"{env_key} 设备: 获取超时")
-            install_gpu.setVisible(True)
-            reinstall_btn.setVisible(True)
             return
         if not pyexe or not os.path.exists(pyexe):
-            label.setText(f"{env_key} \u8bbe\u5907: \u73af\u5883\u672a\u914d\u7f6e")
-            # 按钮常驻：未配置时点击会提示先选择/创建环境
-            install_gpu.setVisible(True)
-            reinstall_btn.setVisible(False)
+            label.setText(f"{env_key} 设备: 环境未配置")
             return
         if not info.get("present"):
-            label.setText(f"{env_key} \u8bbe\u5907: \u672a\u5b89\u88c5 PyTorch\uff08\u9ed8\u8ba4\u5c06\u4e3a CPU \u7248\uff09")
-            install_gpu.setVisible(True)
-            reinstall_btn.setVisible(False)
+            label.setText(f"{env_key} 设备: 未安装 PyTorch（默认将为 CPU 版）")
             return
         cuda_ver = info.get("cuda_version")
         cuda_ok = info.get("cuda_available")
         if cuda_ver:
-            suffix = "\uff08CUDA \u4e0d\u53ef\u7528\uff09" if cuda_ok is False else ""
-            label.setText(f"{env_key} \u8bbe\u5907: GPU \u7248\u5df2\u5b89\u88c5{suffix}")
+            suffix = "（CUDA 不可用）" if cuda_ok is False else ""
+            label.setText(f"{env_key} 设备: GPU 版已安装{suffix}")
         else:
-            label.setText(f"{env_key} \u8bbe\u5907: CPU \u7248\u5df2\u5b89\u88c5")
-        # 按钮常驻，便于切换 GPU 版本
-        install_gpu.setVisible(True)
-        reinstall_btn.setVisible(True)
+            label.setText(f"{env_key} 设备: CPU 版已安装")
 
     def _schedule_env_torch_probe(self, env_key: str):
-        if env_key not in ("pix2text", "unimernet"):
+        if env_key != "pix2text":
             return
-        pyexe = (self.pix2text_pyexe_input.text().strip() if env_key == "pix2text" else self.unimernet_pyexe_input.text().strip())
-        label = self.pix2text_torch_status if env_key == "pix2text" else self.unimernet_torch_status
+        pyexe = self.pix2text_pyexe_input.text().strip()
+        label = self.pix2text_torch_status
         label.setText(f"{env_key} 设备: 检测中...")
         def worker():
             info = self._probe_torch_info(pyexe, env_key=env_key)
@@ -533,11 +457,10 @@ class SettingsWindow(QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     def _refresh_env_status(self, env_key: str):
-        if env_key not in ("pix2text", "unimernet"):
+        if env_key != "pix2text":
             return
         self._schedule_env_torch_probe(env_key)
-        if env_key == "pix2text":
-            self._schedule_pix2text_pkg_probe()
+        self._schedule_pix2text_pkg_probe()
     def _torch_cuda_matrix(self) -> list[dict]:
         # 统一复用 backend.torch_runtime 里的单一版本矩阵，避免多处硬编码漂移。
         return [dict(p) for p in TORCH_CUDA_MATRIX]
@@ -645,7 +568,7 @@ class SettingsWindow(QDialog):
         shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
         verify_code = (
             "import os,sys; "
-            f"s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
+            f"s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
             "added=(bool(s) and os.path.isdir(s) and s not in sys.path); "
             "(sys.path.insert(0,s) if added else None); "
             "tl=(os.path.join(s,'torch','lib') if s else ''); "
@@ -662,37 +585,26 @@ class SettingsWindow(QDialog):
             f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
             f"\"{pyexe}\" -m pip uninstall -y optimum optimum-onnx optimum-intel",
             f"\"{pyexe}\" -m pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"optimum-onnx>=0.0.3\" {common_flags}",
             f"\"{pyexe}\" -m pip install -U \"pix2text==1.1.6\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"pymupdf~=1.23.0\" {common_flags}",
         ]
+        # pix2text 依赖链可能回拉 onnxruntime，末尾强制修正 CPU/GPU 最终状态（互斥）。
         if (mode or "").strip().lower() == "gpu":
-            onnx_gpu_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
-            # pix2text 依赖链可能拉回 CPU onnxruntime，这里在末尾强制修正一次最终状态。
-            steps += [
-                f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
-                f"\"{pyexe}\" -m pip install -U \"{onnx_gpu_spec}\" {common_flags}",
-            ]
+            onnx_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
+        else:
+            onnx_spec = self._onnxruntime_cpu_spec()
+        steps += [
+            f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
+            f"\"{pyexe}\" -m pip install -U \"{onnx_spec}\" {common_flags}",
+        ]
         steps.append(f"\"{pyexe}\" -c \"{verify_code}\"")
-        return steps
-
-    def _unimernet_install_steps(self, pyexe: str, mode: str, gpu_tag: str = "") -> list[str]:
-        common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
-        steps = [
-            f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"unimernet[full]\" {common_flags}",
-        ]
-        if (mode or "").strip().lower() == "gpu":
-            onnx_gpu_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
-            # 末尾再修正一次，防止依赖链将 ORT 回退到 CPU 版。
-            steps += [
-                f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
-                f"\"{pyexe}\" -m pip install -U \"{onnx_gpu_spec}\" {common_flags}",
-            ]
         return steps
 
     def _shared_torch_verify_cmd(self, pyexe: str, env_key: str, mode: str) -> str:
         """构造可复用主环境 torch 的校验命令（含 DLL/路径注入）。"""
         shared_site_hint = ""
-        if env_key in ("pix2text", "unimernet"):
+        if env_key == "pix2text":
             try:
                 shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
             except Exception:
@@ -700,7 +612,7 @@ class SettingsWindow(QDialog):
         shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
         verify_code = (
             "import os,sys; import os as _o; import importlib.util as _iu; "
-            f"s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
+            f"s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
             "added=(bool(s) and _o.path.isdir(s) and s not in sys.path); "
             "(sys.path.insert(0,s) if added else None); "
             "tl=(_o.path.join(s,'torch','lib') if s else ''); "
@@ -714,9 +626,10 @@ class SettingsWindow(QDialog):
         return f"\"{pyexe}\" -c \"{verify_code}\""
 
     def _install_env_torch(self, env_key: str, mode: str, include_model: bool = True):
-        pyexe = self.pix2text_pyexe_input.text().strip() if env_key == "pix2text" else self.unimernet_pyexe_input.text().strip()
+        env_key = "pix2text"
+        pyexe = self.pix2text_pyexe_input.text().strip()
         if not pyexe or not os.path.exists(pyexe):
-            self._show_info("环境未配置", "请先选择或创建隔离环境。", "warning")
+            self._show_info("环境未配置", "请先完成依赖向导初始化主依赖环境。", "warning")
             return
         mode = (mode or "auto").strip().lower()
         if mode not in ("cpu", "gpu"):
@@ -810,16 +723,13 @@ class SettingsWindow(QDialog):
             return
 
         model_cmd = ""
-        if env_key == "pix2text":
-            shared_site_hint = ""
-            if not torch_cmd:
-                try:
-                    shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
-                except Exception:
-                    shared_site_hint = ""
-            model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, shared_site_hint, selected_gpu_tag))
-        elif env_key == "unimernet":
-            model_cmd = "\n".join(self._unimernet_install_steps(pyexe, mode, selected_gpu_tag))
+        shared_site_hint = ""
+        if not torch_cmd:
+            try:
+                shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
+            except Exception:
+                shared_site_hint = ""
+        model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, shared_site_hint, selected_gpu_tag))
 
         cmd_parts = []
         if torch_cmd:
@@ -920,7 +830,7 @@ class SettingsWindow(QDialog):
 
     def _init_model_combo(self):
         # 初始化模型下拉框的选择状态
-        current = "pix2tex"
+        current = "pix2text"
         if self.parent() and hasattr(self.parent(), "desired_model"):
             current = self.parent().desired_model
         elif self.parent() and hasattr(self.parent(), "cfg"):
@@ -939,131 +849,27 @@ class SettingsWindow(QDialog):
         self._schedule_pix2text_pkg_probe()
         self._schedule_env_torch_probe("pix2text")
         self._init_pix2text_mode()
-        self._init_unimernet_variant()
         self._update_pix2text_visibility()
-        self._update_unimernet_visibility()
     def _on_model_combo_changed(self, index: int):
         # 模型下拉框选择变化
         if index < 0 or index >= len(self._model_options):
             return
         key, _ = self._model_options[index]
-        if key == "pix2text":
-            if self._is_pix2text_ready():
-                mode_key = self._get_pix2text_mode_key()
-                self.select_model(self._pix2text_mode_to_model(mode_key))
-            else:
-                # 触发加载/提示，但保持 UI 选择在 pix2text
-                self.select_model("pix2text")
+        if self._is_pix2text_ready():
+            mode_key = self._get_pix2text_mode_key()
+            self.select_model(self._pix2text_mode_to_model(mode_key))
         else:
-            self.select_model(key)
+            # 触发加载/提示，但保持 UI 选择在 pix2text
+            self.select_model("pix2text")
         self._update_model_desc()
         self._update_pix2text_visibility()
-        self._update_unimernet_visibility()
-    def _get_unimernet_model_dir(self, variant: str) -> Path:
-        # 与主窗口保持一致：优先使用外部 UniMERNet 环境同级权重目录
-        parent = self.parent()
-        try:
-            if parent and hasattr(parent, "_resolve_unimernet_model_dir"):
-                resolved = parent._resolve_unimernet_model_dir(variant, create_if_missing=False)
-                if resolved:
-                    return Path(resolved)
-        except Exception:
-            pass
-        return self._get_model_dir_base() / f"unimernet_{variant}"
-    def _is_unimernet_variant_available(self, variant: str) -> bool:
-        try:
-            model_dir = self._get_unimernet_model_dir(variant)
-            if not model_dir.exists() or not model_dir.is_dir():
-                return False
-            weight_files = [
-                model_dir / "pytorch_model.pth",
-                model_dir / f"unimernet_{variant}.pth",
-                model_dir / "pytorch_model.bin",
-                model_dir / "model.safetensors",
-            ]
-            if any(p.exists() for p in weight_files):
-                return True
-            # fallback: any .pth weights in folder
-            return any(model_dir.glob("*.pth"))
-        except Exception:
-            return False
-    def _refresh_unimernet_variants(self):
-        labels = {
-            "base": "Base (1.3GB)",
-            "small": "Small (773MB)",
-            "tiny": "Tiny (441MB)",
-        }
-        for i in range(self.unimernet_combo.count()):
-            variant = self.unimernet_combo.itemData(i)
-            available = self._is_unimernet_variant_available(variant)
-            label = labels.get(variant, str(variant))
-            suffix = "（已下载）" if available else "（未下载）"
-            self.unimernet_combo.setItemText(i, f"{label}{suffix}")
-    def _init_unimernet_variant(self):
-        # 先加载 pyexe，再按最终解析路径刷新“已下载/未下载”状态
-        self._init_unimernet_pyexe()
-        self._refresh_unimernet_variants()
-        current = "base"
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            current = self.parent().cfg.get("unimernet_variant", "base")
-        for i in range(self.unimernet_combo.count()):
-            if self.unimernet_combo.itemData(i) == current:
-                self.unimernet_combo.setCurrentIndex(i)
-                break
-        self._schedule_env_torch_probe("unimernet")
-    def _on_unimernet_variant_changed(self, index: int):
-        if index < 0:
-            return
-        variant = self.unimernet_combo.itemData(index)
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("unimernet_variant", variant)
-        self._refresh_unimernet_variants()
-        if self.parent() and hasattr(self.parent(), "model") and self.parent().model:
-            try:
-                self.parent().model._unimernet_subprocess_ready = False
-                self.parent().model._unimernet_import_failed = False
-            except Exception:
-                pass
-        if self.parent() and hasattr(self.parent(), "_apply_unimernet_env"):
-            try:
-                self.parent()._apply_unimernet_env()
-            except Exception:
-                pass
-        if self.parent() and hasattr(self.parent(), "refresh_status_label"):
-            try:
-                self.parent().refresh_status_label()
-            except Exception:
-                pass
-    def _on_unimernet_download_clicked(self):
-        if self.parent() and hasattr(self.parent(), "_show_unimernet_setup_tip"):
-            try:
-                self.parent()._show_unimernet_setup_tip()
-            except Exception:
-                pass
-    def _on_unimernet_open_download_clicked(self):
-        if self.parent() and hasattr(self.parent(), "_open_unimernet_download_page"):
-            try:
-                self.parent()._open_unimernet_download_page()
-            except Exception:
-                pass
-    def _on_pix2text_download_clicked(self):
-        if self.parent() and hasattr(self.parent(), "_show_pix2text_setup_tip"):
-            try:
-                self.parent()._show_pix2text_setup_tip()
-            except Exception:
-                pass
-    def _on_pix2text_open_download_clicked(self):
-        if self.parent() and hasattr(self.parent(), "_open_pix2text_download_page"):
-            try:
-                self.parent()._open_pix2text_download_page()
-            except Exception:
-                pass
     def _init_pix2text_pyexe(self):
-        if not self.parent() or not hasattr(self.parent(), "cfg"):
-            return
-        val = self.parent().cfg.get("pix2text_pyexe", "")
-        if val:
-            self.pix2text_pyexe_input.setText(val)
+        pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+        if not pyexe or not os.path.exists(pyexe):
+            pyexe = sys.executable
+        self.pix2text_pyexe_input.setText(pyexe)
+        if self.parent() and hasattr(self.parent(), "cfg"):
+            self.parent().cfg.set("pix2text_pyexe", pyexe)
     def _init_pix2text_mode(self):
         mode = "formula"
         if self.parent() and hasattr(self.parent(), "cfg"):
@@ -1112,215 +918,11 @@ class SettingsWindow(QDialog):
         if self._is_pix2text_ready():
             self.select_model(self._pix2text_mode_to_model(mode_key))
     def _on_pix2text_pyexe_browse(self):
-        from PyQt6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择 pix2text 环境 Python",
-            "",
-            "python.exe (python.exe);;所有文件 (*.*)"
-        )
-        if not path:
-            return
-        self.pix2text_pyexe_input.setText(path)
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("pix2text_pyexe", path)
-        if self.parent() and hasattr(self.parent(), "_apply_pix2text_env"):
-            try:
-                self.parent()._apply_pix2text_env()
-            except Exception:
-                pass
-        self._schedule_env_torch_probe("pix2text")
-        self._schedule_pix2text_pkg_probe()
+        self._show_info("已固定", "pix2text 使用主依赖环境，无需单独选择 python.exe。", "info")
     def _on_pix2text_pyexe_clear(self):
-        self.pix2text_pyexe_input.clear()
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("pix2text_pyexe", "")
-        if self.parent() and hasattr(self.parent(), "_apply_pix2text_env"):
-            try:
-                self.parent()._apply_pix2text_env()
-            except Exception:
-                pass
-        self._schedule_env_torch_probe("pix2text")
-        self._schedule_pix2text_pkg_probe()
-    def _get_model_dir_base(self) -> Path:
-        parent = self.parent()
-        if parent is not None and hasattr(parent, "model_dir"):
-            try:
-                return Path(getattr(parent, "model_dir"))
-            except Exception:
-                pass
-        env = os.environ.get("LATEXSNIPPER_MODEL_DIR", "")
-        if env:
-            return Path(env)
-        return Path.cwd() / "models"
+        self._show_info("已固定", "pix2text 使用主依赖环境，无需清除独立环境。", "info")
     def _on_pix2text_pyexe_create(self):
-        """一键创建 pix2text 隔离环境。"""
-        base_py = os.environ.get("LATEXSNIPPER_PYEXE", sys.executable)
-        if not base_py or not os.path.exists(base_py):
-            base_py = sys.executable
-        env_dir = self._get_model_dir_base() / "pix2text_env"
-        py_path = env_dir / "Scripts" / "python.exe"
-        if py_path.exists():
-            self.pix2text_pyexe_input.setText(str(py_path))
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("pix2text_pyexe", str(py_path))
-            if self.parent() and hasattr(self.parent(), "_apply_pix2text_env"):
-                try:
-                    self.parent()._apply_pix2text_env()
-                except Exception:
-                    pass
-            try:
-                InfoBar.info(
-                    title="环境已存在",
-                    content=f"已使用现有隔离环境：{py_path}",
-                    parent=self,
-                    duration=3000,
-                    position=InfoBarPosition.TOP
-                )
-            except Exception:
-                pass
-            return
-        try:
-            env_dir.mkdir(parents=True, exist_ok=True)
-            r = subprocess.run(
-                [base_py, "-m", "venv", str(env_dir)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr or r.stdout or "venv failed")
-        except Exception as e:
-            custom_warning_dialog("错误", f"创建隔离环境失败: {e}", self)
-            return
-        if not py_path.exists():
-            custom_warning_dialog("错误", "隔离环境创建完成但未找到 python.exe", self)
-            return
-        self.pix2text_pyexe_input.setText(str(py_path))
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("pix2text_pyexe", str(py_path))
-        if self.parent() and hasattr(self.parent(), "_apply_pix2text_env"):
-            try:
-                self.parent()._apply_pix2text_env()
-            except Exception:
-                pass
-        try:
-            InfoBar.success(
-                title="隔离环境创建完成",
-                content=f"已创建并切换到：{py_path}",
-                parent=self,
-                duration=3000,
-                position=InfoBarPosition.TOP
-            )
-        except Exception:
-            pass
-        self._schedule_env_torch_probe("pix2text")
-        self._schedule_pix2text_pkg_probe()
-    def _init_unimernet_pyexe(self):
-        if not self.parent() or not hasattr(self.parent(), "cfg"):
-            return
-        val = self.parent().cfg.get("unimernet_pyexe", "")
-        if val:
-            self.unimernet_pyexe_input.setText(val)
-    def _on_unimernet_pyexe_browse(self):
-        from PyQt6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择 UniMERNet 环境 Python",
-            "",
-            "python.exe (python.exe);;所有文件 (*.*)"
-        )
-        if not path:
-            return
-        self.unimernet_pyexe_input.setText(path)
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("unimernet_pyexe", path)
-        if self.parent() and hasattr(self.parent(), "_apply_unimernet_env"):
-            try:
-                self.parent()._apply_unimernet_env()
-            except Exception:
-                pass
-        self._refresh_unimernet_variants()
-        self._schedule_env_torch_probe("unimernet")
-    def _on_unimernet_pyexe_clear(self):
-        self.unimernet_pyexe_input.clear()
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("unimernet_pyexe", "")
-        if self.parent() and hasattr(self.parent(), "_apply_unimernet_env"):
-            try:
-                self.parent()._apply_unimernet_env()
-            except Exception:
-                pass
-        self._refresh_unimernet_variants()
-        self._schedule_env_torch_probe("unimernet")
-    def _on_unimernet_pyexe_create(self):
-        """一键创建 UniMERNet 隔离环境。"""
-        base_py = os.environ.get("LATEXSNIPPER_PYEXE", sys.executable)
-        if not base_py or not os.path.exists(base_py):
-            base_py = sys.executable
-        env_dir = self._get_model_dir_base() / "unimernet_env"
-        py_path = env_dir / "Scripts" / "python.exe"
-        if py_path.exists():
-            self.unimernet_pyexe_input.setText(str(py_path))
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("unimernet_pyexe", str(py_path))
-            if self.parent() and hasattr(self.parent(), "_apply_unimernet_env"):
-                try:
-                    self.parent()._apply_unimernet_env()
-                except Exception:
-                    pass
-            self._refresh_unimernet_variants()
-            try:
-                InfoBar.info(
-                    title="环境已存在",
-                    content=f"已使用现有隔离环境：{py_path}",
-                    parent=self,
-                    duration=3000,
-                    position=InfoBarPosition.TOP
-                )
-            except Exception:
-                pass
-            return
-        try:
-            env_dir.mkdir(parents=True, exist_ok=True)
-            r = subprocess.run(
-                [base_py, "-m", "venv", str(env_dir)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr or r.stdout or "venv failed")
-        except Exception as e:
-            custom_warning_dialog("错误", f"创建隔离环境失败: {e}", self)
-            return
-        if not py_path.exists():
-            custom_warning_dialog("错误", "隔离环境创建完成但未找到 python.exe", self)
-            return
-        self.unimernet_pyexe_input.setText(str(py_path))
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("unimernet_pyexe", str(py_path))
-        if self.parent() and hasattr(self.parent(), "_apply_unimernet_env"):
-            try:
-                self.parent()._apply_unimernet_env()
-            except Exception:
-                pass
-        self._refresh_unimernet_variants()
-        try:
-            InfoBar.success(
-                title="隔离环境创建完成",
-                content=f"已创建并切换到：{py_path}",
-                parent=self,
-                duration=3000,
-                position=InfoBarPosition.TOP
-            )
-        except Exception:
-            pass
-        self._schedule_env_torch_probe("unimernet")
+        self._show_info("已固定", "v1.05 起不再创建模型隔离环境，统一使用主依赖环境。", "info")
     def _update_pix2text_visibility(self):
         key = None
         idx = self.model_combo.currentIndex()
@@ -1334,36 +936,19 @@ class SettingsWindow(QDialog):
             self.pix2text_env_widget.setVisible(visible)
             self.pix2text_env_hint.setVisible(visible)
             self.pix2text_torch_status.setVisible(visible)
-            self.pix2text_torch_btn_row.setVisible(visible)
-            try:
+            if self.pix2text_torch_btn_row is not None:
+                self.pix2text_torch_btn_row.setVisible(visible)
+            if self.pix2text_dl_widget is not None:
                 self.pix2text_dl_widget.setVisible(visible)
-            except Exception:
-                pass
             # 识别类型始终可见（便于用户预先选择）
             self.pix2text_mode_widget.setVisible(visible)
             if visible:
                 if not pyexe_exists:
-                    self.pix2text_env_hint.setText("⚠️ pix2text 未配置：请先选择或创建隔离环境。")
+                    self.pix2text_env_hint.setText("⚠️ 主依赖环境未就绪，请先运行依赖向导。")
                 elif not ready:
-                    self.pix2text_env_hint.setText("⚠️ pix2text 未部署：请先下载模型（并安装 CPU/GPU 版 PyTorch）。")
+                    self.pix2text_env_hint.setText("⚠️ pix2text 未部署：请先打开【依赖管理向导】安装依赖。")
                 else:
                     self.pix2text_env_hint.setText("💡 pix2text 已部署，可选择识别类型。")
-        except Exception:
-            pass
-    def _update_unimernet_visibility(self):
-        key = None
-        idx = self.model_combo.currentIndex()
-        if idx >= 0 and idx < len(self._model_options):
-            key, _ = self._model_options[idx]
-        visible = (key == "unimernet")
-        try:
-            if visible:
-                self._refresh_unimernet_variants()
-            self.unimernet_widget.setVisible(visible)
-            self.unimernet_env_widget.setVisible(visible)
-            self.unimernet_env_hint.setVisible(visible)
-            self.unimernet_torch_status.setVisible(visible)
-            self.unimernet_torch_btn_row.setVisible(visible)
         except Exception:
             pass
     def _init_render_engine(self):
@@ -1599,15 +1184,11 @@ class SettingsWindow(QDialog):
             return
         key, _ = self._model_options[index]
         descriptions = {
-            "pix2tex": "轻量公式识别，速度快，适合简单公式。",
-            "pix2text": "高精度公式识别，适合复杂公式（需单独配置 pix2text 环境）。",
-            "unimernet": "UniMERNet 强化公式识别（实验），需单独安装模型与依赖。",
+            "pix2text": "高精度公式识别，支持公式/混合/文字/整页/表格与 PDF 识别。",
         }
         desc = descriptions.get(key, "")
         if key == "pix2text":
-            desc += "\n提示：部署完成后可选择识别类型（公式/混合/文字/整页/表格）。"
-        elif key == "unimernet":
-            desc += "\n提示：请在设置中下载模型并配置隔离环境。"
+            desc += "\n提示：v1.05 起仅保留 pix2text，依赖统一由主环境管理。"
         self.lbl_model_desc.setText(desc)
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
@@ -1617,8 +1198,8 @@ class SettingsWindow(QDialog):
         from qfluentwidgets import MessageBox, InfoBar, InfoBarPosition
         if env_key is None:
             env_key = self._get_terminal_env_key()
-        if env_key not in ("main", "pix2text", "unimernet"):
-            env_key = "main"
+        # v1.05: 统一只打开主环境终端。
+        env_key = "main"
         try:
             _dbg_text = self.terminal_env_combo.currentText()
         except Exception:
@@ -1630,50 +1211,10 @@ class SettingsWindow(QDialog):
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
         cfg = self.parent().cfg if (self.parent() and hasattr(self.parent(), "cfg")) else None
         def _get_pyexe(key: str) -> str:
-            if key == "pix2text" and cfg:
-                return cfg.get("pix2text_pyexe", "")
-            if key == "unimernet" and cfg:
-                return cfg.get("unimernet_pyexe", "")
             return os.environ.get("LATEXSNIPPER_PYEXE", sys.executable)
         pyexe = _get_pyexe(env_key)
-        # auto-detect default env path under models if not configured
-        def _auto_detect_env_path(key: str) -> str:
-            if key not in ("pix2text", "unimernet"):
-                return ""
-            try:
-                base = self._get_model_dir_base()
-                py_path = base / f"{key}_env" / "Scripts" / "python.exe"
-                return str(py_path) if py_path.exists() else ""
-            except Exception:
-                return ""
-        if (not pyexe or not os.path.exists(pyexe)) and env_key in ("pix2text", "unimernet"):
-            auto_path = _auto_detect_env_path(env_key)
-            if auto_path:
-                pyexe = auto_path
-                if cfg:
-                    if env_key == "pix2text":
-                        cfg.set("pix2text_pyexe", auto_path)
-                    else:
-                        cfg.set("unimernet_pyexe", auto_path)
-                try:
-                    if env_key == "pix2text":
-                        self.pix2text_pyexe_input.setText(auto_path)
-                    else:
-                        self.unimernet_pyexe_input.setText(auto_path)
-                except Exception:
-                    pass
         print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
-            if env_key != "main":
-                InfoBar.warning(
-                    title="环境未部署",
-                    content="未找到所选环境的 python.exe，请先部署或配置该环境。",
-                    parent=self,
-                    duration=4000,
-                    position=InfoBarPosition.TOP
-                )
-                return
-            # main env fallback
             pyexe = _get_pyexe("main")
             if not pyexe or not os.path.exists(pyexe):
                 pyexe = sys.executable
@@ -1682,8 +1223,6 @@ class SettingsWindow(QDialog):
         venv_dir = pyexe_dir
         env_name = {
             "main": "主环境",
-            "pix2text": "pix2text 隔离环境",
-            "unimernet": "UniMERNet 隔离环境",
         }.get(env_key, "主环境")
         msg = MessageBox(
             "打开环境终端",
@@ -1710,21 +1249,16 @@ class SettingsWindow(QDialog):
         if esc_pressed[0]:
             return
         as_admin = result
-        env_desc = {
-            "main": "主环境（程序 / pix2tex / 核心依赖）",
-            "pix2text": "pix2text 独立环境",
-            "unimernet": "UniMERNet 独立环境",
-        }.get(env_key, "主环境（程序 / pix2tex / 核心依赖）")
+        env_desc = "主环境（程序 / pix2text / 核心依赖）"
         shared_site_for_terminal = ""
-        if env_key in ("pix2text", "unimernet"):
-            try:
-                mode_pref = "auto"
-                if cfg:
-                    mode_pref = (cfg.get(f"{env_key}_torch_mode", "auto") or "auto").strip().lower()
-                # 终端入口使用缓存，避免首次打开卡在 CUDA/torch 探测。
-                shared_site_for_terminal = self._resolve_shared_torch_site_for_mode(mode_pref, allow_block=False)
-            except Exception:
-                shared_site_for_terminal = ""
+        try:
+            mode_pref = "auto"
+            if cfg:
+                mode_pref = (cfg.get("pix2text_torch_mode", "auto") or "auto").strip().lower()
+            # 终端入口使用缓存，避免首次打开卡在 CUDA/torch 探测。
+            shared_site_for_terminal = self._resolve_shared_torch_site_for_mode(mode_pref, allow_block=False)
+        except Exception:
+            shared_site_for_terminal = ""
         gpu_plan = self._detect_torch_gpu_plan(allow_block=False)
         cpu_plan = self._torch_cpu_plan()
         gpu_cmd = ""
@@ -1742,26 +1276,25 @@ class SettingsWindow(QDialog):
         help_lines = [
             "echo.",
             "echo ================================================================================",
-            f"echo                        LaTeXSnipper 环境终端 - {env_name}",
+            f"echo                        LaTeXSnipper Terminal - {env_name}",
             "echo ================================================================================",
             "echo.",
-            f"echo [*] 环境: {env_desc}",
+            f"echo [*] Env: {env_desc}",
             f"echo [*] Python: {pyexe_dir}",
-            "echo [*] pip/python 将使用此环境",
+            "echo [*] pip/python will use this env",
             "echo.",
-            "echo [隔离策略]",
-            "echo   - 主环境: 程序 + pix2tex + 基础/核心依赖",
-            "echo   - pix2text / UniMERNet: 独立隔离环境",
-            "echo   - 优先复用主环境 torch；仅在模式不匹配时再补装本地 torch",
-            f"echo   - 共享 torch 路径: {shared_site_for_terminal or '未注入'}",
+            "echo [Model Policy]",
+            "echo   - v1.05 keeps pix2text only",
+            "echo   - use unified main env; no model-isolated env",
+            "echo   - CPU/GPU switch only changes torch + onnxruntime",
+            f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",
             "echo.",
-            "echo [版本修复 - 常见冲突]",
+            "echo [Version Fix]",
             "echo   pip install protobuf==4.25.8",
-            "echo   pip install pydantic==2.9.2 pydantic-core==2.23.4",
             "echo.",
             "echo [PyTorch GPU]",
             "echo   nvcc --version",
-            f"echo   {gpu_cmd if gpu_cmd else 'CUDA 低于 11.8 或未检测到 CUDA，当前不适配 GPU 版命令'}",
+            f"echo   {gpu_cmd if gpu_cmd else 'CUDA < 11.8 or not detected; GPU command unavailable'}",
             "echo.",
             "echo [PyTorch CPU]",
             f"echo   {cpu_cmd}",
@@ -1770,41 +1303,26 @@ class SettingsWindow(QDialog):
             f"echo   {gpu_onnx_cmd}",
             f"echo   {cpu_onnx_cmd}",
             "echo.",
+            "echo [Model]",
+            "echo   # Step-by-step install (stable order)",
+            "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   pip uninstall -y optimum optimum-onnx optimum-intel",
+            "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   pip install -U \"optimum-onnx>=0.0.3\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   pip install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   pip install -U \"pymupdf~=1.23.0\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); from pix2text import Pix2Text; print('pix2text ok')\"",
+            "echo.",
         ]
-        if env_key == "main":
-            help_lines += [
-                "echo [模型]",
-                "echo   pip install pix2tex==0.1.4",
-                "echo.",
-            ]
-        elif env_key == "pix2text":
-            help_lines += [
-                "echo [模型]",
-                "echo   # 分步安装（不固定 numpy，仅固定关键链路版本）",
-                "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-                "echo   pip uninstall -y optimum optimum-onnx optimum-intel",
-                "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-                "echo   pip install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-                "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); from pix2text import Pix2Text; print('pix2text ok')\"",
-                "echo.",
-            ]
-        else:
-            help_lines += [
-                "echo [模型]",
-                "echo   pip install -U \"unimernet[full]\"",
-                "echo   git lfs install",
-                "echo   # 使用设置里的下载按钮或手动下载权重",
-                "echo.",
-            ]
         help_lines += [
-            "echo [诊断]",
+            "echo [Diagnostics]",
             "echo   pip list",
             "echo   pip check",
-            "echo   python -c \"import torch; print(\"CUDA:\", torch.cuda.is_available(), \"Ver:\", torch.version.cuda)\"",
+            "echo   python -c \"import torch; print('CUDA:', torch.cuda.is_available(), 'Ver:', torch.version.cuda)\"",
             "echo   nvidia-smi",
             "echo   nvcc --version",
             "echo.",
-            "echo [清理缓存]",
+            "echo [Cache Clean]",
             "echo   pip cache purge",
             "echo.",
             "echo ================================================================================",
@@ -1814,25 +1332,24 @@ class SettingsWindow(QDialog):
         shared_env_lines = ""
         if shared_site_for_terminal:
             shared_env_lines = (
-                f'set "LATEXSNIPPER_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
-                f'set "{env_key.upper()}_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
-            )
-        elif env_key in ("pix2text", "unimernet"):
-            shared_env_lines = (
+                f'set "PIX2TEXT_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
                 'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
-                f'set "{env_key.upper()}_SHARED_TORCH_SITE="\n'
+            )
+        else:
+            shared_env_lines = (
+                'set "PIX2TEXT_SHARED_TORCH_SITE="\n'
+                'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
             )
         try:
             if as_admin:
                 import tempfile
                 batch_content = "@echo off\n" \
-                    + "chcp 65001 >nul\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
                     + shared_env_lines \
                     + help_text \
                     + "cmd /k\n"
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="utf-8") as f:
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content)
                     batch_path = f.name
                 import ctypes
@@ -1843,13 +1360,12 @@ class SettingsWindow(QDialog):
             else:
                 import tempfile
                 batch_content_normal = "@echo off\n" \
-                    + "chcp 65001 >nul\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
                     + shared_env_lines \
                     + help_text \
                     + "cmd /k\n"
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="utf-8") as f:
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content_normal)
                     batch_path = f.name
                 subprocess.Popen(["cmd.exe", "/c", "start", "", "cmd.exe", "/k", batch_path], cwd=venv_dir)
@@ -2003,30 +1519,15 @@ class SettingsWindow(QDialog):
             self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
     def update_model_selection(self):
         # sync model combo selection state
-        current = None
-        desired = None
-        if self.parent() and hasattr(self.parent(), "desired_model"):
-            desired = self.parent().desired_model
-        elif self.parent() and hasattr(self.parent(), "cfg"):
-            desired = self.parent().cfg.get("desired_model", None)
-        if self.parent() and hasattr(self.parent(), "current_model"):
-            current = self.parent().current_model
-        target = desired or current
-        if target and str(target).startswith("pix2text"):
-            target_key = "pix2text"
-        else:
-            target_key = target
-        if target_key:
-            for i, (key, _) in enumerate(self._model_options):
-                if key == target_key:
-                    self.model_combo.blockSignals(True)
-                    self.model_combo.setCurrentIndex(i)
-                    self.model_combo.blockSignals(False)
-                    break
+        for i, (key, _) in enumerate(self._model_options):
+            if key == "pix2text":
+                self.model_combo.blockSignals(True)
+                self.model_combo.setCurrentIndex(i)
+                self.model_combo.blockSignals(False)
+                break
         self._init_pix2text_mode()
         self._update_model_desc()
         self._update_pix2text_visibility()
-        self._update_unimernet_visibility()
 # ---------------- 主窗口 ----------------
 from PyQt6.QtCore import Qt
 

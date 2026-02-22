@@ -14,8 +14,8 @@ subprocess_lock = threading.Lock()
 CONFLICT_MODULES = {
     # torch 系列
     "torch", "torchvision", "torchaudio",
-    # pix2tex/pix2text 系列
-    "pix2tex", "pix2text",
+    # pix2text 系列
+    "pix2text",
     # onnxruntime
     "onnxruntime", "onnxruntime_gpu",
     # 其他常见冲突模块
@@ -244,12 +244,40 @@ class InstallWorker(QThread):
                 pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
                 self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
             else:
+                torch_meta_checked = False
+                torch_meta_ok = True
+                torch_meta_err = ""
                 for p in self.pkgs:
                     effective_p = _resolve_layer_pkg_spec(p)
                     pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
                     if pkg_name in installed_before:
                         cur_ver = installed_before[pkg_name]
                         if _version_satisfies_spec(pkg_name, cur_ver, effective_p):
+                            # torch 版本满足不代表 metadata 健康；metadata 缺失会让 transformers 误判无 torch。
+                            if pkg_name in TORCH_NAMES:
+                                if not torch_meta_checked:
+                                    torch_meta_checked = True
+                                    torch_meta_ok, torch_meta_err = _verify_torch_metadata_runtime(
+                                        self.pyexe, timeout=20
+                                    )
+                                if not torch_meta_ok:
+                                    pending.append(effective_p)
+                                    self.log_updated.emit(
+                                        f"[INFO] {pkg_name} 元数据异常，准备重装: {torch_meta_err[:180]}"
+                                    )
+                                    continue
+                            # onnxruntime 版本满足不代表运行时健康（可能出现 namespace 空包或 provider 丢失）。
+                            if pkg_name in ("onnxruntime", "onnxruntime-gpu"):
+                                expect_gpu_ort = (pkg_name == "onnxruntime-gpu")
+                                ort_ok, ort_err = _verify_onnxruntime_runtime(
+                                    self.pyexe, expect_gpu=expect_gpu_ort, timeout=20
+                                )
+                                if not ort_ok:
+                                    pending.append(effective_p)
+                                    self.log_updated.emit(
+                                        f"[INFO] {pkg_name} 运行时异常，准备重装: {ort_err[:180]}"
+                                    )
+                                    continue
                             skipped.append(f"{pkg_name} ({cur_ver})")
                         else:
                             pending.append(effective_p)
@@ -261,7 +289,10 @@ class InstallWorker(QThread):
             
             if skipped:
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
-            
+
+            # 固定 pix2text 依赖安装顺序，降低 resolver 回溯概率。
+            pending = _reorder_pix2text_install_specs(pending)
+
             if not pending:
                 self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
                 self.progress_updated.emit(100)
@@ -357,7 +388,7 @@ class InstallWorker(QThread):
                             self.log_updated.emit(f"[ERR] torch 栈仍异常: {stack_err2[:400]}")
 
             # 无论成功与否，都尝试修复关键版本
-            # 这是必要的，因为 pix2text 和 pix2tex 有依赖冲突
+            # 这是必要的，用于避免 pix2text 依赖回溯和版本漂移
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
             # 关键版本修复后再做一次 torch 栈复核：
@@ -501,28 +532,17 @@ def _onnxruntime_gpu_spec_for_torch_url(torch_url: str | None, prefer_gpu: bool 
 
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
-    "numpy": "numpy>=1.26.4,<2",
     "protobuf": "protobuf>=3.20,<5",
-    # pydantic 和 pydantic-core 必须版本匹配
-    "pydantic": "pydantic==2.9.2",
-    "pydantic-core": "pydantic-core==2.23.4",
 }
 
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
     """
     安装完成后强制修复关键依赖版本。
-    
-    背景：pix2text 和 pix2tex 有依赖冲突：
-    - pix2text 依赖链需要 pydantic-core>=2.41.4
-    - pix2tex 需要 pydantic-core==2.23.4
-    
-    pip 会自动选择新版本满足 pix2text，但这会破坏 pix2tex。
-    我们在安装后强制降级到兼容版本，让两者都能在子进程中工作。
     """
     import subprocess
     
     if log_fn:
-        log_fn("[INFO] 正在修复关键依赖版本（解决 pix2tex/pix2text 冲突）...")
+        log_fn("[INFO] 正在修复关键依赖版本...")
     
     installed_before = _current_installed(pyexe)
 
@@ -537,7 +557,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
             cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall"]
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
-            timeout_sec = 300 if pkg == "numpy" else 180
+            timeout_sec = 180
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
             if log_fn:
                 if result.returncode == 0:
@@ -568,8 +588,13 @@ import onnxruntime as onnxruntime
 print("BASIC OK")
 """,
     "CORE": """
-import pix2tex
-from pix2tex.cli import LatexOCR
+import importlib.util
+import importlib.metadata
+if importlib.util.find_spec("pix2text") is None:
+    raise RuntimeError("pix2text not installed")
+print("pix2text version:", importlib.metadata.version("pix2text"))
+# 必须能成功导入 Pix2Text 本体，才能保证运行时可用（可捕获 optimum/transformers 兼容问题）。
+from pix2text import Pix2Text
 import latex2mathml.converter
 import matplotlib
 import matplotlib.mathtext
@@ -585,7 +610,12 @@ print("HEAVY_CPU OK")
 import torch
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA not available")
+import onnxruntime as ort
+providers = ort.get_available_providers()
+if "CUDAExecutionProvider" not in providers:
+    raise RuntimeError(f"onnxruntime CUDAExecutionProvider unavailable: {providers}")
 print("CUDA device:", torch.cuda.get_device_name(0))
+print("ONNX providers:", providers)
 print("HEAVY_GPU OK")
 """,
 }
@@ -593,77 +623,18 @@ print("HEAVY_GPU OK")
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
 LAYER_VERIFY_CODE_STRICT = {
     "CORE": """
-from PIL import Image
-from pix2tex.cli import LatexOCR
-img = Image.new("RGB", (64, 64), (0, 0, 0))
-model = LatexOCR()
+import importlib.util
+import importlib.metadata
+if importlib.util.find_spec("pix2text") is None:
+    raise RuntimeError("pix2text not installed")
+print("pix2text version:", importlib.metadata.version("pix2text"))
+from pix2text import Pix2Text
+import latex2mathml.converter
+import matplotlib.mathtext
+import fitz
 print("CORE STRICT OK")
 """,
 }
-
-def _clear_model_caches(pyexe: str, log_fn=None) -> list:
-    """清理 pip 缓存与少量临时目录（不会删除已下载模型权重）。"""
-    removed = []
-    def _log(msg: str):
-        if log_fn:
-            try:
-                log_fn(msg)
-            except Exception:
-                pass
-    def _rm_path(p: Path):
-        try:
-            if p.exists():
-                shutil.rmtree(p, ignore_errors=True)
-                removed.append(str(p))
-        except Exception as e:
-            _log(f"[WARN] 清理失败: {p} ({e})")
-    try:
-        # pip cache purge
-        res = subprocess.run(
-            [pyexe, "-m", "pip", "cache", "purge"],
-            timeout=120, capture_output=True, text=True
-        )
-        if res.returncode == 0:
-            _log("[INFO] 已执行 pip cache purge")
-        else:
-            msg = (res.stderr or res.stdout or "").strip()
-            _log(f"[WARN] pip cache purge 返回非零: {res.returncode} {msg[:200]}")
-            # fallback: 尝试删除 pip cache dir
-            try:
-                dres = subprocess.run(
-                    [pyexe, "-m", "pip", "cache", "dir"],
-                    timeout=30, capture_output=True, text=True
-                )
-                pip_cache_dir = (dres.stdout or "").strip()
-                if dres.returncode == 0 and pip_cache_dir:
-                    p = Path(pip_cache_dir)
-                    if p.exists():
-                        shutil.rmtree(p, ignore_errors=True)
-                        removed.append(str(p))
-                        _log(f"[INFO] 已清理 pip cache dir: {p}")
-            except Exception as e:
-                _log(f"[WARN] fallback 清理 pip cache dir 失败: {e}")
-    except Exception as e:
-        _log(f"[WARN] pip cache purge 失败: {e}")
-
-    home = Path.home()
-    appdata = Path(os.environ.get("APPDATA", "") or "")
-    localappdata = Path(os.environ.get("LOCALAPPDATA", "") or "")
-
-    # 为保护模型权重，避免删除 pix2text/pix2tex/UniMERNet 的模型目录
-    # 仅清理少量临时目录（如果存在）
-    for p in [
-        home / ".cache" / "pix2text" / "tmp",
-        home / ".cache" / "pix2tex" / "tmp",
-        home / ".cache" / "latex_ocr" / "tmp",
-        appdata / "pix2text" / "tmp",
-        localappdata / "pix2text" / "tmp",
-    ]:
-        if p and str(p).strip():
-            _rm_path(p)
-    _log("[INFO] 已跳过模型权重目录清理，防止模型被误删。")
-
-    return removed
 
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: bool = False) -> tuple:
     """
@@ -768,6 +739,129 @@ def _verify_torch_stack_runtime(pyexe: str, timeout: int = 45) -> tuple[bool, st
     except Exception as e:
         return False, str(e)
 
+
+def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: int = 30) -> tuple[bool, str]:
+    """
+    验证 onnxruntime 运行时可用性。
+    - 必须存在 get_available_providers
+    - GPU 场景必须包含 CUDAExecutionProvider
+    """
+    code = (
+        "import json\n"
+        "out = {'ok': False, 'file': '', 'has_func': False, 'providers': [], 'err': ''}\n"
+        "try:\n"
+        " import onnxruntime as ort\n"
+        " out['file'] = str(getattr(ort, '__file__', '') or '')\n"
+        " out['has_func'] = bool(hasattr(ort, 'get_available_providers'))\n"
+        " if out['has_func']:\n"
+        "  out['providers'] = list(ort.get_available_providers() or [])\n"
+        " out['ok'] = True\n"
+        "except Exception as e:\n"
+        " out['err'] = str(e)\n"
+        "print(json.dumps(out, ensure_ascii=False))\n"
+    )
+    try:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        result = subprocess.run(
+            [str(pyexe), "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        raw = "\n".join([(result.stdout or ""), (result.stderr or "")]).strip()
+        payload = None
+        for line in reversed(raw.splitlines()):
+            s = line.strip()
+            if not s:
+                continue
+            if s.startswith("{") and s.endswith("}"):
+                try:
+                    payload = json.loads(s)
+                    break
+                except Exception:
+                    pass
+        if not isinstance(payload, dict):
+            return False, f"onnxruntime check no json output: {raw[:240]}"
+        if not payload.get("ok"):
+            return False, f"onnxruntime import failed: {(payload.get('err') or 'unknown')[:240]}"
+        if not payload.get("has_func"):
+            return False, "onnxruntime missing get_available_providers (broken namespace package)"
+        providers = payload.get("providers") or []
+        if expect_gpu and "CUDAExecutionProvider" not in providers:
+            return False, f"CUDAExecutionProvider unavailable: {providers}"
+        if not expect_gpu and "CPUExecutionProvider" not in providers:
+            return False, f"CPUExecutionProvider unavailable: {providers}"
+        return True, ""
+    except subprocess.TimeoutExpired:
+        return False, "onnxruntime check timeout"
+    except Exception as e:
+        return False, str(e)
+
+
+def _verify_torch_metadata_runtime(pyexe: str, timeout: int = 20) -> tuple[bool, str]:
+    """
+    验证 torch 元数据与运行时是否一致可用。
+    目标：避免 `import torch` 可用但 `importlib.metadata.version('torch')` 缺失，
+    导致 transformers 误判“no torch”.
+    """
+    code = (
+        "import json\n"
+        "out = {'ok': False, 'meta_ok': False, 'import_ok': False, 'ver': '', 'err': ''}\n"
+        "try:\n"
+        " import importlib.metadata as _m\n"
+        " out['ver'] = _m.version('torch')\n"
+        " out['meta_ok'] = True\n"
+        "except Exception as e:\n"
+        " out['err'] = f'metadata: {e}'\n"
+        "try:\n"
+        " import torch\n"
+        " _ = torch.__version__\n"
+        " out['import_ok'] = True\n"
+        "except Exception as e:\n"
+        " out['err'] = (out.get('err','') + '; import: ' + str(e)).strip('; ')\n"
+        "out['ok'] = bool(out['meta_ok'] and out['import_ok'])\n"
+        "print(json.dumps(out, ensure_ascii=False))\n"
+    )
+    try:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        result = subprocess.run(
+            [str(pyexe), "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        raw = "\n".join([(result.stdout or ""), (result.stderr or "")]).strip()
+        payload = None
+        for line in reversed(raw.splitlines()):
+            s = line.strip()
+            if s.startswith("{") and s.endswith("}"):
+                try:
+                    payload = json.loads(s)
+                    break
+                except Exception:
+                    pass
+        if not isinstance(payload, dict):
+            return False, f"torch metadata check no json output: {raw[:200]}"
+        if payload.get("ok"):
+            return True, ""
+        return False, payload.get("err", "torch metadata/runtime not healthy")
+    except subprocess.TimeoutExpired:
+        return False, "torch metadata check timeout"
+    except Exception as e:
+        return False, str(e)
+
 def _repair_torch_stack(
     pyexe: str,
     stop_event,
@@ -818,17 +912,19 @@ LAYER_MAP = {
         "simsimd~=6.0.5","lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=25.0",
         "requests~=2.32.5", "tqdm~=4.67.1",
-        "numpy>=1.26.4,<2.0.0", "filelock~=3.13.1",
+        "numpy>=1.26.4", "filelock~=3.13.1",
         "pydantic~=2.9.2", "regex~=2024.9.11",
         "safetensors~=0.6.2", "sentencepiece~=0.1.99",
         "certifi~=2024.2.2", "idna~=3.6", "urllib3~=2.5.0",
         "colorama~=0.4.6", "psutil~=7.1.0",
         "typing_extensions>=4.12.2",
-        "onnxruntime~=1.19.2",
     ],
-    # ❗ CORE 只保留应用直接使用的依赖；pix2tex 的传递依赖交由 pip 自动解析
+    # ❗ CORE 只保留应用直接使用的依赖（pix2text + 文档导出链路）
     "CORE": [
-        "pix2tex~=0.1.4",
+        "transformers==4.55.4",
+        "tokenizers==0.21.4",
+        "optimum-onnx>=0.0.3",
+        "pix2text==1.1.6",
         "protobuf>=3.20,<5",  # wandb 需要旧版 protobuf，6.x 会导致 Result 属性缺失
         "latex2mathml>=2.0.0",  # LaTeX 转 MathML 的支持
         "matplotlib~=3.8.4",  # LaTeX 公式转 SVG 的支持
@@ -839,7 +935,7 @@ LAYER_MAP = {
         "torch==2.7.1",
         "torchvision==0.22.1",
         "torchaudio==2.7.1",
-        "optimum~=1.16.2",
+        "onnxruntime~=1.19.2",
     ],
     # HEAVY_GPU: PyTorch GPU 版层（torch 与 onnxruntime-gpu 版本会在安装时按 CUDA 动态改写）
     "HEAVY_GPU": [
@@ -1080,12 +1176,39 @@ def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> boo
 
 def _filter_packages(pkgs):
     res = []
+    seen = set()
     for spec in pkgs:
         name = re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
         if any(name.startswith(p) for p in SKIP_PREFIX):
             continue
+        if name in seen:
+            continue
+        seen.add(name)
         res.append(spec)
-    return res
+    return _reorder_pix2text_install_specs(res)
+
+
+def _reorder_pix2text_install_specs(pkgs):
+    """
+    Keep pix2text dependency chain in a stable order to reduce pip backtracking.
+    Priority: transformers -> tokenizers -> optimum-onnx -> pix2text -> pymupdf -> others (stable).
+    """
+    if not pkgs:
+        return []
+    priority = ("transformers", "tokenizers", "optimum-onnx", "pix2text", "pymupdf")
+    grouped = {k: [] for k in priority}
+    tail = []
+    for spec in pkgs:
+        name = re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
+        if name in grouped:
+            grouped[name].append(spec)
+        else:
+            tail.append(spec)
+    out = []
+    for k in priority:
+        out.extend(grouped[k])
+    out.extend(tail)
+    return out
 
 def _gpu_available():
     try:
@@ -1391,15 +1514,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
     if main_site.exists():
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
     env["PYTHONUNBUFFERED"] = "1"
-    # 补丁：自动应用依赖目录下的 constraints.txt
-    try:
-        py_path = Path(pyexe) if not isinstance(pyexe, Path) else pyexe
-        cfile = py_path.parent.parent / "constraints.txt"  # <deps_dir>/constraints.txt
-        if cfile.exists():
-            env["PIP_CONSTRAINT"] = str(cfile)
-    except Exception:
-        pass
-
     name = _root_name(pkg)
     use_torch_repo = (torch_url is not None) and (name in TORCH_NAMES)
 
@@ -1428,7 +1542,10 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
             # 4. 只对关键版本修复包使用 force-reinstall
             
             # 需要强制重装的包（版本冲突敏感）
-            force_reinstall_pkgs = {"numpy", "protobuf", "pydantic", "pydantic-core"}
+            force_reinstall_pkgs = {
+                "protobuf", "pydantic", "pydantic-core",
+                "onnxruntime", "onnxruntime-gpu",
+            }
             
             if force_reinstall and name not in QT_PKGS:
                 args.append("--force-reinstall")
@@ -1450,9 +1567,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
             if name in {"pyqt6", "pyqt6-webengine"}:
                 args.append("--no-deps")
 
-            # numpy 兜底
-            if name == "numpy":
-                args[-3:-3] = ["numpy<2.0.0"]
             # 索引源策略：torch 走 --index-url，其它走 -i（官方或清华）
             if use_torch_repo:
                 args += ["--index-url", torch_url]
@@ -1964,18 +2078,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     mirror_box.addItem("清华镜像", "tuna")
     lay.addWidget(mirror_box)
 
-    # ---------- 修复工具 ----------
-    repair_row = QHBoxLayout()
-    repair_row.addWidget(QLabel("修复工具:"))
-    btn_clear_cache = PushButton(FluentIcon.BROOM, "清理缓存")
-    btn_clear_cache.setFixedHeight(32)
-    btn_reinstall = PushButton(FluentIcon.UPDATE, "重装选中层")
-    btn_reinstall.setFixedHeight(32)
-    repair_row.addWidget(btn_clear_cache)
-    repair_row.addWidget(btn_reinstall)
-    repair_row.addStretch(1)
-    lay.addLayout(repair_row)
-
     # ---------- 按钮布局 ----------
     btn_row = QHBoxLayout()
 
@@ -2000,8 +2102,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     desc = QLabel(
         "📦 层级说明：\n"
         "• BASIC：基础依赖层（网络、图像处理、onnxruntime 等），必须安装。\n"
-        "• CORE：核心识别层（pix2tex、LaTeX 转换、SVG/MathML 导出），必须安装。\n"
-        "• 公式识别 pix2tex：运行需要 BASIC + CORE + 一个 HEAVY 层（CPU 或 GPU）。\n"
+        "• CORE：核心识别层（pix2text、文档导出、PDF 识别依赖），必须安装。\n"
+        "• 公式识别 pix2text：运行需要 BASIC + CORE + 一个 HEAVY 层（CPU 或 GPU）。\n"
         "• 仅选择 BASIC + CORE 下载时，会自动补一个 HEAVY 层：优先 HEAVY_GPU（检测到可用 CUDA），否则 HEAVY_CPU。\n"
         "• HEAVY_CPU：PyTorch CPU 版（无 GPU 设备时选择）。\n"
         "• HEAVY_GPU：PyTorch GPU 版 + CUDA（有 NVIDIA GPU 时选择）。\n"
@@ -2009,20 +2111,22 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥，只能选择其一！\n"
         "• onnxruntime 和 onnxruntime-gpu 互斥，会自动卸载冲突版本。\n"
-        "• pix2text 需使用独立隔离环境（在设置里配置/创建），不再由向导安装。\n"
-        "• UniMERNet 也使用独立隔离环境（在设置里配置/创建），不由向导安装。\n"
-        "• pix2tex 与 pix2text 在同一环境下可能产生依赖冲突，推荐完全隔离。\n"
+        "• v1.05 起仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
+        "• 向导负责安装/切换 pix2text 所需的 CPU/GPU 依赖与 onnxruntime。\n"
     )
     desc.setStyleSheet("color:#555;font-size:11px;")
     lay.addWidget(desc)
     chosen = {"layers": None, "mirror": False, "deps_path": deps_dir, "force_enter": False,
-              "reinstall": False, "purge_cache": False, "verified_in_ui": verified_in_ui}
+              "verified_in_ui": verified_in_ui}
     # 动态更新按钮和警告
     def update_ui():
         required = {"BASIC", "CORE"}
         missing = [l for l in required if l not in installed_layers["layers"]]
         is_lack_critical = bool(missing)
-        btn_enter.setText("强制进入" if is_lack_critical else "进入")
+        if is_lack_critical and (from_settings or force_verify):
+            btn_enter.setText("不可进入(先下载)")
+        else:
+            btn_enter.setText("强制进入" if is_lack_critical else "进入")
         warn.setVisible(is_lack_critical)
 
     update_ui()
@@ -2108,7 +2212,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_path.clicked.connect(choose_path)
 
     def enter():
-        """进入按钮：环境完整则进入；缺关键层时无条件强制进入（下载请点“下载”）"""
+        """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许强制进入。"""
         sel = [L for L, c in checks.items() if c.isChecked()]
         chosen["layers"] = sel
         chosen["mirror"] = (mirror_box.currentData() == "tuna")
@@ -2124,8 +2228,15 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             dlg.accept()
             return
 
-        # 缺少关键层：无论是否勾选，都按“强制进入”处理
-        # 若要下载，用户应点击“下载”按钮
+        # 缺少关键层：设置页入口不允许“强制进入主程序”。
+        if from_settings or force_verify:
+            custom_warning_dialog(
+                "不可进入",
+                "当前是设置页依赖管理入口，关键层不完整。\n请先下载/修复依赖后再继续。",
+                dlg
+            )
+            return
+        # 普通启动入口：允许用户在风险自担下强制进入。
         chosen["force_enter"] = True
         dlg.done(1)
 
@@ -2143,68 +2254,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         dlg.accept()
 
     btn_download.clicked.connect(download)
-
-    def _run_clear_cache(show_msg: bool = True):
-        try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            removed = _clear_model_caches(pyexe)
-        finally:
-            QApplication.restoreOverrideCursor()
-        if show_msg:
-            if removed:
-                custom_warning_dialog("清理完成", f"已清理 {len(removed)} 项缓存。", dlg)
-            else:
-                custom_warning_dialog("清理完成", "未发现可清理的缓存。", dlg)
-        return removed
-
-    def clear_cache_action():
-        _run_clear_cache(show_msg=True)
-
-    btn_clear_cache.clicked.connect(clear_cache_action)
-
-    def reinstall_action():
-        from PyQt6.QtCore import Qt
-        sel = [L for L, c in checks.items() if c.isChecked()]
-        if not sel:
-            custom_warning_dialog("提示", "请至少选择一个依赖层进行重装。", dlg)
-            return
-        msg = QMessageBox(dlg)
-        msg.setIcon(QMessageBox.Icon.Question)
-        msg.setWindowTitle("重装确认")
-        msg.setText("是否在重装前先清理模型 / pip 缓存？")
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No
-            | QMessageBox.StandardButton.Cancel
-        )
-        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
-        msg.setWindowFlags(
-            (
-                msg.windowFlags()
-                | Qt.WindowType.CustomizeWindowHint
-                | Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowCloseButtonHint
-                | Qt.WindowType.WindowSystemMenuHint
-            )
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-            & ~Qt.WindowType.WindowMinMaxButtonsHint
-            & ~Qt.WindowType.WindowContextHelpButtonHint
-        )
-        reply = msg.exec()
-        if reply == int(QMessageBox.StandardButton.Cancel):
-            return
-        if reply == int(QMessageBox.StandardButton.Yes):
-            _run_clear_cache(show_msg=True)
-            chosen["purge_cache"] = True
-        chosen["layers"] = sel
-        chosen["mirror"] = (mirror_box.currentData() == "tuna")
-        chosen["deps_path"] = path_edit.text()
-        chosen["force_enter"] = False
-        chosen["reinstall"] = True
-        dlg.accept()
-
-    btn_reinstall.clicked.connect(reinstall_action)
 
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QApplication, QMessageBox
@@ -2265,7 +2314,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 btn_enter.setText("进入")
             else:
                 warn.setVisible(True)
-                btn_enter.setText("强制进入")
+                if from_settings or force_verify:
+                    btn_enter.setText("不可进入(先下载)")
+                else:
+                    btn_enter.setText("强制进入")
 
             # 更新复选框
             for layer, cb in checks.items():
@@ -2811,12 +2863,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     continue
                 print("[INFO] 用户选择强制进入，跳过依赖安装")
                 return True
-            reinstall = chosen.get("reinstall", False)
             if chosen["layers"]:
                 already_have = all(
                     l in state.get("installed_layers", []) for l in chosen["layers"]
                 )
-                if already_have and not reinstall:
+                if already_have:
                     if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
                         print("[WARN] 复验后关键层不完整，返回向导。")
                         continue
@@ -2826,7 +2877,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             chosen_layers = chosen.get("layers", [])
             use_mirror = chosen.get("mirror", False)
             deps_dir = chosen.get("deps_path", deps_dir)
-            purge_cache = bool(chosen.get("purge_cache", False))
             deps_path = Path(deps_dir)
             state_path = deps_path / STATE_FILE
             state = _sanitize_state_layers(state_path)
@@ -2875,7 +2925,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     pkgs.extend(LAYER_MAP.get(auto_heavy, []))
                     print(f"[INFO] CORE 未指定 heavy 层，已自动补充 {auto_heavy}")
 
-                # ⚠️ 选择 HEAVY_GPU 时，排除 BASIC 层的 onnxruntime（避免与 onnxruntime-gpu 冲突）
+                # ⚠️ 选择 HEAVY_GPU 时，确保 CPU 版 onnxruntime 不进入安装集合（避免与 onnxruntime-gpu 冲突）
                 if "HEAVY_GPU" in chosen_layers:
                     # 移除 CPU 版 onnxruntime，保留 onnxruntime-gpu
                     pkgs = [p for p in pkgs if not (p.lower().startswith("onnxruntime") and "gpu" not in p.lower())]
@@ -2930,7 +2980,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 worker = InstallWorker(
                     pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path,
                     chosen_layers, log_q, mirror=use_mirror,
-                    force_reinstall=reinstall, no_cache=(reinstall or purge_cache)
+                    force_reinstall=False, no_cache=False
                 )
 
                 def request_cancel():
@@ -2998,7 +3048,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 _exec_close_only_message_box(
                                     dlg,
                                     "部分验证失败",
-                                    f"以下功能层安装但无法正常工作:\n{', '.join(verify_fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复，或者清理缓存/重装。",
+                                    f"以下功能层安装但无法正常工作:\n{', '.join(verify_fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复。",
                                     icon=QMessageBox.Icon.Warning,
                                     buttons=QMessageBox.StandardButton.Ok,
                                 )
@@ -3101,3 +3151,5 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     continue
         break
     return True
+
+
