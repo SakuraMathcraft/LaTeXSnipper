@@ -53,6 +53,8 @@ def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     popen_kwargs.setdefault("stdout", subprocess.PIPE)
     popen_kwargs.setdefault("stderr", subprocess.STDOUT)
     popen_kwargs.setdefault("text", True)
+    if sys.platform == "win32":
+        popen_kwargs.setdefault("creationflags", flags)
 
     # 直接 Popen，剩下的读取/等待由调用方处理
     proc = subprocess.Popen(
@@ -460,7 +462,8 @@ os.environ["PYTHONUTF8"] = "1"
 
 flags = 0
 if sys.platform == "win32":
-    flags = subprocess.CREATE_NO_WINDOW
+    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    flags = 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 _repair_in_progress = False
 CONFIG_FILE = "LaTeXSnipper_config.json"
 STATE_FILE = ".deps_state.json"
@@ -558,7 +561,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             timeout_sec = 180
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec, creationflags=flags)
             if log_fn:
                 if result.returncode == 0:
                     log_fn(f"  [OK] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
@@ -2003,7 +2006,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         for pkg in pkgs:
                             pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0]
                             try:
-                                subprocess.run([str(pyexe), "-m", "pip", "uninstall", "-y", pkg_name], check=False)
+                                subprocess.run([str(pyexe), "-m", "pip", "uninstall", "-y", pkg_name], check=False, creationflags=flags)
                             except Exception as e:
                                 print(f"[WARN] 卸载包 {pkg_name} 失败: {e}")
                         # 更新状态文件
@@ -2200,7 +2203,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         args.append('--force-deps-check')
                     # Windows下用Popen启动新进程
                     try:
-                        subprocess.Popen([exe] + args, close_fds=True)
+                        subprocess.Popen([exe] + args, close_fds=True, creationflags=flags)
                     except Exception as e:
                         print(f"[ERR] 自动重启失败: {e}")
                     dlg.reject()
