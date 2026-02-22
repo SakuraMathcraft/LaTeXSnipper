@@ -563,10 +563,8 @@ import numpy as np
 import PIL
 import requests
 import lxml
-# 在 Windows 上，先导入 PyQt6 可能导致 onnxruntime DLL 初始化失败
-# 因此先加载 onnxruntime，再加载 Qt
+# BASIC 仅验证非 GUI 运行依赖
 import onnxruntime as onnxruntime
-import PyQt6
 print("BASIC OK")
 """,
     "CORE": """
@@ -817,7 +815,7 @@ def _repair_torch_stack(
 # 分层依赖（保持原始规格；含 +cu 与 ~= 的组合后续会自动规范化）
 LAYER_MAP = {
     "BASIC": [
-        "simsimd~=6.0.5","lxml~=4.9.3","PyQt6-WebEngine~=6.9.0",
+        "simsimd~=6.0.5","lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=25.0",
         "requests~=2.32.5", "tqdm~=4.67.1",
         "numpy>=1.26.4,<2.0.0", "filelock~=3.13.1",
@@ -827,7 +825,6 @@ LAYER_MAP = {
         "colorama~=0.4.6", "psutil~=7.1.0",
         "typing_extensions>=4.12.2",
         "onnxruntime~=1.19.2",
-        "PyQt6-Fluent-Widgets~=1.9.2",
     ],
     # ❗ CORE 只保留应用直接使用的依赖；pix2tex 的传递依赖交由 pip 自动解析
     "CORE": [
@@ -2002,7 +1999,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 说明 label
     desc = QLabel(
         "📦 层级说明：\n"
-        "• BASIC：基础依赖层（UI、网络、图像处理、onnxruntime 等），必须安装。\n"
+        "• BASIC：基础依赖层（网络、图像处理、onnxruntime 等），必须安装。\n"
         "• CORE：核心识别层（pix2tex、LaTeX 转换、SVG/MathML 导出），必须安装。\n"
         "• 公式识别 pix2tex：运行需要 BASIC + CORE + 一个 HEAVY 层（CPU 或 GPU）。\n"
         "• 仅选择 BASIC + CORE 下载时，会自动补一个 HEAVY 层：优先 HEAVY_GPU（检测到可用 CUDA），否则 HEAVY_CPU。\n"
@@ -2091,8 +2088,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         QApplication.instance().quit()
                         sys.exit(0)
                     # 自动重启程序并传递参数
-                    import sys
-                    import os
                     import subprocess
                     exe = sys.executable
                     args = sys.argv.copy()

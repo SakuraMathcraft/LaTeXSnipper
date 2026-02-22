@@ -1,10 +1,10 @@
-# backend/capture_overlay.py
+﻿# backend/capture_overlay.py
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal, Qt, QRect
 from PyQt6.QtGui import QPainter, QColor, QPen, QGuiApplication, QFont, QFontMetrics
 
 class ScreenCaptureOverlay(QWidget):
-    selection_done = pyqtSignal(object)  # 发射 QPixmap
+    selection_done = pyqtSignal(object)  # 鍙戝皠 QPixmap
 
     def __init__(self):
         super().__init__()
@@ -16,7 +16,7 @@ class ScreenCaptureOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setWindowTitle("Screen Capture Overlay")
 
-        # 覆盖整个屏幕
+        # 瑕嗙洊鏁翠釜灞忓箷
         screen = QGuiApplication.primaryScreen()
         self.setGeometry(screen.geometry())
         self.setMouseTracking(True)
@@ -36,23 +36,25 @@ class ScreenCaptureOverlay(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 95))  # 外围变暗，更聚焦
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 95))  # 澶栧洿鍙樻殫锛屾洿鑱氱劍
         rect = self._selection_rect()
 
-        # 选框内保持原亮度（清除遮罩）
+        # 閫夋鍐呬繚鎸佸師浜害锛堟竻闄ら伄缃╋級
         if rect:
             painter.save()
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
             painter.fillRect(rect, Qt.GlobalColor.transparent)
             painter.restore()
 
-        # 鼠标十字准星
+        # 榧犳爣鍗佸瓧鍑嗘槦
         if self.current_pos:
-            cross_pen = QPen(QColor(255, 255, 255, 180), 1)
-            painter.setPen(cross_pen)
-            # 使用局部短十字，避免贯穿整屏造成干扰
+            # 双层准星：外黑内白，兼顾深/浅背景可见性
             arm = 12
             cx, cy = self.current_pos.x(), self.current_pos.y()
+            painter.setPen(QPen(QColor(0, 0, 0, 220), 3))
+            painter.drawLine(cx - arm, cy, cx + arm, cy)
+            painter.drawLine(cx, cy - arm, cx, cy + arm)
+            painter.setPen(QPen(QColor(255, 255, 255, 235), 1))
             painter.drawLine(cx - arm, cy, cx + arm, cy)
             painter.drawLine(cx, cy - arm, cx, cy + arm)
 
@@ -61,7 +63,7 @@ class ScreenCaptureOverlay(QWidget):
             painter.setPen(pen)
             painter.drawRect(rect)
 
-            # 尺寸与坐标标注（类似 Snipaste：宽x高 + 左上角坐标）
+            # 灏哄涓庡潗鏍囨爣娉紙绫讳技 Snipaste锛氬x楂?+ 宸︿笂瑙掑潗鏍囷級
             width, height = self._selection_size()
             if width > 0 and height > 0:
                 gx = int(self.geometry().x() + rect.left())
@@ -126,6 +128,7 @@ class ScreenCaptureOverlay(QWidget):
 
         screen = QGuiApplication.primaryScreen()
         pixmap = screen.grabWindow(0, x1, y1, width, height)
-        print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()}")  # 日志输出
+        print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()}")  # 鏃ュ織杈撳嚭
 
         self.selection_done.emit(pixmap)
+
