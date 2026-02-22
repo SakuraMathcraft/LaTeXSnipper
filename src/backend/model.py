@@ -44,7 +44,7 @@ def get_unimernet_python() -> str:
     return get_deps_python()
 
 def get_pix2text_python() -> str:
-    """subprocess error pix2text Pythonsubprocess no outputsubprocess no output Python?"""
+    """Return pix2text runtime python, fallback to deps python."""
     pyexe = os.environ.get("PIX2TEXT_PYEXE", "")
     if pyexe and os.path.exists(pyexe):
         return pyexe
@@ -79,10 +79,10 @@ class ModelWrapper(QObject):
         self._pix2tex_subprocess_route_logged = False
         self._ort_probe_raw = ""
         self._torch_repair_attempted = set()
-        self._default_model = (default_model or "").lower()
+        self._default_model = (default_model or "pix2text").lower()
         self.last_used_model = None
-        if self._default_model == "unimernet":
-            self._lazy_load_unimernet()
+        if not self._default_model.startswith("pix2text"):
+            self._default_model = "pix2text"
         
         # 判断是否是打包模式
         self._is_frozen = getattr(sys, 'frozen', False)
@@ -90,114 +90,31 @@ class ModelWrapper(QObject):
         if self._is_frozen:
             # 打包模式：所有 AI 操作都在子进程中运行
             self._emit("[INFO] 打包模式：AI 模型将在子进程中运行")
-            self._probe_subprocess_models(probe_pix2text=self._should_probe_pix2text())
+            self._probe_subprocess_models(probe_pix2text=True)
         else:
             # 开发模式：可以在主进程中加载（如果依赖可用）
             self._init_torch()
             self._probe_onnxruntime()
-            # 尝试加载 pix2tex，但失败不阻塞程序启动
-            try:
-                self._ensure_pix2tex()
-            except Exception as e:
-                self._pix2tex_load_error = str(e)
-                self._emit(f"[WARN] pix2tex 初始化失败，程序将继续启动: {e}")
-                self._emit("[HINT] 可在【设置】→【依赖管理向导】中修复依赖")
-            # 开发模式也仅在默认模型为 pix2text 时预加载，避免无关探测日志
-            if self._should_probe_pix2text():
-                self._lazy_load_pix2text()
+            self._lazy_load_pix2text()
     
     def _probe_subprocess_models(self, probe_pix2text: bool = False):
-        """subprocess no outputsubprocess no outputsubprocess no output"""
+        """打包模式探测：仅预加载 pix2text。"""
         self._probe_onnxruntime()
-        self._emit("[INFO] [subprocess] probing pix2tex availability...")
-        probe_code = textwrap.dedent(r"""
-            import json
-            try:
-                import torch
-                from pix2tex.cli import LatexOCR
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                print(json.dumps({"ok": True, "device": device}))
-            except Exception as e:
-                print(json.dumps({"ok": False, "error": str(e)}))
-        """).strip()
-        try:
-            deps_python = get_deps_python()
-            proc = subprocess.run(
-                [deps_python, "-c", probe_code],
-                capture_output=True, timeout=30, text=True,
-                encoding="utf-8", errors="replace"
-            )
-            output = (proc.stdout or "").strip()
-            m = re.search(r"\{.*\}", output)
-            if m:
-                result = json.loads(m.group())
-                if result.get("ok"):
-                    self.device = result.get("device", "cpu")
-                    if self._default_model == "pix2tex":
-                        self._emit("[INFO] [subprocess] pix2tex preheat: starting worker and warmup inference...")
-                        if self._warmup_pix2tex_worker():
-                            self._pix2tex_subprocess_ready = True
-                            self._emit(f"[INFO] [subprocess] pix2tex ready (device={self.device})")
-                            self._emit("[INFO] [subprocess] pix2tex worker preheat ok")
-                        else:
-                            self._pix2tex_subprocess_ready = False
-                            self._emit("[WARN] [subprocess] pix2tex warmup failed; will retry on first inference")
-                    else:
-                        self._pix2tex_subprocess_ready = True
-                        self._pix2tex_load_error = None
-                        self._emit(f"[INFO] [subprocess] pix2tex ready (device={self.device})")
-                else:
-                    error_msg = result.get('error', 'unknown error')
-                    self._pix2tex_load_error = error_msg
-                    self._emit(f"[WARN] pix2tex err: {error_msg}")
-            else:
-                stderr_msg = (proc.stderr or "").strip() or "no output"
-                self._pix2tex_load_error = stderr_msg[:200]
-                self._emit(f"[WARN] pix2tex error: {stderr_msg[:200]}")
-        except Exception as e:
-            self._pix2tex_load_error = str(e)
-            self._emit(f"[WARN] pix2tex error: {e}")
-
+        self._pix2tex_subprocess_ready = False
+        self._pix2tex_load_error = None
         if probe_pix2text:
             self._emit("[INFO] 预加载 pix2text（启动阶段）...")
-            self._lazy_load_pix2text()
-
-    def _should_probe_pix2text(self) -> bool:
-        """是否需要预探测/预加载 pix2text"""
-        # 仅在默认模型就是 pix2text 系列时预探测，避免启动阶段干扰日志
-        return self._default_model.startswith("pix2text")
-
-    def _has_pix2text_layer(self) -> bool:
-        try:
-            pyexe = os.environ.get("PIX2TEXT_PYEXE", "")
-            if pyexe and os.path.exists(pyexe):
-                return True
-            import json
-            base_dir = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "")
-            if not base_dir:
-                cfg = Path.home() / "LaTeXSnipper_config.json"
-                if cfg.exists():
-                    data = json.loads(cfg.read_text(encoding="utf-8"))
-                    base_dir = data.get("install_base_dir", "")
-            if not base_dir:
-                return False
-            state = Path(base_dir) / ".deps_state.json"
-            if not state.exists():
-                return False
-            data = json.loads(state.read_text(encoding="utf-8"))
-            layers = data.get("installed_layers", []) or []
-            return any(str(l).upper().startswith("PIX2TEXT") for l in layers)
-        except Exception:
-            return False
+        self._lazy_load_pix2text()
 
     def _target_torch_mode(self, target: str) -> str:
-        key = "PIX2TEXT_TORCH_MODE" if target == "pix2text" else "UNIMERNET_TORCH_MODE"
-        return normalize_mode(os.environ.get(key, "auto"))
+        """v1.05: 共享 torch 策略收敛到 pix2text 单路径。"""
+        _ = target  # keep signature for backward compatibility
+        return normalize_mode(os.environ.get("PIX2TEXT_TORCH_MODE", "auto"))
 
     def _target_shared_torch_site(self, target: str) -> str:
-        key = "PIX2TEXT_SHARED_TORCH_SITE" if target == "pix2text" else "UNIMERNET_SHARED_TORCH_SITE"
+        _ = target  # keep signature for backward compatibility
         for cand in (
-            os.environ.get(key, ""),
+            os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", ""),
             os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", ""),
         ):
             site = (cand or "").strip()
@@ -251,11 +168,16 @@ class ModelWrapper(QObject):
         for k in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
             env.pop(k, None)
         env["PYTHONNOUSERSITE"] = "1"
-        shared_site = self._discover_shared_torch_site(target)
+        # v1.05: target 参数仅为兼容，统一按 pix2text 共享路径构建子进程环境。
+        _ = target
+        shared_site = self._discover_shared_torch_site("pix2text")
         env = inject_shared_torch_env(env, shared_site)
         if shared_site:
-            env["LATEXSNIPPER_SHARED_TORCH_SITE"] = shared_site
-        env["LATEXSNIPPER_SHARED_TORCH_MODE"] = self._target_torch_mode(target)
+            env["PIX2TEXT_SHARED_TORCH_SITE"] = shared_site
+        else:
+            env.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
+        env.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
+        env["LATEXSNIPPER_SHARED_TORCH_MODE"] = self._target_torch_mode("pix2text")
         return env
 
     def _looks_like_torch_issue(self, err_text: str) -> bool:
@@ -281,18 +203,20 @@ class ModelWrapper(QObject):
         """
         自动回退：当共享 torch 不可用或版本不匹配时，按目标模式在隔离环境补装 torch 三件套。
         """
-        if target in self._torch_repair_attempted:
+        # v1.05: 仅保留 pix2text 修复路径；保留 target 形参以兼容旧调用。
+        repair_key = "pix2text"
+        if repair_key in self._torch_repair_attempted:
             return False
         if reason and not self._looks_like_torch_issue(reason):
             return False
 
-        self._torch_repair_attempted.add(target)
-        pyexe = get_pix2text_python() if target == "pix2text" else get_unimernet_python()
+        self._torch_repair_attempted.add(repair_key)
+        pyexe = get_pix2text_python()
         if not pyexe or not os.path.exists(pyexe):
             return False
 
-        mode = self._target_torch_mode(target)
-        shared_site = self._target_shared_torch_site(target)
+        mode = self._target_torch_mode("pix2text")
+        shared_site = self._target_shared_torch_site("pix2text")
         if shared_site:
             shared_info = detect_torch_info(infer_main_python(), timeout_sec=8)
             if mode_satisfies(shared_info, mode):
@@ -313,7 +237,7 @@ class ModelWrapper(QObject):
             main_info = detect_torch_info(infer_main_python(), timeout_sec=8)
             mode = "gpu" if (main_info.get("mode") == "gpu") else "cpu"
 
-        env = self._build_subprocess_env(target)
+        env = self._build_subprocess_env("pix2text")
         current = detect_torch_info(pyexe, timeout_sec=8, run_env=env)
         if mode_satisfies(current, mode):
             return False
@@ -363,10 +287,8 @@ class ModelWrapper(QObject):
 
     # -------- 模型状态查询 --------
     def is_ready(self) -> bool:
-        """检查 pix2tex 模型是否可用"""
-        if self._is_frozen:
-            return self._pix2tex_subprocess_ready
-        return self._pix2tex_inited and self.pix2tex_model is not None
+        """兼容旧调用：统一返回 pix2text 就绪状态。"""
+        return self.is_pix2text_ready()
     
     def is_pix2text_ready(self) -> bool:
         """检查 pix2text 模型是否可用"""
@@ -382,21 +304,19 @@ class ModelWrapper(QObject):
     
     def is_model_ready(self, model_name: str) -> bool:
         """检查指定模型是否可用"""
-        if model_name == "unimernet":
-            return (not self._unimernet_import_failed) and self._unimernet_subprocess_ready
-        if model_name.startswith("pix2text"):
-            return self.is_pix2text_ready()
-        return self.is_ready()
+        return self.is_pix2text_ready() if (model_name or "").startswith("pix2text") else False
     
     def get_error(self) -> str | None:
         """获取加载错误信息，如果没有错误返回 None"""
-        return self._pix2tex_load_error
+        if self._pix2text_import_failed:
+            return "pix2text not ready"
+        return None
     
     def get_status_text(self) -> str:
         """获取模型状态描述文本"""
-        if self._pix2tex_load_error:
-            return f"❌ 模型加载失败: {self._pix2tex_load_error[:50]}..."
-        if self.is_ready():
+        if self._pix2text_import_failed:
+            return "❌ 模型加载失败: pix2text not ready"
+        if self.is_pix2text_ready():
             return f"✅ 模型就绪 (设备: {self.device})"
         return "⏳ 模型未加载"
 
@@ -440,16 +360,16 @@ class ModelWrapper(QObject):
             raw_err = (proc.stderr or "").strip()
             self._ort_probe_raw = f"STDOUT={raw_out} STDERR={raw_err}"
         except Exception as e:
-            self._emit(f"[WARN] onnxruntime subprocess no output: {e}")
+            self._emit(f"[WARN] onnxruntime probe launch failed: {e}")
             return
         m = re.search(r"(\{.*\})", raw_out)
         if not m:
-            self._emit(f"[WARN] onnxruntime subprocess no output JSON, : {self._ort_probe_raw[:300]}")
+            self._emit(f"[WARN] onnxruntime probe returned no JSON: {self._ort_probe_raw[:300]}")
             return
         try:
             info = json.loads(m.group(1))
         except Exception as e:
-            self._emit(f"[WARN] onnxruntime err JSON error: {e}")
+            self._emit(f"[WARN] onnxruntime probe JSON parse failed: {e}")
             return
         if not info.get("ok"):
             self._emit(f"[WARN] onnxruntime subprocess error: {info.get('err','<unknown>')}")
@@ -461,7 +381,7 @@ class ModelWrapper(QObject):
             self._check_and_fix_onnxruntime_conflict()
 
     def _check_and_fix_onnxruntime_conflict(self):
-        """subprocess no output? onnxruntime / onnxruntime-gpu """
+        """Fix onnxruntime package conflicts in deps python."""
         check_code = textwrap.dedent(r"""
             import json
             try:
@@ -492,14 +412,17 @@ class ModelWrapper(QObject):
             has_ort = info.get("has_ort", False)
             has_ort_gpu = info.get("has_ort_gpu", False)
             if has_ort and has_ort_gpu:
-                self._emit(f"[WARN] err onnxruntime : onnxruntime={info.get('ort_ver')} ? onnxruntime-gpu={info.get('ort_gpu_ver')} error")
-                self._emit("[INFO] CPU error GPU providersubprocess no output?...")
+                self._emit(
+                    f"[WARN] onnxruntime conflict detected: onnxruntime={info.get('ort_ver')} "
+                    f"onnxruntime-gpu={info.get('ort_gpu_ver')}"
+                )
+                self._emit("[INFO] remove CPU onnxruntime to keep GPU provider chain clean")
                 self._fix_onnxruntime_conflict(deps_python)
             elif has_ort_gpu and not self._ort_gpu_available:
-                self._emit("[WARN] onnxruntime-gpu error CUDA provider err")
-                self._emit("[HINT] subprocess errorCUDA subprocess no output VC err")
+                self._emit("[WARN] onnxruntime-gpu installed but CUDAExecutionProvider unavailable")
+                self._emit("[HINT] verify CUDA runtime / VC++ runtime / torch dll dependencies")
         except Exception as e:
-            self._emit(f"[WARN] onnxruntime subprocess no output: {e}")
+            self._emit(f"[WARN] onnxruntime conflict probe failed: {e}")
 
     def _fix_onnxruntime_conflict(self, deps_python: str):
         """修复 onnxruntime 冲突：卸载 CPU 版"""
@@ -714,7 +637,7 @@ import sys, json, os
 from PIL import Image
 
 def _bootstrap_shared_torch():
-    _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
     if not (_shared_site and os.path.isdir(_shared_site)):
         return
     _added = False
@@ -924,7 +847,7 @@ for line in sys.stdin:
         raise RuntimeError("unimernet worker no output")
 
     def _run_unimernet_subprocess(self, pil_img: Image.Image) -> str:
-        """subprocess no outputerr UniMERNetsubprocess no output?"""
+        """Run UniMERNet inference via subprocess."""
         import tempfile
         import textwrap
 
@@ -960,7 +883,7 @@ import sys, json, io, os, importlib
 from PIL import Image
 
 def _bootstrap_shared_torch():
-    _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
     if not (_shared_site and os.path.isdir(_shared_site)):
         return
     _added = False
@@ -1225,7 +1148,7 @@ import os
 from PIL import Image
 
 def _bootstrap_shared_torch():
-    _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
     if not (_shared_site and os.path.isdir(_shared_site)):
         return
     _added = False
@@ -1483,7 +1406,7 @@ for line in sys.stdin:
         raise RuntimeError("pix2text worker no output")
 
     def _run_pix2text_subprocess(self, pil_img: Image.Image, mode: str = "formula") -> str:
-        """subprocess no outputerror pix2text"""
+        """Run pix2text inference via subprocess."""
         import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -1526,7 +1449,7 @@ for line in sys.stdin:
             import os
             from PIL import Image
             def _bootstrap_shared_torch():
-                _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+                _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
                 if not (_shared_site and os.path.isdir(_shared_site)):
                     return
                 _added = False
@@ -1710,7 +1633,7 @@ for line in sys.stdin:
             return self._pix2text_subprocess_ready
         try:
             _dbg_env = self._build_subprocess_env("pix2text")
-            _dbg_site = (_dbg_env.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+            _dbg_site = (_dbg_env.get("PIX2TEXT_SHARED_TORCH_SITE", "") or _dbg_env.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
             self._emit(f"[DEBUG] pix2text shared torch site: {_dbg_site or '<empty>'}")
             _dbg_pp = (_dbg_env.get("PYTHONPATH", "") or "").strip()
             if _dbg_pp:
@@ -1739,12 +1662,27 @@ for line in sys.stdin:
             except Exception:
                 return None
 
+        def _emit_pix2text_stack_hint(err_text: str):
+            t = (err_text or "").strip()
+            if not t:
+                return
+            if "_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS" in t:
+                self._emit(
+                    "[HINT] 检测到 optimum/transformers 兼容异常，"
+                    "请在依赖向导重新安装 CORE（会升级 optimum 并复验）。"
+                )
+            if "cannot import name 'GenerationMixin' from 'transformers.generation'" in t:
+                self._emit(
+                    "[HINT] transformers 未识别到可用 torch（常见于 torch metadata 缺失）。"
+                    "请在依赖向导重装 HEAVY 层以修复 torch/torchvision/torchaudio 元数据。"
+                )
+
         def _run_bootstrap(pyexe: str) -> bool:
             bootstrap_code = textwrap.dedent(r"""
                 import json
                 import os, sys
                 def _bootstrap_shared_torch():
-                    _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+                    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
                     if not (_shared_site and os.path.isdir(_shared_site)):
                         return
                     _added = False
@@ -1829,6 +1767,7 @@ for line in sys.stdin:
                 return True
             err = (boot_result or {}).get("error") or (boot_out[:200] if boot_out else "unknown")
             self._emit(f"[WARN] pix2text bootstrap failed: {err}")
+            _emit_pix2text_stack_hint(err)
             return False
 
         try:
@@ -1837,7 +1776,7 @@ for line in sys.stdin:
                 import json
                 import os, sys
                 def _bootstrap_shared_torch():
-                    _shared_site = (os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+                    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
                     if not (_shared_site and os.path.isdir(_shared_site)):
                         return
                     _added = False
@@ -1974,7 +1913,7 @@ for line in sys.stdin:
             self._emit("[INFO] 预加载 unimernet（启动阶段）...")
             try:
                 _dbg_env = self._build_subprocess_env("unimernet")
-                _dbg_site = (_dbg_env.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+                _dbg_site = (_dbg_env.get("PIX2TEXT_SHARED_TORCH_SITE", "") or _dbg_env.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
                 self._emit(f"[DEBUG] unimernet shared torch site: {_dbg_site or '<empty>'}")
             except Exception:
                 pass
@@ -2303,42 +2242,25 @@ for line in sys.stdin:
             return result.get("result", "")
         raise RuntimeError(result.get("error", "pix2tex subprocess error"))
 
-    def predict(self, pil_img: Image.Image, model_name: str = "pix2tex") -> str:
-        model = (model_name or "pix2tex").lower()
-        try:
-            if model == "unimernet":
-                if not self._unimernet_subprocess_ready:
-                    self._lazy_load_unimernet()
-                if self._unimernet_subprocess_ready:
-                    self.last_used_model = "unimernet"
-                    return self._run_unimernet_subprocess(pil_img)
-                raise RuntimeError("unimernet not ready")
+    def predict(self, pil_img: Image.Image, model_name: str = "pix2text") -> str:
+        model = (model_name or "pix2text").lower()
+        mode_map = {
+            "pix2text": "formula",
+            "pix2text_text": "text",
+            "pix2text_mixed": "mixed",
+            "pix2text_page": "page",
+            "pix2text_table": "table",
+        }
+        if not model.startswith("pix2text"):
+            model = "pix2text"
+        mode = mode_map.get(model, "formula")
+        if not self._pix2text_subprocess_ready:
+            self._lazy_load_pix2text()
+        if not self._pix2text_subprocess_ready:
+            raise RuntimeError("pix2text not ready")
+        self.last_used_model = model
+        return self._run_pix2text_subprocess(pil_img, mode=mode)
 
-            if model.startswith("pix2text"):
-                mode_map = {
-                    "pix2text": "formula",
-                    "pix2text_text": "text",
-                    "pix2text_mixed": "mixed",
-                    "pix2text_page": "page",
-                    "pix2text_table": "table",
-                }
-                mode = mode_map.get(model, "formula")
-                if not self._pix2text_subprocess_ready:
-                    self._lazy_load_pix2text()
-                if self._pix2text_subprocess_ready:
-                    # 记录实际使用的 pix2text 模式，便于标签系统区分
-                    self.last_used_model = model
-                    return self._run_pix2text_subprocess(pil_img, mode=mode)
-                raise RuntimeError("pix2text not ready")
-
-            self.last_used_model = "pix2tex"
-            return self._run_pix2tex(pil_img)
-        except Exception as e:
-            if model != "pix2tex":
-                self._emit(f"[WARN] {model}, err pix2tex: {e}")
-                self.last_used_model = "pix2tex"
-                return self._run_pix2tex(pil_img)
-            raise
 
 
 

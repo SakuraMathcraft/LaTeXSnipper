@@ -182,7 +182,7 @@ def detect_torch_info(pyexe: str, timeout_sec: int = 8, run_env: dict | None = N
     code = (
         "import json, os, sys\n"
         "def _bootstrap_shared_torch():\n"
-        "    _shared_site = (os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE', '') or '').strip()\n"
+        "    _shared_site = (os.environ.get('PIX2TEXT_SHARED_TORCH_SITE', '') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE', '') or '').strip()\n"
         "    if not (_shared_site and os.path.isdir(_shared_site)):\n"
         "        return\n"
         "    _added = False\n"
@@ -296,9 +296,11 @@ def inject_shared_torch_env(env: dict, shared_site: str | None) -> dict:
     out = dict(env or {})
     site = (shared_site or "").strip()
     if not site or not os.path.isdir(site):
+        out.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
         out.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
         return out
-    out["LATEXSNIPPER_SHARED_TORCH_SITE"] = site
+    out["PIX2TEXT_SHARED_TORCH_SITE"] = site
+    out.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
     torch_lib = os.path.join(site, "torch", "lib")
     if os.path.isdir(torch_lib):
         cur = out.get("PATH", "")
@@ -325,9 +327,18 @@ def ensure_shared_torch_link(env_pyexe: str, shared_site: str | None) -> tuple[b
     if not site or not os.path.isdir(site):
         return True, "shared torch link cleared"
 
+    # 如果共享路径就是当前环境路径，不做 metadata 同步。
+    # 否则会先删后拷贝并在“同目录”场景下把 dist-info 误删掉。
+    try:
+        src_site = Path(site).resolve()
+        dst_site = env_site.resolve()
+        if src_site == dst_site:
+            return True, "shared site is env site, skip metadata sync"
+    except Exception:
+        src_site = Path(site)
+
     # Optional metadata copy so pip can consider torch/vision/audio already present.
     try:
-        src_site = Path(site)
         for pattern in ("torch-*.dist-info", "torchvision-*.dist-info", "torchaudio-*.dist-info"):
             existing = list(env_site.glob(pattern))
             for d in existing:
