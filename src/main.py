@@ -102,6 +102,7 @@ CONFIG_FILENAME = "LaTeXSnipper_config.json"
 
 # 全局持有 crash 日志文件句柄，避免被 GC 或提前关闭
 _CRASH_FH = None
+_LSN_CONSOLE_CTRL_HANDLER = None
 
 def _pre_bootstrap_runtime():
     global _CRASH_FH
@@ -798,6 +799,37 @@ def open_debug_console(force: bool = False, tee: bool = True):
         except Exception:
             pass
 
+    def _harden_console_window():
+        """避免误关控制台触发进程终止，并保持控制台可读可交互。"""
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            u32 = ctypes.windll.user32
+            hwnd = k32.GetConsoleWindow()
+            if hwnd:
+                # 移除系统菜单里的“关闭”，避免用户点 X 触发 runtime abort。
+                hmenu = u32.GetSystemMenu(hwnd, False)
+                if hmenu:
+                    SC_CLOSE = 0xF060
+                    MF_BYCOMMAND = 0x00000000
+                    u32.DeleteMenu(hmenu, SC_CLOSE, MF_BYCOMMAND)
+                    u32.DrawMenuBar(hwnd)
+            # 强制控制台文字颜色为浅灰（07），避免黑底黑字“看起来没日志”。
+            std_out = k32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+            if std_out not in (0, -1):
+                k32.SetConsoleTextAttribute(std_out, 0x07)
+            # 保持 QuickEdit，可鼠标选中文本复制，并支持滚轮滚动历史。
+            std_in = k32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            if std_in not in (0, -1):
+                mode = ctypes.c_uint()
+                if k32.GetConsoleMode(std_in, ctypes.byref(mode)):
+                    ENABLE_QUICK_EDIT_MODE = 0x0040
+                    ENABLE_EXTENDED_FLAGS = 0x0080
+                    new_mode = int(mode.value) | ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE
+                    k32.SetConsoleMode(std_in, new_mode)
+        except Exception:
+            pass
+
     try:
         import ctypes
         k32 = ctypes.windll.kernel32
@@ -811,24 +843,40 @@ def open_debug_console(force: bool = False, tee: bool = True):
     else:
         want = _read_startup_console_pref(default=False)
     want = bool(force or want)
+    # 统一写回环境变量，供后续子进程重启/重定向逻辑复用。
+    os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if want else "0"
     if not want:
         # 仅在打包模式下尝试隐藏控制台，避免开发模式从 cmd 启动时隐藏用户终端。
         if _is_packaged_mode():
             _set_console_window_visible(False)
+            # 若当前进程意外附带控制台（旧构建/外部启动器），强制脱离，避免空白黑窗。
+            try:
+                import ctypes
+                k32 = ctypes.windll.kernel32
+                hwnd = k32.GetConsoleWindow()
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 0)
+                try:
+                    k32.FreeConsole()
+                except Exception:
+                    pass
+            except Exception:
+                pass
         return
     _set_console_window_visible(True)
-    if has_console:
-        return
 
     try:
         import ctypes
         k32 = ctypes.windll.kernel32
-        attached = bool(k32.AttachConsole(-1))
-        if not attached and not k32.AllocConsole():
-            return
+        if not has_console:
+            attached = bool(k32.AttachConsole(-1))
+            if not attached:
+                if not k32.AllocConsole():
+                    return
+            _set_console_window_visible(True)
 
         try:
-            k32.SetConsoleTitleW("LaTeXSnipper 初始化与依赖日志")
+            k32.SetConsoleTitleW("LaTeXSnipper 初始化与运行日志")
         except Exception:
             pass
         try:
@@ -836,6 +884,7 @@ def open_debug_console(force: bool = False, tee: bool = True):
             k32.SetConsoleOutputCP(65001)
         except Exception:
             pass
+        _harden_console_window()
 
         # 保存原始流引用（用于后续恢复）
         _original_stdout = sys.__stdout__
@@ -863,17 +912,42 @@ def open_debug_console(force: bool = False, tee: bool = True):
         if isinstance(base_err, TeeWriter):
             base_err = base_err._original_a or _original_stderr
 
-        if tee and base_out and base_err:
-            # 只在 tee 模式下用 TeeWriter 包一层，不关闭底层流
-            sys.stdout = TeeWriter(base_out, con_out)
-            sys.stderr = TeeWriter(base_err, con_err)
+        # 打包模式下优先直接绑定控制台，避免某些 windowed runtime 流导致“有窗无日志”。
+        if _is_packaged_mode():
+            sys.stdout = con_out
+            sys.stderr = con_err
         else:
-            # 不动 sys.stdout/sys.stderr，只是确保有控制台可以看输出
-            # 如需在这里也输出到控制台，可以在 logging 里加 handler
-            pass
+            if tee and base_out and base_err:
+                # 开发模式下可保留 IDE + 控制台双路输出
+                sys.stdout = TeeWriter(base_out, con_out)
+                sys.stderr = TeeWriter(base_err, con_err)
 
         if (sys.stdin is None or getattr(sys.stdin, "closed", False)) and con_in:
             sys.stdin = con_in
+
+        # 避免用户关闭日志终端时触发底层运行时异常（如 Fortran/OpenMP 直接 abort）。
+        # 处理策略：拦截 CTRL_CLOSE_EVENT，仅隐藏窗口，不让进程被强制终止。
+        try:
+            global _LSN_CONSOLE_CTRL_HANDLER
+            HANDLER = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+            if "_LSN_CONSOLE_CTRL_HANDLER" not in globals() or _LSN_CONSOLE_CTRL_HANDLER is None:
+                @HANDLER
+                def _handler(ctrl_type):
+                    # 2 = CTRL_CLOSE_EVENT
+                    # 5 = CTRL_LOGOFF_EVENT, 6 = CTRL_SHUTDOWN_EVENT
+                    if int(ctrl_type) in (2, 5, 6):
+                        try:
+                            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+                            if hwnd:
+                                ctypes.windll.user32.ShowWindow(hwnd, 0)
+                        except Exception:
+                            pass
+                        return True
+                    return False
+                _LSN_CONSOLE_CTRL_HANDLER = _handler
+            k32.SetConsoleCtrlHandler(_LSN_CONSOLE_CTRL_HANDLER, True)
+        except Exception:
+            pass
 
         print("[INFO] 调试控制台已打开（UTF-8）。")
     except Exception as e:
@@ -1744,7 +1818,7 @@ def _run_pip_install(pyexe: str, pkgs: list[str]) -> bool:
             env.pop("PIP_INDEX_URL", None)  # 避免外部变量干扰
         print(f"[INFO] 开始安装依赖: {' '.join(pkgs)}  index={idx or 'ENV/DEFAULT'}")
         try:
-            subprocess.check_call(cmd, env=env)
+            subprocess.check_call(cmd, env=env, creationflags=_win_subprocess_flags())
             print("[OK] 依赖安装完成。")
             return True
         except Exception as e:
@@ -1865,6 +1939,15 @@ def _norm_path(s: str | None) -> str | None:
         return None
     return s.strip().strip('"').strip("'").strip()
 
+
+def _win_subprocess_flags() -> int:
+    """Windows 子进程窗口策略：默认无窗口，仅显式 show_startup_console=true 时放开。"""
+    if os.name != "nt":
+        return 0
+    raw = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
+    show = raw in ("1", "true", "yes", "on")
+    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
 def _clean_bad_env():
     """移除/修复坏掉的 LATEXSNIPPER_PYEXE，避免污染后续检测。"""
     val = os.environ.get("LATEXSNIPPER_PYEXE")
@@ -1879,7 +1962,7 @@ def _has_ensurepip_venv(pyexe: str) -> bool:
     try:
         import subprocess
         r = subprocess.run([pyexe, "-c", "import ensurepip, venv;print('ok')"],
-                           capture_output=True, text=True, timeout=20)
+                           capture_output=True, text=True, timeout=20, creationflags=_win_subprocess_flags())
         return r.returncode == 0
     except Exception:
         return False
@@ -1928,7 +2011,7 @@ def _run_python_installer(installer: Path, target_dir: Path) -> bool:
                 "Include_pip=1", "PrependPath=0", "Include_test=0",
                 "Include_doc=0", "Include_launcher=0", "SimpleInstall=1"]
         print(f"[INFO] 正在静默安装 Python 到: {target_dir}")
-        r = subprocess.run(args, timeout=600)
+        r = subprocess.run(args, timeout=600, creationflags=_win_subprocess_flags())
         if r.returncode != 0:
             print(f"[WARN] 静默安装返回码: {r.returncode}")
             return False
@@ -2106,8 +2189,35 @@ if _is_packaged_mode():
                 import subprocess
                 env = os.environ.copy()
                 env["LATEXSNIPPER_INNER_PY"] = "1"
-                argv = [str(py_exe), os.path.abspath(__file__), *sys.argv[1:]]
-                subprocess.Popen(argv, env=env)
+                # 终端显示偏好：优先环境变量，其次配置文件。
+                raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
+                if raw_pref in ("1", "true", "yes", "on", "0", "false", "no", "off"):
+                    show_console = raw_pref in ("1", "true", "yes", "on")
+                else:
+                    show_console = False
+                    try:
+                        cfg_path = pathlib.Path.home() / CONFIG_FILENAME
+                        if cfg_path.exists():
+                            cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
+                            raw = cfg_data.get("show_startup_console", False) if isinstance(cfg_data, dict) else False
+                            if isinstance(raw, bool):
+                                show_console = raw
+                            elif isinstance(raw, (int, float)):
+                                show_console = bool(raw)
+                            elif isinstance(raw, str):
+                                show_console = raw.strip().lower() in ("1", "true", "yes", "on")
+                    except Exception:
+                        pass
+                env["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if show_console else "0"
+                # 统一优先 pythonw.exe，由 open_debug_console 决定是否分配日志终端。
+                # 这样可避免 python.exe 自带控制台在启动瞬间闪窗。
+                run_py = py_exe
+                pyw = py311_dir / "pythonw.exe"
+                if pyw.exists():
+                    run_py = pyw
+                argv = [str(run_py), os.path.abspath(__file__), *sys.argv[1:]]
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if (os.name == "nt" and not show_console) else 0
+                subprocess.Popen(argv, env=env, creationflags=creationflags)
                 sys.exit(0)
             else:
                 print("[INFO] packaged: already in private python")
@@ -2381,7 +2491,7 @@ def show_gpu_install_tip(parent=None):
     cuda_ver = None
     source = ""
     try:
-        r = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5, creationflags=_win_subprocess_flags())
         cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
         if cuda_ver:
             source = "nvcc"
@@ -2389,7 +2499,7 @@ def show_gpu_install_tip(parent=None):
         pass
     if not cuda_ver:
         try:
-            r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5, creationflags=_win_subprocess_flags())
             cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
             if cuda_ver:
                 source = "nvidia-smi"
@@ -2645,6 +2755,7 @@ def _ensure_typing_ext():
             [TARGET_PY, "-m", "pip", "install", "--upgrade", "typing_extensions>=4.9.0"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=_win_subprocess_flags(),
         )
         print("[INFO] typing_extensions 已修复到 >=4.9.0")
     except Exception as e:
@@ -2658,7 +2769,7 @@ def _ensure_hf_hub():
             subprocess.check_call([
                 sys.executable, "-m", "pip", "install",
                 "--no-cache-dir", "huggingface-hub>=0.34.0,<1.0"
-            ])
+            ], creationflags=_win_subprocess_flags())
     except Exception as e:
         print("[Boot] huggingface-hub check skipped:", e)
 _ensure_typing_ext()
@@ -4167,8 +4278,9 @@ class PdfResultWindow(_QMainWindow):
 
 class MainWindow(_QMainWindow):
     """主窗口 - 使用 QMainWindow 以正确支持 setCentralWidget"""
-    def __init__(self):
+    def __init__(self, startup_progress=None):
         super().__init__()
+        self._startup_progress = startup_progress
 
         self.setWindowTitle("LaTeX Snipper")
         self.resize(1000, 700)
@@ -4218,7 +4330,9 @@ class MainWindow(_QMainWindow):
         self.setWindowIcon(self.icon)
 
         # 尝试初始化模型
+        self._report_startup_progress("正在加载主窗口组件...")
         try:
+            self._report_startup_progress("正在初始化模型...")
             # 在 ModelWrapper 初始化前先注入 pix2text 运行环境变量
             self._apply_pix2text_env()
             self.model = ModelWrapper(self.current_model)
@@ -4232,6 +4346,7 @@ class MainWindow(_QMainWindow):
                 self.model_status = f"加载失败 ({self.current_model})"
             else:
                 self.model_status = f"未就绪 ({self.current_model})"
+            self._report_startup_progress("模型已加载，准备预热...")
 
         except Exception as e:
             app = QApplication.instance() or QApplication([])
@@ -4283,21 +4398,25 @@ class MainWindow(_QMainWindow):
 
         try:
             if self.model:
+                self._report_startup_progress("预热模型中...")
                 QTimer.singleShot(0, self._warmup_desired_model)
         except Exception:
             pass
 
         # 历史文件
         print("[DEBUG] 开始初始化历史记录")
+        self._report_startup_progress("正在初始化历史记录...")
         self.history_path = os.path.join(os.path.expanduser("~"), DEFAULT_HISTORY_NAME)
         self.history = []
 
         # 状态栏（注意不要与方法同名）
         print("[DEBUG] 开始初始化状态栏")
+        self._report_startup_progress("正在初始化状态栏...")
         self.status_label = QLabel()
 
         # 收藏窗口（需在 status_label 之后创建，便于回调写入状态）
         print("[DEBUG] 开始初始化收藏窗口")
+        self._report_startup_progress("正在初始化收藏夹...")
         self.favorites_window = FavoritesWindow(self.cfg, self)
         print("[DEBUG] 收藏窗口初始化完成")
 
@@ -5631,6 +5750,15 @@ th {{
             pass
         return self
 
+    def _report_startup_progress(self, message: str):
+        cb = getattr(self, "_startup_progress", None)
+        if not callable(cb):
+            return
+        try:
+            cb(str(message or ""))
+        except Exception:
+            pass
+
     def _migrate_model_config(self):
         """v1.05: 统一迁移到 pix2text 模型族。"""
         try:
@@ -5681,6 +5809,7 @@ th {{
         preferred = self._get_preferred_model_for_predict()
         if not preferred:
             return
+        self._report_startup_progress("预热模型中...")
         def worker():
             ok = False
             try:
@@ -5692,6 +5821,7 @@ th {{
             if ok:
                 def apply():
                     from qfluentwidgets import InfoBar, InfoBarPosition
+                    self._report_startup_progress("模型预热完成")
                     self.current_model = preferred
                     self.cfg.set("default_model", preferred)
                     self.desired_model = "pix2text"
@@ -5709,6 +5839,7 @@ th {{
             else:
                 def _show_fail():
                     from qfluentwidgets import InfoBar, InfoBarPosition
+                    self._report_startup_progress("模型预热未完成（首次识别重试）")
                     InfoBar.warning(
                         title="模型预热未完成",
                         content="pix2text 预热失败，将在首次识别时重试",
@@ -7338,8 +7469,9 @@ if __name__ == "__main__":
             print("[WARN] torch 初始化失败：", e)
             print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
         _update_startup_splash(splash, "加载主窗口...")
-        win = MainWindow()
+        win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
+        _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
         try:
             if splash:
@@ -7359,12 +7491,20 @@ if __name__ == "__main__":
         open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
         force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
         _update_startup_splash(splash, "检查依赖中...")
-        try:
-            if splash:
-                splash.hide()
-                app.processEvents()
-        except Exception:
-            pass
+        deps_ready_cached = (os.environ.get("LATEXSNIPPER_DEPS_OK") == "1")
+        needs_interactive_deps_ui = bool(
+            force_deps_check
+            or force_verify_env
+            or open_wizard_on_start
+            or (not deps_ready_cached)
+        )
+        if needs_interactive_deps_ui:
+            try:
+                if splash:
+                    splash.hide()
+                    app.processEvents()
+            except Exception:
+                pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
@@ -7374,7 +7514,8 @@ if __name__ == "__main__":
             ok = ensure_deps(prompt_ui=True, always_show_ui=False, from_settings=False)
         if not ok:
             sys.exit(1)
-        splash = _create_startup_splash(app)
+        if needs_interactive_deps_ui:
+            splash = _create_startup_splash(app)
         _update_startup_splash(splash, "依赖检查完成，继续启动...")
         try:
             from qfluentwidgets import Theme, setTheme, setThemeColor
@@ -7389,8 +7530,9 @@ if __name__ == "__main__":
             print("[WARN] torch 初始化失败：", e)
             print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
         _update_startup_splash(splash, "加载主窗口...")
-        win = MainWindow()
+        win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
+        _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
         try:
             if splash:

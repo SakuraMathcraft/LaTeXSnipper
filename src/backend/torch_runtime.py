@@ -22,6 +22,13 @@ TORCH_CPU_PLAN: dict = {"tag": "cpu", "torch": "2.9.0", "vision": "0.24.0", "aud
 _SHARED_PTH_NAME = "latexsnipper_shared_torch.pth"
 
 
+def _subprocess_creationflags() -> int:
+    if os.name != "nt":
+        return 0
+    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
 def normalize_mode(mode: str | None) -> str:
     m = (mode or "auto").strip().lower()
     return m if m in ("auto", "cpu", "gpu") else "auto"
@@ -59,7 +66,13 @@ def pick_torch_cuda_plan(major: int, minor: int) -> tuple[dict | None, str]:
 def detect_torch_gpu_plan(timeout_sec: int = 5) -> tuple[dict | None, str]:
     # Prefer Toolkit version from nvcc.
     try:
-        res = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=timeout_sec)
+        res = subprocess.run(
+            ["nvcc", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            creationflags=_subprocess_creationflags(),
+        )
         out = (res.stdout or "") + "\n" + (res.stderr or "")
         ver = parse_cuda_ver_from_text(out)
         if ver:
@@ -72,7 +85,13 @@ def detect_torch_gpu_plan(timeout_sec: int = 5) -> tuple[dict | None, str]:
 
     # Fallback to driver capability from nvidia-smi.
     try:
-        res = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=timeout_sec)
+        res = subprocess.run(
+            ["nvidia-smi"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            creationflags=_subprocess_creationflags(),
+        )
         out = (res.stdout or "") + "\n" + (res.stderr or "")
         ver = parse_cuda_ver_from_text(out)
         if ver:
@@ -238,6 +257,7 @@ def detect_torch_info(pyexe: str, timeout_sec: int = 8, run_env: dict | None = N
             text=True,
             timeout=timeout_sec,
             env=run_env,
+            creationflags=_subprocess_creationflags(),
         )
         out = ((res.stdout or "") + "\n" + (res.stderr or "")).strip()
         payload = None

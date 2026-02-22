@@ -16,6 +16,15 @@ from backend.torch_runtime import (
     detect_torch_info,
     inject_shared_torch_env,
 )
+
+
+def _subprocess_creationflags() -> int:
+    if os.name != "nt":
+        return 0
+    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
 class SettingsWindow(QDialog):
     """设置窗口 - 使用 QDialog 作为基类"""
     model_changed = pyqtSignal(str)
@@ -351,7 +360,13 @@ class SettingsWindow(QDialog):
         code = f"import importlib.util, sys; sys.exit(0 if importlib.util.find_spec(\"{module}\") else 1)"
         try:
             try:
-                res = subprocess.run([pyexe, "-c", code], capture_output=True, text=True, timeout=5)
+                res = subprocess.run(
+                    [pyexe, "-c", code],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    creationflags=_subprocess_creationflags(),
+                )
             except subprocess.TimeoutExpired:
                 return False
             return res.returncode == 0
@@ -1347,14 +1362,13 @@ class SettingsWindow(QDialog):
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
                     + shared_env_lines \
-                    + help_text \
-                    + "cmd /k\n"
+                    + help_text
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content)
                     batch_path = f.name
                 import ctypes
                 ctypes.windll.shell32.ShellExecuteW(
-                    None, "runas", "cmd.exe", f"/c \"{batch_path}\"", None, 1
+                    None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
                 )
                 self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
             else:
@@ -1363,12 +1377,15 @@ class SettingsWindow(QDialog):
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
                     + shared_env_lines \
-                    + help_text \
-                    + "cmd /k\n"
+                    + help_text
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content_normal)
                     batch_path = f.name
-                subprocess.Popen(["cmd.exe", "/c", "start", "", "cmd.exe", "/k", batch_path], cwd=venv_dir)
+                subprocess.Popen(
+                    ["cmd.exe", "/k", batch_path],
+                    cwd=venv_dir,
+                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                )
                 self._show_info("终端已打开", "已以普通模式打开。", "success")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
@@ -1457,20 +1474,22 @@ class SettingsWindow(QDialog):
         # 获取当前 Python 和脚本路径
         python_exe = sys.executable
         script_path = os.path.abspath(sys.argv[0])
+        base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        spawn_flags = base_flags | int(_subprocess_creationflags())
         try:
             # 启动新进程
             if script_path.endswith('.py'):
                 subprocess.Popen(
                     [python_exe, script_path, "--force-deps-check"],
                     env=env,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    creationflags=spawn_flags
                 )
             else:
                 # 打包后的 exe
                 subprocess.Popen(
                     [script_path, "--force-deps-check"],
                     env=env,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    creationflags=spawn_flags
                 )
             # 关闭当前程序
             from PyQt6.QtWidgets import QApplication

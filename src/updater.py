@@ -1,4 +1,4 @@
-
+﻿
 import os, sys, json, time, threading, re, base64, requests
 from pathlib import Path
 from datetime import datetime, timezone
@@ -370,6 +370,19 @@ def check_update_dialog(parent=None):
     dlg = QDialog(parent)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
     dlg.setWindowTitle("检查更新")
+    dlg.setWindowFlags(
+        (
+            dlg.windowFlags()
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        & ~Qt.WindowType.WindowMinimizeButtonHint
+        & ~Qt.WindowType.WindowContextHelpButtonHint
+        & ~Qt.WindowType.WindowMinMaxButtonsHint
+    )
+    dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
     dlg.resize(650, 520)
     dlg.setStyleSheet(DIALOG_QSS)
     dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
