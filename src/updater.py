@@ -7,11 +7,11 @@ from typing import Optional, List, Tuple, Dict
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QUrl
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QTextBrowser,
-    QHBoxLayout, QProgressBar, QMessageBox, QApplication
+    QHBoxLayout, QProgressBar, QApplication
 )
 from PyQt6.QtGui import QTextDocument
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-from qfluentwidgets import PushButton, FluentIcon
+from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
 try:
     import markdown2
@@ -546,8 +546,23 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
 
     def do_copy():
         if state["info"]:
-            QApplication.clipboard().setText(state["info"].url)
-            QMessageBox.information(dlg, "复制", "下载链接已复制。")
+            try:
+                QApplication.clipboard().setText(state["info"].url)
+                InfoBar.success(
+                    title="已复制",
+                    content="下载链接已复制到剪贴板。",
+                    parent=dlg,
+                    duration=2200,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception as e:
+                InfoBar.error(
+                    title="复制失败",
+                    content=str(e),
+                    parent=dlg,
+                    duration=3000,
+                    position=InfoBarPosition.TOP,
+                )
 
     def abort_and_close():
         # 标记放弃，阻止后续 UI 更新

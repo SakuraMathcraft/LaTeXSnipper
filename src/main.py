@@ -1,5 +1,5 @@
 ﻿# --- Crash guard & runtime sanity, put this at the VERY TOP of 'src/main.py' ---
-import os, sys, pathlib, datetime, faulthandler, json, subprocess
+import os, sys, pathlib, datetime, faulthandler, json, subprocess, builtins, atexit
 # --- 早期 GUI 依赖检测与自动修复 ---
 import sys, os, subprocess, importlib
 
@@ -99,10 +99,27 @@ def resource_path(relative_path):
 
 # 全局配置文件名（仅定义一次）
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
+APP_STATE_DIRNAME = ".latexsnipper"
+
+
+def _app_state_dir():
+    p = pathlib.Path.home() / APP_STATE_DIRNAME
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return p
 
 # 全局持有 crash 日志文件句柄，避免被 GC 或提前关闭
 _CRASH_FH = None
 _LSN_CONSOLE_CTRL_HANDLER = None
+_LSN_DEBUG_CONSOLE_READY = False
+_LSN_RUNTIME_LOG_DIALOG = None
+_LSN_RUNTIME_LOG_PATH = None
+_LSN_RUNTIME_LOG_FH_OUT = None
+_LSN_RUNTIME_LOG_FH_ERR = None
+_LSN_RUNTIME_LOG_RESET_DONE = False
+_LSN_RUNTIME_LOG_CLEANUP_HOOKED = False
 
 def _pre_bootstrap_runtime():
     global _CRASH_FH
@@ -137,6 +154,7 @@ _pre_bootstrap_runtime()
 # 5) 确保先创建 QApplication 再调用依赖修复/向导逻辑
 from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QHBoxLayout, QComboBox
 from PyQt6.QtCore import Qt, QCoreApplication, QTimer
+from PyQt6.QtGui import QTextCursor, QIcon
 from pathlib import Path
 
 # 必须在创建 QApplication 之前设置此属性（满足 QtWebEngine 的上下文共享要求）
@@ -149,6 +167,32 @@ app = QApplication.instance() or QApplication(sys.argv)
 
 _single_instance_lock = None
 
+def _release_single_instance_lock():
+    """Release single-instance file lock explicitly (used by restart path)."""
+    global _single_instance_lock
+    fh = _single_instance_lock
+    _single_instance_lock = None
+    if fh is None:
+        return
+    try:
+        if os.name == "nt":
+            import msvcrt
+            try:
+                fh.seek(0)
+            except Exception:
+                pass
+            try:
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        fh.close()
+    except Exception:
+        pass
+
+
 def _ensure_single_instance() -> bool:
     '''Prevent multiple GUI instances on Windows using a file lock.'''
     lock_dir = Path.home() / ".latexsnipper"
@@ -159,10 +203,15 @@ def _ensure_single_instance() -> bool:
     if os.name == "nt":
         try:
             import msvcrt
-            attempts = 30 if restart_flag else 1
+            # Restart path may need to wait for previous process to flush/close workers.
+            attempts = 150 if restart_flag else 1
             delay = 0.2
             for _ in range(attempts):
                 fh = open(lock_file, "a+", encoding="utf-8")
+                try:
+                    fh.seek(0)
+                except Exception:
+                    pass
                 try:
                     msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
                 except OSError:
@@ -188,6 +237,8 @@ if not _ensure_single_instance():
     except Exception:
         print("[WARN] already running; exiting")
     sys.exit(0)
+
+atexit.register(_release_single_instance_lock)
 
 
 # ============ QWebEngine 运行环境预配置 ============
@@ -347,12 +398,151 @@ class LogViewerDialog(QDialog):
             pass
         return super().closeEvent(ev)
 
+
+class RuntimeLogDialog(QDialog):
+    """初始化/运行日志窗口（GUI 版，不使用系统控制台）。"""
+
+    def __init__(self, log_file: Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("LaTeXSnipper 初始化与运行日志")
+        self.resize(980, 620)
+        self._log_file = Path(log_file)
+        self._pos = 0
+        try:
+            icon_path = resource_path("assets/icon.ico")
+            if icon_path and os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+        except Exception:
+            pass
+
+        lay = QVBoxLayout(self)
+        self.lbl = QLabel(str(self._log_file))
+        self.lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.txt = QPlainTextEdit()
+        self.txt.setReadOnly(True)
+
+        use_fluent = False
+        try:
+            from qfluentwidgets import PushButton as FluentPushButton, FluentIcon
+            use_fluent = True
+        except Exception:
+            FluentPushButton = None
+            FluentIcon = None
+
+        btn_row = QHBoxLayout()
+        if use_fluent and FluentPushButton and FluentIcon:
+            self.btn_open = FluentPushButton(FluentIcon.FOLDER, "打开目录")
+            self.btn_copy_all = FluentPushButton(FluentIcon.COPY, "复制全部")
+            self.btn_clear_view = FluentPushButton(FluentIcon.BROOM, "清空视图")
+            self.btn_close = FluentPushButton(FluentIcon.CLOSE, "关闭")
+        else:
+            self.btn_open = QPushButton("打开目录")
+            self.btn_copy_all = QPushButton("复制全部")
+            self.btn_clear_view = QPushButton("清空视图")
+            self.btn_close = QPushButton("关闭")
+        btn_row.addWidget(self.btn_open)
+        btn_row.addWidget(self.btn_copy_all)
+        btn_row.addWidget(self.btn_clear_view)
+        btn_row.addStretch()
+        btn_row.addWidget(self.btn_close)
+
+        lay.addWidget(self.lbl)
+        lay.addWidget(self.txt, 1)
+        lay.addLayout(btn_row)
+
+        self.btn_open.clicked.connect(self._open_dir)
+        self.btn_copy_all.clicked.connect(self._copy_all)
+        self.btn_clear_view.clicked.connect(self._clear_view)
+        self.btn_close.clicked.connect(self.hide)
+
+        self._ensure_file()
+        self.timer = QTimer(self)
+        self.timer.setInterval(150)
+        self.timer.timeout.connect(self._poll_file)
+        self.timer.start()
+        self._poll_file(initial=True)
+
+    def _ensure_file(self):
+        self._log_file.parent.mkdir(parents=True, exist_ok=True)
+        if not self._log_file.exists():
+            self._log_file.write_text("", encoding="utf-8")
+        self._pos = 0
+
+    def _open_dir(self):
+        try:
+            if os.name == "nt":
+                os.startfile(self._log_file.parent)  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(["xdg-open", str(self._log_file.parent)])
+        except Exception:
+            pass
+
+    def _copy_all(self):
+        try:
+            QApplication.clipboard().setText(self.txt.toPlainText())
+            try:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                InfoBar.success(
+                    title="已复制",
+                    content="日志内容已复制到剪贴板",
+                    parent=self,
+                    duration=1500,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _clear_view(self):
+        try:
+            self.txt.clear()
+            try:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                InfoBar.success(
+                    title="已清空",
+                    content="日志视图已清空",
+                    parent=self,
+                    duration=1500,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _poll_file(self, initial: bool = False):
+        try:
+            with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
+                f.seek(self._pos)
+                chunk = f.read()
+                self._pos = f.tell()
+            if chunk:
+                self.txt.moveCursor(QTextCursor.MoveOperation.End)
+                self.txt.insertPlainText(chunk)
+                sb = self.txt.verticalScrollBar()
+                sb.setValue(sb.maximum())
+        except Exception:
+            pass
+
+    def closeEvent(self, ev):
+        # 不销毁，只隐藏；避免重复创建窗口与信号连接。
+        try:
+            ev.ignore()
+            self.hide()
+            return
+        except Exception:
+            pass
+        return super().closeEvent(ev)
+
 import logging
 from logging.handlers import RotatingFileHandler
 from PyQt6.QtWidgets import QMessageBox
 
 # 移除重复的 CONFIG_FILENAME（已在文件顶部定义）
 APP_LOG_FILE: Path | None = None
+_ORIGINAL_PRINT = None
+_PRINT_BRIDGE_INSTALLED = False
 
 # 安全占位导入：修复“未解析 rapidocr”
 try:
@@ -382,17 +572,54 @@ def init_app_logging() -> Path:
     has_stream = any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler) for h in root.handlers)
 
     fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
+    file_handler = None
     if not has_file:
         fh = RotatingFileHandler(log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
         fh.setFormatter(fmt)
         root.addHandler(fh)
+        file_handler = fh
+    else:
+        for h in root.handlers:
+            if isinstance(h, RotatingFileHandler):
+                file_handler = h
+                break
     if not has_stream:
-        sh = logging.StreamHandler(sys.stdout)
+        # 固定写到原始 stdout，避免后续 stdout 重定向导致 logging 链路异常。
+        sh = logging.StreamHandler(sys.__stdout__)
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
+    # 将 print 输出桥接到 app.log，提升日志文件可用性。
+    global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
+    if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
+        _ORIGINAL_PRINT = builtins.print
+
+        bridge_logger = logging.getLogger("runtime.print")
+        bridge_logger.setLevel(logging.INFO)
+        bridge_logger.propagate = False
+        if not any(h is file_handler for h in bridge_logger.handlers):
+            bridge_logger.addHandler(file_handler)
+
+        def _print_bridge(*args, **kwargs):
+            # 先保持原有 print 行为（终端/GUI 日志窗口）。
+            _ORIGINAL_PRINT(*args, **kwargs)
+            try:
+                target = kwargs.get("file", None)
+                # 仅桥接标准输出流，避免写入到其它文件对象时重复记录。
+                if target not in (None, sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
+                    return
+                sep = kwargs.get("sep", " ")
+                msg = sep.join(str(a) for a in args).rstrip("\r\n")
+                if msg:
+                    bridge_logger.info(msg)
+            except Exception:
+                pass
+
+        builtins.print = _print_bridge
+        _PRINT_BRIDGE_INSTALLED = True
+
     APP_LOG_FILE = log_path
-    logging.info("日志初始化完成，文件: %s", log_path)
+    logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, log_path)
     
     # 初始化 LaTeX 设置
     try:
@@ -420,10 +647,10 @@ def open_realtime_log_window(parent=None):
 
 def _read_deps_dir_from_config() -> Path | None:
     """
-    从用户家目录`LaTeXSnipper_config.json`读取依赖目录。
+    从配置文件读取依赖目录。
     结构: { "install_base_dir": "D:/LaTeXSnipper/deps" }
     """
-    cfg = Path.home() / "LaTeXSnipper_config.json"
+    cfg = _config_path()
     if not cfg.exists():
         return None
     try:
@@ -764,14 +991,128 @@ class TeeWriter(io.TextIOBase):
                     pass
         raise OSError("No valid file descriptor")
 
-def open_debug_console(force: bool = False, tee: bool = True):
-    """按配置/环境变量决定是否显示调试终端（Windows）。默认不显示。"""
-    if os.name != "nt":
+def _runtime_log_path() -> Path:
+    global _LSN_RUNTIME_LOG_PATH
+    if _LSN_RUNTIME_LOG_PATH is not None:
+        return _LSN_RUNTIME_LOG_PATH
+    p = _app_state_dir() / "logs" / "runtime-console.log"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    _LSN_RUNTIME_LOG_PATH = p
+    return p
+
+
+def _cleanup_runtime_log_session():
+    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_DIALOG, _LSN_DEBUG_CONSOLE_READY
+    try:
+        if isinstance(sys.stdout, TeeWriter):
+            sys.stdout = sys.__stdout__
+        if isinstance(sys.stderr, TeeWriter):
+            sys.stderr = sys.__stderr__
+    except Exception:
+        pass
+    try:
+        if _LSN_RUNTIME_LOG_DIALOG is not None:
+            try:
+                _LSN_RUNTIME_LOG_DIALOG.hide()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    for fh_name in ("_LSN_RUNTIME_LOG_FH_OUT", "_LSN_RUNTIME_LOG_FH_ERR"):
+        fh = globals().get(fh_name)
+        if fh is not None:
+            try:
+                fh.flush()
+            except Exception:
+                pass
+            try:
+                fh.close()
+            except Exception:
+                pass
+        globals()[fh_name] = None
+    try:
+        p = _runtime_log_path()
+        if p.exists():
+            p.unlink()
+    except Exception:
+        pass
+    _LSN_DEBUG_CONSOLE_READY = False
+
+
+def _ensure_runtime_log_cleanup_hook():
+    global _LSN_RUNTIME_LOG_CLEANUP_HOOKED
+    if _LSN_RUNTIME_LOG_CLEANUP_HOOKED:
         return
+    try:
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.aboutToQuit.connect(_cleanup_runtime_log_session)
+        _LSN_RUNTIME_LOG_CLEANUP_HOOKED = True
+    except Exception:
+        pass
+
+
+def _hook_runtime_log_streams(tee: bool = True):
+    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_RESET_DONE
+    if _LSN_RUNTIME_LOG_FH_OUT is not None and _LSN_RUNTIME_LOG_FH_ERR is not None:
+        return
+
+    log_path = _runtime_log_path()
+    if not _LSN_RUNTIME_LOG_RESET_DONE:
+        try:
+            log_path.write_text("", encoding="utf-8")
+        except Exception:
+            pass
+        _LSN_RUNTIME_LOG_RESET_DONE = True
+
+    _LSN_RUNTIME_LOG_FH_OUT = open(log_path, "a", encoding="utf-8", buffering=1)
+    _LSN_RUNTIME_LOG_FH_ERR = open(log_path, "a", encoding="utf-8", buffering=1)
+    _ensure_runtime_log_cleanup_hook()
+
+    base_out = sys.stdout if sys.stdout and not getattr(sys.stdout, "closed", False) else sys.__stdout__
+    base_err = sys.stderr if sys.stderr and not getattr(sys.stderr, "closed", False) else sys.__stderr__
+    if isinstance(base_out, TeeWriter):
+        base_out = base_out._original_a or sys.__stdout__
+    if isinstance(base_err, TeeWriter):
+        base_err = base_err._original_a or sys.__stderr__
+
+    if tee and base_out:
+        sys.stdout = TeeWriter(base_out, _LSN_RUNTIME_LOG_FH_OUT)
+    else:
+        sys.stdout = _LSN_RUNTIME_LOG_FH_OUT
+
+    if tee and base_err:
+        sys.stderr = TeeWriter(base_err, _LSN_RUNTIME_LOG_FH_ERR)
+    else:
+        sys.stderr = _LSN_RUNTIME_LOG_FH_ERR
+
+
+def _show_runtime_log_window(parent=None):
+    global _LSN_RUNTIME_LOG_DIALOG
+    app = QApplication.instance() or QApplication(sys.argv)
+    log_path = _runtime_log_path()
+    if _LSN_RUNTIME_LOG_DIALOG is None:
+        _LSN_RUNTIME_LOG_DIALOG = RuntimeLogDialog(log_path, parent=parent)
+    try:
+        _LSN_RUNTIME_LOG_DIALOG.show()
+        _LSN_RUNTIME_LOG_DIALOG.raise_()
+        _LSN_RUNTIME_LOG_DIALOG.activateWindow()
+    except Exception:
+        pass
+    try:
+        app.processEvents()
+    except Exception:
+        pass
+
+
+def open_debug_console(force: bool = False, tee: bool = True):
+    """GUI 日志窗口模式：可滚动/可复制，不再分配系统控制台。"""
+    global _LSN_DEBUG_CONSOLE_READY
 
     def _read_startup_console_pref(default: bool = False) -> bool:
         try:
-            cfg = pathlib.Path.home() / CONFIG_FILENAME
+            cfg = _config_path()
             if not cfg.exists():
                 return default
             data = json.loads(cfg.read_text(encoding="utf-8"))
@@ -788,171 +1129,31 @@ def open_debug_console(force: bool = False, tee: bool = True):
             pass
         return default
 
-    def _set_console_window_visible(visible: bool):
-        try:
-            import ctypes
-            k32 = ctypes.windll.kernel32
-            u32 = ctypes.windll.user32
-            hwnd = k32.GetConsoleWindow()
-            if hwnd:
-                u32.ShowWindow(hwnd, 5 if visible else 0)  # SW_SHOW / SW_HIDE
-        except Exception:
-            pass
-
-    def _harden_console_window():
-        """避免误关控制台触发进程终止，并保持控制台可读可交互。"""
-        try:
-            import ctypes
-            k32 = ctypes.windll.kernel32
-            u32 = ctypes.windll.user32
-            hwnd = k32.GetConsoleWindow()
-            if hwnd:
-                # 移除系统菜单里的“关闭”，避免用户点 X 触发 runtime abort。
-                hmenu = u32.GetSystemMenu(hwnd, False)
-                if hmenu:
-                    SC_CLOSE = 0xF060
-                    MF_BYCOMMAND = 0x00000000
-                    u32.DeleteMenu(hmenu, SC_CLOSE, MF_BYCOMMAND)
-                    u32.DrawMenuBar(hwnd)
-            # 强制控制台文字颜色为浅灰（07），避免黑底黑字“看起来没日志”。
-            std_out = k32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
-            if std_out not in (0, -1):
-                k32.SetConsoleTextAttribute(std_out, 0x07)
-            # 保持 QuickEdit，可鼠标选中文本复制，并支持滚轮滚动历史。
-            std_in = k32.GetStdHandle(-10)  # STD_INPUT_HANDLE
-            if std_in not in (0, -1):
-                mode = ctypes.c_uint()
-                if k32.GetConsoleMode(std_in, ctypes.byref(mode)):
-                    ENABLE_QUICK_EDIT_MODE = 0x0040
-                    ENABLE_EXTENDED_FLAGS = 0x0080
-                    new_mode = int(mode.value) | ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE
-                    k32.SetConsoleMode(std_in, new_mode)
-        except Exception:
-            pass
-
-    try:
-        import ctypes
-        k32 = ctypes.windll.kernel32
-        has_console = bool(k32.GetConsoleWindow())
-    except Exception:
-        has_console = False
-
     env_pref = os.environ.get("LATEXSNIPPER_SHOW_CONSOLE")
     if env_pref is not None:
         want = env_pref.strip().lower() in ("1", "true", "yes", "on")
     else:
         want = _read_startup_console_pref(default=False)
     want = bool(force or want)
-    # 统一写回环境变量，供后续子进程重启/重定向逻辑复用。
     os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if want else "0"
+
     if not want:
-        # 仅在打包模式下尝试隐藏控制台，避免开发模式从 cmd 启动时隐藏用户终端。
-        if _is_packaged_mode():
-            _set_console_window_visible(False)
-            # 若当前进程意外附带控制台（旧构建/外部启动器），强制脱离，避免空白黑窗。
-            try:
-                import ctypes
-                k32 = ctypes.windll.kernel32
-                hwnd = k32.GetConsoleWindow()
-                if hwnd:
-                    ctypes.windll.user32.ShowWindow(hwnd, 0)
-                try:
-                    k32.FreeConsole()
-                except Exception:
-                    pass
-            except Exception:
-                pass
+        try:
+            if _LSN_RUNTIME_LOG_DIALOG is not None:
+                _LSN_RUNTIME_LOG_DIALOG.hide()
+        except Exception:
+            pass
         return
-    _set_console_window_visible(True)
 
     try:
-        import ctypes
-        k32 = ctypes.windll.kernel32
-        if not has_console:
-            attached = bool(k32.AttachConsole(-1))
-            if not attached:
-                if not k32.AllocConsole():
-                    return
-            _set_console_window_visible(True)
-
-        try:
-            k32.SetConsoleTitleW("LaTeXSnipper 初始化与运行日志")
-        except Exception:
-            pass
-        try:
-            k32.SetConsoleCP(65001)
-            k32.SetConsoleOutputCP(65001)
-        except Exception:
-            pass
-        _harden_console_window()
-
-        # 保存原始流引用（用于后续恢复）
-        _original_stdout = sys.__stdout__
-        _original_stderr = sys.__stderr__
-
-        try:
-            con_out = open("CONOUT$", "w", encoding="utf-8", buffering=1)
-            con_err = open("CONOUT$", "w", encoding="utf-8", buffering=1)
-        except Exception:
-            # 无法打开控制台输出，跳过
+        if _LSN_DEBUG_CONSOLE_READY:
+            _show_runtime_log_window()
             return
-
-        try:
-            con_in = open("CONIN$", "r", encoding="utf-8", buffering=1)
-        except Exception:
-            con_in = None
-
-        # 记住当前 IDE/原始流
-        base_out = sys.stdout if sys.stdout and not getattr(sys.stdout, "closed", False) else _original_stdout
-        base_err = sys.stderr if sys.stderr and not getattr(sys.stderr, "closed", False) else _original_stderr
-
-        # 避免嵌套 TeeWriter：如果已经是 TeeWriter，提取其原始流
-        if isinstance(base_out, TeeWriter):
-            base_out = base_out._original_a or _original_stdout
-        if isinstance(base_err, TeeWriter):
-            base_err = base_err._original_a or _original_stderr
-
-        # 打包模式下优先直接绑定控制台，避免某些 windowed runtime 流导致“有窗无日志”。
-        if _is_packaged_mode():
-            sys.stdout = con_out
-            sys.stderr = con_err
-        else:
-            if tee and base_out and base_err:
-                # 开发模式下可保留 IDE + 控制台双路输出
-                sys.stdout = TeeWriter(base_out, con_out)
-                sys.stderr = TeeWriter(base_err, con_err)
-
-        if (sys.stdin is None or getattr(sys.stdin, "closed", False)) and con_in:
-            sys.stdin = con_in
-
-        # 避免用户关闭日志终端时触发底层运行时异常（如 Fortran/OpenMP 直接 abort）。
-        # 处理策略：拦截 CTRL_CLOSE_EVENT，仅隐藏窗口，不让进程被强制终止。
-        try:
-            global _LSN_CONSOLE_CTRL_HANDLER
-            HANDLER = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
-            if "_LSN_CONSOLE_CTRL_HANDLER" not in globals() or _LSN_CONSOLE_CTRL_HANDLER is None:
-                @HANDLER
-                def _handler(ctrl_type):
-                    # 2 = CTRL_CLOSE_EVENT
-                    # 5 = CTRL_LOGOFF_EVENT, 6 = CTRL_SHUTDOWN_EVENT
-                    if int(ctrl_type) in (2, 5, 6):
-                        try:
-                            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-                            if hwnd:
-                                ctypes.windll.user32.ShowWindow(hwnd, 0)
-                        except Exception:
-                            pass
-                        return True
-                    return False
-                _LSN_CONSOLE_CTRL_HANDLER = _handler
-            k32.SetConsoleCtrlHandler(_LSN_CONSOLE_CTRL_HANDLER, True)
-        except Exception:
-            pass
-
-        print("[INFO] 调试控制台已打开（UTF-8）。")
-    except Exception as e:
-        # 避免调试控制台问题反过来影响主程序
-        # 尝试恢复标准流
+        _hook_runtime_log_streams(tee=tee)
+        _show_runtime_log_window()
+        _LSN_DEBUG_CONSOLE_READY = True
+        print("[INFO] GUI 日志窗口已打开（初始化与运行日志）。")
+    except Exception:
         try:
             if sys.__stdout__ and not getattr(sys.__stdout__, "closed", False):
                 sys.stdout = sys.__stdout__
@@ -968,8 +1169,8 @@ def _same_exe(a: str, b: str) -> bool:
         return False
 
 def _config_path() -> Path:
-    # 用户家目录保存配置
-    return Path(os.path.expanduser("~")) / CONFIG_FILENAME
+    # 统一配置路径：~/.latexsnipper/LaTeXSnipper_config.json
+    return _app_state_dir() / CONFIG_FILENAME
 
 def _read_install_base_dir() -> Path | None:
     cfg = _config_path()
@@ -1751,7 +1952,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
         roots.add(r)
     return list(roots)
 def _relaunch_with(pyexe: str):
-    """用私有解释器在“新控制台子进程”重启，避免 os.execve 引发的崩溃。"""
+    """用私有解释器重启；Windows 下隐藏后台窗口，避免终端闪现。"""
     import subprocess
     if not pyexe or not os.path.exists(pyexe):
         print("[ERROR] 无法重启：未找到目标解释器。")
@@ -1765,9 +1966,8 @@ def _relaunch_with(pyexe: str):
     env.setdefault("QT_QPA_PLATFORM", "windows")
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
-    CREATE_NEW_CONSOLE = 0x00000010
     try:
-        subprocess.Popen(argv, env=env, creationflags=CREATE_NEW_CONSOLE)
+        subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
     except Exception as e:
         print(f"[ERROR] 启动子进程失败: {e}")
         sys.exit(6)
@@ -1918,15 +2118,14 @@ def enforce_private_runtime(base_dir: Path):
         _ensure_gui_deps_or_prompt(pyexe)
         return
 
-    # 非 IDE：以新控制台启动私有解释器，然后立即退出当前进程
+    # 非 IDE：后台启动私有解释器，然后立即退出当前进程
     try:
         env = os.environ.copy()
         env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
         env["PYTHONNOUSERSITE"] = "1"
-        CREATE_NEW_CONSOLE = 0x00000010
         argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
-        print(f"[INFO] 切换到私有解释器（新控制台）: {pyexe}")
-        subprocess.Popen(argv, env=env, creationflags=CREATE_NEW_CONSOLE)
+        print(f"[INFO] 切换到私有解释器（后台）: {pyexe}")
+        subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
     finally:
         os._exit(0)
 
@@ -1941,12 +2140,10 @@ def _norm_path(s: str | None) -> str | None:
 
 
 def _win_subprocess_flags() -> int:
-    """Windows 子进程窗口策略：默认无窗口，仅显式 show_startup_console=true 时放开。"""
+    """Windows 子进程窗口策略：后台任务始终隐藏窗口。"""
     if os.name != "nt":
         return 0
-    raw = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
-    show = raw in ("1", "true", "yes", "on")
-    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 def _clean_bad_env():
     """移除/修复坏掉的 LATEXSNIPPER_PYEXE，避免污染后续检测。"""
@@ -2024,7 +2221,13 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         py = _find_full_python(base_dir)
         if py:
-            print(f"[INFO] (打包模式) 使用内置 Python: {py}")
+            # 打包模式下区分 Python 来源，避免把外部私有环境误标为“内置”。
+            py_norm = os.path.normcase(os.path.abspath(py))
+            bundled_norm = os.path.normcase(os.path.abspath(str(base_dir / "python311")))
+            if py_norm.startswith(bundled_norm):
+                print(f"[INFO] (打包模式) 使用内置 Python: {py}")
+            else:
+                print(f"[INFO] (打包模式) 使用外部私有 Python: {py}")
             return py
         print("[ERROR] (打包模式) 缺失 _internal/python311，且未找到安装器，无法启动。")
         sys.exit(10)
@@ -2196,7 +2399,7 @@ if _is_packaged_mode():
                 else:
                     show_console = False
                     try:
-                        cfg_path = pathlib.Path.home() / CONFIG_FILENAME
+                        cfg_path = _config_path()
                         if cfg_path.exists():
                             cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
                             raw = cfg_data.get("show_startup_console", False) if isinstance(cfg_data, dict) else False
@@ -2216,7 +2419,7 @@ if _is_packaged_mode():
                 if pyw.exists():
                     run_py = pyw
                 argv = [str(run_py), os.path.abspath(__file__), *sys.argv[1:]]
-                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if (os.name == "nt" and not show_console) else 0
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if (os.name == "nt") else 0
                 subprocess.Popen(argv, env=env, creationflags=creationflags)
                 sys.exit(0)
             else:
@@ -2567,8 +2770,8 @@ def show_missing_deps_dialog(missing_pkgs, parent=None):
 # 注意：show_confirm_dialog 方法已移至 MainWindow 类中
 
 def get_install_base_dir():
-    config_path = os.path.join(os.path.expanduser("~"), CONFIG_FILENAME)
-    if os.path.exists(config_path):
+    config_path = _config_path()
+    if config_path.exists():
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
@@ -2591,7 +2794,7 @@ def get_install_base_dir():
         sys.exit(1)
     # 保存到配置
     cfg = {}
-    if os.path.exists(config_path):
+    if config_path.exists():
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
@@ -2604,24 +2807,6 @@ def get_install_base_dir():
 # 在 main.py 最前面调用
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
-if os.name == "nt":
-    import msvcrt
-    def singleton_lock(lockfile):
-        try:
-            fp = open(lockfile, "w")
-            msvcrt.locking(fp.fileno(), msvcrt.LK_NBLCK, 1)
-            return fp
-        except OSError:
-            return None
-else:
-    import fcntl
-    def singleton_lock(lockfile):
-        try:
-            fp = open(lockfile, "w")
-            fcntl.flock(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return fp
-        except OSError:
-            return None
 
 _ocr_loaded = False
 _rapidocr_engine = None
@@ -2892,6 +3077,24 @@ SAFE_MINIMAL = True          # 第一步：最小化测试开关
 DISABLE_GLOBAL_HOTKEY = False # 若为 True 不注册全局热键
 DEFAULT_FAVORITES_NAME = "favorites.json"
 DEFAULT_HISTORY_NAME = "history.json"
+
+
+def _default_user_data_file(file_name: str) -> Path:
+    p = _app_state_dir() / file_name
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return p
+
+
+def _resolve_user_data_file(cfg: "ConfigManager", key: str, default_name: str) -> str:
+    configured = str(cfg.get(key, "") or "").strip()
+    if configured:
+        return str(Path(configured).expanduser())
+    target = _default_user_data_file(default_name)
+    cfg.set(key, str(target))
+    return str(target)
 
 # ---------------- MathJax 实时渲染模板 ----------------
 # MathJax 3.2.2 是稳定版本，v4.0+ 可能有兼容性问题
@@ -3489,7 +3692,7 @@ class CenterMenu(RoundMenu):
         return act
 class ConfigManager:
     def __init__(self):
-        self.path = os.path.join(os.path.expanduser("~"), CONFIG_FILENAME)
+        self.path = str(_config_path())
         self.data = {}
         self.load()
 
@@ -3583,10 +3786,7 @@ class FavoritesWindow(_QMainWindow):
         self.favorites = []
         self._favorite_names = {}   # 收藏名称: {content: name}
         self._favorite_types = {}   # 收藏类型: {content: content_type}
-        favorites_path = self.cfg.get("favorites_path")
-        if not favorites_path:
-            favorites_path = os.path.join(os.path.expanduser("~"), DEFAULT_FAVORITES_NAME)
-            self.cfg.set("favorites_path", favorites_path)
+        favorites_path = _resolve_user_data_file(self.cfg, "favorites_path", DEFAULT_FAVORITES_NAME)
         self.file_path = favorites_path
         self.load_favorites()
 
@@ -4308,6 +4508,7 @@ class MainWindow(_QMainWindow):
         self._main_torch_cache_ts = 0.0
         self._main_torch_cache_info = None
         self._main_torch_cache_py = ""
+        self._last_capture_toast_ts = 0.0
         self.settings_window = None
 
         # 配置与模型
@@ -4406,7 +4607,7 @@ class MainWindow(_QMainWindow):
         # 历史文件
         print("[DEBUG] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
-        self.history_path = os.path.join(os.path.expanduser("~"), DEFAULT_HISTORY_NAME)
+        self.history_path = _resolve_user_data_file(self.cfg, "history_path", DEFAULT_HISTORY_NAME)
         self.history = []
 
         # 状态栏（注意不要与方法同名）
@@ -6559,17 +6760,24 @@ th {{
         except Exception:
             pass
         if getattr(self, "tray_icon", None):
-            hk = self.cfg.get("hotkey", "Ctrl+F")
-            # 识别完成托盘提示（不打扰主窗口使用）
-            try:
-                self.tray_icon.showMessage(
-                    "识别完成",
-                    f"公式已识别。使用快捷键 {hk} 可再次截图。",
-                    QSystemTrayIcon.MessageIcon.Information,
-                    3500
-                )
-            except Exception:
-                pass
+            # 默认关闭识别完成系统托盘弹窗，避免连续识别场景刷屏。
+            show_toast = bool(self.cfg.get("show_capture_success_toast", False))
+            if show_toast:
+                try:
+                    now_ts = datetime.datetime.now().timestamp()
+                    cooldown_ok = (now_ts - float(getattr(self, "_last_capture_toast_ts", 0.0) or 0.0)) >= 12.0
+                    bg_mode = (not self.isVisible()) or self.isMinimized() or (not self.isActiveWindow())
+                    if cooldown_ok and bg_mode:
+                        hk = self.cfg.get("hotkey", "Ctrl+F")
+                        self.tray_icon.showMessage(
+                            "识别完成",
+                            f"公式已识别。使用快捷键 {hk} 可再次截图。",
+                            QSystemTrayIcon.MessageIcon.Information,
+                            2500
+                        )
+                        self._last_capture_toast_ts = now_ts
+                except Exception:
+                    pass
         self.show_confirm_dialog(latex)
 
     def show_confirm_dialog(self, latex_code: str):
@@ -7046,20 +7254,27 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         self.update_tray_menu()
 
     def apply_startup_console_preference(self, enabled: bool):
-        """应用“启动是否显示终端”的偏好（Windows）。"""
+        """应用“启动是否显示日志窗口”的偏好。"""
         try:
             os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if enabled else "0"
-            if os.name != "nt":
-                return
-            if enabled:
-                open_debug_console(force=True, tee=True)
-            else:
-                import ctypes
-                hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-                if hwnd:
-                    ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+            open_debug_console(force=False, tee=True)
         except Exception as e:
             print(f"[WARN] apply_startup_console_preference failed: {e}")
+
+    def prepare_restart(self):
+        """Called by settings restart flow: close heavy resources and release app lock early."""
+        try:
+            self._graceful_shutdown()
+        except Exception:
+            pass
+        try:
+            _cleanup_runtime_log_session()
+        except Exception:
+            pass
+        try:
+            _release_single_instance_lock()
+        except Exception:
+            pass
 
     # ---------- 其它 UI ----------
     def open_settings(self):
@@ -7170,6 +7385,14 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
                 self._pdf_result_window.close()
             except Exception:
                 pass
+        try:
+            _cleanup_runtime_log_session()
+        except Exception:
+            pass
+        try:
+            _release_single_instance_lock()
+        except Exception:
+            pass
 
     # ------ 5) 修改 closeEvent（替换原实现） ------
     def closeEvent(self, event):
@@ -7183,7 +7406,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         if self.tray_icon:
             # 只在第一次最小化时显示提示
             if not getattr(self, '_tray_msg_shown', False):
-                self.tray_icon.showMessage("LaTeXSnipper", "已最小化到托盘")
+                self.tray_icon.showMessage("LaTeXSnipper", "已最小化到系统托盘")
                 self._tray_msg_shown = True
         event.ignore()
 
