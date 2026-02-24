@@ -21,8 +21,7 @@ os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
-    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
-    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def get_deps_python() -> str:
@@ -689,6 +688,125 @@ class ModelWrapper(QObject):
             except Exception:
                 pass
 
+    def _is_missing_onnx_pair_error(self, msg: str) -> bool:
+        s = (msg or "").strip().lower()
+        if not s:
+            return False
+        if "could not find any onnx model file" not in s:
+            return False
+        if ".onnx" not in s:
+            return False
+        return ("encoder" in s) or ("decoder" in s)
+
+    def _cleanup_broken_pix2text_onnx_cache(self, deps_python: str) -> tuple[bool, str, int, str]:
+        cleanup_code = textwrap.dedent(
+            r"""
+            import json
+            import shutil
+            from pathlib import Path
+            out = {"ok": False, "root": "", "removed": []}
+            try:
+                from pix2text.utils import data_dir
+                from pix2text.consts import MODEL_VERSION
+                root = Path(data_dir()) / str(MODEL_VERSION)
+                out["root"] = str(root)
+                if root.exists():
+                    for d in root.iterdir():
+                        if not d.is_dir():
+                            continue
+                        name = d.name.lower()
+                        if ("mfr" not in name) or ("onnx" not in name):
+                            continue
+                        enc = d / "encoder_model.onnx"
+                        dec = d / "decoder_model.onnx"
+                        if enc.exists() ^ dec.exists():
+                            shutil.rmtree(d, ignore_errors=True)
+                            out["removed"].append(str(d))
+                out["ok"] = True
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", cleanup_code],
+                capture_output=True,
+                timeout=120,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            ok = bool(obj.get("ok"))
+            root = str(obj.get("root", "") or "")
+            removed = int(len(obj.get("removed") or []))
+            err = str(obj.get("error", "") or "").strip()
+            if not ok and not err and raw:
+                err = raw[:260]
+            return ok, root, removed, err
+        except Exception as e:
+            return False, "", 0, str(e)
+
+    def _probe_and_bootstrap_pix2text(
+        self, deps_python: str, probe_code: str, bootstrap_code: str
+    ) -> tuple[bool, str, str]:
+        probe_result = None
+        probe_output = ""
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", probe_code],
+                capture_output=True,
+                timeout=120,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            probe_output = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            probe_result = _extract_json(probe_output)
+        except subprocess.TimeoutExpired:
+            self._emit("[WARN] pix2text probe timeout (>120s), fallback to bootstrap")
+
+        if probe_result and probe_result.get("ok"):
+            ver = (probe_result or {}).get("ver", "") or "unknown"
+            self._emit(f"[INFO] pix2text probe ok (ver={ver})")
+            return True, str(ver), ""
+
+        probe_err = ""
+        if isinstance(probe_result, dict):
+            probe_err = str(probe_result.get("error", "") or "").strip()
+        if not probe_err and probe_output:
+            probe_err = probe_output[:220]
+        if probe_err:
+            self._emit(f"[WARN] pix2text probe failed detail: {probe_err}")
+        self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
+
+        proc = subprocess.run(
+            [deps_python, "-c", bootstrap_code],
+            capture_output=True,
+            timeout=900,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=self._build_subprocess_env(),
+            creationflags=_subprocess_creationflags(),
+        )
+        boot_out = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+        boot_result = _extract_json(boot_out)
+        if not (boot_result and boot_result.get("ok")):
+            err = (boot_result or {}).get("error") or (boot_out[:220] if boot_out else "unknown")
+            self._emit(f"[WARN] pix2text bootstrap failed: {err}")
+            return False, "", str(err)
+
+        ver = (boot_result or {}).get("ver", "") or "unknown"
+        self._emit(f"[INFO] pix2text bootstrap success (ver={ver})")
+        return True, str(ver), str(probe_err or "")
+
     def _lazy_load_pix2text(self):
         if self._pix2text_subprocess_ready or self._pix2text_import_failed:
             return self._pix2text_subprocess_ready
@@ -774,55 +892,36 @@ class ModelWrapper(QObject):
         ).strip()
 
         try:
-            probe_result = None
-            probe_output = ""
-            try:
-                proc = subprocess.run(
-                    [deps_python, "-c", probe_code],
-                    capture_output=True,
-                    timeout=120,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    env=self._build_subprocess_env(),
-                    creationflags=_subprocess_creationflags(),
-                )
-                probe_output = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
-                probe_result = _extract_json(probe_output)
-            except subprocess.TimeoutExpired:
-                self._emit("[WARN] pix2text probe timeout (>120s), fallback to bootstrap")
+            ok, ver, fail_detail = self._probe_and_bootstrap_pix2text(
+                deps_python, probe_code, bootstrap_code
+            )
 
-            if not (probe_result and probe_result.get("ok")):
-                probe_err = ""
-                if isinstance(probe_result, dict):
-                    probe_err = str(probe_result.get("error", "") or "").strip()
-                if not probe_err and probe_output:
-                    probe_err = probe_output[:220]
-                if probe_err:
-                    self._emit(f"[WARN] pix2text probe failed detail: {probe_err}")
-                self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
-                proc = subprocess.run(
-                    [deps_python, "-c", bootstrap_code],
-                    capture_output=True,
-                    timeout=900,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    env=self._build_subprocess_env(),
-                    creationflags=_subprocess_creationflags(),
+            if (not ok) and self._is_missing_onnx_pair_error(fail_detail):
+                self._emit(
+                    "[WARN] pix2text ONNX cache looks broken (missing encoder/decoder), "
+                    "auto-clean and retry once..."
                 )
-                boot_out = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
-                boot_result = _extract_json(boot_out)
-                if not (boot_result and boot_result.get("ok")):
-                    err = (boot_result or {}).get("error") or (boot_out[:200] if boot_out else "unknown")
-                    self._emit(f"[WARN] pix2text bootstrap failed: {err}")
-                    self._pix2text_import_failed = True
-                    return False
-                ver = (boot_result or {}).get("ver", "") or "unknown"
-                self._emit(f"[INFO] pix2text bootstrap success (ver={ver})")
-            else:
-                ver = (probe_result or {}).get("ver", "") or "unknown"
-                self._emit(f"[INFO] pix2text probe ok (ver={ver})")
+                c_ok, c_root, c_removed, c_err = self._cleanup_broken_pix2text_onnx_cache(deps_python)
+                if c_ok:
+                    if c_removed > 0:
+                        self._emit(
+                            f"[INFO] pix2text cache cleanup removed {c_removed} broken dir(s)"
+                            f"{f' under {c_root}' if c_root else ''}"
+                        )
+                    else:
+                        self._emit(
+                            f"[WARN] pix2text cache cleanup finished but no broken dir found"
+                            f"{f' under {c_root}' if c_root else ''}"
+                        )
+                    ok, ver, fail_detail = self._probe_and_bootstrap_pix2text(
+                        deps_python, probe_code, bootstrap_code
+                    )
+                else:
+                    self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")
+
+            if not ok:
+                self._pix2text_import_failed = True
+                return False
 
             worker_ready = bool(self._ensure_pix2text_worker())
             if not worker_ready:
@@ -830,6 +929,14 @@ class ModelWrapper(QObject):
                 self._pix2text_subprocess_ready = False
                 self._pix2text_import_failed = True
                 return False
+            try:
+                worker_pid = getattr(getattr(self, "_pix2text_worker", None), "pid", None)
+                self._emit(
+                    f"[INFO] pix2text resident worker ready"
+                    f"{f' (pid={worker_pid})' if worker_pid else ''}"
+                )
+            except Exception:
+                self._emit("[INFO] pix2text resident worker ready")
 
             self._pix2text_subprocess_ready = True
             self._pix2text_import_failed = False

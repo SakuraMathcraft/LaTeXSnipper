@@ -25,8 +25,8 @@ _SHARED_PTH_NAME = "latexsnipper_shared_torch.pth"
 def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
-    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
-    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    # 后台探测/验证子进程始终隐藏，避免 GUI 日志开关导致系统终端闪现。
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def normalize_mode(mode: str | None) -> str:

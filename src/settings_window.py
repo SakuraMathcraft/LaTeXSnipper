@@ -21,8 +21,7 @@ from backend.torch_runtime import (
 def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
-    show = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower() in ("1", "true", "yes", "on")
-    return 0 if show else int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 class SettingsWindow(QDialog):
@@ -224,7 +223,7 @@ class SettingsWindow(QDialog):
         lay.addWidget(self.btn_update)
         # 启动行为
         lay.addWidget(QLabel("启动行为:"))
-        self.startup_console_checkbox = QCheckBox("启动时显示终端（调试）")
+        self.startup_console_checkbox = QCheckBox("启动时显示日志窗口（调试）")
         startup_console_pref = False
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
@@ -232,7 +231,7 @@ class SettingsWindow(QDialog):
         except Exception:
             startup_console_pref = False
         self.startup_console_checkbox.setChecked(self._to_bool(startup_console_pref))
-        self.startup_console_checkbox.setToolTip("默认关闭。关闭后双击程序将按桌面应用方式启动（后台加载，不弹终端）")
+        self.startup_console_checkbox.setToolTip("默认关闭。开启后将显示初始化与运行日志窗口")
         lay.addWidget(self.startup_console_checkbox)
         # 分隔
         lay.addSpacing(8)
@@ -251,11 +250,20 @@ class SettingsWindow(QDialog):
         self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖。\n⚠️ 请谨慎操作，错误的命令可能损坏环境！")
         terminal_layout.addWidget(self.btn_terminal)
         lay.addWidget(terminal_row)
-        # 依赖管理向导
+        # 依赖管理向导 + 缓存目录
+        deps_row = QWidget()
+        deps_row_layout = QHBoxLayout(deps_row)
+        deps_row_layout.setContentsMargins(0, 0, 0, 0)
+        deps_row_layout.setSpacing(6)
         self.btn_deps_wizard = PushButton(FluentIcon.DEVELOPER_TOOLS, "依赖管理向导")
         self.btn_deps_wizard.setFixedHeight(36)
         self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/升级 GPU 加速层、模型依赖等")
-        lay.addWidget(self.btn_deps_wizard)
+        deps_row_layout.addWidget(self.btn_deps_wizard, 1)
+        self.btn_open_pix2text_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
+        self.btn_open_pix2text_cache.setFixedHeight(36)
+        self.btn_open_pix2text_cache.setToolTip("打开 pix2text 模型缓存目录（默认位于 APPDATA/pix2text）")
+        deps_row_layout.addWidget(self.btn_open_pix2text_cache, 1)
+        lay.addWidget(deps_row)
         # 弹性空间
         lay.addStretch()
         # 连接信号
@@ -266,6 +274,7 @@ class SettingsWindow(QDialog):
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.terminal_env_combo.currentIndexChanged.connect(self._on_terminal_env_changed)
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
+        self.btn_open_pix2text_cache.clicked.connect(self._open_pix2text_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
         # 渲染引擎相关信号
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
@@ -350,7 +359,7 @@ class SettingsWindow(QDialog):
                 self.parent().apply_startup_console_preference(enabled)
         except Exception:
             pass
-        self._show_info("设置已保存", "终端显示偏好已更新（建议重启程序后完全生效）", "success")
+        self._show_info("设置已保存", "日志窗口显示偏好已更新（建议重启程序后完全生效）", "success")
     def _get_terminal_env_key(self) -> str:
         return "main"
     def _probe_module_installed(self, pyexe: str, module: str) -> bool:
@@ -1389,6 +1398,31 @@ class SettingsWindow(QDialog):
                 self._show_info("终端已打开", "已以普通模式打开。", "success")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
+
+    def _resolve_pix2text_cache_dir(self) -> str:
+        # 快速路径：避免每次点击都拉起 python 子进程，防止 UI 卡顿。
+        env_home = (os.environ.get("PIX2TEXT_HOME", "") or "").strip()
+        if env_home:
+            return os.path.normpath(env_home)
+        appdata = (os.environ.get("APPDATA", "") or "").strip()
+        if appdata:
+            return os.path.normpath(os.path.join(appdata, "pix2text"))
+        return os.path.normpath(os.path.expanduser("~/.pix2text"))
+
+    def _open_pix2text_cache_dir(self):
+        path = self._resolve_pix2text_cache_dir()
+        try:
+            os.makedirs(path, exist_ok=True)
+            if os.name == "nt":
+                os.startfile(path)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+            self._show_info("已打开", f"pix2text 缓存目录: {path}", "success")
+        except Exception as e:
+            self._show_info("打开失败", f"无法打开缓存目录: {e}", "error")
+
     def _open_deps_wizard(self):
         """打开依赖管理向导"""
         from deps_bootstrap import ensure_deps, needs_restart_for_install
@@ -1464,6 +1498,7 @@ class SettingsWindow(QDialog):
         import subprocess
         import sys
         import os
+        from PyQt6.QtWidgets import QApplication
         # 设置环境变量，让新进程知道要打开向导
         env = os.environ.copy()
         env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
@@ -1477,6 +1512,19 @@ class SettingsWindow(QDialog):
         base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
         spawn_flags = base_flags | int(_subprocess_creationflags())
         try:
+            # 先释放重资源和实例锁，减少“新进程抢锁失败”概率
+            parent = self.parent()
+            if parent and hasattr(parent, "prepare_restart"):
+                try:
+                    parent.prepare_restart()
+                except Exception:
+                    pass
+            try:
+                app = QApplication.instance()
+                if app:
+                    app.processEvents()
+            except Exception:
+                pass
             # 启动新进程
             if script_path.endswith('.py'):
                 subprocess.Popen(
@@ -1492,7 +1540,6 @@ class SettingsWindow(QDialog):
                     creationflags=spawn_flags
                 )
             # 关闭当前程序
-            from PyQt6.QtWidgets import QApplication
             QApplication.instance().quit()
         except Exception as e:
             from qfluentwidgets import InfoBar, InfoBarPosition
