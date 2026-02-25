@@ -1,0 +1,33 @@
+[package]
+name = "latexsnipper-tauri-client"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata]
+app = "latexsnipper-tauri-client"
+
+[package.metadata.tauri-winres]
+ProductName = "LaTeXSnipper Tauri Client"
+FileDescription = "LaTeXSnipper Tauri MVP"
+OriginalFilename = "latexsnipper-tauri-client.exe"
+LegalCopyright = "Copyright (C) LaTeXSnipper"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+window-vibrancy = "0.6"
+rfd = "0.15"
+sysinfo = "0.33"
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_DataExchange",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
