@@ -15,10 +15,18 @@ class ScreenCaptureOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setWindowTitle("Screen Capture Overlay")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        # 瑕嗙洊鏁翠釜灞忓箷
-        screen = QGuiApplication.primaryScreen()
-        self.setGeometry(screen.geometry())
+        # Cover all screens (virtual desktop union)
+        screens = QGuiApplication.screens()
+        union_rect = None
+        for s in screens:
+            g = s.geometry()
+            union_rect = g if union_rect is None else union_rect.united(g)
+        if union_rect is None:
+            screen = QGuiApplication.primaryScreen()
+            union_rect = screen.geometry() if screen else QRect(0, 0, 1, 1)
+        self.setGeometry(union_rect)
         self.setMouseTracking(True)
 
     def _selection_rect(self) -> QRect | None:
@@ -111,6 +119,30 @@ class ScreenCaptureOverlay(QWidget):
         self.end_pos = self.current_pos
         self.update()
         self.capture_selection()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.start_pos = None
+            self.end_pos = None
+            self.current_pos = None
+            try:
+                self.releaseKeyboard()
+            except Exception:
+                pass
+            self.selection_done.emit(None)
+            self.close()
+            return
+        super().keyPressEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            self.activateWindow()
+            self.raise_()
+            self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+            self.grabKeyboard()
+        except Exception:
+            pass
 
     def capture_selection(self):
         if not self.start_pos or not self.end_pos:

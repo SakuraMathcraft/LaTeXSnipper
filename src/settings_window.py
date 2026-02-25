@@ -16,6 +16,7 @@ from backend.torch_runtime import (
     detect_torch_info,
     inject_shared_torch_env,
 )
+from core.restart_contract import build_restart_with_wizard_launch
 
 
 def _subprocess_creationflags() -> int:
@@ -1497,18 +1498,14 @@ class SettingsWindow(QDialog):
         """重启程序并打开依赖向导"""
         import subprocess
         import sys
-        import os
         from PyQt6.QtWidgets import QApplication
-        # 设置环境变量，让新进程知道要打开向导
-        env = os.environ.copy()
-        env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
-        env["LATEXSNIPPER_FORCE_VERIFY"] = "1"
-        env["LATEXSNIPPER_RESTART"] = "1"
-        # 避免新进程被“依赖已就绪”短路
-        env.pop("LATEXSNIPPER_DEPS_OK", None)
-        # 获取当前 Python 和脚本路径
-        python_exe = sys.executable
-        script_path = os.path.abspath(sys.argv[0])
+        import os
+
+        spawn_argv, env = build_restart_with_wizard_launch(
+            python_exe=sys.executable,
+            argv0=(sys.argv[0] if sys.argv else ""),
+            base_env=os.environ.copy(),
+        )
         base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
         spawn_flags = base_flags | int(_subprocess_creationflags())
         try:
@@ -1526,19 +1523,11 @@ class SettingsWindow(QDialog):
             except Exception:
                 pass
             # 启动新进程
-            if script_path.endswith('.py'):
-                subprocess.Popen(
-                    [python_exe, script_path, "--force-deps-check"],
-                    env=env,
-                    creationflags=spawn_flags
-                )
-            else:
-                # 打包后的 exe
-                subprocess.Popen(
-                    [script_path, "--force-deps-check"],
-                    env=env,
-                    creationflags=spawn_flags
-                )
+            subprocess.Popen(
+                spawn_argv,
+                env=env,
+                creationflags=spawn_flags
+            )
             # 关闭当前程序
             QApplication.instance().quit()
         except Exception as e:

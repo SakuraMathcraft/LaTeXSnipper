@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LaTeXSnipper Tauri MVP</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <symbol id="i-contract" viewBox="0 0 24 24"><path d="M4 3h16a1 1 0 0 1 1 1v4h-2V5H5v14h14v-3h2v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 3h7v2H6V6zm0 4h12v2H6v-2zm0 4h8v2H6v-2z"/></symbol>
+    <symbol id="i-health" viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.6-8 11-4.6-1.4-8-6-8-11V5l8-3zm-1 11l-2-2-1.4 1.4L11 15.8l5.4-5.4L15 9l-4 4z"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M2 21l20-9L2 3v7l14 2-14 2z"/></symbol>
+    <symbol id="i-poll" viewBox="0 0 24 24"><path d="M3 13h2v8H3v-8zm8-10h2v18h-2V3zm8 5h2v13h-2V8z"/></symbol>
+    <symbol id="i-shot" viewBox="0 0 24 24"><path d="M9 3l1.5 2H13l1-2h3l1 2H21v16H3V5h3l1-2h2zm3 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6z"/></symbol>
+    <symbol id="i-cancel" viewBox="0 0 24 24"><path d="M18.3 5.7L12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5V3zm2 2v4h8V5H7zm0 7v7h10v-7H7z"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M12 5V2L7 7l5 5V9a5 5 0 1 1-5 5H5a7 7 0 1 0 7-9z"/></symbol>
+    <symbol id="i-hotkey" viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1zm1 2v10h14V7H5zm2 2h2v2H7V9zm3 0h2v2h-2V9zm3 0h4v2h-4V9z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h11v13H8V8zm-3-5h11v3H7v10H5V3z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm1 7V7h-2v2h2zm0 8v-7h-2v7h2z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M11 3h2v9.2l2.8-2.8 1.4 1.4-5.2 5.2-5.2-5.2 1.4-1.4 2.8 2.8V3zM4 19h16v2H4z"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.4l-8.3 8.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-text">
+          <strong>LaTeXSnipper</strong>
+          <span>Tauri Client</span>
+        </div>
+      </div>
+      <div id="compactResultCard" class="compact-result-card" aria-live="polite">
+        <pre id="compactResultText" class="compact-result-text">暂无识别结果</pre>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-track"></div>
+        <div id="navIndicator" class="nav-indicator"></div>
+        <button class="nav-btn active" data-page="recognize" data-title="识别">
+          <span class="nav-ico"><svg class="nav-svg"><use href="#i-shot"/></svg></span><span>识别</span>
+        </button>
+        <button class="nav-btn" data-page="environment" data-title="环境">
+          <span class="nav-ico"><svg class="nav-svg"><use href="#i-contract"/></svg></span><span>环境</span>
+        </button>
+        <button class="nav-btn" data-page="logs" data-title="日志">
+          <span class="nav-ico"><svg class="nav-svg"><use href="#i-copy"/></svg></span><span>日志</span>
+        </button>
+        <button class="nav-btn" data-page="settings" data-title="设置">
+          <span class="nav-ico"><svg class="nav-svg"><use href="#i-hotkey"/></svg></span><span>设置</span>
+        </button>
+        <button class="nav-btn" data-page="about" data-title="关于">
+          <span class="nav-ico"><svg class="nav-svg"><use href="#i-info"/></svg></span><span>关于</span>
+        </button>
+      </nav>
+
+      <div class="side-foot">
+        <div class="fx-switch" role="group" aria-label="窗口材质">
+          <button id="btnFxAcrylic" class="fx-btn active" type="button">Acrylic</button>
+          <button id="btnFxMica" class="fx-btn" type="button">Mica</button>
+        </div>
+        <div class="window-mode-switch" role="group" aria-label="窗口模式">
+          <button id="btnModeNormal" class="fx-btn active" type="button">正常窗</button>
+          <button id="btnModeCompact" class="fx-btn" type="button">小窗模式</button>
+        </div>
+        <div id="healthTag" class="pill muted">Daemon: 未握手</div>
+        <div id="actionTag" class="pill muted">操作: 就绪</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 id="pageTitle">识别</h1>
+      </header>
+
+      <section id="page-recognize" class="page active">
+        <div class="card">
+          <h2>Daemon 握手</h2>
+          <div class="grid two">
+            <label>Host <input id="host" placeholder="127.0.0.1" /></label>
+            <label>Port <input id="port" type="number" placeholder="43637" /></label>
+            <label>Token <input id="token" placeholder="daemon token" /></label>
+            <label>Contract Path(可空) <input id="contractPath" placeholder="E:\...\daemon_rpc_contract.v1.json" /></label>
+          </div>
+          <div class="actions">
+            <button id="btnLoadContract" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-contract"/></svg>读取 Contract</button>
+            <button id="btnHandshake" class="btn btn-primary"><svg class="btn-ico"><use href="#i-health"/></svg>Health 握手</button>
+          </div>
+          <pre id="handshakeOutput" class="output small"></pre>
+        </div>
+
+        <div class="card">
+          <h2>图片识别（predict_image）</h2>
+          <div class="grid two">
+            <label>图片路径
+              <div class="path-pick">
+                <input id="imagePath" placeholder="C:\tmp\a.png" />
+                <button id="btnPickImagePath" class="btn btn-secondary btn-compact" type="button">选择文件</button>
+              </div>
+            </label>
+            <label>识别模式
+              <input id="modelName" type="hidden" value="pix2text" />
+              <div id="modelNameSelect" class="custom-select" tabindex="0" role="combobox" aria-expanded="false">
+                <button id="modelNameTrigger" class="custom-select-trigger" type="button">formula</button>
+                <ul id="modelNamePanel" class="custom-select-panel" role="listbox">
+                  <li class="custom-select-item active" role="option" tabindex="-1" data-value="pix2text" aria-selected="true">formula</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="pix2text_mixed" aria-selected="false">mixed</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="pix2text_text" aria-selected="false">text</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="pix2text_page" aria-selected="false">page</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="pix2text_table" aria-selected="false">table</li>
+                </ul>
+              </div>
+            </label>
+            <label>轮询间隔(ms) <input id="pollIntervalMs" type="number" placeholder="200" /></label>
+            <label>任务超时(ms) <input id="timeoutMs" type="number" placeholder="120000" /></label>
+          </div>
+          <div class="actions">
+            <button id="btnSubmitTask" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-send"/></svg>提交任务</button>
+            <button id="btnPollTask" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-poll"/></svg>轮询任务</button>
+            <button id="btnSubmitAndPoll" class="btn btn-primary"><svg class="btn-ico"><use href="#i-poll"/></svg>提交并轮询</button>
+            <button id="btnHotkeyCapturePredict" class="btn btn-primary"><svg class="btn-ico"><use href="#i-shot"/></svg>热键截图并识别</button>
+            <button id="btnCancelTask" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-cancel"/></svg>取消任务</button>
+          </div>
+          <label>当前 Task ID <input id="taskId" placeholder="提交后自动填充" /></label>
+          <pre id="taskOutput" class="output"></pre>
+          <div class="actions">
+            <label class="copy-format-group">
+              <span>复制格式</span>
+              <input id="imageCopyFormat" type="hidden" value="latex" />
+              <div id="imageCopyFormatSelect" class="custom-select" tabindex="0" role="combobox" aria-expanded="false">
+                <button id="imageCopyFormatTrigger" class="custom-select-trigger" type="button">LaTeX</button>
+                <ul id="imageCopyFormatPanel" class="custom-select-panel" role="listbox">
+                  <li class="custom-select-item active" role="option" tabindex="-1" data-value="latex" aria-selected="true">LaTeX</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="markdown" aria-selected="false">Markdown</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="mathml" aria-selected="false">MathML</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="mathml_mml" aria-selected="false">MathML (.mml)</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="mathml_m" aria-selected="false">MathML (&lt;m&gt;)</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="mathml_attr" aria-selected="false">MathML (attr)</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="omml" aria-selected="false">Word OMML</li>
+                </ul>
+              </div>
+            </label>
+            <button id="btnCopyImageResult" class="btn btn-secondary btn-compact"><svg class="btn-ico"><use href="#i-copy"/></svg>复制结果</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>PDF 识别（predict_pdf）</h2>
+          <div class="grid two">
+            <label>PDF 路径
+              <div class="path-pick">
+                <input id="pdfPath" placeholder="C:\tmp\a.pdf" />
+                <button id="btnPickPdfPath" class="btn btn-secondary btn-compact" type="button">选择文件</button>
+              </div>
+            </label>
+            <label>识别模式
+              <input id="pdfModelName" type="hidden" value="pix2text_mixed" />
+              <input id="pdfModelDisplay" value="mixed（固定）" readonly />
+            </label>
+            <label>最大页数（0=全部） <input id="pdfMaxPages" type="number" min="0" placeholder="0" /></label>
+            <label>DPI <input id="pdfDpi" type="number" min="72" placeholder="200" /></label>
+            <label>输出格式
+              <input id="pdfOutputFormat" type="hidden" value="markdown" />
+              <div id="pdfOutputFormatSelect" class="custom-select" tabindex="0" role="combobox" aria-expanded="false">
+                <button id="pdfOutputFormatTrigger" class="custom-select-trigger" type="button">markdown</button>
+                <ul id="pdfOutputFormatPanel" class="custom-select-panel" role="listbox">
+                  <li class="custom-select-item active" role="option" tabindex="-1" data-value="markdown" aria-selected="true">markdown</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="latex" aria-selected="false">latex</li>
+                </ul>
+              </div>
+            </label>
+            <label>文档模板
+              <input id="pdfTemplateStyle" type="hidden" value="paper" />
+              <div id="pdfTemplateStyleSelect" class="custom-select" tabindex="0" role="combobox" aria-expanded="false">
+                <button id="pdfTemplateStyleTrigger" class="custom-select-trigger" type="button">论文 (article)</button>
+                <ul id="pdfTemplateStylePanel" class="custom-select-panel" role="listbox">
+                  <li class="custom-select-item active" role="option" tabindex="-1" data-value="paper" aria-selected="true">论文 (article)</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="journal" aria-selected="false">期刊 (IEEEtran)</li>
+                </ul>
+              </div>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="btnSubmitPdfTask" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-send"/></svg>提交 PDF 任务</button>
+            <button id="btnPollPdfTask" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-poll"/></svg>轮询 PDF 任务</button>
+            <button id="btnSubmitAndPollPdf" class="btn btn-primary"><svg class="btn-ico"><use href="#i-poll"/></svg>提交并轮询 PDF</button>
+            <button id="btnCancelPdfTask" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-cancel"/></svg>取消 PDF 任务</button>
+          </div>
+          <label>当前 PDF Task ID <input id="pdfTaskId" placeholder="提交后自动填充" /></label>
+          <pre id="pdfTaskOutput" class="output"></pre>
+          <div class="actions">
+            <button id="btnSavePdfMarkdown" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-save"/></svg>保存 Markdown</button>
+            <button id="btnSavePdfLatex" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-save"/></svg>保存 LaTeX</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>识别历史</h2>
+          <div class="actions">
+            <button id="btnClearResultHistory" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-trash"/></svg>清空历史</button>
+          </div>
+          <div class="result-board">
+            <div class="result-col">
+              <h3>历史记录</h3>
+              <div id="resultHistoryList" class="result-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="card">
+          <h2>系统资源监控</h2>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <div class="metric-head">
+                <span>CPU</span>
+                <span id="metricCpuText">--</span>
+              </div>
+              <div class="metric-bar"><div id="metricCpuBar" class="metric-fill"></div></div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-head">
+                <span>内存</span>
+                <span id="metricMemText">--</span>
+              </div>
+              <div class="metric-bar"><div id="metricMemBar" class="metric-fill"></div></div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-head">
+                <span>GPU</span>
+                <span id="metricGpuText">--</span>
+              </div>
+              <div class="metric-bar"><div id="metricGpuBar" class="metric-fill"></div></div>
+            </div>
+          </div>
+          <p id="metricGpuName" class="metric-note">GPU: 检测中...</p>
+        </div>
+
+        <div class="card">
+          <h2>本地设置</h2>
+          <p>这里仅保存 Tauri MVP 前端配置，不改 Python 主程序配置。</p>
+          <div class="grid two">
+            <label>全局热键
+              <input id="hotkeyInput" placeholder="Ctrl+Shift+F" />
+            </label>
+            <label>热键状态
+              <input id="hotkeyStatus" placeholder="未注册" readonly />
+            </label>
+          </div>
+          <div class="actions">
+            <button id="btnSaveSettings" class="btn btn-primary"><svg class="btn-ico"><use href="#i-save"/></svg>保存设置</button>
+            <button id="btnResetSettings" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-reset"/></svg>恢复默认</button>
+            <button id="btnRegisterHotkey" class="btn btn-primary"><svg class="btn-ico"><use href="#i-hotkey"/></svg>注册热键</button>
+            <button id="btnUnregisterHotkey" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-cancel"/></svg>注销热键</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>UI 参数</h2>
+          <div class="ui-slider-grid">
+            <label>背景透明度
+              <input id="uiBgAlpha" type="range" min="0.08" max="0.56" step="0.01" />
+              <span id="uiBgAlphaVal" class="ui-slider-value"></span>
+            </label>
+            <label>侧栏透明度
+              <input id="uiSidebarAlpha" type="range" min="0.08" max="0.50" step="0.01" />
+              <span id="uiSidebarAlphaVal" class="ui-slider-value"></span>
+            </label>
+            <label>卡片透明度
+              <input id="uiPanelAlpha" type="range" min="0.08" max="0.50" step="0.01" />
+              <span id="uiPanelAlphaVal" class="ui-slider-value"></span>
+            </label>
+            <label>背景模糊(px)
+              <input id="uiBlurPx" type="range" min="6" max="64" step="1" />
+              <span id="uiBlurPxVal" class="ui-slider-value"></span>
+            </label>
+            <label>面板圆角(px)
+              <input id="uiRadiusPx" type="range" min="8" max="18" step="1" />
+              <span id="uiRadiusPxVal" class="ui-slider-value"></span>
+            </label>
+            <label>亮度(brightness)
+              <input id="uiBrightness" type="range" min="0.60" max="1.80" step="0.01" />
+              <span id="uiBrightnessVal" class="ui-slider-value"></span>
+            </label>
+            <label>对比度(contrast)
+              <input id="uiContrast" type="range" min="0.70" max="1.20" step="0.01" />
+              <span id="uiContrastVal" class="ui-slider-value"></span>
+            </label>
+            <label>饱和度(saturate %)
+              <input id="uiSaturatePct" type="range" min="40" max="280" step="1" />
+              <span id="uiSaturatePctVal" class="ui-slider-value"></span>
+            </label>
+            <label>色混合层(alpha)
+              <input id="uiTintAlpha" type="range" min="0.00" max="0.26" step="0.01" />
+              <span id="uiTintAlphaVal" class="ui-slider-value"></span>
+            </label>
+            <label>噪点层(alpha)
+              <input id="uiNoiseAlpha" type="range" min="0.00" max="0.18" step="0.01" />
+              <span id="uiNoiseAlphaVal" class="ui-slider-value"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-environment" class="page">
+        <div class="card">
+          <h2>依赖环境配置</h2>
+          <p>通过 daemon 任务安装依赖层，不再依赖旧 PyQt 向导。</p>
+          <div class="grid two">
+            <label>依赖目录（install_base_dir）
+              <div class="path-pick">
+                <input id="envInstallBaseDir" placeholder="E:\LaTeXSnipper\src\deps" />
+                <button id="btnPickEnvDepsDir" class="btn btn-secondary btn-compact" type="button">选择目录</button>
+              </div>
+            </label>
+            <label>Python 解释器
+              <div class="path-pick">
+                <input id="envPythonExe" placeholder="...\python311\python.exe" />
+                <button id="btnPickEnvPython" class="btn btn-secondary btn-compact" type="button">选择文件</button>
+              </div>
+            </label>
+            <label>pix2text 缓存目录
+              <div class="path-pick">
+                <input id="envCacheDir" placeholder="C:\Users\...\AppData\Roaming\pix2text" readonly />
+                <button id="btnOpenCacheDir" class="btn btn-secondary btn-compact" type="button">打开目录</button>
+              </div>
+            </label>
+            <label>配置文件
+              <div class="path-pick">
+                <input id="envConfigPath" placeholder="C:\Users\...\LaTeXSnipper_config.json" readonly />
+                <button id="btnOpenConfigDir" class="btn btn-secondary btn-compact" type="button">打开目录</button>
+              </div>
+            </label>
+            <label>状态文件（.deps_state.json）
+              <div class="path-pick">
+                <input id="envStatePath" placeholder="E:\...\deps\.deps_state.json" readonly />
+                <button id="btnOpenStateFile" class="btn btn-secondary btn-compact" type="button">打开文件</button>
+              </div>
+            </label>
+            <label>镜像源
+              <input id="envMirror" type="hidden" value="official" />
+              <div id="envMirrorSelect" class="custom-select" tabindex="0" role="combobox" aria-expanded="false">
+                <button id="envMirrorTrigger" class="custom-select-trigger" type="button">官方 PyPI</button>
+                <ul id="envMirrorPanel" class="custom-select-panel" role="listbox">
+                  <li class="custom-select-item active" role="option" tabindex="-1" data-value="official" aria-selected="true">官方 PyPI</li>
+                  <li class="custom-select-item" role="option" tabindex="-1" data-value="tuna" aria-selected="false">清华镜像</li>
+                </ul>
+              </div>
+            </label>
+          </div>
+
+          <div class="env-layer-box">
+            <h3>功能层选择</h3>
+            <div class="env-layer-grid">
+              <label id="envLayerBasicWrap" class="env-layer-item">
+                <input id="envLayerBasic" type="checkbox" checked />
+                <span>BASIC</span>
+              </label>
+              <label id="envLayerCoreWrap" class="env-layer-item">
+                <input id="envLayerCore" type="checkbox" checked />
+                <span>CORE</span>
+              </label>
+              <label id="envLayerHeavyCpuWrap" class="env-layer-item">
+                <input id="envLayerHeavyCpu" type="checkbox" />
+                <span>HEAVY_CPU</span>
+              </label>
+              <label id="envLayerHeavyGpuWrap" class="env-layer-item">
+                <input id="envLayerHeavyGpu" type="checkbox" />
+                <span>HEAVY_GPU</span>
+              </label>
+            </div>
+            <p id="envInstalledHint" class="env-installed-hint">已安装层: 读取中...</p>
+          </div>
+
+          <div class="actions env-actions">
+            <button id="btnLoadEnvConfig" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-contract"/></svg>读取环境</button>
+            <button id="btnSaveEnvConfig" class="btn btn-primary"><svg class="btn-ico"><use href="#i-save"/></svg>保存环境配置</button>
+            <button id="btnOpenDepsDir" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-copy"/></svg>打开依赖目录</button>
+            <button id="btnInstallLayers" class="btn btn-primary"><svg class="btn-ico"><use href="#i-send"/></svg>安装选中层</button>
+            <button id="btnCancelEnvTask" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-cancel"/></svg>取消环境任务</button>
+          </div>
+          <label>当前环境任务 ID <input id="envTaskId" placeholder="提交后自动填充" readonly /></label>
+          <div class="env-task-meta">
+            <span id="envTaskStatus">空闲</span>
+            <span id="envTaskProgressText">0/0 (0%)</span>
+          </div>
+          <div class="metric-bar env-task-progress">
+            <div id="envTaskProgressBar" class="metric-fill"></div>
+          </div>
+          <pre id="envOutput" class="output small"></pre>
+        </div>
+      </section>
+
+      <section id="page-logs" class="page">
+        <div class="card">
+          <h2>运行日志</h2>
+          <div class="actions">
+            <button id="btnCopyLogs" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-copy"/></svg>复制日志</button>
+            <button id="btnClearLogs" class="btn btn-ghost"><svg class="btn-ico"><use href="#i-trash"/></svg>清空日志</button>
+          </div>
+          <pre id="logOutput" class="output logs"></pre>
+        </div>
+      </section>
+
+      <section id="page-about" class="page">
+        <div class="card">
+          <h2>程序信息</h2>
+          <div class="grid two">
+            <label>程序名 <input id="aboutAppName" readonly /></label>
+            <label>版本 <input id="aboutAppVersion" readonly /></label>
+            <label>平台 <input id="aboutPlatform" readonly /></label>
+            <label>构建模式 <input id="aboutBuildProfile" readonly /></label>
+            <label>开发者 <input id="aboutDeveloper" readonly value="MathCraft" /></label>
+            <label>Daemon 合同版本 <input id="aboutContractVersion" readonly value="latexsnipper-daemon-rpc@1.0.0" /></label>
+          </div>
+        </div>
+        <div class="card">
+          <h2>更新</h2>
+          <p>更新源使用 Tauri 分支（独立于旧 PyQt 发布流）。</p>
+          <div class="grid two">
+            <label>更新地址
+              <input id="aboutUpdateUrl" value="https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri" />
+            </label>
+          </div>
+          <div class="actions">
+            <button id="btnOpenUpdateUrl" class="btn btn-primary"><svg class="btn-ico"><use href="#i-download"/></svg>打开更新页</button>
+            <button id="btnCopyUpdateUrl" class="btn btn-secondary"><svg class="btn-ico"><use href="#i-copy"/></svg>复制地址</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

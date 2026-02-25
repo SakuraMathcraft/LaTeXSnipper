@@ -276,16 +276,13 @@ class InstallWorker(QThread):
                     if pkg_name in installed_before:
                         cur_ver = installed_before[pkg_name]
                         if pkg_name in TORCH_NAMES and want_gpu_torch:
-                            cur_ver_l = (cur_ver or "").strip().lower()
-                            # GPU 层下：CPU 轮子/非 CUDA 轮子绝不允许跳过，必须重装。
-                            if ("+cpu" in cur_ver_l) or ("+cu" not in cur_ver_l):
+                            if _needs_torch_reinstall_for_gpu(cur_ver, ""):
                                 pending.append(effective_p)
                                 self.log_updated.emit(
                                     f"[INFO] 检测到 {pkg_name} 为非 CUDA 轮子 ({cur_ver})，强制重装 GPU 版本"
                                 )
                                 continue
-                            # GPU 层下：CUDA tag 不匹配也重装（例如已装 cu118，但当前目标为 cu126）。
-                            if expected_torch_tag and (f"+{expected_torch_tag}" not in cur_ver_l):
+                            if _needs_torch_reinstall_for_gpu(cur_ver, expected_torch_tag):
                                 pending.append(effective_p)
                                 self.log_updated.emit(
                                     f"[INFO] 检测到 {pkg_name} CUDA tag 不匹配 ({cur_ver})，目标 {expected_torch_tag}，强制重装"
@@ -1306,6 +1303,21 @@ def _normalize_torch_version(ver: str) -> str:
     if "+" in v:
         v = v.split("+", 1)[0]
     return v
+
+
+def _needs_torch_reinstall_for_gpu(installed_ver: str, expected_torch_tag: str = "") -> bool:
+    """
+    Decide whether a torch-family package must be reinstalled in HEAVY_GPU mode.
+    - CPU wheel or non-CUDA wheel => must reinstall
+    - CUDA tag mismatch (expected provided) => must reinstall
+    """
+    cur_ver_l = (installed_ver or "").strip().lower()
+    if ("+cpu" in cur_ver_l) or ("+cu" not in cur_ver_l):
+        return True
+    tag = (expected_torch_tag or "").strip().lower()
+    if tag and (f"+{tag}" not in cur_ver_l):
+        return True
+    return False
 
 def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> bool:
     """

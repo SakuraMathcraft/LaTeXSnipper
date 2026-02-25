@@ -2513,6 +2513,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 from backend.model import ModelWrapper
+from backend.model_factory import create_model_wrapper
 from backend.capture_overlay import ScreenCaptureOverlay
 from backend.latex_renderer import init_latex_settings, get_latex_renderer
 import importlib
@@ -3042,6 +3043,7 @@ from PyQt6.QtCore import QBuffer, QIODevice, QPropertyAnimation, QEasingCurve, p
 
 from backend.capture_overlay import ScreenCaptureOverlay
 from backend.model import ModelWrapper
+from backend.model_factory import create_model_wrapper
 flags = [
     "--use-angle=d3d11",
     "--ignore-gpu-blocklist",
@@ -4536,8 +4538,18 @@ class MainWindow(_QMainWindow):
             self._report_startup_progress("正在初始化模型...")
             # 在 ModelWrapper 初始化前先注入 pix2text 运行环境变量
             self._apply_pix2text_env()
-            self.model = ModelWrapper(self.current_model)
+            self.model = create_model_wrapper(self.current_model)
             self.model.status_signal.connect(self.show_status_message)
+            if hasattr(self.model, "daemon_event_signal"):
+                try:
+                    self.model.daemon_event_signal.connect(self._on_daemon_event)
+                except Exception:
+                    pass
+            if hasattr(self.model, "daemon_error_signal"):
+                try:
+                    self.model.daemon_error_signal.connect(self._on_daemon_error)
+                except Exception:
+                    pass
             print("[DEBUG] ModelWrapper 初始化完成")
 
             # 根据当前模式和对应模型的实际状态设置状态文本
@@ -5020,6 +5032,32 @@ class MainWindow(_QMainWindow):
     def show_status_message(self, msg: str):
         # 模型后台线程回调
         self.set_model_status(msg)
+
+    def _on_daemon_event(self, payload: dict):
+        try:
+            print(f"[DAEMON_EVT_HOST] {payload}", flush=True)
+        except Exception:
+            pass
+        try:
+            event = str((payload or {}).get("event", "") or "")
+            if event in ("daemon_started", "warmup_ok"):
+                self._report_startup_progress("模型服务就绪")
+            elif event == "adapter_init":
+                self._report_startup_progress("正在拉起模型服务...")
+        except Exception:
+            pass
+
+    def _on_daemon_error(self, payload: dict):
+        try:
+            print(f"[DAEMON_ERR_HOST] {payload}", flush=True)
+        except Exception:
+            pass
+        try:
+            err = str((payload or {}).get("error", "") or "").strip()
+            if err:
+                self._report_startup_progress(f"模型服务异常: {err[:80]}")
+        except Exception:
+            pass
 
     # ---------- 实时渲染相关 ----------
     def _on_editor_text_changed(self):
@@ -6597,28 +6635,9 @@ th {{
         self.set_action_status("已取消", auto_clear_ms=3000)
 
     def _wrap_document_output(self, content: str, fmt_key: str, style_key: str) -> str:
-        text = (content or "").strip()
-        if not text:
-            return ""
-        if fmt_key == "markdown":
-            if style_key == "paper":
-                return "# Title\n\n## Abstract\n\n" + text + "\n\n## References\n"
-            return "# Title\n\n" + text
-        # LaTeX
-        if "\\documentclass" in text and "\\begin{document}" in text:
-            return text
-        if style_key == "journal":
-            docclass = "\\documentclass[journal]{IEEEtran}"
-        else:
-            docclass = "\\documentclass[11pt]{article}"
-        preamble = (
-            f"{docclass}\n"
-            "\\usepackage{amsmath,amssymb}\n"
-            "\\usepackage{geometry}\n"
-            "\\geometry{a4paper, margin=1in}\n"
-            "\\begin{document}\n"
-        )
-        return preamble + text + "\n\\end{document}\n"
+        from core.pdf_output_contract import wrap_document_output
+
+        return wrap_document_output(content, fmt_key, style_key)
 
     def _show_document_dialog(self, text: str, fmt_key: str):
         if not self._pdf_result_window:
@@ -7472,6 +7491,41 @@ class PdfPredictWorker(QObject):
         t0 = time.perf_counter()
         def _set_elapsed():
             self.elapsed = time.perf_counter() - t0
+
+        daemon_pdf_fn = getattr(self.model_wrapper, "predict_pdf", None)
+        if callable(daemon_pdf_fn):
+            try:
+                def _cancelled() -> bool:
+                    return bool(self._cancelled or QThread.currentThread().isInterruptionRequested())
+
+                def _progress(cur: int, total: int):
+                    self.progress.emit(int(cur), int(total))
+
+                content = daemon_pdf_fn(
+                    pdf_path=self.pdf_path,
+                    max_pages=int(max(self.max_pages, 1)),
+                    model_name=self.model_name,
+                    output_format=self.output_format,
+                    dpi=int(max(self.dpi, 72)),
+                    progress_cb=_progress,
+                    cancel_cb=_cancelled,
+                )
+                if _cancelled():
+                    _set_elapsed()
+                    self.failed.emit("已取消")
+                    return
+                if not (content or "").strip():
+                    _set_elapsed()
+                    self.failed.emit("识别结果为空")
+                    return
+                _set_elapsed()
+                self.finished.emit(content.strip())
+                return
+            except Exception as e:
+                _set_elapsed()
+                self.failed.emit(str(e))
+                return
+
         try:
             import fitz  # PyMuPDF
         except Exception as e:

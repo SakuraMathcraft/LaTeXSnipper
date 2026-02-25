@@ -1,0 +1,128 @@
+{
+  "name": "latexsnipper-daemon-events",
+  "version": "1.0.0",
+  "compatibility": {
+    "contract_line": "v1",
+    "policy": {
+      "major": "breaking_change",
+      "minor": "backward_compatible_addition",
+      "patch": "non_breaking_fix_or_clarification"
+    }
+  },
+  "transport": {
+    "channel": "stdout_prefixed_json",
+    "prefix": "[DAEMON_EVT]",
+    "encoding": "utf-8",
+    "framing": "line"
+  },
+  "envelope": {
+    "required": [
+      "ts",
+      "event"
+    ],
+    "optional": [
+      "task_id",
+      "kind",
+      "status",
+      "progress_current",
+      "progress_total",
+      "message",
+      "error",
+      "error_type",
+      "error_code",
+      "details"
+    ]
+  },
+  "events": {
+    "daemon_start": {
+      "required": [
+        "pid",
+        "host",
+        "port",
+        "model"
+      ]
+    },
+    "daemon_exit": {
+      "required": [
+        "pid"
+      ]
+    },
+    "wrapper_initialized": {
+      "required": [
+        "pid",
+        "model"
+      ]
+    },
+    "request_begin": {
+      "required": [
+        "method"
+      ]
+    },
+    "request_end": {
+      "required": [
+        "method",
+        "ok"
+      ]
+    },
+    "task_queued": {
+      "required": [
+        "task_id",
+        "kind"
+      ]
+    },
+    "task_started": {
+      "required": [
+        "task_id",
+        "kind"
+      ]
+    },
+    "task_progress": {
+      "required": [
+        "task_id",
+        "kind",
+        "progress_current",
+        "progress_total"
+      ]
+    },
+    "task_succeeded": {
+      "required": [
+        "task_id",
+        "kind"
+      ]
+    },
+    "task_cancelled": {
+      "required": [
+        "task_id",
+        "kind"
+      ]
+    },
+    "task_failed": {
+      "required": [
+        "task_id",
+        "kind",
+        "error",
+        "error_type"
+      ],
+      "optional": [
+        "error_code"
+      ]
+    },
+    "shutdown_requested": {
+      "required": []
+    },
+    "bad_request": {
+      "required": [
+        "error"
+      ],
+      "optional": [
+        "error_code"
+      ]
+    },
+    "unauthorized": {
+      "required": [],
+      "optional": [
+        "error_code"
+      ]
+    }
+  }
+}

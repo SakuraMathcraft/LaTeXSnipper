@@ -1,0 +1,284 @@
+{
+  "name": "latexsnipper-daemon-rpc",
+  "version": "1.0.0",
+  "compatibility": {
+    "contract_line": "v1",
+    "policy": {
+      "major": "breaking_change",
+      "minor": "backward_compatible_addition",
+      "patch": "non_breaking_fix_or_clarification"
+    },
+    "client_requirements": {
+      "name_must_equal": "latexsnipper-daemon-rpc",
+      "major_must_match": 1,
+      "minor_must_be_greater_or_equal": true
+    },
+    "deprecations": [
+      {
+        "method": "predict_image",
+        "status": "deprecated",
+        "replacement": "task_submit(kind=predict_image) + task_status",
+        "since": "1.0.0",
+        "removal_target": "2.0.0"
+      }
+    ]
+  },
+  "transport": {
+    "protocol": "tcp",
+    "host_default": "127.0.0.1",
+    "framing": "json-line",
+    "encoding": "utf-8",
+    "timeout_ms_default": 12000
+  },
+  "auth": {
+    "type": "token",
+    "token_field": "token"
+  },
+  "events": {
+    "schema": "events.v1.json",
+    "channel": "stdout_prefixed_json",
+    "prefix": "[DAEMON_EVT]"
+  },
+  "enums": {
+    "methods": [
+      "health",
+      "warmup",
+      "model_status",
+      "task_submit",
+      "task_status",
+      "task_cancel",
+      "shutdown"
+    ],
+    "deprecated_methods": [
+      "predict_image"
+    ],
+    "task_kinds": [
+      "predict_image",
+      "predict_pdf",
+      "install_deps",
+      "switch_cpu_gpu"
+    ],
+    "task_status": [
+      "queued",
+      "running",
+      "success",
+      "error",
+      "cancelled"
+    ],
+    "task_terminal_status": [
+      "success",
+      "error",
+      "cancelled"
+    ]
+  },
+  "error_codes": {
+    "RPC_BAD_REQUEST": {
+      "retryable": false,
+      "http_analogy": 400
+    },
+    "RPC_UNAUTHORIZED": {
+      "retryable": false,
+      "http_analogy": 401
+    },
+    "RPC_UNKNOWN_METHOD": {
+      "retryable": false,
+      "http_analogy": 404
+    },
+    "RPC_DEPRECATED_METHOD": {
+      "retryable": false,
+      "http_analogy": 410
+    },
+    "RPC_INVALID_PARAMS": {
+      "retryable": false,
+      "http_analogy": 422
+    },
+    "TASK_NOT_FOUND": {
+      "retryable": false,
+      "http_analogy": 404
+    },
+    "TASK_KIND_UNSUPPORTED": {
+      "retryable": false,
+      "http_analogy": 422
+    },
+    "TASK_TIMEOUT": {
+      "retryable": true,
+      "http_analogy": 504
+    },
+    "TASK_CANCELLED": {
+      "retryable": true,
+      "http_analogy": 499
+    },
+    "TASK_RUNTIME_ERROR": {
+      "retryable": false,
+      "http_analogy": 500
+    },
+    "TASK_NOT_IMPLEMENTED": {
+      "retryable": false,
+      "http_analogy": 501
+    }
+  },
+  "request_envelope": {
+    "required": [
+      "token",
+      "method",
+      "params"
+    ],
+    "optional": [
+      "request_id"
+    ],
+    "types": {
+      "token": "string",
+      "method": "string",
+      "params": "object",
+      "request_id": "string"
+    }
+  },
+  "response_envelope": {
+    "required": [
+      "ok"
+    ],
+    "optional": [
+      "request_id",
+      "error",
+      "error_type",
+      "error_code",
+      "traceback",
+      "details"
+    ],
+    "types": {
+      "ok": "boolean",
+      "request_id": "string",
+      "error": "string",
+      "error_type": "string",
+      "error_code": "string",
+      "traceback": "string",
+      "details": "object"
+    }
+  },
+  "methods": {
+    "health": {
+      "params_required": [],
+      "params_optional": [],
+      "response_ok_fields": [
+        "pid",
+        "ready",
+        "status",
+        "model",
+        "contract"
+      ]
+    },
+    "warmup": {
+      "params_required": [],
+      "params_optional": [],
+      "response_ok_fields": [
+        "ready"
+      ]
+    },
+    "model_status": {
+      "params_required": [],
+      "params_optional": [],
+      "response_ok_fields": [
+        "ready",
+        "status",
+        "last_used_model"
+      ]
+    },
+    "task_submit": {
+      "params_required": [
+        "kind",
+        "params"
+      ],
+      "params_optional": [
+        "task_options"
+      ],
+      "response_ok_fields": [
+        "task_id"
+      ]
+    },
+    "task_status": {
+      "params_required": [
+        "task_id"
+      ],
+      "params_optional": [],
+      "response_ok_fields": [
+        "task"
+      ]
+    },
+    "task_cancel": {
+      "params_required": [
+        "task_id"
+      ],
+      "params_optional": [],
+      "response_ok_fields": [
+        "task_id"
+      ]
+    },
+    "shutdown": {
+      "params_required": [],
+      "params_optional": [],
+      "response_ok_fields": []
+    }
+  },
+  "task_kinds": {
+    "predict_image": {
+      "params_required": [],
+      "params_optional": [
+        "image_path",
+        "image_b64",
+        "model_name"
+      ],
+      "params_constraints": [
+        "image_path_or_image_b64_required"
+      ],
+      "output_fields": [
+        "result",
+        "model_name"
+      ]
+    },
+    "predict_pdf": {
+      "params_required": [
+        "pdf_path"
+      ],
+      "params_optional": [
+        "max_pages",
+        "model_name",
+        "output_format",
+        "dpi"
+      ],
+      "output_fields": [
+        "content",
+        "pages",
+        "output_format",
+        "model_name"
+      ]
+    },
+    "install_deps": {
+      "params_required": [],
+      "params_optional": [
+        "layers",
+        "deps_dir",
+        "mirror",
+        "force_verify"
+      ],
+      "output_fields": [
+        "message",
+        "deps_dir",
+        "layers"
+      ]
+    },
+    "switch_cpu_gpu": {
+      "params_required": [
+        "target"
+      ],
+      "params_optional": [
+        "deps_dir",
+        "cuda_tag"
+      ],
+      "output_fields": [
+        "message",
+        "target",
+        "cuda_tag"
+      ]
+    }
+  }
+}
