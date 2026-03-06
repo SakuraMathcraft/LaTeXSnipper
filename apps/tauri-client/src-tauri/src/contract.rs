@@ -4,6 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_CONTRACT_FILE: &str = "daemon_rpc_contract.v1.json";
+const EMBEDDED_DEFAULT_CONTRACT: &str =
+    include_str!("../../../../contracts/daemon_rpc_contract.v1.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcContract {
@@ -50,6 +52,15 @@ pub struct ContractSummary {
     pub task_kinds: Vec<String>,
 }
 
+fn push_ancestor_contracts(out: &mut Vec<PathBuf>, base: &Path, depth: usize) {
+    let mut cur = Some(base.to_path_buf());
+    for _ in 0..=depth {
+        let Some(dir) = cur else { break };
+        out.push(dir.join("contracts").join(DEFAULT_CONTRACT_FILE));
+        cur = dir.parent().map(|p| p.to_path_buf());
+    }
+}
+
 pub fn default_contract_candidates() -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
 
@@ -59,31 +70,55 @@ pub fn default_contract_candidates() -> Vec<PathBuf> {
             out.push(p);
         }
     }
+    if let Ok(raw) = std::env::var("LATEXSNIPPER_RESOURCE_DIR") {
+        let p = PathBuf::from(raw.trim());
+        if !p.as_os_str().is_empty() {
+            out.push(p.join("contracts").join(DEFAULT_CONTRACT_FILE));
+            out.push(p.join(DEFAULT_CONTRACT_FILE));
+            push_ancestor_contracts(&mut out, &p, 8);
+        }
+    }
+    if let Ok(raw) = std::env::var("LATEXSNIPPER_EXE_DIR") {
+        let p = PathBuf::from(raw.trim());
+        if !p.as_os_str().is_empty() {
+            out.push(p.join("contracts").join(DEFAULT_CONTRACT_FILE));
+            out.push(p.join("_internal").join("contracts").join(DEFAULT_CONTRACT_FILE));
+            out.push(p.join("resources").join("contracts").join(DEFAULT_CONTRACT_FILE));
+            out.push(
+                p.join("..")
+                    .join("Resources")
+                    .join("contracts")
+                    .join(DEFAULT_CONTRACT_FILE),
+            );
+            out.push(
+                p.join("_up_")
+                    .join("_up_")
+                    .join("_up_")
+                    .join("contracts")
+                    .join(DEFAULT_CONTRACT_FILE),
+            );
+            push_ancestor_contracts(&mut out, &p, 8);
+        }
+    }
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    out.push(cwd.join("contracts").join(DEFAULT_CONTRACT_FILE));
-    out.push(cwd.join("..").join("contracts").join(DEFAULT_CONTRACT_FILE));
-    out.push(
-        cwd.join("..")
-            .join("..")
-            .join("contracts")
-            .join(DEFAULT_CONTRACT_FILE),
-    );
-    out.push(
-        cwd.join("..")
-            .join("..")
-            .join("..")
-            .join("contracts")
-            .join(DEFAULT_CONTRACT_FILE),
-    );
+    push_ancestor_contracts(&mut out, &cwd, 8);
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            out.push(dir.join("contracts").join(DEFAULT_CONTRACT_FILE));
-            out.push(dir.join("..").join("contracts").join(DEFAULT_CONTRACT_FILE));
+            push_ancestor_contracts(&mut out, dir, 8);
+            out.push(dir.join("_internal").join("contracts").join(DEFAULT_CONTRACT_FILE));
+            out.push(dir.join("resources").join("contracts").join(DEFAULT_CONTRACT_FILE));
             out.push(
                 dir.join("..")
-                    .join("..")
+                    .join("Resources")
+                    .join("contracts")
+                    .join(DEFAULT_CONTRACT_FILE),
+            );
+            out.push(
+                dir.join("_up_")
+                    .join("_up_")
+                    .join("_up_")
                     .join("contracts")
                     .join(DEFAULT_CONTRACT_FILE),
             );
@@ -133,9 +168,23 @@ pub fn load_contract_from_path(path: &Path) -> Result<RpcContract, String> {
 }
 
 pub fn load_contract(explicit: Option<&str>) -> Result<(PathBuf, RpcContract), String> {
-    let p = resolve_contract_path(explicit)?;
-    let c = load_contract_from_path(&p)?;
-    Ok((p, c))
+    if let Some(v) = explicit {
+        let p = PathBuf::from(v.trim());
+        if !p.exists() {
+            return Err(format!("contract not found: {}", p.display()));
+        }
+        let c = load_contract_from_path(&p)?;
+        return Ok((p, c));
+    }
+
+    if let Ok(p) = resolve_contract_path(None) {
+        let c = load_contract_from_path(&p)?;
+        return Ok((p, c));
+    }
+
+    let c: RpcContract = serde_json::from_str(EMBEDDED_DEFAULT_CONTRACT)
+        .map_err(|e| format!("parse embedded contract json failed: {e}"))?;
+    Ok((PathBuf::from("<embedded>"), c))
 }
 
 pub fn to_summary(path: &Path, c: &RpcContract) -> ContractSummary {

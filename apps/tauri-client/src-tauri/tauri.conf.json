@@ -28,6 +28,14 @@
   "bundle": {
     "active": true,
     "useLocalToolsDir": true,
+    "resources": {
+      "../../../contracts/daemon_rpc_contract.v1.json": "contracts/daemon_rpc_contract.v1.json",
+      "../../../contracts/events.v1.json": "contracts/events.v1.json",
+      "../../../src/backend": "backend",
+      "../../../src/core": "core",
+      "../../../src/deps_bootstrap.py": "deps_bootstrap.py",
+      "../../../Python311": "Python311"
+    },
     "icon": [
       "icons/icon.ico"
     ]

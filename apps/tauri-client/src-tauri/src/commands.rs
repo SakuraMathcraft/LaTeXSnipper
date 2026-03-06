@@ -4,6 +4,8 @@ use crate::rpc_client::{
     submit_task, DaemonEndpoint, HealthHandshakeResult, PollOptions, TaskSnapshot, TaskSubmitResult,
 };
 use crate::window_effects;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs::{self, File};
@@ -18,30 +20,37 @@ use sysinfo::System;
 use tauri::Emitter;
 
 #[cfg(target_os = "windows")]
+use windows_sys::Win32::Foundation::{
+    ERROR_CLASS_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, POINT, WPARAM,
+};
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
-    GetObjectW, ReleaseDC, SelectObject, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ, SRCCOPY,
+    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreatePen, DeleteDC,
+    DeleteObject, EndPaint, GetDC, GetDIBits, GetStockObject, IntersectClipRect, InvalidateRect,
+    LineTo, MoveToEx, ReleaseDC, RestoreDC, SaveDC, ScreenToClient, SelectObject, SetBkMode,
+    SetTextColor, StretchDIBits, TextOutW, UpdateWindow, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
+    DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ, HOLLOW_BRUSH, PAINTSTRUCT, PS_SOLID, SRCCOPY,
+    TRANSPARENT,
 };
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::System::DataExchange::{
-    CloseClipboard, GetClipboardData, GetClipboardSequenceNumber, IsClipboardFormatAvailable,
-    OpenClipboard,
-};
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::System::Ole::CF_BITMAP;
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    RegisterHotKey, SendInput, UnregisterHotKey, HOT_KEY_MODIFIERS, INPUT, INPUT_0, INPUT_KEYBOARD,
-    KEYBDINPUT, KEYEVENTF_KEYUP, VK_LWIN, VK_SHIFT,
+    RegisterHotKey, ReleaseCapture, SetCapture, SetFocus, UnregisterHotKey, HOT_KEY_MODIFIERS,
+    VK_ESCAPE,
 };
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetMessageW, GetSystemMetrics, PeekMessageW, PostThreadMessageW,
-    TranslateMessage, MSG, PM_NOREMOVE, SM_CXSCREEN, SM_CXVIRTUALSCREEN, SM_CYSCREEN,
-    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, WM_HOTKEY,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW,
+    GetSystemMetrics, GetWindowLongPtrW, IsWindow, PeekMessageW, PostThreadMessageW, RegisterClassW,
+    SetCursor, SetForegroundWindow, SetWindowLongPtrW, ShowWindow, TranslateMessage, CREATESTRUCTW,
+    CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, MSG, PM_NOREMOVE, PM_REMOVE, SM_CXSCREEN,
+    SM_CXVIRTUALSCREEN, SM_CYSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+    SW_SHOW, WM_DESTROY, WM_ERASEBKGND, WM_HOTKEY, WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP,
+    WM_MOUSEMOVE, WM_NCCREATE, WM_PAINT, WM_QUIT, WM_RBUTTONDOWN, WM_SETCURSOR, WM_SIZE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WNDCLASSW,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -133,6 +142,47 @@ pub struct CaptureBase64Result {
     pub width: i32,
     pub height: i32,
     pub format: String,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone)]
+struct CaptureOverlaySelection {
+    x_ratio: f64,
+    y_ratio: f64,
+    width_ratio: f64,
+    height_ratio: f64,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone)]
+struct ScreenCaptureRaw {
+    left: i32,
+    top: i32,
+    width: i32,
+    height: i32,
+    pixels: Vec<u8>,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug)]
+struct NativeCaptureOverlayContext {
+    image_width: i32,
+    image_height: i32,
+    view_width: i32,
+    view_height: i32,
+    pixels_ptr: *const u8,
+    pixels_len: usize,
+    dark_pixels_ptr: *const u8,
+    dark_pixels_len: usize,
+    dragging: bool,
+    start_x: i32,
+    start_y: i32,
+    cur_x: i32,
+    cur_y: i32,
+    has_cursor: bool,
+    result: Option<CaptureOverlaySelection>,
+    cancelled: bool,
+    done: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -491,461 +541,10 @@ fn post_hotkey_thread_message(_message: u32) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-#[allow(dead_code)]
-fn key_input(vk: u16, flags: u32) -> INPUT {
-    INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: vk,
-                wScan: 0,
-                dwFlags: flags,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    }
-}
+const NATIVE_CAPTURE_OVERLAY_CLASS: &str = "LaTeXSnipperNativeCaptureOverlay";
 
 #[cfg(target_os = "windows")]
-#[allow(dead_code)]
-fn trigger_system_snipping_overlay() -> Result<u32, String> {
-    let seq_before = unsafe { GetClipboardSequenceNumber() };
-    let inputs = [
-        key_input(VK_LWIN, 0),
-        key_input(VK_SHIFT, 0),
-        key_input(0x53, 0), // 'S'
-        key_input(0x53, KEYEVENTF_KEYUP),
-        key_input(VK_SHIFT, KEYEVENTF_KEYUP),
-        key_input(VK_LWIN, KEYEVENTF_KEYUP),
-    ];
-    let sent = unsafe {
-        SendInput(
-            inputs.len() as u32,
-            inputs.as_ptr(),
-            std::mem::size_of::<INPUT>() as i32,
-        )
-    };
-    if sent != inputs.len() as u32 {
-        return Err("failed to trigger snipping overlay".to_string());
-    }
-    Ok(seq_before)
-}
-
-#[cfg(target_os = "windows")]
-#[allow(dead_code)]
-fn save_hbitmap_to_temp(hbitmap: HBITMAP) -> Result<CaptureFileResult, String> {
-    unsafe {
-        let mut bm: BITMAP = std::mem::zeroed();
-        let got = GetObjectW(
-            hbitmap as HGDIOBJ,
-            std::mem::size_of::<BITMAP>() as i32,
-            &mut bm as *mut _ as *mut core::ffi::c_void,
-        );
-        if got == 0 {
-            return Err("GetObjectW(hbitmap) failed".to_string());
-        }
-        let width = bm.bmWidth;
-        let height = bm.bmHeight;
-        if width <= 0 || height <= 0 {
-            return Err("clipboard bitmap has invalid size".to_string());
-        }
-
-        let hdc = CreateCompatibleDC(std::ptr::null_mut());
-        if hdc.is_null() {
-            return Err("CreateCompatibleDC failed".to_string());
-        }
-        let mut bmi: BITMAPINFO = std::mem::zeroed();
-        bmi.bmiHeader = BITMAPINFOHEADER {
-            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width,
-            biHeight: -height,
-            biPlanes: 1,
-            biBitCount: 32,
-            biCompression: BI_RGB,
-            biSizeImage: (width as u32)
-                .saturating_mul(height as u32)
-                .saturating_mul(4),
-            biXPelsPerMeter: 0,
-            biYPelsPerMeter: 0,
-            biClrUsed: 0,
-            biClrImportant: 0,
-        };
-        let byte_len = (width as usize)
-            .saturating_mul(height as usize)
-            .saturating_mul(4);
-        let mut pixels = vec![0u8; byte_len];
-        let lines = GetDIBits(
-            hdc,
-            hbitmap,
-            0,
-            height as u32,
-            pixels.as_mut_ptr() as *mut core::ffi::c_void,
-            &mut bmi,
-            DIB_RGB_COLORS,
-        );
-        let result = if lines > 0 {
-            let mut path = std::env::temp_dir();
-            let ts = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis();
-            path.push(format!(
-                "latexsnipper_capture_region_{}_{}.bmp",
-                std::process::id(),
-                ts
-            ));
-            write_bmp_32bpp(&path, width, height, &pixels).map(|_| CaptureFileResult {
-                path: path.to_string_lossy().to_string(),
-                width,
-                height,
-            })
-        } else {
-            Err("GetDIBits(clipboard) failed".to_string())
-        };
-        let _ = DeleteDC(hdc);
-        result
-    }
-}
-
-#[cfg(target_os = "windows")]
-#[allow(dead_code)]
-fn try_read_clipboard_bitmap_to_temp() -> Result<Option<CaptureFileResult>, String> {
-    unsafe {
-        if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return Ok(None);
-        }
-        let mut out: Result<Option<CaptureFileResult>, String> = Ok(None);
-        if IsClipboardFormatAvailable(CF_BITMAP as u32) != 0 {
-            let handle = GetClipboardData(CF_BITMAP as u32);
-            if !handle.is_null() {
-                let hbmp = handle as HBITMAP;
-                out = save_hbitmap_to_temp(hbmp).map(Some);
-            }
-        }
-        let _ = CloseClipboard();
-        out
-    }
-}
-
-#[cfg(target_os = "windows")]
-#[allow(dead_code)]
-fn capture_region_with_system_overlay() -> Result<CaptureFileResult, String> {
-    let seq_before = trigger_system_snipping_overlay()?;
-    let mut last_seq = seq_before;
-    let deadline = Instant::now() + Duration::from_secs(45);
-    let mut last_err: Option<String> = None;
-
-    while Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(120));
-        let seq = unsafe { GetClipboardSequenceNumber() };
-        if seq == last_seq {
-            continue;
-        }
-        last_seq = seq;
-        match try_read_clipboard_bitmap_to_temp() {
-            Ok(Some(file)) => return Ok(file),
-            Ok(None) => continue,
-            Err(e) => {
-                last_err = Some(e);
-                continue;
-            }
-        }
-    }
-
-    Err(last_err
-        .unwrap_or_else(|| "region capture timeout or cancelled (no clipboard image)".to_string()))
-}
-
-#[derive(Debug, Deserialize)]
-struct PyCaptureResult {
-    ok: bool,
-    #[serde(default)]
-    path: Option<String>,
-    #[serde(default)]
-    width: Option<i32>,
-    #[serde(default)]
-    height: Option<i32>,
-    #[serde(default)]
-    error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PyCaptureResultBase64 {
-    ok: bool,
-    #[serde(default)]
-    image_b64: Option<String>,
-    #[serde(default)]
-    width: Option<i32>,
-    #[serde(default)]
-    height: Option<i32>,
-    #[serde(default)]
-    error: Option<String>,
-}
-
-#[cfg(target_os = "windows")]
-fn capture_region_with_python_overlay() -> Result<CaptureFileResult, String> {
-    let repo_root = find_repo_root().ok_or_else(|| {
-        "repo root not found (missing src/backend/daemon_server.py)".to_string()
-    })?;
-    let src_root = repo_root.join("src");
-    let pyexe = resolve_python_exe(&repo_root).ok_or_else(|| {
-        "python311 not found; set LATEXSNIPPER_PYEXE or prepare src/deps/python311/python.exe"
-            .to_string()
-    })?;
-
-    let script = r#"
-import json, os, sys, tempfile
-src = sys.argv[1]
-if src and src not in sys.path:
-    sys.path.insert(0, src)
-
-from PyQt6.QtWidgets import QApplication
-from backend.capture_overlay import ScreenCaptureOverlay
-
-app = QApplication.instance() or QApplication(sys.argv)
-overlay = ScreenCaptureOverlay()
-result = {"ok": False, "error": "cancelled"}
-
-def _done(pix):
-    global result
-    try:
-        if pix is None or pix.isNull():
-            result = {"ok": False, "error": "cancelled"}
-        else:
-            fd, path = tempfile.mkstemp(prefix="latexsnipper_capture_region_", suffix=".png")
-            os.close(fd)
-            if pix.save(path, "PNG"):
-                result = {
-                    "ok": True,
-                    "path": path,
-                    "width": int(pix.width()),
-                    "height": int(pix.height()),
-                }
-            else:
-                result = {"ok": False, "error": "save failed"}
-    except Exception as ex:
-        result = {"ok": False, "error": str(ex)}
-    finally:
-        try:
-            overlay.close()
-        except Exception:
-            pass
-        app.quit()
-
-overlay.selection_done.connect(_done)
-overlay.showFullScreen()
-overlay.raise_()
-overlay.activateWindow()
-app.exec()
-print("JSON:" + json.dumps(result, ensure_ascii=False))
-"#;
-
-    let mut cmd = Command::new(&pyexe);
-    cmd.arg("-c")
-        .arg(script)
-        .arg(src_root.to_string_lossy().to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .current_dir(&src_root);
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let out = cmd
-        .output()
-        .map_err(|e| format!("spawn overlay capture failed (py={}): {e}", pyexe.display()))?;
-
-    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-    if !out.status.success() {
-        return Err(format!(
-            "overlay capture process failed (code={:?}): {}",
-            out.status.code(),
-            if stderr.trim().is_empty() {
-                stdout.trim().to_string()
-            } else {
-                stderr.trim().to_string()
-            }
-        ));
-    }
-
-    let payload_line = stdout
-        .lines()
-        .rev()
-        .find(|line| line.trim_start().starts_with("JSON:"))
-        .ok_or_else(|| {
-            format!(
-                "overlay capture returned no JSON payload; stdout={} stderr={}",
-                stdout.trim(),
-                stderr.trim()
-            )
-        })?;
-    let payload = payload_line
-        .trim_start()
-        .strip_prefix("JSON:")
-        .ok_or_else(|| "invalid capture payload prefix".to_string())?;
-    let parsed: PyCaptureResult =
-        serde_json::from_str(payload).map_err(|e| format!("parse capture payload failed: {e}"))?;
-    if !parsed.ok {
-        return Err(parsed
-            .error
-            .unwrap_or_else(|| "region capture cancelled".to_string()));
-    }
-    let path = parsed.path.unwrap_or_default();
-    if path.trim().is_empty() {
-        return Err("capture succeeded but file path is empty".to_string());
-    }
-    Ok(CaptureFileResult {
-        path,
-        width: parsed.width.unwrap_or_default(),
-        height: parsed.height.unwrap_or_default(),
-    })
-}
-
-#[cfg(target_os = "windows")]
-fn capture_region_with_python_overlay_base64() -> Result<CaptureBase64Result, String> {
-    let repo_root = find_repo_root().ok_or_else(|| {
-        "repo root not found (missing src/backend/daemon_server.py)".to_string()
-    })?;
-    let src_root = repo_root.join("src");
-    let pyexe = resolve_python_exe(&repo_root).ok_or_else(|| {
-        "python311 not found; set LATEXSNIPPER_PYEXE or prepare src/deps/python311/python.exe"
-            .to_string()
-    })?;
-
-    let script = r#"
-import base64, json, sys
-src = sys.argv[1]
-if src and src not in sys.path:
-    sys.path.insert(0, src)
-
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
-from backend.capture_overlay import ScreenCaptureOverlay
-
-app = QApplication.instance() or QApplication(sys.argv)
-overlay = ScreenCaptureOverlay()
-result = {"ok": False, "error": "cancelled"}
-
-def _done(pix):
-    global result
-    try:
-        if pix is None or pix.isNull():
-            result = {"ok": False, "error": "cancelled"}
-        else:
-            ba = QByteArray()
-            buf = QBuffer(ba)
-            ok = buf.open(QIODevice.OpenModeFlag.WriteOnly)
-            if not ok:
-                result = {"ok": False, "error": "buffer open failed"}
-            elif pix.save(buf, "PNG"):
-                data = bytes(ba)
-                result = {
-                    "ok": True,
-                    "image_b64": base64.b64encode(data).decode("ascii"),
-                    "width": int(pix.width()),
-                    "height": int(pix.height()),
-                }
-            else:
-                result = {"ok": False, "error": "png encode failed"}
-            try:
-                buf.close()
-            except Exception:
-                pass
-    except Exception as ex:
-        result = {"ok": False, "error": str(ex)}
-    finally:
-        try:
-            overlay.close()
-        except Exception:
-            pass
-        app.quit()
-
-overlay.selection_done.connect(_done)
-overlay.showFullScreen()
-overlay.raise_()
-overlay.activateWindow()
-app.exec()
-print("JSON:" + json.dumps(result, ensure_ascii=False))
-"#;
-
-    let mut cmd = Command::new(&pyexe);
-    cmd.arg("-c")
-        .arg(script)
-        .arg(src_root.to_string_lossy().to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .current_dir(&src_root);
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let out = cmd
-        .output()
-        .map_err(|e| format!("spawn overlay capture failed (py={}): {e}", pyexe.display()))?;
-
-    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-    if !out.status.success() {
-        return Err(format!(
-            "overlay capture process failed (code={:?}): {}",
-            out.status.code(),
-            if stderr.trim().is_empty() {
-                stdout.trim().to_string()
-            } else {
-                stderr.trim().to_string()
-            }
-        ));
-    }
-
-    let payload_line = stdout
-        .lines()
-        .rev()
-        .find(|line| line.trim_start().starts_with("JSON:"))
-        .ok_or_else(|| {
-            format!(
-                "overlay capture returned no JSON payload; stdout={} stderr={}",
-                stdout.trim(),
-                stderr.trim()
-            )
-        })?;
-    let payload = payload_line
-        .trim_start()
-        .strip_prefix("JSON:")
-        .ok_or_else(|| "invalid capture payload prefix".to_string())?;
-    let parsed: PyCaptureResultBase64 =
-        serde_json::from_str(payload).map_err(|e| format!("parse capture payload failed: {e}"))?;
-    if !parsed.ok {
-        return Err(parsed
-            .error
-            .unwrap_or_else(|| "region capture cancelled".to_string()));
-    }
-
-    let image_b64 = parsed.image_b64.unwrap_or_default();
-    if image_b64.trim().is_empty() {
-        return Err("capture succeeded but image_b64 is empty".to_string());
-    }
-    Ok(CaptureBase64Result {
-        image_b64,
-        width: parsed.width.unwrap_or_default(),
-        height: parsed.height.unwrap_or_default(),
-        format: "png".to_string(),
-    })
-}
-
-#[cfg(target_os = "windows")]
-fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
+fn virtual_screen_bounds() -> Result<(i32, i32, i32, i32), String> {
     unsafe {
         let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
         let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -958,7 +557,14 @@ fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
         if width <= 0 || height <= 0 {
             return Err("invalid screen size".to_string());
         }
+        Ok((left, top, width, height))
+    }
+}
 
+#[cfg(target_os = "windows")]
+fn capture_virtual_screen_raw() -> Result<ScreenCaptureRaw, String> {
+    let (left, top, width, height) = virtual_screen_bounds()?;
+    unsafe {
         let hdc_screen: HDC = GetDC(std::ptr::null_mut());
         if hdc_screen.is_null() {
             return Err("GetDC failed".to_string());
@@ -992,7 +598,6 @@ fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
                 biClrUsed: 0,
                 biClrImportant: 0,
             };
-
             let byte_len = (width as usize)
                 .saturating_mul(height as usize)
                 .saturating_mul(4);
@@ -1006,23 +611,13 @@ fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
                 &mut bmi,
                 DIB_RGB_COLORS,
             );
-
             if lines > 0 {
-                let mut path = std::env::temp_dir();
-                let ts = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis();
-                path.push(format!(
-                    "latexsnipper_capture_{}_{}.bmp",
-                    std::process::id(),
-                    ts
-                ));
-
-                write_bmp_32bpp(&path, width, height, &pixels).map(|_| CaptureFileResult {
-                    path: path.to_string_lossy().to_string(),
+                Ok(ScreenCaptureRaw {
+                    left,
+                    top,
                     width,
                     height,
+                    pixels,
                 })
             } else {
                 Err("GetDIBits failed".to_string())
@@ -1030,7 +625,6 @@ fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
         } else {
             Err("BitBlt failed".to_string())
         };
-
         if !old_obj.is_null() {
             let _ = SelectObject(hdc_mem, old_obj);
         }
@@ -1041,55 +635,575 @@ fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
     }
 }
 
-fn write_bmp_32bpp(
-    path: &std::path::Path,
-    width: i32,
-    height: i32,
-    pixels: &[u8],
-) -> Result<(), String> {
+#[cfg(target_os = "windows")]
+fn clamp_ratio(v: f64) -> f64 {
+    if v.is_finite() {
+        v.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn to_wide_null(text: &str) -> Vec<u16> {
+    let mut out = text.encode_utf16().collect::<Vec<u16>>();
+    out.push(0);
+    out
+}
+
+#[cfg(target_os = "windows")]
+fn lparam_x(lparam: LPARAM) -> i32 {
+    ((lparam as u32 & 0xffff) as i16) as i32
+}
+
+#[cfg(target_os = "windows")]
+fn lparam_y(lparam: LPARAM) -> i32 {
+    (((lparam as u32 >> 16) & 0xffff) as i16) as i32
+}
+
+#[cfg(target_os = "windows")]
+fn clamp_client_pos(v: i32, max: i32) -> i32 {
+    let upper = max.saturating_sub(1).max(0);
+    v.clamp(0, upper)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn overlay_ctx_mut(hwnd: HWND) -> Option<&'static mut NativeCaptureOverlayContext> {
+    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut NativeCaptureOverlayContext;
+    if ptr.is_null() {
+        None
+    } else {
+        Some(&mut *ptr)
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn native_capture_overlay_wndproc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    match msg {
+        WM_NCCREATE => {
+            let cs = lparam as *const CREATESTRUCTW;
+            if cs.is_null() {
+                return 0;
+            }
+            let ctx_ptr = (*cs).lpCreateParams as *mut NativeCaptureOverlayContext;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, ctx_ptr as isize);
+            return 1;
+        }
+        WM_ERASEBKGND => return 1,
+        WM_SETCURSOR => {
+            SetCursor(std::ptr::null_mut());
+            return 1;
+        }
+        WM_SIZE => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                let w = (lparam as u32 & 0xffff) as i32;
+                let h = ((lparam as u32 >> 16) & 0xffff) as i32;
+                if w > 0 {
+                    ctx.view_width = w;
+                }
+                if h > 0 {
+                    ctx.view_height = h;
+                }
+                ctx.cur_x = clamp_client_pos(ctx.cur_x, ctx.view_width);
+                ctx.cur_y = clamp_client_pos(ctx.cur_y, ctx.view_height);
+            }
+            return 0;
+        }
+        WM_KEYDOWN => {
+            if (wparam as u16) == VK_ESCAPE {
+                if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                    ctx.cancelled = true;
+                    ctx.done = true;
+                }
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        WM_RBUTTONDOWN => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                ctx.cancelled = true;
+                ctx.done = true;
+            }
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        WM_LBUTTONDOWN => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                let x = clamp_client_pos(lparam_x(lparam), ctx.view_width);
+                let y = clamp_client_pos(lparam_y(lparam), ctx.view_height);
+                ctx.dragging = true;
+                ctx.start_x = x;
+                ctx.start_y = y;
+                ctx.cur_x = x;
+                ctx.cur_y = y;
+                ctx.has_cursor = true;
+                SetCapture(hwnd);
+                InvalidateRect(hwnd, std::ptr::null(), 0);
+            }
+            return 0;
+        }
+        WM_MOUSEMOVE => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                let x = clamp_client_pos(lparam_x(lparam), ctx.view_width);
+                let y = clamp_client_pos(lparam_y(lparam), ctx.view_height);
+                ctx.cur_x = x;
+                ctx.cur_y = y;
+                ctx.has_cursor = true;
+                InvalidateRect(hwnd, std::ptr::null(), 0);
+            }
+            return 0;
+        }
+        WM_LBUTTONUP => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                let x = clamp_client_pos(lparam_x(lparam), ctx.view_width);
+                let y = clamp_client_pos(lparam_y(lparam), ctx.view_height);
+                ctx.cur_x = x;
+                ctx.cur_y = y;
+                ctx.has_cursor = true;
+                if ctx.dragging {
+                    ctx.dragging = false;
+                    ReleaseCapture();
+                    let left = ctx.start_x.min(ctx.cur_x);
+                    let top = ctx.start_y.min(ctx.cur_y);
+                    let w = (ctx.cur_x - ctx.start_x).abs();
+                    let h = (ctx.cur_y - ctx.start_y).abs();
+                    if w >= 2 && h >= 2 && ctx.view_width > 0 && ctx.view_height > 0 {
+                        ctx.result = Some(CaptureOverlaySelection {
+                            x_ratio: clamp_ratio(left as f64 / ctx.view_width as f64),
+                            y_ratio: clamp_ratio(top as f64 / ctx.view_height as f64),
+                            width_ratio: clamp_ratio(w as f64 / ctx.view_width as f64),
+                            height_ratio: clamp_ratio(h as f64 / ctx.view_height as f64),
+                        });
+                        ctx.cancelled = false;
+                    } else {
+                        ctx.cancelled = true;
+                    }
+                    ctx.done = true;
+                    DestroyWindow(hwnd);
+                }
+            }
+            return 0;
+        }
+        WM_PAINT => {
+            let mut ps: PAINTSTRUCT = std::mem::zeroed();
+            let hdc = BeginPaint(hwnd, &mut ps);
+            if !hdc.is_null() {
+                if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                    if !ctx.dark_pixels_ptr.is_null() && ctx.image_width > 0 && ctx.image_height > 0 {
+                        let expected = (ctx.image_width as usize)
+                            .saturating_mul(ctx.image_height as usize)
+                            .saturating_mul(4);
+                        if ctx.dark_pixels_len >= expected {
+                            let mut bmi: BITMAPINFO = std::mem::zeroed();
+                            bmi.bmiHeader = BITMAPINFOHEADER {
+                                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                                biWidth: ctx.image_width,
+                                biHeight: -ctx.image_height,
+                                biPlanes: 1,
+                                biBitCount: 32,
+                                biCompression: BI_RGB,
+                                biSizeImage: (ctx.image_width as u32)
+                                    .saturating_mul(ctx.image_height as u32)
+                                    .saturating_mul(4),
+                                biXPelsPerMeter: 0,
+                                biYPelsPerMeter: 0,
+                                biClrUsed: 0,
+                                biClrImportant: 0,
+                            };
+                            let _ = StretchDIBits(
+                                hdc,
+                                0,
+                                0,
+                                ctx.view_width,
+                                ctx.view_height,
+                                0,
+                                0,
+                                ctx.image_width,
+                                ctx.image_height,
+                                ctx.dark_pixels_ptr as *const core::ffi::c_void,
+                                &bmi,
+                                DIB_RGB_COLORS,
+                                SRCCOPY,
+                            );
+
+                            if ctx.dragging && !ctx.pixels_ptr.is_null() && ctx.pixels_len >= expected {
+                                let left = ctx.start_x.min(ctx.cur_x);
+                                let top = ctx.start_y.min(ctx.cur_y);
+                                let right = ctx.start_x.max(ctx.cur_x);
+                                let bottom = ctx.start_y.max(ctx.cur_y);
+                                let w = (right - left).max(0);
+                                let h = (bottom - top).max(0);
+                                if w > 0 && h > 0 && ctx.view_width > 0 && ctx.view_height > 0 {
+                                    let saved = SaveDC(hdc);
+                                    if saved > 0 {
+                                        let _ = IntersectClipRect(hdc, left, top, right, bottom);
+                                        let _ = StretchDIBits(
+                                            hdc,
+                                            0,
+                                            0,
+                                            ctx.view_width,
+                                            ctx.view_height,
+                                            0,
+                                            0,
+                                            ctx.image_width,
+                                            ctx.image_height,
+                                            ctx.pixels_ptr as *const core::ffi::c_void,
+                                            &bmi,
+                                            DIB_RGB_COLORS,
+                                            SRCCOPY,
+                                        );
+                                        let _ = RestoreDC(hdc, saved);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if ctx.has_cursor {
+                        let arm = 14;
+                        let x0 = (ctx.cur_x - arm).max(0);
+                        let x1 = (ctx.cur_x + arm).min(ctx.view_width.saturating_sub(1));
+                        let y0 = (ctx.cur_y - arm).max(0);
+                        let y1 = (ctx.cur_y + arm).min(ctx.view_height.saturating_sub(1));
+                        let pen_b = CreatePen(PS_SOLID, 3, 0x000000);
+                        if !pen_b.is_null() {
+                            let old = SelectObject(hdc, pen_b as HGDIOBJ);
+                            let _ = MoveToEx(hdc, x0, ctx.cur_y, std::ptr::null_mut());
+                            let _ = LineTo(hdc, x1, ctx.cur_y);
+                            let _ = MoveToEx(hdc, ctx.cur_x, y0, std::ptr::null_mut());
+                            let _ = LineTo(hdc, ctx.cur_x, y1);
+                            let _ = SelectObject(hdc, old);
+                            let _ = DeleteObject(pen_b as HGDIOBJ);
+                        }
+                        let pen_w = CreatePen(PS_SOLID, 1, 0x00FFFFFF);
+                        if !pen_w.is_null() {
+                            let old = SelectObject(hdc, pen_w as HGDIOBJ);
+                            let _ = MoveToEx(hdc, x0, ctx.cur_y, std::ptr::null_mut());
+                            let _ = LineTo(hdc, x1, ctx.cur_y);
+                            let _ = MoveToEx(hdc, ctx.cur_x, y0, std::ptr::null_mut());
+                            let _ = LineTo(hdc, ctx.cur_x, y1);
+                            let _ = SelectObject(hdc, old);
+                            let _ = DeleteObject(pen_w as HGDIOBJ);
+                        }
+                    }
+
+                    if ctx.dragging {
+                        let left = ctx.start_x.min(ctx.cur_x);
+                        let top = ctx.start_y.min(ctx.cur_y);
+                        let right = ctx.start_x.max(ctx.cur_x);
+                        let bottom = ctx.start_y.max(ctx.cur_y);
+                        let w = right - left;
+                        let h = bottom - top;
+                        let _ = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH) as HGDIOBJ);
+
+                        let pen_b = CreatePen(PS_SOLID, 3, 0x000000);
+                        if !pen_b.is_null() {
+                            let old = SelectObject(hdc, pen_b as HGDIOBJ);
+                            let _ = MoveToEx(hdc, left, top, std::ptr::null_mut());
+                            let _ = LineTo(hdc, right, top);
+                            let _ = LineTo(hdc, right, bottom);
+                            let _ = LineTo(hdc, left, bottom);
+                            let _ = LineTo(hdc, left, top);
+                            let _ = SelectObject(hdc, old);
+                            let _ = DeleteObject(pen_b as HGDIOBJ);
+                        }
+
+                        let pen_w = CreatePen(PS_SOLID, 1, 0x00FFFFFF);
+                        if !pen_w.is_null() {
+                            let old = SelectObject(hdc, pen_w as HGDIOBJ);
+                            let _ = MoveToEx(hdc, left, top, std::ptr::null_mut());
+                            let _ = LineTo(hdc, right, top);
+                            let _ = LineTo(hdc, right, bottom);
+                            let _ = LineTo(hdc, left, bottom);
+                            let _ = LineTo(hdc, left, top);
+                            let _ = SelectObject(hdc, old);
+                            let _ = DeleteObject(pen_w as HGDIOBJ);
+                        }
+
+                        if w > 0 && h > 0 {
+                            let text = format!("{w} x {h} | ({left}, {top})");
+                            let text_w = to_wide_null(&text);
+                            let tx = (left + 8).clamp(6, (ctx.view_width - 240).max(6));
+                            let mut ty = if top > 30 { top - 24 } else { bottom + 8 };
+                            ty = ty.clamp(6, (ctx.view_height - 24).max(6));
+                            let _ = SetBkMode(hdc, TRANSPARENT as i32);
+                            let _ = SetTextColor(hdc, 0x00FFFFFF);
+                            let _ = TextOutW(
+                                hdc,
+                                tx,
+                                ty,
+                                text_w.as_ptr(),
+                                (text_w.len().saturating_sub(1)) as i32,
+                            );
+                        }
+                    }
+                }
+            }
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        WM_DESTROY => {
+            if let Some(ctx) = overlay_ctx_mut(hwnd) {
+                if !ctx.done {
+                    ctx.cancelled = true;
+                    ctx.done = true;
+                }
+            }
+            return 0;
+        }
+        _ => {}
+    }
+    DefWindowProcW(hwnd, msg, wparam, lparam)
+}
+
+#[cfg(target_os = "windows")]
+fn run_native_capture_overlay_selection(raw: &ScreenCaptureRaw) -> Result<CaptureOverlaySelection, String> {
+    if raw.width <= 0 || raw.height <= 0 {
+        return Err("invalid screen size for overlay".to_string());
+    }
+
+    let mut dark_pixels = raw.pixels.clone();
+    for px in dark_pixels.chunks_exact_mut(4) {
+        px[0] = ((px[0] as u16 * 38) / 100) as u8;
+        px[1] = ((px[1] as u16 * 38) / 100) as u8;
+        px[2] = ((px[2] as u16 * 38) / 100) as u8;
+    }
+
+    unsafe {
+        let class_name = to_wide_null(NATIVE_CAPTURE_OVERLAY_CLASS);
+        let title = to_wide_null("Capture Overlay");
+        let hinstance = GetModuleHandleW(std::ptr::null());
+        let mut wc: WNDCLASSW = std::mem::zeroed();
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = Some(native_capture_overlay_wndproc);
+        wc.hInstance = hinstance;
+        wc.hCursor = std::ptr::null_mut();
+        wc.lpszClassName = class_name.as_ptr();
+        let reg = RegisterClassW(&wc);
+        if reg == 0 {
+            let err = GetLastError();
+            if err != ERROR_CLASS_ALREADY_EXISTS {
+                return Err(format!("register native overlay class failed: {err}"));
+            }
+        }
+
+        let ctx_ptr = Box::into_raw(Box::new(NativeCaptureOverlayContext {
+            image_width: raw.width,
+            image_height: raw.height,
+            view_width: raw.width,
+            view_height: raw.height,
+            pixels_ptr: raw.pixels.as_ptr(),
+            pixels_len: raw.pixels.len(),
+            dark_pixels_ptr: dark_pixels.as_ptr(),
+            dark_pixels_len: dark_pixels.len(),
+            dragging: false,
+            start_x: 0,
+            start_y: 0,
+            cur_x: 0,
+            cur_y: 0,
+            has_cursor: false,
+            result: None,
+            cancelled: false,
+            done: false,
+        }));
+
+        let hwnd = CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            class_name.as_ptr(),
+            title.as_ptr(),
+            WS_POPUP,
+            raw.left,
+            raw.top,
+            raw.width,
+            raw.height,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            hinstance,
+            ctx_ptr as *mut core::ffi::c_void,
+        );
+        if hwnd.is_null() {
+            let _ = Box::from_raw(ctx_ptr);
+            return Err("create native capture overlay window failed".to_string());
+        }
+
+        let mut pt: POINT = std::mem::zeroed();
+        if GetCursorPos(&mut pt) != 0 {
+            let _ = ScreenToClient(hwnd, &mut pt);
+            let ctx = &mut *ctx_ptr;
+            ctx.cur_x = clamp_client_pos(pt.x, ctx.view_width);
+            ctx.cur_y = clamp_client_pos(pt.y, ctx.view_height);
+            ctx.has_cursor = true;
+        }
+
+        ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+        InvalidateRect(hwnd, std::ptr::null(), 0);
+
+        let started = Instant::now();
+        loop {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                if msg.message == WM_QUIT {
+                    (*ctx_ptr).done = true;
+                    break;
+                }
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+            if (*ctx_ptr).done {
+                break;
+            }
+            if started.elapsed() > Duration::from_secs(120) {
+                (*ctx_ptr).cancelled = true;
+                (*ctx_ptr).done = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(8));
+        }
+
+        if IsWindow(hwnd) != 0 {
+            DestroyWindow(hwnd);
+        }
+        let ctx = Box::from_raw(ctx_ptr);
+        if let Some(sel) = ctx.result {
+            return Ok(sel);
+        }
+        if ctx.cancelled {
+            return Err("region capture cancelled".to_string());
+        }
+        Err("region capture failed".to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn crop_capture_raw_by_ratio(
+    raw: &ScreenCaptureRaw,
+    sel: &CaptureOverlaySelection,
+) -> Result<ScreenCaptureRaw, String> {
+    if raw.width <= 0 || raw.height <= 0 {
+        return Err("invalid raw capture size".to_string());
+    }
+    let mut x0 = (clamp_ratio(sel.x_ratio) * raw.width as f64).floor() as i32;
+    let mut y0 = (clamp_ratio(sel.y_ratio) * raw.height as f64).floor() as i32;
+    let mut x1 = (clamp_ratio(sel.x_ratio + sel.width_ratio) * raw.width as f64).ceil() as i32;
+    let mut y1 = (clamp_ratio(sel.y_ratio + sel.height_ratio) * raw.height as f64).ceil() as i32;
+
+    x0 = x0.clamp(0, raw.width.saturating_sub(1).max(0));
+    y0 = y0.clamp(0, raw.height.saturating_sub(1).max(0));
+    x1 = x1.clamp(x0 + 1, raw.width.max(1));
+    y1 = y1.clamp(y0 + 1, raw.height.max(1));
+
+    let crop_w = x1 - x0;
+    let crop_h = y1 - y0;
+    if crop_w <= 0 || crop_h <= 0 {
+        return Err("invalid capture region".to_string());
+    }
+
+    let src_stride = (raw.width as usize).saturating_mul(4);
+    let row_bytes = (crop_w as usize).saturating_mul(4);
+    let mut out = vec![0u8; row_bytes.saturating_mul(crop_h as usize)];
+    for row in 0..crop_h as usize {
+        let src_y = y0 as usize + row;
+        let src_start = src_y
+            .saturating_mul(src_stride)
+            .saturating_add((x0 as usize).saturating_mul(4));
+        let src_end = src_start.saturating_add(row_bytes);
+        let dst_start = row.saturating_mul(row_bytes);
+        let dst_end = dst_start.saturating_add(row_bytes);
+        if src_end > raw.pixels.len() || dst_end > out.len() {
+            return Err("capture crop buffer overflow".to_string());
+        }
+        out[dst_start..dst_end].copy_from_slice(&raw.pixels[src_start..src_end]);
+    }
+
+    Ok(ScreenCaptureRaw {
+        left: raw.left + x0,
+        top: raw.top + y0,
+        width: crop_w,
+        height: crop_h,
+        pixels: out,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn capture_region_with_native_overlay_raw() -> Result<ScreenCaptureRaw, String> {
+    let raw = capture_virtual_screen_raw()?;
+    let selection = run_native_capture_overlay_selection(&raw)?;
+    crop_capture_raw_by_ratio(&raw, &selection)
+}
+
+#[cfg(target_os = "windows")]
+fn screen_capture_to_temp_bmp() -> Result<CaptureFileResult, String> {
+    let raw = capture_virtual_screen_raw()?;
+    save_capture_raw_to_temp_bmp(&raw, "latexsnipper_capture")
+}
+
+fn encode_bmp_32bpp(width: i32, height: i32, pixels: &[u8]) -> Result<Vec<u8>, String> {
     if width <= 0 || height <= 0 {
         return Err("invalid bmp size".to_string());
     }
-    let mut f = File::create(path).map_err(|e| format!("create bmp failed: {e}"))?;
-    let image_size = pixels.len() as u32;
+    let expected = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
+    if pixels.len() < expected {
+        return Err("bmp pixels buffer too short".to_string());
+    }
+    let image_size = expected as u32;
     let file_size = 14u32 + 40u32 + image_size;
+    let mut out = Vec::with_capacity(file_size as usize);
 
     // BITMAPFILEHEADER (14 bytes)
-    f.write_all(&0x4D42u16.to_le_bytes())
-        .map_err(|e| format!("write bmp header failed: {e}"))?;
-    f.write_all(&file_size.to_le_bytes())
-        .map_err(|e| format!("write bmp size failed: {e}"))?;
-    f.write_all(&0u16.to_le_bytes())
-        .and_then(|_| f.write_all(&0u16.to_le_bytes()))
-        .map_err(|e| format!("write bmp reserved failed: {e}"))?;
-    f.write_all(&54u32.to_le_bytes())
-        .map_err(|e| format!("write bmp offset failed: {e}"))?;
+    out.extend_from_slice(&0x4D42u16.to_le_bytes());
+    out.extend_from_slice(&file_size.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&54u32.to_le_bytes());
 
     // BITMAPINFOHEADER (40 bytes)
-    f.write_all(&40u32.to_le_bytes())
-        .map_err(|e| format!("write dib size failed: {e}"))?;
-    f.write_all(&width.to_le_bytes())
-        .map_err(|e| format!("write dib width failed: {e}"))?;
-    f.write_all(&(-height).to_le_bytes())
-        .map_err(|e| format!("write dib height failed: {e}"))?;
-    f.write_all(&1u16.to_le_bytes())
-        .map_err(|e| format!("write dib planes failed: {e}"))?;
-    f.write_all(&32u16.to_le_bytes())
-        .map_err(|e| format!("write dib bpp failed: {e}"))?;
-    f.write_all(&0u32.to_le_bytes())
-        .map_err(|e| format!("write dib compression failed: {e}"))?;
-    f.write_all(&image_size.to_le_bytes())
-        .map_err(|e| format!("write dib image size failed: {e}"))?;
-    f.write_all(&0i32.to_le_bytes())
-        .and_then(|_| f.write_all(&0i32.to_le_bytes()))
-        .map_err(|e| format!("write dib ppm failed: {e}"))?;
-    f.write_all(&0u32.to_le_bytes())
-        .and_then(|_| f.write_all(&0u32.to_le_bytes()))
-        .map_err(|e| format!("write dib color table failed: {e}"))?;
+    out.extend_from_slice(&40u32.to_le_bytes());
+    out.extend_from_slice(&width.to_le_bytes());
+    out.extend_from_slice(&(-height).to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&32u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&image_size.to_le_bytes());
+    out.extend_from_slice(&0i32.to_le_bytes());
+    out.extend_from_slice(&0i32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&pixels[..expected]);
+    Ok(out)
+}
 
-    f.write_all(pixels)
-        .map_err(|e| format!("write bmp pixels failed: {e}"))?;
+fn write_bmp_32bpp(path: &std::path::Path, width: i32, height: i32, pixels: &[u8]) -> Result<(), String> {
+    let bytes = encode_bmp_32bpp(width, height, pixels)?;
+    let mut f = File::create(path).map_err(|e| format!("create bmp failed: {e}"))?;
+    f.write_all(&bytes)
+        .map_err(|e| format!("write bmp failed: {e}"))?;
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn save_capture_raw_to_temp_bmp(raw: &ScreenCaptureRaw, prefix: &str) -> Result<CaptureFileResult, String> {
+    let mut path = std::env::temp_dir();
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    path.push(format!("{}_{}_{}.bmp", prefix, std::process::id(), ts));
+    write_bmp_32bpp(&path, raw.width, raw.height, &raw.pixels)?;
+    Ok(CaptureFileResult {
+        path: path.to_string_lossy().to_string(),
+        width: raw.width,
+        height: raw.height,
+    })
 }
 
 #[tauri::command]
@@ -1187,10 +1301,66 @@ pub fn set_window_compact_mode(
     Ok(compact)
 }
 
+fn has_daemon_marker(base: &Path) -> bool {
+    base.join("src").join("backend").join("daemon_server.py").exists()
+        || base.join("backend").join("daemon_server.py").exists()
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let raw = path.to_string_lossy().into_owned();
+        if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{}", rest));
+        }
+        if let Some(rest) = raw.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+        PathBuf::from(raw)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.to_path_buf()
+    }
+}
+
+fn path_to_string(path: &Path) -> String {
+    normalize_path(path).display().to_string()
+}
+
+fn home_default_install_base_dir() -> PathBuf {
+    user_home_dir().join(".latexsnipper").join("deps")
+}
+
+fn app_local_deps_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    Some(normalize_path(&dir.join("deps")))
+}
+
+fn default_install_base_dir() -> PathBuf {
+    app_local_deps_dir().unwrap_or_else(home_default_install_base_dir)
+}
+
+fn path_contains_component(path: &Path, needle: &str) -> bool {
+    path.components().any(|c| {
+        c.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(needle)
+    })
+}
+
+fn resolve_src_root(base: &Path) -> PathBuf {
+    if base.join("src").join("backend").join("daemon_server.py").exists() {
+        return base.join("src");
+    }
+    base.to_path_buf()
+}
+
 fn find_repo_root_from(start: &Path) -> Option<PathBuf> {
     let mut cur = Some(start);
     while let Some(p) = cur {
-        if p.join("src").join("backend").join("daemon_server.py").exists() {
+        if has_daemon_marker(p) {
             return Some(p.to_path_buf());
         }
         cur = p.parent();
@@ -1199,33 +1369,59 @@ fn find_repo_root_from(start: &Path) -> Option<PathBuf> {
 }
 
 fn find_repo_root() -> Option<PathBuf> {
-    if let Ok(cwd) = std::env::current_dir() {
-        if let Some(p) = find_repo_root_from(&cwd) {
-            return Some(p);
+    let mut seeds: Vec<PathBuf> = Vec::new();
+    if let Ok(v) = std::env::var("LATEXSNIPPER_RESOURCE_DIR") {
+        let p = PathBuf::from(v.trim());
+        if !p.as_os_str().is_empty() {
+            seeds.push(p);
         }
+    }
+    if let Ok(v) = std::env::var("LATEXSNIPPER_EXE_DIR") {
+        let p = PathBuf::from(v.trim());
+        if !p.as_os_str().is_empty() {
+            seeds.push(p);
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        seeds.push(cwd);
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            if let Some(p) = find_repo_root_from(parent) {
-                return Some(p);
-            }
+            seeds.push(parent.to_path_buf());
+        }
+    }
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for seed in seeds {
+        candidates.push(seed.clone());
+        candidates.push(seed.join("_up_"));
+        candidates.push(seed.join("_up_").join("_up_"));
+        candidates.push(seed.join("_up_").join("_up_").join("_up_"));
+        candidates.push(seed.join("_internal"));
+        candidates.push(seed.join("resources"));
+        candidates.push(seed.join("..").join("Resources"));
+    }
+
+    for c in candidates {
+        if let Some(p) = find_repo_root_from(&c) {
+            return Some(normalize_path(&p));
         }
     }
     None
 }
 
-fn resolve_python_exe(repo_root: &Path) -> Option<PathBuf> {
-    if let Ok(v) = std::env::var("LATEXSNIPPER_PYEXE") {
-        let p = PathBuf::from(v.trim());
-        if p.exists() {
-            return Some(p);
-        }
+fn python_exe_from_install_base(install_base_dir: &Path) -> PathBuf {
+    normalize_path(&install_base_dir.join("python311").join("python.exe"))
+}
+
+fn resolve_python_exe(repo_root: &Path) -> PathBuf {
+    let mut base =
+        read_install_base_dir_from_runtime_config().unwrap_or_else(|| resolve_install_base_dir(repo_root));
+    if path_contains_component(&base, "_up_") && !path_contains_component(repo_root, "_up_") {
+        base = normalize_path(&repo_root.join("deps"));
+        let _ = write_install_base_dir_to_runtime_config(&base);
     }
-    let candidates = [
-        repo_root.join("src").join("deps").join("python311").join("python.exe"),
-        repo_root.join("deps").join("python311").join("python.exe"),
-    ];
-    candidates.into_iter().find(|p| p.exists())
+    python_exe_from_install_base(&base)
 }
 
 fn user_home_dir() -> PathBuf {
@@ -1258,7 +1454,7 @@ fn read_install_base_dir_from_runtime_config() -> Option<PathBuf> {
     if raw.is_empty() {
         return None;
     }
-    Some(PathBuf::from(raw))
+    Some(normalize_path(&PathBuf::from(raw)))
 }
 
 fn write_install_base_dir_to_runtime_config(install_base_dir: &Path) -> Result<(), String> {
@@ -1279,7 +1475,7 @@ fn write_install_base_dir_to_runtime_config(install_base_dir: &Path) -> Result<(
     if let Some(obj) = doc.as_object_mut() {
         obj.insert(
             "install_base_dir".to_string(),
-            Value::String(install_base_dir.display().to_string()),
+            Value::String(path_to_string(install_base_dir)),
         );
     }
     fs::write(
@@ -1293,9 +1489,48 @@ fn write_install_base_dir_to_runtime_config(install_base_dir: &Path) -> Result<(
 
 fn resolve_install_base_dir(repo_root: &Path) -> PathBuf {
     if let Some(p) = read_install_base_dir_from_runtime_config() {
+        // Migrate the incorrect temporary default introduced previously:
+        // keep user-custom paths untouched, only rewrite the legacy home default
+        // when it still has no python311 payload.
+        let legacy_home = normalize_path(&home_default_install_base_dir());
+        let cur = normalize_path(&p);
+        if path_contains_component(&cur, "_up_") && !path_contains_component(repo_root, "_up_") {
+            let migrated = normalize_path(&repo_root.join("deps"));
+            let _ = write_install_base_dir_to_runtime_config(&migrated);
+            return migrated;
+        }
+        if cur == legacy_home && !cur.join("python311").join("python.exe").exists() {
+            let migrated = if path_contains_component(repo_root, "_up_") {
+                default_install_base_dir()
+            } else {
+                normalize_path(&repo_root.join("deps"))
+            };
+            let _ = write_install_base_dir_to_runtime_config(&migrated);
+            return migrated;
+        }
         return p;
     }
-    repo_root.join("src").join("deps")
+    if path_contains_component(repo_root, "_up_") {
+        return default_install_base_dir();
+    }
+    let mut candidates = vec![
+        repo_root.join("src").join("deps"),
+        repo_root.join("deps"),
+        repo_root.join("_internal").join("deps"),
+        repo_root.join("resources").join("deps"),
+    ];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("deps"));
+            candidates.push(dir.join("_internal").join("deps"));
+            candidates.push(dir.join("resources").join("deps"));
+            candidates.push(dir.join("..").join("Resources").join("deps"));
+        }
+    }
+    if let Some(hit) = candidates.into_iter().find(|p| p.exists()) {
+        return normalize_path(&hit);
+    }
+    normalize_path(&repo_root.join("deps"))
 }
 
 fn runtime_cache_dir() -> PathBuf {
@@ -1421,9 +1656,9 @@ pub fn daemon_bootstrap_local(input: DaemonBootstrapInput) -> Result<DaemonBoots
     }
 
     let repo_root = find_repo_root().ok_or_else(|| {
-        "repo root not found (missing src/backend/daemon_server.py)".to_string()
+        "app source root not found (missing backend/daemon_server.py)".to_string()
     })?;
-    let src_root = repo_root.join("src");
+    let src_root = resolve_src_root(&repo_root);
     let daemon_script = src_root.join("backend").join("daemon_server.py");
     if !daemon_script.exists() {
         return Err(format!(
@@ -1431,14 +1666,37 @@ pub fn daemon_bootstrap_local(input: DaemonBootstrapInput) -> Result<DaemonBoots
             daemon_script.display()
         ));
     }
-    let pyexe = resolve_python_exe(&repo_root).ok_or_else(|| {
-        "python311 not found; set LATEXSNIPPER_PYEXE or prepare src/deps/python311/python.exe".to_string()
-    })?;
+    let pyexe = resolve_python_exe(&repo_root);
+    if !pyexe.exists() {
+        return Err(format!(
+            "python311 not found at {} (expected install_base_dir\\\\python311\\\\python.exe)",
+            pyexe.display()
+        ));
+    }
     let host = if endpoint.host.trim().is_empty() {
         "127.0.0.1".to_string()
     } else {
         endpoint.host.trim().to_string()
     };
+
+    let mut daemon_log_path = std::env::temp_dir();
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    daemon_log_path.push(format!(
+        "latexsnipper_daemon_boot_{}_{}.log",
+        std::process::id(),
+        ts
+    ));
+    let daemon_log_file = File::options()
+        .create(true)
+        .append(true)
+        .open(&daemon_log_path)
+        .map_err(|e| format!("open daemon log file failed ({}): {e}", daemon_log_path.display()))?;
+    let daemon_log_file_err = daemon_log_file
+        .try_clone()
+        .map_err(|e| format!("clone daemon log file failed: {e}"))?;
 
     let mut cmd = Command::new(&pyexe);
     cmd.arg("-m")
@@ -1455,8 +1713,8 @@ pub fn daemon_bootstrap_local(input: DaemonBootstrapInput) -> Result<DaemonBoots
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONLEGACYWINDOWSSTDIO", "0")
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::from(daemon_log_file))
+        .stderr(Stdio::from(daemon_log_file_err))
         .current_dir(&src_root);
 
     #[cfg(target_os = "windows")]
@@ -1467,10 +1725,43 @@ pub fn daemon_bootstrap_local(input: DaemonBootstrapInput) -> Result<DaemonBoots
         cmd.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
     }
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("spawn daemon failed (py={}): {e}", pyexe.display()))?;
     let pid = child.id();
+
+    let probe_deadline = Instant::now() + Duration::from_millis(1800);
+    while Instant::now() < probe_deadline {
+        if wait_port_open(&endpoint, 220) {
+            break;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let tail = fs::read_to_string(&daemon_log_path)
+                    .ok()
+                    .map(|txt| {
+                        let mut lines = txt.lines().collect::<Vec<_>>();
+                        if lines.len() > 20 {
+                            lines = lines[lines.len() - 20..].to_vec();
+                        }
+                        lines.join("\n")
+                    })
+                    .unwrap_or_default();
+                return Err(format!(
+                    "daemon exited early (pid={pid}, code={:?}) using {} | log={} | tail={}",
+                    status.code(),
+                    pyexe.display(),
+                    daemon_log_path.display(),
+                    tail
+                ));
+            }
+            Ok(None) => {}
+            Err(e) => {
+                return Err(format!("probe daemon process failed (pid={pid}): {e}"));
+            }
+        }
+        std::thread::sleep(Duration::from_millis(120));
+    }
     drop(child);
 
     Ok(DaemonBootstrapResult {
@@ -1554,25 +1845,37 @@ pub fn capture_screen_to_temp() -> Result<CaptureFileResult, String> {
 }
 
 #[tauri::command]
-pub fn capture_region_to_temp() -> Result<CaptureFileResult, String> {
+pub fn capture_region_to_temp(app: tauri::AppHandle) -> Result<CaptureFileResult, String> {
     #[cfg(target_os = "windows")]
     {
-        return capture_region_with_python_overlay();
+        let _ = app;
+        let raw = capture_region_with_native_overlay_raw()?;
+        return save_capture_raw_to_temp_bmp(&raw, "latexsnipper_capture_region");
     }
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = app;
         Err("region capture currently supported on Windows only".to_string())
     }
 }
 
 #[tauri::command]
-pub fn capture_region_to_base64() -> Result<CaptureBase64Result, String> {
+pub fn capture_region_to_base64(app: tauri::AppHandle) -> Result<CaptureBase64Result, String> {
     #[cfg(target_os = "windows")]
     {
-        return capture_region_with_python_overlay_base64();
+        let _ = app;
+        let raw = capture_region_with_native_overlay_raw()?;
+        let bmp = encode_bmp_32bpp(raw.width, raw.height, &raw.pixels)?;
+        return Ok(CaptureBase64Result {
+            image_b64: BASE64_STANDARD.encode(bmp),
+            width: raw.width,
+            height: raw.height,
+            format: "bmp".to_string(),
+        });
     }
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = app;
         Err("region capture currently supported on Windows only".to_string())
     }
 }
@@ -1634,21 +1937,30 @@ pub fn open_path(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn get_runtime_env_config() -> Result<RuntimeEnvConfig, String> {
-    let repo_root = find_repo_root().ok_or_else(|| {
-        "repo root not found (missing src/backend/daemon_server.py)".to_string()
-    })?;
-    let install_base_dir = resolve_install_base_dir(&repo_root);
+    let repo_root = find_repo_root();
+    let configured_base = read_install_base_dir_from_runtime_config();
+    let install_base_dir = if let Some(root) = repo_root.as_ref() {
+        resolve_install_base_dir(root)
+    } else if let Some(base) = configured_base.clone() {
+        base
+    } else {
+        default_install_base_dir()
+    };
+    fs::create_dir_all(&install_base_dir)
+        .map_err(|e| format!("create install_base_dir failed: {e}"))?;
+    if configured_base.is_none() {
+        let _ = write_install_base_dir_to_runtime_config(&install_base_dir);
+    }
     let cfg_path = runtime_config_path();
-    let py = install_base_dir.join("python311").join("python.exe");
-    let py_fallback = resolve_python_exe(&repo_root).unwrap_or(py.clone());
+    let py_fallback = python_exe_from_install_base(&install_base_dir);
     let deps_state = install_base_dir.join(".deps_state.json");
     let (installed_layers, failed_layers) = read_deps_state_layers(&deps_state);
     Ok(RuntimeEnvConfig {
-        config_path: cfg_path.display().to_string(),
-        install_base_dir: install_base_dir.display().to_string(),
-        python_exe: py_fallback.display().to_string(),
-        cache_dir: runtime_cache_dir().display().to_string(),
-        deps_state_path: deps_state.display().to_string(),
+        config_path: path_to_string(&cfg_path),
+        install_base_dir: path_to_string(&install_base_dir),
+        python_exe: path_to_string(&py_fallback),
+        cache_dir: path_to_string(&runtime_cache_dir()),
+        deps_state_path: path_to_string(&deps_state),
         installed_layers,
         failed_layers,
     })
@@ -1656,7 +1968,7 @@ pub fn get_runtime_env_config() -> Result<RuntimeEnvConfig, String> {
 
 #[tauri::command]
 pub fn set_runtime_env_config(input: SetRuntimeEnvConfigInput) -> Result<bool, String> {
-    let base = PathBuf::from(input.install_base_dir.trim());
+    let base = normalize_path(&PathBuf::from(input.install_base_dir.trim()));
     if base.as_os_str().is_empty() {
         return Err("install_base_dir is empty".to_string());
     }
@@ -1667,73 +1979,44 @@ pub fn set_runtime_env_config(input: SetRuntimeEnvConfigInput) -> Result<bool, S
 
 #[tauri::command]
 pub fn launch_dependency_wizard(
+    app: tauri::AppHandle,
     input: Option<LaunchDependencyWizardInput>,
 ) -> Result<LaunchDependencyWizardResult, String> {
-    let repo_root = find_repo_root().ok_or_else(|| {
-        "repo root not found (missing src/backend/daemon_server.py)".to_string()
-    })?;
-    let src_root = repo_root.join("src");
+    let repo_root = find_repo_root();
     let chosen_base = input
         .as_ref()
         .and_then(|x| x.install_base_dir.as_ref())
-        .map(|x| PathBuf::from(x.trim()))
+        .map(|x| normalize_path(&PathBuf::from(x.trim())))
         .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| resolve_install_base_dir(&repo_root));
+        .or_else(|| {
+            repo_root
+                .as_ref()
+                .map(|root| resolve_install_base_dir(root))
+        })
+        .unwrap_or_else(default_install_base_dir);
     fs::create_dir_all(&chosen_base)
         .map_err(|e| format!("create install_base_dir failed: {e}"))?;
     write_install_base_dir_to_runtime_config(&chosen_base)?;
 
-    let pyexe = input
+    let _legacy_python_exe_hint = input
         .as_ref()
         .and_then(|x| x.python_exe.as_ref())
-        .map(|x| PathBuf::from(x.trim()))
-        .filter(|p| p.exists())
-        .or_else(|| resolve_python_exe(&repo_root))
-        .ok_or_else(|| {
-            "python311 not found; set LATEXSNIPPER_PYEXE or prepare src/deps/python311/python.exe"
-                .to_string()
-        })?;
+        .map(|x| x.trim())
+        .filter(|x| !x.is_empty());
+    let py_hint = path_to_string(&python_exe_from_install_base(&chosen_base));
 
-    let script = r#"
-import sys
-src = sys.argv[1]
-if src and src not in sys.path:
-    sys.path.insert(0, src)
-from PyQt6.QtWidgets import QApplication
-import deps_bootstrap as db
-app = QApplication.instance() or QApplication(sys.argv)
-ok = bool(db.show_dependency_wizard(always_show_ui=True))
-print("WIZARD_RESULT:" + ("ok" if ok else "cancel"))
-"#;
-
-    let mut cmd = Command::new(&pyexe);
-    cmd.arg("-c")
-        .arg(script)
-        .arg(src_root.to_string_lossy().to_string())
-        .env("LATEXSNIPPER_DEPS_DIR", chosen_base.to_string_lossy().to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .current_dir(&src_root);
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
-    }
-
-    let child = cmd
-        .spawn()
-        .map_err(|e| format!("launch dependency wizard failed: {e}"))?;
-    let pid = child.id();
-    drop(child);
+    let _ = app.emit(
+        "open-environment-page",
+        json!({
+            "install_base_dir": path_to_string(&chosen_base),
+            "python_exe_hint": py_hint,
+        }),
+    );
 
     Ok(LaunchDependencyWizardResult {
         ok: true,
-        pid,
-        message: format!("dependency wizard started (pid={pid})"),
+        pid: 0,
+        message: "tauri dependency manager opened".to_string(),
     })
 }
 
@@ -1848,6 +2131,16 @@ pub fn open_external_url(url: String) -> Result<bool, String> {
             .map_err(|e| format!("open url failed: {e}"))
             .map(|_| true)
     }
+}
+
+#[tauri::command]
+pub fn copy_text_to_clipboard(text: String) -> Result<bool, String> {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("init clipboard failed: {e}"))?;
+    clipboard
+        .set_text(text)
+        .map_err(|e| format!("write clipboard failed: {e}"))?;
+    Ok(true)
 }
 
 #[tauri::command]
