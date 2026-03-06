@@ -1,3 +1,18 @@
+const ABOUT_UPDATE_URL_DEFAULT = "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri-client";
+const ABOUT_UPDATE_URL_LEGACY = [
+  "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri",
+];
+
+function normalizeAboutUpdateUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return ABOUT_UPDATE_URL_DEFAULT;
+  const normalized = raw.replace(/\/+$/, "").toLowerCase();
+  const isLegacy = ABOUT_UPDATE_URL_LEGACY.some(
+    (u) => normalized === String(u || "").trim().replace(/\/+$/, "").toLowerCase()
+  );
+  return isLegacy ? ABOUT_UPDATE_URL_DEFAULT : raw;
+}
+
 const state = {
   host: "127.0.0.1",
   port: 43637,
@@ -11,6 +26,9 @@ const state = {
   hotkeyBusy: false,
   handshakeBusy: false,
   daemonEnsurePromise: null,
+  daemonReadyUntilMs: 0,
+  daemonReadyKey: "",
+  daemonLastHandshake: null,
   imagePollInFlight: false,
   pdfPollInFlight: false,
   pdfMaxPages: 0,
@@ -38,7 +56,7 @@ const state = {
   uiSaturatePct: 40,
   uiTintAlpha: 0.00,
   uiNoiseAlpha: 0.02,
-  aboutUpdateUrl: "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri",
+  aboutUpdateUrl: ABOUT_UPDATE_URL_DEFAULT,
   imageCopyFormat: "latex",
   resultHistory: [],
 };
@@ -50,6 +68,10 @@ const IMAGE_TIMEOUT_DEFAULT_MS = 120000;
 const IMAGE_TIMEOUT_MIN_MS = 15000;
 const IMAGE_TIMEOUT_MAX_MS = 1800000;
 const HOTKEY_TIMEOUT_MIN_MS = 45000;
+const DAEMON_READY_CACHE_MS = 12000;
+const DAEMON_HANDSHAKE_FAST_TIMEOUT_MS = 900;
+const DAEMON_HANDSHAKE_BOOT_TIMEOUT_MS = 900;
+const DAEMON_BOOT_MAX_ATTEMPTS = 12;
 let actionTagTimer = null;
 
 function log(msg, level = "INFO") {
@@ -95,6 +117,263 @@ async function invoke(cmd, args = {}) {
   const fn = getInvoke();
   if (!fn) throw new Error("Tauri invoke unavailable");
   return fn(cmd, args);
+}
+
+function isCaptureOverlayMode() {
+  try {
+    const u = new URL(window.location.href);
+    return u.searchParams.get("capture_overlay") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function bootCaptureOverlay() {
+  const tauriCore = window.__TAURI__?.core;
+  const tauriInvoke = tauriCore?.invoke;
+  const convertFileSrc = tauriCore?.convertFileSrc;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      cursor: none;
+      user-select: none;
+      background: #000;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    #ov-root { position: fixed; inset: 0; }
+    #ov-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+    }
+    #ov-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.22);
+      pointer-events: none;
+    }
+    #ov-hint {
+      position: fixed;
+      left: 14px;
+      top: 14px;
+      z-index: 50;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.52);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      pointer-events: none;
+    }
+    #ov-selection {
+      position: fixed;
+      display: none;
+      z-index: 40;
+      border: 1px solid #fff;
+      box-shadow: inset 0 0 0 1px #000, 0 0 0 99999px rgba(0, 0, 0, 0.42);
+      background: rgba(255, 255, 255, 0.04);
+      pointer-events: none;
+    }
+    #ov-hud {
+      position: fixed;
+      z-index: 60;
+      display: none;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.2;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .ov-cross {
+      position: fixed;
+      pointer-events: none;
+      z-index: 70;
+      display: block;
+    }
+    #ov-cross-h-white { left: 0; right: 0; height: 1px; background: rgba(255, 255, 255, 0.95); }
+    #ov-cross-h-black { left: 0; right: 0; height: 1px; background: rgba(0, 0, 0, 0.95); }
+    #ov-cross-v-white { top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.95); }
+    #ov-cross-v-black { top: 0; bottom: 0; width: 1px; background: rgba(0, 0, 0, 0.95); }
+  `;
+  document.head.appendChild(style);
+  document.body.innerHTML = `
+    <div id="ov-root">
+      <img id="ov-bg" alt="" />
+      <div id="ov-backdrop"></div>
+      <div id="ov-hint">拖动鼠标框选区域，回车/松开确认，ESC 取消</div>
+      <div id="ov-selection"></div>
+      <div id="ov-hud"></div>
+      <div id="ov-cross-h-white" class="ov-cross"></div>
+      <div id="ov-cross-h-black" class="ov-cross"></div>
+      <div id="ov-cross-v-white" class="ov-cross"></div>
+      <div id="ov-cross-v-black" class="ov-cross"></div>
+    </div>
+  `;
+
+  const bgEl = document.getElementById("ov-bg");
+  const backdropEl = document.getElementById("ov-backdrop");
+  const selectionEl = document.getElementById("ov-selection");
+  const hudEl = document.getElementById("ov-hud");
+  const hWhite = document.getElementById("ov-cross-h-white");
+  const hBlack = document.getElementById("ov-cross-h-black");
+  const vWhite = document.getElementById("ov-cross-v-white");
+  const vBlack = document.getElementById("ov-cross-v-black");
+
+  let dragging = false;
+  let sending = false;
+  let anchorX = 0;
+  let anchorY = 0;
+  let currentRect = null;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const normalizeRect = (x0, y0, x1, y1) => ({
+    x: Math.min(x0, x1),
+    y: Math.min(y0, y1),
+    w: Math.abs(x1 - x0),
+    h: Math.abs(y1 - y0),
+  });
+
+  function setCrosshair(x, y) {
+    const cx = clamp(Math.round(x), 0, Math.max(window.innerWidth - 1, 0));
+    const cy = clamp(Math.round(y), 0, Math.max(window.innerHeight - 1, 0));
+    hWhite.style.top = `${cy}px`;
+    hBlack.style.top = `${cy + 1}px`;
+    vWhite.style.left = `${cx}px`;
+    vBlack.style.left = `${cx + 1}px`;
+  }
+
+  function renderRect(rect) {
+    if (!rect) {
+      backdropEl.style.display = "block";
+      selectionEl.style.display = "none";
+      hudEl.style.display = "none";
+      return;
+    }
+    backdropEl.style.display = "none";
+    selectionEl.style.display = "block";
+    selectionEl.style.left = `${rect.x}px`;
+    selectionEl.style.top = `${rect.y}px`;
+    selectionEl.style.width = `${rect.w}px`;
+    selectionEl.style.height = `${rect.h}px`;
+    hudEl.style.display = "block";
+    hudEl.textContent = `${Math.round(rect.w)} x ${Math.round(rect.h)} | (${Math.round(rect.x)}, ${Math.round(rect.y)})`;
+    const hudX = clamp(rect.x + 8, 6, Math.max(window.innerWidth - 220, 6));
+    const hudY = rect.y > 30 ? rect.y - 28 : rect.y + rect.h + 8;
+    hudEl.style.left = `${hudX}px`;
+    hudEl.style.top = `${clamp(hudY, 6, Math.max(window.innerHeight - 28, 6))}px`;
+  }
+
+  async function submitResult(payload) {
+    if (sending || !tauriInvoke) return;
+    sending = true;
+    try {
+      await tauriInvoke("capture_overlay_complete", { input: payload });
+    } catch (_) {
+    }
+  }
+
+  function cancelCapture() {
+    submitResult({ cancelled: true });
+  }
+
+  function finishCapture(rect) {
+    const vw = Math.max(window.innerWidth, 1);
+    const vh = Math.max(window.innerHeight, 1);
+    if (!rect || rect.w < 2 || rect.h < 2) {
+      cancelCapture();
+      return;
+    }
+    submitResult({
+      cancelled: false,
+      xRatio: clamp(rect.x / vw, 0, 1),
+      yRatio: clamp(rect.y / vh, 0, 1),
+      widthRatio: clamp(rect.w / vw, 0, 1),
+      heightRatio: clamp(rect.h / vh, 0, 1),
+    });
+  }
+
+  async function loadSnapshot() {
+    if (!tauriInvoke) {
+      cancelCapture();
+      return;
+    }
+    try {
+      const snap = await tauriInvoke("capture_overlay_get_snapshot");
+      if (snap && snap.path) {
+        if (convertFileSrc) {
+          bgEl.src = convertFileSrc(snap.path);
+        } else {
+          const normalized = String(snap.path).replace(/\\/g, "/");
+          bgEl.src = `file:///${encodeURI(normalized.replace(/^\/+/, ""))}`;
+        }
+      } else {
+        cancelCapture();
+      }
+    } catch (_) {
+      cancelCapture();
+    }
+  }
+
+  window.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    cancelCapture();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancelCapture();
+    } else if (e.key === "Enter" && currentRect) {
+      e.preventDefault();
+      finishCapture(currentRect);
+    }
+  });
+  window.addEventListener("mousedown", (e) => {
+    if (sending || e.button !== 0) return;
+    dragging = true;
+    anchorX = e.clientX;
+    anchorY = e.clientY;
+    currentRect = normalizeRect(anchorX, anchorY, anchorX, anchorY);
+    renderRect(currentRect);
+    setCrosshair(e.clientX, e.clientY);
+  });
+  window.addEventListener("mousemove", (e) => {
+    setCrosshair(e.clientX, e.clientY);
+    if (!dragging || sending) return;
+    currentRect = normalizeRect(anchorX, anchorY, e.clientX, e.clientY);
+    renderRect(currentRect);
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (!dragging || sending) return;
+    dragging = false;
+    currentRect = normalizeRect(anchorX, anchorY, e.clientX, e.clientY);
+    renderRect(currentRect);
+    finishCapture(currentRect);
+  });
+  window.addEventListener("blur", () => {
+    if (!sending) cancelCapture();
+  });
+  bgEl.addEventListener("error", () => {
+    if (!sending) cancelCapture();
+  });
+  window.addEventListener("beforeunload", () => {
+    if (!sending) cancelCapture();
+  });
+
+  loadSnapshot();
 }
 
 function sleep(ms) {
@@ -286,18 +565,26 @@ function initCustomSelect() {
   );
 }
 
+function openPage(page, titleOverride = "") {
+  const target = String(page || "").trim();
+  if (!target) return;
+  const btn = document.querySelector(`.nav-btn[data-page="${target}"]`);
+  const pageNode = el(`page-${target}`);
+  if (!btn || !pageNode) return;
+  document.querySelectorAll(".nav-btn").forEach((x) => x.classList.remove("active"));
+  btn.classList.add("active");
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  pageNode.classList.add("active");
+  const title = titleOverride || btn.dataset.title || btn.textContent.trim();
+  if (el("pageTitle")) el("pageTitle").textContent = title;
+  updateNavIndicator(btn);
+}
+
 function bindNav() {
   const nav = document.querySelectorAll(".nav-btn");
   nav.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const page = btn.dataset.page;
-      const title = btn.dataset.title || btn.textContent.trim();
-      nav.forEach((x) => x.classList.remove("active"));
-      btn.classList.add("active");
-      document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
-      el(`page-${page}`).classList.add("active");
-      el("pageTitle").textContent = title;
-      updateNavIndicator(btn);
+      openPage(btn.dataset.page, btn.dataset.title || btn.textContent.trim());
     });
   });
   const active = document.querySelector(".nav-btn.active");
@@ -316,6 +603,14 @@ function loadSettings() {
     if (!raw) return;
     const data = JSON.parse(raw);
     Object.assign(state, data || {});
+    const migrated = normalizeAboutUpdateUrl(state.aboutUpdateUrl);
+    if (migrated !== state.aboutUpdateUrl) {
+      state.aboutUpdateUrl = migrated;
+      if (data && typeof data === "object") {
+        data.aboutUpdateUrl = migrated;
+        localStorage.setItem("latexsnipper_tauri_mvp_settings", JSON.stringify(data));
+      }
+    }
   } catch (e) {
     log(`读取本地设置失败: ${e}`, "WARN");
   }
@@ -348,9 +643,7 @@ function saveSettings() {
     uiTintAlpha: Math.max(0.0, Math.min(0.26, Number(el("uiTintAlpha")?.value || 0.0) || 0.0)),
     uiNoiseAlpha: Math.max(0.0, Math.min(0.18, Number(el("uiNoiseAlpha")?.value || 0.02) || 0.02)),
     imageCopyFormat: (el("imageCopyFormat")?.value || "latex").trim() || "latex",
-    aboutUpdateUrl:
-      (el("aboutUpdateUrl")?.value || "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri").trim() ||
-      "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri",
+    aboutUpdateUrl: normalizeAboutUpdateUrl(el("aboutUpdateUrl")?.value),
   };
   Object.assign(state, data);
   localStorage.setItem("latexsnipper_tauri_mvp_settings", JSON.stringify(data));
@@ -382,8 +675,9 @@ function fillForm() {
   if (el("uiNoiseAlpha")) el("uiNoiseAlpha").value = String(state.uiNoiseAlpha ?? 0.02);
   if (el("imageCopyFormat")) el("imageCopyFormat").value = String(state.imageCopyFormat || "latex");
   if (el("aboutUpdateUrl")) {
-    el("aboutUpdateUrl").value =
-      state.aboutUpdateUrl || "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri";
+    const aboutUrl = normalizeAboutUpdateUrl(state.aboutUpdateUrl);
+    state.aboutUpdateUrl = aboutUrl;
+    el("aboutUpdateUrl").value = aboutUrl;
   }
   setWindowModeTag(!!state.compactMode);
   if (el("pdfModelName")) el("pdfModelName").value = "pix2text_mixed";
@@ -660,17 +954,43 @@ async function ensureDaemonReady(reason = "operation", opts = {}) {
   const task = (async () => {
     const ep = endpoint();
     const forceRestart = Boolean(opts && opts.forceRestart);
+    const refresh = Boolean(opts && opts.refresh);
+    const cacheMs = clampNumber(opts?.cacheMs, 0, 600000, DAEMON_READY_CACHE_MS);
+    const contractPath = contractPathOrNull();
+    const cacheKey = `${String(ep.host || "")}:${String(ep.port || 0)}:${String(ep.token || "")}:${String(contractPath || "")}`;
+    const nowMs = Date.now();
+
+    const resetReadyCache = () => {
+      state.daemonReadyUntilMs = 0;
+      state.daemonReadyKey = "";
+      state.daemonLastHandshake = null;
+    };
+
+    const markReady = (hs) => {
+      state.daemonReadyKey = cacheKey;
+      state.daemonReadyUntilMs = Date.now() + Math.max(0, cacheMs);
+      state.daemonLastHandshake = hs && typeof hs === "object" ? hs : null;
+    };
+
+    if (!forceRestart && !refresh && state.daemonReadyKey === cacheKey && nowMs < Number(state.daemonReadyUntilMs || 0)) {
+      if (state.daemonLastHandshake && typeof state.daemonLastHandshake === "object") {
+        return state.daemonLastHandshake;
+      }
+      return { ok: true, contract_match: true, cached: true };
+    }
+
+    const fastTimeoutMs = clampNumber(opts?.timeoutMs, 600, 20000, DAEMON_HANDSHAKE_FAST_TIMEOUT_MS);
+    const bootTimeoutMs = clampNumber(opts?.bootTimeoutMs, 400, 5000, DAEMON_HANDSHAKE_BOOT_TIMEOUT_MS);
     const hsEp = {
       host: ep.host,
       port: ep.port,
       token: ep.token,
-      timeoutMs: 12000,
     };
-    const doHandshake = () =>
+    const doHandshake = (timeoutMs = fastTimeoutMs) =>
       invoke("daemon_health_handshake", {
         input: {
-          endpoint: hsEp,
-          contractPath: contractPathOrNull(),
+          endpoint: { ...hsEp, timeoutMs },
+          contractPath,
         },
       });
 
@@ -695,20 +1015,22 @@ async function ensureDaemonReady(reason = "operation", opts = {}) {
       log(`daemon bootstrap: ${boot?.message || "ok"}`, "INFO");
 
       let lastErr = null;
-      for (let i = 0; i < 30; i++) {
+      const maxAttempts = clampNumber(opts?.maxAttempts, 3, 40, DAEMON_BOOT_MAX_ATTEMPTS);
+      for (let i = 0; i < maxAttempts; i++) {
         try {
-          const hs = await doHandshake();
+          const hs = await doHandshake(bootTimeoutMs);
           if (hs?.contract_match === true) {
+            markReady(hs);
             return hs;
           }
           lastErr = new Error("daemon contract mismatch");
         } catch (e) {
           lastErr = e;
         }
-        if (i === 0 || (i + 1) % 5 === 0) {
-          log(`等待 daemon 就绪... (${i + 1}/30)`, "INFO");
+        if (i === 0 || (i + 1) % 3 === 0 || i + 1 === maxAttempts) {
+          log(`等待 daemon 就绪... (${i + 1}/${maxAttempts})`, "INFO");
         }
-        await sleep(350);
+        await sleep(250);
       }
       throw new Error(`daemon 启动后仍不可达: ${lastErr || "unknown"}`);
     };
@@ -716,6 +1038,7 @@ async function ensureDaemonReady(reason = "operation", opts = {}) {
     try {
       const hs = await doHandshake();
       if (!forceRestart && hs?.contract_match === true) {
+        markReady(hs);
         return hs;
       }
       log("检测到旧版或不匹配 daemon，准备重启本地 daemon...", "WARN");
@@ -723,6 +1046,7 @@ async function ensureDaemonReady(reason = "operation", opts = {}) {
       await sleep(220);
       return await bootstrapAndWait();
     } catch (firstErr) {
+      resetReadyCache();
       if (!forceRestart && !isDaemonUnavailableError(firstErr)) {
         throw firstErr;
       }
@@ -881,7 +1205,7 @@ async function onHandshake() {
   }
   try {
     saveSettings();
-    const result = await ensureDaemonReady("health");
+    const result = await ensureDaemonReady("health", { refresh: true });
     el("handshakeOutput").textContent = JSON.stringify(result, null, 2);
     const ok = Boolean(result.ok && result.contract_match);
     setHealth(ok, ok ? "Daemon: 握手通过" : "Daemon: 握手失败");
@@ -889,18 +1213,7 @@ async function onHandshake() {
     setActionTag(ok ? "握手成功" : "握手失败", ok ? "ok" : "warn");
   } catch (e) {
     if (isDaemonUnavailableError(e)) {
-      try {
-        log("握手超时/连接异常，尝试强制重启 daemon 后重试...", "WARN");
-        const retry = await ensureDaemonReady("health_retry", { forceRestart: true });
-        el("handshakeOutput").textContent = JSON.stringify(retry, null, 2);
-        const okRetry = Boolean(retry.ok && retry.contract_match);
-        setHealth(okRetry, okRetry ? "Daemon: 握手通过" : "Daemon: 握手失败");
-        log(`Health handshake retry done, match=${retry.contract_match}`);
-        setActionTag(okRetry ? "握手成功" : "握手失败", okRetry ? "ok" : "warn");
-        return;
-      } catch (retryErr) {
-        e = retryErr;
-      }
+      log("握手超时/连接异常，请检查 daemon 日志后重试", "WARN");
     }
     setHealth(false, "Daemon: 握手异常");
     log(`Health handshake 失败: ${e}`, "ERROR");
@@ -1484,6 +1797,26 @@ function buildWordOmmlClipboardHtml(omml) {
   );
 }
 
+async function writeClipboardTextWithNativeFallback(text) {
+  const value = String(text || "");
+  let webErr = null;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return { mode: "web" };
+    } catch (e) {
+      webErr = e;
+    }
+  }
+  try {
+    await invoke("copy_text_to_clipboard", { text: value });
+    return { mode: "native", webErr: webErr ? String(webErr) : "" };
+  } catch (nativeErr) {
+    const webMsg = webErr ? String(webErr) : "web clipboard unavailable";
+    throw new Error(`web=${webMsg}; native=${nativeErr}`);
+  }
+}
+
 async function copyWordOmmlWithFallback(formats, fallbackText, label = "结果") {
   const omml = String(formats?.omml || "").trim();
   const mathml = String(formats?.mathml || "").trim();
@@ -1501,12 +1834,12 @@ async function copyWordOmmlWithFallback(formats, fallbackText, label = "结果")
     }
   }
   if (mathml) {
-    await navigator.clipboard.writeText(mathml);
+    await writeClipboardTextWithNativeFallback(mathml);
     return { used: "mathml", fallback: true };
   }
   const plain = String(fallbackText || omml || "").trim();
   if (!plain) throw new Error("没有可复制内容");
-  await navigator.clipboard.writeText(plain);
+  await writeClipboardTextWithNativeFallback(plain);
   return { used: "latex", fallback: true };
 }
 
@@ -1525,7 +1858,7 @@ async function copyByFormat(payload, preferredFormat, label) {
     else text = fallback;
   }
   if (!text) throw new Error("当前没有可复制内容");
-  await navigator.clipboard.writeText(text);
+  await writeClipboardTextWithNativeFallback(text);
   return { format: text === fallback && fmt !== "latex" ? "latex" : fmt, fallback: text === fallback && fmt !== "latex" };
 }
 
@@ -1722,7 +2055,7 @@ async function onCopyUpdateUrl() {
   try {
     const url = (el("aboutUpdateUrl")?.value || "").trim();
     if (!url) throw new Error("更新地址为空");
-    await navigator.clipboard.writeText(url);
+    await writeClipboardTextWithNativeFallback(url);
     log("更新地址已复制");
     setActionTag("更新地址已复制", "ok");
   } catch (e) {
@@ -2184,12 +2517,12 @@ async function hotkeyCaptureAndPredict(trigger = "manual") {
   setImageButtonsBusy(true);
   try {
     saveSettings();
-    await ensureDaemonReady(`capture_${trigger}`);
     log(`开始区域框选截图 (${trigger})`);
     const cap = await invoke("capture_region_to_base64");
     const imageB64 = String(cap?.image_b64 || "");
     if (!imageB64) throw new Error("截图失败: 空图像数据");
-    log(`区域截图完成: in-memory png (${cap?.width || 0}x${cap?.height || 0})`);
+    log(`区域截图完成: in-memory ${String(cap?.format || "bmp").toLowerCase()} (${cap?.width || 0}x${cap?.height || 0})`);
+    await ensureDaemonReady(`capture_${trigger}`);
 
     const modelName = el("modelName").value;
     const runOne = async () => {
@@ -2342,7 +2675,7 @@ function bindButtons() {
       fxMode: "acrylic",
       compactMode: false,
       imageCopyFormat: "latex",
-      aboutUpdateUrl: "https://github.com/SakuraMathcraft/LaTeXSnipper/tree/tauri",
+      aboutUpdateUrl: ABOUT_UPDATE_URL_DEFAULT,
     });
     fillForm();
     applyWindowMode(false, { persist: false, silent: true });
@@ -2384,7 +2717,7 @@ function bindButtons() {
   el("btnUnregisterHotkey").addEventListener("click", onUnregisterHotkey);
   el("btnCopyLogs").addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(el("logOutput").textContent || "");
+      await writeClipboardTextWithNativeFallback(el("logOutput").textContent || "");
       log("日志已复制");
       setActionTag("日志已复制", "ok");
     } catch (e) {
@@ -2434,6 +2767,23 @@ function bindTauriEvents() {
     }
     if (p.error) {
       log(`热键状态: ${p.error}`, "WARN");
+    }
+  }).catch(() => {});
+  listen("open-environment-page", async (event) => {
+    const p = event?.payload || {};
+    const installBaseDir = String(p?.install_base_dir || "").trim();
+    const pyHint = String(p?.python_exe_hint || "").trim();
+    if (installBaseDir && el("envInstallBaseDir")) {
+      el("envInstallBaseDir").value = installBaseDir;
+    }
+    if (pyHint && el("envPythonExe")) {
+      el("envPythonExe").value = pyHint;
+    }
+    openPage("environment", "环境");
+    setActionTag("请在环境页选择层并执行安装", "warn");
+    try {
+      await onLoadEnvConfig();
+    } catch (_) {
     }
   }).catch(() => {});
 }

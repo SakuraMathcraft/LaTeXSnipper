@@ -10,6 +10,17 @@ mod window_effects;
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    std::env::set_var("LATEXSNIPPER_EXE_DIR", dir.to_string_lossy().to_string());
+                }
+            }
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                std::env::set_var(
+                    "LATEXSNIPPER_RESOURCE_DIR",
+                    resource_dir.to_string_lossy().to_string(),
+                );
+            }
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(applied) = window_effects::apply_best_effort(&window) {
                     let _ = window.emit("window-effects-applied", applied);
@@ -44,6 +55,7 @@ fn main() {
             commands::open_path,
             commands::save_text_file,
             commands::open_external_url,
+            commands::copy_text_to_clipboard,
             commands::get_app_info,
         ])
         .run(tauri::generate_context!())

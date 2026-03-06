@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Default capability for local RPC commands",
   "windows": [
-    "main"
+    "main",
+    "capture-overlay"
   ],
   "permissions": [
     "core:default"

@@ -1,5 +1,41 @@
 ﻿
-from PyQt6.QtCore import QObject, pyqtSignal
+try:
+    from PyQt6.QtCore import QObject, pyqtSignal
+except Exception:
+    class _Signal:
+        def __init__(self):
+            self._handlers = []
+
+        def connect(self, fn):
+            if callable(fn) and fn not in self._handlers:
+                self._handlers.append(fn)
+
+        def emit(self, *args, **kwargs):
+            for fn in list(self._handlers):
+                try:
+                    fn(*args, **kwargs)
+                except Exception:
+                    pass
+
+    class _SignalDescriptor:
+        def __set_name__(self, owner, name):
+            self._name = f"__sig_{name}"
+
+        def __get__(self, instance, owner):
+            if instance is None:
+                return self
+            sig = instance.__dict__.get(self._name)
+            if sig is None:
+                sig = _Signal()
+                instance.__dict__[self._name] = sig
+            return sig
+
+    def pyqtSignal(*_args, **_kwargs):
+        return _SignalDescriptor()
+
+    class QObject:
+        def __init__(self, *args, **kwargs):
+            super().__init__()
 
 import json
 import os
