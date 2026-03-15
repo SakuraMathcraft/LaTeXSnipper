@@ -113,8 +113,6 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
-⚠️ 首次运行需保持网络连接，pix2tex 模型权重会自动下载。
-
 ---
 
 ## 📖 使用说明
@@ -144,34 +142,6 @@ python src/main.py
 - **HTML** - HTML5 数学公式表示
 - **OMML** - Office Open XML 格式（Word 兼容）
 - **SVG** - 向量图形格式，可嵌入网页
-
-## 🏗️ 项目结构
-
-```
-LaTeXSnipper/
-├── src/                          # 源代码
-│   ├── main.py                  # 主程序入口
-│   ├── deps_bootstrap.py        # 依赖管理和引导安装
-│   ├── updater.py               # 更新检查模块
-│   ├── config.json              # 配置文件
-│   ├── backend/                 # 后端模块
-│   │   ├── model.py             # 模型管理
-│   │   ├── capture_overlay.py   # 截图覆盖层
-│   │   └── qhotkey/             # 全局快捷键
-│   ├── core/                    # 核心功能
-│   │   ├── utils.py             # 工具函数
-│   │   ├── constants.py         # 常量定义
-│   │   └── config.py            # 配置管理
-│   ├── ui/                      # UI 组件
-│   │   ├── dialogs.py           # 对话框
-│   │   └── widgets.py           # 自定义控件
-│   └── assets/                  # 资源文件
-│       └── MathJax-3.2.2/       # MathJax 库
-├── requirements.txt              # 项目依赖
-├── LaTeXSnipper.spec            # PyInstaller 打包配置
-├── LICENSE                       # MIT 许可证
-└── README.md                     # 本文件
-```
 
 ---
 
@@ -203,19 +173,6 @@ LaTeXSnipper/
 - 通过所有测试
 
 ---
-
-## � 支持项目
-
-如果这个项目对你有帮助，请考虑：
-
-- ⭐ **点个 Star** - 这是最简单的支持方式
-- 🐛 **报告 Bug** - 帮助我们改进项目
-- 💬 **分享反馈** - 你的建议很宝贵
-- 🔗 **分享给朋友** - 让更多人知道这个项目
-- 💰 **赞助开发者** - [赞助链接](#)(暂未开放)
-
----
-
 
 ## 📄 许可证
 
