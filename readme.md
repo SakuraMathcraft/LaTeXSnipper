@@ -85,7 +85,7 @@
 **Windows 用户最简单的方式，内置 Python**
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper-v1.05.exe`
+2. 下载最新版 `LaTeXSnipper_setup_v1.06.exe`
 3. 双击运行即可，首次启动会自动下载必要模型（约 2GB+）
 4. ✅ 完成！开始截图识别公式
 
