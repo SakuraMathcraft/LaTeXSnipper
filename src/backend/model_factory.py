@@ -13,15 +13,15 @@ def _use_daemon_mode() -> bool:
     return True
 
 
-def create_model_wrapper(default_model: str | None = None):
+def create_model_wrapper(default_model: str | None = None, auto_warmup: bool = True):
     if not _use_daemon_mode():
         print("[INFO] model runtime: local wrapper (daemon disabled by env)")
-        return ModelWrapper(default_model)
+        return ModelWrapper(default_model, auto_warmup=auto_warmup)
     try:
         from backend.model_daemon_adapter import DaemonModelWrapper
 
         print("[INFO] model runtime: daemon wrapper")
-        return DaemonModelWrapper(default_model)
+        return DaemonModelWrapper(default_model, auto_warmup=auto_warmup)
     except Exception as e:
         print(f"[WARN] daemon adapter unavailable, fallback local wrapper: {e}")
-        return ModelWrapper(default_model)
+        return ModelWrapper(default_model, auto_warmup=auto_warmup)

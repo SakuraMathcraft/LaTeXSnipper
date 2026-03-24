@@ -1096,7 +1096,7 @@ def _repair_torch_stack(
 LAYER_MAP = {
     "BASIC": [
         "simsimd~=6.0.5","lxml~=4.9.3",
-        "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=25.0",
+        "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=26.0",
         "requests~=2.32.5", "tqdm~=4.67.1",
         "numpy>=1.26.4", "filelock~=3.13.1",
         "pydantic~=2.9.2", "regex~=2024.9.11",
@@ -2126,11 +2126,63 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                                  QHBoxLayout, QComboBox, QFileDialog, QLineEdit, QMessageBox, QApplication)
     from PyQt6.QtCore import Qt
     from qfluentwidgets import PushButton, FluentIcon
+
+    def _is_dark_ui() -> bool:
+        app = QApplication.instance()
+        if app is None:
+            return False
+        c = app.palette().window().color()
+        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+    theme = {
+        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
+        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
+        "muted": "#a9b3bf" if _is_dark_ui() else "#555555",
+        "input_bg": "#232934" if _is_dark_ui() else "#ffffff",
+        "border": "#465162" if _is_dark_ui() else "#d0d7de",
+        "warn": "#ff8a80" if _is_dark_ui() else "#c62828",
+        "ok": "#7bd88f" if _is_dark_ui() else "#2e7d32",
+        "hint": "#d9b36c" if _is_dark_ui() else "#856404",
+        "accent": "#8ec5ff" if _is_dark_ui() else "#1976d2",
+        "accent_hover": "#63b3ff" if _is_dark_ui() else "#0f62c9",
+        "btn_bg": "#2b3440" if _is_dark_ui() else "#f8fbff",
+        "btn_hover": "#344151" if _is_dark_ui() else "#eef6ff",
+    }
+
     dlg = QDialog()
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
     dlg.setWindowTitle("依赖环境选择")
+    dlg.setStyleSheet(
+        "QDialog {"
+        f"background: {theme['dialog_bg']}; color: {theme['text']};"
+        "}"
+        "QLabel {"
+        f"color: {theme['text']};"
+        "}"
+        "QLineEdit, QComboBox {"
+        f"background: {theme['input_bg']}; color: {theme['text']};"
+        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 4px 6px;"
+        "}"
+        "QCheckBox {"
+        f"color: {theme['text']};"
+        "}"
+        "QCheckBox::indicator {"
+        f"width: 14px; height: 14px; border: 1px solid {theme['border']};"
+        f"background: {theme['input_bg']}; border-radius: 3px;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        f"background: {theme['accent']}; border: 1px solid {theme['accent']};"
+        "}"
+        "QPushButton {"
+        f"background: {theme['btn_bg']}; color: {theme['accent']};"
+        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 6px 10px;"
+        "}"
+        "QPushButton:hover {"
+        f"background: {theme['btn_hover']}; border: 1px solid {theme['accent']}; color: {theme['accent_hover']};"
+        "}"
+    )
     lay = QVBoxLayout(dlg)
 
     def _force_quit():
@@ -2219,17 +2271,17 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 如果有验证失败的层，显示警告
     if failed_layer_names:
         status_text = f"当前依赖环境：{deps_dir}\n⚠️ 以下功能层安装但无法使用: {', '.join(failed_layer_names)}\n可用功能层: {', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
-        status_color = "#c62828"  # 红色警告
+        status_color = theme["warn"]
     elif installed_layers["layers"]:
         if lack_critical:
             status_text = f"检测到当前环境{deps_dir}的功能层不完整\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = "#555"
+            status_color = theme["muted"]
         else:
             status_text = f"当前依赖环境：{deps_dir}\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = "#2e7d32"  # 绿色表示完整
+            status_color = theme["ok"]
     else:
         status_text = f"当前依赖环境：{deps_dir}\n已安装层：(无)"
-        status_color = "#c62828"  # 红色表示未安装
+        status_color = theme["warn"]
     
     env_info = QLabel(status_text)
     env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:6px;")
@@ -2342,13 +2394,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         cuda_ver = cuda_info.get("version", "未知")
         torch_tag = cuda_info.get("torch_tag", "cuda")
         gpu_info_label.setText(f"✅ 检测到 NVIDIA GPU (CUDA {cuda_ver})，将使用 {torch_tag} 版本 PyTorch")
-        gpu_info_label.setStyleSheet("color:#28a745;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
     elif has_gpu:
         gpu_info_label.setText("⚠️ 检测到 GPU 但未找到 CUDA，将尝试使用默认 GPU 轮子源")
-        gpu_info_label.setStyleSheet("color:#856404;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     else:
         gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议安装 HEAVY_CPU 层")
-        gpu_info_label.setStyleSheet("color:#856404;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     lay.addWidget(gpu_info_label)
     # 路径显示与更改
     path_row = QHBoxLayout()
@@ -2384,7 +2436,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # 警告 label
     warn = QLabel("缺少关键依赖层，部分功能将不可用！")
-    warn.setStyleSheet("color:red;")
+    warn.setStyleSheet(f"color:{theme['warn']};")
     lay.addWidget(warn)
 
     # 说明 label
@@ -2400,10 +2452,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥，只能选择其一！\n"
         "• onnxruntime 和 onnxruntime-gpu 互斥，会自动卸载冲突版本。\n"
-        "• v1.05 起仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
+        "• 当前版本仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
         "• 向导负责安装/切换 pix2text 所需的 CPU/GPU 依赖与 onnxruntime。\n"
     )
-    desc.setStyleSheet("color:#555;font-size:11px;")
+    desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
     chosen = {"layers": None, "mirror": False, "deps_path": deps_dir, "force_enter": False,
               "verified_in_ui": verified_in_ui}
@@ -2534,7 +2586,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def download():
         sel = [L for L, c in checks.items() if c.isChecked()]
         if not sel:
-            custom_warning_dialog("提示", "请至少选择一个依赖层进行下载。", dlg)
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.warning(
+                title="提示",
+                content="请至少选择一个依赖层进行下载。",
+                parent=dlg.parent() if dlg.parent() is not None else dlg,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
             return
         chosen["layers"] = sel
         chosen["mirror"] = (mirror_box.currentData() == "tuna")
@@ -2655,14 +2714,52 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     return dlg, chosen
 
 def _progress_dialog():
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout, QApplication
     from qfluentwidgets import PushButton, FluentIcon
+    def _is_dark_ui() -> bool:
+        try:
+            import qfluentwidgets as qfw
+            fn = getattr(qfw, "isDarkTheme", None)
+            if callable(fn):
+                return bool(fn())
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is None:
+            return False
+        c = app.palette().window().color()
+        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+    theme = {
+        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
+        "panel_bg": "#232934" if _is_dark_ui() else "#f7f9fc",
+        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
+        "muted": "#a9b3bf" if _is_dark_ui() else "#666666",
+        "border": "#465162" if _is_dark_ui() else "#d0d7de",
+        "progress_bg": "#2b3440" if _is_dark_ui() else "#f0f0f0",
+        "progress_border": "#465162" if _is_dark_ui() else "#dddddd",
+        "progress_start": "#4CAF50" if _is_dark_ui() else "#4CAF50",
+        "progress_end": "#66BB6A" if _is_dark_ui() else "#66BB6A",
+    }
     dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
+    dlg.setStyleSheet(
+        f"""
+        QDialog {{ background: {theme['dialog_bg']}; color: {theme['text']}; }}
+        QLabel {{ color: {theme['text']}; }}
+        QTextEdit {{
+            background: {theme['panel_bg']};
+            color: {theme['text']};
+            border: 1px solid {theme['border']};
+            border-radius: 6px;
+        }}
+        """
+    )
     lay = QVBoxLayout(dlg)
     info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
+    info.setStyleSheet(f"color: {theme['muted']};")
     logw = QTextEdit(); logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
@@ -2670,17 +2767,22 @@ def _progress_dialog():
     progress.setMinimumWidth(400)  # 增加宽度
     progress.setStyleSheet("""
         QProgressBar {
-            border: 2px solid #ddd;
+            border: 2px solid __PROGRESS_BORDER__;
             border-radius: 10px;
             text-align: center;
-            background-color: #f0f0f0;
+            background-color: __PROGRESS_BG__;
+            color: __TEXT__;
         }
         QProgressBar::chunk {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                        stop:0 #4CAF50, stop:1 #66BB6A);
+                                        stop:0 __PROGRESS_START__, stop:1 __PROGRESS_END__);
             border-radius: 8px;
         }
-    """)
+    """.replace("__PROGRESS_BORDER__", theme["progress_border"])
+       .replace("__PROGRESS_BG__", theme["progress_bg"])
+       .replace("__TEXT__", theme["text"])
+       .replace("__PROGRESS_START__", theme["progress_start"])
+       .replace("__PROGRESS_END__", theme["progress_end"]))
 
     btn_cancel = PushButton(FluentIcon.CLOSE, "退出下载")
     btn_cancel.setFixedHeight(32)
@@ -3302,7 +3404,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     if _is_alive(progress):
                         _set_progress(progress.maximum())
                     if _is_alive(btn_cancel):
-                        btn_cancel.setText("Finish")
+                        btn_cancel.setText("完成")
                     if _is_alive(btn_pause):
                         btn_pause.setEnabled(False)
                     if _is_alive(btn_cancel):

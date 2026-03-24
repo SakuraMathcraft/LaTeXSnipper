@@ -2,7 +2,7 @@
 from pathlib import Path
 import time
 import pyperclip
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
@@ -32,6 +32,8 @@ class SettingsWindow(QDialog):
     pix2text_pkg_probe_done = pyqtSignal(bool)
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._compute_mode_state = "unknown"
+        self._theme_is_dark_cached = None
         self.setWindowFlags(
             (
                 self.windowFlags()
@@ -63,6 +65,7 @@ class SettingsWindow(QDialog):
         self._cached_main_torch_info = None
         self._cached_main_torch_py = ""
         self._cached_main_torch_ts = 0.0
+        self._theme_mode_values = ["light", "dark", "auto"]
         # 模型选择区域
         lay.addWidget(QLabel("选择识别模式:"))
         # 使用下拉框支持更多识别模式
@@ -106,7 +109,7 @@ class SettingsWindow(QDialog):
         self.pix2text_pyexe_create.clicked.connect(self._on_pix2text_pyexe_create)
         pix2text_env_layout.addWidget(self.pix2text_pyexe_create)
         lay.addWidget(self.pix2text_env_widget)
-        self.pix2text_env_hint = QLabel("提示：v1.05 起 pix2text 与主依赖环境统一，不再使用隔离环境。")
+        self.pix2text_env_hint = QLabel("提示：pix2text 与主依赖环境统一，不再使用隔离环境。")
         self.pix2text_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_env_hint.setWordWrap(True)
         lay.addWidget(self.pix2text_env_hint)
@@ -156,6 +159,14 @@ class SettingsWindow(QDialog):
         self._update_compute_mode_label()
         # 分隔
         lay.addSpacing(12)
+        # ============ 外观主题设置 ============
+        lay.addWidget(QLabel("外观主题:"))
+        self.theme_mode_combo = ComboBox()
+        self.theme_mode_combo.setFixedHeight(36)
+        self.theme_mode_combo.addItem("浅色", userData="light")
+        self.theme_mode_combo.addItem("深色", userData="dark")
+        self.theme_mode_combo.addItem("跟随系统", userData="auto")
+        lay.addWidget(self.theme_mode_combo)
         # ============ 渲染引擎设置 ============
         lay.addWidget(QLabel("公式渲染引擎:"))
         # 渲染引擎选择 - 使用 qfluentwidgets ComboBox 保持一致的外观
@@ -277,6 +288,7 @@ class SettingsWindow(QDialog):
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_pix2text_cache.clicked.connect(self._open_pix2text_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
+        self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # 渲染引擎相关信号
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
         self.btn_browse_latex.clicked.connect(self._browse_latex_path)
@@ -286,6 +298,7 @@ class SettingsWindow(QDialog):
         # 初始化选择状态
         self._init_model_combo()
         self._update_model_desc()
+        self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
         # 编译器切换时自动切换路径
@@ -293,6 +306,108 @@ class SettingsWindow(QDialog):
             self.latex_compiler_combo.currentIndexChanged.connect(self._on_latex_compiler_changed)
         # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
         QTimer.singleShot(120, self._warm_probe_cache_async)
+        self.apply_theme_styles(force=True)
+
+    def _is_dark_mode(self) -> bool:
+        try:
+            from qfluentwidgets import isDarkTheme
+            return bool(isDarkTheme())
+        except Exception:
+            pal = self.palette().window().color()
+            return ((pal.red() + pal.green() + pal.blue()) / 3.0) < 128
+
+    def _normalize_theme_mode(self, value: str | None) -> str:
+        mode = str(value or "auto").strip().lower()
+        return mode if mode in self._theme_mode_values else "auto"
+
+    def _init_theme_mode_combo(self):
+        mode = "auto"
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                mode = self._normalize_theme_mode(self.parent().cfg.get("theme_mode", "auto"))
+                self.parent().cfg.set("theme_mode", mode)
+        except Exception:
+            mode = "auto"
+        try:
+            idx = self._theme_mode_values.index(mode)
+        except Exception:
+            idx = 2
+        prev = self.theme_mode_combo.blockSignals(True)
+        self.theme_mode_combo.setCurrentIndex(idx)
+        self.theme_mode_combo.blockSignals(prev)
+
+    def _on_theme_mode_changed(self, index: int):
+        mode = "auto"
+        if index >= 0:
+            value = self.theme_mode_combo.itemData(index)
+            mode = self._normalize_theme_mode(value)
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                self.parent().cfg.set("theme_mode", mode)
+        except Exception:
+            pass
+        try:
+            if self.parent() and hasattr(self.parent(), "apply_app_theme_mode"):
+                self.parent().apply_app_theme_mode(mode, refresh_preview=True)
+        except Exception:
+            pass
+        mapping = {"light": "浅色", "dark": "深色", "auto": "跟随系统"}
+        self._show_info("主题已应用", f"当前主题: {mapping.get(mode, mode)}", "success")
+
+    def _theme_tokens(self) -> dict:
+        if self._is_dark_mode():
+            return {
+                "muted": "#b6beca",
+                "compute_gpu": "#7bd88f",
+                "compute_cpu": "#ffb35c",
+                "compute_unknown": "#9ea7b3",
+            }
+        return {
+            "muted": "#666666",
+            "compute_gpu": "#2e7d32",
+            "compute_cpu": "#f57c00",
+            "compute_unknown": "#666666",
+        }
+
+    def _compute_label_color(self) -> str:
+        t = self._theme_tokens()
+        if self._compute_mode_state == "gpu":
+            return t["compute_gpu"]
+        if self._compute_mode_state == "cpu":
+            return t["compute_cpu"]
+        return t["compute_unknown"]
+
+    def apply_theme_styles(self, force: bool = False):
+        dark = self._is_dark_mode()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        t = self._theme_tokens()
+        if hasattr(self, "lbl_model_desc") and self.lbl_model_desc is not None:
+            self.lbl_model_desc.setStyleSheet(f"color: {t['muted']}; font-size: 11px; padding: 4px;")
+        if hasattr(self, "pix2text_env_hint") and self.pix2text_env_hint is not None:
+            self.pix2text_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
+        if hasattr(self, "pix2text_torch_status") and self.pix2text_torch_status is not None:
+            self.pix2text_torch_status.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
+        if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
+            self.lbl_latex_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 4px;")
+        if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
+            self.lbl_compute_mode.setStyleSheet(
+                f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"
+            )
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self.apply_theme_styles()
+        except Exception:
+            pass
+        return result
 
     def _warm_probe_cache_async(self):
         def worker():
@@ -947,7 +1062,7 @@ class SettingsWindow(QDialog):
     def _on_pix2text_pyexe_clear(self):
         self._show_info("已固定", "pix2text 使用主依赖环境，无需清除独立环境。", "info")
     def _on_pix2text_pyexe_create(self):
-        self._show_info("已固定", "v1.05 起不再创建模型隔离环境，统一使用主依赖环境。", "info")
+        self._show_info("已固定", "当前版本不再创建模型隔离环境，统一使用主依赖环境。", "info")
     def _update_pix2text_visibility(self):
         key = None
         idx = self.model_combo.currentIndex()
@@ -1213,7 +1328,7 @@ class SettingsWindow(QDialog):
         }
         desc = descriptions.get(key, "")
         if key == "pix2text":
-            desc += "\n提示：v1.05 起仅保留 pix2text，依赖统一由主环境管理。"
+            desc += "\n提示：当前版本仅保留 pix2text，依赖统一由主环境管理。"
         self.lbl_model_desc.setText(desc)
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
@@ -1309,7 +1424,7 @@ class SettingsWindow(QDialog):
             "echo [*] pip/python will use this env",
             "echo.",
             "echo [Model Policy]",
-            "echo   - v1.05 keeps pix2text only",
+            "echo   - current build keeps pix2text only",
             "echo   - use unified main env; no model-isolated env",
             "echo   - CPU/GPU switch only changes torch + onnxruntime",
             f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",
@@ -1565,13 +1680,14 @@ class SettingsWindow(QDialog):
             if cuda_available:
                 gpu_name = torch.cuda.get_device_name(0)
                 self.lbl_compute_mode.setText(f"🟢 GPU 可用: {gpu_name}")
-                self.lbl_compute_mode.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px;")
+                self._compute_mode_state = "gpu"
             else:
                 self.lbl_compute_mode.setText("🟡 仅 CPU 模式 (未检测到 GPU层依赖)")
-                self.lbl_compute_mode.setStyleSheet("color: #f57c00; font-size: 11px; padding: 4px;")
+                self._compute_mode_state = "cpu"
         except Exception:
             self.lbl_compute_mode.setText("⚪ 计算模式未知")
-            self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+            self._compute_mode_state = "unknown"
+        self.apply_theme_styles(force=True)
     def update_model_selection(self):
         # sync model combo selection state
         for i, (key, _) in enumerate(self._model_options):
