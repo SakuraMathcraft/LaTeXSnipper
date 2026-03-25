@@ -169,6 +169,36 @@ function syncKeyboardState() {
   document.documentElement.style.setProperty('--vk-height', `${height}px`);
 }
 
+function isMathfieldActive() {
+  return !!mathfield && (
+    document.activeElement === mathfield ||
+    mathfield.matches?.(':focus') ||
+    mathfield.matches?.(':focus-within')
+  );
+}
+
+function routeArrowKeyToMathfield(event) {
+  if (!isMathfieldActive()) return;
+  const commandMap = {
+    ArrowLeft: 'moveToPreviousChar',
+    ArrowRight: 'moveToNextChar',
+    ArrowUp: 'moveUp',
+    ArrowDown: 'moveDown',
+  };
+  const command = commandMap[event.key];
+  if (!command) return;
+  try {
+    const handled = mathfield?.executeCommand?.(command);
+    if (handled !== false) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  } catch (_) {
+    // Ignore and allow default behavior if the current MathLive build
+    // does not support one of these selectors.
+  }
+}
+
 function compactText(value, maxChars = 320, maxLines = 10) {
   const text = String(value ?? '');
   const normalized = text.replace(/\r\n/g, '\n');
@@ -450,8 +480,8 @@ function copyMathJson() {
 }
 
 function insertToMain() {
-  const latex = mathfield?.getValue('latex-expanded') || '';
-  if (latex) bridge?.requestInsertToMain?.(latex);
+  const latex = (mathfield?.getValue('latex-expanded') || '').trim();
+  bridge?.requestInsertToMain?.(latex);
 }
 
 window.workbenchApi = {
@@ -510,6 +540,7 @@ async function bootstrap() {
     }
 
     mathfield = new MathfieldElement();
+    mathfield.tabIndex = 0;
     mathfield.mathVirtualKeyboardPolicy = 'auto';
     mathfield.mathVirtualKeyboardPolicy = 'onfocus';
     mathfield.smartFence = true;
@@ -530,6 +561,7 @@ async function bootstrap() {
       setStatus('正在编辑');
       syncKeyboardState();
     });
+    mathfield.addEventListener('keydown', routeArrowKeyToMathfield, true);
     mathfield.addEventListener('focusin', () => queueMicrotask(syncKeyboardState));
     mathfield.addEventListener('focusout', () => setTimeout(syncKeyboardState, 0));
 

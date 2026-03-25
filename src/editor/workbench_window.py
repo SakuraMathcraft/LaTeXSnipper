@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from PyQt6.QtCore import QUrl, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QGuiApplication, QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QVBoxLayout, QWidget
@@ -16,20 +16,20 @@ from utils import resource_path
 
 class WorkbenchWindow(QWidget):
     EXAMPLES = {
-        "求和开方": r"\sqrt{6\sum_{n=1}^{\infty} \frac{1}{n^2}}",
+        "分式计算": r"\frac{1}{3}+\frac{5}{12}",
+        "三角恒等式": r"\sin\left(\frac{\pi}{4}\right)^2+\cos\left(\frac{\pi}{4}\right)^2",
         "多项式展开": r"(x+1)^3",
         "因式分解": r"x^2-5x+6",
         "方程求解": r"x^2-5x+6=0",
-        "三角恒等式": r"\sin\left(\frac{\pi}{4}\right)^2+\cos\left(\frac{\pi}{4}\right)^2",
-        "分式计算": r"\frac{1}{3}+\frac{5}{12}",
+        "求和开方": r"\sqrt{6\sum_{n=1}^{\infty} \frac{1}{n^2}}",
+        "导数": r"\frac{d}{dx}\left(x^3+3x^2+1\right)",
         "定积分": r"\int_0^1 x^2\,dx",
+        "极限": r"\lim_{x\to 0}\frac{\sin x}{x}",
         "广义积分": r"\int_0^{\infty} e^{-x}\,dx",
-        "无穷级数": r"\sum_{n=1}^{\infty} \frac{1}{n^2}",
         "几何级数": r"\sum_{n=0}^{\infty} \left(\frac{1}{2}\right)^n",
+        "无穷级数": r"\sum_{n=1}^{\infty} \frac{1}{n^2}",
         "无穷乘积": r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)",
         "Wallis 乘积": r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}",
-        "极限": r"\lim_{x\to 0}\frac{\sin x}{x}",
-        "导数": r"\frac{d}{dx}\left(x^3+3x^2+1\right)",
     }
 
     def __init__(self, parent=None, on_insert_latex=None):
@@ -39,6 +39,7 @@ class WorkbenchWindow(QWidget):
         self._on_insert_latex = on_insert_latex
         self._pending_latex = ""
         self._theme_is_dark_cached = None
+        self._centered_once = False
 
         self.setWindowTitle("LaTeXSnipper 数学工作台")
         self.resize(1160, 760)
@@ -174,6 +175,25 @@ class WorkbenchWindow(QWidget):
 
         self._load_page()
         self.apply_theme_styles(force=True)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._centered_once:
+            return
+        self._centered_once = True
+        try:
+            screen = None
+            if self._owner is not None and self._owner.windowHandle() is not None:
+                screen = self._owner.windowHandle().screen()
+            if screen is None:
+                screen = QGuiApplication.primaryScreen()
+            if screen is None:
+                return
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())
+        except Exception:
+            pass
 
     def _asset_url(self, relative: str) -> QUrl:
         return QUrl.fromLocalFile(str(Path(resource_path(relative)).resolve()))

@@ -42,11 +42,12 @@ body {
   height: calc(100vh - var(--status-height));
   padding: 12px 12px 8px 12px;
   overflow: auto;
-  transition: padding-bottom 140ms ease;
+  transition: height 140ms ease, padding-bottom 140ms ease;
 }
 
 body.vk-visible .shell {
-  padding-bottom: calc(var(--vk-height) + 18px);
+  height: calc(100vh - var(--status-height) - var(--vk-height) - 12px);
+  padding-bottom: 10px;
 }
 
 .left-panel,
@@ -62,6 +63,7 @@ body.vk-visible .shell {
 .left-panel {
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .right-panel {
@@ -69,7 +71,14 @@ body.vk-visible .shell {
   grid-template-rows: minmax(92px, 0.75fr) minmax(110px, 0.95fr) minmax(110px, 0.95fr);
   gap: 12px;
   align-content: start;
+  height: 100%;
   min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+body.vk-visible .right-panel {
+  grid-template-rows: minmax(84px, 0.72fr) minmax(96px, 0.88fr) minmax(120px, 1fr);
 }
 
 .panel-title {
@@ -133,6 +142,11 @@ pre {
   padding: 12px;
 }
 
+body.vk-visible #result-render-host {
+  min-height: 72px;
+  max-height: 132px;
+}
+
 #result-render-host math-field {
   display: inline-block;
   min-width: max-content;
@@ -151,6 +165,10 @@ pre {
   overflow: auto;
   white-space: pre;
   word-break: normal;
+}
+
+body.vk-visible #result-output {
+  max-height: 88px;
 }
 
 #mathjson-output {
