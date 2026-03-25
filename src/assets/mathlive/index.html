@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LaTeXSnipper 数学工作台</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="left-panel">
+      <div class="panel-title">公式编辑区</div>
+      <div id="mathfield-host"></div>
+    </div>
+    <div class="right-panel">
+      <section class="panel">
+        <div class="panel-title">LaTeX 源码</div>
+        <pre id="latex-output"></pre>
+      </section>
+      <section class="panel">
+        <div class="panel-title">MathJSON 结构</div>
+        <pre id="mathjson-output"></pre>
+      </section>
+      <section class="panel">
+        <div class="panel-title">计算结果</div>
+        <div id="result-render-host"></div>
+        <pre id="result-output"></pre>
+      </section>
+    </div>
+  </div>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

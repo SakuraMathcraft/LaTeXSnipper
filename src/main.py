@@ -2655,6 +2655,7 @@ from backend.model import ModelWrapper
 from backend.model_factory import create_model_wrapper
 from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
 from backend.latex_renderer import init_latex_settings, get_latex_renderer
+from editor.workbench_window import WorkbenchWindow
 import importlib
 from qfluentwidgets import (
     setTheme, Theme, FluentIcon,
@@ -5088,11 +5089,14 @@ class MainWindow(_QMainWindow):
         self.export_btn.clicked.connect(self._show_export_menu)
         self.add_to_fav_btn = PushButton(FluentIcon.HEART, "收藏")
         self.add_to_fav_btn.clicked.connect(self._add_editor_to_fav)
+        self.workbench_btn = PushButton(FluentIcon.CODE, "数学工作台")
+        self.workbench_btn.clicked.connect(self.open_workbench)
         editor_header.addWidget(self.upload_image_btn)
         editor_header.addWidget(self.upload_pdf_btn)
         editor_header.addWidget(self.copy_editor_btn)
         editor_header.addWidget(self.export_btn)
         editor_header.addWidget(self.add_to_fav_btn)
+        editor_header.addWidget(self.workbench_btn)
         right_layout.addLayout(editor_header)
 
         # LaTeX 编辑器
@@ -6545,6 +6549,11 @@ th {{
         apply_theme_mode(normalized)
         try:
             self._apply_theme_styles(force=True)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
+                self.workbench_window.apply_theme_styles(force=True)
         except Exception:
             pass
         if refresh_preview:
@@ -8006,6 +8015,40 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         fav.raise_()
         fav.activateWindow()
 
+    def _on_workbench_insert(self, latex: str):
+        text = (latex or "").strip()
+        if not text:
+            return
+        if text == "__LOAD_FROM_MAIN__":
+            text = self.latex_editor.toPlainText().strip()
+            if not text:
+                if getattr(self, "workbench_window", None):
+                    self.workbench_window.show_info("当前无内容", "主编辑器为空，没有可载入的公式")
+                return
+            self.workbench_window.set_latex(text)
+            self.workbench_window.show_success("已载入", "主编辑器内容已载入数学工作台")
+            return
+        self.latex_editor.setPlainText(text)
+        self.render_latex_in_preview(text)
+        self.set_action_status("工作台内容已回填到主编辑器")
+        if getattr(self, "workbench_window", None):
+            self.workbench_window.show_success("已写回", "数学工作台内容已写回主编辑器")
+
+    def open_workbench(self):
+        if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
+            self.workbench_window.raise_()
+            self.workbench_window.activateWindow()
+        else:
+            self.workbench_window = WorkbenchWindow(None, on_insert_latex=self._on_workbench_insert)
+            self.workbench_window.destroyed.connect(lambda: setattr(self, "workbench_window", None))
+            self.workbench_window.apply_theme_styles(force=True)
+            self.workbench_window.show()
+        current = self.latex_editor.toPlainText().strip()
+        if current:
+            self.workbench_window.set_latex(current)
+        self.workbench_window.raise_()
+        self.workbench_window.activateWindow()
+
     def show_window(self):
         self.system_provider.activate_window(self)
         self.set_action_status("主窗口已显示")
@@ -8386,7 +8429,9 @@ def _schedule_torch_runtime_probe() -> None:
 
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
+    import multiprocessing
     import os, sys
+    multiprocessing.freeze_support()
     force_deps_check = '--force-deps-check' in sys.argv
     force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
     # 判断是否为 PyInstaller 打包环境
@@ -8396,6 +8441,7 @@ if __name__ == "__main__":
         # 确保标准流可用
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False)
         splash = _create_startup_splash(app)
         _update_startup_splash(splash, "初始化界面...")
         # 3) UI 主题（可选）
@@ -8439,6 +8485,7 @@ if __name__ == "__main__":
         from PyQt6.QtWidgets import QApplication
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False)
         splash = _create_startup_splash(app)
         _update_startup_splash(splash, "初始化界面...")
         force_deps_check = '--force-deps-check' in sys.argv
