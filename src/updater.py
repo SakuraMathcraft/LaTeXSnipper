@@ -223,11 +223,56 @@ def _save_cached_info(etag: str, info: ReleaseInfo):
                 "info": {
                     "latest": info.latest,
                     "url": info.url,
-                    "changelog": info.changelog
+                    "changelog": info.changelog,
+                    "asset_url": info.asset_url,
+                    "asset_name": info.asset_name,
                 }
             }, f)
     except Exception:
         pass
+
+
+def _stable_tag_key(tag: str) -> tuple[int, ...]:
+    raw = str(tag or "").strip().lower()
+    if not raw:
+        return tuple()
+    if any(mark in raw for mark in ("beta", "alpha", "rc", "nightly", "preview")):
+        return tuple()
+    cleaned = raw.lstrip("v")
+    parts = re.findall(r"\d+", cleaned)
+    if not parts:
+        return tuple()
+    return tuple(int(p) for p in parts)
+
+
+def _is_newer_version(latest: str, current: str) -> bool:
+    latest_key = _stable_tag_key(latest)
+    current_key = _stable_tag_key(current)
+    if latest_key and current_key:
+        max_len = max(len(latest_key), len(current_key))
+        latest_key += (0,) * (max_len - len(latest_key))
+        current_key += (0,) * (max_len - len(current_key))
+        return latest_key > current_key
+    return str(latest or "").strip() != str(current or "").strip()
+
+
+def _compare_versions(left: str, right: str) -> int:
+    left_key = _stable_tag_key(left)
+    right_key = _stable_tag_key(right)
+    if left_key and right_key:
+        max_len = max(len(left_key), len(right_key))
+        left_key += (0,) * (max_len - len(left_key))
+        right_key += (0,) * (max_len - len(right_key))
+        if left_key > right_key:
+            return 1
+        if left_key < right_key:
+            return -1
+        return 0
+    left_raw = str(left or "").strip()
+    right_raw = str(right or "").strip()
+    if left_raw == right_raw:
+        return 0
+    return 1 if left_raw > right_raw else -1
 
 def _attach_auth_headers(h: dict):
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -289,6 +334,10 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
     headers: Dict[str, str] = {}
     _attach_auth_headers(headers)
     etag, _, cached_info = _load_cached_info()
+    # 如果缓存里的“最新版本”竟然低于当前程序版本，说明缓存明显过期，直接绕过 ETag 强制重取。
+    if cached_info and _compare_versions(cached_info.latest, __version__) < 0:
+        etag = None
+        cached_info = None
     if etag:
         headers["If-None-Match"] = etag
     try:
@@ -333,15 +382,11 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
             reverse=True
         )
 
-        def pick(key: str):
-            for rel in ordered:
-                tag = (rel.get("tag_name") or "").lower()
-                if key in tag:
-                    return rel
-            return None
-
-        # 正式版本优先选择稳定版本，不再优先选择 beta/nightly
-        rel = pick("v1.") or pick("beta") or pick("nightly") or (ordered[0] if ordered else None)
+        stable_releases = [
+            rel for rel in ordered
+            if _stable_tag_key(rel.get("tag_name", ""))
+        ]
+        rel = stable_releases[0] if stable_releases else (ordered[0] if ordered else None)
         if not rel:
             diagnostics.append((_API_RELEASES, "no releases"))
             return None, "未找到 release", diagnostics
@@ -556,11 +601,15 @@ a{{color:{theme['accent']};}}
             return
 
         state["info"] = info
-        if info.latest != __version__:
+        cmp = _compare_versions(info.latest, __version__)
+        if cmp > 0:
             lbl_status.setText(f"发现新版本: {info.latest} (当前 {__version__})")
             btn_download.setText("下载并安装" if info.asset_url else "下载更新")
-        else:
+        elif cmp == 0:
             lbl_status.setText(f"已经是最新版本: {info.latest}")
+            btn_download.setText("重新下载")
+        else:
+            lbl_status.setText(f"当前版本高于线上稳定版本: {info.latest} (当前 {__version__})")
             btn_download.setText("重新下载")
         render_changelog(info.changelog)
 

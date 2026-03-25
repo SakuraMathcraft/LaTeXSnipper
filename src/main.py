@@ -8017,8 +8017,6 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 
     def _on_workbench_insert(self, latex: str):
         text = (latex or "").strip()
-        if not text:
-            return
         if text == "__LOAD_FROM_MAIN__":
             text = self.latex_editor.toPlainText().strip()
             if not text:
@@ -8027,6 +8025,10 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
                 return
             self.workbench_window.set_latex(text)
             self.workbench_window.show_success("已载入", "主编辑器内容已载入数学工作台")
+            return
+        if not text:
+            if getattr(self, "workbench_window", None):
+                self.workbench_window.show_info("当前无内容", "数学工作台为空，没有可写回的内容")
             return
         self.latex_editor.setPlainText(text)
         self.render_latex_in_preview(text)
