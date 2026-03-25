@@ -151,8 +151,18 @@ def _pre_bootstrap_runtime():
 
 _pre_bootstrap_runtime()
 
+
+def _configure_runtime_defaults_for_classic_main():
+    """Keep classic main.py behavior stable unless explicitly overridden."""
+    # Allow explicit override from launcher/tauri env.
+    if not (os.environ.get("LATEXSNIPPER_USE_DAEMON", "") or "").strip():
+        os.environ["LATEXSNIPPER_USE_DAEMON"] = "0"
+
+
+_configure_runtime_defaults_for_classic_main()
+
 # 5) 确保先创建 QApplication 再调用依赖修复/向导逻辑
-from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QHBoxLayout, QComboBox
+from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QHBoxLayout, QComboBox, QWidget
 from PyQt6.QtCore import Qt, QCoreApplication, QTimer
 from PyQt6.QtGui import QTextCursor, QIcon
 from pathlib import Path
@@ -330,6 +340,7 @@ class LogViewerDialog(QDialog):
         self.resize(820, 520)
         self._log_file = Path(log_file)
         self._pos = 0
+        self._theme_is_dark_cached = None
 
         lay = QVBoxLayout(self)
         self.lbl = QLabel(str(self._log_file))
@@ -354,6 +365,18 @@ class LogViewerDialog(QDialog):
         self.timer.timeout.connect(self._poll_file)
         self.timer.start()
         self._poll_file(initial=True)
+        self._apply_theme_styles(force=True)
+
+    def _apply_theme_styles(self, force: bool = False):
+        dark = _is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        _apply_dialog_theme(self)
+        try:
+            self.lbl.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']};")
+        except Exception:
+            pass
 
     def _ensure_file(self):
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -398,6 +421,19 @@ class LogViewerDialog(QDialog):
             pass
         return super().closeEvent(ev)
 
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self._apply_theme_styles()
+        except Exception:
+            pass
+        return result
+
 
 class RuntimeLogDialog(QDialog):
     """初始化/运行日志窗口（GUI 版，不使用系统控制台）。"""
@@ -408,6 +444,7 @@ class RuntimeLogDialog(QDialog):
         self.resize(980, 620)
         self._log_file = Path(log_file)
         self._pos = 0
+        self._theme_is_dark_cached = None
         try:
             icon_path = resource_path("assets/icon.ico")
             if icon_path and os.path.exists(icon_path):
@@ -461,6 +498,18 @@ class RuntimeLogDialog(QDialog):
         self.timer.timeout.connect(self._poll_file)
         self.timer.start()
         self._poll_file(initial=True)
+        self._apply_theme_styles(force=True)
+
+    def _apply_theme_styles(self, force: bool = False):
+        dark = _is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        _apply_dialog_theme(self)
+        try:
+            self.lbl.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']};")
+        except Exception:
+            pass
 
     def _ensure_file(self):
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -535,6 +584,19 @@ class RuntimeLogDialog(QDialog):
             pass
         return super().closeEvent(ev)
 
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self._apply_theme_styles()
+        except Exception:
+            pass
+        return result
+
 import logging
 from logging.handlers import RotatingFileHandler
 from PyQt6.QtWidgets import QMessageBox
@@ -543,6 +605,7 @@ from PyQt6.QtWidgets import QMessageBox
 APP_LOG_FILE: Path | None = None
 _ORIGINAL_PRINT = None
 _PRINT_BRIDGE_INSTALLED = False
+_RUNTIME_SESSION_HANDLER = None
 
 # 安全占位导入：修复“未解析 rapidocr”
 try:
@@ -559,7 +622,7 @@ def init_app_logging() -> Path:
     初始化应用日志：控制台 + 轮转文件(~/.latexsnipper/logs/app.log)。
     多次调用会复用已存在的处理器。
     """
-    global APP_LOG_FILE
+    global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER
     log_dir = Path.home() / ".latexsnipper" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "app.log"
@@ -589,6 +652,16 @@ def init_app_logging() -> Path:
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
+    if _RUNTIME_SESSION_HANDLER is None:
+        try:
+            runtime_log_path = _runtime_log_path()
+            runtime_log_path.write_text("", encoding="utf-8")
+            _RUNTIME_SESSION_HANDLER = logging.FileHandler(runtime_log_path, mode="a", encoding="utf-8")
+            _RUNTIME_SESSION_HANDLER.setFormatter(fmt)
+            root.addHandler(_RUNTIME_SESSION_HANDLER)
+        except Exception:
+            _RUNTIME_SESSION_HANDLER = None
+
     # 将 print 输出桥接到 app.log，提升日志文件可用性。
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
     if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
@@ -599,6 +672,8 @@ def init_app_logging() -> Path:
         bridge_logger.propagate = False
         if not any(h is file_handler for h in bridge_logger.handlers):
             bridge_logger.addHandler(file_handler)
+        if _RUNTIME_SESSION_HANDLER is not None and not any(h is _RUNTIME_SESSION_HANDLER for h in bridge_logger.handlers):
+            bridge_logger.addHandler(_RUNTIME_SESSION_HANDLER)
 
         def _print_bridge(*args, **kwargs):
             # 先保持原有 print 行为（终端/GUI 日志窗口）。
@@ -860,6 +935,34 @@ def apply_theme(mode: str = "AUTO") -> bool:
         print(f"[WARN] 应用主题失败: {e}")
         return False
 
+
+def normalize_theme_mode(value: str | None) -> str:
+    mode = str(value or "auto").strip().lower()
+    return mode if mode in ("light", "dark", "auto") else "auto"
+
+
+def apply_theme_mode(mode: str | None) -> bool:
+    normalized = normalize_theme_mode(mode)
+    map_mode = {
+        "light": "LIGHT",
+        "dark": "DARK",
+        "auto": "AUTO",
+    }
+    return apply_theme(map_mode.get(normalized, "AUTO"))
+
+
+def read_theme_mode_from_config() -> str:
+    try:
+        cfg_path = _config_path()
+        if not cfg_path.exists():
+            return "auto"
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return "auto"
+        return normalize_theme_mode(data.get("theme_mode", "auto"))
+    except Exception:
+        return "auto"
+
 import os, sys, io, json
 from pathlib import Path
 def _get_app_root() -> Path:
@@ -1002,7 +1105,7 @@ def _runtime_log_path() -> Path:
 
 
 def _cleanup_runtime_log_session():
-    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_DIALOG, _LSN_DEBUG_CONSOLE_READY
+    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_DIALOG, _LSN_DEBUG_CONSOLE_READY, _RUNTIME_SESSION_HANDLER
     try:
         if isinstance(sys.stdout, TeeWriter):
             sys.stdout = sys.__stdout__
@@ -1030,6 +1133,24 @@ def _cleanup_runtime_log_session():
             except Exception:
                 pass
         globals()[fh_name] = None
+    try:
+        if _RUNTIME_SESSION_HANDLER is not None:
+            root = logging.getLogger()
+            try:
+                root.removeHandler(_RUNTIME_SESSION_HANDLER)
+            except Exception:
+                pass
+            try:
+                _RUNTIME_SESSION_HANDLER.flush()
+            except Exception:
+                pass
+            try:
+                _RUNTIME_SESSION_HANDLER.close()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    _RUNTIME_SESSION_HANDLER = None
     try:
         p = _runtime_log_path()
         if p.exists():
@@ -1232,7 +1353,7 @@ def _select_install_base_dir() -> Path:
         from qfluentwidgets import setTheme, Theme
         from PyQt6.QtGui import QFont
         app = QApplication.instance() or QApplication([])
-        apply_theme("AUTO")
+        apply_theme_mode(read_theme_mode_from_config())
         font = QFont("Microsoft YaHei UI", 9)
         font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         app.setFont(font)
@@ -1324,7 +1445,7 @@ def resolve_install_base_dir() -> Path:
         from qfluentwidgets import setTheme
         
         app = QApplication.instance() or QApplication([])
-        apply_theme("AUTO")
+        apply_theme_mode(read_theme_mode_from_config())
         font = QFont("Microsoft YaHei UI", 9)
         font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         app.setFont(font)
@@ -2266,6 +2387,26 @@ from deps_bootstrap import custom_warning_dialog, clear_deps_state
 from settings_window import SettingsWindow
 
 # --------- Startup Splash ---------
+class _StartupDialog(QWidget):
+    def __init__(self, pixmap, flags):
+        super().__init__(None, flags)
+        self._label = QLabel(self)
+        self._label.setScaledContents(False)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setPixmap(pixmap)
+
+    def setPixmap(self, pixmap):
+        self._label.setPixmap(pixmap)
+        dpr = float(pixmap.devicePixelRatio() or 1.0)
+        logical_w = max(1, int(round(pixmap.width() / dpr)))
+        logical_h = max(1, int(round(pixmap.height() / dpr)))
+        self._label.setGeometry(0, 0, logical_w, logical_h)
+        self.resize(logical_w, logical_h)
+
+    def finish(self, _window=None):
+        self.close()
+
+
 def _build_startup_splash_pixmap(app, status_text: str = ""):
     """Build a crisp high-DPI splash pixmap with a safe status text area."""
     from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QIcon, QFontMetrics
@@ -2330,18 +2471,13 @@ def _build_startup_splash_pixmap(app, status_text: str = ""):
 def _create_startup_splash(app):
     """Create a centered splash window to indicate app is loading."""
     try:
-        from PyQt6.QtWidgets import QSplashScreen
-        from PyQt6.QtCore import Qt
-
         pm = _build_startup_splash_pixmap(app, "")
 
-        splash = QSplashScreen(
+        splash = _StartupDialog(
             pm,
-            Qt.WindowType.SplashScreen
-            | Qt.WindowType.FramelessWindowHint
+            Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint,
         )
-        splash.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         splash._lsn_status = ""
         try:
             screen = app.primaryScreen()
@@ -2492,14 +2628,17 @@ def ensure_deps(*args, **kwargs):
 def show_dependency_wizard(always_show_ui=False):
     # 默认不展示；仅在明确需要时才展示（always_show_ui=True）
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
-        return
+        return True
     try:
         import deps_bootstrap as _db
-        # 严格仅在缺失时才让底层决定是否展示
-        return _db.show_dependency_wizard(always_show_ui=False)
+        # 依赖向导统一收口到 ensure_deps，一处负责校验与展示。
+        ok = _db.ensure_deps(always_show_ui=always_show_ui)
+        if ok:
+            os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+        return ok
     except Exception as e:
         print(f"[WARN] 依赖向导不可用: {e}")
-        return
+        return False
 from PyQt6.QtWidgets import QApplication, QFileDialog, QSizePolicy
 from qfluentwidgets import MessageBox, TitleLabel, BodyLabel
 import re
@@ -2514,7 +2653,7 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 from backend.model import ModelWrapper
 from backend.model_factory import create_model_wrapper
-from backend.capture_overlay import ScreenCaptureOverlay
+from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
 from backend.latex_renderer import init_latex_settings, get_latex_renderer
 import importlib
 from qfluentwidgets import (
@@ -2605,6 +2744,7 @@ def _show_formula_rename_dialog(parent, current_name: str = "", title: str = "�
 
     dlg = QDialog(parent)
     _apply_close_only_window_flags(dlg)
+    _apply_dialog_theme(dlg)
     dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
     dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
     dlg.setWindowFlag(Qt.WindowType.MSWindowsFixedSizeDialogHint, True)
@@ -2729,6 +2869,7 @@ def show_gpu_install_tip(parent=None):
 
     dlg = QDialog(parent)
     _apply_close_only_window_flags(dlg)
+    _apply_dialog_theme(dlg)
     dlg.setWindowTitle("安装 GPU 依赖")
     lay = QVBoxLayout(dlg)
     lay.addWidget(BodyLabel("如需 GPU 加速，请在终端运行以下命令安装 CUDA 版本："))
@@ -2744,6 +2885,7 @@ def show_gpu_install_tip(parent=None):
 def show_missing_deps_dialog(missing_pkgs, parent=None):
     dlg = QDialog(parent)
     _apply_close_only_window_flags(dlg)
+    _apply_dialog_theme(dlg)
     dlg.setWindowTitle("缺失依赖")
     dlg.setModal(True)
 
@@ -2783,7 +2925,7 @@ def get_install_base_dir():
     # 未设置，弹窗选择
     app = QApplication.instance() or QApplication([])
     from qfluentwidgets import setFont, Theme, setTheme
-    apply_theme("AUTO")
+    apply_theme_mode(read_theme_mode_from_config())
     from PyQt6.QtGui import QFont
     font = QFont("Microsoft YaHei UI", 9)
     font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
@@ -3033,17 +3175,13 @@ from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
 import pyperclip
 from PIL import Image
 
-# 绝对导入（依赖 backend/__init__.py 与 backend/qhotkey/__init__.py）
-from backend.qhotkey import QHotkey, GlobalHotkey
 from updater import check_update_dialog
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QLabel, QSystemTrayIcon,
                              QDialog, QTextEdit, QHBoxLayout, QScrollArea, QSplitter)
 from PyQt6.QtCore import QBuffer, QIODevice, QPropertyAnimation, QEasingCurve, pyqtSignal
 
-from backend.capture_overlay import ScreenCaptureOverlay
 from backend.model import ModelWrapper
-from backend.model_factory import create_model_wrapper
 flags = [
     "--use-angle=d3d11",
     "--ignore-gpu-blocklist",
@@ -3076,7 +3214,7 @@ INLINE_BUTTON_STYLE = (
 MAX_HISTORY = 200
 ENABLE_ROW_ANIMATION = False    # 历史记录行动画开关
 SAFE_MINIMAL = True          # 第一步：最小化测试开关
-DISABLE_GLOBAL_HOTKEY = False # 若为 True 不注册全局热键
+PLATFORM_DISABLE_GLOBAL_HOTKEY = False  # 若为 True 不注册全局热键
 DEFAULT_FAVORITES_NAME = "favorites.json"
 DEFAULT_HISTORY_NAME = "history.json"
 
@@ -3104,6 +3242,154 @@ MATHJAX_CDN_URL = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.
 # 备用CDN（如主CDN不可用）
 MATHJAX_CDN_URL_BACKUP = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
 
+
+def _is_dark_ui() -> bool:
+    try:
+        import qfluentwidgets as qfw
+        fn = getattr(qfw, "isDarkTheme", None)
+        if callable(fn):
+            return bool(fn())
+    except Exception:
+        pass
+    app = QApplication.instance()
+    if app is None:
+        return False
+    c = app.palette().window().color()
+    return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+
+def _preview_theme_tokens() -> dict:
+    if _is_dark_ui():
+        return {
+            "body_bg": "#14171d",
+            "body_text": "#e8ebf0",
+            "panel_bg": "#1d222b",
+            "label_text": "#8ec5ff",
+            "label_bg": "#1e334a",
+            "error_text": "#ff9a9a",
+            "error_bg": "#4a1f27",
+            "muted_text": "#95a0af",
+            "pre_bg": "#342b20",
+            "border_formula": "#63a5ff",
+            "border_text": "#72d68e",
+            "border_table": "#ffb35c",
+            "border_mixed": "#d8a4ff",
+            "badge_formula_bg": "#23374d",
+            "badge_formula_text": "#9fd1ff",
+            "badge_text_bg": "#213328",
+            "badge_text_text": "#88d5a3",
+            "badge_table_bg": "#3a2a18",
+            "badge_table_text": "#ffbf7a",
+            "badge_mixed_bg": "#35253f",
+            "badge_mixed_text": "#e4bcff",
+            "table_border": "#3e4958",
+            "th_bg": "#27303b",
+        }
+    return {
+        "body_bg": "#fafafa",
+        "body_text": "#1f2328",
+        "panel_bg": "#f8f9fa",
+        "label_text": "#1976d2",
+        "label_bg": "#e3f2fd",
+        "error_text": "#d32f2f",
+        "error_bg": "#ffebee",
+        "muted_text": "#888888",
+        "pre_bg": "#fff3e0",
+        "border_formula": "#1976d2",
+        "border_text": "#43a047",
+        "border_table": "#f57c00",
+        "border_mixed": "#7b1fa2",
+        "badge_formula_bg": "#e3f2fd",
+        "badge_formula_text": "#1976d2",
+        "badge_text_bg": "#e8f5e9",
+        "badge_text_text": "#43a047",
+        "badge_table_bg": "#fff3e0",
+        "badge_table_text": "#f57c00",
+        "badge_mixed_bg": "#f3e5f5",
+        "badge_mixed_text": "#7b1fa2",
+        "table_border": "#dddddd",
+        "th_bg": "#f2f2f2",
+    }
+
+
+def _formula_label_theme_tokens() -> dict:
+    if _is_dark_ui():
+        return {
+            "text": "#d7dee9",
+            "tooltip_bg": "#27303b",
+            "tooltip_text": "#eef3f8",
+            "tooltip_border": "#4d5a6b",
+        }
+    return {
+        "text": "#333333",
+        "tooltip_bg": "#ffffff",
+        "tooltip_text": "#1f2328",
+        "tooltip_border": "#cfd6df",
+    }
+
+
+def _dialog_theme_tokens() -> dict:
+    if _is_dark_ui():
+        return {
+            "window_bg": "#1b1f27",
+            "panel_bg": "#232934",
+            "text": "#e7ebf0",
+            "muted": "#a9b3bf",
+            "border": "#465162",
+            "accent": "#8ec5ff",
+        }
+    return {
+        "window_bg": "#ffffff",
+        "panel_bg": "#f7f9fc",
+        "text": "#222222",
+        "muted": "#666666",
+        "border": "#d0d7de",
+        "accent": "#1976d2",
+    }
+
+
+def _dialog_theme_qss() -> str:
+    t = _dialog_theme_tokens()
+    return f"""
+QDialog, QMainWindow {{
+    background: {t['window_bg']};
+    color: {t['text']};
+}}
+QWidget {{
+    color: {t['text']};
+}}
+QLabel {{
+    color: {t['text']};
+}}
+QPlainTextEdit, QTextEdit {{
+    background: {t['panel_bg']};
+    color: {t['text']};
+    border: 1px solid {t['border']};
+    border-radius: 6px;
+    selection-background-color: {t['accent']};
+}}
+QPlainTextEdit:focus, QTextEdit:focus {{
+    border: 1px solid {t['accent']};
+}}
+QPushButton {{
+    border: 1px solid {t['border']};
+    border-radius: 6px;
+    background: {t['panel_bg']};
+    color: {t['text']};
+    padding: 6px 10px;
+}}
+QPushButton:hover {{
+    border: 1px solid {t['accent']};
+}}
+"""
+
+
+def _apply_dialog_theme(widget):
+    try:
+        widget.setStyleSheet(_dialog_theme_qss())
+    except Exception:
+        pass
+
 # 支持 SVG 渲染的简化模板（不需要 MathJax 脚本）
 MATHJAX_HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -3117,7 +3403,8 @@ body {
   font-family: 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
   padding: 12px;
   margin: 0;
-  background: #fafafa;
+    background: __BODY_BG__;
+    color: __BODY_TEXT__;
   font-size: 18px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -3143,8 +3430,8 @@ body {
   top: 4px;
   left: 8px;
   font-size: 12px;
-  color: #1976d2;
-  background: #e3f2fd;
+    color: __LABEL_TEXT__;
+    background: __LABEL_BG__;
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 500;
@@ -3158,10 +3445,10 @@ body {
   font-size: 20px;
 }
 .error-text {
-  color: #d32f2f;
+    color: __ERROR_TEXT__;
   font-size: 12px;
   padding: 8px;
-  background: #ffebee;
+    background: __ERROR_BG__;
   border-radius: 4px;
 }
 </style>
@@ -3507,6 +3794,8 @@ def build_math_html(latex_or_list, labels=None) -> str:
         if labels is None:
             labels = [None] * len(formulas)
         
+        tokens = _preview_theme_tokens()
+
         # 生成每个公式的 MathJax HTML
         formula_html = ""
         for i, latex in enumerate(formulas):
@@ -3517,10 +3806,16 @@ def build_math_html(latex_or_list, labels=None) -> str:
             formula_html += f'<div class="math-container">{label_html}<div class="formula-content">$${latex}$$</div></div>\n'
         
         if not formula_html:
-            formula_html = '<div class="math-container" style="color:#888;">无公式</div>'
+            formula_html = f'<div class="math-container" style="color:{tokens["muted_text"]};">无公式</div>'
         
         # 使用 MathJax HTML 模板（使用相对路径）
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
+        html = html.replace("__BODY_BG__", tokens["body_bg"])
+        html = html.replace("__BODY_TEXT__", tokens["body_text"])
+        html = html.replace("__LABEL_TEXT__", tokens["label_text"])
+        html = html.replace("__LABEL_BG__", tokens["label_bg"])
+        html = html.replace("__ERROR_TEXT__", tokens["error_text"])
+        html = html.replace("__ERROR_BG__", tokens["error_bg"])
         
         return html
     except Exception as e:
@@ -3528,9 +3823,10 @@ def build_math_html(latex_or_list, labels=None) -> str:
         import traceback
         traceback.print_exc()
         # 返回错误提示 HTML
+        tokens = _preview_theme_tokens()
         return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: red; padding: 20px; font-family: sans-serif;">
+    <body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
 <h3>公式渲染出错</h3>
 <p><strong>错误信息:</strong> {str(e)}</p>
 <p>请检查 MathJax 资源是否正确打包</p>
@@ -3726,10 +4022,8 @@ class ConfigManager:
 
 
 def normalize_content_type(content_type: str | None) -> str:
-    """v1.05: 统一内容类型到 pix2text 模型族。"""
+    """将内容类型限制为当前支持的 pix2text 类型。"""
     t = (content_type or "").strip().lower()
-    if t in ("pix2tex", "unimernet", ""):
-        return "pix2text"
     allowed = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
     return t if t in allowed else "pix2text"
 
@@ -3739,6 +4033,7 @@ class FavoritesWindow(_QMainWindow):
     def __init__(self, cfg: ConfigManager, parent=None):
         super().__init__(parent)
         self.cfg = cfg
+        self._theme_is_dark_cached = None
         self.setWindowFlag(Qt.WindowType.Window, True)
         _apply_close_only_window_flags(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -3796,6 +4091,7 @@ class FavoritesWindow(_QMainWindow):
         from PyQt6.QtGui import QShortcut, QKeySequence
         self._esc_shortcut = QShortcut(QKeySequence("Esc"), self)
         self._esc_shortcut.activated.connect(self.close)
+        self.apply_theme_styles(force=True)
 
     # --- 新增: 捕获 ESC 按键 ---
     def keyPressEvent(self, event):
@@ -3804,6 +4100,83 @@ class FavoritesWindow(_QMainWindow):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def _favorites_list_qss(self) -> str:
+        t = _preview_theme_tokens()
+        return f"""
+            QListWidget {{
+                border: none;
+                background: transparent;
+                outline: none;
+            }}
+            QListWidget::item {{
+                border-bottom: 1px solid {t['table_border']};
+                padding: 8px 6px;
+                color: {t['body_text']};
+                background: transparent;
+                outline: none;
+                border-left: none;
+                border-right: none;
+            }}
+            QListWidget::item:hover {{
+                background: {t['panel_bg']};
+            }}
+            QListWidget::item:selected {{
+                background: {t['badge_formula_bg']};
+                color: {t['body_text']};
+                border: none;
+                outline: none;
+            }}
+            QListWidget::item:selected:active {{
+                background: {t['badge_formula_bg']};
+                color: {t['body_text']};
+                border: none;
+                outline: none;
+            }}
+            QListWidget::item:selected:!active {{
+                background: {t['badge_formula_bg']};
+                color: {t['body_text']};
+                border: none;
+                outline: none;
+            }}
+            QListWidget::item:focus {{
+                border: none;
+                outline: none;
+            }}
+        """
+
+    def apply_theme_styles(self, force: bool = False):
+        dark = False
+        try:
+            from qfluentwidgets import isDarkTheme
+            dark = bool(isDarkTheme())
+        except Exception:
+            try:
+                pal = self.palette().window().color()
+                dark = ((pal.red() + pal.green() + pal.blue()) / 3.0) < 128
+            except Exception:
+                dark = False
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        _apply_dialog_theme(self)
+        try:
+            self.list_widget.setStyleSheet(self._favorites_list_qss())
+        except Exception:
+            pass
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self.apply_theme_styles()
+        except Exception:
+            pass
+        return result
 
     # ---------- 状态 ----------
     def _set_status(self, msg: str):
@@ -4230,48 +4603,7 @@ class FavoritesWindow(_QMainWindow):
 
             self.list_widget.addItem(item)
 
-        # 设置列表样式
-        self.list_widget.setStyleSheet("""
-            QListWidget {
-                border: none;
-                background: transparent;
-                outline: none;
-            }
-            QListWidget::item {
-                border-bottom: 1px solid #e0e0e0;
-                padding: 8px 6px;
-                color: #333;
-                background: transparent;
-                outline: none;
-                border-left: none;
-                border-right: none;
-            }
-            QListWidget::item:hover {
-                background: #e3f2fd;
-            }
-            QListWidget::item:selected {
-                background: #d9ecff;
-                color: #1f2d3d;
-                border: none;
-                outline: none;
-            }
-            QListWidget::item:selected:active {
-                background: #d9ecff;
-                color: #1f2d3d;
-                border: none;
-                outline: none;
-            }
-            QListWidget::item:selected:!active {
-                background: #d9ecff;
-                color: #1f2d3d;
-                border: none;
-                outline: none;
-            }
-            QListWidget::item:focus {
-                border: none;
-                outline: none;
-            }
-        """)
+        self.list_widget.setStyleSheet(self._favorites_list_qss())
 
     def select_file(self):
         path, _ = QFileDialog.getSaveFileName(self, "选择收藏夹保存路径",
@@ -4304,8 +4636,8 @@ class FavoritesWindow(_QMainWindow):
                             for k, v in types.items()
                         }
                 elif isinstance(data, list):
-                    # 兼容旧格式：纯列表
-                    self.favorites = [str(x) for x in data]
+                    print("[Favorites] 已忽略旧版纯列表收藏格式。")
+                    self.favorites = []
             except Exception as e:
                 print("[Favorites] 加载失败:", e)
         self.refresh_list()
@@ -4326,7 +4658,14 @@ class FavoritesWindow(_QMainWindow):
     def _clear_all_favorites(self):
         """清空所有收藏"""
         if not self.favorites:
-            _exec_close_only_message_box(self, "提示", "收藏夹已经是空的")
+            info_parent = self.parent() if self.parent() is not None else self
+            InfoBar.info(
+                title="提示",
+                content="收藏夹已经是空的",
+                parent=info_parent,
+                duration=2500,
+                position=InfoBarPosition.TOP,
+            )
             return
 
         ret = _exec_close_only_message_box(
@@ -4435,10 +4774,32 @@ class PdfResultWindow(_QMainWindow):
         self.btn_copy.clicked.connect(self._do_copy)
         self.btn_save.clicked.connect(self._do_save)
         self.btn_close.clicked.connect(self.close)
+        self._theme_is_dark_cached = None
+        self._apply_theme_styles(force=True)
 
     def set_content(self, text: str, fmt_key: str):
         self._fmt_key = fmt_key
         self.editor.setPlainText(text or "")
+
+    def _apply_theme_styles(self, force: bool = False):
+        dark = _is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        _apply_dialog_theme(self)
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self._apply_theme_styles()
+        except Exception:
+            pass
+        return result
 
     def _emit_status(self, msg: str):
         try:
@@ -4480,9 +4841,13 @@ class PdfResultWindow(_QMainWindow):
 
 class MainWindow(_QMainWindow):
     """主窗口 - 使用 QMainWindow 以正确支持 setCentralWidget"""
+    _model_warmup_result_signal = pyqtSignal()
+
     def __init__(self, startup_progress=None):
         super().__init__()
         self._startup_progress = startup_progress
+        self._pending_model_warmup_result = None
+        self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
 
         self.setWindowTitle("LaTeX Snipper")
         self.resize(1000, 700)
@@ -4512,10 +4877,16 @@ class MainWindow(_QMainWindow):
         self._main_torch_cache_py = ""
         self._last_capture_toast_ts = 0.0
         self.settings_window = None
+        self.shortcut_window = None
+        self._theme_is_dark_cached = None
+        self._model_warmup_in_progress = False
+        self._model_warmup_callbacks = []
 
         # 配置与模型
         self.cfg = ConfigManager()
-        self._migrate_model_config()
+        self._sanitize_model_config()
+        self._theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
+        self.apply_app_theme_mode(self._theme_mode, refresh_preview=False)
         self.current_model = self.cfg.get("default_model", "pix2text")
         self.desired_model = self.cfg.get("desired_model", "pix2text")
         try:
@@ -4532,13 +4903,13 @@ class MainWindow(_QMainWindow):
         self.icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
         self.setWindowIcon(self.icon)
 
-        # 尝试初始化模型
+        # 初始化识别运行时，但不在主线程做模型预热
         self._report_startup_progress("正在加载主窗口组件...")
         try:
-            self._report_startup_progress("正在初始化模型...")
+            self._report_startup_progress("正在初始化识别运行时...")
             # 在 ModelWrapper 初始化前先注入 pix2text 运行环境变量
             self._apply_pix2text_env()
-            self.model = create_model_wrapper(self.current_model)
+            self.model = create_model_wrapper(self.current_model, auto_warmup=False)
             self.model.status_signal.connect(self.show_status_message)
             if hasattr(self.model, "daemon_event_signal"):
                 try:
@@ -4558,14 +4929,14 @@ class MainWindow(_QMainWindow):
             elif self.current_model.startswith("pix2text") and self.model._pix2text_import_failed:
                 self.model_status = f"加载失败 ({self.current_model})"
             else:
-                self.model_status = f"未就绪 ({self.current_model})"
-            self._report_startup_progress("模型已加载，准备预热...")
+                self.model_status = f"预热中 ({self.current_model})"
+            self._report_startup_progress("识别运行时已就绪，稍后后台预热")
 
         except Exception as e:
             app = QApplication.instance() or QApplication([])
             from qfluentwidgets import setFont, Theme, setTheme
             from PyQt6.QtWidgets import QMessageBox as QMsgBox
-            apply_theme("AUTO")
+            apply_theme_mode(read_theme_mode_from_config())
             from PyQt6.QtGui import QFont
             font = QFont("Microsoft YaHei UI", 9)
             font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
@@ -4609,13 +4980,6 @@ class MainWindow(_QMainWindow):
                     show_dependency_wizard(always_show_ui=True)
                     return
 
-        try:
-            if self.model:
-                self._report_startup_progress("预热模型中...")
-                QTimer.singleShot(0, self._warmup_desired_model)
-        except Exception:
-            pass
-
         # 历史文件
         print("[DEBUG] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
@@ -4626,25 +4990,31 @@ class MainWindow(_QMainWindow):
         print("[DEBUG] 开始初始化状态栏")
         self._report_startup_progress("正在初始化状态栏...")
         self.status_label = QLabel()
+        self.refresh_status_label()
 
-        # 收藏窗口（需在 status_label 之后创建，便于回调写入状态）
-        print("[DEBUG] 开始初始化收藏窗口")
-        self._report_startup_progress("正在初始化收藏夹...")
-        self.favorites_window = FavoritesWindow(self.cfg, self)
-        print("[DEBUG] 收藏窗口初始化完成")
+        try:
+            if self.model:
+                self._report_startup_progress("正在后台预热识别模型与 worker...")
+                QTimer.singleShot(0, self._warmup_desired_model)
+        except Exception:
+            pass
 
-        if DISABLE_GLOBAL_HOTKEY:
-            self.hotkey = None
-            self._fallback_shortcut = QShortcut("Ctrl+F", self)
-            self._fallback_shortcut.activated.connect(self.start_capture)
-        else:
-            self.hotkey = QHotkey(parent=self)
-            seq = self.cfg.get("hotkey", "Ctrl+F")
-            if not (seq.startswith("Ctrl+") and len(seq) == 6):
-                seq = "Ctrl+F"
-            self._fallback_shortcut = None
-            self.hotkey.activated.connect(self.on_hotkey_triggered)
-            QTimer.singleShot(0, lambda: self.register_hotkey(seq))
+        # 收藏窗口改为懒加载，降低首屏初始化耗时。
+        self.favorites_window = None
+        self.platform_registry = PlatformCapabilityRegistry(
+            parent=self,
+            disable_global_hotkey=PLATFORM_DISABLE_GLOBAL_HOTKEY,
+        )
+        self.platform_providers = self.platform_registry.create()
+        self.hotkey_provider = self.platform_providers.hotkey
+        self.screenshot_provider = self.platform_providers.screenshot
+        self.system_provider = self.platform_providers.system
+        if self.hotkey_provider.activated is not None:
+            self.hotkey_provider.activated.connect(self.on_hotkey_triggered)
+        seq = self.cfg.get("hotkey", "Ctrl+F")
+        if not (seq.startswith("Ctrl+") and len(seq) == 6):
+            seq = "Ctrl+F"
+        QTimer.singleShot(0, lambda: self.register_hotkey(seq))
 
         # ========== 左侧面板：历史记录 ==========
         left_panel = QWidget()
@@ -4659,9 +5029,8 @@ class MainWindow(_QMainWindow):
         left_layout.addWidget(self.capture_button)
 
         # 历史记录标题 - 使用更现代的样式
-        history_title = QLabel("历史记录")
-        history_title.setStyleSheet("font-size: 14px; font-weight: 500; color: #1976d2; padding: 4px 0;")
-        left_layout.addWidget(history_title)
+        self.history_title_label = QLabel("历史记录")
+        left_layout.addWidget(self.history_title_label)
 
         # 历史记录滚动区域
         self.history_scroll = QScrollArea()
@@ -4700,9 +5069,8 @@ class MainWindow(_QMainWindow):
 
         # LaTeX 编辑区标题和工具栏
         editor_header = QHBoxLayout()
-        editor_title = QLabel("LaTeX 编辑器")
-        editor_title.setStyleSheet("font-size: 14px; font-weight: 500; color: #1976d2; padding: 4px 0;")
-        editor_header.addWidget(editor_title)
+        self.editor_title_label = QLabel("LaTeX 编辑器")
+        editor_header.addWidget(self.editor_title_label)
         editor_header.addStretch()
         self.upload_image_btn = PushButton(FluentIcon.PHOTO, "图片识别")
         self.upload_image_btn.clicked.connect(self._upload_image_recognition)
@@ -4737,9 +5105,8 @@ class MainWindow(_QMainWindow):
 
         # 渲染区域标题和清空按钮
         preview_header = QHBoxLayout()
-        preview_title = QLabel("实时渲染预览")
-        preview_title.setStyleSheet("font-size: 14px; font-weight: 500; color: #1976d2; padding: 4px 0;")
-        preview_header.addWidget(preview_title)
+        self.preview_title_label = QLabel("实时渲染预览")
+        preview_header.addWidget(self.preview_title_label)
         preview_header.addStretch()
         self.clear_preview_btn = PushButton(FluentIcon.BROOM, "清空预览")
         self.clear_preview_btn.clicked.connect(self._clear_preview)
@@ -4798,10 +5165,9 @@ class MainWindow(_QMainWindow):
             self.latex_editor.textChanged.connect(self._on_editor_text_changed)
         else:
             # WebEngine 不可用时显示提示
-            fallback_label = QLabel("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
-            fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            fallback_label.setStyleSheet("color: #888; padding: 20px;")
-            right_layout.addWidget(fallback_label, 1)
+            self.preview_fallback_label = QLabel("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
+            self.preview_fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            right_layout.addWidget(self.preview_fallback_label, 1)
 
         # ========== 主布局：左右分栏 ==========
         from PyQt6.QtWidgets import QSplitter
@@ -4821,27 +5187,26 @@ class MainWindow(_QMainWindow):
         self.setCentralWidget(container)
 
         # 托盘
-        self.tray_icon = QSystemTrayIcon(self.icon, self)
-        tray_menu = QMenu()
-        tray_menu.addAction("打开主窗口", self.show_window)
-        tray_menu.addAction("截图识别", self.start_capture)
-        tray_menu.addAction("退出", self.truly_exit)
-        self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.show()
+        self.tray_icon = self.system_provider.create_tray(self.icon, self)
         self.update_tray_tooltip()
         # 初始化界面
         self.load_history()
         self.update_history_ui()
         self.refresh_status_label()
 
-        # 刷新收藏夹列表（确保在 _formula_names 加载后刷新，以显示公式名称）
-        if hasattr(self, 'favorites_window') and self.favorites_window:
-            self.favorites_window.refresh_list()
+        # 收藏夹窗口按需创建，启动阶段不提前初始化。
 
         self.update_tray_menu()
 
         self._apply_primary_buttons()
+        self._apply_theme_styles(force=True)
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
+
+    def _ensure_favorites_window(self):
+        if self.favorites_window is None:
+            print("[DEBUG] 延迟初始化收藏窗口")
+            self.favorites_window = FavoritesWindow(self.cfg, self)
+        return self.favorites_window
 
     def _apply_primary_buttons(self) -> None:
         """
@@ -4857,6 +5222,58 @@ class MainWindow(_QMainWindow):
                 b.setStyleSheet(ACTION_BTN_STYLE)
             except Exception:
                 pass
+
+    def _main_theme_tokens(self) -> dict:
+        if _is_dark_ui():
+            return {
+                "title": "#8ec5ff",
+                "muted": "#95a0af",
+            }
+        return {
+            "title": "#1976d2",
+            "muted": "#888888",
+        }
+
+    def _apply_theme_styles(self, force: bool = False):
+        dark = _is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        t = self._main_theme_tokens()
+        title_style = f"font-size: 14px; font-weight: 500; color: {t['title']}; padding: 4px 0;"
+        try:
+            if hasattr(self, "history_title_label"):
+                self.history_title_label.setStyleSheet(title_style)
+            if hasattr(self, "editor_title_label"):
+                self.editor_title_label.setStyleSheet(title_style)
+            if hasattr(self, "preview_title_label"):
+                self.preview_title_label.setStyleSheet(title_style)
+            if hasattr(self, "preview_fallback_label") and self.preview_fallback_label:
+                self.preview_fallback_label.setStyleSheet(f"color: {t['muted']}; padding: 20px;")
+        except Exception:
+            pass
+        try:
+            if self.settings_window and self.settings_window.isVisible() and hasattr(self.settings_window, "apply_theme_styles"):
+                self.settings_window.apply_theme_styles(force=True)
+        except Exception:
+            pass
+        try:
+            self._refresh_preview()
+        except Exception:
+            pass
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self._apply_theme_styles()
+        except Exception:
+            pass
+        return result
 
     def _show_history_context_menu(self, row: QWidget, global_pos):
         if not self._row_is_alive(row):
@@ -4940,11 +5357,90 @@ class MainWindow(_QMainWindow):
         self._refresh_preview()
         self.set_action_status(f"已命名: {new_name}" if new_name else "已清除名称")
 
-    # --- 新增方法：托盘提示更新 ---
     def update_tray_tooltip(self):
         hk = self.cfg.get("hotkey", "Ctrl+F")
+        mode = self._get_capture_display_mode()
+        if mode == "index":
+            idx = self._get_capture_display_index()
+            disp = f"屏幕{idx + 1}" if idx is not None else "指定屏幕"
+        else:
+            disp = "自动屏幕"
         if getattr(self, "tray_icon", None):
-            self.tray_icon.setToolTip(f"LaTeXSnipper - 截图识别快捷键: {hk}")
+            self.system_provider.set_tray_tooltip(self.tray_icon, f"LaTeXSnipper - 截图识别快捷键: {hk} | {disp}")
+
+    def _get_capture_display_mode(self) -> str:
+        mode = str(self.cfg.get("capture_display_mode", "auto") or "auto").strip().lower()
+        return mode if mode in ("auto", "index") else "auto"
+
+    def _get_capture_display_index(self) -> int | None:
+        try:
+            idx = int(self.cfg.get("capture_display_index", 0))
+            return idx if idx >= 0 else 0
+        except Exception:
+            return 0
+
+    def _get_capture_remember_last_screen(self) -> bool:
+        return bool(self.cfg.get("capture_remember_last_screen", True))
+
+    def _set_capture_display_mode(self, mode: str, index: int | None = None):
+        m = (mode or "auto").strip().lower()
+        if m not in ("auto", "index"):
+            m = "auto"
+        self.cfg.set("capture_display_mode", m)
+        if index is not None:
+            try:
+                self.cfg.set("capture_display_index", max(0, int(index)))
+            except Exception:
+                pass
+        self.update_tray_tooltip()
+        self.update_tray_menu()
+        if m == "auto":
+            self.set_action_status("截图屏幕模式: 自动")
+        else:
+            idx = self._get_capture_display_index() or 0
+            self.set_action_status(f"截图屏幕模式: 屏幕 {idx + 1}")
+
+    def _set_capture_remember_last_screen(self, enabled: bool):
+        self.cfg.set("capture_remember_last_screen", bool(enabled))
+        self.update_tray_menu()
+        self.set_action_status("已开启记住上次屏幕" if enabled else "已关闭记住上次屏幕")
+
+    def _on_capture_screen_selected(self, index: int):
+        if not self._get_capture_remember_last_screen():
+            return
+        try:
+            self.cfg.set("capture_display_index", max(0, int(index)))
+            self.update_tray_tooltip()
+        except Exception:
+            pass
+
+    def _build_capture_display_submenu(self, tray_menu: QMenu):
+        from PyQt6.QtGui import QGuiApplication
+
+        submenu = tray_menu.addMenu("截图屏幕模式")
+        mode = self._get_capture_display_mode()
+        idx = self._get_capture_display_index() or 0
+
+        act_auto = submenu.addAction("自动（按鼠标释放点）")
+        act_auto.setCheckable(True)
+        act_auto.setChecked(mode == "auto")
+        act_auto.triggered.connect(lambda _=False: self._set_capture_display_mode("auto"))
+
+        screens = QGuiApplication.screens()
+        for i, screen in enumerate(screens):
+            g = screen.geometry()
+            title = f"屏幕 {i + 1}: {screen.name()} ({g.width()}x{g.height()} @ {g.x()},{g.y()})"
+            act = submenu.addAction(title)
+            act.setCheckable(True)
+            act.setChecked(mode == "index" and idx == i)
+            act.triggered.connect(lambda _=False, screen_idx=i: self._set_capture_display_mode("index", screen_idx))
+
+        submenu.addSeparator()
+        remember_enabled = self._get_capture_remember_last_screen()
+        act_remember = submenu.addAction("记住上次使用的屏幕")
+        act_remember.setCheckable(True)
+        act_remember.setChecked(remember_enabled)
+        act_remember.triggered.connect(lambda checked: self._set_capture_remember_last_screen(bool(checked)))
 
     def _safe_call(self, name, fn):
         print(f"[SlotEnter] {name}")
@@ -4958,7 +5454,27 @@ class MainWindow(_QMainWindow):
     # ---------- 状态管理 ----------
     def refresh_status_label(self):
         base = f"当前模型: {self.current_model} | 状态: {self.model_status}"
-        self.status_label.setText(base)
+        lbl = getattr(self, "status_label", None)
+        if lbl is None:
+            return
+        lbl.setText(base)
+
+    def _apply_formula_label_theme(self, lbl: QLabel):
+        if lbl is None:
+            return
+        t = _formula_label_theme_tokens()
+        lbl.setToolTip("点击加载到编辑器并渲染")
+        lbl.setStyleSheet(
+            "QLabel {"
+            f"color: {t['text']}; padding: 2px;"
+            "}"
+            "QToolTip {"
+            f"background-color: {t['tooltip_bg']};"
+            f"color: {t['tooltip_text']};"
+            f"border: 1px solid {t['tooltip_border']};"
+            "padding: 6px 8px;"
+            "}"
+        )
 
     def _history_row_index(self, row: QWidget):
         # layout 最后一个是 stretch, 所以有效行数 = count - 1
@@ -4989,7 +5505,7 @@ class MainWindow(_QMainWindow):
         lbl = getattr(row, "_content_label", None)
         if lbl:
             lbl.setText(new_latex)
-            lbl.setToolTip("点击加载到编辑器并渲染")
+            self._apply_formula_label_theme(lbl)
         # 定位并更新 self.history
         idx = self._history_row_index(row)
         if idx is not None and 0 <= idx < len(self.history):
@@ -5031,13 +5547,26 @@ class MainWindow(_QMainWindow):
 
     def show_status_message(self, msg: str):
         # 模型后台线程回调
-        self.set_model_status(msg)
+        text = str(msg or "").strip()
+        if not text:
+            return
+        # 技术日志保留在运行日志，不污染底部状态文案。
+        if text.startswith("["):
+            return
+        self.set_model_status(text)
 
     def _on_daemon_event(self, payload: dict):
-        try:
-            print(f"[DAEMON_EVT_HOST] {payload}", flush=True)
-        except Exception:
-            pass
+        verbose = str(os.environ.get("LATEXSNIPPER_VERBOSE_RUNTIME", "") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if verbose:
+            try:
+                print(f"[DAEMON_EVT_HOST] {payload}", flush=True)
+            except Exception:
+                pass
         try:
             event = str((payload or {}).get("event", "") or "")
             if event in ("daemon_started", "warmup_ok"):
@@ -5121,7 +5650,7 @@ class MainWindow(_QMainWindow):
                 content_type = None
         if not content_type:
             content_type = getattr(self, "current_model", "pix2text")
-        self.favorites_window.add_favorite(text, content_type=content_type)
+        self._ensure_favorites_window().add_favorite(text, content_type=content_type)
 
     def _show_export_menu(self):
         """显示导出格式菜单"""
@@ -5376,12 +5905,13 @@ class MainWindow(_QMainWindow):
         except Exception as e:
             # 在 WebEngine 中显示错误信息
             try:
+                tokens = _preview_theme_tokens()
                 error_html = f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: #d32f2f; padding: 20px; font-family: sans-serif;">
+<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
 <h3>⚠️ 公式渲染失败</h3>
 <p><strong>错误:</strong></p>
-<pre style="background: #fff3e0; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
+<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
 <p><strong>检查项:</strong></p>
 <ul>
 <li>MathJax 资源是否存在</li>
@@ -5401,6 +5931,7 @@ class MainWindow(_QMainWindow):
         """
         try:
             import html as html_module
+            tokens = _preview_theme_tokens()
             
             if not items:
                 return build_math_html("")
@@ -5450,26 +5981,28 @@ body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
     padding: 16px; 
     line-height: 1.6;
+    background: {tokens['body_bg']};
+    color: {tokens['body_text']};
 }}
 .content-block {{
     margin-bottom: 16px;
     padding: 12px;
-    background: #f8f9fa;
+    background: {tokens['panel_bg']};
     border-radius: 8px;
-    border-left: 4px solid #1976d2;
+    border-left: 4px solid {tokens['border_formula']};
 }}
 .content-block.text-type {{
-    border-left-color: #43a047;
+    border-left-color: {tokens['border_text']};
 }}
 .content-block.table-type {{
-    border-left-color: #f57c00;
+    border-left-color: {tokens['border_table']};
 }}
 .content-block.mixed-type {{
-    border-left-color: #7b1fa2;
+    border-left-color: {tokens['border_mixed']};
 }}
 .block-label {{
     font-size: 12px;
-    color: #666;
+    color: {tokens['muted_text']};
     margin-bottom: 8px;
     display: flex;
     align-items: center;
@@ -5479,12 +6012,12 @@ body {{
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 4px;
-    background: #e3f2fd;
-    color: #1976d2;
+    background: {tokens['badge_formula_bg']};
+    color: {tokens['badge_formula_text']};
 }}
-.type-badge.text {{ background: #e8f5e9; color: #43a047; }}
-.type-badge.table {{ background: #fff3e0; color: #f57c00; }}
-.type-badge.mixed {{ background: #f3e5f5; color: #7b1fa2; }}
+.type-badge.text {{ background: {tokens['badge_text_bg']}; color: {tokens['badge_text_text']}; }}
+.type-badge.table {{ background: {tokens['badge_table_bg']}; color: {tokens['badge_table_text']}; }}
+.type-badge.mixed {{ background: {tokens['badge_mixed_bg']}; color: {tokens['badge_mixed_text']}; }}
 .block-content {{
     font-size: 14px;
     text-align: center;
@@ -5516,12 +6049,12 @@ table {{
     margin: 8px 0;
 }}
 th, td {{
-    border: 1px solid #ddd;
+    border: 1px solid {tokens['table_border']};
     padding: 8px;
     text-align: left;
 }}
 th {{
-    background-color: #f2f2f2;
+    background-color: {tokens['th_bg']};
 }}
 .MathJax {{ font-size: 1.2em; }}
 </style>
@@ -5530,12 +6063,13 @@ th {{
 </html>'''
         except Exception as e:
             # 返回错误提示 HTML
+            tokens = _preview_theme_tokens()
             return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: #d32f2f; padding: 20px; font-family: sans-serif;">
+<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
 <h3>⚠️ HTML 构建失败</h3>
 <p><strong>错误:</strong></p>
-<pre style="background: #fff3e0; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
+<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
 </body></html>'''
     
     def _render_content_block(self, content: str, label: str, content_type: str) -> str:
@@ -5635,7 +6169,11 @@ th {{
             traceback.print_exc()
             # 返回错误提示
             error_msg = f"内容块渲染失败: {str(e)}"
-            return f'<div style="color: red; padding: 10px; background: #ffebee; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
+            tokens = _preview_theme_tokens()
+            return (
+                f'<div style="color: {tokens["error_text"]}; padding: 10px; '
+                f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
+            )
     
     def _render_mixed_content(self, content: str) -> str:
         """渲染混合内容（文字和公式混合，由 MathJax 统一处理）"""
@@ -5792,7 +6330,7 @@ th {{
                 content_type = None
         if not content_type:
             content_type = getattr(self, "current_model", "pix2text")
-        self.favorites_window.add_favorite(txt, content_type=content_type)
+        self._ensure_favorites_window().add_favorite(txt, content_type=content_type)
 
     def _do_delete_row(self, row):
         txt = self._safe_row_text(row)
@@ -5830,13 +6368,12 @@ th {{
         lbl = QLabel(t)
         lbl.setWordWrap(True)
         lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-        lbl.setToolTip("点击加载到编辑器并渲染")
         # 优化字体显示
         from PyQt6.QtGui import QFont
         label_font = QFont("Consolas", 9)
         label_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         lbl.setFont(label_font)
-        lbl.setStyleSheet("color: #333; padding: 2px;")
+        self._apply_formula_label_theme(lbl)
         hl.addWidget(lbl, 1)
         row._content_label = lbl
 
@@ -5932,8 +6469,8 @@ th {{
                         for k, v in formula_types.items()
                     }
             elif isinstance(data, list):
-                # 兼容旧格式：纯列表
-                self.history = [str(x) for x in data if isinstance(x, (str, int, float))]
+                print("已忽略旧版纯列表历史格式。")
+                self.history = []
         except Exception as e:
             print("加载历史失败:", e)
             self.history = []
@@ -5998,38 +6535,49 @@ th {{
         except Exception:
             pass
 
-    def _migrate_model_config(self):
-        """v1.05: 统一迁移到 pix2text 模型族。"""
+    def apply_app_theme_mode(self, mode: str | None, refresh_preview: bool = True):
+        normalized = normalize_theme_mode(mode)
+        self._theme_mode = normalized
         try:
+            self.cfg.set("theme_mode", normalized)
+        except Exception:
+            pass
+        apply_theme_mode(normalized)
+        try:
+            self._apply_theme_styles(force=True)
+        except Exception:
+            pass
+        if refresh_preview:
+            try:
+                self._refresh_preview()
+            except Exception:
+                pass
+
+    def _sanitize_model_config(self):
+        """校验并收敛当前仍支持的模型配置。"""
+        try:
+            valid_models = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
             default_model = (self.cfg.get("default_model", "") or "").lower()
             desired_model = (self.cfg.get("desired_model", "") or "").lower()
             changed = False
-            if default_model in ("pix2tex", "unimernet", ""):
+            if default_model not in valid_models:
                 self.cfg.set("default_model", "pix2text")
                 changed = True
-            if desired_model in ("pix2tex", "unimernet", ""):
+            if desired_model not in valid_models:
                 self.cfg.set("desired_model", "pix2text")
                 changed = True
             mode = (self.cfg.get("pix2text_mode", "formula") or "formula").lower()
             if mode not in ("formula", "mixed", "text", "page", "table"):
                 self.cfg.set("pix2text_mode", "formula")
                 changed = True
-            for legacy_key in (
-                "unimernet_pyexe",
-                "unimernet_variant",
-                "unimernet_torch_mode",
-                "pix2tex_pyexe",
-            ):
-                try:
-                    if self.cfg.get(legacy_key, ""):
-                        self.cfg.set(legacy_key, "")
-                        changed = True
-                except Exception:
-                    pass
+            theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
+            if self.cfg.get("theme_mode", "auto") != theme_mode:
+                self.cfg.set("theme_mode", theme_mode)
+                changed = True
             if changed:
-                print("[INFO] 已迁移旧模型配置到 pix2text")
+                print("[INFO] 已校正当前模型配置。")
         except Exception as e:
-            print(f"[WARN] 模型配置迁移失败: {e}")
+            print(f"[WARN] 模型配置校验失败: {e}")
 
     def _get_preferred_model_for_predict(self) -> str:
         mode = (self.cfg.get("pix2text_mode", "formula") or "formula").lower()
@@ -6048,48 +6596,140 @@ th {{
         preferred = self._get_preferred_model_for_predict()
         if not preferred:
             return
-        self._report_startup_progress("预热模型中...")
+        self._report_startup_progress("正在后台预热识别模型与 worker...")
+        self._ensure_model_warmup_async(
+            preferred_model=preferred,
+            announce_success=True,
+            success_message="pix2text 预热完成，可直接识别",
+        )
+
+    def _ensure_model_warmup_async(
+        self,
+        preferred_model: str | None = None,
+        on_ready=None,
+        on_fail=None,
+        announce_success: bool = False,
+        success_message: str = "",
+    ):
+        if not self.model:
+            return
+        preferred = (preferred_model or self._get_preferred_model_for_predict() or "pix2text").lower()
+        if self.model.is_model_ready(preferred):
+            self.current_model = preferred
+            self.cfg.set("default_model", preferred)
+            self.set_model_status("已加载")
+            if callable(on_ready):
+                QTimer.singleShot(0, on_ready)
+            return
+
+        if callable(on_ready) or callable(on_fail):
+            self._model_warmup_callbacks.append((on_ready, on_fail))
+
+        if self._model_warmup_in_progress:
+            self.set_model_status(f"预热中 ({preferred})")
+            self._report_startup_progress("正在预热识别模型与 worker...")
+            return
+
+        self._model_warmup_in_progress = True
+        self.current_model = preferred
+        self.cfg.set("default_model", preferred)
+        self.desired_model = "pix2text"
+        self.cfg.set("desired_model", "pix2text")
+        self.set_model_status(f"预热中 ({preferred})")
+        self._report_startup_progress("正在预热识别模型与 worker...")
+
         def worker():
             ok = False
+            err = ""
             try:
                 self._apply_pix2text_env()
-                ok = self.model._lazy_load_pix2text()
-            except Exception:
+                ok = bool(self.model._lazy_load_pix2text())
+            except Exception as e:
                 ok = False
-
-            if ok:
-                def apply():
-                    from qfluentwidgets import InfoBar, InfoBarPosition
-                    self._report_startup_progress("模型预热完成")
-                    self.current_model = preferred
-                    self.cfg.set("default_model", preferred)
-                    self.desired_model = "pix2text"
-                    self.cfg.set("desired_model", self.desired_model)
-                    if self.settings_window:
-                        self.settings_window.update_model_selection()
-                    InfoBar.success(
-                        title="模型预热完成",
-                        content="pix2text 预热完成，可直接识别",
-                        parent=self._get_infobar_parent(),
-                        duration=2500,
-                        position=InfoBarPosition.TOP
-                    )
-                QTimer.singleShot(0, apply)
-            else:
-                def _show_fail():
-                    from qfluentwidgets import InfoBar, InfoBarPosition
-                    self._report_startup_progress("模型预热未完成（首次识别重试）")
-                    InfoBar.warning(
-                        title="模型预热未完成",
-                        content="pix2text 预热失败，将在首次识别时重试",
-                        parent=self._get_infobar_parent(),
-                        duration=3500,
-                        position=InfoBarPosition.TOP
-                    )
-                QTimer.singleShot(0, _show_fail)
+                err = str(e)
+            self._pending_model_warmup_result = {
+                "ok": ok,
+                "err": err,
+                "preferred": preferred,
+                "announce_success": bool(announce_success),
+                "success_message": str(success_message or ""),
+                "on_ready": on_ready,
+                "on_fail": on_fail,
+            }
+            self._model_warmup_result_signal.emit()
 
         import threading
         threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_model_warmup_result(self):
+        from qfluentwidgets import InfoBar, InfoBarPosition
+
+        data = getattr(self, "_pending_model_warmup_result", None)
+        self._pending_model_warmup_result = None
+        if not isinstance(data, dict):
+            return
+
+        ok = bool(data.get("ok"))
+        err = str(data.get("err", "") or "")
+        preferred = str(data.get("preferred", self.current_model) or self.current_model)
+        announce_success = bool(data.get("announce_success"))
+        success_message = str(data.get("success_message", "") or "")
+        direct_on_ready = data.get("on_ready")
+        direct_on_fail = data.get("on_fail")
+
+        self._model_warmup_in_progress = False
+        callbacks = list(self._model_warmup_callbacks)
+        self._model_warmup_callbacks.clear()
+
+        if ok:
+            self._report_startup_progress("识别模型与 worker 预热完成")
+            self.set_model_status("已加载")
+            if self.settings_window:
+                self.settings_window.update_model_selection()
+            if announce_success:
+                InfoBar.success(
+                        title="模型预热完成",
+                        content=success_message or "pix2text 与识别 worker 已就绪",
+                    parent=self._get_infobar_parent(),
+                    duration=2500,
+                    position=InfoBarPosition.TOP
+                )
+            for cb_ok, _ in callbacks:
+                if callable(cb_ok):
+                    try:
+                        cb_ok()
+                    except Exception:
+                        pass
+            if callable(direct_on_ready) and not callbacks:
+                try:
+                    direct_on_ready()
+                except Exception:
+                    pass
+            return
+
+        self._report_startup_progress("模型预热未完成，首次识别时重试")
+        self.set_model_status(f"未就绪 ({preferred})")
+        if announce_success:
+            InfoBar.warning(
+                title="模型预热未完成",
+                content="pix2text 预热失败，将在首次识别时重试",
+                parent=self._get_infobar_parent(),
+                duration=3500,
+                position=InfoBarPosition.TOP
+            )
+        fail_msg = err or "pix2text 模型未部署或加载失败。"
+        for _, cb_fail in callbacks:
+            if callable(cb_fail):
+                try:
+                    cb_fail(fail_msg)
+                except Exception:
+                    pass
+        if callable(direct_on_fail) and not callbacks:
+            try:
+                direct_on_fail(fail_msg)
+            except Exception:
+                pass
+
     def on_model_changed(self, model_name: str):
         from qfluentwidgets import InfoBar, InfoBarPosition
         info_parent = self._get_infobar_parent()
@@ -6100,42 +6740,21 @@ th {{
 
         pix2text_unavailable = False
         pix2text_error_msg = ""
-        self._apply_pix2text_env()
-        if self.model:
-            self.model._pix2text_import_failed = False
-        try:
-            result = self.model._lazy_load_pix2text() if self.model else None
-            if not result:
-                pix2text_unavailable = True
-                pix2text_error_msg = "pix2text 模型未部署或加载失败。"
-        except Exception as e:
-            pix2text_unavailable = True
-            pix2text_error_msg = f"pix2text 加载出错: {e}"
-
-        if pix2text_unavailable:
-            InfoBar.warning(
-                title="模型切换失败",
-                content=pix2text_error_msg,
-                parent=info_parent,
-                duration=5000,
-                position=InfoBarPosition.TOP
-            )
-        else:
-            mode_names = {
-                "pix2text": "pix2text 公式识别",
-                "pix2text_text": "pix2text 纯文字识别",
-                "pix2text_mixed": "pix2text 混合识别",
-                "pix2text_page": "pix2text 整页识别",
-                "pix2text_table": "pix2text 表格识别",
-            }
-            mode_display = mode_names.get(m, m)
-            InfoBar.success(
-                title="模式切换成功",
-                content=f"已切换到 {mode_display}",
-                parent=info_parent,
-                duration=3000,
-                position=InfoBarPosition.TOP
-            )
+        mode_names = {
+            "pix2text": "pix2text 公式识别",
+            "pix2text_text": "pix2text 纯文字识别",
+            "pix2text_mixed": "pix2text 混合识别",
+            "pix2text_page": "pix2text 整页识别",
+            "pix2text_table": "pix2text 表格识别",
+        }
+        mode_display = mode_names.get(m, m)
+        InfoBar.success(
+            title="模式切换成功",
+            content=f"已切换到 {mode_display}",
+            parent=info_parent,
+            duration=3000,
+            position=InfoBarPosition.TOP
+        )
 
         self.current_model = m
         self.cfg.set("default_model", m)
@@ -6155,16 +6774,24 @@ th {{
         if self.model:
             if self.model.is_model_ready(m):
                 self.set_model_status("已加载")
-            elif m.startswith("pix2text") and self.model._pix2text_import_failed:
-                self.set_model_status(f"加载失败 ({m})")
             else:
-                self.set_model_status(f"未就绪 ({m})")
+                self.set_model_status(f"预热中 ({m})")
         else:
-            self.set_model_status(f"未就绪 ({m})")
+            self.set_model_status(f"预热中 ({m})")
             
         # 更新设置窗口选择状态
         if self.settings_window:
             self.settings_window.update_model_selection()
+        self._ensure_model_warmup_async(
+            preferred_model=m,
+            on_fail=lambda msg: InfoBar.warning(
+                title="模型切换失败",
+                content=msg,
+                parent=info_parent,
+                duration=5000,
+                position=InfoBarPosition.TOP
+            ),
+        )
 
     def _get_supported_image_patterns(self):
         """返回图片文件筛选格式列表（用于文件对话框）。"""
@@ -6197,12 +6824,17 @@ th {{
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         preferred = self._get_preferred_model_for_predict()
-        try:
-            if preferred != self.current_model or (self.model and not self.model.is_model_ready(preferred)):
-                self.on_model_changed(preferred)
-        except Exception:
-            if preferred != self.current_model:
-                self.on_model_changed(preferred)
+        if preferred != self.current_model:
+            self.current_model = preferred
+        if self.model and not self.model.is_model_ready(preferred):
+            self.set_model_status(f"预热中 ({preferred})")
+            self.set_action_status("模型预热中，完成后将自动开始识别", auto_clear_ms=2200)
+            self._ensure_model_warmup_async(
+                preferred_model=preferred,
+                on_ready=lambda img=img: self._start_predict_with_pil(img),
+                on_fail=lambda msg: self.on_predict_fail(f"模型预热失败: {msg}"),
+            )
+            return
         active_model = self.current_model
         self._predict_busy = True
         self.set_model_status("识别中...")
@@ -6281,14 +6913,14 @@ th {{
         return ""
 
     def _apply_shared_torch_for_pix2text(self, env_pyexe: str, allow_block: bool = True):
-        """v1.05: 共享 torch 仅保留 pix2text 单路径。"""
+        """为 pix2text 注入共享 torch 路径。"""
         mode = self._get_isolated_torch_mode("pix2text")
         os.environ["PIX2TEXT_TORCH_MODE"] = mode
 
         shared_site = ""
         try:
             from backend.torch_runtime import ensure_shared_torch_link
-            # 始终优先下发共享 torch 路径；隔离环境是否存在本地 torch 不再影响共享策略。
+            # 始终优先下发共享 torch 路径；本地环境差异不再影响共享策略。
             shared_site = self._resolve_shared_torch_site_for_mode(mode, allow_block=allow_block)
             ensure_shared_torch_link(env_pyexe, shared_site if shared_site else None)
         except Exception:
@@ -6301,7 +6933,7 @@ th {{
     def _apply_pix2text_env(self):
         env_pyexe = ""
         try:
-            # v1.05: 不再使用隔离环境，pix2text 与主依赖环境统一。
+            # pix2text 与主依赖环境统一。
             pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
             if not pyexe or not os.path.exists(pyexe):
                 pyexe = sys.executable
@@ -6709,12 +7341,20 @@ th {{
         if not self.model:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
-        self.overlay = ScreenCaptureOverlay()
+        perm = self.screenshot_provider.request_permission()
+        if getattr(perm, "state", None) == "denied":
+            custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
+            return
+        cfg = ScreenshotConfig(
+            capture_display_mode=self._get_capture_display_mode(),
+            preferred_screen_index=self._get_capture_display_index(),
+            remember_last_screen=self._get_capture_remember_last_screen(),
+            on_screen_selected=self._on_capture_screen_selected,
+        )
+        self.overlay = self.screenshot_provider.create_overlay(cfg)
         self.overlay.installEventFilter(self)
         self.overlay.selection_done.connect(self.on_capture_done)
-        self.overlay.show()
-        self.overlay.raise_()
-        self.overlay.activateWindow()
+        self.system_provider.activate_window(self.overlay)
 
     def eventFilter(self, obj, event):
         if obj is getattr(self, "overlay", None) and event.type() == QEvent.Type.KeyPress:
@@ -6747,14 +7387,15 @@ th {{
             return
         self._start_predict_with_pil(img)
 
-    # 2. 托盘菜单项显示快捷键
     def update_tray_menu(self):
         hk = self.cfg.get("hotkey", "Ctrl+F")
-        tray_menu = QMenu()
-        tray_menu.addAction("打开主窗口", self.show_window)
-        tray_menu.addAction(f"截图识别（{hk}）", self.start_capture)
-        tray_menu.addAction("退出", self.truly_exit)
-        self.tray_icon.setContextMenu(tray_menu)
+        handlers = TrayMenuHandlers(
+            on_open=self.show_window,
+            on_capture=self.start_capture,
+            on_exit=self.truly_exit,
+            build_capture_submenu=self._build_capture_display_submenu,
+        )
+        self.system_provider.update_tray_menu(self.tray_icon, hk, handlers)
 
     def on_predict_ok(self, latex: str):
         used = None
@@ -6788,11 +7429,12 @@ th {{
                     bg_mode = (not self.isVisible()) or self.isMinimized() or (not self.isActiveWindow())
                     if cooldown_ok and bg_mode:
                         hk = self.cfg.get("hotkey", "Ctrl+F")
-                        self.tray_icon.showMessage(
+                        self.system_provider.show_notification(
+                            self.tray_icon,
                             "识别完成",
                             f"公式已识别。使用快捷键 {hk} 可再次截图。",
-                            QSystemTrayIcon.MessageIcon.Information,
-                            2500
+                            critical=False,
+                            timeout_ms=2500,
                         )
                         self._last_capture_toast_ts = now_ts
                 except Exception:
@@ -6819,6 +7461,7 @@ th {{
         _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("识别结果")
         dlg.resize(700, 500)
+        _apply_dialog_theme(dlg)
 
         lay = QVBoxLayout(dlg)
         
@@ -6866,7 +7509,7 @@ th {{
                 te.textChanged.connect(lambda: render_timer.start(300))
             else:
                 fallback = QLabel("WebEngine 未加载，无法渲染预览")
-                fallback.setStyleSheet("color: #888; padding: 10px;")
+                fallback.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; padding: 10px;")
                 lay.addWidget(fallback)
 
         # 混合模式：渲染文字和公式
@@ -6924,7 +7567,6 @@ th {{
             preview_text = QTextEdit()
             preview_text.setReadOnly(True)
             preview_text.setPlainText(code)
-            preview_text.setStyleSheet("background-color: #f5f5f5; border: 1px solid #ddd;")
             preview_text.setMinimumHeight(100)
             lay.addWidget(preview_text, 1)
             
@@ -7004,6 +7646,7 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
         """构建混合模式的预览 HTML（支持多个公式）"""
         import html
         import re
+        tokens = _preview_theme_tokens()
         
         items_html = []
         for i, (formula, label) in enumerate(zip(formulas, labels)):
@@ -7033,18 +7676,19 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
 <meta charset="UTF-8">
 <script src="es5/tex-mml-chtml.js" async></script>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }}
-.item {{ margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; }}
-.label {{ display: inline-block; background: #1976d2; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; background: {tokens['body_bg']}; color: {tokens['body_text']}; }}
+.item {{ margin-bottom: 16px; padding: 12px; background: {tokens['panel_bg']}; border: 1px solid {tokens['table_border']}; border-radius: 8px; }}
+.label {{ display: inline-block; background: {tokens['border_formula']}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
 .content {{ line-height: 1.8; font-size: 14px; }}
 </style>
 </head>
-<body>{"".join(items_html) if items_html else "<p style='color:#888;'>暂无内容</p>"}</body>
+<body>{"".join(items_html) if items_html else f"<p style='color:{tokens['muted_text']};'>暂无内容</p>"}</body>
 </html>'''
 
     def _build_text_preview_html(self, formulas: list, labels: list) -> str:
         """构建纯文本模式的预览 HTML"""
         import html
+        tokens = _preview_theme_tokens()
         
         items_html = []
         for i, (formula, label) in enumerate(zip(formulas, labels)):
@@ -7057,18 +7701,19 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
 <head>
 <meta charset="UTF-8">
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }}
-.item {{ margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; }}
-.label {{ display: inline-block; background: #4caf50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; background: {tokens['body_bg']}; color: {tokens['body_text']}; }}
+.item {{ margin-bottom: 16px; padding: 12px; background: {tokens['panel_bg']}; border: 1px solid {tokens['table_border']}; border-radius: 8px; }}
+.label {{ display: inline-block; background: {tokens['border_text']}; color: {tokens['body_bg']}; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
 .content {{ line-height: 1.6; font-size: 14px; white-space: pre-wrap; }}
 </style>
 </head>
-<body>{"".join(items_html) if items_html else "<p style='color:#888;'>暂无内容</p>"}</body>
+<body>{"".join(items_html) if items_html else f"<p style='color:{tokens['muted_text']};'>暂无内容</p>"}</body>
 </html>'''
 
     def _build_table_preview_html(self, formulas: list, labels: list) -> str:
         """构建表格模式的预览 HTML"""
         import html
+        tokens = _preview_theme_tokens()
         
         items_html = []
         for i, (formula, label) in enumerate(zip(formulas, labels)):
@@ -7086,21 +7731,22 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
 <head>
 <meta charset="UTF-8">
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }}
-.item {{ margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; }}
-.label {{ display: inline-block; background: #ff9800; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; background: {tokens['body_bg']}; color: {tokens['body_text']}; }}
+.item {{ margin-bottom: 16px; padding: 12px; background: {tokens['panel_bg']}; border: 1px solid {tokens['table_border']}; border-radius: 8px; }}
+.label {{ display: inline-block; background: {tokens['border_table']}; color: {tokens['body_bg']}; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
 .content {{ font-size: 14px; overflow-x: auto; }}
 table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-th {{ background-color: #f2f2f2; }}
+th, td {{ border: 1px solid {tokens['table_border']}; padding: 8px; text-align: left; }}
+th {{ background-color: {tokens['th_bg']}; }}
 pre {{ white-space: pre-wrap; word-wrap: break-word; margin: 0; }}
 </style>
 </head>
-<body>{"".join(items_html) if items_html else "<p style='color:#888;'>暂无内容</p>"}</body>
+<body>{"".join(items_html) if items_html else f"<p style='color:{tokens['muted_text']};'>暂无内容</p>"}</body>
 </html>'''
 
     def _build_table_html(self, content: str) -> str:
         """构建表格的 HTML 预览"""
+        tokens = _preview_theme_tokens()
         # 如果内容已经是 HTML 格式，直接使用
         if content.strip().startswith('<'):
             table_content = content
@@ -7114,12 +7760,12 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; margin: 0; }}
 <head>
 <meta charset="UTF-8">
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-       padding: 16px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       padding: 16px; background: {tokens['body_bg']}; color: {tokens['body_text']}; }}
 table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-th {{ background-color: #f2f2f2; }}
-tr:nth-child(even) {{ background-color: #f9f9f9; }}
+th, td {{ border: 1px solid {tokens['table_border']}; padding: 8px; text-align: left; }}
+th {{ background-color: {tokens['th_bg']}; }}
+tr:nth-child(even) {{ background-color: {tokens['panel_bg']}; }}
 pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 </style>
 </head>
@@ -7144,11 +7790,12 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         if getattr(self, "tray_icon", None):
             hk = self.cfg.get("hotkey", "Ctrl+F")
             try:
-                self.tray_icon.showMessage(
+                self.system_provider.show_notification(
+                    self.tray_icon,
                     "识别失败",
                     f"{msg}\n可使用快捷键 {hk} 重试。",
-                    QSystemTrayIcon.MessageIcon.Critical,
-                    4000
+                    critical=True,
+                    timeout_ms=4000,
                 )
             except Exception:
                 pass
@@ -7182,7 +7829,13 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
     def clear_history(self):
         # 若无记录给提示
         if not self.history:
-            _exec_close_only_message_box(self, "提示", "当前没有历史记录可清空。")
+            InfoBar.info(
+                title="提示",
+                content="当前没有历史记录可清空",
+                parent=self._get_infobar_parent(),
+                duration=2500,
+                position=InfoBarPosition.TOP,
+            )
             return
         ret = _exec_close_only_message_box(
             self,
@@ -7200,27 +7853,14 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         self.update_history_ui()  # 确保按钮状态刷新
         self.set_action_status("已清空历史")
     def register_hotkey(self, seq: str):
-        if not self.hotkey:
-            # 全局热键已禁用，忽略
+        if not getattr(self, "hotkey_provider", None):
             return
         print(f"[Hotkey] try register {seq}")
         try:
-            self.hotkey.setShortcut(QKeySequence(seq))
-            self.hotkey.register()
-            print(f"[Hotkey] global registered={self.hotkey.is_registered()}")
-            if self._fallback_shortcut:
-                try:
-                    self._fallback_shortcut.activated.disconnect()
-                except Exception:
-                    pass
-                self._fallback_shortcut.setParent(None)
-                self._fallback_shortcut = None
+            self.hotkey_provider.register(seq)
+            print(f"[Hotkey] global registered={self.hotkey_provider.is_registered()}")
         except Exception as e:
             print(f"[Hotkey] global failed: {e}")
-            if not self._fallback_shortcut:
-                self._fallback_shortcut = QShortcut(QKeySequence(seq), self)
-                self._fallback_shortcut.activated.connect(self.start_capture)
-                print("[Hotkey] fallback QShortcut enabled")
 
     def on_hotkey_triggered(self):
         print("[Hotkey] Triggered")
@@ -7228,11 +7868,19 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 
     # 设置快捷键窗口支持 ESC 关闭
     def set_shortcut(self):
+        if self.shortcut_window and self.shortcut_window.isVisible():
+            self.shortcut_window.raise_()
+            self.shortcut_window.activateWindow()
+            return
 
         dlg = QDialog(self)
         _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("设置快捷键")
         dlg.setFixedSize(320, 120)
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        _apply_dialog_theme(dlg)
+        dlg.destroyed.connect(lambda: setattr(self, "shortcut_window", None))
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
         edit = QTextEdit()
@@ -7255,20 +7903,48 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         btn.setFixedHeight(32)
         btn.clicked.connect(lambda: self.update_hotkey(edit.toPlainText().strip(), dlg))
         lay.addWidget(btn)
-        dlg.exec()
+        self.shortcut_window = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def update_hotkey(self, text: str, dialog: QDialog):
+        from qfluentwidgets import InfoBar, InfoBarPosition
+
         if not (text.startswith("Ctrl+") and len(text) == 6 and text[-1].isalpha()):
-            custom_warning_dialog("错误", "格式必须 Ctrl+字母", self)
+            InfoBar.error(
+                title="快捷键格式错误",
+                content="格式必须为 Ctrl+字母",
+                parent=self._get_infobar_parent(),
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
             return
         self.register_hotkey(text)
-        # 兼容禁用全局热键的场景
-        if self.hotkey and (not self.hotkey.is_registered()) and not self._fallback_shortcut:
-            custom_warning_dialog("错误", "快捷键注册失败", self)
+        if (
+            getattr(self, "hotkey_provider", None)
+            and (not self.hotkey_provider.is_registered())
+        ):
+            InfoBar.error(
+                title="快捷键注册失败",
+                content="请更换其他 Ctrl+字母组合后重试",
+                parent=self._get_infobar_parent(),
+                duration=3500,
+                position=InfoBarPosition.TOP,
+            )
             return
         self.cfg.set("hotkey", text)
-        dialog.accept()
-        _exec_close_only_message_box(self, "提示", f"已更新: {text}")
+        try:
+            dialog.close()
+        except Exception:
+            pass
+        InfoBar.success(
+            title="快捷键已更新",
+            content=f"已更新为 {text}",
+            parent=self._get_infobar_parent(),
+            duration=2500,
+            position=InfoBarPosition.TOP,
+        )
         self.update_tray_tooltip()
         self.update_tray_menu()
 
@@ -7294,10 +7970,20 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             _release_single_instance_lock()
         except Exception:
             pass
+        try:
+            if getattr(self, "hotkey_provider", None):
+                self.hotkey_provider.cleanup()
+        except Exception:
+            pass
 
     # ---------- 其它 UI ----------
     def open_settings(self):
         if self.settings_window and self.settings_window.isVisible():
+            try:
+                if hasattr(self.settings_window, "apply_theme_styles"):
+                    self.settings_window.apply_theme_styles(force=True)
+            except Exception:
+                pass
             self.settings_window.raise_()
             self.settings_window.activateWindow()
             return
@@ -7306,18 +7992,22 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             self.settings_window.model_changed.connect(self.on_model_changed)
             self.settings_window.destroyed.connect(lambda: setattr(self, "settings_window", None))
         self.settings_window.show()
+        try:
+            if hasattr(self.settings_window, "apply_theme_styles"):
+                self.settings_window.apply_theme_styles(force=True)
+        except Exception:
+            pass
         self.settings_window.raise_()
         self.settings_window.activateWindow()
 
     def open_favorites(self):
-        self.favorites_window.show()
-        self.favorites_window.raise_()
-        self.favorites_window.activateWindow()
+        fav = self._ensure_favorites_window()
+        fav.show()
+        fav.raise_()
+        fav.activateWindow()
 
     def show_window(self):
-        self.show()
-        self.raise_()
-        self.activateWindow()
+        self.system_provider.activate_window(self)
         self.set_action_status("主窗口已显示")
 
     # ---------- 关闭 / 资源清理 ----------
@@ -7413,7 +8103,6 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         except Exception:
             pass
 
-    # ------ 5) 修改 closeEvent（替换原实现） ------
     def closeEvent(self, event):
         if self._force_exit:
             # 真实退出
@@ -7425,11 +8114,10 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         if self.tray_icon:
             # 只在第一次最小化时显示提示
             if not getattr(self, '_tray_msg_shown', False):
-                self.tray_icon.showMessage("LaTeXSnipper", "已最小化到系统托盘")
+                self.system_provider.show_notification(self.tray_icon, "LaTeXSnipper", "已最小化到系统托盘")
                 self._tray_msg_shown = True
         event.ignore()
 
-    # ------ 6) 修改 truly_exit（替换原实现） ------
     def truly_exit(self):
         self._force_exit = True
         if self.tray_icon:
@@ -7582,6 +8270,8 @@ class EditFormulaDialog(QDialog):
         self.setWindowTitle("编辑")
         _apply_no_minimize_window_flags(self)
         self.resize(700, 500)
+        self._theme_is_dark_cached = None
+        _apply_dialog_theme(self)
 
         lay = QVBoxLayout(self)
         
@@ -7617,7 +8307,7 @@ class EditFormulaDialog(QDialog):
             self.editor.textChanged.connect(self._on_text_changed)
         else:
             fallback = QLabel("WebEngine 未加载，无法预览")
-            fallback.setStyleSheet("color: #888; padding: 20px;")
+            fallback.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; padding: 20px;")
             lay.addWidget(fallback, 1)
 
         btns = QDialogButtonBox(
@@ -7627,6 +8317,26 @@ class EditFormulaDialog(QDialog):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
+
+    def _apply_theme_styles(self, force: bool = False):
+        dark = _is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        _apply_dialog_theme(self)
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self._apply_theme_styles()
+        except Exception:
+            pass
+        return result
     
     def _on_text_changed(self):
         if hasattr(self, '_render_timer') and self._render_timer:
@@ -7649,49 +8359,6 @@ class EditFormulaDialog(QDialog):
     def value(self) -> str:
         return self.editor.toPlainText().strip()
 
-state_path = Path(INSTALL_BASE_DIR) / ".deps_state.json"
-
-# 防止重复进入依赖修复流程
-_repair_in_progress = False
-
-def show_dependency_wizard(always_show_ui=True):
-    """
-    当环境损坏或依赖缺失时，强制打开依赖修复窗口（仅尝试一次）。
-    需在主程序已创建 QApplication 后调用。
-    """
-    global _repair_in_progress
-    if _repair_in_progress:
-        print("[WARN] 已在修复流程中，跳过重复调用。")
-        return False
-    _repair_in_progress = True
-
-    from PyQt6.QtWidgets import QApplication, QMessageBox
-
-    app = QApplication.instance()
-    if app is None:
-        print("[WARN] 依赖修复需要 GUI，但当前未创建 QApplication。请在主程序创建 QApplication 后再调用。")
-        _repair_in_progress = False
-        return False
-
-    QMessageBox.warning(
-        None, "依赖修复",
-        "检测到依赖环境损坏或缺失，请在接下来的窗口中重新选择安装目录或修复依赖。"
-    )
-    try:
-        ok = ensure_deps(always_show_ui=always_show_ui)
-        if not ok:
-            QMessageBox.critical(None, "修复失败", "依赖修复未成功。程序将退出。")
-        else:
-            QMessageBox.information(None, "修复完成", "依赖环境修复成功，请重新启动程序。")
-        return ok
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"[FATAL] show_dependency_wizard 失败: {e}\n{tb}")
-        QMessageBox.critical(None, "严重错误", f"依赖修复失败：{e}")
-        return False
-    finally:
-        _repair_in_progress = False
 # ==============================
 # 🧩 环境隔离保护（非常关键）
 # 防止 PyInstaller 或旧虚拟环境污染
@@ -7702,6 +8369,20 @@ for var in ("PYTHONHOME", "PYTHONPATH"):
         os.environ.pop(var)
 
 init_app_logging()
+
+
+def _schedule_torch_runtime_probe() -> None:
+    """后台探测 torch 运行时，避免阻塞主线程启动。"""
+    import threading
+
+    def _worker():
+        try:
+            import torch  # noqa: F401
+        except Exception as e:
+            print("[WARN] torch 初始化失败：", e)
+            print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
@@ -7719,8 +8400,8 @@ if __name__ == "__main__":
         _update_startup_splash(splash, "初始化界面...")
         # 3) UI 主题（可选）
         try:
-            from qfluentwidgets import Theme, setTheme, setThemeColor
-            setTheme(Theme.AUTO)
+            from qfluentwidgets import setThemeColor
+            apply_theme_mode(read_theme_mode_from_config())
             setThemeColor("#0078D4")
         except Exception:
             pass
@@ -7738,18 +8419,14 @@ if __name__ == "__main__":
                 sys.exit(1)
             splash = _create_startup_splash(app)
             _update_startup_splash(splash, "依赖检查完成，继续启动...")
-        # 4) 可选：延迟检测 torch，避免 VC++ 运行库缺失导致崩溃
         _update_startup_splash(splash, "初始化运行环境...")
-        try:
-            import torch
-        except Exception as e:
-            print("[WARN] torch 初始化失败：", e)
-            print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
         _update_startup_splash(splash, "加载主窗口...")
         win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
         _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
+        QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
+        _schedule_torch_runtime_probe()
         try:
             if splash:
                 splash.finish(win)
@@ -7795,22 +8472,19 @@ if __name__ == "__main__":
             splash = _create_startup_splash(app)
         _update_startup_splash(splash, "依赖检查完成，继续启动...")
         try:
-            from qfluentwidgets import Theme, setTheme, setThemeColor
-            setTheme(Theme.AUTO)
+            from qfluentwidgets import setThemeColor
+            apply_theme_mode(read_theme_mode_from_config())
             setThemeColor("#0078D4")
         except Exception:
             pass
         _update_startup_splash(splash, "初始化运行环境...")
-        try:
-            import torch
-        except Exception as e:
-            print("[WARN] torch 初始化失败：", e)
-            print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
         _update_startup_splash(splash, "加载主窗口...")
         win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
         _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
+        QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
+        _schedule_torch_runtime_probe()
         try:
             if splash:
                 splash.finish(win)
@@ -7818,8 +8492,3 @@ if __name__ == "__main__":
             pass
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
-
-
-
-
-

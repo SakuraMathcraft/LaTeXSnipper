@@ -106,7 +106,7 @@ class ModelWrapper(QObject):
 
     status_signal = pyqtSignal(str)
 
-    def __init__(self, default_model: str | None = None):
+    def __init__(self, default_model: str | None = None, auto_warmup: bool = True):
         super().__init__()
         self.device = "cpu"
         self.torch = None
@@ -131,7 +131,8 @@ class ModelWrapper(QObject):
             self._init_torch()
 
         self._probe_onnxruntime()
-        self._lazy_load_pix2text()
+        if auto_warmup:
+            self._lazy_load_pix2text()
 
     def _emit(self, msg: str) -> None:
         try:

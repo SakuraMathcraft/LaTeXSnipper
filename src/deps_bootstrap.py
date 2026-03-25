@@ -629,6 +629,70 @@ class LayerVerifyWorker(QThread):
 
         self.done.emit(verify_ok_layers, verify_fail_layers)
 
+
+class UninstallLayerWorker(QThread):
+    log_updated = pyqtSignal(str)
+    progress_updated = pyqtSignal(int)
+    done = pyqtSignal(bool, str)  # success, layer_name
+
+    def __init__(self, pyexe: str, state_path, layer_name: str, pkg_names: list[str]):
+        super().__init__()
+        self.pyexe = str(pyexe)
+        self.state_path = Path(state_path)
+        self.layer_name = str(layer_name)
+        self.pkg_names = [str(x) for x in (pkg_names or []) if str(x).strip()]
+
+    def run(self):
+        ok = True
+        total = max(len(self.pkg_names), 1)
+        self.log_updated.emit(f"[STEP] 开始卸载层 {self.layer_name} ...")
+        self.progress_updated.emit(5)
+        for idx, pkg_name in enumerate(self.pkg_names, start=1):
+            self.log_updated.emit(f"[CMD] {self.pyexe} -m pip uninstall -y {pkg_name}")
+            try:
+                result = subprocess.run(
+                    [self.pyexe, "-m", "pip", "uninstall", "-y", pkg_name],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    creationflags=flags
+                )
+                output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
+                if output:
+                    for line in output.splitlines():
+                        self.log_updated.emit(line.rstrip())
+                if result.returncode == 0:
+                    self.log_updated.emit(f"[OK] {pkg_name} 卸载完成")
+                else:
+                    ok = False
+                    self.log_updated.emit(f"[WARN] {pkg_name} 卸载返回码={result.returncode}")
+            except Exception as e:
+                ok = False
+                self.log_updated.emit(f"[ERR] {pkg_name} 卸载失败: {e}")
+            self.progress_updated.emit(5 + int(75 * idx / total))
+
+        try:
+            data = {"installed_layers": []}
+            if self.state_path.exists():
+                with open(self.state_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    data = loaded
+            layers = [str(x) for x in data.get("installed_layers", []) if str(x) != self.layer_name]
+            failed = [str(x) for x in data.get("failed_layers", []) if str(x) != self.layer_name]
+            payload = {"installed_layers": layers}
+            if failed:
+                payload["failed_layers"] = failed
+            with open(self.state_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            self.log_updated.emit(f"[OK] 状态文件已更新，移除层 {self.layer_name}")
+        except Exception as e:
+            ok = False
+            self.log_updated.emit(f"[ERR] 状态文件更新失败: {e}")
+
+        self.progress_updated.emit(100)
+        self.done.emit(ok, self.layer_name)
+
 import os, sys, json, subprocess, threading, queue, urllib.request, re
 from pathlib import Path
 
@@ -638,7 +702,6 @@ flags = 0
 if sys.platform == "win32":
     # 后台安装/校验流程始终隐藏子进程窗口，避免终端闪烁影响体验。
     flags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-_repair_in_progress = False
 CONFIG_FILE = "LaTeXSnipper_config.json"
 STATE_FILE = ".deps_state.json"
 
@@ -1095,14 +1158,14 @@ def _repair_torch_stack(
 # 分层依赖（保持原始规格；含 +cu 与 ~= 的组合后续会自动规范化）
 LAYER_MAP = {
     "BASIC": [
-        "simsimd~=6.0.5","lxml~=4.9.3",
-        "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=25.0",
-        "requests~=2.32.5", "tqdm~=4.67.1",
+        "lxml~=4.9.3",
+        "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=26.0",
+        "requests~=2.32.5",
         "numpy>=1.26.4", "filelock~=3.13.1",
         "pydantic~=2.9.2", "regex~=2024.9.11",
         "safetensors~=0.6.2", "sentencepiece~=0.1.99",
         "certifi~=2024.2.2", "idna~=3.6", "urllib3~=2.5.0",
-        "colorama~=0.4.6", "psutil~=7.1.0",
+        "psutil~=7.1.0",
         "typing_extensions>=4.12.2",
     ],
     # ❗ CORE 只保留应用直接使用的依赖（pix2text + 文档导出链路）
@@ -1987,137 +2050,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
     # 防御式返回（正常流程不会走到这里）
     return False
 
-# GPU 切换专用线程（保留供将来手动 GPU 切换功能使用）
-# 当前版本中 GPU 选择已通过 HEAVY_GPU 层直接在向导中完成，此类暂未使用
-class GpuSwitchWorker(QThread):
-    log_updated = pyqtSignal(str)
-    progress_updated = pyqtSignal(int)
-    done = pyqtSignal(bool)  # True=成功
-
-    def __init__(self, pyexe, state_path, stop_event, log_q, mirror=False, torch_url=TORCH_GPU_FALLBACK_INDEX_URL):
-        super().__init__()
-        self.pyexe = str(pyexe)
-        self.state_path = Path(state_path)
-        self.stop_event = stop_event
-        self.log_q = log_q
-        self.mirror = mirror
-        self.torch_url = torch_url
-        self.proc = None
-
-    def stop(self):
-        self.stop_event.set()
-        try:
-            if self.proc and self.proc.poll() is None:
-                self.proc.terminate()
-        except Exception:
-            pass
-    def _run_cmd(self, args: list[str], timeout: int | None = None) -> int:
-        self.log_q.put(f"[CMD] {' '.join(args)}")
-        with subprocess_lock:
-            self.proc = safe_run(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                encoding="utf-8",
-                creationflags=flags
-            )
-        for line in self.proc.stdout:
-            self.log_q.put(line.rstrip())
-        self.proc.communicate(timeout=timeout)
-        rc = self.proc.returncode or 0
-        self.proc = None
-        return rc
-    def _uninstall_cpu_stack(self) -> bool:
-        self.log_q.put("[STEP] 卸载 CPU 版 PyTorch 栈 ...")
-        pkgs = ["torch", "torchvision", "torchaudio",
-                "onnxruntime", "onnxruntime-cpu", "onnxruntime-gpu"]
-        args = [self.pyexe, "-m", "pip", "uninstall", "-y", *pkgs]
-        rc = self._run_cmd(args, timeout=600)
-        if rc == 0:
-            self.log_q.put("[OK] 已卸载 CPU 版依赖。")
-            return True
-        self.log_q.put(f"[WARN] 卸载出现返回码 {rc}，将继续尝试安装 GPU 版。")
-        return True  # 卸载失败不阻断（可能部分未安装）
-
-    def _install_gpu_stack(self) -> bool:
-        self.log_q.put("[STEP] 安装 GPU 版 PyTorch 栈 ...")
-        spec_map = _torch_specs_for_index_url(self.torch_url, prefer_gpu=True)
-        ort_gpu_spec = _onnxruntime_gpu_spec_for_torch_url(self.torch_url, prefer_gpu=True)
-        pkgs = [
-            spec_map["torch"],
-            spec_map["torchvision"],
-            spec_map["torchaudio"],
-            ort_gpu_spec
-        ]
-        total = len(pkgs)
-        ok_all = True
-        for i, p in enumerate(pkgs, 1):
-            if self.stop_event.is_set():
-                self.log_q.put("[CANCEL] 用户取消。")
-                return False
-            # torch 三件套: 先按用户源尝试，失败后回退检测到的 CUDA 源；onnxruntime-gpu 走 PyPI/镜像
-            is_torch = re.split(r'[<>=!~ ]', p, 1)[0].strip().lower() in TORCH_NAMES
-            ok = _pip_install(
-                self.pyexe, p, self.stop_event, self.log_q,
-                use_mirror=self.mirror,
-                flags=flags,
-                torch_url=(self.torch_url if is_torch else None)
-            )
-            self.progress_updated.emit(10 + int(70 * i / total))
-            ok_all = ok_all and ok
-        return ok_all
-
-    def _verify_gpu(self):
-        self.log_q.put("[STEP] 运行 GPU 环境自检 ...")
-        code = r"""
-import torch
-print("cuda.is_available:", torch.cuda.is_available())
-print("torch version:", torch.__version__)
-print("torch.version.cuda:", torch.version.cuda)
-try:
-    print("cudnn version:", torch.backends.cudnn.version())
-except Exception as e:
-    print("cudnn version: <error>", e)
-if torch.cuda.is_available():
-    print("device 0:", torch.cuda.get_device_name(0))
-import numpy as np
-print(np.__version__)
-"""
-        args = [self.pyexe, "-c", code]
-        rc = self._run_cmd(args, timeout=180)
-        return rc == 0
-
-    def _mark_layer_installed(self):
-        try:
-            state = _load_json(self.state_path, {"installed_layers": []})
-            cur = set(state.get("installed_layers", []))
-            cur.discard("HEAVY_CPU")
-            cur.add("HEAVY_GPU")
-            _save_json(self.state_path, {"installed_layers": sorted(list(cur))})
-            self.log_q.put("[OK] 已写入 HEAVY_GPU 到状态文件。")
-        except Exception as e:
-            self.log_q.put(f"[WARN] 写状态文件失败: {e}")
-    def run(self):
-        try:
-            self.progress_updated.emit(5)
-            if not self._uninstall_cpu_stack():
-                self.done.emit(False); return
-            self.progress_updated.emit(15)
-            if not self._install_gpu_stack():
-                self.done.emit(False); return
-            self.progress_updated.emit(90)
-            ver_ok = self._verify_gpu()
-            self.progress_updated.emit(98)
-            if ver_ok:
-                self._mark_layer_installed()
-            self.progress_updated.emit(100)
-            self.done.emit(ver_ok)
-        except Exception as e:
-            tb = traceback.format_exc()
-            self.log_q.put(f"[FATAL] GPU 切换线程异常: {e}\n{tb}")
-            self.done.emit(False)
 # --------------- UI ---------------
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path, from_settings=False, force_verify=False):
     import sys
@@ -2126,11 +2058,56 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                                  QHBoxLayout, QComboBox, QFileDialog, QLineEdit, QMessageBox, QApplication)
     from PyQt6.QtCore import Qt
     from qfluentwidgets import PushButton, FluentIcon
+
+    def _is_dark_ui() -> bool:
+        app = QApplication.instance()
+        if app is None:
+            return False
+        c = app.palette().window().color()
+        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+    theme = {
+        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
+        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
+        "muted": "#a9b3bf" if _is_dark_ui() else "#555555",
+        "input_bg": "#232934" if _is_dark_ui() else "#ffffff",
+        "border": "#465162" if _is_dark_ui() else "#d0d7de",
+        "warn": "#ff8a80" if _is_dark_ui() else "#c62828",
+        "ok": "#7bd88f" if _is_dark_ui() else "#2e7d32",
+        "hint": "#d9b36c" if _is_dark_ui() else "#856404",
+        "accent": "#8ec5ff" if _is_dark_ui() else "#1976d2",
+        "accent_hover": "#63b3ff" if _is_dark_ui() else "#0f62c9",
+        "btn_bg": "#2b3440" if _is_dark_ui() else "#f8fbff",
+        "btn_hover": "#344151" if _is_dark_ui() else "#eef6ff",
+    }
+
     dlg = QDialog()
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
-    dlg.setWindowTitle("依赖环境选择")
+    dlg.setWindowTitle("依赖管理向导")
+    dlg.setStyleSheet(
+        "QDialog {"
+        f"background: {theme['dialog_bg']}; color: {theme['text']};"
+        "}"
+        "QLabel {"
+        f"color: {theme['text']};"
+        "}"
+        "QLineEdit, QComboBox {"
+        f"background: {theme['input_bg']}; color: {theme['text']};"
+        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 4px 6px;"
+        "}"
+        "QCheckBox {"
+        f"color: {theme['text']}; spacing: 8px;"
+        "}"
+        "QPushButton {"
+        f"background: {theme['btn_bg']}; color: {theme['accent']};"
+        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 6px 10px;"
+        "}"
+        "QPushButton:hover {"
+        f"background: {theme['btn_hover']}; border: 1px solid {theme['accent']}; color: {theme['accent_hover']};"
+        "}"
+    )
     lay = QVBoxLayout(dlg)
 
     def _force_quit():
@@ -2219,17 +2196,17 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 如果有验证失败的层，显示警告
     if failed_layer_names:
         status_text = f"当前依赖环境：{deps_dir}\n⚠️ 以下功能层安装但无法使用: {', '.join(failed_layer_names)}\n可用功能层: {', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
-        status_color = "#c62828"  # 红色警告
+        status_color = theme["warn"]
     elif installed_layers["layers"]:
         if lack_critical:
             status_text = f"检测到当前环境{deps_dir}的功能层不完整\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = "#555"
+            status_color = theme["muted"]
         else:
             status_text = f"当前依赖环境：{deps_dir}\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = "#2e7d32"  # 绿色表示完整
+            status_color = theme["ok"]
     else:
         status_text = f"当前依赖环境：{deps_dir}\n已安装层：(无)"
-        status_color = "#c62828"  # 红色表示未安装
+        status_color = theme["warn"]
     
     env_info = QLabel(status_text)
     env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:6px;")
@@ -2249,7 +2226,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             cb.setChecked(True)
             cb.setEnabled(True)
             cb.setText(f"{layer}（需要修复）")
-            cb.setStyleSheet("color: #c62828;")
+            cb.setStyleSheet(f"color: {theme['warn']};")
         elif layer in installed_layers["layers"]:
             cb.setChecked(False)
             cb.setEnabled(False)
@@ -2257,23 +2234,23 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             # 新增删除按钮，使用 FluentIcon.DELETE（垃圾筐图标）
             del_btn = PushButton(FluentIcon.DELETE, "")
             del_btn.setFixedSize(32, 32)
-            del_btn.setStyleSheet("""
-                QPushButton {
+            del_btn.setStyleSheet(f"""
+                QPushButton {{
                     background: transparent;
                     border: none;
                     border-radius: 4px;
-                    color: #666666;
-                }
-                QPushButton:hover {
-                    background: #ffebee;
-                    color: #d32f2f;
-                    border: 1px solid #ffcdd2;
-                }
-                QPushButton:pressed {
-                    background: #ffcdd2;
-                    color: #c62828;
-                    border: 1px solid #ef5350;
-                }
+                    color: {theme['muted']};
+                }}
+                QPushButton:hover {{
+                    background: {theme['btn_hover']};
+                    color: {theme['warn']};
+                    border: 1px solid {theme['warn']};
+                }}
+                QPushButton:pressed {{
+                    background: {theme['input_bg']};
+                    color: {theme['warn']};
+                    border: 1px solid {theme['warn']};
+                }}
             """)
             import subprocess
             def make_del_func(layer_name):
@@ -2281,32 +2258,55 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     reply = _exec_close_only_message_box(
                         dlg,
                         "删除确认",
-                        f"确定要删除层 [{layer_name}] 及其所有依赖包吗？此操作不可恢复！",
+                        f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n为避免当前进程自删导致闪退，程序会启动外部卸载任务并自动退出。",
                         icon=QMessageBox.Icon.Warning,
                         buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if reply == QMessageBox.StandardButton.Yes:
-                        # 卸载该层所有包
                         pkgs = [p for p in LAYER_MAP.get(layer_name, []) if not p.startswith('__stdlib__')]
+                        pkg_names = []
                         for pkg in pkgs:
-                            pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0]
+                            pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0].strip()
+                            if pkg_name and pkg_name not in pkg_names:
+                                pkg_names.append(pkg_name)
+                        pdlg, info2, logw2, btn_cancel2, btn_pause2, progress2 = _progress_dialog()
+                        pdlg.setWindowTitle("卸载进度")
+                        info2.setText(f"正在卸载层 {layer_name}，请不要关闭此窗口...")
+                        btn_pause2.hide()
+                        btn_cancel2.setText("关闭")
+                        btn_cancel2.setEnabled(False)
+
+                        worker = UninstallLayerWorker(str(pyexe), state_file, layer_name, pkg_names)
+                        worker.log_updated.connect(logw2.append)
+                        worker.progress_updated.connect(progress2.setValue)
+
+                        def _on_done(success: bool, removed_layer: str):
+                            btn_cancel2.setEnabled(True)
+                            btn_cancel2.setText("完成")
                             try:
-                                subprocess.run([str(pyexe), "-m", "pip", "uninstall", "-y", pkg_name], check=False, creationflags=flags)
-                            except Exception as e:
-                                print(f"[WARN] 卸载包 {pkg_name} 失败: {e}")
-                        # 更新状态文件
-                        if layer_name in installed_layers["layers"]:
-                            installed_layers["layers"].remove(layer_name)
-                            _save_json(state_file, {"installed_layers": installed_layers["layers"]})
-                        _exec_close_only_message_box(
-                            dlg,
-                            "删除成功",
-                            f"已删除层: {layer_name} 及其依赖包，请重启依赖向导以刷新。",
-                            icon=QMessageBox.Icon.Information,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        dlg.close()
+                                btn_cancel2.clicked.disconnect()
+                            except Exception:
+                                pass
+                            btn_cancel2.clicked.connect(lambda: pdlg.accept())
+                            if success:
+                                info2.setText(f"层 {removed_layer} 已卸载完成。点击完成返回依赖向导。")
+                                try:
+                                    if removed_layer in installed_layers["layers"]:
+                                        installed_layers["layers"].remove(removed_layer)
+                                except Exception:
+                                    pass
+                                try:
+                                    dlg.refresh_ui()
+                                except Exception:
+                                    pass
+                            else:
+                                info2.setText(f"层 {removed_layer} 卸载过程中存在问题，请查看日志。")
+                            progress2.setValue(100)
+
+                        worker.done.connect(_on_done)
+                        worker.start()
+                        pdlg.exec()
                 return _del
             del_btn.clicked.connect(make_del_func(layer))
         else:
@@ -2342,13 +2342,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         cuda_ver = cuda_info.get("version", "未知")
         torch_tag = cuda_info.get("torch_tag", "cuda")
         gpu_info_label.setText(f"✅ 检测到 NVIDIA GPU (CUDA {cuda_ver})，将使用 {torch_tag} 版本 PyTorch")
-        gpu_info_label.setStyleSheet("color:#28a745;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
     elif has_gpu:
         gpu_info_label.setText("⚠️ 检测到 GPU 但未找到 CUDA，将尝试使用默认 GPU 轮子源")
-        gpu_info_label.setStyleSheet("color:#856404;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     else:
         gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议安装 HEAVY_CPU 层")
-        gpu_info_label.setStyleSheet("color:#856404;font-size:12px;margin:4px 0;")
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     lay.addWidget(gpu_info_label)
     # 路径显示与更改
     path_row = QHBoxLayout()
@@ -2384,7 +2384,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # 警告 label
     warn = QLabel("缺少关键依赖层，部分功能将不可用！")
-    warn.setStyleSheet("color:red;")
+    warn.setStyleSheet(f"color:{theme['warn']};")
     lay.addWidget(warn)
 
     # 说明 label
@@ -2400,10 +2400,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥，只能选择其一！\n"
         "• onnxruntime 和 onnxruntime-gpu 互斥，会自动卸载冲突版本。\n"
-        "• v1.05 起仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
+        "• 当前版本仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
         "• 向导负责安装/切换 pix2text 所需的 CPU/GPU 依赖与 onnxruntime。\n"
     )
-    desc.setStyleSheet("color:#555;font-size:11px;")
+    desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
     chosen = {"layers": None, "mirror": False, "deps_path": deps_dir, "force_enter": False,
               "verified_in_ui": verified_in_ui}
@@ -2534,7 +2534,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def download():
         sel = [L for L, c in checks.items() if c.isChecked()]
         if not sel:
-            custom_warning_dialog("提示", "请至少选择一个依赖层进行下载。", dlg)
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.warning(
+                title="提示",
+                content="请至少选择一个依赖层进行下载。",
+                parent=dlg.parent() if dlg.parent() is not None else dlg,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
             return
         chosen["layers"] = sel
         chosen["mirror"] = (mirror_box.currentData() == "tuna")
@@ -2614,7 +2621,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     cb.setChecked(True)
                     cb.setEnabled(True)
                     cb.setText(f"{layer}（需要修复）")
-                    cb.setStyleSheet("color: #c62828;")
+                    cb.setStyleSheet(f"color: {theme['warn']};")
                 elif layer in installed_layers["layers"]:
                     cb.setChecked(False)
                     cb.setEnabled(False)
@@ -2655,14 +2662,52 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     return dlg, chosen
 
 def _progress_dialog():
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout, QApplication
     from qfluentwidgets import PushButton, FluentIcon
+    def _is_dark_ui() -> bool:
+        try:
+            import qfluentwidgets as qfw
+            fn = getattr(qfw, "isDarkTheme", None)
+            if callable(fn):
+                return bool(fn())
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is None:
+            return False
+        c = app.palette().window().color()
+        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+    theme = {
+        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
+        "panel_bg": "#232934" if _is_dark_ui() else "#f7f9fc",
+        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
+        "muted": "#a9b3bf" if _is_dark_ui() else "#666666",
+        "border": "#465162" if _is_dark_ui() else "#d0d7de",
+        "progress_bg": "#2b3440" if _is_dark_ui() else "#f0f0f0",
+        "progress_border": "#465162" if _is_dark_ui() else "#dddddd",
+        "progress_start": "#4CAF50" if _is_dark_ui() else "#4CAF50",
+        "progress_end": "#66BB6A" if _is_dark_ui() else "#66BB6A",
+    }
     dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
+    dlg.setStyleSheet(
+        f"""
+        QDialog {{ background: {theme['dialog_bg']}; color: {theme['text']}; }}
+        QLabel {{ color: {theme['text']}; }}
+        QTextEdit {{
+            background: {theme['panel_bg']};
+            color: {theme['text']};
+            border: 1px solid {theme['border']};
+            border-radius: 6px;
+        }}
+        """
+    )
     lay = QVBoxLayout(dlg)
     info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
+    info.setStyleSheet(f"color: {theme['muted']};")
     logw = QTextEdit(); logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
@@ -2670,17 +2715,22 @@ def _progress_dialog():
     progress.setMinimumWidth(400)  # 增加宽度
     progress.setStyleSheet("""
         QProgressBar {
-            border: 2px solid #ddd;
+            border: 2px solid __PROGRESS_BORDER__;
             border-radius: 10px;
             text-align: center;
-            background-color: #f0f0f0;
+            background-color: __PROGRESS_BG__;
+            color: __TEXT__;
         }
         QProgressBar::chunk {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                        stop:0 #4CAF50, stop:1 #66BB6A);
+                                        stop:0 __PROGRESS_START__, stop:1 __PROGRESS_END__);
             border-radius: 8px;
         }
-    """)
+    """.replace("__PROGRESS_BORDER__", theme["progress_border"])
+       .replace("__PROGRESS_BG__", theme["progress_bg"])
+       .replace("__TEXT__", theme["text"])
+       .replace("__PROGRESS_START__", theme["progress_start"])
+       .replace("__PROGRESS_END__", theme["progress_end"]))
 
     btn_cancel = PushButton(FluentIcon.CLOSE, "退出下载")
     btn_cancel.setFixedHeight(32)
@@ -2710,6 +2760,49 @@ def _apply_close_only_window_flags(win):
     )
     win.setWindowFlags(flags)
 
+
+def _deps_dialog_theme() -> dict:
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    dark = False
+    try:
+        if app is not None:
+            c = app.palette().window().color()
+            dark = ((c.red() + c.green() + c.blue()) / 3.0) < 128
+    except Exception:
+        dark = False
+    return {
+        "dialog_bg": "#1b1f27" if dark else "#ffffff",
+        "text": "#e7ebf0" if dark else "#222222",
+        "muted": "#a9b3bf" if dark else "#555555",
+        "panel_bg": "#232934" if dark else "#f8fbff",
+        "border": "#465162" if dark else "#d0d7de",
+        "accent": "#8ec5ff" if dark else "#1976d2",
+        "btn_hover": "#344151" if dark else "#eef6ff",
+    }
+
+
+def _apply_deps_message_box_theme(msg):
+    t = _deps_dialog_theme()
+    try:
+        msg.setStyleSheet(
+            "QMessageBox {"
+            f"background: {t['dialog_bg']}; color: {t['text']};"
+            "}"
+            "QLabel {"
+            f"color: {t['text']};"
+            "}"
+            "QPushButton {"
+            f"background: {t['panel_bg']}; color: {t['accent']};"
+            f"border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 12px; min-width: 72px;"
+            "}"
+            "QPushButton:hover {"
+            f"background: {t['btn_hover']}; border: 1px solid {t['accent']};"
+            "}"
+        )
+    except Exception:
+        pass
+
 def _exec_close_only_message_box(
     parent,
     title: str,
@@ -2727,6 +2820,7 @@ def _exec_close_only_message_box(
     if default_button is not None:
         msg.setDefaultButton(default_button)
     _apply_close_only_window_flags(msg)
+    _apply_deps_message_box_theme(msg)
     return QMessageBox.StandardButton(msg.exec())
 
 def custom_warning_dialog(title, message, parent=None):
@@ -2738,6 +2832,22 @@ def custom_warning_dialog(title, message, parent=None):
     _apply_close_only_window_flags(dlg)
     dlg.setWindowTitle(title)
     dlg.setModal(True)
+    t = _deps_dialog_theme()
+    dlg.setStyleSheet(
+        "QDialog {"
+        f"background: {t['dialog_bg']}; color: {t['text']};"
+        "}"
+        "QLabel {"
+        f"color: {t['text']};"
+        "}"
+        "QPushButton {"
+        f"background: {t['panel_bg']}; color: {t['accent']};"
+        f"border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 12px;"
+        "}"
+        "QPushButton:hover {"
+        f"background: {t['btn_hover']}; border: 1px solid {t['accent']};"
+        "}"
+    )
 
     # 添加图标
     icon_path = resource_path("assets/icon.ico")
@@ -2760,66 +2870,6 @@ def custom_warning_dialog(title, message, parent=None):
     dlg.setFixedSize(dlg.sizeHint())
 
     return dlg.exec() == QDialog.DialogCode.Accepted
-
-def show_dependency_wizard(always_show_ui: bool = True) -> bool:
-    """
-    当环境损坏或依赖缺失时，强制打开依赖修复窗口（仅尝试一次）。
-    仅在已有 QApplication 实例时工作；不再自行创建实例。
-    """
-    from PyQt6.QtWidgets import QApplication, QMessageBox
-
-    global _repair_in_progress
-    if _repair_in_progress:
-        print("[WARN] 已在修复流程中，跳过重复调用。")
-        return False
-    _repair_in_progress = True
-
-    app = QApplication.instance()
-    if app is None:
-        print("[WARN] show_dependency_wizard 需要已有 QApplication 实例。请在主程序创建后再调用。")
-        _repair_in_progress = False
-        return False
-    _exec_close_only_message_box(
-        None,
-        "依赖修复",
-        "检测到依赖环境损坏或缺失，请在接下来的窗口中重新选择安装目录或修复依赖。",
-        icon=QMessageBox.Icon.Warning,
-        buttons=QMessageBox.StandardButton.Ok,
-    )
-
-    try:
-        ok = ensure_deps(always_show_ui=always_show_ui)
-        if not ok:
-            _exec_close_only_message_box(
-                None,
-                "修复失败",
-                "依赖修复未成功，请退出程序后重新运行。",
-                icon=QMessageBox.Icon.Critical,
-                buttons=QMessageBox.StandardButton.Ok,
-            )
-        else:
-            _exec_close_only_message_box(
-                None,
-                "修复完成",
-                "依赖环境修复成功，请重新启动程序。",
-                icon=QMessageBox.Icon.Information,
-                buttons=QMessageBox.StandardButton.Ok,
-            )
-        return ok
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"[FATAL] show_dependency_wizard 失败: {e}\n{tb}")
-        _exec_close_only_message_box(
-            None,
-            "严重错误",
-            f"依赖修复失败：{e}",
-            icon=QMessageBox.Icon.Critical,
-            buttons=QMessageBox.StandardButton.Ok,
-        )
-        return False
-    finally:
-        _repair_in_progress = False
 
 def clear_deps_state():
     """
@@ -3153,10 +3203,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 print("[INFO] 用户选择强制进入，跳过依赖安装")
                 return True
             if chosen["layers"]:
+                failed_claims = {
+                    str(x) for x in (state.get("failed_layers", []) if isinstance(state, dict) else [])
+                }
                 already_have = all(
                     l in state.get("installed_layers", []) for l in chosen["layers"]
                 )
-                if already_have:
+                has_failed_choice = any(l in failed_claims for l in chosen["layers"])
+                if already_have and not has_failed_choice:
                     if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
                         print("[WARN] 复验后关键层不完整，返回向导。")
                         continue
@@ -3182,6 +3236,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
         if need_install:
             if chosen_layers:
+                RESULT_BACK_TO_WIZARD = 1001
                 if "HEAVY_GPU" in chosen_layers and not _gpu_available():
                     r = _exec_close_only_message_box(
                         None,
@@ -3302,7 +3357,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     if _is_alive(progress):
                         _set_progress(progress.maximum())
                     if _is_alive(btn_cancel):
-                        btn_cancel.setText("Finish")
+                        btn_cancel.setText("完成")
                     if _is_alive(btn_pause):
                         btn_pause.setEnabled(False)
                     if _is_alive(btn_cancel):
@@ -3310,7 +3365,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             btn_cancel.clicked.disconnect()
                         except Exception:
                             pass
-                        btn_cancel.clicked.connect(lambda: dlg.close() if _is_alive(dlg) else None)
+                        btn_cancel.clicked.connect(
+                            lambda: dlg.done(RESULT_BACK_TO_WIZARD) if _is_alive(dlg) else None
+                        )
                     try:
                         if hasattr(dlg, "refresh_ui"):
                             dlg.refresh_ui()
@@ -3444,6 +3501,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 if vw is not None and vw.isRunning():
                     vw.wait(3000)
 
+                if result == RESULT_BACK_TO_WIZARD:
+                    try:
+                        state = _sanitize_state_layers(state_path)
+                        installed["layers"] = state.get("installed_layers", [])
+                        missing_layers = [L for L in needed if L not in installed["layers"]]
+                    except Exception:
+                        pass
+                    always_show_ui = True
+                    continue
                 if result != QDialog.DialogCode.Accepted:
                     # 用户在进度窗口点“退出下载”，回到依赖选择窗口
                     continue

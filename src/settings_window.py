@@ -2,7 +2,7 @@
 from pathlib import Path
 import time
 import pyperclip
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
@@ -32,6 +32,8 @@ class SettingsWindow(QDialog):
     pix2text_pkg_probe_done = pyqtSignal(bool)
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._compute_mode_state = "unknown"
+        self._theme_is_dark_cached = None
         self.setWindowFlags(
             (
                 self.windowFlags()
@@ -63,6 +65,7 @@ class SettingsWindow(QDialog):
         self._cached_main_torch_info = None
         self._cached_main_torch_py = ""
         self._cached_main_torch_ts = 0.0
+        self._theme_mode_values = ["light", "dark", "auto"]
         # 模型选择区域
         lay.addWidget(QLabel("选择识别模式:"))
         # 使用下拉框支持更多识别模式
@@ -92,21 +95,10 @@ class SettingsWindow(QDialog):
         self.pix2text_pyexe_input = QLineEdit()
         self.pix2text_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
         self.pix2text_pyexe_input.setFixedHeight(30)
+        self.pix2text_pyexe_input.setReadOnly(True)
         pix2text_env_layout.addWidget(self.pix2text_pyexe_input)
-        self.pix2text_pyexe_browse = PushButton(FluentIcon.FOLDER, "浏览")
-        self.pix2text_pyexe_browse.setFixedHeight(30)
-        self.pix2text_pyexe_browse.clicked.connect(self._on_pix2text_pyexe_browse)
-        pix2text_env_layout.addWidget(self.pix2text_pyexe_browse)
-        self.pix2text_pyexe_clear = PushButton(FluentIcon.DELETE, "清除")
-        self.pix2text_pyexe_clear.setFixedHeight(30)
-        self.pix2text_pyexe_clear.clicked.connect(self._on_pix2text_pyexe_clear)
-        pix2text_env_layout.addWidget(self.pix2text_pyexe_clear)
-        self.pix2text_pyexe_create = PushButton(FluentIcon.DEVELOPER_TOOLS, "一键创建")
-        self.pix2text_pyexe_create.setFixedHeight(30)
-        self.pix2text_pyexe_create.clicked.connect(self._on_pix2text_pyexe_create)
-        pix2text_env_layout.addWidget(self.pix2text_pyexe_create)
         lay.addWidget(self.pix2text_env_widget)
-        self.pix2text_env_hint = QLabel("提示：v1.05 起 pix2text 与主依赖环境统一，不再使用隔离环境。")
+        self.pix2text_env_hint = QLabel("提示：pix2text 统一使用主依赖环境。")
         self.pix2text_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_env_hint.setWordWrap(True)
         lay.addWidget(self.pix2text_env_hint)
@@ -115,7 +107,7 @@ class SettingsWindow(QDialog):
         self.pix2text_torch_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_torch_status.setWordWrap(True)
         lay.addWidget(self.pix2text_torch_status)
-        # v1.05: 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
+        # 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
         self.pix2text_torch_btn_row = None
         self.pix2text_torch_install_gpu = None
         self.pix2text_torch_reinstall = None
@@ -139,23 +131,26 @@ class SettingsWindow(QDialog):
         self.pix2text_mode_combo.currentIndexChanged.connect(self._on_pix2text_mode_changed)
         pix2text_mode_layout.addWidget(self.pix2text_mode_combo)
         lay.addWidget(self.pix2text_mode_widget)
-        # v1.05: 彻底移除 UniMERNet UI（仅保留 pix2text）。
+        # 已移除 UniMERNet UI（仅保留 pix2text）。
         self.unimernet_widget = None
         self.unimernet_env_widget = None
         self.unimernet_env_hint = None
         self.unimernet_torch_status = None
         self.unimernet_torch_btn_row = None
-        # v1.05: 不再支持隔离环境创建/选择，固定使用主依赖环境 python。
-        self.pix2text_pyexe_browse.hide()
-        self.pix2text_pyexe_clear.hide()
-        self.pix2text_pyexe_create.hide()
-        self.pix2text_pyexe_input.setReadOnly(True)
         self.lbl_compute_mode = QLabel()
         self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         lay.addWidget(self.lbl_compute_mode)
         self._update_compute_mode_label()
         # 分隔
         lay.addSpacing(12)
+        # ============ 外观主题设置 ============
+        lay.addWidget(QLabel("外观主题:"))
+        self.theme_mode_combo = ComboBox()
+        self.theme_mode_combo.setFixedHeight(36)
+        self.theme_mode_combo.addItem("浅色", userData="light")
+        self.theme_mode_combo.addItem("深色", userData="dark")
+        self.theme_mode_combo.addItem("跟随系统", userData="auto")
+        lay.addWidget(self.theme_mode_combo)
         # ============ 渲染引擎设置 ============
         lay.addWidget(QLabel("公式渲染引擎:"))
         # 渲染引擎选择 - 使用 qfluentwidgets ComboBox 保持一致的外观
@@ -277,6 +272,7 @@ class SettingsWindow(QDialog):
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_pix2text_cache.clicked.connect(self._open_pix2text_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
+        self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # 渲染引擎相关信号
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
         self.btn_browse_latex.clicked.connect(self._browse_latex_path)
@@ -286,6 +282,7 @@ class SettingsWindow(QDialog):
         # 初始化选择状态
         self._init_model_combo()
         self._update_model_desc()
+        self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
         # 编译器切换时自动切换路径
@@ -293,6 +290,108 @@ class SettingsWindow(QDialog):
             self.latex_compiler_combo.currentIndexChanged.connect(self._on_latex_compiler_changed)
         # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
         QTimer.singleShot(120, self._warm_probe_cache_async)
+        self.apply_theme_styles(force=True)
+
+    def _is_dark_mode(self) -> bool:
+        try:
+            from qfluentwidgets import isDarkTheme
+            return bool(isDarkTheme())
+        except Exception:
+            pal = self.palette().window().color()
+            return ((pal.red() + pal.green() + pal.blue()) / 3.0) < 128
+
+    def _normalize_theme_mode(self, value: str | None) -> str:
+        mode = str(value or "auto").strip().lower()
+        return mode if mode in self._theme_mode_values else "auto"
+
+    def _init_theme_mode_combo(self):
+        mode = "auto"
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                mode = self._normalize_theme_mode(self.parent().cfg.get("theme_mode", "auto"))
+                self.parent().cfg.set("theme_mode", mode)
+        except Exception:
+            mode = "auto"
+        try:
+            idx = self._theme_mode_values.index(mode)
+        except Exception:
+            idx = 2
+        prev = self.theme_mode_combo.blockSignals(True)
+        self.theme_mode_combo.setCurrentIndex(idx)
+        self.theme_mode_combo.blockSignals(prev)
+
+    def _on_theme_mode_changed(self, index: int):
+        mode = "auto"
+        if index >= 0:
+            value = self.theme_mode_combo.itemData(index)
+            mode = self._normalize_theme_mode(value)
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                self.parent().cfg.set("theme_mode", mode)
+        except Exception:
+            pass
+        try:
+            if self.parent() and hasattr(self.parent(), "apply_app_theme_mode"):
+                self.parent().apply_app_theme_mode(mode, refresh_preview=True)
+        except Exception:
+            pass
+        mapping = {"light": "浅色", "dark": "深色", "auto": "跟随系统"}
+        self._show_info("主题已应用", f"当前主题: {mapping.get(mode, mode)}", "success")
+
+    def _theme_tokens(self) -> dict:
+        if self._is_dark_mode():
+            return {
+                "muted": "#b6beca",
+                "compute_gpu": "#7bd88f",
+                "compute_cpu": "#ffb35c",
+                "compute_unknown": "#9ea7b3",
+            }
+        return {
+            "muted": "#666666",
+            "compute_gpu": "#2e7d32",
+            "compute_cpu": "#f57c00",
+            "compute_unknown": "#666666",
+        }
+
+    def _compute_label_color(self) -> str:
+        t = self._theme_tokens()
+        if self._compute_mode_state == "gpu":
+            return t["compute_gpu"]
+        if self._compute_mode_state == "cpu":
+            return t["compute_cpu"]
+        return t["compute_unknown"]
+
+    def apply_theme_styles(self, force: bool = False):
+        dark = self._is_dark_mode()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        t = self._theme_tokens()
+        if hasattr(self, "lbl_model_desc") and self.lbl_model_desc is not None:
+            self.lbl_model_desc.setStyleSheet(f"color: {t['muted']}; font-size: 11px; padding: 4px;")
+        if hasattr(self, "pix2text_env_hint") and self.pix2text_env_hint is not None:
+            self.pix2text_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
+        if hasattr(self, "pix2text_torch_status") and self.pix2text_torch_status is not None:
+            self.pix2text_torch_status.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
+        if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
+            self.lbl_latex_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 4px;")
+        if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
+            self.lbl_compute_mode.setStyleSheet(
+                f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"
+            )
+
+    def event(self, e):
+        result = super().event(e)
+        try:
+            if e.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self.apply_theme_styles()
+        except Exception:
+            pass
+        return result
 
     def _warm_probe_cache_async(self):
         def worker():
@@ -675,56 +774,36 @@ class SettingsWindow(QDialog):
         torch_cmd = ""
         detect_note = ""
         selected_gpu_tag = ""
+        main_info = {}
+        mode_satisfies = None
         try:
             from backend.torch_runtime import mode_satisfies
-
             main_info, _main_py = self._get_main_torch_info_cached(allow_block=True)
-            if mode_satisfies(main_info, mode):
-                main_mode = (main_info.get("mode") or mode).upper()
-                main_ver = main_info.get("torch_version", "") or "unknown"
-                reuse_note = f"已复用主环境 PyTorch（{main_mode}, ver={main_ver}），隔离环境无需重复安装 torch。"
-                if mode == "gpu":
-                    cv = str(main_info.get("cuda_version") or "").strip().lower()
-                    if cv.startswith("cu"):
-                        selected_gpu_tag = cv
-            else:
-                extra_index = " --extra-index-url https://pypi.org/simple"
-                if mode == "gpu":
-                    gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
-                    detect_note = getattr(self, "_cuda_detect_note", "")
-                    if gpu_plan:
-                        selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
-                        torch_cmd = (
-                            f"\"{pyexe}\" -m pip install "
-                            f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
-                            f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
-                        )
-                    else:
-                        torch_cmd = ""
-                else:
-                    cpu_plan = self._torch_cpu_plan()
-                    torch_cmd = (
-                        f"\"{pyexe}\" -m pip install "
-                        f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
-                        f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
-                    )
-                    detect_note = "使用 CPU 版本"
         except Exception:
-            # fallback to legacy command generation
+            main_info = {}
+
+        if callable(mode_satisfies) and main_info and mode_satisfies(main_info, mode):
+            main_mode = (main_info.get("mode") or mode).upper()
+            main_ver = main_info.get("torch_version", "") or "unknown"
+            reuse_note = f"已复用主依赖环境 PyTorch（{main_mode}, ver={main_ver}），无需重复安装 torch。"
+            if mode == "gpu":
+                cv = str(main_info.get("cuda_version") or "").strip().lower()
+                if cv.startswith("cu"):
+                    selected_gpu_tag = cv
+        else:
             extra_index = " --extra-index-url https://pypi.org/simple"
             if mode == "gpu":
-                gpu_plan = self._detect_torch_gpu_plan()
-                if not gpu_plan:
-                    note = getattr(self, "_cuda_detect_note", "")
-                    title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
-                    self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
-                    return
-                selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
-                torch_cmd = (
-                    f"\"{pyexe}\" -m pip install "
-                    f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
-                    f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
-                )
+                gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
+                detect_note = getattr(self, "_cuda_detect_note", "")
+                if gpu_plan:
+                    selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
+                    torch_cmd = (
+                        f"\"{pyexe}\" -m pip install "
+                        f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
+                        f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
+                    )
+                else:
+                    torch_cmd = ""
             else:
                 cpu_plan = self._torch_cpu_plan()
                 torch_cmd = (
@@ -732,6 +811,7 @@ class SettingsWindow(QDialog):
                     f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
                     f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
                 )
+                detect_note = "使用 CPU 版本"
 
         if mode == "gpu" and not selected_gpu_tag:
             try:
@@ -789,7 +869,7 @@ class SettingsWindow(QDialog):
             return "\n".join(out)
         preview_cmd = _preview_cmd()
         if torch_cmd:
-            lead_msg = f"将在隔离环境安装 {mode.upper()} 版 PyTorch：\n\n"
+            lead_msg = f"将在主依赖环境安装 {mode.upper()} 版 PyTorch：\n\n"
         elif include_model and model_cmd:
             lead_msg = "当前无需安装 torch，仅需执行模型安装/校验：\n\n"
         else:
@@ -942,12 +1022,6 @@ class SettingsWindow(QDialog):
             return
         if self._is_pix2text_ready():
             self.select_model(self._pix2text_mode_to_model(mode_key))
-    def _on_pix2text_pyexe_browse(self):
-        self._show_info("已固定", "pix2text 使用主依赖环境，无需单独选择 python.exe。", "info")
-    def _on_pix2text_pyexe_clear(self):
-        self._show_info("已固定", "pix2text 使用主依赖环境，无需清除独立环境。", "info")
-    def _on_pix2text_pyexe_create(self):
-        self._show_info("已固定", "v1.05 起不再创建模型隔离环境，统一使用主依赖环境。", "info")
     def _update_pix2text_visibility(self):
         key = None
         idx = self.model_combo.currentIndex()
@@ -1213,7 +1287,7 @@ class SettingsWindow(QDialog):
         }
         desc = descriptions.get(key, "")
         if key == "pix2text":
-            desc += "\n提示：v1.05 起仅保留 pix2text，依赖统一由主环境管理。"
+            desc += "\n提示：当前版本仅保留 pix2text，依赖统一由主环境管理。"
         self.lbl_model_desc.setText(desc)
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
@@ -1223,7 +1297,7 @@ class SettingsWindow(QDialog):
         from qfluentwidgets import MessageBox, InfoBar, InfoBarPosition
         if env_key is None:
             env_key = self._get_terminal_env_key()
-        # v1.05: 统一只打开主环境终端。
+        # 统一只打开主环境终端。
         env_key = "main"
         try:
             _dbg_text = self.terminal_env_combo.currentText()
@@ -1309,8 +1383,8 @@ class SettingsWindow(QDialog):
             "echo [*] pip/python will use this env",
             "echo.",
             "echo [Model Policy]",
-            "echo   - v1.05 keeps pix2text only",
-            "echo   - use unified main env; no model-isolated env",
+            "echo   - current build keeps pix2text only",
+            "echo   - use unified main dependency env",
             "echo   - CPU/GPU switch only changes torch + onnxruntime",
             f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",
             "echo.",
@@ -1426,88 +1500,53 @@ class SettingsWindow(QDialog):
 
     def _open_deps_wizard(self):
         """打开依赖管理向导"""
-        from deps_bootstrap import ensure_deps, needs_restart_for_install
-        from qfluentwidgets import InfoBar, InfoBarPosition, MessageBox
-        # 检测是否有冲突模块已加载
-        need_restart, loaded_mods = needs_restart_for_install()
-        if need_restart:
-            # 有模块已加载，提示用户重启
-            mod_list = ", ".join(loaded_mods[:5])
-            if len(loaded_mods) > 5:
-                mod_list += f" 等 {len(loaded_mods)} 个模块"
-            msg = MessageBox(
-                "检测到模块冲突",
-                f"• 以下模块已被程序加载:{mod_list}\n"
-                "• 这可能导致依赖安装失败(文件被占用)\n"
-                "• 建议重启程序并直接打开向导。是否立即重启？\n"
-                "• ESC取消操作",
-                self
-            )
-            msg.yesButton.setText("重启程序")
-            msg.cancelButton.setText("继续安装")
-            # ESC 键检测：用户按 ESC 不执行任何操作
-            esc_pressed = [False]
-            from PyQt6.QtCore import Qt as QtCore_Qt
-            from PyQt6.QtGui import QKeyEvent
-            original_keyPressEvent = msg.keyPressEvent
-            def custom_keyPressEvent(event: QKeyEvent):
-                if event.key() == QtCore_Qt.Key.Key_Escape:
-                    esc_pressed[0] = True
-                    msg.close()
-                else:
-                    original_keyPressEvent(event)
-            msg.keyPressEvent = custom_keyPressEvent
-            result = msg.exec()
-            # 如果用户按 ESC，直接返回不执行任何操作
-            if esc_pressed[0]:
-                return
-            if result:
-                # 用户选择重启
-                self._restart_with_wizard()
-                return
-            # 用户选择继续，显示警告
-            InfoBar.warning(
-                title="注意",
-                content="如遇安装失败，请关闭程序后手动安装",
-                parent=self.parent() if self.parent() else None,
-                duration=5000,
-                position=InfoBarPosition.TOP
-            )
-        # 关闭当前设置窗口
-        self.close()
-        # 强制显示向导界面（always_show_ui=True, from_settings=True）
-        try:
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
-            if ok:
-                InfoBar.success(
-                    title="提示",
-                    content="依赖安装完成，部分更改可能需要重启程序生效。",
-                    parent=self.parent() if self.parent() else None,
-                    duration=5000,
-                    position=InfoBarPosition.TOP
-                )
-        except Exception as e:
-            InfoBar.error(
-                title="错误",
-                content=f"依赖向导出错: {e}",
-                parent=self.parent() if self.parent() else None,
-                duration=5000,
-                position=InfoBarPosition.TOP
-            )
+        from qfluentwidgets import MessageBox
+        msg = MessageBox(
+            "打开依赖向导",
+            "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC取消操作",
+            self
+        )
+        msg.yesButton.setText("重启并打开")
+        msg.cancelButton.setText("取消")
+
+        esc_pressed = [False]
+        from PyQt6.QtCore import Qt as QtCore_Qt
+        from PyQt6.QtGui import QKeyEvent
+        original_keyPressEvent = msg.keyPressEvent
+
+        def custom_keyPressEvent(event: QKeyEvent):
+            if event.key() == QtCore_Qt.Key.Key_Escape:
+                esc_pressed[0] = True
+                msg.close()
+            else:
+                original_keyPressEvent(event)
+
+        msg.keyPressEvent = custom_keyPressEvent
+        result = msg.exec()
+        if esc_pressed[0] or not result:
+            return
+        self._restart_with_wizard()
     def _restart_with_wizard(self):
         """重启程序并打开依赖向导"""
         import subprocess
         import sys
         from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import QCoreApplication, QProcess, QProcessEnvironment
         import os
 
+        argv0 = ""
+        try:
+            argv0 = QCoreApplication.applicationFilePath() or ""
+        except Exception:
+            argv0 = ""
+        exe_name = os.path.basename(argv0).lower() if argv0 else ""
+        if (not argv0) or exe_name in ("python.exe", "pythonw.exe", "python", "pythonw"):
+            argv0 = os.path.abspath(sys.argv[0]) if sys.argv else ""
         spawn_argv, env = build_restart_with_wizard_launch(
             python_exe=sys.executable,
-            argv0=(sys.argv[0] if sys.argv else ""),
+            argv0=argv0,
             base_env=os.environ.copy(),
         )
-        base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-        spawn_flags = base_flags | int(_subprocess_creationflags())
         try:
             # 先释放重资源和实例锁，减少“新进程抢锁失败”概率
             parent = self.parent()
@@ -1522,12 +1561,30 @@ class SettingsWindow(QDialog):
                     app.processEvents()
             except Exception:
                 pass
-            # 启动新进程
-            subprocess.Popen(
-                spawn_argv,
-                env=env,
-                creationflags=spawn_flags
-            )
+            started = False
+            try:
+                program = str(spawn_argv[0])
+                arguments = [str(x) for x in spawn_argv[1:]]
+                workdir = os.path.dirname(os.path.abspath(arguments[0])) if arguments else os.getcwd()
+            except Exception:
+                program = ""
+                arguments = []
+                workdir = os.getcwd()
+            try:
+                proc_env = QProcessEnvironment.systemEnvironment()
+                for k, v in env.items():
+                    proc_env.insert(str(k), str(v))
+                started = QProcess.startDetached(program, arguments, workdir)
+            except Exception:
+                started = False
+            if not started:
+                base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                spawn_flags = base_flags | int(_subprocess_creationflags())
+                subprocess.Popen(
+                    spawn_argv,
+                    env=env,
+                    creationflags=spawn_flags
+                )
             # 关闭当前程序
             QApplication.instance().quit()
         except Exception as e:
@@ -1565,13 +1622,14 @@ class SettingsWindow(QDialog):
             if cuda_available:
                 gpu_name = torch.cuda.get_device_name(0)
                 self.lbl_compute_mode.setText(f"🟢 GPU 可用: {gpu_name}")
-                self.lbl_compute_mode.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px;")
+                self._compute_mode_state = "gpu"
             else:
                 self.lbl_compute_mode.setText("🟡 仅 CPU 模式 (未检测到 GPU层依赖)")
-                self.lbl_compute_mode.setStyleSheet("color: #f57c00; font-size: 11px; padding: 4px;")
+                self._compute_mode_state = "cpu"
         except Exception:
             self.lbl_compute_mode.setText("⚪ 计算模式未知")
-            self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+            self._compute_mode_state = "unknown"
+        self.apply_theme_styles(force=True)
     def update_model_selection(self):
         # sync model combo selection state
         for i, (key, _) in enumerate(self._model_options):

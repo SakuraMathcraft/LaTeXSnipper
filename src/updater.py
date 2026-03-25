@@ -1,5 +1,5 @@
 ﻿
-import os, sys, json, time, threading, re, base64, requests
+import os, sys, json, time, threading, re, base64, requests, subprocess, hashlib
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -22,7 +22,7 @@ except ImportError:
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
 _UPDATE_DIALOG: Optional[QDialog] = None
-__version__ = "v1.05"
+__version__ = "v1.06"
 
 PRIMARY_URL = "https://raw.githubusercontent.com/SakuraMathcraft/LaTeXSnipper/main/version.json"
 MIRROR_URLS = [
@@ -34,28 +34,67 @@ CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
 DEBUG_LOG = True
 
-DIALOG_QSS = """
-QDialog{background:#f5f7fa;}
-QLabel{color:#2e3135;font-size:13px;}
-QTextBrowser{
-  background:#ffffff;
-  border:1px solid #cfd6dd;
+def _is_dark_ui() -> bool:
+    app = QApplication.instance()
+    if app is None:
+        return False
+    c = app.palette().window().color()
+    return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+
+def _update_dialog_theme() -> dict:
+    if _is_dark_ui():
+        return {
+            "dialog_bg": "#1b1f27",
+            "text": "#e7ebf0",
+            "muted": "#a9b3bf",
+            "panel_bg": "#232934",
+            "border": "#465162",
+            "code_bg": "#161a20",
+            "accent": "#4c9aff",
+            "warn_bg": "#3e2e18",
+            "warn_border": "#b8843b",
+            "warn_text": "#ffd08a",
+        }
+    return {
+        "dialog_bg": "#f5f7fa",
+        "text": "#2e3135",
+        "muted": "#555555",
+        "panel_bg": "#ffffff",
+        "border": "#cfd6dd",
+        "code_bg": "#f6f8fa",
+        "accent": "#1976d2",
+        "warn_bg": "#fff4e0",
+        "warn_border": "#f5c182",
+        "warn_text": "#d35400",
+    }
+
+
+def _build_dialog_qss(theme: dict) -> str:
+    return f"""
+QDialog{{background:{theme['dialog_bg']};}}
+QLabel{{color:{theme['text']};font-size:13px;}}
+QTextBrowser{{
+  background:{theme['panel_bg']};
+  color:{theme['text']};
+  border:1px solid {theme['border']};
   border-radius:6px;
   font-family:Consolas,'Microsoft YaHei',monospace;
   font-size:12px;
   padding:6px;
-}
-QProgressBar{
-  border:1px solid #cfd6dd;
+}}
+QProgressBar{{
+  border:1px solid {theme['border']};
   border-radius:6px;
-  background:#ffffff;
+  background:{theme['panel_bg']};
+  color:{theme['text']};
   text-align:center;
   height:12px;
-}
-QProgressBar::chunk{
-  background:#1976d2;
+}}
+QProgressBar::chunk{{
+  background:{theme['accent']};
   border-radius:6px;
-}
+}}
 """
 
 _session = requests.Session()
@@ -156,6 +195,8 @@ class ReleaseInfo:
     latest: str
     url: str
     changelog: str = ""
+    asset_url: str = ""
+    asset_name: str = ""
 
 # ---------------- 辅助函数 ----------------
 def _load_cached_info():
@@ -214,11 +255,32 @@ def _fetch_version_json_fallback() -> Tuple[Optional[ReleaseInfo], Optional[str]
             return ReleaseInfo(
                 js.get("latest", ""),
                 js.get("url", "https://github.com/SakuraMathcraft/LaTeXSnipper/releases"),
-                js.get("changelog", "")
+                js.get("changelog", ""),
+                js.get("asset_url", "") or js.get("download_url", ""),
+                js.get("asset_name", "") or js.get("filename", ""),
             ), None, diags
         except Exception as e:
             diags.append((u, repr(e)))
     return None, "回退 version.json 亦失败", diags
+
+
+def _pick_release_asset(rel: dict) -> tuple[str, str]:
+    assets = rel.get("assets") or []
+    if not isinstance(assets, list):
+        return "", ""
+    priorities = (".exe", ".msi", ".zip")
+    for suffix in priorities:
+        for asset in assets:
+            name = str(asset.get("name", "") or "")
+            url = str(asset.get("browser_download_url", "") or "")
+            if name.lower().endswith(suffix) and url:
+                return url, name
+    for asset in assets:
+        name = str(asset.get("name", "") or "")
+        url = str(asset.get("browser_download_url", "") or "")
+        if url:
+            return url, name
+    return "", ""
 
 # ---------------- 主获取（含限频检测增强） ----------------
 # ---------------- 主获取（含限频检测增强） ----------------
@@ -287,7 +349,8 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         info = ReleaseInfo(
             rel.get("tag_name", ""),
             rel.get("html_url", ""),
-            rel.get("body", "")
+            rel.get("body", ""),
+            *_pick_release_asset(rel),
         )
         if new_etag:
             _save_cached_info(new_etag, info)
@@ -384,7 +447,8 @@ def check_update_dialog(parent=None):
     )
     dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
     dlg.resize(650, 520)
-    dlg.setStyleSheet(DIALOG_QSS)
+    theme = _update_dialog_theme()
+    dlg.setStyleSheet(_build_dialog_qss(theme))
     dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     _UPDATE_DIALOG = dlg
     dlg.destroyed.connect(_clear_global)
@@ -394,7 +458,7 @@ def check_update_dialog(parent=None):
     lay.addWidget(title)
     lbl_current = QLabel(f"当前版本: {__version__}"); lay.addWidget(lbl_current)
     lbl_status = QLabel("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
-    lbl_status.setStyleSheet("color:#555;margin-bottom:4px;")
+    lbl_status.setStyleSheet(f"color:{theme['muted']};margin-bottom:4px;")
     lay.addWidget(lbl_status)
     bar = QProgressBar(); bar.setRange(0, 0); lay.addWidget(bar)
 
@@ -404,13 +468,14 @@ def check_update_dialog(parent=None):
     lay.addWidget(txt, 1)
 
     btn_row = QHBoxLayout(); btn_row.addStretch()
+    btn_download = PushButton(FluentIcon.DOWNLOAD, "下载更新")
     btn_open = PushButton(FluentIcon.LINK, "打开链接")
     btn_copy = PushButton(FluentIcon.COPY, "复制链接")
     btn_retry = PushButton(FluentIcon.SYNC, "重新检查")
     btn_close = PushButton(FluentIcon.CLOSE, "关闭")
-    for b in (btn_open, btn_copy, btn_retry, btn_close):
+    for b in (btn_download, btn_open, btn_copy, btn_retry, btn_close):
         b.setFixedHeight(32); btn_row.addWidget(b)
-    btn_open.setEnabled(False); btn_copy.setEnabled(False); btn_retry.setEnabled(False)
+    btn_download.setEnabled(False); btn_open.setEnabled(False); btn_copy.setEnabled(False); btn_retry.setEnabled(False)
     lay.addLayout(btn_row)
 
     state = {"done": False, "info": None, "aborted": False}
@@ -418,6 +483,8 @@ def check_update_dialog(parent=None):
 
     class _ResultEmitter(QObject):
         done = pyqtSignal(object, object, object)
+        download_progress = pyqtSignal(int, int, object)
+        download_done = pyqtSignal(object, object)
     emitter = _ResultEmitter(dlg)  # 绑定父对象，销毁后自动断开
 
     def safe_ui(fn):
@@ -450,15 +517,16 @@ def check_update_dialog(parent=None):
             html_body = markdown2.markdown(
                 md, extras=["fenced-code-blocks", "tables", "strike", "task_list"]
             )
-            style = """
+            style = f"""
 <style>
-body{font-family:Consolas,'Microsoft YaHei',monospace;font-size:12px;line-height:1.5;}
-pre,code{background:#f6f8fa;}
-pre{padding:8px;border-radius:4px;overflow:auto;}
-code{padding:2px 4px;border-radius:3px;}
-img{max-width:100%;border:1px solid #e0e0e0;border-radius:4px;}
+body{{font-family:Consolas,'Microsoft YaHei',monospace;font-size:12px;line-height:1.5;color:{theme['text']};background:{theme['panel_bg']};}}
+pre,code{{background:{theme['code_bg']};color:{theme['text']};}}
+pre{{padding:8px;border-radius:4px;overflow:auto;}}
+code{{padding:2px 4px;border-radius:3px;}}
+img{{max-width:100%;border:1px solid {theme['border']};border-radius:4px;}}
 table{border-collapse:collapse;}
-table,th,td{border:1px solid #d0d7de;padding:4px;}
+table,th,td{{border:1px solid {theme['border']};padding:4px;}}
+a{{color:{theme['accent']};}}
 </style>
 """
             txt.start_new_html(style + html_body)
@@ -490,8 +558,10 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
         state["info"] = info
         if info.latest != __version__:
             lbl_status.setText(f"发现新版本: {info.latest} (当前 {__version__})")
+            btn_download.setText("下载并安装" if info.asset_url else "下载更新")
         else:
             lbl_status.setText(f"已经是最新版本: {info.latest}")
+            btn_download.setText("重新下载")
         render_changelog(info.changelog)
 
         # 限频提示（包含备用源触发）
@@ -502,19 +572,172 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
         if rate_msg:
             lbl_status.setText(lbl_status.text() + "（限频/备用源）")
             warn_html = (
-                "<div style='color:#d35400;font-size:12px;"
-                "border:1px solid #f5c182;background:#fff4e0;"
+                f"<div style='color:{theme['warn_text']};font-size:12px;"
+                f"border:1px solid {theme['warn_border']};background:{theme['warn_bg']};"
                 "padding:6px;border-radius:4px;margin-bottom:8px;'>"
                 f"⚠ {rate_msg}；建议稍后重试或设置 GITHUB_TOKEN。</div>"
             )
             current = txt.toHtml()
             txt.start_new_html(warn_html + current)
 
+        btn_download.setEnabled(bool(info.asset_url or info.url))
         btn_open.setEnabled(True)
         btn_copy.setEnabled(True)
         btn_retry.setEnabled(True)
 
     emitter.done.connect(lambda i, e, d: safe_ui(lambda: on_result(i, e, d)))
+
+    def _download_target(info: ReleaseInfo) -> tuple[str, str]:
+        url = str(info.asset_url or info.url or "")
+        name = str(info.asset_name or "").strip()
+        if not name:
+            try:
+                name = Path(QUrl(url).path()).name
+            except Exception:
+                name = ""
+        if not name:
+            name = f"LaTeXSnipper-{info.latest or 'update'}.bin"
+        update_dir = Path.home() / ".latexsnipper" / "updates"
+        update_dir.mkdir(parents=True, exist_ok=True)
+        return url, str(update_dir / name)
+
+    def _compute_sha256(path: str) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                if chunk:
+                    h.update(chunk)
+        return h.hexdigest()
+
+    def _read_signature_status(path: str) -> str:
+        ext = Path(path).suffix.lower()
+        if os.name != "nt" or ext not in (".exe", ".msi"):
+            return "未校验（非 Windows 安装器）"
+        try:
+            escaped_path = path.replace("'", "''")
+            cmd = (
+                "Get-AuthenticodeSignature -FilePath "
+                f"'{escaped_path}' | "
+                "Select-Object Status,SignerCertificate | ConvertTo-Json -Compress"
+            )
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", cmd],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                encoding="utf-8",
+                errors="replace",
+            )
+            raw = (proc.stdout or "").strip()
+            if not raw:
+                return "未校验（无签名信息）"
+            obj = json.loads(raw)
+            status = str(obj.get("Status", "") or "Unknown")
+            cert = obj.get("SignerCertificate") or {}
+            subject = str(cert.get("Subject", "") or "").strip()
+            if subject:
+                return f"{status} / {subject}"
+            return status
+        except Exception as e:
+            return f"未校验（{e}）"
+
+    def _confirm_install(path: str, sha256_hex: str, signature_status: str) -> bool:
+        from PyQt6.QtWidgets import QMessageBox
+
+        name = Path(path).name or path
+        msg = (
+            f"已下载更新包：{name}\n\n"
+            f"SHA256:\n{sha256_hex}\n\n"
+            f"签名状态：{signature_status}\n\n"
+            "是否立即启动安装程序？"
+        )
+        ret = QMessageBox.question(
+            dlg,
+            "确认安装更新",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        return ret == QMessageBox.StandardButton.Yes
+
+    def _maybe_launch_installer(path: str):
+        ext = Path(path).suffix.lower()
+        sha256_hex = _compute_sha256(path)
+        signature_status = _read_signature_status(path)
+        if os.name != "nt" or not getattr(sys, "frozen", False) or ext not in (".exe", ".msi"):
+            lbl_status.setText(f"下载完成: {path}")
+            InfoBar.success(
+                title="更新已下载",
+                content=f"已下载到 {path}，SHA256 已生成",
+                parent=dlg,
+                duration=3500,
+                position=InfoBarPosition.TOP,
+            )
+            return
+        if not _confirm_install(path, sha256_hex, signature_status):
+            lbl_status.setText("安装已取消，更新包保留在本地")
+            InfoBar.info(
+                title="已取消安装",
+                content=f"更新包已保留：{path}",
+                parent=dlg,
+                duration=3500,
+                position=InfoBarPosition.TOP,
+            )
+            return
+        try:
+            lbl_status.setText("下载完成，正在启动安装程序...")
+            os.startfile(path)  # type: ignore[attr-defined]
+            QTimer.singleShot(300, lambda: QApplication.instance().quit())
+        except Exception as e:
+            try:
+                subprocess.Popen([path], close_fds=True)
+                QTimer.singleShot(300, lambda: QApplication.instance().quit())
+            except Exception:
+                InfoBar.error(
+                    title="启动安装器失败",
+                    content=str(e),
+                    parent=dlg,
+                    duration=4000,
+                    position=InfoBarPosition.TOP,
+                )
+
+    def _on_download_progress(cur: int, total: int, path: object):
+        if state["aborted"] or (not dlg.isVisible()):
+            return
+        bar.setRange(0, max(total, 1))
+        bar.setValue(max(0, min(cur, max(total, 1))))
+        name = Path(str(path or "")).name or "更新包"
+        if total > 0:
+            pct = int((cur * 100) / total) if total > 0 else 0
+            lbl_status.setText(f"正在下载 {name} ({pct}% , {cur}/{total} 字节)")
+        else:
+            lbl_status.setText(f"正在下载 {name}...")
+
+    def _on_download_done(path: object, err: object):
+        if state["aborted"] or (not dlg.isVisible()):
+            return
+        btn_download.setEnabled(bool(state.get("info")))
+        btn_open.setEnabled(bool(state.get("info")))
+        btn_copy.setEnabled(bool(state.get("info")))
+        btn_retry.setEnabled(True)
+        dlg.unsetCursor()
+        if err:
+            bar.setRange(0, 1)
+            lbl_status.setText(f"下载失败: {err}")
+            InfoBar.error(
+                title="下载失败",
+                content=str(err),
+                parent=dlg,
+                duration=4000,
+                position=InfoBarPosition.TOP,
+            )
+            return
+        bar.setRange(0, 1)
+        bar.setValue(1)
+        _maybe_launch_installer(str(path or ""))
+
+    emitter.download_progress.connect(lambda cur, total, path: _on_download_progress(cur, total, path))
+    emitter.download_done.connect(lambda path, err: _on_download_done(path, err))
 
     def worker():
         info, err, diag = _fetch_release()
@@ -542,12 +765,12 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
     def do_open():
         if state["info"]:
             import webbrowser
-            webbrowser.open(state["info"].url)
+            webbrowser.open(state["info"].asset_url or state["info"].url)
 
     def do_copy():
         if state["info"]:
             try:
-                QApplication.clipboard().setText(state["info"].url)
+                QApplication.clipboard().setText(state["info"].asset_url or state["info"].url)
                 InfoBar.success(
                     title="已复制",
                     content="下载链接已复制到剪贴板。",
@@ -564,6 +787,60 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
                     position=InfoBarPosition.TOP,
                 )
 
+    def do_download():
+        info = state.get("info")
+        if not info:
+            return
+        url, dest = _download_target(info)
+        if not url:
+            InfoBar.warning(
+                title="无可下载资产",
+                content="当前版本仅提供网页链接，请手动下载。",
+                parent=dlg,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+            return
+        btn_download.setEnabled(False)
+        btn_open.setEnabled(False)
+        btn_copy.setEnabled(False)
+        btn_retry.setEnabled(False)
+        dlg.setCursor(Qt.CursorShape.BusyCursor)
+        bar.setRange(0, 100)
+        bar.setValue(0)
+        lbl_status.setText("正在下载更新包...")
+
+        def worker_download():
+            tmp_path = dest + ".part"
+            try:
+                with _session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, 60)) as r:
+                    r.raise_for_status()
+                    total = int(r.headers.get("Content-Length", "0") or "0")
+                    cur = 0
+                    with open(tmp_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=1024 * 128):
+                            if not chunk:
+                                continue
+                            f.write(chunk)
+                            cur += len(chunk)
+                            emitter.download_progress.emit(cur, total, dest)
+                if os.path.exists(dest):
+                    try:
+                        os.remove(dest)
+                    except Exception:
+                        pass
+                os.replace(tmp_path, dest)
+                emitter.download_done.emit(dest, None)
+            except Exception as e:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
+                emitter.download_done.emit(dest, str(e))
+
+        threading.Thread(target=worker_download, daemon=True).start()
+
     def abort_and_close():
         # 标记放弃，阻止后续 UI 更新
         state["aborted"] = True
@@ -579,6 +856,7 @@ table,th,td{border:1px solid #d0d7de;padding:4px;}
         orig_key(ev)
     dlg.keyPressEvent = _keyPress
 
+    btn_download.clicked.connect(do_download)
     btn_open.clicked.connect(do_open)
     btn_copy.clicked.connect(do_copy)
     btn_retry.clicked.connect(start_fetch)
