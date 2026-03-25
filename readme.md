@@ -1,8 +1,8 @@
-# LaTeXSnipper 2.0
+# LaTeXSnipper ✨
 
 <div align="center">
 
-> 识别 + 编辑 + 计算 | 从截图识别工具升级为桌面数学工作台
+> 🎯**识别 + 编辑 + 计算** | 从截图识别工具升级为桌面数学工作台
 
 <img width="1919" height="1019" alt="latexsnipper" src="https://github.com/user-attachments/assets/e5a8e930-165b-4f69-a871-f05dc5ad6a81" />
 
