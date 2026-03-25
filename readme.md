@@ -3,8 +3,7 @@
 <div align="center">
 
 > 🎯**识别 + 编辑 + 计算** | 从截图识别工具升级为桌面数学工作台
-
-<img width="1919" height="1019" alt="latexsnipper" src="https://github.com/user-attachments/assets/e5a8e930-165b-4f69-a871-f05dc5ad6a81" />
+<img width="1919" height="1018" alt="主界面-浅色" src="https://github.com/user-attachments/assets/54561c3b-1a60-438a-b8f0-6c6419674b8f" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
@@ -44,13 +43,13 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img width="1141" height="745" alt="latexsnipper5" src="https://github.com/user-attachments/assets/05d512b9-d453-4138-bd33-e682c1d4510c" />
+      <img width="734" height="466" alt="截图识别" src="https://github.com/user-attachments/assets/1340c2bd-4ac1-4c04-9d8a-12fe6aed3cc7" />
       <br/>
       <b>截图识别</b><br/>
       框选公式区域，快速得到 LaTeX 与多格式结果
     </td>
     <td align="center" width="50%">
-      <img width="756" height="668" alt="latexsnipper7" src="https://github.com/user-attachments/assets/bdd73f8d-0aee-41be-b951-da395defc4b0" />
+      <img width="878" height="666" alt="实时预览" src="https://github.com/user-attachments/assets/6e1c4d53-143a-4a1a-8b49-1e00ee4624ea" />
       <br/>
       <b>实时预览</b><br/>
       识别结果即时渲染，可直接复制或继续处理
@@ -59,7 +58,7 @@
 </table>
 
 ### 数学工作台演示
-
+<img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
 2.0 新增的数学工作台支持这样一条完整链路：
 
 1. 从主窗口截图识别公式
