@@ -10,9 +10,26 @@ LaTeX 公式渲染器 - 支持 pdflatex/xelatex 或 MathJax 备选
 import subprocess
 import tempfile
 import shutil
+import os
 from pathlib import Path
 from typing import Optional, Dict
 import json
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {
+        "creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+    }
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
 
 
 class LaTeXRenderer:
@@ -49,7 +66,8 @@ class LaTeXRenderer:
                 result = subprocess.run(
                     [cmd, "--version"],
                     capture_output=True,
-                    timeout=3
+                    timeout=3,
+                    **_hidden_subprocess_kwargs(),
                 )
                 if result.returncode == 0:
                     # 在 Windows 上，需要获取完整路径
@@ -99,7 +117,8 @@ class LaTeXRenderer:
                     ],
                     capture_output=True,
                     timeout=10,
-                    text=True
+                    text=True,
+                    **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
                     print(f"[ERROR] LaTeX 编译失败:\n{compile_result.stdout}")
@@ -109,7 +128,8 @@ class LaTeXRenderer:
                     pdftocairo_result = subprocess.run(
                         ["pdftocairo", "-svg", str(pdf_file), str(svg_file)],
                         capture_output=True,
-                        timeout=10
+                        timeout=10,
+                        **_hidden_subprocess_kwargs(),
                     )
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding='utf-8')

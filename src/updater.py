@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple, Dict
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QUrl
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QTextBrowser,
-    QHBoxLayout, QProgressBar, QApplication
+    QHBoxLayout, QProgressBar, QApplication, QMessageBox
 )
 from PyQt6.QtGui import QTextDocument
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -101,6 +101,22 @@ _session = requests.Session()
 _session.headers.update({
     "User-Agent": "LaTeXSnipper-Updater/1.0 (+https://github.com/SakuraMathcraft/LaTeXSnipper)"
 })
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {
+        "creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+    }
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
 
 def _resolve_ca_bundle_path() -> str | None:
     """
@@ -523,7 +539,14 @@ def check_update_dialog(parent=None):
     btn_download.setEnabled(False); btn_open.setEnabled(False); btn_copy.setEnabled(False); btn_retry.setEnabled(False)
     lay.addLayout(btn_row)
 
-    state = {"done": False, "info": None, "aborted": False}
+    state = {
+        "done": False,
+        "info": None,
+        "aborted": False,
+        "downloading": False,
+        "pause_requested": False,
+        "closing": False,
+    }
     watchdog = QTimer(dlg); watchdog.setSingleShot(True)
 
     class _ResultEmitter(QObject):
@@ -532,11 +555,47 @@ def check_update_dialog(parent=None):
         download_done = pyqtSignal(object, object)
     emitter = _ResultEmitter(dlg)  # 绑定父对象，销毁后自动断开
 
+    def _question_close_only(
+        title: str,
+        text: str,
+        buttons: QMessageBox.StandardButton = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        default: QMessageBox.StandardButton = QMessageBox.StandardButton.No,
+    ) -> QMessageBox.StandardButton:
+        msg = QMessageBox(dlg)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        msg.setStandardButtons(buttons)
+        msg.setDefaultButton(default)
+        msg.setWindowFlags(
+            (
+                msg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowSystemMenuHint
+                | Qt.WindowType.WindowCloseButtonHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+        )
+        msg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        msg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        msg.setWindowFlag(Qt.WindowType.WindowMinMaxButtonsHint, False)
+        return QMessageBox.StandardButton(msg.exec())
+
     def safe_ui(fn):
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         try:
             fn()
+        except RuntimeError:
+            pass
+
+    def safe_emit(signal, *args):
+        try:
+            signal.emit(*args)
         except RuntimeError:
             pass
 
@@ -604,13 +663,10 @@ a{{color:{theme['accent']};}}
         cmp = _compare_versions(info.latest, __version__)
         if cmp > 0:
             lbl_status.setText(f"发现新版本: {info.latest} (当前 {__version__})")
-            btn_download.setText("下载并安装" if info.asset_url else "下载更新")
         elif cmp == 0:
             lbl_status.setText(f"已经是最新版本: {info.latest}")
-            btn_download.setText("重新下载")
         else:
             lbl_status.setText(f"当前版本高于线上稳定版本: {info.latest} (当前 {__version__})")
-            btn_download.setText("重新下载")
         render_changelog(info.changelog)
 
         # 限频提示（包含备用源触发）
@@ -629,7 +685,7 @@ a{{color:{theme['accent']};}}
             current = txt.toHtml()
             txt.start_new_html(warn_html + current)
 
-        btn_download.setEnabled(bool(info.asset_url or info.url))
+        _refresh_download_button()
         btn_open.setEnabled(True)
         btn_copy.setEnabled(True)
         btn_retry.setEnabled(True)
@@ -649,6 +705,28 @@ a{{color:{theme['accent']};}}
         update_dir = Path.home() / ".latexsnipper" / "updates"
         update_dir.mkdir(parents=True, exist_ok=True)
         return url, str(update_dir / name)
+
+    def _download_paths(info: ReleaseInfo) -> tuple[str, str, str]:
+        url, dest = _download_target(info)
+        return url, dest, dest + ".part"
+
+    def _refresh_download_button() -> None:
+        info = state.get("info")
+        if not info:
+            btn_download.setEnabled(False)
+            return
+        url, dest, tmp_path = _download_paths(info)
+        btn_download.setEnabled(bool(url))
+        if not url:
+            btn_download.setText("无安装包")
+        elif os.path.exists(tmp_path) and not os.path.exists(dest):
+            btn_download.setText("继续下载")
+        elif os.path.exists(dest):
+            btn_download.setText("重新下载")
+        elif _is_newer_version(info.latest, __version__):
+            btn_download.setText("下载并安装")
+        else:
+            btn_download.setText("重新下载")
 
     def _compute_sha256(path: str) -> str:
         h = hashlib.sha256()
@@ -676,6 +754,7 @@ a{{color:{theme['accent']};}}
                 timeout=20,
                 encoding="utf-8",
                 errors="replace",
+                **_hidden_subprocess_kwargs(),
             )
             raw = (proc.stdout or "").strip()
             if not raw:
@@ -691,8 +770,6 @@ a{{color:{theme['accent']};}}
             return f"未校验（{e}）"
 
     def _confirm_install(path: str, sha256_hex: str, signature_status: str) -> bool:
-        from PyQt6.QtWidgets import QMessageBox
-
         name = Path(path).name or path
         msg = (
             f"已下载更新包：{name}\n\n"
@@ -700,8 +777,7 @@ a{{color:{theme['accent']};}}
             f"签名状态：{signature_status}\n\n"
             "是否立即启动安装程序？"
         )
-        ret = QMessageBox.question(
-            dlg,
+        ret = _question_close_only(
             "确认安装更新",
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -763,13 +839,25 @@ a{{color:{theme['accent']};}}
             lbl_status.setText(f"正在下载 {name}...")
 
     def _on_download_done(path: object, err: object):
+        state["downloading"] = False
         if state["aborted"] or (not dlg.isVisible()):
             return
-        btn_download.setEnabled(bool(state.get("info")))
+        _refresh_download_button()
         btn_open.setEnabled(bool(state.get("info")))
         btn_copy.setEnabled(bool(state.get("info")))
         btn_retry.setEnabled(True)
         dlg.unsetCursor()
+        if err == "__paused__":
+            bar.setRange(0, 1)
+            lbl_status.setText("下载已暂停，可稍后继续下载。")
+            InfoBar.info(
+                title="下载已暂停",
+                content="更新包已保留，下次打开可继续下载。",
+                parent=dlg,
+                duration=3200,
+                position=InfoBarPosition.TOP,
+            )
+            return
         if err:
             bar.setRange(0, 1)
             lbl_status.setText(f"下载失败: {err}")
@@ -791,14 +879,12 @@ a{{color:{theme['accent']};}}
     def worker():
         info, err, diag = _fetch_release()
         # 线程结束后发信号；若对话框已销毁，emitter 也随父销毁，不会调用槽
-        try:
-            emitter.done.emit(info, err, diag)
-        except RuntimeError:
-            pass
+        safe_emit(emitter.done, info, err, diag)
 
     def start_fetch():
         state["done"] = False
         state["aborted"] = False
+        state["closing"] = False
         state["info"] = None
         lbl_status.setText("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
         txt.start_new_html("<p style='color:#777;'>正在获取...</p>")
@@ -840,7 +926,7 @@ a{{color:{theme['accent']};}}
         info = state.get("info")
         if not info:
             return
-        url, dest = _download_target(info)
+        url, dest, tmp_path = _download_paths(info)
         if not url:
             InfoBar.warning(
                 title="无可下载资产",
@@ -850,6 +936,15 @@ a{{color:{theme['accent']};}}
                 position=InfoBarPosition.TOP,
             )
             return
+        if os.path.exists(dest):
+            ret = _question_close_only(
+                "安装包已存在",
+                "检测到已存在安装包，是否继续重新下载并覆盖？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ret != QMessageBox.StandardButton.Yes:
+                return
         btn_download.setEnabled(False)
         btn_open.setEnabled(False)
         btn_copy.setEnabled(False)
@@ -858,40 +953,64 @@ a{{color:{theme['accent']};}}
         bar.setRange(0, 100)
         bar.setValue(0)
         lbl_status.setText("正在下载更新包...")
+        state["downloading"] = True
+        state["pause_requested"] = False
+
+        class _PauseDownload(Exception):
+            pass
 
         def worker_download():
-            tmp_path = dest + ".part"
             try:
-                with _session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, 60)) as r:
+                existing = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
+                headers: Dict[str, str] = {}
+                file_mode = "ab" if existing > 0 else "wb"
+                if existing > 0:
+                    headers["Range"] = f"bytes={existing}-"
+                with _session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, 60), headers=headers) as r:
                     r.raise_for_status()
-                    total = int(r.headers.get("Content-Length", "0") or "0")
-                    cur = 0
-                    with open(tmp_path, "wb") as f:
+                    if existing > 0 and r.status_code == 200:
+                        existing = 0
+                        file_mode = "wb"
+                    reported = int(r.headers.get("Content-Length", "0") or "0")
+                    total = existing + reported if existing > 0 and r.status_code == 206 else reported
+                    cur = existing
+                    with open(tmp_path, file_mode) as f:
                         for chunk in r.iter_content(chunk_size=1024 * 128):
+                            if state["pause_requested"]:
+                                raise _PauseDownload()
                             if not chunk:
                                 continue
                             f.write(chunk)
                             cur += len(chunk)
-                            emitter.download_progress.emit(cur, total, dest)
+                            safe_emit(emitter.download_progress, cur, total, dest)
                 if os.path.exists(dest):
                     try:
                         os.remove(dest)
                     except Exception:
                         pass
                 os.replace(tmp_path, dest)
-                emitter.download_done.emit(dest, None)
+                safe_emit(emitter.download_done, dest, None)
+            except _PauseDownload:
+                safe_emit(emitter.download_done, dest, "__paused__")
             except Exception as e:
-                try:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
-                except Exception:
-                    pass
-                emitter.download_done.emit(dest, str(e))
+                safe_emit(emitter.download_done, dest, str(e))
 
         threading.Thread(target=worker_download, daemon=True).start()
 
     def abort_and_close():
-        # 标记放弃，阻止后续 UI 更新
+        if state["closing"]:
+            return
+        if state["downloading"]:
+            ret = _question_close_only(
+                "确认关闭",
+                "关闭该窗口会暂停下载，是否继续？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if ret != QMessageBox.StandardButton.Yes:
+                return
+        state["closing"] = True
+        state["pause_requested"] = state["downloading"]
         state["aborted"] = True
         dlg.close()
 
@@ -904,6 +1023,15 @@ a{{color:{theme['accent']};}}
             return
         orig_key(ev)
     dlg.keyPressEvent = _keyPress
+
+    orig_close_event = dlg.closeEvent
+    def _close_event(ev):
+        if not state["closing"]:
+            abort_and_close()
+            ev.ignore()
+            return
+        orig_close_event(ev)
+    dlg.closeEvent = _close_event
 
     btn_download.clicked.connect(do_download)
     btn_open.clicked.connect(do_open)

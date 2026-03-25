@@ -13,6 +13,22 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from editor.advanced_cas import CasResult
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {
+        "creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+    }
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 class WorkbenchBridge(QObject):
     readyChanged = pyqtSignal(bool)
     latexChanged = pyqtSignal(str)
@@ -141,6 +157,7 @@ class WorkbenchBridge(QObject):
                     errors="replace",
                     cwd=str(self._advanced_worker_cwd()),
                     env=self._advanced_worker_env(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 self._advanced_processes[rid] = process
                 stdout, stderr = process.communicate(request_payload, timeout=60)
