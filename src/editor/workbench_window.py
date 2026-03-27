@@ -31,6 +31,30 @@ class WorkbenchWindow(QWidget):
         "无穷乘积": r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)",
         "Wallis 乘积": r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}",
     }
+    INSERT_SNIPPETS = {
+        "分式  (/)": "fraction",
+        "上标  (Shift+^)": "superscript",
+        "下标  (Shift+_)": "subscript",
+        "上下标  (Shift+_ + Shift+^)": "subsuperscript",
+        "根号  (sqrt)": "sqrt",
+        "求和  (sum)": "sum",
+        "连乘  (prod)": "product",
+        "积分  (int)": "integral",
+        "矩阵  (matrix)": "matrix2",
+        "换行  (Shift+Enter)": "newline",
+    }
+    COMPUTE_ACTIONS = {
+        "计算": "evaluate",
+        "化简": "simplify",
+        "数值化": "numeric",
+        "展开": "expand",
+        "因式分解": "factor",
+        "求解": "solve",
+    }
+    COPY_ACTIONS = {
+        "复制 LaTeX": "latex",
+        "复制 MathJSON": "mathjson",
+    }
 
     def __init__(self, parent=None, on_insert_latex=None):
         # Keep a logical owner, but create a true top-level desktop window.
@@ -62,18 +86,29 @@ class WorkbenchWindow(QWidget):
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
 
-        self.load_btn = PushButton(FluentIcon.ADD, "载入主编辑器")
+        self.load_btn = PushButton(FluentIcon.SEARCH, "载入")
         self.eval_btn = PushButton(FluentIcon.PLAY, "计算")
-        self.simplify_btn = PushButton(FluentIcon.EDIT, "化简")
-        self.numeric_btn = PushButton(FluentIcon.CALORIES, "数值化")
-        self.expand_btn = PushButton(FluentIcon.ZOOM, "展开")
-        self.factor_btn = PushButton(FluentIcon.ALIGNMENT, "因式分解")
-        self.solve_btn = PushButton(FluentIcon.COMMAND_PROMPT, "求解")
-        self.copy_latex_btn = PushButton(FluentIcon.COPY, "复制 LaTeX")
-        self.copy_json_btn = PushButton(FluentIcon.CODE, "复制 MathJSON")
-        self.insert_btn = PushButton(FluentIcon.ACCEPT, "写回主编辑器")
+        self.simplify_btn = PushButton(FluentIcon.BROOM, "化简")
+        self.numeric_btn = PushButton(FluentIcon.SYNC, "数值化")
+        self.solve_btn = PushButton(FluentIcon.SEARCH, "求解")
+        self.expand_btn = PushButton(FluentIcon.SHARE, "展开")
+        self.factor_btn = PushButton(FluentIcon.CODE, "因式分解")
+        self.multiline_combo = ComboBox()
+        self.multiline_apply_btn = PushButton(FluentIcon.FIT_PAGE, "应用")
+        self.snippet_combo = ComboBox()
+        self.snippet_insert_btn = PushButton(FluentIcon.CODE, "插入")
+        self.copy_combo = ComboBox()
+        self.copy_run_btn = PushButton(FluentIcon.COPY, "复制")
+        self.insert_btn = PushButton(FluentIcon.ACCEPT, "写回")
         self.example_combo = ComboBox()
-        self.example_load_btn = PushButton(FluentIcon.LIBRARY, "载入示例")
+        self.example_load_btn = PushButton(FluentIcon.DOCUMENT, "载入")
+        self.multiline_combo.addItem("displaylines", userData="displaylines")
+        self.multiline_combo.addItem("multline", userData="multline")
+        self.multiline_combo.addItem("align", userData="align")
+        for label, key in self.INSERT_SNIPPETS.items():
+            self.snippet_combo.addItem(label, userData=key)
+        for label, key in self.COPY_ACTIONS.items():
+            self.copy_combo.addItem(label, userData=key)
         for name in self.EXAMPLES:
             self.example_combo.addItem(name)
 
@@ -82,43 +117,59 @@ class WorkbenchWindow(QWidget):
             self.eval_btn,
             self.simplify_btn,
             self.numeric_btn,
+            self.solve_btn,
             self.expand_btn,
             self.factor_btn,
-            self.solve_btn,
-            self.copy_latex_btn,
-            self.copy_json_btn,
+            self.multiline_apply_btn,
+            self.snippet_insert_btn,
+            self.copy_run_btn,
             self.insert_btn,
             self.example_load_btn,
         ):
-            btn.setFixedHeight(32)
+            btn.setFixedHeight(30)
+            btn.setMinimumWidth(0)
         self.example_combo.setFixedHeight(32)
-        self.example_combo.setMinimumWidth(150)
+        self.example_combo.setMinimumWidth(132)
+        self.multiline_combo.setFixedHeight(32)
+        self.multiline_combo.setMinimumWidth(112)
+        self.snippet_combo.setFixedHeight(32)
+        self.snippet_combo.setMinimumWidth(112)
+        self.copy_combo.setFixedHeight(32)
+        self.copy_combo.setMinimumWidth(126)
 
         top_bar.addWidget(self._make_group_label("工作流"))
         top_bar.addWidget(self.load_btn)
         top_bar.addWidget(self.insert_btn)
         top_bar.addWidget(self._make_group_divider())
-        top_bar.addWidget(self._make_group_label("基础计算"))
+        top_bar.addWidget(self._make_group_label("基础运算"))
         top_bar.addWidget(self.eval_btn)
         top_bar.addWidget(self.simplify_btn)
         top_bar.addWidget(self.numeric_btn)
+        top_bar.addWidget(self.solve_btn)
+        top_bar.addWidget(self._make_group_divider())
+        top_bar.addWidget(self._make_group_label("排版"))
+        top_bar.addWidget(self.multiline_combo)
+        top_bar.addWidget(self.multiline_apply_btn)
         top_bar.addStretch()
         root.addLayout(top_bar)
 
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(8)
-        bottom_bar.addWidget(self._make_group_label("进阶计算"))
+        bottom_bar.addWidget(self._make_group_label("进阶运算"))
         bottom_bar.addWidget(self.expand_btn)
         bottom_bar.addWidget(self.factor_btn)
-        bottom_bar.addWidget(self.solve_btn)
+        bottom_bar.addWidget(self._make_group_divider())
+        bottom_bar.addWidget(self._make_group_label("快捷插入"))
+        bottom_bar.addWidget(self.snippet_combo)
+        bottom_bar.addWidget(self.snippet_insert_btn)
         bottom_bar.addWidget(self._make_group_divider())
         bottom_bar.addWidget(self._make_group_label("示例"))
         bottom_bar.addWidget(self.example_combo)
         bottom_bar.addWidget(self.example_load_btn)
         bottom_bar.addWidget(self._make_group_divider())
         bottom_bar.addWidget(self._make_group_label("复制"))
-        bottom_bar.addWidget(self.copy_latex_btn)
-        bottom_bar.addWidget(self.copy_json_btn)
+        bottom_bar.addWidget(self.copy_combo)
+        bottom_bar.addWidget(self.copy_run_btn)
         bottom_bar.addStretch()
         root.addLayout(bottom_bar)
 
@@ -127,6 +178,7 @@ class WorkbenchWindow(QWidget):
 
         footer = QHBoxLayout()
         footer.setSpacing(8)
+        footer.setContentsMargins(0, 0, 0, 0)
         self.status_caption = QLabel("状态")
         self.status_caption.setObjectName("workbenchStatusCaption")
         self.status_label = QLabel("正在加载数学工作台...")
@@ -162,14 +214,15 @@ class WorkbenchWindow(QWidget):
         self.bridge.insertRequested.connect(self._emit_insert_request)
 
         self.load_btn.clicked.connect(lambda: self._emit_insert_request("__LOAD_FROM_MAIN__"))
-        self.eval_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.evaluateExpression();"))
-        self.simplify_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.simplifyExpression();"))
-        self.numeric_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.numericEvaluate();"))
-        self.expand_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.expandExpression();"))
-        self.factor_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.factorExpression();"))
-        self.solve_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.solveExpression();"))
-        self.copy_latex_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.copyLatex();"))
-        self.copy_json_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.copyMathJson();"))
+        self.eval_btn.clicked.connect(lambda: self._run_compute_action("evaluate"))
+        self.simplify_btn.clicked.connect(lambda: self._run_compute_action("simplify"))
+        self.numeric_btn.clicked.connect(lambda: self._run_compute_action("numeric"))
+        self.solve_btn.clicked.connect(lambda: self._run_compute_action("solve"))
+        self.expand_btn.clicked.connect(lambda: self._run_compute_action("expand"))
+        self.factor_btn.clicked.connect(lambda: self._run_compute_action("factor"))
+        self.multiline_apply_btn.clicked.connect(self._apply_multiline_layout)
+        self.snippet_insert_btn.clicked.connect(self._insert_snippet)
+        self.copy_run_btn.clicked.connect(self._run_selected_copy_action)
         self.insert_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.insertToMain();"))
         self.example_load_btn.clicked.connect(self._load_selected_example)
 
@@ -284,6 +337,42 @@ class WorkbenchWindow(QWidget):
             return
         self.set_latex(latex)
         self.show_success("示例已载入", f"已载入示例：{key}")
+
+    def _apply_multiline_layout(self) -> None:
+        kind = self.multiline_combo.currentData() or self.multiline_combo.currentText().strip() or "displaylines"
+        self._run_js(f"window.workbenchApi?.applyMultilineLayout({self._json_arg(str(kind))});")
+
+    def _insert_snippet(self) -> None:
+        key = self.snippet_combo.currentData() or self.snippet_combo.currentText().strip()
+        self._run_js(f"window.workbenchApi?.insertSnippet({self._json_arg(str(key))});")
+
+    def _run_compute_action(self, action: str) -> None:
+        action = (action or "").strip()
+        js_map = {
+            "evaluate": "window.workbenchApi?.evaluateExpression();",
+            "simplify": "window.workbenchApi?.simplifyExpression();",
+            "numeric": "window.workbenchApi?.numericEvaluate();",
+            "expand": "window.workbenchApi?.expandExpression();",
+            "factor": "window.workbenchApi?.factorExpression();",
+            "solve": "window.workbenchApi?.solveExpression();",
+        }
+        code = js_map.get(action)
+        if not code:
+            self.show_error("执行失败", "当前运算动作不可用")
+            return
+        self._run_js(code)
+
+    def _run_selected_copy_action(self) -> None:
+        action = (self.copy_combo.currentData() or "").strip()
+        js_map = {
+            "latex": "window.workbenchApi?.copyLatex();",
+            "mathjson": "window.workbenchApi?.copyMathJson();",
+        }
+        code = js_map.get(action)
+        if not code:
+            self.show_error("复制失败", "当前复制动作不可用")
+            return
+        self._run_js(code)
 
     def show_info(self, title: str, content: str) -> None:
         InfoBar.info(

@@ -2,11 +2,16 @@
   --bg: #13161c;
   --panel: #1c212a;
   --panel-border: #303845;
+  --panel-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
   --text: #e6ebf2;
   --muted: #94a3b8;
   --accent: #5aa6ff;
   --status-height: 30px;
+  --status-safe-gap: calc(var(--status-height) * 0.22);
   --vk-height: 0px;
+  --scroll-track: rgba(255, 255, 255, 0.02);
+  --scroll-thumb: rgba(130, 152, 187, 0.34);
+  --scroll-thumb-hover: rgba(130, 152, 187, 0.6);
 }
 
 body[data-theme="dark"] {
@@ -18,13 +23,53 @@ body[data-theme="light"] {
   --bg: #f5f7fb;
   --panel: #ffffff;
   --panel-border: #d7deea;
+  --panel-shadow: 0 12px 28px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.05);
   --text: #1c2430;
   --muted: #66768d;
   --accent: #0f6cbd;
+  --scroll-track: rgba(15, 23, 42, 0.03);
+  --scroll-thumb: rgba(116, 136, 168, 0.26);
+  --scroll-thumb-hover: rgba(116, 136, 168, 0.52);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body,
+.shell,
+.right-panel,
+#mathfield-host,
+#latex-output,
+#mathjson-output,
+#result-output,
+#result-render-host,
+math-field {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: padding-box;
 }
 
 body {
@@ -38,39 +83,42 @@ body {
 .shell {
   display: grid;
   grid-template-columns: 1.3fr 0.9fr;
-  gap: 12px;
-  height: calc(100vh - var(--status-height));
-  padding: 12px 12px 8px 12px;
+  gap: 10px;
+  height: calc(100vh - var(--status-safe-gap));
+  padding: 10px 10px 0 10px;
   overflow: auto;
   transition: height 140ms ease, padding-bottom 140ms ease;
 }
 
 body.vk-visible .shell {
-  height: calc(100vh - var(--status-height) - var(--vk-height) - 12px);
-  padding-bottom: 10px;
+  height: calc(100vh - var(--vk-height) - var(--status-safe-gap));
+  padding-bottom: 0;
 }
 
 .left-panel,
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 18px;
+  padding: 12px 12px 10px 12px;
   min-height: 0;
   overflow: hidden;
+  box-shadow: var(--panel-shadow);
 }
 
 .left-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+    var(--panel);
 }
 
 .right-panel {
-  display: grid;
-  grid-template-rows: minmax(92px, 0.75fr) minmax(110px, 0.95fr) minmax(110px, 0.95fr);
-  gap: 12px;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   height: 100%;
   min-height: 0;
   overflow: auto;
@@ -78,43 +126,97 @@ body.vk-visible .shell {
 }
 
 body.vk-visible .right-panel {
-  grid-template-rows: minmax(84px, 0.72fr) minmax(96px, 0.88fr) minmax(120px, 1fr);
+  gap: 8px;
 }
 
 .panel-title {
   font-size: 13px;
   color: var(--muted);
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.08em;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.panel-latex,
+.panel-mathjson {
+  flex: 0 0 auto;
+}
+
+.panel-result {
+  flex: 0 0 auto;
+}
+
+body.workspace-empty .panel-result {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 #mathfield-host {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
   flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  min-height: clamp(340px, calc(100vh - 320px), 620px);
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+#editor-empty-hint {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 18px;
+  z-index: 2;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(2px);
+  pointer-events: none;
+  text-align: center;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+body.editor-empty #editor-empty-hint {
+  opacity: 0.78;
+  transform: translateY(0);
 }
 
 math-field {
   display: block;
+  flex: 1 1 auto;
   width: 100%;
-  min-height: clamp(260px, calc(100vh - 320px), 520px);
+  min-height: 100%;
   height: 100%;
-  max-height: 100%;
-  border-radius: 12px;
+  max-height: none;
+  border-radius: 16px;
   border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text);
-  padding: 16px;
+  padding: 18px;
   font-size: 1.35rem;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 body[data-theme="light"] math-field {
-  background: rgba(15, 23, 42, 0.02);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.96));
 }
 
 body.vk-visible math-field {
-  min-height: clamp(180px, calc(100vh - var(--vk-height) - 250px), 420px);
+  min-height: 100%;
+  height: 100%;
+}
+
+math-field::part(container) {
+  min-height: inherit;
+}
+
+body.vk-visible #mathfield-host {
+  min-height: clamp(250px, calc(100vh - var(--vk-height) - 250px), 460px);
 }
 
 pre {
@@ -128,23 +230,29 @@ pre {
 #latex-output,
 #result-output {
   max-height: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+#latex-output {
+  min-height: 44px;
+  max-height: 96px;
 }
 
 #result-render-host {
-  min-height: 86px;
-  max-height: 170px;
+  min-height: 72px;
+  max-height: 118px;
   overflow: auto;
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.03);
-  margin-bottom: 10px;
-  padding: 12px;
+  margin-bottom: 8px;
+  padding: 10px;
 }
 
 body.vk-visible #result-render-host {
   min-height: 72px;
-  max-height: 132px;
+  max-height: 108px;
 }
 
 #result-render-host math-field {
@@ -160,27 +268,30 @@ body.vk-visible #result-render-host {
 }
 
 #result-output {
-  max-height: 108px;
+  max-height: 80px;
   color: var(--muted);
   overflow: auto;
   white-space: pre;
   word-break: normal;
+  line-height: 1.45;
 }
 
 body.vk-visible #result-output {
-  max-height: 88px;
+  max-height: 68px;
 }
 
 #mathjson-output {
-  max-height: 140px;
-  overflow: hidden;
+  min-height: 44px;
+  max-height: 108px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 math-virtual-keyboard {
   position: fixed !important;
   left: 12px;
   right: 12px;
-  bottom: calc(var(--status-height) + 8px);
+  bottom: calc(var(--status-safe-gap) + 2px);
   z-index: 9999;
   width: auto !important;
   max-height: min(42vh, 340px);
@@ -188,4 +299,49 @@ math-virtual-keyboard {
   border-radius: 18px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
   overflow: hidden;
+}
+
+body.result-empty #result-render-host {
+  display: none;
+}
+
+body.result-empty #result-output {
+  max-height: none;
+}
+
+#result-empty-hint {
+  display: none;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--panel-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+}
+
+body.workspace-empty #result-empty-hint {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.empty-hint-title {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.empty-hint-body {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.empty-hint-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
 }

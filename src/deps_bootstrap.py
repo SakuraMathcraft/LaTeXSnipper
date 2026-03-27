@@ -182,7 +182,6 @@ def get_base_dir():
         return Path(__file__).parent
 
 BASE_DIR = get_base_dir()
-print(f"[DEBUG] 程序运行目录: {BASE_DIR}")
 
 class InstallWorker(QThread):
     log_updated = pyqtSignal(str)
@@ -2258,7 +2257,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     reply = _exec_close_only_message_box(
                         dlg,
                         "删除确认",
-                        f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n为避免当前进程自删导致闪退，程序会启动外部卸载任务并自动退出。",
+                        f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n确认后将打开卸载进度窗口，并在当前程序内执行卸载。",
                         icon=QMessageBox.Icon.Warning,
                         buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         default_button=QMessageBox.StandardButton.No,

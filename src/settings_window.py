@@ -1160,7 +1160,6 @@ class SettingsWindow(QDialog):
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
                     _latex_settings.settings["use_xelatex"] = use_xelatex
-                    _latex_settings.save()
                     print(f"[LaTeX] 设置已保存: {latex_path}")
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
@@ -1258,7 +1257,6 @@ class SettingsWindow(QDialog):
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
-                _latex_settings.save()
                 print(f"[Render] 已切换渲染引擎: {engine}")
                 # 显示成功信息（InfoBar 浮动提示，替代 MessageBox）
                 mode_names = {
