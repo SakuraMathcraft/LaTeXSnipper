@@ -434,6 +434,13 @@ class LogViewerDialog(QDialog):
             pass
         return result
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            self._apply_theme_styles(force=True)
+        except Exception:
+            pass
+
 
 class RuntimeLogDialog(QDialog):
     """初始化/运行日志窗口（GUI 版，不使用系统控制台）。"""
@@ -596,6 +603,13 @@ class RuntimeLogDialog(QDialog):
         except Exception:
             pass
         return result
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            self._apply_theme_styles(force=True)
+        except Exception:
+            pass
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -6585,6 +6599,12 @@ th {{
         try:
             if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
                 self.workbench_window.apply_theme_styles(force=True)
+        except Exception:
+            pass
+        try:
+            global _LSN_RUNTIME_LOG_DIALOG
+            if _LSN_RUNTIME_LOG_DIALOG is not None:
+                _LSN_RUNTIME_LOG_DIALOG._apply_theme_styles(force=True)
         except Exception:
             pass
         if refresh_preview:
