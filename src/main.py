@@ -606,6 +606,7 @@ APP_LOG_FILE: Path | None = None
 _ORIGINAL_PRINT = None
 _PRINT_BRIDGE_INSTALLED = False
 _RUNTIME_SESSION_HANDLER = None
+_APP_LOGGING_INITIALIZED = False
 
 # 安全占位导入：修复“未解析 rapidocr”
 try:
@@ -622,10 +623,13 @@ def init_app_logging() -> Path:
     初始化应用日志：控制台 + 轮转文件(~/.latexsnipper/logs/app.log)。
     多次调用会复用已存在的处理器。
     """
-    global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER
+    global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
     log_dir = Path.home() / ".latexsnipper" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "app.log"
+
+    if _APP_LOGGING_INITIALIZED and APP_LOG_FILE is not None:
+        return APP_LOG_FILE
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -704,6 +708,8 @@ def init_app_logging() -> Path:
         print("[LaTeX] 设置初始化完成")
     except Exception as e:
         print(f"[WARN] LaTeX 设置初始化失败: {e}")
+
+    _APP_LOGGING_INITIALIZED = True
     
     return log_path
 
@@ -1002,7 +1008,6 @@ MODEL_DIR = Path(_model_env) if _model_env else (APP_DIR / "models")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 print(f"[DEBUG] 主程序目录: {APP_DIR}")
-print(f"[DEBUG] 模型目录: {MODEL_DIR}")
 print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
 # 获取依赖目录，优先环境变量，其次配置文件，最后默认
 _deps_env = os.environ.get("LATEXSNIPPER_DEPS_DIR")
@@ -1176,6 +1181,9 @@ def _ensure_runtime_log_cleanup_hook():
 
 def _hook_runtime_log_streams(tee: bool = True):
     global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_RESET_DONE
+    if getattr(sys, "frozen", False) and _RUNTIME_SESSION_HANDLER is not None:
+        _ensure_runtime_log_cleanup_hook()
+        return
     if _LSN_RUNTIME_LOG_FH_OUT is not None and _LSN_RUNTIME_LOG_FH_ERR is not None:
         return
 
@@ -2160,7 +2168,6 @@ def _ensure_gui_deps_or_prompt(pyexe: str | None):
     _inject_private_paths(pyexe)
     _setup_qt_dll_dirs(pyexe)
     if _try_import_gui():
-        print("[OK] GUI 依赖已就绪，不弹窗。")
         return
 
     # 检查 win32api 缺失，自动补装 pywin32
@@ -2668,7 +2675,6 @@ def get_app_dir():
     return Path(__file__).parent
 
 APP_DIR = get_app_dir()
-print(f"[DEBUG] 主程序目录: {APP_DIR}")
 
 def lazy_import(module_name: str):
     try:
@@ -3508,6 +3514,9 @@ __FORMULAS__
 </html>
 """
 
+_MATHJAX_LOGGED_KEYS = set()
+
+
 def _get_mathjax_base_url():
     """获取 MathJax 的 base URL (用于 setHtml)
     
@@ -3529,12 +3538,17 @@ def _get_mathjax_base_url():
                 mode = _latex_settings.get_render_mode()
                 # 如果选择了 CDN MathJax，返回 CDN URL
                 if mode == "mathjax_cdn":
-                    print("[MathJax] 使用 CDN MathJax")
+                    if "cdn" not in _MATHJAX_LOGGED_KEYS:
+                        print("[MathJax] 使用 CDN MathJax")
+                        _MATHJAX_LOGGED_KEYS.add("cdn")
                     cdn_url = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/"
                     return QUrl(cdn_url)
                 # 如果选择了 LaTeX，不返回 MathJax URL（在渲染逻辑中单独处理）
                 elif mode and mode.startswith("latex_"):
-                    print(f"[MathJax] 使用 LaTeX 渲染模式: {mode}")
+                    mode_key = f"latex:{mode}"
+                    if mode_key not in _MATHJAX_LOGGED_KEYS:
+                        print(f"[MathJax] 使用 LaTeX 渲染模式: {mode}")
+                        _MATHJAX_LOGGED_KEYS.add(mode_key)
                     return QUrl()  # 返回空 URL
         except Exception as e:
             print(f"[WARN] 获取渲染模式失败: {e}")
@@ -3547,6 +3561,8 @@ def _get_mathjax_base_url():
         if APP_DIR and str(APP_DIR).strip():
             actual_app_dir = Path(APP_DIR)
         
+        mathjax_source_desc = "本地资源"
+
         # 如果 APP_DIR 为空或不可用，尝试其他方法
         if not actual_app_dir or not str(actual_app_dir).strip():
             # 打包模式检查：sys.frozen 表示 PyInstaller 打包
@@ -3556,21 +3572,21 @@ def _get_mathjax_base_url():
                 # 尝试 _internal/assets (PyInstaller --onedir)
                 if (exe_dir / "_internal" / "assets").exists():
                     actual_app_dir = exe_dir / "_internal"
-                    print(f"[MathJax] 检测到打包模式，使用 _internal: {actual_app_dir}")
+                    mathjax_source_desc = "_internal"
                 # 尝试 assets (PyInstaller --onefile 解包目录)
                 elif (exe_dir / "assets").exists():
                     actual_app_dir = exe_dir
-                    print(f"[MathJax] 检测到打包模式，使用 exe 同级: {actual_app_dir}")
+                    mathjax_source_desc = "exe 同级"
                 else:
                     # 最后尝试：还原到 exe 目录往上查找
                     parent = exe_dir.parent
                     if (parent / "src" / "assets").exists():
                         actual_app_dir = parent / "src"
-                        print(f"[MathJax] 检测到打包模式，使用父目录 src: {actual_app_dir}")
+                        mathjax_source_desc = "父目录 src"
             else:
                 # 开发模式：使用当前脚本所在目录
                 actual_app_dir = Path(__file__).parent
-                print(f"[MathJax] 开发模式，使用 __file__: {actual_app_dir}")
+                mathjax_source_desc = "__file__"
         
         if not actual_app_dir:
             actual_app_dir = Path(APP_DIR) if APP_DIR else Path.cwd()
@@ -3579,16 +3595,8 @@ def _get_mathjax_base_url():
         es5_dir = actual_app_dir / "assets" / "MathJax-3.2.2" / "es5"
         tex_chtml = es5_dir / "tex-mml-chtml.js"
         
-        print(f"[MathJax] APP_DIR={actual_app_dir}")
-        print(f"[MathJax] es5_dir={es5_dir}")
-        print(f"[MathJax] tex-mml-chtml.js exists={tex_chtml.exists()}")
-        
         if not tex_chtml.exists():
             print(f"[WARN] MathJax 文件缺失: {tex_chtml}")
-            # 尝试列出 assets 目录内容以帮助诊断
-            assets_dir = actual_app_dir / "assets"
-            if assets_dir.exists():
-                print(f"[WARN] assets 目录内容: {list(assets_dir.iterdir())}")
         
         # 第3步：生成 file:// URL
         # 在 Windows 上需要正确处理路径分隔符
@@ -3602,13 +3610,14 @@ def _get_mathjax_base_url():
         url = QUrl.fromLocalFile(str(es5_dir) + "/")
         url_str = url.toString()
         
-        print(f"[MathJax] 原始路径: {es5_dir}")
-        print(f"[MathJax] 标准化路径: {url_path}")
-        print(f"[MathJax] 最终 URL: {url_str}")
-        
-        # 验证 URL 格式
         if not url_str.startswith("file:///"):
             print(f"[ERROR] URL 格式异常，应以 file:/// 开头: {url_str}")
+        else:
+            local_key = f"local:{mathjax_source_desc}:{url_str}"
+            if local_key not in _MATHJAX_LOGGED_KEYS:
+                label = "使用本地资源" if mathjax_source_desc == "本地资源" else f"使用本地资源({mathjax_source_desc})"
+                print(f"[MathJax] {label}: {url_str}")
+                _MATHJAX_LOGGED_KEYS.add(local_key)
         
         return url
         
@@ -5144,8 +5153,7 @@ class MainWindow(_QMainWindow):
             # 连接调试信号，定位渲染空白问题
             try:
                 pg = self.preview_view.page()
-                pg.loadStarted.connect(lambda: print("[WebEngine] loadStarted"))
-                pg.loadProgress.connect(lambda p: print(f"[WebEngine] loadProgress={p}"))
+                pg.loadStarted.connect(lambda: None)
                 pg.loadFinished.connect(lambda ok: print(f"[WebEngine] loadFinished ok={ok}"))
                 pg.renderProcessTerminated.connect(lambda status, code: print(f"[WebEngine] renderProcessTerminated status={status} code={code}"))
             except Exception:
@@ -6097,7 +6105,8 @@ th {{
             else:
                 content_type = str(content_type)
             
-            print(f"[RenderBlock] 处理内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
+            if not getattr(sys, "frozen", False):
+                print(f"[RenderBlock] 处理内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
             
             # 类型显示名称和样式
             content_type = normalize_content_type(content_type)
@@ -6165,7 +6174,8 @@ th {{
     </div>
     <div class="block-content">{rendered_content}</div>
 </div>'''
-            print(f"[RenderBlock] 渲染成功，输出长度: {len(result)}")
+            if not getattr(sys, "frozen", False):
+                print(f"[RenderBlock] 渲染成功，输出长度: {len(result)}")
             return result
         except Exception as e:
             print(f"[RenderBlock] 处理内容块失败: {e}")

@@ -19,6 +19,7 @@ from sympy import (
     Integral,
     Integer,
     Limit,
+    Matrix as SympyMatrix,
     Poly,
     Product,
     Rational,
@@ -126,8 +127,8 @@ class MathJsonConverter:
 
         if head in {"Annotated", "Style", "Hold", "Error"} and args:
             return self.convert(args[0])
-        if head == "Tuple":
-            return tuple(self.convert(arg) for arg in args)
+        if head in {"Tuple", "List", "Sequence"}:
+            return [self.convert(arg) for arg in args] if head != "Tuple" else tuple(self.convert(arg) for arg in args)
         if head in self._UNARY_MAP and args:
             return self._UNARY_MAP[head](self.convert(args[0]))
         if head == "Negate" and args:
@@ -171,6 +172,25 @@ class MathJsonConverter:
             var = bounds[0] if bounds else self._symbols.setdefault("x", Symbol("x"))
             point = bounds[1] if len(bounds) > 1 else self.convert(args[2])
             return Limit(expr, var, point)
+        if head == "Matrix" and args:
+            rows = self.convert(args[0])
+            if isinstance(rows, tuple):
+                rows = list(rows)
+            if not isinstance(rows, list):
+                raise ValueError("Matrix 节点缺少有效的行列数据")
+            normalized_rows: list[list[Any]] = []
+            for row in rows:
+                if isinstance(row, tuple):
+                    row = list(row)
+                if not isinstance(row, list):
+                    row = [row]
+                normalized_rows.append(row)
+            return SympyMatrix(normalized_rows)
+        if head == "Determinant" and args:
+            matrix = self.convert(args[0])
+            if hasattr(matrix, "det"):
+                return matrix.det()
+            raise ValueError("Determinant 节点未能转换为矩阵")
 
         return self._symbols.setdefault(str(head), Symbol(str(head)))
 

@@ -510,7 +510,8 @@ def check_update_dialog(parent=None):
     dlg.resize(650, 520)
     theme = _update_dialog_theme()
     dlg.setStyleSheet(_build_dialog_qss(theme))
-    dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+    dlg.setModal(False)
+    dlg.setWindowModality(Qt.WindowModality.NonModal)
     _UPDATE_DIALOG = dlg
     dlg.destroyed.connect(_clear_global)
 
@@ -1040,7 +1041,10 @@ a{{color:{theme['accent']};}}
     btn_close.clicked.connect(abort_and_close)
 
     start_fetch()
-    dlg.exec()
+    dlg.show()
+    dlg.raise_()
+    dlg.activateWindow()
+    return dlg
 
 def _clear_global():
     global _UPDATE_DIALOG

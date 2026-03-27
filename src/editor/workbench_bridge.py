@@ -127,6 +127,37 @@ class WorkbenchBridge(QObject):
             except Exception as e:
                 self.statusChanged.emit(f"MathJSON 复制失败：{e}")
 
+    @pyqtSlot(result=str)
+    def readClipboardText(self) -> str:
+        try:
+            clipboard = QGuiApplication.clipboard()
+            if clipboard is not None:
+                return clipboard.text() or ""
+        except Exception:
+            pass
+        try:
+            import pyperclip
+            return pyperclip.paste() or ""
+        except Exception:
+            return ""
+
+    @pyqtSlot(str, result=bool)
+    def writeClipboardText(self, text: str) -> bool:
+        payload = text or ""
+        try:
+            clipboard = QGuiApplication.clipboard()
+            if clipboard is not None:
+                clipboard.setText(payload)
+                return True
+        except Exception:
+            pass
+        try:
+            import pyperclip
+            pyperclip.copy(payload)
+            return True
+        except Exception:
+            return False
+
     @pyqtSlot(str, str, str)
     def requestAdvancedCompute(self, request_id: str, action: str, mathjson_payload: str) -> None:
         rid = (request_id or "").strip()

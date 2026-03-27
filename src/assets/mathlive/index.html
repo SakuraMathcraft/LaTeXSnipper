@@ -10,21 +10,33 @@
   <div class="shell">
     <div class="left-panel">
       <div class="panel-title">公式编辑区</div>
-      <div id="mathfield-host"></div>
+      <div id="mathfield-host">
+        <div id="editor-empty-hint">输入公式，或使用上方示例与下方快捷插入开始编辑</div>
+      </div>
     </div>
     <div class="right-panel">
-      <section class="panel">
+      <section class="panel panel-latex">
         <div class="panel-title">LaTeX 源码</div>
         <pre id="latex-output"></pre>
       </section>
-      <section class="panel">
+      <section class="panel panel-mathjson">
         <div class="panel-title">MathJSON 结构</div>
         <pre id="mathjson-output"></pre>
       </section>
-      <section class="panel">
+      <section class="panel panel-result">
         <div class="panel-title">计算结果</div>
         <div id="result-render-host"></div>
         <pre id="result-output"></pre>
+        <div id="result-empty-hint">
+          <div class="empty-hint-title">从这里开始</div>
+          <div class="empty-hint-body">输入公式后，可执行计算、化简、数值化或求解。</div>
+          <div class="empty-hint-tips">
+            <span>上方可直接载入示例，下方可快捷插入分式、上下标、求和与矩阵。</span>
+            <span><strong>displaylines</strong> 适合最简单的多行排版，只负责逐行换开显示。</span>
+            <span><strong>multline</strong> 适合一条很长的公式拆成多行，不强调等号或符号对齐。</span>
+            <span><strong>align</strong> 适合推导、方程组和多步变形，可围绕 = 等符号做对齐。</span>
+          </div>
+        </div>
       </section>
     </div>
   </div>

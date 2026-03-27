@@ -25,6 +25,7 @@ function setThemeMode(mode) {
 
 function clearRenderedResult() {
   if (resultView) resultView.setValue('', { silenceNotifications: true });
+  document.body.classList.add('result-empty');
 }
 
 function setRenderedResult(latex, detail = '') {
@@ -32,6 +33,7 @@ function setRenderedResult(latex, detail = '') {
   if (resultView) {
     resultView.setValue(rendered, { silenceNotifications: true });
   }
+  document.body.classList.toggle('result-empty', !rendered);
   resultOutput.textContent = detail || '';
 }
 
@@ -56,6 +58,11 @@ function shouldUseAdvancedFallback(err, action) {
 
 function isHeavyExpressionLatex(latex) {
   return /\\(sum|prod|int|lim)/.test(String(latex || ''));
+}
+
+function isStructuredLinearAlgebraExpression() {
+  const payload = String(mathJsonFormatted || '');
+  return /"Determinant"|"Matrix"/.test(payload);
 }
 
 function looksLikeSuspiciousExactResult(rendered) {
@@ -130,6 +137,106 @@ function currentLatex() {
   return mathfield?.getValue('latex-expanded')?.trim() || '';
 }
 
+function unwrapMultilineLatex(latex) {
+  const text = String(latex || '').trim();
+  if (!text) return '';
+  const displaylines = text.match(/^\\displaylines\{([\s\S]*)\}$/);
+  if (displaylines) return displaylines[1].trim();
+  const env = text.match(/^\\begin\{(multline|align)\}([\s\S]*)\\end\{\1\}$/);
+  if (env) return String(env[2] || '').trim();
+  return text;
+}
+
+function splitIntoMultilineSegments(latex) {
+  const text = String(latex || '').trim();
+  if (!text) return [];
+  const explicit = text
+    .split(/\\\\|\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (explicit.length > 1) return explicit;
+
+  let segments = text
+    .replace(/\s+/g, ' ')
+    .split(/(?<==)|(?<=\+)|(?<=-)|(?<=,)|(?<=;)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (segments.length <= 1) segments = [text];
+  return segments;
+}
+
+function decorateAlignSegment(segment) {
+  const line = String(segment || '').trim();
+  if (!line) return '';
+  if (line.includes('&')) return line;
+  const equalIndex = line.indexOf('=');
+  if (equalIndex >= 0) {
+    return `${line.slice(0, equalIndex)}&=${line.slice(equalIndex + 1)}`;
+  }
+  return line;
+}
+
+function applyMultilineLayout(kind = 'displaylines') {
+  const latex = currentLatex();
+  if (!latex) {
+    setStatus('请先输入公式，再应用多行排版');
+    return;
+  }
+  const normalizedLatex = unwrapMultilineLatex(latex);
+  const lines = splitIntoMultilineSegments(normalizedLatex);
+  let wrapped = latex;
+  if (kind === 'multline') {
+    wrapped = `\\begin{multline}\n${lines.join(' \\\\\n')}\n\\end{multline}`;
+  } else if (kind === 'align') {
+    wrapped = `\\begin{align}\n${lines.map(decorateAlignSegment).join(' \\\\\n')}\n\\end{align}`;
+  } else {
+    wrapped = `\\displaylines{${lines.join(' \\\\ ')}}`;
+  }
+  setLatex(wrapped);
+  setStatus(`已应用 ${kind} 多行排版`);
+}
+
+  function insertSnippet(kind = '') {
+  if (!mathfield) return;
+  const map = {
+    fraction: '\\frac{#?}{#?}',
+    superscript: 'x^{#?}',
+    subscript: 'x_{#?}',
+    subsuperscript: 'x_{#?}^{#?}',
+    sqrt: '\\sqrt{#?}',
+    sum: '\\sum_{n=1}^{\\infty} #?',
+    product: '\\prod_{n=1}^{\\infty} #?',
+    integral: '\\int_{a}^{b} #?\\,dx',
+    matrix2: '\\begin{bmatrix}#? & #? \\\\ #? & #?\\end{bmatrix}',
+    newline: ' \\\\ ',
+  };
+  const template = map[String(kind || '').trim()];
+  if (!template) {
+    setStatus('当前快捷插入模板不可用');
+    return;
+  }
+    try {
+      if (kind === 'newline') {
+        const latex = currentLatex();
+        const inMultiline = /\\begin\{(multline|align)\}|^\\displaylines\{/.test(latex);
+        if (!inMultiline) {
+          applyMultilineLayout('displaylines');
+          mathfield.focus();
+          syncOutputs();
+          setStatus('已启用 displaylines 多行环境');
+          return;
+        }
+      }
+      mathfield.insert(template, { format: 'latex' });
+      mathfield.focus();
+      syncOutputs();
+    setStatus(`已插入${kind === 'newline' ? '换行' : '快捷模板'}`);
+  } catch (err) {
+    setStatus(`快捷插入失败：${String(err)}`);
+  }
+}
+
 function currentExpression(actionLabel = '计算') {
   if (!ce || !mathfield) {
     throw new Error('计算引擎尚未就绪');
@@ -169,6 +276,56 @@ function syncKeyboardState() {
   document.documentElement.style.setProperty('--vk-height', `${height}px`);
 }
 
+function installClipboardBridge() {
+  if (!bridge) return;
+  const clipboardApi = {
+    async readText() {
+      return new Promise((resolve, reject) => {
+        try {
+          if (typeof bridge.readClipboardText === 'function') {
+            bridge.readClipboardText((text) => resolve(String(text ?? '')));
+            return;
+          }
+          reject(new Error('剪贴板读取接口不可用'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    },
+    async writeText(text) {
+      return new Promise((resolve, reject) => {
+        try {
+          if (typeof bridge.writeClipboardText === 'function') {
+            bridge.writeClipboardText(String(text ?? ''), (ok) => {
+              if (ok === false) {
+                reject(new Error('剪贴板写入失败'));
+              } else {
+                resolve();
+              }
+            });
+            return;
+          }
+          reject(new Error('剪贴板写入接口不可用'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    },
+  };
+  try {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: clipboardApi,
+    });
+  } catch (_) {
+    try {
+      navigator.clipboard = clipboardApi;
+    } catch (_) {
+      // Ignore if the current engine does not allow overriding clipboard.
+    }
+  }
+}
+
 function isMathfieldActive() {
   return !!mathfield && (
     document.activeElement === mathfield ||
@@ -177,8 +334,137 @@ function isMathfieldActive() {
   );
 }
 
+function isVisibleElement(el) {
+  if (!el) return false;
+  const rect = el.getBoundingClientRect?.();
+  const style = window.getComputedStyle?.(el);
+  return !!rect && rect.width > 0 && rect.height > 0 && style?.display !== 'none' && style?.visibility !== 'hidden';
+}
+
+function getCompletionPopup() {
+  const selectors = [
+    '.ML__autocomplete',
+    '.ML__menu',
+    '.ML__popover',
+    'mathfield-menu',
+    '[role="listbox"]',
+    '[role="menu"]',
+  ];
+  for (const selector of selectors) {
+    const node = Array.from(document.querySelectorAll(selector)).find(isVisibleElement);
+    if (node) return node;
+  }
+  return null;
+}
+
+function isCompletionPopupOpen() {
+  return !!getCompletionPopup();
+}
+
+function getCompletionItems() {
+  const popup = getCompletionPopup();
+  if (!popup) return [];
+  const selectors = [
+    '[role="option"]',
+    '[role="menuitem"]',
+    'button',
+    'li',
+    '.ML__item',
+    '.ML__autocomplete-item',
+    '.item',
+  ];
+  const seen = new Set();
+  const items = [];
+  selectors.forEach((selector) => {
+    popup.querySelectorAll(selector).forEach((node) => {
+      if (!isVisibleElement(node) || seen.has(node)) return;
+      const text = node.textContent?.trim();
+      if (!text) return;
+      seen.add(node);
+      items.push(node);
+    });
+  });
+  return items;
+}
+
+function getCompletionIndex(items) {
+  const selectedIndex = items.findIndex((item) =>
+    item.getAttribute?.('aria-selected') === 'true' ||
+    item.classList?.contains('is-selected') ||
+    item.classList?.contains('selected') ||
+    item.classList?.contains('active') ||
+    item.classList?.contains('is-active') ||
+    item.classList?.contains('highlighted') ||
+    item.classList?.contains('ML__selected')
+  );
+  return selectedIndex >= 0 ? selectedIndex : 0;
+}
+
+function markCompletionSelection(items, index) {
+  items.forEach((item, itemIndex) => {
+    const active = itemIndex === index;
+    if (item.setAttribute) item.setAttribute('aria-selected', active ? 'true' : 'false');
+    const classes = ['is-selected', 'selected', 'active', 'is-active', 'highlighted', 'ML__selected'];
+    classes.forEach((className) => item.classList?.toggle(className, active));
+    if (active) item.scrollIntoView?.({ block: 'nearest' });
+  });
+}
+
+function moveCompletionSelection(delta) {
+  const items = getCompletionItems();
+  if (!items.length) return false;
+  const current = getCompletionIndex(items);
+  const next = (current + delta + items.length) % items.length;
+  markCompletionSelection(items, next);
+  return true;
+}
+
+function commitCompletionSelection(index = null) {
+  const items = getCompletionItems();
+  if (!items.length) return false;
+  const targetIndex = index == null ? getCompletionIndex(items) : index;
+  const item = items[targetIndex];
+  if (!item) return false;
+  item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  item.click?.();
+  return true;
+}
+
 function routeArrowKeyToMathfield(event) {
   if (!isMathfieldActive()) return;
+  if (event.key === 'Enter' && event.shiftKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    insertSnippet('newline');
+    return;
+  }
+  if (isCompletionPopupOpen()) {
+    if (event.key === 'ArrowUp') {
+      const handled = mathfield?.executeCommand?.('previousSuggestion');
+      if (handled !== false || moveCompletionSelection(-1)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      const handled = mathfield?.executeCommand?.('nextSuggestion');
+      if (handled !== false || moveCompletionSelection(1)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      const handled = mathfield?.executeCommand?.('complete');
+      if (handled !== false || commitCompletionSelection()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+  }
   const commandMap = {
     ArrowLeft: 'moveToPreviousChar',
     ArrowRight: 'moveToNextChar',
@@ -272,6 +558,8 @@ function setStatus(text) {
 function syncOutputs() {
   if (!mathfield) return;
   const latex = mathfield.getValue('latex-expanded') || '';
+  document.body.classList.toggle('editor-empty', !latex.trim());
+  document.body.classList.toggle('workspace-empty', !latex.trim());
   latexOutput.textContent = latex;
   bridge?.onLatexChanged?.(latex);
 
@@ -298,6 +586,10 @@ function syncOutputs() {
 async function evaluateExpression() {
   try {
     const { latex, expr } = currentExpression('计算');
+    if (isStructuredLinearAlgebraExpression()) {
+      await runAdvancedFallback('evaluate', '计算', new Error('矩阵与行列式表达式已切换本地高级引擎'));
+      return;
+    }
     const result = await expr.evaluateAsync();
     if (isEmptyResult(result)) {
       throw new Error('表达式当前没有可显示的计算结果');
@@ -323,6 +615,10 @@ async function evaluateExpression() {
 
 async function simplifyExpression() {
   try {
+    if (isStructuredLinearAlgebraExpression()) {
+      await runAdvancedFallback('simplify', '化简', new Error('矩阵与行列式表达式已切换本地高级引擎'));
+      return;
+    }
     const { expr } = currentExpression('化简');
     const result = expr.simplify();
     const rendered = extractResultLatex(result);
@@ -350,6 +646,10 @@ async function simplifyExpression() {
 async function numericEvaluate() {
   try {
     const { latex, expr } = currentExpression('数值化');
+    if (isStructuredLinearAlgebraExpression()) {
+      await runAdvancedFallback('numeric', '数值化', new Error('矩阵与行列式表达式已切换本地高级引擎'));
+      return;
+    }
     const result = expr.N();
     if (isEmptyResult(result)) {
       throw new Error('当前公式无法数值化');
@@ -496,6 +796,8 @@ window.workbenchApi = {
   copyLatex,
   copyMathJson,
   insertToMain,
+  applyMultilineLayout,
+  insertSnippet,
 };
 
 function setupBridge() {
@@ -532,6 +834,8 @@ async function bootstrap() {
     const { ComputeEngine, expand, factor, solve } = computeModule;
     computeHelpers = { expand, factor, solve };
     ce = new ComputeEngine();
+    MathfieldElement.computeEngine = ce;
+    installClipboardBridge();
     MathfieldElement.fontsDirectory = 'https://cdn.jsdelivr.net/npm/mathlive/fonts';
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
@@ -541,10 +845,11 @@ async function bootstrap() {
 
     mathfield = new MathfieldElement();
     mathfield.tabIndex = 0;
-    mathfield.mathVirtualKeyboardPolicy = 'auto';
     mathfield.mathVirtualKeyboardPolicy = 'onfocus';
     mathfield.smartFence = true;
-    mathfield.smartMode = true;
+    mathfield.smartMode = false;
+    mathfield.style.overflowX = 'auto';
+    mathfield.style.overflowY = 'auto';
     host.appendChild(mathfield);
 
     resultView = new MathfieldElement();
@@ -568,6 +873,9 @@ async function bootstrap() {
     syncOutputs();
     syncKeyboardState();
     setThemeMode(document.body.dataset.theme || 'dark');
+    document.body.classList.add('editor-empty');
+    document.body.classList.add('workspace-empty');
+    document.body.classList.add('result-empty');
     resultOutput.textContent = '等待执行计算、化简、数值化或求解。';
     bridge?.onEditorReady?.();
   } catch (err) {
