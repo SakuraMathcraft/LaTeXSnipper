@@ -90,8 +90,10 @@ class WorkbenchBridge(QObject):
     @pyqtSlot(str)
     def requestInsertToMain(self, latex: str) -> None:
         text = (latex or "").strip()
-        if text:
-            self.insertRequested.emit(text)
+        if not text:
+            self.statusChanged.emit("提示: 数学工作台为空，没有可写回的内容")
+            return
+        self.insertRequested.emit(text)
 
     @pyqtSlot(str)
     def copyLatexToClipboard(self, latex: str) -> None:

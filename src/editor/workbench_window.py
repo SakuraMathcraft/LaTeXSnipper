@@ -86,22 +86,22 @@ class WorkbenchWindow(QWidget):
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
 
-        self.load_btn = PushButton(FluentIcon.SEARCH, "载入")
-        self.eval_btn = PushButton(FluentIcon.PLAY, "计算")
-        self.simplify_btn = PushButton(FluentIcon.BROOM, "化简")
-        self.numeric_btn = PushButton(FluentIcon.SYNC, "数值化")
-        self.solve_btn = PushButton(FluentIcon.SEARCH, "求解")
-        self.expand_btn = PushButton(FluentIcon.SHARE, "展开")
-        self.factor_btn = PushButton(FluentIcon.CODE, "因式分解")
+        self.load_btn = PushButton(FluentIcon.FOLDER, "载入")
+        self.eval_btn = PushButton(FluentIcon.LABEL, "计算")
+        self.simplify_btn = PushButton(FluentIcon.PENCIL_INK, "化简")
+        self.numeric_btn = PushButton(FluentIcon.CALORIES, "数值化")
+        self.solve_btn = PushButton(FluentIcon.COMMAND_PROMPT, "求解")
+        self.expand_btn = PushButton(FluentIcon.ZOOM, "展开")
+        self.factor_btn = PushButton(FluentIcon.TILES, "因式分解")
         self.multiline_combo = ComboBox()
-        self.multiline_apply_btn = PushButton(FluentIcon.FIT_PAGE, "应用")
+        self.multiline_apply_btn = PushButton(FluentIcon.APPLICATION, "应用")
         self.snippet_combo = ComboBox()
         self.snippet_insert_btn = PushButton(FluentIcon.CODE, "插入")
         self.copy_combo = ComboBox()
-        self.copy_run_btn = PushButton(FluentIcon.COPY, "复制")
-        self.insert_btn = PushButton(FluentIcon.ACCEPT, "写回")
+        self.copy_run_btn = PushButton(FluentIcon.PASTE, "复制")
+        self.insert_btn = PushButton(FluentIcon.FOLDER_ADD, "写回")
         self.example_combo = ComboBox()
-        self.example_load_btn = PushButton(FluentIcon.DOCUMENT, "载入")
+        self.example_load_btn = PushButton(FluentIcon.CONNECT, "载入")
         self.multiline_combo.addItem("displaylines", userData="displaylines")
         self.multiline_combo.addItem("multline", userData="multline")
         self.multiline_combo.addItem("align", userData="align")
@@ -251,6 +251,12 @@ class WorkbenchWindow(QWidget):
     def _asset_url(self, relative: str) -> QUrl:
         return QUrl.fromLocalFile(str(Path(resource_path(relative)).resolve()))
 
+    def _svg_icon(self, relative: str) -> QIcon:
+        try:
+            return QIcon(resource_path(relative))
+        except Exception:
+            return QIcon()
+
     def _make_group_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setStyleSheet("color:#7f8ea3; font-size:12px; padding:0 4px;")
@@ -304,6 +310,9 @@ class WorkbenchWindow(QWidget):
         message = (text or "").strip()
         self._set_status(message)
         if not message or message in {"正在编辑", "已就绪"}:
+            return
+        if message.startswith("提示:"):
+            self.show_info("当前无内容", message.removeprefix("提示:").strip())
             return
         lowered = message.lower()
         if "失败" in message or "未定义" in message or "无法" in message or "error" in lowered:

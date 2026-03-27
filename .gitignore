@@ -26,3 +26,15 @@ src/models/
 
 # Logs
 *.log
+
+# Android signing
+*.jks
+*.keystore
+apps/android-client/android/keystore.properties
+apps/android-client/android/*.keystore
+apps/android-client/android/*.jks
+
+# Android/Web client generated files
+apps/android-client/node_modules/
+apps/android-client/android/.idea/
+apps/android-client/*.tsbuildinfo
