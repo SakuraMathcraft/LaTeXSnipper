@@ -634,8 +634,14 @@ def init_app_logging() -> Path:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
+    runtime_log_path = _runtime_log_path()
+
     # 避免重复添加处理器
-    has_file = any(isinstance(h, RotatingFileHandler) for h in root.handlers)
+    has_file = any(
+        isinstance(h, RotatingFileHandler)
+        and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path))
+        for h in root.handlers
+    )
     has_stream = any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler) for h in root.handlers)
 
     fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
@@ -647,7 +653,7 @@ def init_app_logging() -> Path:
         file_handler = fh
     else:
         for h in root.handlers:
-            if isinstance(h, RotatingFileHandler):
+            if isinstance(h, RotatingFileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path)):
                 file_handler = h
                 break
     if not has_stream:
@@ -656,15 +662,7 @@ def init_app_logging() -> Path:
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
-    if _RUNTIME_SESSION_HANDLER is None:
-        try:
-            runtime_log_path = _runtime_log_path()
-            runtime_log_path.write_text("", encoding="utf-8")
-            _RUNTIME_SESSION_HANDLER = logging.FileHandler(runtime_log_path, mode="a", encoding="utf-8")
-            _RUNTIME_SESSION_HANDLER.setFormatter(fmt)
-            root.addHandler(_RUNTIME_SESSION_HANDLER)
-        except Exception:
-            _RUNTIME_SESSION_HANDLER = None
+    _RUNTIME_SESSION_HANDLER = None
 
     # 将 print 输出桥接到 app.log，提升日志文件可用性。
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
@@ -676,8 +674,6 @@ def init_app_logging() -> Path:
         bridge_logger.propagate = False
         if not any(h is file_handler for h in bridge_logger.handlers):
             bridge_logger.addHandler(file_handler)
-        if _RUNTIME_SESSION_HANDLER is not None and not any(h is _RUNTIME_SESSION_HANDLER for h in bridge_logger.handlers):
-            bridge_logger.addHandler(_RUNTIME_SESSION_HANDLER)
 
         def _print_bridge(*args, **kwargs):
             # 先保持原有 print 行为（终端/GUI 日志窗口）。
@@ -698,7 +694,9 @@ def init_app_logging() -> Path:
         _PRINT_BRIDGE_INSTALLED = True
 
     APP_LOG_FILE = log_path
-    logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, log_path)
+    if not getattr(root, "_latexsnipper_session_logged", False):
+        logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, log_path)
+        setattr(root, "_latexsnipper_session_logged", True)
     
     # 初始化 LaTeX 设置
     try:
@@ -1023,6 +1021,7 @@ class TeeWriter(io.TextIOBase):
         self._a = a
         self._b = b
         self._closed = False
+        self._b_line_buffer = ""
         # 保存原始流的引用，用于恢复
         self._original_a = a
         self._original_b = b
@@ -1051,24 +1050,43 @@ class TeeWriter(io.TextIOBase):
             s = str(s)
 
         written = 0
-        for stream in (self._a, self._b):
-            if not self._stream_ok(stream):
-                continue
+        if self._stream_ok(self._a):
             try:
-                stream.write(s)
+                self._a.write(s)
                 written = len(s)
             except (OSError, ValueError, AttributeError):
-                # 流已关闭或损坏，静默忽略
+                pass
+            except Exception:
+                pass
+
+        if self._stream_ok(self._b):
+            try:
+                self._b_line_buffer += s
+                while True:
+                    idx = self._b_line_buffer.find("\n")
+                    if idx == -1:
+                        break
+                    line = self._b_line_buffer[:idx + 1]
+                    self._b.write(line)
+                    self._b_line_buffer = self._b_line_buffer[idx + 1:]
+                written = len(s)
+            except (OSError, ValueError, AttributeError):
                 pass
             except Exception:
                 pass
 
         # 只在写入成功后 flush
-        for stream in (self._a, self._b):
+        for stream in (self._a,):
             if not self._stream_ok(stream):
                 continue
             try:
                 stream.flush()
+            except Exception:
+                pass
+
+        if self._stream_ok(self._b):
+            try:
+                self._b.flush()
             except Exception:
                 pass
 
@@ -1077,6 +1095,12 @@ class TeeWriter(io.TextIOBase):
     def flush(self):
         if self._closed:
             return
+        if self._stream_ok(self._b) and self._b_line_buffer:
+            try:
+                self._b.write(self._b_line_buffer)
+                self._b_line_buffer = ""
+            except Exception:
+                pass
         for stream in (self._a, self._b):
             if not self._stream_ok(stream):
                 continue
@@ -1181,9 +1205,6 @@ def _ensure_runtime_log_cleanup_hook():
 
 def _hook_runtime_log_streams(tee: bool = True):
     global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_RESET_DONE
-    if getattr(sys, "frozen", False) and _RUNTIME_SESSION_HANDLER is not None:
-        _ensure_runtime_log_cleanup_hook()
-        return
     if _LSN_RUNTIME_LOG_FH_OUT is not None and _LSN_RUNTIME_LOG_FH_ERR is not None:
         return
 
@@ -1236,8 +1257,11 @@ def _show_runtime_log_window(parent=None):
 
 
 def open_debug_console(force: bool = False, tee: bool = True):
-    """GUI 日志窗口模式：可滚动/可复制，不再分配系统控制台。"""
+    """GUI 日志窗口模式：可滚动/可复制"""
     global _LSN_DEBUG_CONSOLE_READY
+
+    if getattr(sys, "frozen", False):
+        tee = False
 
     def _read_startup_console_pref(default: bool = False) -> bool:
         try:
@@ -2515,10 +2539,7 @@ def _update_startup_splash(splash, message: str):
     except Exception:
         pass
 
-# 1) 打开调试控制台（尽早）
-open_debug_console(force=False, tee=True)
-
-# 2) 解析/选择安装目录
+# 1) 解析/选择安装目录
 from pathlib import Path
 INSTALL_BASE_DIR = resolve_install_base_dir()
 
@@ -8209,7 +8230,6 @@ class PredictionWorker(QObject):
             self.elapsed = time.perf_counter() - t0
             self.failed.emit(str(e))
 
-
 class PdfPredictWorker(QObject):
     finished = pyqtSignal(str)
     failed = pyqtSignal(str)
@@ -8423,7 +8443,9 @@ for var in ("PYTHONHOME", "PYTHONPATH"):
         print(f"[DEBUG] 清除环境变量 {var}")
         os.environ.pop(var)
 
+# 2) 先初始化日志，再打开 GUI 日志窗口，避免打包版 runtime-console.log 双写
 init_app_logging()
+open_debug_console(force=False, tee=True)
 
 
 def _schedule_torch_runtime_probe() -> None:

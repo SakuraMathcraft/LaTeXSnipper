@@ -1,0 +1,33 @@
+{
+  "name": "latexsnipper-android-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capawesome/capacitor-file-picker": "^7.2.0",
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/clipboard": "^7.0.2",
+    "@capacitor/core": "^7.0.1",
+    "@capacitor/preferences": "^7.0.2",
+    "@capacitor/share": "^7.0.2",
+    "@cortex-js/compute-engine": "^0.55.6",
+    "mathlive": "^0.109.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.1",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.8.2",
+    "vite": "^7.0.0"
+  }
+}
