@@ -1,5 +1,5 @@
 ﻿
-import os, sys, json, time, threading, re, base64, requests, subprocess, hashlib
+import os, sys, json, time, threading, re, base64, requests, subprocess, hashlib, tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -213,6 +213,9 @@ class ReleaseInfo:
     changelog: str = ""
     asset_url: str = ""
     asset_name: str = ""
+    asset_id: str = ""
+    asset_size: int = 0
+    asset_updated_at: str = ""
 
 # ---------------- 辅助函数 ----------------
 def _load_cached_info():
@@ -242,6 +245,9 @@ def _save_cached_info(etag: str, info: ReleaseInfo):
                     "changelog": info.changelog,
                     "asset_url": info.asset_url,
                     "asset_name": info.asset_name,
+                    "asset_id": info.asset_id,
+                    "asset_size": info.asset_size,
+                    "asset_updated_at": info.asset_updated_at,
                 }
             }, f)
     except Exception:
@@ -319,29 +325,154 @@ def _fetch_version_json_fallback() -> Tuple[Optional[ReleaseInfo], Optional[str]
                 js.get("changelog", ""),
                 js.get("asset_url", "") or js.get("download_url", ""),
                 js.get("asset_name", "") or js.get("filename", ""),
+                str(js.get("asset_id", "") or ""),
+                int(js.get("asset_size", 0) or 0),
+                str(js.get("asset_updated_at", "") or ""),
             ), None, diags
         except Exception as e:
             diags.append((u, repr(e)))
     return None, "回退 version.json 亦失败", diags
 
 
-def _pick_release_asset(rel: dict) -> tuple[str, str]:
+def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str]:
     assets = rel.get("assets") or []
     if not isinstance(assets, list):
-        return "", ""
+        return "", "", "", 0, ""
     priorities = (".exe", ".msi", ".zip")
     for suffix in priorities:
         for asset in assets:
             name = str(asset.get("name", "") or "")
             url = str(asset.get("browser_download_url", "") or "")
             if name.lower().endswith(suffix) and url:
-                return url, name
+                return (
+                    url,
+                    name,
+                    str(asset.get("id", "") or ""),
+                    int(asset.get("size", 0) or 0),
+                    str(asset.get("updated_at", "") or ""),
+                )
     for asset in assets:
         name = str(asset.get("name", "") or "")
         url = str(asset.get("browser_download_url", "") or "")
         if url:
-            return url, name
-    return "", ""
+            return (
+                url,
+                name,
+                str(asset.get("id", "") or ""),
+                int(asset.get("size", 0) or 0),
+                str(asset.get("updated_at", "") or ""),
+            )
+    return "", "", "", 0, ""
+
+
+def _release_page_url(url: str) -> bool:
+    path = str(QUrl(url).path() or "").lower()
+    return "/releases/tag/" in path or path.endswith("/releases/latest")
+
+
+def _normalize_download_asset(url: str, name: str) -> tuple[str, str]:
+    clean_url = str(url or "").strip()
+    clean_name = str(name or "").strip()
+    if not clean_url or _release_page_url(clean_url):
+        return "", ""
+    if not clean_name:
+        try:
+            clean_name = Path(QUrl(clean_url).path()).name
+        except Exception:
+            clean_name = ""
+    if not clean_name or "." not in Path(clean_name).name:
+        return "", ""
+    return clean_url, clean_name
+
+
+def _schedule_windows_installer(path: str) -> None:
+    installer = str(Path(path).resolve())
+    script = Path(tempfile.gettempdir()) / f"latexsnipper-install-{os.getpid()}.vbs"
+    script.write_text(
+        "\n".join([
+            'Set shell = CreateObject("WScript.Shell")',
+            'Set fso = CreateObject("Scripting.FileSystemObject")',
+            f'installer = "{installer.replace(chr(34), chr(34) * 2)}"',
+            f'waitPid = "{os.getpid()}"',
+            "Do",
+            '  Set execObj = shell.Exec("cmd /c tasklist /FI ""PID eq " & waitPid & """ /NH")',
+            "  output = LCase(execObj.StdOut.ReadAll())",
+            '  If InStr(output, "no tasks are running") > 0 Or InStr(output, LCase(waitPid)) = 0 Then Exit Do',
+            "  WScript.Sleep 1000",
+            "Loop",
+            'shell.Run Chr(34) & installer & Chr(34), 1, False',
+            'On Error Resume Next',
+            'fso.DeleteFile WScript.ScriptFullName, True',
+        ]),
+        encoding="utf-8",
+    )
+    subprocess.Popen(
+        ["wscript.exe", "//B", "//NoLogo", str(script)],
+        close_fds=True,
+        **_hidden_subprocess_kwargs(),
+    )
+
+
+def _prepare_app_for_update_exit() -> None:
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in app.topLevelWidgets():
+        try:
+            prepare_restart = getattr(widget, "prepare_restart", None)
+            if callable(prepare_restart):
+                prepare_restart()
+                break
+        except Exception:
+            continue
+
+
+def _update_dir() -> Path:
+    update_dir = Path.home() / ".latexsnipper" / "updates"
+    update_dir.mkdir(parents=True, exist_ok=True)
+    return update_dir
+
+
+def _installer_meta_path() -> Path:
+    return _update_dir() / "installer_meta.json"
+
+
+def _asset_fingerprint(info: ReleaseInfo) -> dict:
+    return {
+        "latest": str(info.latest or ""),
+        "asset_url": str(info.asset_url or ""),
+        "asset_name": str(info.asset_name or ""),
+        "asset_id": str(info.asset_id or ""),
+        "asset_size": int(info.asset_size or 0),
+        "asset_updated_at": str(info.asset_updated_at or ""),
+    }
+
+
+def _load_installer_meta() -> dict:
+    try:
+        with _installer_meta_path().open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_installer_meta(info: ReleaseInfo, path: str, sha256_hex: str) -> None:
+    payload = _asset_fingerprint(info)
+    payload["path"] = str(path or "")
+    payload["sha256"] = str(sha256_hex or "")
+    try:
+        with _installer_meta_path().open("w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _clear_installer_meta() -> None:
+    try:
+        _installer_meta_path().unlink(missing_ok=True)
+    except Exception:
+        pass
 
 # ---------------- 主获取（含限频检测增强） ----------------
 # ---------------- 主获取（含限频检测增强） ----------------
@@ -487,9 +618,15 @@ class RemoteImageBrowser(QTextBrowser):
 def check_update_dialog(parent=None):
     global _UPDATE_DIALOG
     if _UPDATE_DIALOG is not None:
-        _UPDATE_DIALOG.raise_()
-        _UPDATE_DIALOG.activateWindow()
-        return
+        try:
+            if _UPDATE_DIALOG.isVisible():
+                _UPDATE_DIALOG.show()
+                _UPDATE_DIALOG.raise_()
+                _UPDATE_DIALOG.activateWindow()
+                return _UPDATE_DIALOG
+        except RuntimeError:
+            pass
+        _clear_global()
 
     dlg = QDialog(parent)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -694,22 +831,72 @@ a{{color:{theme['accent']};}}
     emitter.done.connect(lambda i, e, d: safe_ui(lambda: on_result(i, e, d)))
 
     def _download_target(info: ReleaseInfo) -> tuple[str, str]:
-        url = str(info.asset_url or info.url or "")
-        name = str(info.asset_name or "").strip()
-        if not name:
-            try:
-                name = Path(QUrl(url).path()).name
-            except Exception:
-                name = ""
-        if not name:
-            name = f"LaTeXSnipper-{info.latest or 'update'}.bin"
-        update_dir = Path.home() / ".latexsnipper" / "updates"
-        update_dir.mkdir(parents=True, exist_ok=True)
-        return url, str(update_dir / name)
+        url, name = _normalize_download_asset(info.asset_url, info.asset_name)
+        if not url or not name:
+            return "", ""
+        return url, str(_update_dir() / name)
 
     def _download_paths(info: ReleaseInfo) -> tuple[str, str, str]:
         url, dest = _download_target(info)
         return url, dest, dest + ".part"
+
+    def _remove_path(path: str) -> None:
+        try:
+            p = Path(path)
+            if p.exists() and p.is_file():
+                p.unlink()
+        except Exception:
+            pass
+
+    def _prune_update_dir(info: ReleaseInfo) -> None:
+        _, dest, tmp_path = _download_paths(info)
+        keep = {
+            str(Path(dest)),
+            str(Path(tmp_path)),
+            str(_installer_meta_path()),
+        }
+        for child in _update_dir().iterdir():
+            child_str = str(child)
+            if child_str in keep:
+                continue
+            try:
+                if child.is_file():
+                    child.unlink()
+            except Exception:
+                pass
+
+    def _local_installer_valid(info: ReleaseInfo) -> bool:
+        _, dest, _ = _download_paths(info)
+        dest_path = Path(dest)
+        if not dest_path.is_file():
+            return False
+        meta = _load_installer_meta()
+        if not meta:
+            return False
+        if str(meta.get("path", "")) != str(dest_path):
+            return False
+        if any(str(meta.get(k, "")) != str(v) for k, v in _asset_fingerprint(info).items() if k != "asset_size"):
+            return False
+        if int(meta.get("asset_size", 0) or 0) != int(info.asset_size or 0):
+            return False
+        if info.asset_size and dest_path.stat().st_size != int(info.asset_size):
+            return False
+        saved_sha256 = str(meta.get("sha256", "") or "").strip().lower()
+        if not saved_sha256:
+            return False
+        return _compute_sha256(str(dest_path)).lower() == saved_sha256
+
+    def _ensure_latest_installer_only(info: ReleaseInfo) -> bool:
+        _prune_update_dir(info)
+        _, dest, tmp_path = _download_paths(info)
+        if os.path.exists(tmp_path) and not os.path.exists(dest):
+            return False
+        if _local_installer_valid(info):
+            return True
+        _remove_path(dest)
+        _remove_path(tmp_path)
+        _clear_installer_meta()
+        return False
 
     def _refresh_download_button() -> None:
         info = state.get("info")
@@ -717,13 +904,14 @@ a{{color:{theme['accent']};}}
             btn_download.setEnabled(False)
             return
         url, dest, tmp_path = _download_paths(info)
+        has_valid_local = _ensure_latest_installer_only(info) if url else False
         btn_download.setEnabled(bool(url))
         if not url:
             btn_download.setText("无安装包")
         elif os.path.exists(tmp_path) and not os.path.exists(dest):
             btn_download.setText("继续下载")
-        elif os.path.exists(dest):
-            btn_download.setText("重新下载")
+        elif has_valid_local:
+            btn_download.setText("安装已下载")
         elif _is_newer_version(info.latest, __version__):
             btn_download.setText("下载并安装")
         else:
@@ -790,6 +978,9 @@ a{{color:{theme['accent']};}}
         ext = Path(path).suffix.lower()
         sha256_hex = _compute_sha256(path)
         signature_status = _read_signature_status(path)
+        info = state.get("info")
+        if isinstance(info, ReleaseInfo):
+            _save_installer_meta(info, path, sha256_hex)
         if os.name != "nt" or not getattr(sys, "frozen", False) or ext not in (".exe", ".msi"):
             lbl_status.setText(f"下载完成: {path}")
             InfoBar.success(
@@ -811,13 +1002,21 @@ a{{color:{theme['accent']};}}
             )
             return
         try:
-            lbl_status.setText("下载完成，正在启动安装程序...")
-            os.startfile(path)  # type: ignore[attr-defined]
-            QTimer.singleShot(300, lambda: QApplication.instance().quit())
+            lbl_status.setText("下载完成，正在退出程序并启动安装器...")
+            _prepare_app_for_update_exit()
+            _schedule_windows_installer(path)
+            app = QApplication.instance()
+            if app is not None:
+                QTimer.singleShot(0, app.quit)
+                QTimer.singleShot(2000, lambda: os._exit(0))
         except Exception as e:
             try:
+                _prepare_app_for_update_exit()
                 subprocess.Popen([path], close_fds=True)
-                QTimer.singleShot(300, lambda: QApplication.instance().quit())
+                app = QApplication.instance()
+                if app is not None:
+                    QTimer.singleShot(0, app.quit)
+                    QTimer.singleShot(2000, lambda: os._exit(0))
             except Exception:
                 InfoBar.error(
                     title="启动安装器失败",
@@ -937,6 +1136,10 @@ a{{color:{theme['accent']};}}
                 position=InfoBarPosition.TOP,
             )
             return
+        valid_local = _ensure_latest_installer_only(info)
+        if valid_local and os.path.exists(dest):
+            _maybe_launch_installer(dest)
+            return
         if os.path.exists(dest):
             ret = _question_close_only(
                 "安装包已存在",
@@ -946,6 +1149,7 @@ a{{color:{theme['accent']};}}
             )
             if ret != QMessageBox.StandardButton.Yes:
                 return
+        _prune_update_dir(info)
         btn_download.setEnabled(False)
         btn_open.setEnabled(False)
         btn_copy.setEnabled(False)
@@ -1013,6 +1217,7 @@ a{{color:{theme['accent']};}}
         state["closing"] = True
         state["pause_requested"] = state["downloading"]
         state["aborted"] = True
+        _clear_global()
         dlg.close()
 
     # 自定义 ESC：中止而非崩

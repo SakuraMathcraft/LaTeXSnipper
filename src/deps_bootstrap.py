@@ -2662,6 +2662,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
 def _progress_dialog():
     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout, QApplication
+    from PyQt6.QtCore import QEvent
     from qfluentwidgets import PushButton, FluentIcon
     def _is_dark_ui() -> bool:
         try:
@@ -2677,59 +2678,32 @@ def _progress_dialog():
         c = app.palette().window().color()
         return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
-    theme = {
-        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
-        "panel_bg": "#232934" if _is_dark_ui() else "#f7f9fc",
-        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
-        "muted": "#a9b3bf" if _is_dark_ui() else "#666666",
-        "border": "#465162" if _is_dark_ui() else "#d0d7de",
-        "progress_bg": "#2b3440" if _is_dark_ui() else "#f0f0f0",
-        "progress_border": "#465162" if _is_dark_ui() else "#dddddd",
-        "progress_start": "#4CAF50" if _is_dark_ui() else "#4CAF50",
-        "progress_end": "#66BB6A" if _is_dark_ui() else "#66BB6A",
-    }
+    def _theme_tokens() -> dict:
+        dark = _is_dark_ui()
+        return {
+            "dark": dark,
+            "dialog_bg": "#1b1f27" if dark else "#ffffff",
+            "panel_bg": "#232934" if dark else "#f7f9fc",
+            "text": "#e7ebf0" if dark else "#222222",
+            "muted": "#a9b3bf" if dark else "#666666",
+            "border": "#465162" if dark else "#d0d7de",
+            "progress_bg": "#2b3440" if dark else "#f0f0f0",
+            "progress_border": "#465162" if dark else "#dddddd",
+            "progress_start": "#4CAF50",
+            "progress_end": "#66BB6A",
+        }
+
     dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
-    dlg.setStyleSheet(
-        f"""
-        QDialog {{ background: {theme['dialog_bg']}; color: {theme['text']}; }}
-        QLabel {{ color: {theme['text']}; }}
-        QTextEdit {{
-            background: {theme['panel_bg']};
-            color: {theme['text']};
-            border: 1px solid {theme['border']};
-            border-radius: 6px;
-        }}
-        """
-    )
     lay = QVBoxLayout(dlg)
     info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
-    info.setStyleSheet(f"color: {theme['muted']};")
     logw = QTextEdit(); logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
     progress.setFixedHeight(20)  # 增加高度
     progress.setMinimumWidth(400)  # 增加宽度
-    progress.setStyleSheet("""
-        QProgressBar {
-            border: 2px solid __PROGRESS_BORDER__;
-            border-radius: 10px;
-            text-align: center;
-            background-color: __PROGRESS_BG__;
-            color: __TEXT__;
-        }
-        QProgressBar::chunk {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                        stop:0 __PROGRESS_START__, stop:1 __PROGRESS_END__);
-            border-radius: 8px;
-        }
-    """.replace("__PROGRESS_BORDER__", theme["progress_border"])
-       .replace("__PROGRESS_BG__", theme["progress_bg"])
-       .replace("__TEXT__", theme["text"])
-       .replace("__PROGRESS_START__", theme["progress_start"])
-       .replace("__PROGRESS_END__", theme["progress_end"]))
 
     btn_cancel = PushButton(FluentIcon.CLOSE, "退出下载")
     btn_cancel.setFixedHeight(32)
@@ -2739,6 +2713,63 @@ def _progress_dialog():
     btn_row.addWidget(btn_pause)
     btn_row.addWidget(btn_cancel)
     lay.addWidget(info); lay.addWidget(logw,1); lay.addWidget(progress); lay.addLayout(btn_row)
+
+    def _apply_theme_styles(force: bool = False):
+        theme = _theme_tokens()
+        if (not force) and getattr(dlg, "_theme_is_dark_cached", None) == theme["dark"]:
+            return
+        dlg._theme_is_dark_cached = theme["dark"]
+        dlg.setStyleSheet(
+            f"""
+            QDialog {{ background: {theme['dialog_bg']}; color: {theme['text']}; }}
+            QLabel {{ color: {theme['text']}; }}
+            QTextEdit {{
+                background: {theme['panel_bg']};
+                color: {theme['text']};
+                border: 1px solid {theme['border']};
+                border-radius: 6px;
+            }}
+            """
+        )
+        info.setStyleSheet(f"color: {theme['muted']};")
+        progress.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid __PROGRESS_BORDER__;
+                border-radius: 10px;
+                text-align: center;
+                background-color: __PROGRESS_BG__;
+                color: __TEXT__;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                            stop:0 __PROGRESS_START__, stop:1 __PROGRESS_END__);
+                border-radius: 8px;
+            }
+        """.replace("__PROGRESS_BORDER__", theme["progress_border"])
+           .replace("__PROGRESS_BG__", theme["progress_bg"])
+           .replace("__TEXT__", theme["text"])
+           .replace("__PROGRESS_START__", theme["progress_start"])
+           .replace("__PROGRESS_END__", theme["progress_end"]))
+
+    _apply_theme_styles(force=True)
+
+    _orig_event = dlg.event
+    def _event_with_theme_refresh(event):
+        if event.type() in (
+            QEvent.Type.StyleChange,
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        ):
+            _apply_theme_styles()
+        return _orig_event(event)
+    dlg.event = _event_with_theme_refresh
+
+    _orig_show_event = dlg.showEvent
+    def _show_event_with_theme_refresh(event):
+        _apply_theme_styles(force=True)
+        _orig_show_event(event)
+    dlg.showEvent = _show_event_with_theme_refresh
+
     return dlg, info, logw, btn_cancel, btn_pause, progress
 
 def _apply_close_only_window_flags(win):
