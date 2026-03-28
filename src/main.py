@@ -1987,7 +1987,6 @@ def _block_pyqt6_from_private(pyexe: str | None):
         print(f"[WARN] failed to block PyQt6 from private deps: {e}")
 
 
-
 def _setup_qt_dll_dirs(pyexe: str | None = None):
     """
     准确将 PyQt6 的 Qt 运行库加入 DLL 搜索路径与插件搜索路径，并预加载核心 DLL。

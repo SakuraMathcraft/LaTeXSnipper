@@ -975,6 +975,15 @@ a{{color:{theme['accent']};}}
         return ret == QMessageBox.StandardButton.Yes
 
     def _maybe_launch_installer(path: str):
+        if not path or not Path(path).is_file():
+            InfoBar.error(
+                title="安装包不存在",
+                content=f"未找到下载完成的安装包：{path}",
+                parent=dlg,
+                duration=4000,
+                position=InfoBarPosition.TOP,
+            )
+            return
         ext = Path(path).suffix.lower()
         sha256_hex = _compute_sha256(path)
         signature_status = _read_signature_status(path)
@@ -1042,12 +1051,12 @@ a{{color:{theme['accent']};}}
         state["downloading"] = False
         if state["aborted"] or (not dlg.isVisible()):
             return
-        _refresh_download_button()
-        btn_open.setEnabled(bool(state.get("info")))
-        btn_copy.setEnabled(bool(state.get("info")))
-        btn_retry.setEnabled(True)
-        dlg.unsetCursor()
         if err == "__paused__":
+            _refresh_download_button()
+            btn_open.setEnabled(bool(state.get("info")))
+            btn_copy.setEnabled(bool(state.get("info")))
+            btn_retry.setEnabled(True)
+            dlg.unsetCursor()
             bar.setRange(0, 1)
             lbl_status.setText("下载已暂停，可稍后继续下载。")
             InfoBar.info(
@@ -1059,6 +1068,11 @@ a{{color:{theme['accent']};}}
             )
             return
         if err:
+            _refresh_download_button()
+            btn_open.setEnabled(bool(state.get("info")))
+            btn_copy.setEnabled(bool(state.get("info")))
+            btn_retry.setEnabled(True)
+            dlg.unsetCursor()
             bar.setRange(0, 1)
             lbl_status.setText(f"下载失败: {err}")
             InfoBar.error(
@@ -1072,6 +1086,11 @@ a{{color:{theme['accent']};}}
         bar.setRange(0, 1)
         bar.setValue(1)
         _maybe_launch_installer(str(path or ""))
+        _refresh_download_button()
+        btn_open.setEnabled(bool(state.get("info")))
+        btn_copy.setEnabled(bool(state.get("info")))
+        btn_retry.setEnabled(True)
+        dlg.unsetCursor()
 
     emitter.download_progress.connect(lambda cur, total, path: _on_download_progress(cur, total, path))
     emitter.download_done.connect(lambda path, err: _on_download_done(path, err))
