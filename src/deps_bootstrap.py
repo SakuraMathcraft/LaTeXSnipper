@@ -2054,9 +2054,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     import sys
     # 使用外部传入的 installed_layers；不覆盖
     from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QCheckBox, QLabel,
-                                 QHBoxLayout, QComboBox, QFileDialog, QLineEdit, QMessageBox, QApplication)
+                                 QHBoxLayout, QFileDialog, QLineEdit, QMessageBox, QApplication)
     from PyQt6.QtCore import Qt
-    from qfluentwidgets import PushButton, FluentIcon
+    from qfluentwidgets import PushButton, FluentIcon, ComboBox, setTheme, Theme
 
     def _is_dark_ui() -> bool:
         app = QApplication.instance()
@@ -2064,6 +2064,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             return False
         c = app.palette().window().color()
         return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+
+    def _sync_fluent_theme() -> None:
+        try:
+            setTheme(Theme.DARK if _is_dark_ui() else Theme.LIGHT)
+        except Exception:
+            pass
+
+    _sync_fluent_theme()
 
     theme = {
         "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
@@ -2092,19 +2100,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "QLabel {"
         f"color: {theme['text']};"
         "}"
-        "QLineEdit, QComboBox {"
+        "QLineEdit {"
         f"background: {theme['input_bg']}; color: {theme['text']};"
         f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 4px 6px;"
         "}"
         "QCheckBox {"
         f"color: {theme['text']}; spacing: 8px;"
-        "}"
-        "QPushButton {"
-        f"background: {theme['btn_bg']}; color: {theme['accent']};"
-        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 6px 10px;"
-        "}"
-        "QPushButton:hover {"
-        f"background: {theme['btn_hover']}; border: 1px solid {theme['accent']}; color: {theme['accent_hover']};"
         "}"
     )
     lay = QVBoxLayout(dlg)
@@ -2361,10 +2362,30 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_row.addWidget(btn_path)
     lay.addLayout(path_row)
     # 镜像选择
-    mirror_box = QComboBox()
-    mirror_box.addItem("官方 PyPI", "off")
-    mirror_box.addItem("清华镜像", "tuna")
+    mirror_box = ComboBox()
+    mirror_box.addItem("官方 PyPI", userData="off")
+    mirror_box.addItem("清华镜像", userData="tuna")
+    mirror_box.setFixedHeight(36)
     lay.addWidget(mirror_box)
+
+    def _mirror_enabled() -> bool:
+        try:
+            idx = int(mirror_box.currentIndex())
+        except Exception:
+            idx = -1
+        value = None
+        if idx >= 0:
+            try:
+                value = mirror_box.itemData(idx)
+            except Exception:
+                value = None
+        if value is None:
+            try:
+                text = str(mirror_box.currentText()).strip()
+            except Exception:
+                text = ""
+            value = "tuna" if "清华" in text else "off"
+        return str(value) == "tuna"
 
     # ---------- 按钮布局 ----------
     btn_row = QHBoxLayout()
@@ -2389,18 +2410,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 说明 label
     desc = QLabel(
         "📦 层级说明：\n"
-        "• BASIC：基础依赖层（网络、图像处理、onnxruntime 等），必须安装。\n"
-        "• CORE：核心识别层（pix2text、文档导出、PDF 识别依赖），必须安装。\n"
-        "• 公式识别 pix2text：运行需要 BASIC + CORE + 一个 HEAVY 层（CPU 或 GPU）。\n"
-        "• 仅选择 BASIC + CORE 下载时，会自动补一个 HEAVY 层：优先 HEAVY_GPU（检测到可用 CUDA），否则 HEAVY_CPU。\n"
-        "• HEAVY_CPU：PyTorch CPU 版（无 GPU 设备时选择）。\n"
-        "• HEAVY_GPU：PyTorch GPU 版 + CUDA（有 NVIDIA GPU 时选择）。\n"
+        "• BASIC：基础运行层，包含网络、图像处理和 onnxruntime 等通用依赖。\n"
+        "• CORE：识别功能层，包含 pix2text 及文档导出 / PDF 相关依赖。\n"
+        "• HEAVY_CPU：PyTorch CPU 推理层，适合无 NVIDIA GPU 的环境。\n"
+        "• HEAVY_GPU：PyTorch GPU 推理层，按检测到的 CUDA 版本自动匹配。\n"
+        "• 识别功能实际运行需要 BASIC + CORE + 一个 HEAVY 层。\n"
+        "• 若你只安装 BASIC + CORE，向导会自动补一个 HEAVY 层：优先 HEAVY_GPU，否则 HEAVY_CPU。\n"
         "\n"
         "⚠️ 重要提示：\n"
-        "• HEAVY_CPU 和 HEAVY_GPU 互斥，只能选择其一！\n"
-        "• onnxruntime 和 onnxruntime-gpu 互斥，会自动卸载冲突版本。\n"
-        "• 当前版本仅保留 pix2text 模型族，不再包含 pix2tex/UniMERNet。\n"
-        "• 向导负责安装/切换 pix2text 所需的 CPU/GPU 依赖与 onnxruntime。\n"
+        "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
+        "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
+        "• 设置页入口不允许在关键层缺失时“强制进入”，必须先下载或修复依赖。\n"
+        "• 当前版本仅保留 pix2text 方案，不再包含 pix2tex / UniMERNet 相关依赖。\n"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
@@ -2503,7 +2524,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许强制进入。"""
         sel = [L for L, c in checks.items() if c.isChecked()]
         chosen["layers"] = sel
-        chosen["mirror"] = (mirror_box.currentData() == "tuna")
+        chosen["mirror"] = _mirror_enabled()
         chosen["deps_path"] = path_edit.text()
         
         print(f"[DEBUG] Selected layers: {sel}")
@@ -2543,7 +2564,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             return
         chosen["layers"] = sel
-        chosen["mirror"] = (mirror_box.currentData() == "tuna")
+        chosen["mirror"] = _mirror_enabled()
         chosen["deps_path"] = path_edit.text()
         chosen["force_enter"] = False
         dlg.accept()
@@ -2664,6 +2685,7 @@ def _progress_dialog():
     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout, QApplication
     from PyQt6.QtCore import QEvent
     from qfluentwidgets import PushButton, FluentIcon
+    _sync_deps_fluent_theme()
     def _is_dark_ui() -> bool:
         try:
             import qfluentwidgets as qfw
@@ -2687,10 +2709,9 @@ def _progress_dialog():
             "text": "#e7ebf0" if dark else "#222222",
             "muted": "#a9b3bf" if dark else "#666666",
             "border": "#465162" if dark else "#d0d7de",
-            "progress_bg": "#2b3440" if dark else "#f0f0f0",
-            "progress_border": "#465162" if dark else "#dddddd",
-            "progress_start": "#4CAF50",
-            "progress_end": "#66BB6A",
+            "progress_bg": "#232934" if dark else "#ffffff",
+            "progress_border": "#465162" if dark else "#cfd6dd",
+            "progress_chunk": "#4c9aff" if dark else "#1976d2",
         }
 
     dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
@@ -2734,22 +2755,20 @@ def _progress_dialog():
         info.setStyleSheet(f"color: {theme['muted']};")
         progress.setStyleSheet("""
             QProgressBar {
-                border: 2px solid __PROGRESS_BORDER__;
-                border-radius: 10px;
+                border: 1px solid __PROGRESS_BORDER__;
+                border-radius: 6px;
                 text-align: center;
                 background-color: __PROGRESS_BG__;
                 color: __TEXT__;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                            stop:0 __PROGRESS_START__, stop:1 __PROGRESS_END__);
-                border-radius: 8px;
+                background: __PROGRESS_CHUNK__;
+                border-radius: 6px;
             }
         """.replace("__PROGRESS_BORDER__", theme["progress_border"])
            .replace("__PROGRESS_BG__", theme["progress_bg"])
            .replace("__TEXT__", theme["text"])
-           .replace("__PROGRESS_START__", theme["progress_start"])
-           .replace("__PROGRESS_END__", theme["progress_end"]))
+           .replace("__PROGRESS_CHUNK__", theme["progress_chunk"]))
 
     _apply_theme_styles(force=True)
 
@@ -2812,6 +2831,15 @@ def _deps_dialog_theme() -> dict:
     }
 
 
+def _sync_deps_fluent_theme() -> None:
+    try:
+        from qfluentwidgets import setTheme, Theme
+        t = _deps_dialog_theme()
+        setTheme(Theme.DARK if t["dialog_bg"] == "#1b1f27" else Theme.LIGHT)
+    except Exception:
+        pass
+
+
 def _apply_deps_message_box_theme(msg):
     t = _deps_dialog_theme()
     try:
@@ -2858,6 +2886,7 @@ def custom_warning_dialog(title, message, parent=None):
     from qfluentwidgets import PushButton, FluentIcon
     from PyQt6.QtGui import QIcon
 
+    _sync_deps_fluent_theme()
     dlg = QDialog(parent)
     _apply_close_only_window_flags(dlg)
     dlg.setWindowTitle(title)

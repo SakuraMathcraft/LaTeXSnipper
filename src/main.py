@@ -3230,11 +3230,22 @@ flags = [
     "--enable-logging=stderr",
     "--v=1",
 ]
-ACTION_BTN_STYLE = (
-    "PrimaryPushButton{background:#3daee9;color:#fff;border-radius:4px;"
-    "padding:4px 10px;font-size:12px;}"
-    "PrimaryPushButton:hover{background:#5dbff2;}"
-)
+def _action_btn_style() -> str:
+    if _is_dark_ui():
+        return (
+            "PrimaryPushButton{background:#2f6ea8;color:#f5f7fb;border:1px solid #4d8dca;"
+            "border-radius:4px;padding:4px 10px;font-size:12px;}"
+            "PrimaryPushButton:hover{background:#3e82c3;}"
+            "PrimaryPushButton:pressed{background:#245a8d;}"
+            "PrimaryPushButton:disabled{background:#2b3440;color:#7f8a98;border:1px solid #465162;}"
+        )
+    return (
+        "PrimaryPushButton{background:#3daee9;color:#ffffff;border:1px solid #2b94cb;"
+        "border-radius:4px;padding:4px 10px;font-size:12px;}"
+        "PrimaryPushButton:hover{background:#5dbff2;}"
+        "PrimaryPushButton:pressed{background:#319fd9;}"
+        "PrimaryPushButton:disabled{background:#eef2f6;color:#8a94a3;border:1px solid #d0d7de;}"
+    )
 # ---------------- 获取 PyInstaller 打包路径 ----------------
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -3246,12 +3257,22 @@ HOVER_STYLE_BASE = "QWidget{background:#fefefe;border:1px solid #cfcfcf;border-r
 HOVER_STYLE_ACTIVE = "QWidget{background:#ffffff;border:1px solid #999;border-radius:5px;padding:6px;}"
 
 # 行内（历史记录每行的小按钮）紧凑描边样式
-INLINE_BUTTON_STYLE = (
-    "PrimaryPushButton{background:#ffffff;border:1px solid #d0d7de;"
-    "border-radius:4px;padding:3px 8px;font-size:12px;color:#1976d2;}"
-    "PrimaryPushButton:hover{background:#f0f7ff;}"
-    "PrimaryPushButton:pressed{background:#e2efff;}"
-)
+def _inline_button_style() -> str:
+    if _is_dark_ui():
+        return (
+            "PrimaryPushButton{background:#232934;border:1px solid #465162;"
+            "border-radius:4px;padding:3px 8px;font-size:12px;color:#8ec5ff;}"
+            "PrimaryPushButton:hover{background:#2b3440;border:1px solid #63b3ff;}"
+            "PrimaryPushButton:pressed{background:#344151;border:1px solid #63b3ff;}"
+            "PrimaryPushButton:disabled{background:#1b1f27;color:#7f8a98;border:1px solid #3a434f;}"
+        )
+    return (
+        "PrimaryPushButton{background:#ffffff;border:1px solid #d0d7de;"
+        "border-radius:4px;padding:3px 8px;font-size:12px;color:#1976d2;}"
+        "PrimaryPushButton:hover{background:#f0f7ff;}"
+        "PrimaryPushButton:pressed{background:#e2efff;}"
+        "PrimaryPushButton:disabled{background:#f4f6f8;color:#8a94a3;border:1px solid #d0d7de;}"
+    )
 
 MAX_HISTORY = 200
 ENABLE_ROW_ANIMATION = False    # 历史记录行动画开关
@@ -5266,7 +5287,7 @@ class MainWindow(_QMainWindow):
             return
         for b in btns or []:
             try:
-                b.setStyleSheet(ACTION_BTN_STYLE)
+                b.setStyleSheet(_action_btn_style())
             except Exception:
                 pass
 
@@ -7928,6 +7949,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 
     # 设置快捷键窗口支持 ESC 关闭
     def set_shortcut(self):
+        from PyQt6.QtWidgets import QLineEdit
         if self.shortcut_window and self.shortcut_window.isVisible():
             self.shortcut_window.raise_()
             self.shortcut_window.activateWindow()
@@ -7941,11 +7963,29 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         _apply_dialog_theme(dlg)
         dlg.destroyed.connect(lambda: setattr(self, "shortcut_window", None))
+        t = _dialog_theme_tokens()
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
-        edit = QTextEdit()
+        edit = QLineEdit(dlg)
         edit.setReadOnly(True)
         edit.setFixedHeight(34)
+        edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        edit.setStyleSheet(
+            f"""
+QLineEdit {{
+    background: {t['panel_bg']};
+    color: {t['text']};
+    border: 1px solid {t['border']};
+    border-radius: 6px;
+    padding: 4px 8px;
+    selection-background-color: {"#3b4756" if _is_dark_ui() else "#d7e3f1"};
+    selection-color: {t['text']};
+}}
+QLineEdit:focus {{
+    border: 1px solid {"#66788a" if _is_dark_ui() else "#9aa9bb"};
+}}
+"""
+        )
 
         def keyPressEvent(ev):
             if ev.key() == Qt.Key.Key_Escape:
@@ -7954,19 +7994,23 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             k = ev.key()
             if ev.modifiers() & Qt.KeyboardModifier.ControlModifier and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
                 edit.setText(f"Ctrl+{chr(k)}")
+                edit.setFocus()
+                edit.selectAll()
             else:
                 edit.setText("")
+                edit.setFocus()
 
         edit.keyPressEvent = keyPressEvent
         lay.addWidget(edit)
         btn = PushButton(FluentIcon.ACCEPT, "确定")
         btn.setFixedHeight(32)
-        btn.clicked.connect(lambda: self.update_hotkey(edit.toPlainText().strip(), dlg))
+        btn.clicked.connect(lambda: self.update_hotkey(edit.text().strip(), dlg))
         lay.addWidget(btn)
         self.shortcut_window = dlg
         dlg.show()
         dlg.raise_()
         dlg.activateWindow()
+        QTimer.singleShot(0, edit.setFocus)
 
     def update_hotkey(self, text: str, dialog: QDialog):
         from qfluentwidgets import InfoBar, InfoBarPosition
