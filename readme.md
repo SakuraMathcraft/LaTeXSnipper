@@ -70,6 +70,7 @@
 6. 将结果写回主编辑器或复制 LaTeX / MathJSON
 
 ### 手写识别演示
+<img width="1408" height="916" alt="手写识别readme" src="https://github.com/user-attachments/assets/3fe98e41-218e-452c-96c1-cc805ab3e0f2" />
 
 `v2.1` 新增的手写识别窗口支持这样一条完整链路：
 
