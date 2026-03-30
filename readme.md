@@ -2,14 +2,14 @@
 
 <div align="center">
 
-> 🎯**识别 + 编辑 + 计算** | 从截图识别工具升级为桌面数学工作台
+> 🎯**识别 + 编辑 + 计算 + 手写输入** | 从截图识别工具升级为桌面数学工作台
 <img width="1919" height="1018" alt="主界面-浅色" src="https://github.com/user-attachments/assets/54561c3b-1a60-438a-b8f0-6c6419674b8f" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v2.0-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v2.1-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
@@ -27,14 +27,14 @@
 
 ## 项目简介
 
-**LaTeXSnipper 2.0** 不再只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
+**LaTeXSnipper 2.1** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
 
 - 截图识别数学公式
-- 在数学工作台中继续编辑
-- 使用双引擎完成计算、化简、求解、因式分解
+- 在数学工作台中继续编辑与计算
+- 直接在手写识别窗口中书写并自动转 LaTeX
 - 再将结果写回主编辑器或复制到剪贴板
 
-`v2.0` 的核心变化是新增了独立的 **数学工作台**：内嵌 `MathLive math-field`、虚拟数学键盘、`Compute Engine` 与本地 `SymPy/mpmath` 高级求解引擎。
+`v2.0` 引入了独立的 **数学工作台**；`v2.1` 则继续补上了独立的 **手写识别窗口**，把“截图输入 + 编辑计算 + 手写输入”三条链路都打通。
 
 ---
 
@@ -59,6 +59,7 @@
 
 ### 数学工作台演示
 <img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
+
 2.0 新增的数学工作台支持这样一条完整链路：
 
 1. 从主窗口截图识别公式
@@ -68,14 +69,24 @@
 5. 执行 `计算 / 化简 / 数值化 / 展开 / 因式分解 / 求解`
 6. 将结果写回主编辑器或复制 LaTeX / MathJSON
 
-数学工作台的主要能力包括：
+### 手写识别演示
 
-- 结构化公式编辑
-- 虚拟数学键盘输入
-- LaTeX 与 MathJSON 同步查看
-- 计算结果区即时渲染
-- 内置示例覆盖多项式、积分、无穷级数、无穷乘积、极限、导数
-- 前端 `Compute Engine` 与本地 `SymPy/mpmath` 双引擎回退
+`v2.1` 新增的手写识别窗口支持这样一条完整链路：
+
+1. 从主窗口打开“手写识别”
+2. 在独立画布中直接书写公式
+3. 停笔后自动调用 `pix2text` 识别
+4. 在右侧实时查看 `LaTeX 结果` 与渲染预览
+5. 直接复制 LaTeX，或插回主编辑器继续处理
+
+手写识别的主要能力包括：
+
+- 独立手写窗口
+- 自动延展滚动画布
+- 书写 / 橡皮 / 圈选修正 / 撤销 / 重做
+- `Ctrl + 滚轮` 缩放画布
+- 深浅色主题适配
+- 与主窗口识别链路互斥保护
 
 ---
 
@@ -84,19 +95,20 @@
 | 功能 | 说明 |
 |------|------|
 | 📸 公式识别 | 截图识别数学公式，支持公式/文本/混合内容 |
+| ✍️ 手写识别 | 独立手写窗口，支持停笔自动识别与实时预览 |
 | 🧮 数学工作台 | 独立工作台窗口，支持编辑、计算、写回 |
 | ⌨️ 公式编辑 | 接入 `MathLive math-field` 与虚拟数学键盘 |
 | 🔄 多格式输出 | 支持 LaTeX、Markdown、MathML、HTML、OMML、SVG |
 | 📐 基础计算 | 支持计算、化简、数值化、展开、求解 |
 | 🧠 高级求解 | `SymPy/mpmath` 本地高级引擎兜底复杂表达式 |
-| 🌙 主题适配 | 主窗口、工作台、更新器、依赖向导适配浅色/深色模式 |
+| 🌙 主题适配 | 主窗口、工作台、手写识别、更新器、依赖向导适配浅色/深色模式 |
 | 🔐 离线优先 | 识别与高级求解均可在本地进行，保护隐私 |
 
 ---
 
 ## 数学工作台支持的计算类型
 
-当前 2.0 工作台已经覆盖下列常见场景：
+当前工作台已经覆盖下列常见场景：
 
 - 多项式展开
 - 因式分解
@@ -123,10 +135,10 @@
 ### 方法一：下载可执行文件
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper_setup_v2.0.exe`
+2. 下载最新版 `LaTeXSnipper_setup_v2.1.exe`
 3. 双击运行
 4. 首次启动按依赖向导完成环境准备
-5. 开始截图识别或打开数学工作台
+5. 开始截图识别、手写识别或打开数学工作台
 
 ### 方法二：从源码运行
 
@@ -152,6 +164,14 @@ python src/main.py
 3. 框选公式区域
 4. 查看识别结果与预览
 5. 直接复制，或载入数学工作台继续处理
+
+### 手写识别流程
+
+1. 打开“手写识别”
+2. 直接在画布中书写公式
+3. 等待停笔自动识别
+4. 查看右侧 LaTeX 结果与实时预览
+5. 直接复制 LaTeX，或插回主编辑器
 
 ### 数学工作台流程
 
@@ -196,6 +216,13 @@ LaTeXSnipper/
 │   │   ├── workbench_window.py
 │   │   ├── workbench_bridge.py
 │   │   └── advanced_cas.py
+│   ├── handwriting/
+│   │   ├── handwriting_window.py
+│   │   ├── ink_canvas.py
+│   │   ├── stroke_store.py
+│   │   ├── recognizer.py
+│   │   ├── tools.py
+│   │   └── types.py
 │   ├── assets/
 │   │   ├── MathJax-3.2.2/
 │   │   └── mathlive/
@@ -206,25 +233,27 @@ LaTeXSnipper/
 │   └── ui/
 ├── LaTeXSnipper.spec
 ├── RELEASE_NOTES_v2.0.md
+├── RELEASE_NOTES_v2.1.md
 ├── TECH_PLAN_v2.0.md
+├── TECH_PLAN_v2.1_HANDWRITING.md
 ├── version_info.txt
 └── readme.md
 ```
 
 ---
 
-## 2.0 架构说明
+## 2.x 架构说明
 
-`v2.0` 的公式编辑与计算能力采用三层结构：
+`v2.x` 的核心能力已经拆为三块：
 
-- `WorkbenchWindow`
-  负责桌面窗口、工具栏、状态栏与用户交互
-- `WorkbenchBridge`
-  负责 Python 与页面间的双向通信
-- `MathLive + Compute Engine + SymPy/mpmath`
-  负责公式输入、前端即时计算与本地高级求解
+- `main.py`
+  负责主窗口识别、预览、结果写回与全局协作
+- `src/editor/`
+  负责数学工作台、公式编辑与高级计算
+- `src/handwriting/`
+  负责手写画布、笔迹交互与识别结果联动
 
-这意味着后续编辑器能力不会继续堆积进 `main.py`，而是沿着 `src/editor/` 独立演进。
+这意味着后续编辑器与手写能力不会继续无序堆积进单一窗口，而是可以沿模块独立演进。
 
 ---
 
@@ -240,6 +269,7 @@ LaTeXSnipper/
 
 建议优先关注：
 
+- 手写识别交互体验
 - 数学工作台交互体验
 - 高级求解器稳定性
 - 打包版运行验证
