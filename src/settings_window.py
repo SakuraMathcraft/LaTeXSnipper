@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 import pyperclip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox)
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox, QScrollArea)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
 from deps_bootstrap import custom_warning_dialog
@@ -50,11 +50,23 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # 默认宽度加大，避免 InfoBar 文案被截断
-        self.resize(620, 320)
-        self.setMinimumWidth(620)
-        lay = QVBoxLayout(self)
+        self.resize(620, 700)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(700)
+        root = QVBoxLayout(self)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.content_widget = QWidget(self)
+        lay = QVBoxLayout(self.content_widget)
         lay.setSpacing(8)
         lay.setContentsMargins(16, 16, 16, 16)
+        lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll_area.setWidget(self.content_widget)
+        root.addWidget(self.scroll_area)
         self._pix2text_pkg_ready = False
         self._torch_probe_seq = {"pix2text": 0}
         # 缓存慢探测结果，避免频繁点击时阻塞 UI

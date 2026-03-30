@@ -4036,6 +4036,7 @@ def ensure_webengine_loaded() -> bool:
         return False
 
 from utils import resource_path
+from handwriting import HandwritingWindow
 from qfluentwidgets import RoundMenu, Action
 
 class CenterMenu(RoundMenu):
@@ -4915,7 +4916,8 @@ class MainWindow(_QMainWindow):
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
 
         self.setWindowTitle("LaTeX Snipper")
-        self.resize(1000, 700)
+        self.resize(1180, 760)
+        self.setMinimumSize(1180, 760)
 
         # 在模型初始化前
         req_path = os.path.join(os.path.dirname(__file__), "requirements.txt")
@@ -4943,6 +4945,7 @@ class MainWindow(_QMainWindow):
         self._last_capture_toast_ts = 0.0
         self.settings_window = None
         self.shortcut_window = None
+        self.handwriting_window = None
         self._theme_is_dark_cached = None
         self._model_warmup_in_progress = False
         self._model_warmup_callbacks = []
@@ -5134,9 +5137,11 @@ class MainWindow(_QMainWindow):
 
         # LaTeX 编辑区标题和工具栏
         editor_header = QHBoxLayout()
+        editor_header.setContentsMargins(0, 0, 0, 0)
+        editor_header.setSpacing(0)
         self.editor_title_label = QLabel("LaTeX 编辑器")
         editor_header.addWidget(self.editor_title_label)
-        editor_header.addStretch()
+        editor_header.addSpacing(6)
         self.upload_image_btn = PushButton(FluentIcon.PHOTO, "图片识别")
         self.upload_image_btn.clicked.connect(self._upload_image_recognition)
         self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, "PDF识别")
@@ -5151,16 +5156,20 @@ class MainWindow(_QMainWindow):
         self.copy_editor_btn.clicked.connect(self._copy_editor_content)
         self.export_btn = PushButton(FluentIcon.SHARE, "导出")
         self.export_btn.clicked.connect(self._show_export_menu)
-        self.add_to_fav_btn = PushButton(FluentIcon.HEART, "收藏")
-        self.add_to_fav_btn.clicked.connect(self._add_editor_to_fav)
-        self.workbench_btn = PushButton(FluentIcon.CODE, "数学工作台")
+        self.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, "手写识别")
+        self.handwriting_btn.clicked.connect(self.open_handwriting_window)
+        self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "数学工作台")
         self.workbench_btn.clicked.connect(self.open_workbench)
-        editor_header.addWidget(self.upload_image_btn)
-        editor_header.addWidget(self.upload_pdf_btn)
-        editor_header.addWidget(self.copy_editor_btn)
-        editor_header.addWidget(self.export_btn)
-        editor_header.addWidget(self.add_to_fav_btn)
-        editor_header.addWidget(self.workbench_btn)
+        editor_actions = QHBoxLayout()
+        editor_actions.setContentsMargins(0, 0, 0, 0)
+        editor_actions.setSpacing(6)
+        editor_actions.addWidget(self.upload_image_btn)
+        editor_actions.addWidget(self.upload_pdf_btn)
+        editor_actions.addWidget(self.handwriting_btn)
+        editor_actions.addWidget(self.copy_editor_btn)
+        editor_actions.addWidget(self.export_btn)
+        editor_actions.addWidget(self.workbench_btn)
+        editor_header.addLayout(editor_actions)
         right_layout.addLayout(editor_header)
 
         # LaTeX 编辑器
@@ -8130,6 +8139,33 @@ QLineEdit:focus {{
         if getattr(self, "workbench_window", None):
             self.workbench_window.show_success("已写回", "数学工作台内容已写回主编辑器")
 
+    def _on_handwriting_insert(self, latex: str):
+        text = (latex or "").strip()
+        if not text:
+            return
+        self._set_editor_text_silent(text)
+        try:
+            self._formula_types[text] = getattr(self, "current_model", "pix2text")
+        except Exception:
+            pass
+        self._refresh_preview()
+        self.set_action_status("手写识别结果已写入主编辑器")
+
+    def open_handwriting_window(self):
+        if not self.model:
+            custom_warning_dialog("错误", "模型未初始化", self)
+            return
+        if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
+            self.handwriting_window.raise_()
+            self.handwriting_window.activateWindow()
+            return
+        self.handwriting_window = HandwritingWindow(self.model, owner=self, parent=None)
+        self.handwriting_window.latexInserted.connect(self._on_handwriting_insert)
+        self.handwriting_window.destroyed.connect(lambda: setattr(self, "handwriting_window", None))
+        self.handwriting_window.show()
+        self.handwriting_window.raise_()
+        self.handwriting_window.activateWindow()
+
     def open_workbench(self):
         if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
             self.workbench_window.raise_()
@@ -8636,3 +8672,6 @@ if __name__ == "__main__":
             pass
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
+
+
+
