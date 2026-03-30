@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 
 from PyQt6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QThread, QTimer, QUrl, Qt, pyqtSignal
@@ -65,6 +66,7 @@ class HandwritingWindow(QDialog):
         self._theme_is_dark_cached = None
         self._ui_ready = False
         self._soft_focus_target = None
+        self._last_busy_notice_ts = 0.0
         self._build_ui()
         self._wire_events()
 
@@ -499,6 +501,12 @@ class HandwritingWindow(QDialog):
         if self._recognizing:
             self._recognize_pending = True
             return
+        if self._is_owner_recognition_busy():
+            self._recognize_pending = True
+            self.recognize_timer.start(800)
+            self.status_label.setText("主窗口识别中，等待继续...")
+            self._show_busy_notice()
+            return
         export = self.canvas.export_image()
         if export.is_empty or export.image is None:
             self.status_label.setText("画布为空")
@@ -555,7 +563,7 @@ class HandwritingWindow(QDialog):
     def _on_recognition_failed(self, error: str) -> None:
         brief = (error or "识别失败").strip()
         self.status_label.setText(f"识别失败: {brief}")
-        self._show_error("手写识别失败", f"{brief}\n\n可手动擦除后重写，或直接编辑右侧 LaTeX 结果。")
+        self._show_error("手写识别失败", f"{brief}。可手动擦除后重写，或直接编辑右侧 LaTeX 结果。")
 
     def _on_result_editor_changed(self) -> None:
         self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
@@ -716,6 +724,28 @@ class HandwritingWindow(QDialog):
         QApplication.clipboard().setText(text)
         self.status_label.setText("已复制 LaTeX")
         self._show_info("已复制", "LaTeX 已复制到剪贴板。")
+
+    def is_recognizing_busy(self) -> bool:
+        return bool(
+            self._recognizing
+            or (self._recognize_thread is not None and self._recognize_thread.isRunning())
+        )
+
+    def _is_owner_recognition_busy(self) -> bool:
+        owner = self.owner
+        if owner is None or not hasattr(owner, "is_recognition_busy"):
+            return False
+        try:
+            return bool(owner.is_recognition_busy(source="handwriting"))
+        except Exception:
+            return False
+
+    def _show_busy_notice(self) -> None:
+        now = time.monotonic()
+        if now - self._last_busy_notice_ts < 1.5:
+            return
+        self._last_busy_notice_ts = now
+        self._show_info("正在识别", "主窗口正在识别，请稍候。")
 
     def _show_info(self, title: str, content: str) -> None:
         InfoBar.info(title=title, content=content, orient=Qt.Orientation.Vertical, isClosable=True, position=InfoBarPosition.TOP, duration=2800, parent=self)

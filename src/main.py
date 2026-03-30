@@ -6899,12 +6899,38 @@ th {{
         """返回可读的图片扩展名列表（用于提示）。"""
         return [p.replace("*.", "").upper() for p in self._get_supported_image_patterns()]
 
+    def _show_recognition_busy_info(self, content: str = "正在识别，请稍候") -> None:
+        try:
+            InfoBar.info(
+                title="提示",
+                content=content,
+                parent=self,
+                duration=2200,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            custom_warning_dialog("提示", content, self)
+
+    def is_recognition_busy(self, source: str = "main") -> bool:
+        main_busy = bool(
+            getattr(self, "_predict_busy", False)
+            or (self.predict_thread and self.predict_thread.isRunning())
+            or (self.pdf_predict_thread and self.pdf_predict_thread.isRunning())
+        )
+        if main_busy:
+            return True
+        if source != "handwriting":
+            try:
+                hw = getattr(self, "handwriting_window", None)
+                if hw and hasattr(hw, "is_recognizing_busy") and hw.isVisible():
+                    return bool(hw.is_recognizing_busy())
+            except Exception:
+                pass
+        return False
+
     def _start_predict_with_pil(self, img: Image.Image):
-        if self._predict_busy:
-            from qfluentwidgets import MessageBox
-            msg = MessageBox("提示", "正在识别，请稍候", self)
-            msg.cancelButton.hide()
-            msg.exec()
+        if self.is_recognition_busy(source="main"):
+            self._show_recognition_busy_info()
             return
         if not self.model:
             custom_warning_dialog("错误", "模型未初始化", self)
@@ -7238,11 +7264,8 @@ th {{
         self._pdf_doc_style = style_key
         self._pdf_dpi = dpi
 
-        if self._predict_busy:
-            from qfluentwidgets import MessageBox
-            msg = MessageBox("提示", "正在识别，请稍候", self)
-            msg.cancelButton.hide()
-            msg.exec()
+        if self.is_recognition_busy(source="main"):
+            self._show_recognition_busy_info()
             return
 
         self._predict_busy = True
@@ -7463,11 +7486,8 @@ th {{
             self.overlay = None
         if pixmap is None:
             return
-        if self._predict_busy:
-            from qfluentwidgets import MessageBox
-            msg = MessageBox("提示", "正在识别，请稍候", self)
-            msg.cancelButton.hide()
-            msg.exec()
+        if self.is_recognition_busy(source="main"):
+            self._show_recognition_busy_info()
             return
         try:
             img = self._qpixmap_to_pil(pixmap)
@@ -7675,6 +7695,7 @@ th {{
         """构建混合内容（文字+公式）的 HTML"""
         import html
         import re
+        tokens = _preview_theme_tokens()
         
         # 提取并保护公式部分
         # 先匹配块级公式 $$...$$，再匹配行内公式 $...$
@@ -7723,12 +7744,44 @@ th {{
 </script>
 <script src="tex-mml-chtml.js" async></script>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-       padding: 16px; line-height: 1.8; font-size: 14px; }}
-.MathJax {{ font-size: 1.1em; }}
+html, body {{
+       margin: 0;
+       padding: 0;
+       background: {tokens['body_bg']};
+       color: {tokens['body_text']};
+}}
+body {{
+       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       padding: 16px;
+       line-height: 1.8;
+       font-size: 14px;
+}}
+.content {{
+       min-height: calc(100vh - 32px);
+       background: {tokens['panel_bg']};
+       border: 1px solid {tokens['table_border']};
+       border-radius: 10px;
+       padding: 14px 16px;
+       box-sizing: border-box;
+}}
+.content br {{
+       line-height: 1.8;
+}}
+.MathJax, .mjx-container {{
+       font-size: 1.1em;
+       color: {tokens['body_text']} !important;
+}}
+a {{
+       color: {tokens['label_text']};
+}}
+pre, code {{
+       background: {tokens['pre_bg']};
+       color: {tokens['body_text']};
+       border-radius: 6px;
+}}
 </style>
 </head>
-<body>{body_content}</body>
+<body><div class="content">{body_content}</div></body>
 </html>'''
 
     def _build_mixed_preview_html(self, formulas: list, labels: list) -> str:
