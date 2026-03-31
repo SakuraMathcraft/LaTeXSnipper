@@ -2694,6 +2694,7 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 from backend.model import ModelWrapper
 from backend.model_factory import create_model_wrapper
+from backend.external_model import ExternalModelWorker, load_config_from_mapping
 from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
 from backend.latex_renderer import init_latex_settings, get_latex_renderer
 from editor.workbench_window import WorkbenchWindow
@@ -4992,7 +4993,9 @@ class MainWindow(_QMainWindow):
             print("[DEBUG] ModelWrapper 初始化完成")
 
             # 根据当前模式和对应模型的实际状态设置状态文本
-            if self.model.is_model_ready(self.current_model):
+            if self.current_model == "external_model":
+                self.model_status = self._get_external_model_status_text()
+            elif self.model.is_model_ready(self.current_model):
                 self.model_status = "已加载"
             elif self.current_model.startswith("pix2text") and self.model._pix2text_import_failed:
                 self.model_status = f"加载失败 ({self.current_model})"
@@ -5062,7 +5065,10 @@ class MainWindow(_QMainWindow):
 
         try:
             if self.model:
-                self._report_startup_progress("正在后台预热识别模型与 worker...")
+                if self._get_preferred_model_for_predict() == "external_model":
+                    self._report_startup_progress("外部模型模式已启用")
+                else:
+                    self._report_startup_progress("正在后台预热识别模型与 worker...")
                 QTimer.singleShot(0, self._warmup_desired_model)
         except Exception:
             pass
@@ -6645,7 +6651,7 @@ th {{
     def _sanitize_model_config(self):
         """校验并收敛当前仍支持的模型配置。"""
         try:
-            valid_models = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
+            valid_models = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model"}
             default_model = (self.cfg.get("default_model", "") or "").lower()
             desired_model = (self.cfg.get("desired_model", "") or "").lower()
             changed = False
@@ -6663,12 +6669,21 @@ th {{
             if self.cfg.get("theme_mode", "auto") != theme_mode:
                 self.cfg.set("theme_mode", theme_mode)
                 changed = True
+            external_defaults = load_config_from_mapping(self.cfg).to_mapping()
+            for key, default in external_defaults.items():
+                current = self.cfg.get(key, None)
+                if current is None:
+                    self.cfg.set(key, default)
+                    changed = True
             if changed:
                 print("[INFO] 已校正当前模型配置。")
         except Exception as e:
             print(f"[WARN] 模型配置校验失败: {e}")
 
     def _get_preferred_model_for_predict(self) -> str:
+        desired = (self.cfg.get("desired_model", "pix2text") or "pix2text").lower()
+        if desired == "external_model":
+            return "external_model"
         mode = (self.cfg.get("pix2text_mode", "formula") or "formula").lower()
         mode_map = {
             "formula": "pix2text",
@@ -6679,11 +6694,27 @@ th {{
         }
         return mode_map.get(mode, "pix2text")
 
+    def _get_external_model_config(self):
+        return load_config_from_mapping(self.cfg)
+
+    def _is_external_model_configured(self) -> bool:
+        cfg = self._get_external_model_config()
+        return bool(cfg.normalized_base_url() and cfg.normalized_model_name())
+
+    def _get_external_model_status_text(self) -> str:
+        if self._is_external_model_configured():
+            return "外部模型待连接"
+        return "外部模型未配置"
+
     def _warmup_desired_model(self):
         if not self.model:
             return
         preferred = self._get_preferred_model_for_predict()
         if not preferred:
+            return
+        if preferred == "external_model":
+            self.set_model_status(self._get_external_model_status_text())
+            self._report_startup_progress("外部模型模式已启用，跳过 pix2text 预热")
             return
         self._report_startup_progress("正在后台预热识别模型与 worker...")
         self._ensure_model_warmup_async(
@@ -6823,18 +6854,18 @@ th {{
         from qfluentwidgets import InfoBar, InfoBarPosition
         info_parent = self._get_infobar_parent()
         m = (model_name or "").lower()
-        valid_modes = ("pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table")
+        valid_modes = ("pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model")
         if m not in valid_modes:
             m = "pix2text"
+        prev_model = str(getattr(self, "current_model", "") or "")
 
-        pix2text_unavailable = False
-        pix2text_error_msg = ""
         mode_names = {
             "pix2text": "pix2text 公式识别",
             "pix2text_text": "pix2text 纯文字识别",
             "pix2text_mixed": "pix2text 混合识别",
             "pix2text_page": "pix2text 整页识别",
             "pix2text_table": "pix2text 表格识别",
+            "external_model": "外部模型",
         }
         mode_display = mode_names.get(m, m)
         InfoBar.success(
@@ -6847,8 +6878,8 @@ th {{
 
         self.current_model = m
         self.cfg.set("default_model", m)
-        self.desired_model = "pix2text"
-        self.cfg.set("desired_model", "pix2text")
+        self.desired_model = "external_model" if m == "external_model" else "pix2text"
+        self.cfg.set("desired_model", self.desired_model)
         if m.startswith("pix2text"):
             mode_map = {
                 "pix2text": "formula",
@@ -6858,7 +6889,21 @@ th {{
                 "pix2text_table": "table",
             }
             self.cfg.set("pix2text_mode", mode_map.get(m, "formula"))
-        
+
+        if m == "external_model":
+            self.set_model_status(self._get_external_model_status_text())
+            if self.settings_window:
+                self.settings_window.update_model_selection()
+            if not self._is_external_model_configured():
+                InfoBar.warning(
+                    title="外部模型未配置",
+                    content="请先在设置页填写 Base URL、模型名，并点击“测试连接”。",
+                    parent=info_parent,
+                    duration=5000,
+                    position=InfoBarPosition.TOP
+                )
+            return
+
         # 根据模型实际状态设置状态文本
         if self.model:
             if self.model.is_model_ready(m):
@@ -6871,6 +6916,19 @@ th {{
         # 更新设置窗口选择状态
         if self.settings_window:
             self.settings_window.update_model_selection()
+        if prev_model == "external_model" and m.startswith("pix2text"):
+            if self.model and self.model.is_model_ready(m):
+                self.set_model_status("已加载")
+            else:
+                self.set_model_status(f"待识别时加载 ({m})")
+            InfoBar.info(
+                title="已切换到 pix2text",
+                content="为避免切换时阻塞或闪退，pix2text 将在首次识别时再加载。",
+                parent=info_parent,
+                duration=4500,
+                position=InfoBarPosition.TOP
+            )
+            return
         self._ensure_model_warmup_async(
             preferred_model=m,
             on_fail=lambda msg: InfoBar.warning(
@@ -6932,6 +6990,9 @@ th {{
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return
+        if self.current_model == "external_model" or self._get_preferred_model_for_predict() == "external_model":
+            self._start_external_predict_with_pil(img)
+            return
         if not self.model:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
@@ -6970,6 +7031,43 @@ th {{
         self.predict_thread.started.connect(self.predict_worker.run)
         self.predict_worker.finished.connect(self.on_predict_ok)
         self.predict_worker.failed.connect(self.on_predict_fail)
+        self.predict_worker.finished.connect(self.predict_thread.quit)
+        self.predict_worker.failed.connect(self.predict_thread.quit)
+        self.predict_thread.finished.connect(_cleanup)
+        self.predict_thread.start()
+
+    def _start_external_predict_with_pil(self, img: Image.Image):
+        if self.predict_thread and self.predict_thread.isRunning():
+            custom_warning_dialog("错误", "前一识别线程尚未结束", self)
+            return
+        config = self._get_external_model_config()
+        if not self._is_external_model_configured():
+            self.set_model_status("外部模型未配置")
+            self.set_action_status("请先在设置中配置外部模型", auto_clear_ms=3000)
+            self.open_settings()
+            custom_warning_dialog("提示", "外部模型未配置，请先填写 Base URL 与模型名。", self)
+            return
+        self.current_model = "external_model"
+        self.cfg.set("default_model", "external_model")
+        self.cfg.set("desired_model", "external_model")
+        self._predict_busy = True
+        self.set_model_status("外部模型识别中...")
+        self.predict_thread = QThread()
+        self.predict_worker = ExternalModelWorker(config, img)
+        self.predict_worker.moveToThread(self.predict_thread)
+
+        def _cleanup():
+            self._predict_busy = False
+            if self.predict_worker:
+                self.predict_worker.deleteLater()
+                self.predict_worker = None
+            if self.predict_thread:
+                self.predict_thread.deleteLater()
+                self.predict_thread = None
+
+        self.predict_thread.started.connect(self.predict_worker.run)
+        self.predict_worker.finished.connect(self._on_external_predict_ok)
+        self.predict_worker.failed.connect(self._on_external_predict_fail)
         self.predict_worker.finished.connect(self.predict_thread.quit)
         self.predict_worker.failed.connect(self.predict_thread.quit)
         self.predict_thread.finished.connect(_cleanup)
@@ -7506,10 +7604,27 @@ th {{
         )
         self.system_provider.update_tray_menu(self.tray_icon, hk, handlers)
 
+    def _on_external_predict_ok(self, result):
+        try:
+            output_mode = self._get_external_model_config().normalized_output_mode()
+        except Exception:
+            output_mode = "latex"
+        try:
+            text = result.best_text(output_mode) if result is not None else ""
+        except Exception:
+            text = ""
+        self.on_predict_ok(text)
+
+    def _on_external_predict_fail(self, msg: str):
+        self.on_predict_fail(msg)
+
     def on_predict_ok(self, latex: str):
         used = None
         try:
-            used = getattr(getattr(self, "model", None), "last_used_model", None)
+            if getattr(self, "current_model", "") == "external_model":
+                used = "external_model"
+            else:
+                used = getattr(getattr(self, "model", None), "last_used_model", None)
         except Exception:
             used = None
         if not used:
@@ -7560,7 +7675,10 @@ th {{
         # 获取当前识别模式（优先使用实际使用的模型，便于正确标注类型）
         current_mode = None
         try:
-            current_mode = getattr(getattr(self, "model", None), "last_used_model", None)
+            if getattr(self, "current_model", "") == "external_model":
+                current_mode = "external_model"
+            else:
+                current_mode = getattr(getattr(self, "model", None), "last_used_model", None)
         except Exception:
             current_mode = None
         if not current_mode:
@@ -7917,7 +8035,10 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
     def on_predict_fail(self, msg: str):
         self.set_model_status("失败")
         try:
-            used = getattr(getattr(self, "model", None), "last_used_model", None)
+            if getattr(self, "current_model", "") == "external_model":
+                used = "external_model"
+            else:
+                used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:

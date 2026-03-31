@@ -17,11 +17,11 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'Mathcraft'),
             StringStruct('FileDescription', 'LaTeXSnipper'),
-            StringStruct('FileVersion', '2.1'),
+            StringStruct('FileVersion', '2.2'),
             StringStruct('InternalName', 'LaTeXSnipper'),
             StringStruct('OriginalFilename', 'LaTeXSnipper.exe'),
             StringStruct('ProductName', 'LaTeXSnipper'),
-            StringStruct('ProductVersion', '2.1')
+            StringStruct('ProductVersion', '2.2')
           ]
         )
       ]
