@@ -2,8 +2,8 @@
 from pathlib import Path
 import time
 import pyperclip
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox, QScrollArea)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
 from updater import check_update_dialog
 from deps_bootstrap import custom_warning_dialog
@@ -16,6 +16,12 @@ from backend.torch_runtime import (
     detect_torch_info,
     inject_shared_torch_env,
 )
+from backend.external_model import (
+    ExternalModelConnectionWorker,
+    PRESET_ITEMS,
+    get_preset,
+    load_config_from_mapping,
+)
 from core.restart_contract import build_restart_with_wizard_launch
 
 
@@ -25,13 +31,86 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+class ExternalModelHelpWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            (
+                self.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowSystemMenuHint
+                | Qt.WindowType.WindowCloseButtonHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        self.setWindowTitle("外部模型配置说明")
+        self.setFixedSize(500, 600)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+        title = QLabel("外部模型使用教程")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        editor = QPlainTextEdit(self)
+        editor.setReadOnly(True)
+        editor.setPlainText(
+            "适用范围\n"
+            "1. 本地接口：推荐，适合 Ollama、本地 OpenAI-compatible 服务。\n"
+            "2. 线上接口：兼容部分 OpenAI-compatible / Ollama 在线接口，但需要你自己确认鉴权、模型名和额度。\n\n"
+            "字段说明\n"
+            "1. 协议：必填。决定请求格式。\n"
+            "2. Base URL：必填。本地示例 http://127.0.0.1:11434 ，线上示例 https://example.com 。\n"
+            "3. 模型名：必填。必须与服务中实际可用的模型名称完全一致。\n"
+            "4. API Key：选填。本地服务通常留空，线上接口通常必填。\n"
+            "5. 超时：选填。默认 60 秒，模型较大或网络较慢时可适当提高。\n"
+            "6. 输出偏好：选填。决定程序优先取 LaTeX、Markdown 还是纯文本。\n"
+            "7. 提示词模板 / 自定义提示词：选填。优先使用自定义提示词，留空则使用模板。\n\n"
+            "本地 Ollama 示例\n"
+            "1. 协议：Ollama\n"
+            "2. Base URL：http://127.0.0.1:11434\n"
+            "3. 模型名：qwen2.5vl:7b\n"
+            "4. API Key：留空\n\n"
+            "线上接口示例\n"
+            "1. 协议：按服务要求选择 OpenAI-compatible 或 Ollama\n"
+            "2. Base URL：填写服务商提供的 HTTPS 地址\n"
+            "3. 模型名：填写服务商控制台或模型列表中的真实名称\n"
+            "4. API Key：填写服务商发放的密钥\n\n"
+            "常见问题\n"
+            "1. 测试连接失败：先确认服务已启动、地址可访问、协议选对。\n"
+            "2. 模型名填写错误：通常会返回 404、model not found、unknown model 或类似报错。\n"
+            "3. 本地接口连不上：先用 curl 或浏览器访问 Base URL 对应接口确认服务是否真的在运行。\n"
+            "4. 线上接口失败：优先检查 API Key、账户额度、IP 限制和模型权限。\n\n"
+            "建议顺序\n"
+            "1. 先应用预设。\n"
+            "2. 再把模型名改成你实际部署或购买的模型名。\n"
+            "3. 点测试连接。\n"
+            "4. 测试通过后再截图识别。"
+        )
+        layout.addWidget(editor, 1)
+        close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+
 class SettingsWindow(QDialog):
     """设置窗口 - 使用 QDialog 作为基类"""
     model_changed = pyqtSignal(str)
     env_torch_probe_done = pyqtSignal(str, object, str)
     pix2text_pkg_probe_done = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._model_selection_syncing = False
+        self._external_test_thread = None
+        self._external_test_worker = None
+        self._external_help_window = None
         self._compute_mode_state = "unknown"
         self._theme_is_dark_cached = None
         self.setWindowFlags(
@@ -50,7 +129,7 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # 默认宽度加大，避免 InfoBar 文案被截断
-        self.resize(620, 700)
+        self.resize(600, 700)
         self.setMinimumWidth(600)
         self.setMinimumHeight(700)
         root = QVBoxLayout(self)
@@ -79,21 +158,20 @@ class SettingsWindow(QDialog):
         self._cached_main_torch_ts = 0.0
         self._theme_mode_values = ["light", "dark", "auto"]
         # 模型选择区域
-        lay.addWidget(QLabel("选择识别模式:"))
-        # 使用下拉框支持更多识别模式
+        lay.addWidget(QLabel("选择识别模型:"))
+        # 使用下拉框支持内置模型与外部模型入口
         from qfluentwidgets import ComboBox
         self.model_combo = ComboBox()
         self.model_combo.setFixedHeight(36)
-        # 添加识别模式选项
-        # 添加识别模式选项
-        # 添加识别模式选项
+        # 添加识别模型选项
         self._model_options = [
             ("pix2text", "pix2text - 公式识别"),
+            ("external_model", "外部模型..."),
         ]
         for key, label in self._model_options:
             self.model_combo.addItem(label, userData=key)
         lay.addWidget(self.model_combo)
-        # 模式说明
+        # 模型说明
         self.lbl_model_desc = QLabel()
         self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         self.lbl_model_desc.setWordWrap(True)
@@ -143,6 +221,104 @@ class SettingsWindow(QDialog):
         self.pix2text_mode_combo.currentIndexChanged.connect(self._on_pix2text_mode_changed)
         pix2text_mode_layout.addWidget(self.pix2text_mode_combo)
         lay.addWidget(self.pix2text_mode_widget)
+        self.external_model_widget = QWidget()
+        external_layout = QVBoxLayout(self.external_model_widget)
+        external_layout.setContentsMargins(0, 6, 0, 0)
+        external_layout.setSpacing(6)
+        self.external_intro = QLabel(
+            "先填写协议、Base URL 和模型名，再点击“测试连接”。\n"
+            "需要详细说明时，点击“查看说明”。"
+        )
+        self.external_intro.setWordWrap(True)
+        self.external_intro.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+        external_layout.addWidget(self.external_intro)
+        preset_row = QHBoxLayout()
+        preset_row.setContentsMargins(0, 0, 0, 0)
+        preset_row.setSpacing(6)
+        preset_row.addWidget(QLabel("推荐预设:"))
+        self.external_preset_combo = ComboBox()
+        self.external_preset_combo.setFixedHeight(30)
+        self.external_preset_combo.addItem("不使用预设", userData="")
+        for key, label in PRESET_ITEMS:
+            self.external_preset_combo.addItem(label, userData=key)
+        preset_row.addWidget(self.external_preset_combo, 1)
+        self.external_apply_preset_btn = PushButton(FluentIcon.ROTATE, "应用预设")
+        self.external_apply_preset_btn.setFixedHeight(30)
+        preset_row.addWidget(self.external_apply_preset_btn)
+        external_layout.addLayout(preset_row)
+        protocol_row = QHBoxLayout()
+        protocol_row.setContentsMargins(0, 0, 0, 0)
+        protocol_row.setSpacing(6)
+        protocol_row.addWidget(QLabel("协议:"))
+        self.external_provider_combo = ComboBox()
+        self.external_provider_combo.setFixedHeight(30)
+        self.external_provider_combo.addItem("OpenAI-compatible", userData="openai_compatible")
+        self.external_provider_combo.addItem("Ollama", userData="ollama")
+        protocol_row.addWidget(self.external_provider_combo, 1)
+        external_layout.addLayout(protocol_row)
+        self.external_base_url_input = QLineEdit()
+        self.external_base_url_input.setPlaceholderText("必填：Base URL，例如本地 http://127.0.0.1:11434 或线上 https://api.example.com")
+        self.external_base_url_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_base_url_input)
+        self.external_model_name_input = QLineEdit()
+        self.external_model_name_input.setPlaceholderText("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
+        self.external_model_name_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_model_name_input)
+        self.external_api_key_input = QLineEdit()
+        self.external_api_key_input.setPlaceholderText("选填：API Key。本地通常留空，线上接口通常必填")
+        self.external_api_key_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_api_key_input)
+        output_row = QHBoxLayout()
+        output_row.setContentsMargins(0, 0, 0, 0)
+        output_row.setSpacing(6)
+        output_row.addWidget(QLabel("输出偏好:"))
+        self.external_output_combo = ComboBox()
+        self.external_output_combo.setFixedHeight(30)
+        self.external_output_combo.addItem("LaTeX 优先", userData="latex")
+        self.external_output_combo.addItem("Markdown", userData="markdown")
+        self.external_output_combo.addItem("纯文本", userData="text")
+        output_row.addWidget(self.external_output_combo, 1)
+        output_row.addWidget(QLabel("超时(秒):"))
+        self.external_timeout_input = QLineEdit()
+        self.external_timeout_input.setPlaceholderText("60")
+        self.external_timeout_input.setFixedHeight(30)
+        self.external_timeout_input.setMaximumWidth(90)
+        output_row.addWidget(self.external_timeout_input)
+        external_layout.addLayout(output_row)
+        prompt_row = QHBoxLayout()
+        prompt_row.setContentsMargins(0, 0, 0, 0)
+        prompt_row.setSpacing(6)
+        prompt_row.addWidget(QLabel("提示词模板:"))
+        self.external_prompt_combo = ComboBox()
+        self.external_prompt_combo.setFixedHeight(30)
+        self.external_prompt_combo.addItem("公式 OCR", userData="ocr_formula_v1")
+        self.external_prompt_combo.addItem("Markdown OCR", userData="ocr_markdown_v1")
+        self.external_prompt_combo.addItem("纯文本 OCR", userData="ocr_text_v1")
+        prompt_row.addWidget(self.external_prompt_combo, 1)
+        external_layout.addLayout(prompt_row)
+        self.external_custom_prompt_input = QLineEdit()
+        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（可选，留空则使用模板）")
+        self.external_custom_prompt_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_custom_prompt_input)
+        self.external_status = QLabel("状态：未配置")
+        self.external_status.setWordWrap(True)
+        self.external_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+        external_layout.addWidget(self.external_status)
+        self.external_hint = QLabel("建议先应用一个推荐预设，再把模型名替换成你本地部署或线上服务里实际可用的名称。")
+        self.external_hint.setWordWrap(True)
+        self.external_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+        external_layout.addWidget(self.external_hint)
+        external_btn_row = QHBoxLayout()
+        external_btn_row.setContentsMargins(0, 0, 0, 0)
+        external_btn_row.setSpacing(6)
+        self.external_test_btn = PrimaryPushButton(FluentIcon.SPEED_HIGH, "测试连接")
+        self.external_test_btn.setFixedHeight(32)
+        external_btn_row.addWidget(self.external_test_btn)
+        self.external_help_btn = PushButton(FluentIcon.INFO, "查看说明")
+        self.external_help_btn.setFixedHeight(32)
+        external_btn_row.addWidget(self.external_help_btn)
+        external_layout.addLayout(external_btn_row)
+        lay.addWidget(self.external_model_widget)
         # 已移除 UniMERNet UI（仅保留 pix2text）。
         self.unimernet_widget = None
         self.unimernet_env_widget = None
@@ -291,6 +467,18 @@ class SettingsWindow(QDialog):
         self.btn_detect_latex.clicked.connect(self._detect_latex)
         self.btn_test_latex.clicked.connect(self._test_latex_path)
         self.latex_path_input.textChanged.connect(self._on_latex_path_changed)
+        self.external_apply_preset_btn.clicked.connect(self._apply_external_preset)
+        self.external_test_btn.clicked.connect(self._test_external_model_connection)
+        self.external_help_btn.clicked.connect(self._show_external_model_help)
+        self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
+        self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
+        self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
+        self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
+        self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
+        self.external_model_name_input.textChanged.connect(self._on_external_config_changed)
+        self.external_api_key_input.textChanged.connect(self._on_external_config_changed)
+        self.external_timeout_input.textChanged.connect(self._on_external_config_changed)
+        self.external_custom_prompt_input.textChanged.connect(self._on_external_config_changed)
         # 初始化选择状态
         self._init_model_combo()
         self._update_model_desc()
@@ -966,13 +1154,18 @@ class SettingsWindow(QDialog):
         self._schedule_pix2text_pkg_probe()
         self._schedule_env_torch_probe("pix2text")
         self._init_pix2text_mode()
+        self._init_external_model_config()
         self._update_pix2text_visibility()
     def _on_model_combo_changed(self, index: int):
         # 模型下拉框选择变化
+        if getattr(self, "_model_selection_syncing", False):
+            return
         if index < 0 or index >= len(self._model_options):
             return
         key, _ = self._model_options[index]
-        if self._is_pix2text_ready():
+        if key == "external_model":
+            self.select_model("external_model")
+        elif self._is_pix2text_ready():
             mode_key = self._get_pix2text_mode_key()
             self.select_model(self._pix2text_mode_to_model(mode_key))
         else:
@@ -1019,6 +1212,12 @@ class SettingsWindow(QDialog):
             key, _ = self._model_options[idx]
             return key == "pix2text"
         return False
+    def _is_external_model_selected(self) -> bool:
+        idx = self.model_combo.currentIndex()
+        if idx >= 0 and idx < len(self._model_options):
+            key, _ = self._model_options[idx]
+            return key == "external_model"
+        return False
     def _is_pix2text_ready(self) -> bool:
         # only mark ready after pix2text package is installed
         if getattr(self, "_pix2text_pkg_ready", False):
@@ -1040,6 +1239,7 @@ class SettingsWindow(QDialog):
         if idx >= 0 and idx < len(self._model_options):
             key, _ = self._model_options[idx]
         visible = (key == "pix2text")
+        external_visible = (key == "external_model")
         ready = self._is_pix2text_ready()
         pyexe = self.pix2text_pyexe_input.text().strip()
         pyexe_exists = bool(pyexe and Path(pyexe).exists())
@@ -1053,6 +1253,7 @@ class SettingsWindow(QDialog):
                 self.pix2text_dl_widget.setVisible(visible)
             # 识别类型始终可见（便于用户预先选择）
             self.pix2text_mode_widget.setVisible(visible)
+            self.external_model_widget.setVisible(external_visible)
             if visible:
                 if not pyexe_exists:
                     self.pix2text_env_hint.setText("⚠️ 主依赖环境未就绪，请先运行依赖向导。")
@@ -1060,6 +1261,8 @@ class SettingsWindow(QDialog):
                     self.pix2text_env_hint.setText("⚠️ pix2text 未部署：请先打开【依赖管理向导】安装依赖。")
                 else:
                     self.pix2text_env_hint.setText("💡 pix2text 已部署，可选择识别类型。")
+            if external_visible:
+                self._update_external_model_status()
         except Exception:
             pass
     def _init_render_engine(self):
@@ -1293,11 +1496,14 @@ class SettingsWindow(QDialog):
             return
         key, _ = self._model_options[index]
         descriptions = {
-            "pix2text": "高精度公式识别，支持公式/混合/文字/整页/表格与 PDF 识别。",
+            "pix2text": "内置识别模型，支持公式/混合/文字/整页/表格与 PDF 识别。",
+            "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL、Ollama 等本地服务。",
         }
         desc = descriptions.get(key, "")
         if key == "pix2text":
-            desc += "\n提示：当前版本仅保留 pix2text，依赖统一由主环境管理。"
+            desc += "\n提示：pix2text 依赖由主环境统一管理。"
+        elif key == "external_model":
+            desc += "\n提示：支持本地和部分线上接口。必填：协议、Base URL、模型名；选填：API Key、超时、提示词。"
         self.lbl_model_desc.setText(desc)
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
@@ -1619,10 +1825,171 @@ class SettingsWindow(QDialog):
             duration=4000,
             position=InfoBarPosition.TOP
         )
+    def _set_combo_value(self, combo: ComboBox, value: str):
+        for i in range(combo.count()):
+            if combo.itemData(i) == value:
+                prev = combo.blockSignals(True)
+                combo.setCurrentIndex(i)
+                combo.blockSignals(prev)
+                return
+    def _set_lineedit_value(self, widget: QLineEdit, value: str):
+        prev = widget.blockSignals(True)
+        widget.setText(str(value or ""))
+        widget.blockSignals(prev)
+    def _get_external_combo_value(self, combo: ComboBox, default: str) -> str:
+        idx = combo.currentIndex()
+        if idx >= 0:
+            value = combo.itemData(idx)
+            if value is not None:
+                return str(value)
+        return default
+    def _init_external_model_config(self):
+        cfg = None
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                cfg = self.parent().cfg
+        except Exception:
+            cfg = None
+        config = load_config_from_mapping(cfg or {})
+        data = config.to_mapping()
+        self._set_combo_value(self.external_provider_combo, data["external_model_provider"])
+        self._set_combo_value(self.external_output_combo, data["external_model_output_mode"])
+        self._set_combo_value(self.external_prompt_combo, data["external_model_prompt_template"])
+        self._set_combo_value(self.external_preset_combo, data["external_model_preset"])
+        self._set_lineedit_value(self.external_base_url_input, data["external_model_base_url"])
+        self._set_lineedit_value(self.external_model_name_input, data["external_model_model_name"])
+        self._set_lineedit_value(self.external_api_key_input, data["external_model_api_key"])
+        self._set_lineedit_value(self.external_timeout_input, str(data["external_model_timeout_sec"]))
+        self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
+        self._on_external_preset_changed()
+        self._update_external_model_status()
+    def _collect_external_model_config(self):
+        config = load_config_from_mapping({})
+        config.provider = self._get_external_combo_value(self.external_provider_combo, "openai_compatible")
+        config.base_url = self.external_base_url_input.text().strip()
+        config.model_name = self.external_model_name_input.text().strip()
+        config.api_key = self.external_api_key_input.text().strip()
+        config.output_mode = self._get_external_combo_value(self.external_output_combo, "latex")
+        config.prompt_template = self._get_external_combo_value(self.external_prompt_combo, "ocr_formula_v1")
+        config.custom_prompt = self.external_custom_prompt_input.text().strip()
+        config.preset = self._get_external_combo_value(self.external_preset_combo, "")
+        try:
+            config.timeout_sec = int((self.external_timeout_input.text() or "60").strip())
+        except Exception:
+            config.timeout_sec = 60
+        return config
+    def _save_external_model_config(self):
+        config = self._collect_external_model_config()
+        try:
+            parent_cfg = getattr(self.parent(), "cfg", None)
+            if parent_cfg is not None:
+                for key, value in config.to_mapping().items():
+                    parent_cfg.set(key, value)
+        except Exception:
+            pass
+        self._update_external_model_status()
+    def _on_external_config_changed(self, *_args):
+        self._save_external_model_config()
+    def _on_external_preset_changed(self, *_args):
+        preset = get_preset(self._get_external_combo_value(self.external_preset_combo, ""))
+        if preset:
+            self.external_hint.setText(str(preset.get("hint") or ""))
+        else:
+            self.external_hint.setText("必填项只有协议、Base URL、模型名。若测试提示 model not found / unknown model，通常就是模型名填写不正确。")
+        self._save_external_model_config()
+    def _apply_external_preset(self):
+        preset = get_preset(self._get_external_combo_value(self.external_preset_combo, ""))
+        if not preset:
+            self._show_info("未选择预设", "请选择一个推荐预设后再应用。", "warning")
+            return
+        self._set_combo_value(self.external_provider_combo, str(preset.get("provider") or "openai_compatible"))
+        self._set_lineedit_value(self.external_base_url_input, str(preset.get("base_url") or ""))
+        self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
+        self._set_combo_value(self.external_output_combo, str(preset.get("output_mode") or "latex"))
+        self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
+        self.external_hint.setText(str(preset.get("hint") or ""))
+        self._save_external_model_config()
+        self._show_info("预设已应用", "已填入推荐配置，请按你的本地服务实际情况检查模型名。", "success")
+    def _test_external_model_connection(self):
+        if self._external_test_thread and self._external_test_thread.isRunning():
+            self._show_info("测试进行中", "当前已有一个测试连接任务在后台运行。", "warning")
+            return
+        config = self._collect_external_model_config()
+        self._save_external_model_config()
+        self.external_test_btn.setEnabled(False)
+        self.external_test_btn.setText("测试中...")
+        self._update_external_model_status(test_message="正在后台测试连接，请稍候...")
+
+        self._external_test_thread = QThread(self)
+        self._external_test_worker = ExternalModelConnectionWorker(config)
+        self._external_test_worker.moveToThread(self._external_test_thread)
+
+        def _cleanup():
+            try:
+                self.external_test_btn.setEnabled(True)
+                self.external_test_btn.setText("测试连接")
+            except Exception:
+                pass
+            if self._external_test_worker:
+                self._external_test_worker.deleteLater()
+                self._external_test_worker = None
+            if self._external_test_thread:
+                self._external_test_thread.deleteLater()
+                self._external_test_thread = None
+
+        def _on_ok(ok: bool, message: str):
+            self._update_external_model_status(test_message=message if ok else "测试未通过")
+            self._show_info("测试成功", message or "连接成功，本地服务可访问。", "success")
+
+        def _on_fail(message: str):
+            pretty = self._format_external_test_error(message)
+            self._update_external_model_status(test_message=pretty)
+            self._show_info("测试失败", pretty, "error")
+
+        self._external_test_thread.started.connect(self._external_test_worker.run)
+        self._external_test_worker.finished.connect(_on_ok)
+        self._external_test_worker.failed.connect(_on_fail)
+        self._external_test_worker.finished.connect(self._external_test_thread.quit)
+        self._external_test_worker.failed.connect(self._external_test_thread.quit)
+        self._external_test_thread.finished.connect(_cleanup)
+        self._external_test_thread.start()
+    def _format_external_test_error(self, message: str) -> str:
+        text = str(message or "").strip()
+        low = text.lower()
+        if "model not found" in low or "unknown model" in low or '"error":"model' in low:
+            return f"{text}\n提示：模型名填写错误或该模型未在服务中加载。"
+        if "401" in low or "unauthorized" in low or "invalid api key" in low:
+            return f"{text}\n提示：请检查 API Key 是否必填、是否填写正确。"
+        if "404" in low:
+            return f"{text}\n提示：请检查 Base URL、协议类型以及服务端路由是否正确。"
+        if "timeout" in low:
+            return f"{text}\n提示：服务响应较慢，可提高超时或先确认模型是否已完成加载。"
+        return text
+    def _show_external_model_help(self):
+        if self._external_help_window is None:
+            self._external_help_window = ExternalModelHelpWindow(self)
+            self._external_help_window.destroyed.connect(lambda: setattr(self, "_external_help_window", None))
+        self._external_help_window.show()
+        self._external_help_window.raise_()
+        self._external_help_window.activateWindow()
+    def _update_external_model_status(self, test_message: str = ""):
+        config = self._collect_external_model_config()
+        provider = config.normalized_provider()
+        base_url = config.normalized_base_url()
+        model_name = config.normalized_model_name()
+        if not base_url:
+            status = "状态：未配置。必填项缺少 Base URL。"
+        elif not model_name:
+            status = "状态：未配置。必填项缺少模型名。"
+        else:
+            provider_label = "Ollama" if provider == "ollama" else "OpenAI-compatible"
+            status = f"状态：待测试，协议 {provider_label}，模型 {model_name}"
+        if test_message:
+            status = f"{status}\n最近一次测试：{test_message}"
+        self.external_status.setText(status)
     def select_model(self, model_name: str):
         # 只发射信号，由信号连接的 on_model_changed 处理
         self.model_changed.emit(model_name)
-        self.update_model_selection()
         self._update_compute_mode_label()
     def _update_compute_mode_label(self):
         """更新计算模式状态标签"""
@@ -1642,15 +2009,31 @@ class SettingsWindow(QDialog):
         self.apply_theme_styles(force=True)
     def update_model_selection(self):
         # sync model combo selection state
-        for i, (key, _) in enumerate(self._model_options):
-            if key == "pix2text":
-                self.model_combo.blockSignals(True)
-                self.model_combo.setCurrentIndex(i)
-                self.model_combo.blockSignals(False)
-                break
-        self._init_pix2text_mode()
-        self._update_model_desc()
-        self._update_pix2text_visibility()
+        if getattr(self, "_model_selection_syncing", False):
+            return
+        current = "pix2text"
+        try:
+            if self.parent() and hasattr(self.parent(), "desired_model"):
+                current = str(self.parent().desired_model or "pix2text")
+            elif self.parent() and hasattr(self.parent(), "cfg"):
+                current = str(self.parent().cfg.get("desired_model", current) or current)
+        except Exception:
+            current = "pix2text"
+        target = "external_model" if current == "external_model" else "pix2text"
+        self._model_selection_syncing = True
+        try:
+            for i, (key, _) in enumerate(self._model_options):
+                if key == target:
+                    self.model_combo.blockSignals(True)
+                    self.model_combo.setCurrentIndex(i)
+                    self.model_combo.blockSignals(False)
+                    break
+            self._init_pix2text_mode()
+            self._init_external_model_config()
+            self._update_model_desc()
+            self._update_pix2text_visibility()
+        finally:
+            self._model_selection_syncing = False
 # ---------------- 主窗口 ----------------
 from PyQt6.QtCore import Qt
 
