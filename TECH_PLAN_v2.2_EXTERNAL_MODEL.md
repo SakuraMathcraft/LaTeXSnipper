@@ -1,198 +1,193 @@
-# LaTeXSnipper 2.2 External Model Plan
+# LaTeXSnipper v2.2 外部模型方案
 
-## Goal
+## 目标
 
-LaTeXSnipper 2.2 adds an `external_model` recognition path for local multimodal OCR models without refactoring the existing `pix2text` pipeline.
+`v2.2` 分为两个阶段：
 
-This version is deliberately conservative:
+1. `Beta`
+   - 外部模型图片 / 截图识别接入
+   - 设置页配置、教程、测试连接、模型名校验
+2. `正式版`
+   - 在 Beta 已跑通的基础上，继续把文档识别链路接入外部模型
 
-1. keep current `pix2text` logic working as-is
-2. add a new independent external-model path
-3. provide clear setup guidance in the settings page
-4. keep the code boundary easy to maintain
+当前这份文档以 `v2.2 正式版` 为目标范围。
 
+## 当前状态
 
-## Why This Scope
+### Beta 已完成
 
-The current desktop app already has a working `pix2text` flow in the main PyQt path.
-
-For 2.2, the requirement is not to redesign the recognition system. The requirement is to let users connect better local multimodal OCR models such as:
-
-- Qwen-VL-OCR
-- Qwen2-VL / Qwen3-VL
-- GOT-OCR 2.0
-- GLM-OCR
-- PaddleOCR-VL
-- MinerU-like local services
-- Ollama-hosted vision models
-
-At the same time, the integration risk must stay low.
-
-Therefore 2.2 should avoid:
-
-- changing `src/backend/model.py`
-- changing the old `pix2text` warmup and worker semantics
-- touching deprecated Tauri or daemon-side architecture
-- forcing all future models into one hardcoded model list
-
-
-## Product Positioning
-
-### Existing Path
-
-`pix2text` remains the built-in compatibility path for screenshot and formula recognition.
-
-### New Path
-
-`external_model` becomes a user-configurable local API path for stronger multimodal OCR.
-
-The product language should be:
-
-- built-in recognition: `pix2text`
-- external recognition: `外部模型...`
-
-The user should understand that `外部模型...` is not one fixed model. It is an entry for connecting a local API service.
-
-
-## Core Principle
-
-2.2 should be implemented as a parallel path, not a rewrite.
-
-That means:
-
-- `pix2text` keeps using the current code path
-- `external_model` uses its own config, client, worker, and error handling
-- the two paths meet only at the UI selection layer and final recognition-result insertion layer
-
-
-## Scope
-
-### In Scope
-
-- add `外部模型...` to the recognition model dropdown
-- add a dedicated settings UI for external-model configuration
-- support local HTTP API based recognition
-- support at least two protocol types:
-  - OpenAI-compatible
-  - Ollama
-- add guided onboarding so users know how to configure it
-- keep `pix2text` unchanged
-
-### Out of Scope for 2.2
-
-- refactoring `src/backend/model.py`
-- unifying all recognition backends under one new abstraction layer
-- daemon / Tauri integration work
-- automatic model installation
-- deep PDF parsing redesign
-- MinerU-specific pipeline integration
-- hardcoding many model vendors into the main dropdown
-
-
-## UX Plan
-
-### Recognition Model Dropdown
-
-The settings page recognition-model dropdown should contain only:
-
-- `pix2text - 兼容模式`
-- `外部模型...`
-
-This keeps the product understandable and prevents dropdown bloat.
-
-### Behavior When `pix2text` Is Selected
-
-- keep the current `pix2text` UI visible
-- keep `pix2text` mode selection visible
-- keep current warmup and readiness semantics
-
-### Behavior When `外部模型...` Is Selected
-
-- hide `pix2text`-specific controls
-- show a dedicated external-model configuration card
-- show current configuration summary
-- show setup guidance and a test-connection entry point
-
-
-## Guided Onboarding Requirement
-
-This is the most important UX part of 2.2.
-
-If the user selects `外部模型...` and no valid config exists, the app must not leave the user in an unclear state.
-
-The settings UI should immediately show:
-
-1. what this feature is
-2. what local service types are supported
-3. what fields must be filled
-4. how to verify the service is reachable
-5. what typical model names look like
-
-### Recommended Guidance Block
-
-Suggested guidance copy:
-
-- `外部模型用于连接本机或局域网中的多模态 OCR / VLM 服务。`
-- `推荐协议：OpenAI 兼容接口、Ollama。`
-- `请先在本地启动模型服务，再填写地址与模型名。`
-- `若不确定，可先使用推荐预设自动填入示例配置。`
-
-### Recommended First-Run Flow
-
-When `外部模型...` is selected for the first time:
-
-1. open the external-model section automatically
-2. show a short introduction card
-3. default to a recommended protocol preset
-4. provide one-click preset fill
-5. expose `测试连接`
-6. if test fails, show actionable error text instead of raw stack output
-
-
-## Recommended Settings Fields
-
-The external-model settings area should contain:
-
-- `协议`
-  - `OpenAI-compatible`
+- 设置页新增 `外部模型...`
+- 新增 `src/backend/external_model`
+- 已支持两类协议：
   - `Ollama`
-- `Base URL`
-- `模型名`
-- `API Key`
-- `超时(秒)`
-- `输出偏好`
-  - `LaTeX 优先`
-  - `Markdown`
-  - `纯文本`
-- `系统提示词 / 识别提示词`
-- `测试连接`
-- `使用推荐预设`
+  - `OpenAI-compatible`
+- 已支持配置保存、推荐预设、教程窗口
+- 已支持后台 `测试连接`
+- 已支持测试连接时校验模型名
+- 已接入主窗口图片 / 截图识别链路
+- 已完成 `Ollama + qwen2.5vl` 真实联调
 
-### Recommended Presets
+### Beta 结论
 
-Presets should not be the main architecture. They should only fill forms.
+外部模型基础能力已经可用，且当前测试通过。
 
-Recommended initial presets:
+因此 `v2.2 正式版` 不再只是“图片识别增强”，而是继续向“文档识别接管”推进。
 
-- `GLM-OCR`
-- `PaddleOCR-VL`
-- `Qwen2.5-VL / Qwen3-VL`
-- `Ollama Vision`
+## v2.2 正式版范围
 
-Each preset should only populate:
+### 纳入正式版
 
-- protocol
-- base URL example
-- model name example
-- prompt template
-- output preference
+`v2.2 正式版` 明确包含以下四项：
 
+1. `PDF 识别接管`
+2. `整页文档解析接管`
+   - 仍然走现有 PDF 识别入口
+3. `MinerU 原生接口`
+4. `外部模型接管手写识别全链路`
 
-## Proposed Project Structure
+### 本次不单独拆版本
 
-2.2 should introduce a dedicated external-model domain under `src/backend/external_model`.
+以上能力不再延后到 `v2.3`，而是作为 `v2.2 正式版` 的正式范围。
 
-Recommended structure:
+## 核心原则
+
+正式版虽然扩了范围，但仍然坚持这几个原则：
+
+1. 不重写现有 `pix2text` 主链路
+2. 不碰废弃的 Tauri / daemon 路线
+3. 外部模型继续放在 `src/backend/external_model`
+4. 新能力优先做“并行接管”，而不是“整体重构”
+5. 不按具体模型名做渲染或结果适配
+
+也就是说：
+
+- `pix2text` 继续作为内置路径保留
+- `external_model` 继续作为独立路径扩展
+- 两条链路在入口分流，在结果插入层汇合
+
+## 产品语义
+
+### 来源与内容类型分离
+
+这点对正式版很重要。
+
+不为每个模型单独建立类型标签，例如：
+
+- 不做 `qwen_vl`
+- 不做 `glm_ocr`
+- 不做 `mineru`
+
+而是分成两层：
+
+1. 识别来源
+   - `pix2text`
+   - `external_model`
+2. 内容类型
+   - `formula`
+   - `text`
+   - `mixed`
+   - `page`
+   - `table`
+
+现阶段可以继续复用已有成熟渲染系统，不急着大改渲染架构。
+
+## 正式版能力拆解
+
+### 1. PDF 识别接管
+
+目标：
+
+- 当用户选择 `外部模型...` 时，PDF 识别不再强制退回 `pix2text`
+- 外部模型可以接管现有 PDF 识别入口
+
+原则：
+
+- 保留现有 PDF 入口和大体交互
+- 不重做一个新的 PDF 页面
+- 在现有入口内部按后端分流
+
+建议实现：
+
+- 新增 `src/backend/external_model/pdf_worker.py`
+- 将 PDF 页面渲染为图片后，交给外部模型识别
+- 结果按页聚合，再进入现有结果展示 / 确认流程
+
+### 2. 整页文档解析接管
+
+目标：
+
+- 继续沿用 PDF 识别入口
+- 支持整页文本、整页公式、整页混合内容的解析
+
+这里不是单纯“把 PDF 当很多张截图”。
+
+需要增加一个更明确的整页模式，例如：
+
+- `page`
+- `document`
+
+建议实现：
+
+- 新增 `src/backend/external_model/document_pipeline.py`
+- 负责：
+  - 页面图片预处理
+  - 按任务类型选择提示词
+  - 聚合整页结果
+  - 结构化返回
+
+### 3. MinerU 原生接口
+
+目标：
+
+- 支持不走 `OpenAI-compatible`
+- 直接接入 MinerU 原生服务接口
+
+这是正式版里唯一一个新增协议族的专项支持。
+
+原因很明确：
+
+- MinerU 不是单纯聊天式 VLM 接口
+- 它更像文档解析服务
+- 如果继续伪装成 `OpenAI-compatible`，后面维护会越来越乱
+
+建议实现：
+
+- 新增：
+  - `src/backend/external_model/mineru_client.py`
+  - `src/backend/external_model/mineru_worker.py`
+- 设置页协议新增：
+  - `MinerU`
+- 配置项允许填写：
+  - Base URL
+  - API Token / Key
+  - 接口路径
+  - 文档解析模式
+
+### 4. 手写识别全链路接管
+
+目标：
+
+- 当用户当前选择 `external_model` 时
+- 手写识别不再强制走 `pix2text`
+- 从画板导出图像，到识别，到结果展示，整条链路都走外部模型
+
+原则：
+
+- 保留现有手写识别窗口和交互
+- 只在识别提交点分流
+
+建议实现：
+
+- 手写识别本质仍是图片识别
+- 但需要单独检查：
+  - 自动识别触发
+  - 连续识别
+  - 清空重写
+  - 手写窗口关闭时线程回收
+
+## 项目结构
+
+正式版建议扩成这样：
 
 ```text
 src/
@@ -205,284 +200,275 @@ src/
       __init__.py
       client.py
       worker.py
+      pdf_worker.py
+      document_pipeline.py
+      mineru_client.py
+      mineru_worker.py
       presets.py
       prompts.py
       schemas.py
       errors.py
 ```
 
-### Module Responsibilities
+### 各模块职责
 
-#### `src/backend/external_model/client.py`
+#### `client.py`
 
-Responsible for:
+- 处理通用图片识别请求
+- 适配 `Ollama` / `OpenAI-compatible`
+- 做统一结果归一化
 
-- building HTTP requests
-- adapting protocol differences
-- converting image input to request payload
-- parsing response into a normalized result
+#### `worker.py`
 
-This module should not know about PyQt widgets.
+- 处理图片 / 截图识别后台线程
 
-#### `src/backend/external_model/worker.py`
+#### `pdf_worker.py`
 
-Responsible for:
+- 处理 PDF 页级识别任务
+- 控制页循环、进度、取消、聚合
 
-- running external recognition off the UI thread
-- timeout control
-- success / error signal emission
+#### `document_pipeline.py`
 
-This module should mirror the existing worker style used by the desktop app, but remain independent from `pix2text`.
+- 处理整页文档提示词、任务路由、结构化结果组装
 
-#### `src/backend/external_model/presets.py`
+#### `mineru_client.py`
 
-Responsible for:
+- 专门处理 MinerU 原生接口
+- 不和通用 VLM 协议混在一起
 
-- storing preset definitions
-- filling default form values
-- keeping vendor-specific examples out of `main.py`
+#### `mineru_worker.py`
 
-#### `src/backend/external_model/prompts.py`
+- 专门处理 MinerU 文档任务的后台执行
 
-Responsible for:
+## 设置页方案
 
-- storing recommended prompt templates
-- separating recognition prompt tuning from UI code
+### 识别模型下拉框
 
-#### `src/backend/external_model/schemas.py`
+仍保持极简：
 
-Responsible for:
+- `pix2text - 兼容模式`
+- `外部模型...`
 
-- defining normalized config payload
-- defining normalized recognition result payload
+不把具体模型名塞进主下拉框。
 
-#### `src/backend/external_model/errors.py`
+### 外部模型协议
 
-Responsible for:
+正式版建议支持三类：
 
-- defining user-facing error categories
-- mapping raw request errors into concise messages
+- `Ollama`
+- `OpenAI-compatible`
+- `MinerU`
 
+### 引导要求
 
-## Integration Strategy
+设置页仍然是核心引导入口。
 
-### Keep Existing `pix2text` Path
+需要继续保证：
 
-Do not change:
+- 用户知道哪些字段必填
+- 能区分本地接口和线上接口
+- 能知道模型名 / 接口路径填错时该怎么排查
+- 能先测试连接，再开始识别
 
-- `src/backend/model.py`
-- existing `pix2text` warmup logic
-- existing `pix2text` mode mapping
-- existing PDF logic unless required for basic branching
+## 结果与类型策略
 
-### Add a New Branch in Main Flow
+### 不按模型做类型适配
 
-`src/main.py` should only gain a small branch:
+正式版继续坚持：
 
-1. detect whether current selection is `pix2text` or `external_model`
-2. if `pix2text`, keep old logic
-3. if `external_model`, dispatch to the new worker
+- 不为每个模型单独做 UI 类型分支
+- 不为每个模型单独做渲染分支
 
-This keeps blast radius small.
+### 统一结果结构
 
-
-## Configuration Strategy
-
-External-model config should remain independent from `pix2text` config.
-
-Recommended config keys:
-
-```json
-{
-  "default_model": "pix2text",
-  "external_model_enabled": false,
-  "external_model_provider": "openai_compatible",
-  "external_model_base_url": "http://127.0.0.1:11434",
-  "external_model_model_name": "",
-  "external_model_api_key": "",
-  "external_model_timeout_sec": 60,
-  "external_model_output_mode": "latex",
-  "external_model_prompt_template": "ocr_formula_v1",
-  "external_model_preset": ""
-}
-```
-
-Important:
-
-- do not mix these values into `pix2text_mode`
-- do not reuse `pix2text` readiness flags
-- do not let `external_model` pretend to be a `pix2text_*` variant
-
-
-## Protocol Support
-
-2.2 should support only two protocol families.
-
-### 1. OpenAI-Compatible
-
-Used for:
-
-- local OpenAI-compatible OCR/VLM services
-- vLLM-like deployments
-- SGLang-like deployments
-- other compatible wrappers
-
-### 2. Ollama
-
-Used for:
-
-- locally hosted vision-capable Ollama models
-
-This is enough for 2.2. More providers should be added later only when they require real protocol differences.
-
-
-## Result Normalization
-
-External models will return inconsistent payloads. The app should normalize results early.
-
-Recommended normalized result shape:
+建议补强统一结果结构：
 
 ```python
 {
-    "text": "...",
-    "latex": "...",
-    "markdown": "...",
     "backend": "external_model",
     "provider": "ollama",
     "model_name": "qwen2.5vl:7b",
+    "content_type": "formula",
+    "text": "...",
+    "latex": "...",
+    "markdown": "...",
+    "blocks": [],
     "raw": {...}
 }
 ```
 
-The desktop UI should consume this normalized result instead of provider-specific response formats.
+### 正式版目标
 
+正式版至少应做到：
 
-## Validation and Error UX
+- 外部模型来源可区分
+- 内容类型可稳定映射到现有渲染系统
+- PDF / 整页 / 手写链路都能把结果带入同一套展示逻辑
 
-The settings page should include `测试连接`.
+## 集成策略
 
-Validation checks should include:
+### 保持 `pix2text` 不动
 
-- URL format is valid
-- protocol type is selected
-- model name is not empty
-- service responds within timeout
+仍然不要主动重构：
 
-Recommended user-facing error messages:
+- `src/backend/model.py`
+- 旧 `pix2text` worker
+- 旧 Tauri / daemon 路线
 
-- `无法连接到本地服务，请确认服务已启动。`
-- `模型名为空，请填写本地服务中可用的模型名称。`
-- `接口返回格式不受支持，请切换协议或检查模型服务。`
-- `识别超时，请提高超时设置或更换更轻量的模型。`
+### 在主流程中继续按入口分流
 
-Avoid exposing raw traceback in the normal setup flow.
+`src/main.py` 中继续采用低风险分流：
 
+1. 图片 / 截图识别
+2. PDF 识别
+3. 手写识别
 
-## Main Window Behavior
+每个入口分别判断：
 
-When external model is selected:
+- 当前是否为 `external_model`
+- 如果是，则走 `external_model` 自己的 worker / pipeline
+- 如果不是，则保持原有 `pix2text` 路线
 
-- do not run `pix2text` warmup
-- do not display `pix2text`-specific loading messages
-- display a backend-specific status such as:
-  - `外部模型未配置`
-  - `外部模型待测试`
-  - `外部模型已就绪`
-  - `外部模型识别中...`
+## 建议开发阶段
 
-If the user starts recognition without a valid config:
+### Phase 1: PDF 接管
 
-- interrupt the action
-- open or focus the settings guidance
-- show a direct message telling the user what is missing
+- 接通 PDF 入口分流
+- 新增 `pdf_worker.py`
+- 支持页渲染、页级调用、结果聚合
 
+### Phase 2: 整页文档解析
 
-## Suggested Development Phases
+- 新增 `document_pipeline.py`
+- 支持整页识别提示词和结构化结果
+- 让 PDF 识别入口支持整页模式
 
-### Phase 1: Infrastructure
+### Phase 3: 手写识别接管
 
-- create `src/backend/external_model`
-- add config read/write helpers
-- add client and worker skeleton
-- define normalized result and error model
+- 在手写识别入口加 `external_model` 分流
+- 跑通手写到结果展示全链路
 
-### Phase 2: Settings UI
+### Phase 4: MinerU 原生接口
 
-- add `外部模型...` dropdown item
-- add configuration area
-- add guidance card
-- add preset fill
-- add `测试连接`
+- 新增 `MinerU` 协议
+- 增加专用 client / worker
+- 跑通 PDF / 文档类场景
 
-### Phase 3: Main-Flow Branching
+### Phase 5: 收口与回归
 
-- branch recognition entry in `src/main.py`
-- integrate worker callbacks
-- map normalized result into existing result insertion flow
+- 回归 `external_model -> pix2text` 切换
+- 回归图片 / PDF / 手写三条主链路
+- 回归错误提示、线程回收、窗口关闭行为
 
-### Phase 4: Polish
+## 当前执行进度（2026-04-01）
 
-- improve prompt templates
-- improve error messages
-- add recommended preset copy
-- add status summary text in settings page
+### Phase 1：已收口
 
+- `PDF 入口分流` 已接通并稳定运行
+- `src/backend/external_model/pdf_worker.py` 已用于页级渲染与聚合
+- 取消识别、进度回传、结果聚合已在外部模型 PDF 路径可用
 
-## Risks and Mitigations
+### Phase 2：已收口
 
-### Risk 1: Users do not know how to configure local services
+- 已新增 `src/backend/external_model/document_pipeline.py`
+- 已在 PDF 外部模型流程接入 `document/page` 解析模式
+- 已实现按提示词路由、页级处理、结构化聚合（`backend/mode/pages`）
 
-Mitigation:
+### Phase 3：已收口
 
-- make guidance first-class in settings
-- include presets and examples
-- provide `测试连接`
+- 已在手写识别入口支持 `external_model` 分流
+- 已支持手写识别任务在 `pix2text / external_model` 间按当前偏好自动路由
+- 已补外部模型配置校验，未配置时可直接引导打开设置
+- 已保持自动识别、连续识别、窗口关闭线程回收的既有行为
 
-### Risk 2: External model outputs are inconsistent
+### Phase 4：已收口
 
-Mitigation:
+- 已新增 `src/backend/external_model/mineru_client.py`
+- 已新增 `src/backend/external_model/mineru_worker.py`
+- 设置页协议新增 `MinerU`，支持配置：
+  - 解析接口路径
+  - 健康检查路径
+  - 文档解析模式（auto/document/page）
+- `external_model` 主链路已支持 `MinerU` 协议测试连接与识别调用
+- 主窗口外部模型配置判定已兼容 `MinerU`（不再强制模型名）
 
-- normalize results in `client.py`
-- keep prompt templates centralized
+### Phase 5：已完成（全链路回归收口）
 
-### Risk 3: Regression in existing `pix2text` flow
+- 已回归 `external_model -> pix2text` 切换路径，保持延迟加载策略与状态文案一致
+- 已回归图片 / 截图识别链路：
+  - 外部模型连接状态与主窗口状态栏联动
+  - 真实模型名显示与“已连接/待连接”状态一致
+- 已回归 PDF 识别链路：
+  - 外部模型分流、取消、进度、结果窗口展示保持可用
+  - `document/page` 模式与偏好模板流程保持可用
+- 已回归手写识别链路：
+  - `external_model` 分流保持可用
+  - 自动识别、连续识别、窗口关闭线程回收保持可用
+- 已回归错误提示与配置引导：
+  - 按协议动态提示必填项（MinerU 不再误提示“模型名必填”）
+  - 未配置时统一可引导回设置页
 
-Mitigation:
+### 仍待后续阶段
 
-- do not modify `src/backend/model.py`
-- use a separate worker and separate config keys
-- keep branching shallow in `src/main.py`
+- 无（`v2.2` 计划范围内阶段已全部收口）
 
-### Risk 4: Scope creep into full recognition refactor
+## 风险与控制
 
-Mitigation:
+### 风险 1：范围变大
 
-- explicitly keep 2.2 as a parallel-path release
-- defer unified backend abstraction to a later version if needed
+控制方式：
 
+- 不做总架构重写
+- 继续按入口分阶段接管
 
-## Non-Goals Reminder
+### 风险 2：文档结果不一致
 
-2.2 is not the version to:
+控制方式：
 
-- redesign all recognition architecture
-- merge external model and `pix2text` internals
-- support every OCR engine with dedicated code
-- overhaul PDF recognition
+- 将结果归一化前置到 `external_model` 模块内部
+- 提示词集中管理
 
-The correct outcome is simpler:
+### 风险 3：MinerU 接口特殊性导致耦合失控
 
-`pix2text` remains stable, and users who want stronger OCR can connect a local external model through a well-guided settings flow.
+控制方式：
 
+- MinerU 独立 client
+- 不伪装成 `OpenAI-compatible`
 
-## Final Recommendation
+### 风险 4：影响现有 `pix2text`
 
-For 2.2, the best maintainable plan is:
+控制方式：
 
-1. add `src/backend/external_model`
-2. keep `pix2text` untouched
-3. add exactly one new dropdown entry: `外部模型...`
-4. make configuration guidance a first-class UX feature
-5. support only `OpenAI-compatible` and `Ollama` protocols in the first release
+- 不修改 `model.py`
+- 所有新增逻辑在 `src/backend/external_model`
+- 主窗口只做分流和结果接线
 
-This gives users a practical upgrade path without destabilizing the current desktop codebase.
+## 正式版完成标准
+
+`v2.2 正式版` 以这些条件作为完成标准：
+
+1. 外部模型可接管图片 / 截图识别
+2. 外部模型可接管 PDF 识别入口
+3. 外部模型可完成整页文档解析
+4. 外部模型可接管手写识别全链路
+5. `MinerU` 原生接口可配置并可联调
+6. 结果能进入现有确认、历史、收藏、展示流程
+7. `pix2text` 原链路不回归
+
+## 最终结论
+
+`v2.2 beta` 已经完成“外部模型基础接入”。
+
+`v2.2 正式版` 现在明确升级为“外部模型文档识别接管版本”，范围包括：
+
+- PDF 识别接管
+- 整页文档解析接管
+- MinerU 原生接口
+- 手写识别全链路接管
+
+实现策略仍然保持低风险：
+
+- 不重写旧链路
+- 不碰废弃架构
+- 继续围绕 `src/backend/external_model` 扩展
+- 通过入口分流完成能力接管

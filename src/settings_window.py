@@ -72,6 +72,12 @@ class ExternalModelHelpWindow(QDialog):
             "5. 超时：选填。默认 60 秒，模型较大或网络较慢时可适当提高。\n"
             "6. 输出偏好：选填。决定程序优先取 LaTeX、Markdown 还是纯文本。\n"
             "7. 提示词模板 / 自定义提示词：选填。优先使用自定义提示词，留空则使用模板。\n\n"
+            "提示词生效边界（重要）\n"
+            "1. 自定义提示词优先级最高：只要填写，就会覆盖模板选择。\n"
+            "2. 普通图片/截图识别：使用当前设置中的提示词规则。\n"
+            "3. PDF 外部模型识别：会先弹出“识别偏好”选择模板；但如果自定义提示词不为空，仍以自定义提示词为准。\n"
+            "4. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本。\n"
+            "5. 想让 PDF 偏好模板生效：请先清空“自定义提示词”输入框。\n\n"
             "本地 Ollama 示例\n"
             "1. 协议：Ollama\n"
             "2. Base URL：http://127.0.0.1:11434\n"
@@ -254,6 +260,7 @@ class SettingsWindow(QDialog):
         self.external_provider_combo.setFixedHeight(30)
         self.external_provider_combo.addItem("OpenAI-compatible", userData="openai_compatible")
         self.external_provider_combo.addItem("Ollama", userData="ollama")
+        self.external_provider_combo.addItem("MinerU", userData="mineru")
         protocol_row.addWidget(self.external_provider_combo, 1)
         external_layout.addLayout(protocol_row)
         self.external_base_url_input = QLineEdit()
@@ -268,6 +275,27 @@ class SettingsWindow(QDialog):
         self.external_api_key_input.setPlaceholderText("选填：API Key。本地通常留空，线上接口通常必填")
         self.external_api_key_input.setFixedHeight(32)
         external_layout.addWidget(self.external_api_key_input)
+        self.external_mineru_endpoint_input = QLineEdit()
+        self.external_mineru_endpoint_input.setPlaceholderText("MinerU 解析接口路径（例如 /v1/parse）")
+        self.external_mineru_endpoint_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_mineru_endpoint_input)
+        self.external_mineru_test_endpoint_input = QLineEdit()
+        self.external_mineru_test_endpoint_input.setPlaceholderText("MinerU 健康检查路径（例如 /health）")
+        self.external_mineru_test_endpoint_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_mineru_test_endpoint_input)
+        mineru_mode_row = QHBoxLayout()
+        mineru_mode_row.setContentsMargins(0, 0, 0, 0)
+        mineru_mode_row.setSpacing(6)
+        mineru_mode_row.addWidget(QLabel("MinerU 解析模式:"))
+        self.external_mineru_mode_combo = ComboBox()
+        self.external_mineru_mode_combo.setFixedHeight(30)
+        self.external_mineru_mode_combo.addItem("自动", userData="auto")
+        self.external_mineru_mode_combo.addItem("文档", userData="document")
+        self.external_mineru_mode_combo.addItem("页面", userData="page")
+        mineru_mode_row.addWidget(self.external_mineru_mode_combo, 1)
+        self.external_mineru_mode_row = QWidget()
+        self.external_mineru_mode_row.setLayout(mineru_mode_row)
+        external_layout.addWidget(self.external_mineru_mode_row)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
         output_row.setSpacing(6)
@@ -297,7 +325,7 @@ class SettingsWindow(QDialog):
         prompt_row.addWidget(self.external_prompt_combo, 1)
         external_layout.addLayout(prompt_row)
         self.external_custom_prompt_input = QLineEdit()
-        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（可选，留空则使用模板）")
+        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（最高优先级；填写后会覆盖模板与PDF偏好模板。仅对 OpenAI-compatible/Ollama 生效）")
         self.external_custom_prompt_input.setFixedHeight(32)
         external_layout.addWidget(self.external_custom_prompt_input)
         self.external_status = QLabel("状态：未配置")
@@ -472,11 +500,15 @@ class SettingsWindow(QDialog):
         self.external_help_btn.clicked.connect(self._show_external_model_help)
         self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
+        self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
+        self.external_mineru_mode_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
         self.external_model_name_input.textChanged.connect(self._on_external_config_changed)
         self.external_api_key_input.textChanged.connect(self._on_external_config_changed)
+        self.external_mineru_endpoint_input.textChanged.connect(self._on_external_config_changed)
+        self.external_mineru_test_endpoint_input.textChanged.connect(self._on_external_config_changed)
         self.external_timeout_input.textChanged.connect(self._on_external_config_changed)
         self.external_custom_prompt_input.textChanged.connect(self._on_external_config_changed)
         # 初始化选择状态
@@ -1861,7 +1893,11 @@ class SettingsWindow(QDialog):
         self._set_lineedit_value(self.external_api_key_input, data["external_model_api_key"])
         self._set_lineedit_value(self.external_timeout_input, str(data["external_model_timeout_sec"]))
         self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
+        self._set_lineedit_value(self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"])
+        self._set_lineedit_value(self.external_mineru_test_endpoint_input, data["external_model_mineru_test_endpoint"])
+        self._set_combo_value(self.external_mineru_mode_combo, data["external_model_mineru_mode"])
         self._on_external_preset_changed()
+        self._update_external_provider_visibility()
         self._update_external_model_status()
     def _collect_external_model_config(self):
         config = load_config_from_mapping({})
@@ -1873,11 +1909,62 @@ class SettingsWindow(QDialog):
         config.prompt_template = self._get_external_combo_value(self.external_prompt_combo, "ocr_formula_v1")
         config.custom_prompt = self.external_custom_prompt_input.text().strip()
         config.preset = self._get_external_combo_value(self.external_preset_combo, "")
+        config.mineru_endpoint = self.external_mineru_endpoint_input.text().strip()
+        config.mineru_test_endpoint = self.external_mineru_test_endpoint_input.text().strip()
+        config.mineru_mode = self._get_external_combo_value(self.external_mineru_mode_combo, "auto")
         try:
             config.timeout_sec = int((self.external_timeout_input.text() or "60").strip())
         except Exception:
             config.timeout_sec = 60
         return config
+
+    def _external_config_signature(self, config) -> str:
+        provider = config.normalized_provider()
+        base_url = config.normalized_base_url()
+        model_name = config.normalized_model_name()
+        mineru_endpoint = config.normalized_mineru_endpoint()
+        mineru_mode = config.normalized_mineru_mode()
+        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}|{mineru_mode}"
+
+    def _is_external_required_fields_ready(self, config) -> bool:
+        provider = config.normalized_provider()
+        if not config.normalized_base_url():
+            return False
+        if provider == "mineru":
+            return bool(config.normalized_mineru_endpoint())
+        return bool(config.normalized_model_name())
+
+    def _update_external_provider_visibility(self):
+        config = self._collect_external_model_config()
+        is_mineru = config.normalized_provider() == "mineru"
+        self.external_mineru_endpoint_input.setVisible(is_mineru)
+        self.external_mineru_test_endpoint_input.setVisible(is_mineru)
+        self.external_mineru_mode_row.setVisible(is_mineru)
+        if is_mineru:
+            self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU 原生接口通常可留空）")
+        else:
+            self.external_model_name_input.setPlaceholderText("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
+
+    def _on_external_provider_changed(self, *_args):
+        self._update_external_provider_visibility()
+
+    def _notify_parent_external_status_changed(self):
+        parent = self.parent()
+        if parent is None:
+            return
+        try:
+            preferred = ""
+            if hasattr(parent, "_get_preferred_model_for_predict"):
+                preferred = str(parent._get_preferred_model_for_predict() or "").strip().lower()
+            current = str(getattr(parent, "current_model", "") or "").strip().lower()
+            if current == "external_model" or preferred == "external_model":
+                if hasattr(parent, "set_model_status") and hasattr(parent, "_get_external_model_status_text"):
+                    parent.set_model_status(parent._get_external_model_status_text())
+                elif hasattr(parent, "refresh_status_label"):
+                    parent.refresh_status_label()
+        except Exception:
+            pass
+
     def _save_external_model_config(self):
         config = self._collect_external_model_config()
         try:
@@ -1885,9 +1972,16 @@ class SettingsWindow(QDialog):
             if parent_cfg is not None:
                 for key, value in config.to_mapping().items():
                     parent_cfg.set(key, value)
+                current_sig = self._external_config_signature(config)
+                tested_sig = str(parent_cfg.get("external_model_last_test_signature", "") or "")
+                if tested_sig != current_sig:
+                    parent_cfg.set("external_model_last_test_ok", False)
+                    parent_cfg.set("external_model_last_test_message", "")
         except Exception:
             pass
+        self._update_external_provider_visibility()
         self._update_external_model_status()
+        self._notify_parent_external_status_changed()
     def _on_external_config_changed(self, *_args):
         self._save_external_model_config()
     def _on_external_preset_changed(self, *_args):
@@ -1907,6 +2001,9 @@ class SettingsWindow(QDialog):
         self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
         self._set_combo_value(self.external_output_combo, str(preset.get("output_mode") or "latex"))
         self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
+        self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/v1/parse"))
+        self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
+        self._set_combo_value(self.external_mineru_mode_combo, str(preset.get("mineru_mode") or "auto"))
         self.external_hint.setText(str(preset.get("hint") or ""))
         self._save_external_model_config()
         self._show_info("预设已应用", "已填入推荐配置，请按你的本地服务实际情况检查模型名。", "success")
@@ -1938,13 +2035,31 @@ class SettingsWindow(QDialog):
                 self._external_test_thread = None
 
         def _on_ok(ok: bool, message: str):
+            cfg = getattr(self.parent(), "cfg", None)
+            if cfg is not None:
+                try:
+                    cfg.set("external_model_last_test_ok", bool(ok))
+                    cfg.set("external_model_last_test_signature", self._external_config_signature(config))
+                    cfg.set("external_model_last_test_message", str(message or ""))
+                except Exception:
+                    pass
             self._update_external_model_status(test_message=message if ok else "测试未通过")
             self._show_info("测试成功", message or "连接成功，本地服务可访问。", "success")
+            self._notify_parent_external_status_changed()
 
         def _on_fail(message: str):
             pretty = self._format_external_test_error(message)
+            cfg = getattr(self.parent(), "cfg", None)
+            if cfg is not None:
+                try:
+                    cfg.set("external_model_last_test_ok", False)
+                    cfg.set("external_model_last_test_signature", self._external_config_signature(config))
+                    cfg.set("external_model_last_test_message", str(pretty or ""))
+                except Exception:
+                    pass
             self._update_external_model_status(test_message=pretty)
             self._show_info("测试失败", pretty, "error")
+            self._notify_parent_external_status_changed()
 
         self._external_test_thread.started.connect(self._external_test_worker.run)
         self._external_test_worker.finished.connect(_on_ok)
@@ -1979,11 +2094,17 @@ class SettingsWindow(QDialog):
         model_name = config.normalized_model_name()
         if not base_url:
             status = "状态：未配置。必填项缺少 Base URL。"
-        elif not model_name:
+        elif provider != "mineru" and not model_name:
             status = "状态：未配置。必填项缺少模型名。"
         else:
-            provider_label = "Ollama" if provider == "ollama" else "OpenAI-compatible"
-            status = f"状态：待测试，协议 {provider_label}，模型 {model_name}"
+            provider_label = "MinerU" if provider == "mineru" else ("Ollama" if provider == "ollama" else "OpenAI-compatible")
+            if provider == "mineru":
+                status = (
+                    f"状态：待测试，协议 {provider_label}，路径 {config.normalized_mineru_endpoint()}，"
+                    f"模式 {config.normalized_mineru_mode()}"
+                )
+            else:
+                status = f"状态：待测试，协议 {provider_label}，模型 {model_name}"
         if test_message:
             status = f"{status}\n最近一次测试：{test_message}"
         self.external_status.setText(status)
