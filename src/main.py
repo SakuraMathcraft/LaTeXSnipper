@@ -7375,7 +7375,7 @@ th {{
 
         tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能导致部分模型整页识别退化。")
         tip.setWordWrap(True)
-        tip.setStyleSheet("color: #666; font-size: 11px;")
+        tip.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; font-size: 11px;")
         layout.addWidget(tip)
 
         def _refresh_dpi_label(value: int):

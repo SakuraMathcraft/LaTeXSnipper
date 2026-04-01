@@ -2420,8 +2420,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-        "• 设置页入口不允许在关键层缺失时“强制进入”，必须先下载或修复依赖。\n"
-        "• 当前版本仅保留 pix2text 方案，不再包含 pix2tex / UniMERNet 相关依赖。\n"
+        "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
+        "• 若你只使用外部模型，可跳过 pix2text 依赖安装，直接在设置页配置外部模型。\n"
+        "• 当前版本不再包含 pix2tex / UniMERNet 相关依赖。\n"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
@@ -2541,7 +2542,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if from_settings or force_verify:
             custom_warning_dialog(
                 "不可进入",
-                "当前是设置页依赖管理入口，关键层不完整。\n请先下载/修复依赖后再继续。",
+                "当前是设置页依赖管理入口，内置 pix2text 关键层不完整。\n若你只使用外部模型，可关闭向导后直接在设置页完成外部模型配置；若要使用 pix2text，请先下载/修复依赖。",
                 dlg
             )
             return
