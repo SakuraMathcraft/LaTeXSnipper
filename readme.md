@@ -164,10 +164,6 @@ LaTeXSnipper/
 │   ├── core/
 │   └── ui/
 ├── LaTeXSnipper.spec
-├── RELEASE_NOTES_v2.0.md
-├── RELEASE_NOTES_v2.2_beta.md
-├── TECH_PLAN_v2.0.md
-├── TECH_PLAN_v2.1_HANDWRITING.md
 ├── version_info.txt
 └── readme.md
 ```
