@@ -75,14 +75,19 @@ class ExternalModelHelpWindow(QDialog):
             "提示词生效边界（重要）\n"
             "1. 自定义提示词优先级最高：只要填写，就会覆盖模板选择。\n"
             "2. 普通图片、截图、手写识别：使用当前设置中的输出偏好和提示词规则。\n"
-            "3. PDF 外部模型识别：导出格式在 PDF 入口单独选择；提示词固定使用通用文档模板，用于整份文档恢复。\n"
+            "3. PDF 外部模型识别：导出格式和 DPI 在 PDF 入口单独选择；默认固定使用通用文档恢复模板。\n"
             "4. 如果填写了自定义提示词，OpenAI-compatible / Ollama 的 PDF 识别也会优先使用自定义提示词。\n"
-            "5. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本。\n\n"
+            "5. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本；解析模式由服务端接口决定是否采用。\n\n"
             "本地 Ollama 示例\n"
             "1. 协议：Ollama\n"
             "2. Base URL：http://127.0.0.1:11434\n"
-            "3. 模型名：qwen2.5vl:7b\n"
+            "3. 模型名：qwen2.5vl:7b 或 glm-ocr\n"
             "4. API Key：留空\n\n"
+            "MinerU 示例\n"
+            "1. 协议：MinerU\n"
+            "2. Base URL：http://127.0.0.1:8000\n"
+            "3. 解析接口路径：按实际服务填写，例如 /v1/parse\n"
+            "4. 健康检查路径：按实际服务填写，例如 /health\n\n"
             "线上接口示例\n"
             "1. 协议：按服务要求选择 OpenAI-compatible 或 Ollama\n"
             "2. Base URL：填写服务商提供的 HTTPS 地址\n"
@@ -92,12 +97,14 @@ class ExternalModelHelpWindow(QDialog):
             "1. 测试连接失败：先确认服务已启动、地址可访问、协议选对。\n"
             "2. 模型名填写错误：通常会返回 404、model not found、unknown model 或类似报错。\n"
             "3. 本地接口连不上：先用 curl 或浏览器访问 Base URL 对应接口确认服务是否真的在运行。\n"
-            "4. 线上接口失败：优先检查 API Key、账户额度、IP 限制和模型权限。\n\n"
+            "4. 线上接口失败：优先检查 API Key、账户额度、IP 限制和模型权限。\n"
+            "5. PDF 结果不稳定：可优先调整 DPI；清晰文档可尝试更低 DPI，普通文档建议 140-170 DPI。\n\n"
             "建议顺序\n"
             "1. 先应用预设。\n"
             "2. 再把模型名改成你实际部署或购买的模型名。\n"
             "3. 点测试连接。\n"
-            "4. 测试通过后再截图识别。"
+            "4. 先测截图 / 图片识别，再测 PDF。\n"
+            "5. PDF 若效果不稳，优先调整 DPI，再考虑改模型或自定义提示词。"
         )
         layout.addWidget(editor, 1)
         close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
@@ -347,7 +354,7 @@ class SettingsWindow(QDialog):
         external_btn_row.addWidget(self.external_help_btn)
         external_layout.addLayout(external_btn_row)
         lay.addWidget(self.external_model_widget)
-        # 已移除 UniMERNet UI（仅保留 pix2text）。
+        # 已移除 UniMERNet UI，当前由 pix2text 与 external_model 两条链路并存。
         self.unimernet_widget = None
         self.unimernet_env_widget = None
         self.unimernet_env_hint = None
@@ -1631,7 +1638,8 @@ class SettingsWindow(QDialog):
             "echo [*] pip/python will use this env",
             "echo.",
             "echo [Model Policy]",
-            "echo   - current build keeps pix2text only",
+            "echo   - built-in dependency wizard manages the pix2text path",
+            "echo   - external_model uses independently deployed local/online services",
             "echo   - use unified main dependency env",
             "echo   - CPU/GPU switch only changes torch + onnxruntime",
             f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",

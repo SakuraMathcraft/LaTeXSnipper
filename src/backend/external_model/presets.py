@@ -4,7 +4,7 @@ PRESETS = {
         "provider": "ollama",
         "base_url": "http://127.0.0.1:11434",
         "model_name": "glm-ocr",
-        "output_mode": "markdown",
+        "output_mode": "latex",
         "prompt_template": "ocr_formula_v1",
         "hint": "适合文档 OCR、表格和公式混合识别；默认按 Ollama 本地服务填写，如走 OpenAI-compatible 请按实际服务修改协议和地址。",
     },
