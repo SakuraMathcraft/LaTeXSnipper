@@ -456,9 +456,15 @@ class HandwritingWindow(QDialog):
     def _get_active_model_key(self) -> str:
         parent = self.owner or self.parent()
         model_key = ""
+        if parent is not None and hasattr(parent, "_get_preferred_model_for_predict"):
+            try:
+                model_key = str(parent._get_preferred_model_for_predict() or "").strip().lower()
+            except Exception:
+                model_key = ""
         if parent is not None and hasattr(parent, "current_model"):
             try:
-                model_key = str(getattr(parent, "current_model") or "").strip().lower()
+                if not model_key:
+                    model_key = str(getattr(parent, "current_model") or "").strip().lower()
             except Exception:
                 model_key = ""
         if not model_key and hasattr(self.model, "_default_model"):
@@ -466,7 +472,7 @@ class HandwritingWindow(QDialog):
                 model_key = str(getattr(self.model, "_default_model") or "").strip().lower()
             except Exception:
                 model_key = ""
-        valid = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
+        valid = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model"}
         return model_key if model_key in valid else "pix2text"
 
     def _get_active_model_label(self) -> str:
@@ -477,7 +483,46 @@ class HandwritingWindow(QDialog):
             "pix2text_page": "整页",
             "pix2text_table": "表格",
         }
-        return labels.get(self._get_active_model_key(), "公式")
+        model_key = self._get_active_model_key()
+        if model_key == "external_model":
+            owner = self.owner
+            if owner is not None and hasattr(owner, "_get_status_model_display_name"):
+                try:
+                    display = str(owner._get_status_model_display_name() or "").strip()
+                    if display:
+                        return display
+                except Exception:
+                    pass
+            cfg = self._get_external_model_config()
+            if cfg is not None:
+                try:
+                    if cfg.normalized_provider() == "mineru":
+                        return "MinerU"
+                    model_name = cfg.normalized_model_name()
+                    if model_name:
+                        return model_name
+                except Exception:
+                    pass
+            return "外部模型"
+        return labels.get(model_key, "公式")
+
+    def _get_external_model_config(self):
+        owner = self.owner
+        if owner is None or not hasattr(owner, "_get_external_model_config"):
+            return None
+        try:
+            return owner._get_external_model_config()
+        except Exception:
+            return None
+
+    def _is_external_model_ready(self) -> bool:
+        owner = self.owner
+        if owner is None or not hasattr(owner, "_is_external_model_configured"):
+            return False
+        try:
+            return bool(owner._is_external_model_configured())
+        except Exception:
+            return False
 
     def _refresh_recognition_context(self) -> None:
         if hasattr(self, "recognition_type_label"):
@@ -498,6 +543,7 @@ class HandwritingWindow(QDialog):
         self.status_label.setText("书写中")
 
     def _run_recognition(self) -> None:
+        self._refresh_recognition_context()
         if self._recognizing:
             self._recognize_pending = True
             return
@@ -512,6 +558,28 @@ class HandwritingWindow(QDialog):
             self.status_label.setText("画布为空")
             self._show_warning("没有可识别内容", "先写入笔迹后再尝试识别。")
             return
+
+        active_model = self._get_active_model_key()
+        external_config = None
+        if active_model == "external_model":
+            if not self._is_external_model_ready():
+                self.status_label.setText("外部模型未配置")
+                owner = self.owner
+                hint = "请先在设置中完成外部模型配置并测试连接。"
+                if owner is not None and hasattr(owner, "_get_external_model_required_fields_hint"):
+                    try:
+                        hint = str(owner._get_external_model_required_fields_hint() or hint)
+                    except Exception:
+                        pass
+                self._show_warning("外部模型未配置", hint)
+                if owner is not None and hasattr(owner, "open_settings"):
+                    try:
+                        owner.open_settings()
+                    except Exception:
+                        pass
+                return
+            external_config = self._get_external_model_config()
+
         self._recognizing = True
         self._recognize_pending = False
         self.status_label.setText("识别中")
@@ -519,7 +587,8 @@ class HandwritingWindow(QDialog):
         self._recognize_worker = HandwritingRecognitionWorker(
             self.model,
             export.image,
-            model_name=self._get_active_model_key(),
+            model_name=active_model,
+            external_config=external_config,
         )
         self._recognize_worker.moveToThread(self._recognize_thread)
         self._recognize_thread.started.connect(self._recognize_worker.run)

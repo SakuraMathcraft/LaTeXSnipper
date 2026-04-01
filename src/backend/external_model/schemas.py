@@ -11,6 +11,9 @@ DEFAULT_CONFIG = {
     "external_model_prompt_template": "ocr_formula_v1",
     "external_model_custom_prompt": "",
     "external_model_preset": "",
+    "external_model_mineru_endpoint": "/v1/parse",
+    "external_model_mineru_test_endpoint": "/health",
+    "external_model_mineru_mode": "auto",
 }
 
 
@@ -32,10 +35,13 @@ class ExternalModelConfig:
     prompt_template: str = "ocr_formula_v1"
     custom_prompt: str = ""
     preset: str = ""
+    mineru_endpoint: str = "/v1/parse"
+    mineru_test_endpoint: str = "/health"
+    mineru_mode: str = "auto"
 
     def normalized_provider(self) -> str:
         value = str(self.provider or "openai_compatible").strip().lower()
-        return value if value in ("openai_compatible", "ollama") else "openai_compatible"
+        return value if value in ("openai_compatible", "ollama", "mineru") else "openai_compatible"
 
     def normalized_output_mode(self) -> str:
         value = str(self.output_mode or "latex").strip().lower()
@@ -57,6 +63,26 @@ class ExternalModelConfig:
     def normalized_api_key(self) -> str:
         return str(self.api_key or "").strip()
 
+    def normalized_mineru_endpoint(self) -> str:
+        value = str(self.mineru_endpoint or "/v1/parse").strip()
+        if not value:
+            value = "/v1/parse"
+        if not value.startswith("/"):
+            value = f"/{value}"
+        return value
+
+    def normalized_mineru_test_endpoint(self) -> str:
+        value = str(self.mineru_test_endpoint or "/health").strip()
+        if not value:
+            value = "/health"
+        if not value.startswith("/"):
+            value = f"/{value}"
+        return value
+
+    def normalized_mineru_mode(self) -> str:
+        value = str(self.mineru_mode or "auto").strip().lower()
+        return value if value in ("auto", "document", "page") else "auto"
+
     def to_mapping(self) -> dict:
         return {
             "external_model_provider": self.normalized_provider(),
@@ -68,6 +94,9 @@ class ExternalModelConfig:
             "external_model_prompt_template": str(self.prompt_template or "ocr_formula_v1").strip() or "ocr_formula_v1",
             "external_model_custom_prompt": str(self.custom_prompt or "").strip(),
             "external_model_preset": str(self.preset or "").strip(),
+            "external_model_mineru_endpoint": self.normalized_mineru_endpoint(),
+            "external_model_mineru_test_endpoint": self.normalized_mineru_test_endpoint(),
+            "external_model_mineru_mode": self.normalized_mineru_mode(),
         }
 
 
@@ -81,13 +110,28 @@ class ExternalModelResult:
     model_name: str = ""
     raw: dict | None = None
 
+    def _normalize_latex_text(self, value: str) -> str:
+        text = (value or "").strip()
+        if not text:
+            return ""
+
+        # If the whole output is wrapped as a single math block, unwrap once so
+        # latex mode yields canonical LaTeX content instead of Markdown wrappers.
+        pairs = (("$$", "$$"), (r"\[", r"\]"), (r"\(", r"\)"))
+        for left, right in pairs:
+            if text.startswith(left) and text.endswith(right):
+                inner = text[len(left): len(text) - len(right)].strip()
+                if inner:
+                    return inner
+        return text
+
     def best_text(self, output_mode: str = "latex") -> str:
         mode = str(output_mode or "latex").strip().lower()
         if mode == "markdown":
             return (self.markdown or self.text or self.latex or "").strip()
         if mode == "text":
             return (self.text or self.markdown or self.latex or "").strip()
-        return (self.latex or self.markdown or self.text or "").strip()
+        return self._normalize_latex_text(self.latex or self.markdown or self.text or "")
 
 
 def load_config_from_mapping(mapping) -> ExternalModelConfig:
@@ -101,4 +145,7 @@ def load_config_from_mapping(mapping) -> ExternalModelConfig:
         prompt_template=str(get_config_value(mapping, "external_model_prompt_template") or "ocr_formula_v1"),
         custom_prompt=str(get_config_value(mapping, "external_model_custom_prompt") or ""),
         preset=str(get_config_value(mapping, "external_model_preset") or ""),
+        mineru_endpoint=str(get_config_value(mapping, "external_model_mineru_endpoint") or "/v1/parse"),
+        mineru_test_endpoint=str(get_config_value(mapping, "external_model_mineru_test_endpoint") or "/health"),
+        mineru_mode=str(get_config_value(mapping, "external_model_mineru_mode") or "auto"),
     )

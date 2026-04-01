@@ -8,6 +8,7 @@ from .errors import (
     ExternalModelConnectionError,
     ExternalModelResponseError,
 )
+from .mineru_client import MineruClient
 from .prompts import build_prompt
 from .schemas import ExternalModelConfig, ExternalModelResult
 
@@ -22,7 +23,7 @@ class ExternalModelClient:
         model_name = self.config.normalized_model_name()
         if not base_url:
             raise ExternalModelConfigError("外部模型地址为空，请先填写 Base URL。")
-        if not model_name:
+        if provider != "mineru" and not model_name:
             raise ExternalModelConfigError("模型名为空，请先填写本地服务中的模型名称。")
         return provider, model_name
 
@@ -42,6 +43,8 @@ class ExternalModelClient:
         provider, model_name = self._validate_config()
         base_url = self.config.normalized_base_url()
         timeout = self.config.normalized_timeout()
+        if provider == "mineru":
+            return MineruClient(self.config).test_connection()
         try:
             if provider == "ollama":
                 resp = requests.get(f"{base_url}/api/tags", timeout=timeout)
@@ -71,6 +74,9 @@ class ExternalModelClient:
 
     def predict(self, image) -> ExternalModelResult:
         provider, model_name = self._validate_config()
+        if provider == "mineru":
+            image_b64 = self._image_to_base64(image)
+            return MineruClient(self.config).predict(image_b64)
         if provider == "ollama":
             return self._predict_ollama(image, model_name)
         return self._predict_openai_compatible(image, model_name)

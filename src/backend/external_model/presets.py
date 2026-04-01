@@ -35,6 +35,18 @@ PRESETS = {
         "prompt_template": "ocr_text_v1",
         "hint": "适合快速验证本地视觉模型链路是否可用。",
     },
+    "mineru_native": {
+        "label": "MinerU Native",
+        "provider": "mineru",
+        "base_url": "http://127.0.0.1:8000",
+        "model_name": "",
+        "output_mode": "markdown",
+        "prompt_template": "ocr_document_page_v1",
+        "mineru_endpoint": "/v1/parse",
+        "mineru_test_endpoint": "/health",
+        "mineru_mode": "document",
+        "hint": "MinerU 原生接口：可不填模型名，需确认解析接口路径和健康检查路径。",
+    },
 }
 
 PRESET_ITEMS = [(key, data["label"]) for key, data in PRESETS.items()]

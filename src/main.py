@@ -2694,7 +2694,7 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 from backend.model import ModelWrapper
 from backend.model_factory import create_model_wrapper
-from backend.external_model import ExternalModelWorker, load_config_from_mapping
+from backend.external_model import ExternalModelPdfWorker, ExternalModelWorker, load_config_from_mapping
 from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
 from backend.latex_renderer import init_latex_settings, get_latex_renderer
 from editor.workbench_window import WorkbenchWindow
@@ -3196,9 +3196,12 @@ from PyQt6.QtWidgets import QWidgetAction
 from PyQt6.QtGui import QCursor
 import weakref
 try:
-    import sip  # PyQt6>=6.5
+    from PyQt6 import sip  # PyQt6 bundled sip, preferred for type resolution
 except Exception:
-    sip = None
+    try:
+        import sip  # pyright: ignore[reportMissingImports]  # fallback for top-level sip package
+    except Exception:
+        sip = None
 
 import sys
 import json
@@ -4807,6 +4810,7 @@ class PdfResultWindow(_QMainWindow):
         super().__init__(None)
         self._status_cb = status_cb
         self._fmt_key = "markdown"
+        self._preference_label = ""
         self.setWindowTitle("PDF 识别结果")
         if window_icon is not None:
             try:
@@ -4844,8 +4848,13 @@ class PdfResultWindow(_QMainWindow):
         self._theme_is_dark_cached = None
         self._apply_theme_styles(force=True)
 
-    def set_content(self, text: str, fmt_key: str):
+    def set_content(self, text: str, fmt_key: str, preference_label: str = ""):
         self._fmt_key = fmt_key
+        self._preference_label = str(preference_label or "").strip()
+        title = "PDF 识别结果"
+        if self._preference_label:
+            title = f"{title} - {self._preference_label}"
+        self.setWindowTitle(title)
         self.editor.setPlainText(text or "")
 
     def _apply_theme_styles(self, force: bool = False):
@@ -4938,6 +4947,7 @@ class MainWindow(_QMainWindow):
         self._pdf_doc_style = None
         self._pdf_dpi = None
         self._pdf_result_window = None
+        self._predict_result_dialog = None
         self._pix2text_env_state = None
         self._main_torch_cache_ttl_sec = 45.0
         self._main_torch_cache_ts = 0.0
@@ -5534,8 +5544,24 @@ class MainWindow(_QMainWindow):
     def _defer(self, fn):
         QTimer.singleShot(0, fn)
     # ---------- 状态管理 ----------
+    def _get_status_model_display_name(self) -> str:
+        current = str(getattr(self, "current_model", "") or "").strip()
+        if current != "external_model":
+            return current
+        try:
+            cfg = self._get_external_model_config()
+            if cfg.normalized_provider() == "mineru":
+                return "MinerU"
+            model_name = cfg.normalized_model_name()
+            if model_name:
+                return model_name
+        except Exception:
+            pass
+        return current
+
     def refresh_status_label(self):
-        base = f"当前模型: {self.current_model} | 状态: {self.model_status}"
+        model_display = self._get_status_model_display_name()
+        base = f"当前模型: {model_display} | 状态: {self.model_status}"
         lbl = getattr(self, "status_label", None)
         if lbl is None:
             return
@@ -6699,10 +6725,30 @@ th {{
 
     def _is_external_model_configured(self) -> bool:
         cfg = self._get_external_model_config()
-        return bool(cfg.normalized_base_url() and cfg.normalized_model_name())
+        if not cfg.normalized_base_url():
+            return False
+        if cfg.normalized_provider() == "mineru":
+            return bool(cfg.normalized_mineru_endpoint())
+        return bool(cfg.normalized_model_name())
+
+    def _get_external_model_required_fields_hint(self) -> str:
+        cfg = self._get_external_model_config()
+        if cfg.normalized_provider() == "mineru":
+            return "请先在设置页填写 Base URL、MinerU 解析接口路径，并点击“测试连接”。"
+        return "请先在设置页填写 Base URL、模型名，并点击“测试连接”。"
 
     def _get_external_model_status_text(self) -> str:
+        config = self._get_external_model_config()
         if self._is_external_model_configured():
+            sig = (
+                f"{config.normalized_provider()}|{config.normalized_base_url()}|"
+                f"{config.normalized_model_name()}|{config.normalized_mineru_endpoint()}|"
+                f"{config.normalized_mineru_mode()}"
+            )
+            tested_sig = str(self.cfg.get("external_model_last_test_signature", "") or "")
+            tested_ok = bool(self.cfg.get("external_model_last_test_ok", False))
+            if tested_ok and sig == tested_sig:
+                return "已连接"
             return "外部模型待连接"
         return "外部模型未配置"
 
@@ -6858,6 +6904,19 @@ th {{
         if m not in valid_modes:
             m = "pix2text"
         prev_model = str(getattr(self, "current_model", "") or "")
+        prev_desired = str(getattr(self, "desired_model", "") or "")
+
+        # 同一目标模式重复触发时直接刷新状态，避免重复切换导致潜在竞态。
+        if m == prev_model:
+            if m == "external_model" and prev_desired == "external_model":
+                self.set_model_status(self._get_external_model_status_text())
+                return
+            if m.startswith("pix2text") and prev_desired == "pix2text":
+                if self.model and self.model.is_model_ready(m):
+                    self.set_model_status("已加载")
+                else:
+                    self.set_model_status(f"待识别时加载 ({m})")
+                return
 
         mode_names = {
             "pix2text": "pix2text 公式识别",
@@ -6897,7 +6956,7 @@ th {{
             if not self._is_external_model_configured():
                 InfoBar.warning(
                     title="外部模型未配置",
-                    content="请先在设置页填写 Base URL、模型名，并点击“测试连接”。",
+                    content=self._get_external_model_required_fields_hint(),
                     parent=info_parent,
                     duration=5000,
                     position=InfoBarPosition.TOP
@@ -6916,29 +6975,24 @@ th {{
         # 更新设置窗口选择状态
         if self.settings_window:
             self.settings_window.update_model_selection()
-        if prev_model == "external_model" and m.startswith("pix2text"):
+
+        # pix2text 模式切换统一延后到首次识别时加载，
+        # 避免在设置页频繁切换识别类型触发预热线程并造成不稳定。
+        if m.startswith("pix2text"):
             if self.model and self.model.is_model_ready(m):
                 self.set_model_status("已加载")
             else:
                 self.set_model_status(f"待识别时加载 ({m})")
-            InfoBar.info(
-                title="已切换到 pix2text",
-                content="为避免切换时阻塞或闪退，pix2text 将在首次识别时再加载。",
-                parent=info_parent,
-                duration=4500,
-                position=InfoBarPosition.TOP
-            )
+            if prev_model == "external_model":
+                InfoBar.info(
+                    title="已切换到 pix2text",
+                    content="为避免切换时阻塞或闪退，pix2text 将在首次识别时再加载。",
+                    parent=info_parent,
+                    duration=4500,
+                    position=InfoBarPosition.TOP
+                )
             return
-        self._ensure_model_warmup_async(
-            preferred_model=m,
-            on_fail=lambda msg: InfoBar.warning(
-                title="模型切换失败",
-                content=msg,
-                parent=info_parent,
-                duration=5000,
-                position=InfoBarPosition.TOP
-            ),
-        )
+
 
     def _get_supported_image_patterns(self):
         """返回图片文件筛选格式列表（用于文件对话框）。"""
@@ -6986,12 +7040,12 @@ th {{
                 pass
         return False
 
-    def _start_predict_with_pil(self, img: Image.Image):
+    def _start_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return
         if self.current_model == "external_model" or self._get_preferred_model_for_predict() == "external_model":
-            self._start_external_predict_with_pil(img)
+            self._start_external_predict_with_pil(img, external_prompt_template=external_prompt_template)
             return
         if not self.model:
             custom_warning_dialog("错误", "模型未初始化", self)
@@ -7007,7 +7061,7 @@ th {{
             self.set_action_status("模型预热中，完成后将自动开始识别", auto_clear_ms=2200)
             self._ensure_model_warmup_async(
                 preferred_model=preferred,
-                on_ready=lambda img=img: self._start_predict_with_pil(img),
+                on_ready=lambda img=img, template=external_prompt_template: self._start_predict_with_pil(img, template),
                 on_fail=lambda msg: self.on_predict_fail(f"模型预热失败: {msg}"),
             )
             return
@@ -7036,16 +7090,19 @@ th {{
         self.predict_thread.finished.connect(_cleanup)
         self.predict_thread.start()
 
-    def _start_external_predict_with_pil(self, img: Image.Image):
+    def _start_external_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.predict_thread and self.predict_thread.isRunning():
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         config = self._get_external_model_config()
+        one_shot_template = str(external_prompt_template or "").strip()
+        if one_shot_template:
+            config.prompt_template = one_shot_template
         if not self._is_external_model_configured():
             self.set_model_status("外部模型未配置")
             self.set_action_status("请先在设置中配置外部模型", auto_clear_ms=3000)
             self.open_settings()
-            custom_warning_dialog("提示", "外部模型未配置，请先填写 Base URL 与模型名。", self)
+            custom_warning_dialog("提示", f"外部模型未配置，{self._get_external_model_required_fields_hint()}", self)
             return
         self.current_model = "external_model"
         self.cfg.set("default_model", "external_model")
@@ -7072,6 +7129,49 @@ th {{
         self.predict_worker.failed.connect(self.predict_thread.quit)
         self.predict_thread.finished.connect(_cleanup)
         self.predict_thread.start()
+
+    def _prompt_image_external_preference(self) -> str | None:
+        """选择图片识别入口的外部模型偏好。"""
+        items = [
+            "公式优先",
+            "通用文档",
+            "表格优先",
+            "化学内容优先",
+            "数学图示优先",
+        ]
+        prompt_map = {
+            "公式优先": "ocr_formula_v2",
+            "通用文档": "ocr_document_page_v1",
+            "表格优先": "ocr_table_layout_v1",
+            "化学内容优先": "ocr_chemistry_v1",
+            "数学图示优先": "ocr_math_diagram_v1",
+        }
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("识别偏好")
+        dlg.setLabelText("请选择本次图片识别偏好：")
+        dlg.setComboBoxItems(items)
+        dlg.setComboBoxEditable(False)
+        dlg.setTextValue(items[0])
+        dlg.setWindowFlags(
+            (
+                dlg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        dlg.setFixedSize(dlg.sizeHint())
+        if dlg.exec() != int(QDialog.DialogCode.Accepted):
+            return None
+        return prompt_map.get(dlg.textValue(), "ocr_formula_v2")
 
     def _open_terminal_from_settings(self, env_key: str | None = None):
         try:
@@ -7217,11 +7317,18 @@ th {{
         except Exception as e:
             custom_warning_dialog("错误", f"图片加载失败: {e}", self)
             return
+        preferred = self._get_preferred_model_for_predict()
+        if self.current_model == "external_model" or preferred == "external_model":
+            prompt_template = self._prompt_image_external_preference()
+            if not prompt_template:
+                return
+            self._start_predict_with_pil(img, external_prompt_template=prompt_template)
+            return
         self._start_predict_with_pil(img)
 
     def _model_supports_pdf(self, model_name: str) -> bool:
         m = (model_name or "").lower()
-        return m.startswith("pix2text")
+        return m.startswith("pix2text") or m == "external_model"
 
     def _prompt_pdf_output_options(self):
         """选择 PDF 识别的导出格式与模板。"""
@@ -7273,9 +7380,91 @@ th {{
         dpi = dpi_map.get(speed, 200)
         return fmt_key, style_key, dpi
 
+    def _prompt_pdf_external_preference(self):
+        """选择外部模型 PDF 识别偏好。"""
+        mode_items = [
+            "整页文档模式（推荐）",
+            "页片段模式（更偏向局部内容提取）",
+        ]
+        mode_map = {
+            "整页文档模式（推荐）": "document",
+            "页片段模式（更偏向局部内容提取）": "page",
+        }
+        mode_dlg = QInputDialog(self)
+        mode_dlg.setWindowTitle("解析模式")
+        mode_dlg.setLabelText("请选择本次 PDF 解析模式：")
+        mode_dlg.setComboBoxItems(mode_items)
+        mode_dlg.setComboBoxEditable(False)
+        mode_dlg.setTextValue(mode_items[0])
+        mode_dlg.setWindowFlags(
+            (
+                mode_dlg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        mode_dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        mode_dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        mode_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        mode_dlg.setFixedSize(mode_dlg.sizeHint())
+        if mode_dlg.exec() != int(QDialog.DialogCode.Accepted):
+            return None
+        mode_choice = mode_dlg.textValue()
+
+        items = [
+            "通用文档",
+            "公式优先",
+            "表格优先",
+            "化学内容优先",
+            "数学图示优先",
+        ]
+        prompt_map = {
+            "通用文档": "ocr_document_page_v1",
+            "公式优先": "ocr_formula_v2",
+            "表格优先": "ocr_table_layout_v1",
+            "化学内容优先": "ocr_chemistry_v1",
+            "数学图示优先": "ocr_math_diagram_v1",
+        }
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("识别偏好")
+        dlg.setLabelText("请选择本次 PDF 识别偏好：")
+        dlg.setComboBoxItems(items)
+        dlg.setComboBoxEditable(False)
+        dlg.setTextValue(items[0])
+        dlg.setWindowFlags(
+            (
+                dlg.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowSystemMenuHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+        )
+        dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        dlg.setFixedSize(dlg.sizeHint())
+        if dlg.exec() != int(QDialog.DialogCode.Accepted):
+            return None
+        choice = dlg.textValue()
+        return (
+            mode_map.get(mode_choice, "document"),
+            prompt_map.get(choice, "ocr_document_page_v1"),
+        )
+
     def _upload_pdf_recognition(self):
         """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
-        if not self.model:
+        if not self.model and self._get_preferred_model_for_predict() != "external_model":
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         preferred = self._get_preferred_model_for_predict()
@@ -7286,7 +7475,10 @@ th {{
             if preferred != self.current_model:
                 self.on_model_changed(preferred)
         if not self._model_supports_pdf(self.current_model):
-            custom_warning_dialog("提示", "当前模型不支持 PDF 识别，请切换到 pix2text。", self)
+            custom_warning_dialog("提示", "当前模型不支持 PDF 识别。", self)
+            return
+        if self.current_model == "external_model" and not self._is_external_model_configured():
+            custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
             return
         if self.current_model.startswith("pix2text") and self.current_model != "pix2text_mixed":
             from qfluentwidgets import MessageBox
@@ -7358,6 +7550,13 @@ th {{
         if not opts:
             return
         fmt_key, style_key, dpi = opts
+        prompt_template = None
+        document_mode = "document"
+        if self.current_model == "external_model":
+            external_opts = self._prompt_pdf_external_preference()
+            if not external_opts:
+                return
+            document_mode, prompt_template = external_opts
         self._pdf_output_format = fmt_key
         self._pdf_doc_style = style_key
         self._pdf_dpi = dpi
@@ -7370,7 +7569,21 @@ th {{
         self.set_model_status("识别中...")
 
         self.pdf_predict_thread = QThread()
-        self.pdf_predict_worker = PdfPredictWorker(self.model, file_path, pages, self.current_model, fmt_key, dpi)
+        if self.current_model == "external_model":
+            config = self._get_external_model_config()
+            config.output_mode = fmt_key
+            if prompt_template:
+                config.prompt_template = prompt_template
+            self.pdf_predict_worker = ExternalModelPdfWorker(
+                config,
+                file_path,
+                pages,
+                fmt_key,
+                dpi,
+                document_mode,
+            )
+        else:
+            self.pdf_predict_worker = PdfPredictWorker(self.model, file_path, pages, self.current_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         self.pdf_progress = QProgressDialog("正在识别 PDF（取消将在当前页结束后生效）...", "取消", 0, pages, self)
@@ -7493,7 +7706,10 @@ th {{
     def _on_pdf_predict_ok(self, content: str):
         used = None
         try:
-            used = getattr(getattr(self, "model", None), "last_used_model", None)
+            if getattr(self, "current_model", "") == "external_model":
+                used = "external_model"
+            else:
+                used = getattr(getattr(self, "model", None), "last_used_model", None)
         except Exception:
             used = None
         if not used:
@@ -7530,7 +7746,10 @@ th {{
         self.set_model_status("失败")
         self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
         try:
-            used = getattr(getattr(self, "model", None), "last_used_model", None)
+            if getattr(self, "current_model", "") == "external_model":
+                used = "external_model"
+            else:
+                used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
@@ -7618,6 +7837,12 @@ th {{
     def _on_external_predict_fail(self, msg: str):
         self.on_predict_fail(msg)
 
+    def _clear_predict_result_dialog_ref(self, dialog_obj=None):
+        """仅在回调对象仍是当前窗口时，清理结果窗口引用，避免并发回调误清空。"""
+        current = getattr(self, "_predict_result_dialog", None)
+        if dialog_obj is None or current is dialog_obj:
+            self._predict_result_dialog = None
+
     def on_predict_ok(self, latex: str):
         used = None
         try:
@@ -7672,6 +7897,15 @@ th {{
             _exec_close_only_message_box(self, "提示", "结果为空")
             return
 
+        # 识别结果窗口保持单实例：新结果到来时覆盖旧窗口，避免模态阻塞造成假死。
+        old_dialog = getattr(self, "_predict_result_dialog", None)
+        if old_dialog is not None:
+            try:
+                old_dialog.close()
+            except Exception:
+                pass
+            self._clear_predict_result_dialog_ref(old_dialog)
+
         # 获取当前识别模式（优先使用实际使用的模型，便于正确标注类型）
         current_mode = None
         try:
@@ -7688,7 +7922,11 @@ th {{
         _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("识别结果")
         dlg.resize(700, 500)
+        dlg.setWindowModality(Qt.WindowModality.NonModal)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         _apply_dialog_theme(dlg)
+        self._predict_result_dialog = dlg
+        dlg.destroyed.connect(lambda *_args, _d=dlg: self._clear_predict_result_dialog_ref(_d))
 
         lay = QVBoxLayout(dlg)
         
@@ -7807,7 +8045,9 @@ th {{
         btn.clicked.connect(lambda: self.accept_latex(dlg, te))
         lay.addWidget(btn)
 
-        dlg.exec()
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _build_mixed_html(self, content: str) -> str:
         """构建混合内容（文字+公式）的 HTML"""
@@ -8319,15 +8559,23 @@ QLineEdit:focus {{
             return
         self._set_editor_text_silent(text)
         try:
-            self._formula_types[text] = getattr(self, "current_model", "pix2text")
+            ctype = self._get_preferred_model_for_predict()
+            if not ctype:
+                ctype = getattr(self, "current_model", "pix2text")
+            self._formula_types[text] = ctype
         except Exception:
             pass
         self._refresh_preview()
         self.set_action_status("手写识别结果已写入主编辑器")
 
     def open_handwriting_window(self):
-        if not self.model:
+        preferred = self._get_preferred_model_for_predict()
+        if not self.model and preferred != "external_model":
             custom_warning_dialog("错误", "模型未初始化", self)
+            return
+        if preferred == "external_model" and not self._is_external_model_configured():
+            custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
+            self.open_settings()
             return
         if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
             self.handwriting_window.raise_()
