@@ -6723,6 +6723,24 @@ th {{
     def _get_external_model_config(self):
         return load_config_from_mapping(self.cfg)
 
+    def _get_external_model_display_name(self, config=None, result=None) -> str:
+        try:
+            model_name = str(getattr(result, "model_name", "") or "").strip()
+            if model_name:
+                return model_name
+        except Exception:
+            pass
+        try:
+            if config is None:
+                config = self._get_external_model_config()
+            model_name = str(getattr(config, "normalized_model_name", lambda: "")() or "").strip()
+            if model_name:
+                return model_name
+            provider = str(getattr(config, "normalized_provider", lambda: "external_model")() or "").strip()
+            return provider or "external_model"
+        except Exception:
+            return "external_model"
+
     def _is_external_model_configured(self) -> bool:
         cfg = self._get_external_model_config()
         if not cfg.normalized_base_url():
@@ -7130,49 +7148,6 @@ th {{
         self.predict_thread.finished.connect(_cleanup)
         self.predict_thread.start()
 
-    def _prompt_image_external_preference(self) -> str | None:
-        """选择图片识别入口的外部模型偏好。"""
-        items = [
-            "公式优先",
-            "通用文档",
-            "表格优先",
-            "化学内容优先",
-            "数学图示优先",
-        ]
-        prompt_map = {
-            "公式优先": "ocr_formula_v2",
-            "通用文档": "ocr_document_page_v1",
-            "表格优先": "ocr_table_layout_v1",
-            "化学内容优先": "ocr_chemistry_v1",
-            "数学图示优先": "ocr_math_diagram_v1",
-        }
-        dlg = QInputDialog(self)
-        dlg.setWindowTitle("识别偏好")
-        dlg.setLabelText("请选择本次图片识别偏好：")
-        dlg.setComboBoxItems(items)
-        dlg.setComboBoxEditable(False)
-        dlg.setTextValue(items[0])
-        dlg.setWindowFlags(
-            (
-                dlg.windowFlags()
-                | Qt.WindowType.CustomizeWindowHint
-                | Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowCloseButtonHint
-                | Qt.WindowType.WindowSystemMenuHint
-            )
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-            & ~Qt.WindowType.WindowMinMaxButtonsHint
-            & ~Qt.WindowType.WindowContextHelpButtonHint
-        )
-        dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
-        dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
-        dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-        dlg.setFixedSize(dlg.sizeHint())
-        if dlg.exec() != int(QDialog.DialogCode.Accepted):
-            return None
-        return prompt_map.get(dlg.textValue(), "ocr_formula_v2")
-
     def _open_terminal_from_settings(self, env_key: str | None = None):
         try:
             if not self.settings_window:
@@ -7317,13 +7292,6 @@ th {{
         except Exception as e:
             custom_warning_dialog("错误", f"图片加载失败: {e}", self)
             return
-        preferred = self._get_preferred_model_for_predict()
-        if self.current_model == "external_model" or preferred == "external_model":
-            prompt_template = self._prompt_image_external_preference()
-            if not prompt_template:
-                return
-            self._start_predict_with_pil(img, external_prompt_template=prompt_template)
-            return
         self._start_predict_with_pil(img)
 
     def _model_supports_pdf(self, model_name: str) -> bool:
@@ -7331,7 +7299,7 @@ th {{
         return m.startswith("pix2text") or m == "external_model"
 
     def _prompt_pdf_output_options(self):
-        """选择 PDF 识别的导出格式与模板。"""
+        """选择 PDF 识别的导出格式与 DPI。"""
         def _pick_item(title: str, label: str, items: list[str], current: int = 0):
             dlg = QInputDialog(self)
             dlg.setWindowTitle(title)
@@ -7365,78 +7333,12 @@ th {{
         fmt = _pick_item("导出格式", "请选择导出格式：", fmt_items, 0)
         if not fmt:
             return None
-        style_items = ["论文 (article)", "期刊 (IEEEtran)"]
-        style = _pick_item("文档模板", "请选择文档模板：", style_items, 0)
-        if not style:
-            return None
         fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
-        style_key = "paper" if style.startswith("论文") else "journal"
-        # 速度/精度选择
-        speed_items = ["快 (150 DPI)", "平衡 (200 DPI)", "清晰 (300 DPI)"]
-        speed = _pick_item("速度/精度", "请选择识别速度/精度：", speed_items, 1)
-        if not speed:
-            return None
-        dpi_map = {"快 (150 DPI)": 150, "平衡 (200 DPI)": 200, "清晰 (300 DPI)": 300}
-        dpi = dpi_map.get(speed, 200)
-        return fmt_key, style_key, dpi
 
-    def _prompt_pdf_external_preference(self):
-        """选择外部模型 PDF 识别偏好。"""
-        mode_items = [
-            "整页文档模式（推荐）",
-            "页片段模式（更偏向局部内容提取）",
-        ]
-        mode_map = {
-            "整页文档模式（推荐）": "document",
-            "页片段模式（更偏向局部内容提取）": "page",
-        }
-        mode_dlg = QInputDialog(self)
-        mode_dlg.setWindowTitle("解析模式")
-        mode_dlg.setLabelText("请选择本次 PDF 解析模式：")
-        mode_dlg.setComboBoxItems(mode_items)
-        mode_dlg.setComboBoxEditable(False)
-        mode_dlg.setTextValue(mode_items[0])
-        mode_dlg.setWindowFlags(
-            (
-                mode_dlg.windowFlags()
-                | Qt.WindowType.CustomizeWindowHint
-                | Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowCloseButtonHint
-                | Qt.WindowType.WindowSystemMenuHint
-            )
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-            & ~Qt.WindowType.WindowMinMaxButtonsHint
-            & ~Qt.WindowType.WindowContextHelpButtonHint
-        )
-        mode_dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
-        mode_dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
-        mode_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-        mode_dlg.setFixedSize(mode_dlg.sizeHint())
-        if mode_dlg.exec() != int(QDialog.DialogCode.Accepted):
-            return None
-        mode_choice = mode_dlg.textValue()
+        from PyQt6.QtWidgets import QDialogButtonBox, QSlider
 
-        items = [
-            "通用文档",
-            "公式优先",
-            "表格优先",
-            "化学内容优先",
-            "数学图示优先",
-        ]
-        prompt_map = {
-            "通用文档": "ocr_document_page_v1",
-            "公式优先": "ocr_formula_v2",
-            "表格优先": "ocr_table_layout_v1",
-            "化学内容优先": "ocr_chemistry_v1",
-            "数学图示优先": "ocr_math_diagram_v1",
-        }
-        dlg = QInputDialog(self)
-        dlg.setWindowTitle("识别偏好")
-        dlg.setLabelText("请选择本次 PDF 识别偏好：")
-        dlg.setComboBoxItems(items)
-        dlg.setComboBoxEditable(False)
-        dlg.setTextValue(items[0])
+        dlg = QDialog(self)
+        dlg.setWindowTitle("PDF 渲染分辨率")
         dlg.setWindowFlags(
             (
                 dlg.windowFlags()
@@ -7453,14 +7355,53 @@ th {{
         dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
         dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-        dlg.setFixedSize(dlg.sizeHint())
+
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("请选择 PDF 渲染分辨率（DPI）："))
+
+        dpi_label = QLabel()
+        dpi_label.setWordWrap(True)
+        layout.addWidget(dpi_label)
+
+        slider = QSlider(Qt.Orientation.Horizontal, dlg)
+        slider.setRange(90, 300)
+        slider.setSingleStep(10)
+        slider.setPageStep(10)
+        slider.setTickInterval(10)
+        slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        default_dpi = 150 if self.current_model == "external_model" else 200
+        slider.setValue(default_dpi)
+        layout.addWidget(slider)
+
+        tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能导致部分模型整页识别退化。")
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color: #666; font-size: 11px;")
+        layout.addWidget(tip)
+
+        def _refresh_dpi_label(value: int):
+            if value < 120:
+                zone = "清晰文档"
+            elif 140 <= value <= 170:
+                zone = "推荐"
+            elif value > 220:
+                zone = "高 DPI：模糊文档"
+            else:
+                zone = "可选"
+            dpi_label.setText(f"当前 DPI：{value}（{zone}）")
+
+        slider.valueChanged.connect(_refresh_dpi_label)
+        _refresh_dpi_label(default_dpi)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dlg)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        dlg.setFixedSize(420, 180)
         if dlg.exec() != int(QDialog.DialogCode.Accepted):
             return None
-        choice = dlg.textValue()
-        return (
-            mode_map.get(mode_choice, "document"),
-            prompt_map.get(choice, "ocr_document_page_v1"),
-        )
+        dpi = int(slider.value())
+        return fmt_key, dpi
 
     def _upload_pdf_recognition(self):
         """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
@@ -7549,16 +7490,9 @@ th {{
         opts = self._prompt_pdf_output_options()
         if not opts:
             return
-        fmt_key, style_key, dpi = opts
-        prompt_template = None
-        document_mode = "document"
-        if self.current_model == "external_model":
-            external_opts = self._prompt_pdf_external_preference()
-            if not external_opts:
-                return
-            document_mode, prompt_template = external_opts
+        fmt_key, dpi = opts
         self._pdf_output_format = fmt_key
-        self._pdf_doc_style = style_key
+        self._pdf_doc_style = "document"
         self._pdf_dpi = dpi
 
         if self.is_recognition_busy(source="main"):
@@ -7572,15 +7506,14 @@ th {{
         if self.current_model == "external_model":
             config = self._get_external_model_config()
             config.output_mode = fmt_key
-            if prompt_template:
-                config.prompt_template = prompt_template
+            config.prompt_template = "ocr_document_page_v1"
             self.pdf_predict_worker = ExternalModelPdfWorker(
                 config,
                 file_path,
                 pages,
                 fmt_key,
                 dpi,
-                document_mode,
+                "document",
             )
         else:
             self.pdf_predict_worker = PdfPredictWorker(self.model, file_path, pages, self.current_model, fmt_key, dpi)
@@ -7707,7 +7640,9 @@ th {{
         used = None
         try:
             if getattr(self, "current_model", "") == "external_model":
-                used = "external_model"
+                used = self._get_external_model_display_name(
+                    config=getattr(getattr(self, "pdf_predict_worker", None), "config", None)
+                )
             else:
                 used = getattr(getattr(self, "model", None), "last_used_model", None)
         except Exception:
@@ -7730,7 +7665,7 @@ th {{
         except Exception:
             pass
         fmt_key = self._pdf_output_format or "markdown"
-        style_key = self._pdf_doc_style or "paper"
+        style_key = self._pdf_doc_style or "document"
         doc = self._wrap_document_output(content, fmt_key, style_key)
         if not doc:
             custom_warning_dialog("提示", "识别结果为空", self)
@@ -7747,7 +7682,9 @@ th {{
         self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
         try:
             if getattr(self, "current_model", "") == "external_model":
-                used = "external_model"
+                used = self._get_external_model_display_name(
+                    config=getattr(getattr(self, "pdf_predict_worker", None), "config", None)
+                )
             else:
                 used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:
@@ -7832,6 +7769,10 @@ th {{
             text = result.best_text(output_mode) if result is not None else ""
         except Exception:
             text = ""
+        try:
+            self._last_external_model_name = self._get_external_model_display_name(result=result)
+        except Exception:
+            pass
         self.on_predict_ok(text)
 
     def _on_external_predict_fail(self, msg: str):
@@ -7847,7 +7788,11 @@ th {{
         used = None
         try:
             if getattr(self, "current_model", "") == "external_model":
-                used = "external_model"
+                used = self._get_external_model_display_name(
+                    config=getattr(getattr(self, "predict_worker", None), "config", None)
+                )
+                if not used:
+                    used = getattr(self, "_last_external_model_name", None)
             else:
                 used = getattr(getattr(self, "model", None), "last_used_model", None)
         except Exception:
@@ -8276,7 +8221,11 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         self.set_model_status("失败")
         try:
             if getattr(self, "current_model", "") == "external_model":
-                used = "external_model"
+                used = self._get_external_model_display_name(
+                    config=getattr(getattr(self, "predict_worker", None), "config", None)
+                )
+                if not used:
+                    used = getattr(self, "_last_external_model_name", None)
             else:
                 used = getattr(getattr(self, "model", None), "last_used_model", None)
             if not used:

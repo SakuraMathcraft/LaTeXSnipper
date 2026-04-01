@@ -1,4 +1,5 @@
 import requests
+from urllib.parse import urlparse
 
 from .errors import ExternalModelConnectionError, ExternalModelResponseError
 from .schemas import ExternalModelConfig, ExternalModelResult
@@ -15,6 +16,35 @@ class MineruClient:
             headers["Authorization"] = f"Bearer {api_key}"
         return headers
 
+    def _format_request_error(self, e: requests.RequestException, action: str, url: str) -> str:
+        parsed = urlparse(url or "")
+        host = parsed.hostname or "未知地址"
+        port = parsed.port
+        endpoint = parsed.path or "/"
+        target = f"{host}:{port}" if port else host
+
+        if isinstance(e, requests.Timeout):
+            return f"{action}超时，请检查服务响应速度或适当提高超时设置。"
+        if isinstance(e, requests.ConnectionError):
+            return f"无法连接到 {target}，请确认 MinerU 服务已启动，地址和端口填写正确。"
+
+        resp = getattr(e, "response", None)
+        if resp is not None:
+            code = int(getattr(resp, "status_code", 0) or 0)
+            if code == 401:
+                return "MinerU 认证失败，请检查 API Key。"
+            if code == 403:
+                return "MinerU 访问被拒绝，请检查权限配置。"
+            if code == 404:
+                return f"MinerU 接口路径不存在：{endpoint}，请检查接口路径配置。"
+            if code == 429:
+                return "MinerU 请求过于频繁，请稍后重试。"
+            if 500 <= code < 600:
+                return f"MinerU 服务端返回 {code}，请稍后重试或检查服务日志。"
+            return f"{action}失败，接口返回 {code}。"
+
+        return f"{action}失败，请检查服务地址、接口路径和网络连接。"
+
     def test_connection(self) -> tuple[bool, str]:
         base_url = self.config.normalized_base_url()
         timeout = self.config.normalized_timeout()
@@ -25,7 +55,7 @@ class MineruClient:
             if resp.status_code >= 500:
                 resp.raise_for_status()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(f"MinerU 连通性检查失败: {e}") from e
+            raise ExternalModelConnectionError(self._format_request_error(e, "MinerU 连通性检查", url)) from e
         return True, f"MinerU 连通成功: {endpoint}"
 
     def predict(self, image_b64: str) -> ExternalModelResult:
@@ -42,8 +72,9 @@ class MineruClient:
         if model_name:
             payload["model"] = model_name
         try:
+            url = f"{base_url}{endpoint}"
             resp = requests.post(
-                f"{base_url}{endpoint}",
+                url,
                 headers=self._headers(),
                 json=payload,
                 timeout=timeout,
@@ -51,7 +82,7 @@ class MineruClient:
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(f"MinerU 请求失败: {e}") from e
+            raise ExternalModelConnectionError(self._format_request_error(e, "MinerU 请求", url)) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"MinerU 返回的不是有效 JSON: {e}") from e
 
