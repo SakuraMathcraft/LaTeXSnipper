@@ -70,14 +70,14 @@ class ExternalModelHelpWindow(QDialog):
             "3. 模型名：必填。必须与服务中实际可用的模型名称完全一致。\n"
             "4. API Key：选填。本地服务通常留空，线上接口通常必填。\n"
             "5. 超时：选填。默认 60 秒，模型较大或网络较慢时可适当提高。\n"
-            "6. 输出偏好：选填。决定程序优先取 LaTeX、Markdown 还是纯文本。\n"
+            "6. 输出偏好：选填。影响图片、截图、手写识别优先返回 LaTeX、Markdown 还是纯文本。\n"
             "7. 提示词模板 / 自定义提示词：选填。优先使用自定义提示词，留空则使用模板。\n\n"
             "提示词生效边界（重要）\n"
             "1. 自定义提示词优先级最高：只要填写，就会覆盖模板选择。\n"
-            "2. 普通图片/截图识别：使用当前设置中的提示词规则。\n"
-            "3. PDF 外部模型识别：会先弹出“识别偏好”选择模板；但如果自定义提示词不为空，仍以自定义提示词为准。\n"
-            "4. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本。\n"
-            "5. 想让 PDF 偏好模板生效：请先清空“自定义提示词”输入框。\n\n"
+            "2. 普通图片、截图、手写识别：使用当前设置中的输出偏好和提示词规则。\n"
+            "3. PDF 外部模型识别：导出格式在 PDF 入口单独选择；提示词固定使用通用文档模板，用于整份文档恢复。\n"
+            "4. 如果填写了自定义提示词，OpenAI-compatible / Ollama 的 PDF 识别也会优先使用自定义提示词。\n"
+            "5. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本。\n\n"
             "本地 Ollama 示例\n"
             "1. 协议：Ollama\n"
             "2. Base URL：http://127.0.0.1:11434\n"
@@ -233,7 +233,7 @@ class SettingsWindow(QDialog):
         external_layout.setSpacing(6)
         self.external_intro = QLabel(
             "先填写协议、Base URL 和模型名，再点击“测试连接”。\n"
-            "需要详细说明时，点击“查看说明”。"
+            "图片/截图/手写使用这里的输出偏好与提示词；PDF 导出格式在 PDF 入口单独选择。"
         )
         self.external_intro.setWordWrap(True)
         self.external_intro.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
@@ -299,7 +299,7 @@ class SettingsWindow(QDialog):
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
         output_row.setSpacing(6)
-        output_row.addWidget(QLabel("输出偏好:"))
+        output_row.addWidget(QLabel("输出偏好(图片/手写):"))
         self.external_output_combo = ComboBox()
         self.external_output_combo.setFixedHeight(30)
         self.external_output_combo.addItem("LaTeX 优先", userData="latex")
@@ -316,7 +316,7 @@ class SettingsWindow(QDialog):
         prompt_row = QHBoxLayout()
         prompt_row.setContentsMargins(0, 0, 0, 0)
         prompt_row.setSpacing(6)
-        prompt_row.addWidget(QLabel("提示词模板:"))
+        prompt_row.addWidget(QLabel("提示词模板(图片/手写):"))
         self.external_prompt_combo = ComboBox()
         self.external_prompt_combo.setFixedHeight(30)
         self.external_prompt_combo.addItem("公式 OCR", userData="ocr_formula_v1")
@@ -325,7 +325,7 @@ class SettingsWindow(QDialog):
         prompt_row.addWidget(self.external_prompt_combo, 1)
         external_layout.addLayout(prompt_row)
         self.external_custom_prompt_input = QLineEdit()
-        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（最高优先级；填写后会覆盖模板与PDF偏好模板。仅对 OpenAI-compatible/Ollama 生效）")
+        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（最高优先级；会覆盖图片/截图/手写模板。PDF 默认走通用文档模板；仅对 OpenAI-compatible/Ollama 生效）")
         self.external_custom_prompt_input.setFixedHeight(32)
         external_layout.addWidget(self.external_custom_prompt_input)
         self.external_status = QLabel("状态：未配置")

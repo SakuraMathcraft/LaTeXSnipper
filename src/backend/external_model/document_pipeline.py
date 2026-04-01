@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from .client import ExternalModelClient
 from .schemas import ExternalModelConfig
@@ -22,11 +22,11 @@ class ExternalDocumentPipeline:
         self.last_pages: list[DocumentPageResult] = []
 
     def _build_runtime_config(self, prompt_template: str | None = None) -> ExternalModelConfig:
-        cfg = ExternalModelConfig(**self.config.__dict__)
+        cfg = ExternalModelConfig(**asdict(self.config))
         cfg.output_mode = self.output_format
         prompt = str(prompt_template or "").strip()
         if not prompt:
-            prompt = "ocr_document_page_v1" if self.document_mode == "document" else "ocr_pdf_markdown_v1"
+            prompt = "ocr_document_page_v1"
         cfg.prompt_template = prompt
         return cfg
 

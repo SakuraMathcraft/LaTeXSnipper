@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 
@@ -110,8 +111,28 @@ class ExternalModelResult:
     model_name: str = ""
     raw: dict | None = None
 
+    def _normalize_common_text(self, value: str) -> str:
+        text = (value or "").replace("\r\n", "\n")
+        if not text:
+            return ""
+
+        # Strip common multimodal control tokens emitted by some VLM/OCR services.
+        text = re.sub(r"<\|(?:begin|end)_of_image\|>", "", text)
+        text = re.sub(r"<\|(?:vision_start|vision_end|image_pad|img_pad)\|>", "", text)
+        text = re.sub(r"</?image>", "", text, flags=re.IGNORECASE)
+
+        lines: list[str] = []
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+            if not line:
+                if lines and lines[-1] != "":
+                    lines.append("")
+                continue
+            lines.append(raw_line.strip())
+        return "\n".join(lines).strip()
+
     def _normalize_latex_text(self, value: str) -> str:
-        text = (value or "").strip()
+        text = self._normalize_common_text(value)
         if not text:
             return ""
 
@@ -128,9 +149,9 @@ class ExternalModelResult:
     def best_text(self, output_mode: str = "latex") -> str:
         mode = str(output_mode or "latex").strip().lower()
         if mode == "markdown":
-            return (self.markdown or self.text or self.latex or "").strip()
+            return self._normalize_common_text(self.markdown or self.text or self.latex or "")
         if mode == "text":
-            return (self.text or self.markdown or self.latex or "").strip()
+            return self._normalize_common_text(self.text or self.markdown or self.latex or "")
         return self._normalize_latex_text(self.latex or self.markdown or self.text or "")
 
 

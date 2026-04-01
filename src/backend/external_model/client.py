@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+from urllib.parse import urlparse
 
 import requests
 
@@ -39,6 +40,35 @@ class ExternalModelClient:
         image.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("ascii")
 
+    def _format_request_error(self, e: requests.RequestException, action: str, url: str) -> str:
+        parsed = urlparse(url or "")
+        host = parsed.hostname or "未知地址"
+        port = parsed.port
+        endpoint = parsed.path or "/"
+        target = f"{host}:{port}" if port else host
+
+        if isinstance(e, requests.Timeout):
+            return f"{action}超时，请检查服务响应速度或适当提高超时设置。"
+        if isinstance(e, requests.ConnectionError):
+            return f"无法连接到 {target}，请确认服务已启动，地址和端口填写正确。"
+
+        resp = getattr(e, "response", None)
+        if resp is not None:
+            code = int(getattr(resp, "status_code", 0) or 0)
+            if code == 401:
+                return "接口认证失败，请检查 API Key。"
+            if code == 403:
+                return "接口访问被拒绝，请检查权限或鉴权配置。"
+            if code == 404:
+                return f"接口路径不存在：{endpoint}，请检查 Base URL 或协议类型。"
+            if code == 429:
+                return "请求过于频繁，请稍后重试。"
+            if 500 <= code < 600:
+                return f"服务端返回 {code}，请稍后重试或检查服务日志。"
+            return f"{action}失败，接口返回 {code}。"
+
+        return f"{action}失败，请检查服务地址、协议和网络连接。"
+
     def test_connection(self) -> tuple[bool, str]:
         provider, model_name = self._validate_config()
         base_url = self.config.normalized_base_url()
@@ -47,17 +77,19 @@ class ExternalModelClient:
             return MineruClient(self.config).test_connection()
         try:
             if provider == "ollama":
-                resp = requests.get(f"{base_url}/api/tags", timeout=timeout)
+                url = f"{base_url}/api/tags"
+                resp = requests.get(url, timeout=timeout)
                 resp.raise_for_status()
                 raw = resp.json()
                 names = self._extract_ollama_model_names(raw)
             else:
-                resp = requests.get(f"{base_url}/v1/models", headers=self._headers(), timeout=timeout)
+                url = f"{base_url}/v1/models"
+                resp = requests.get(url, headers=self._headers(), timeout=timeout)
                 resp.raise_for_status()
                 raw = resp.json()
                 names = self._extract_openai_model_names(raw)
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(f"无法连接到本地服务: {e}") from e
+            raise ExternalModelConnectionError(self._format_request_error(e, "测试连接", locals().get("url", base_url))) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
 
@@ -99,8 +131,9 @@ class ExternalModelClient:
             ],
         }
         try:
+            url = f"{base_url}/v1/chat/completions"
             resp = requests.post(
-                f"{base_url}/v1/chat/completions",
+                url,
                 headers=self._headers(),
                 json=payload,
                 timeout=timeout,
@@ -108,7 +141,7 @@ class ExternalModelClient:
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(f"外部模型请求失败: {e}") from e
+            raise ExternalModelConnectionError(self._format_request_error(e, "外部模型请求", url)) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
         text = self._extract_openai_content(raw)
@@ -130,8 +163,9 @@ class ExternalModelClient:
             ],
         }
         try:
+            url = f"{base_url}/api/chat"
             resp = requests.post(
-                f"{base_url}/api/chat",
+                url,
                 headers=self._headers(),
                 json=payload,
                 timeout=timeout,
@@ -139,7 +173,7 @@ class ExternalModelClient:
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(f"外部模型请求失败: {e}") from e
+            raise ExternalModelConnectionError(self._format_request_error(e, "外部模型请求", url)) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
         text = self._extract_ollama_content(raw)
