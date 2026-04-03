@@ -632,6 +632,7 @@ class HandwritingWindow(QDialog):
     def _on_recognition_failed(self, error: str) -> None:
         brief = (error or "识别失败").strip()
         self.status_label.setText(f"识别失败: {brief}")
+        brief = brief.rstrip("。.!！？? ")
         self._show_error("手写识别失败", f"{brief}。可手动擦除后重写，或直接编辑右侧 LaTeX 结果。")
 
     def _on_result_editor_changed(self) -> None:
