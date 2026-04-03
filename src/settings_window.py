@@ -2100,21 +2100,41 @@ class SettingsWindow(QDialog):
         provider = config.normalized_provider()
         base_url = config.normalized_base_url()
         model_name = config.normalized_model_name()
+        cfg = getattr(self.parent(), "cfg", None)
+        current_sig = self._external_config_signature(config)
+        tested_ok = False
+        tested_sig = ""
+        saved_message = ""
+        if cfg is not None:
+            try:
+                tested_ok = bool(cfg.get("external_model_last_test_ok", False))
+                tested_sig = str(cfg.get("external_model_last_test_signature", "") or "")
+                saved_message = str(cfg.get("external_model_last_test_message", "") or "")
+            except Exception:
+                tested_ok = False
+                tested_sig = ""
+                saved_message = ""
         if not base_url:
             status = "状态：未配置。必填项缺少 Base URL。"
         elif provider != "mineru" and not model_name:
             status = "状态：未配置。必填项缺少模型名。"
         else:
             provider_label = "MinerU" if provider == "mineru" else ("Ollama" if provider == "ollama" else "OpenAI-compatible")
+            if tested_sig == current_sig:
+                state_text = "已连接" if tested_ok else "连接失败"
+            else:
+                state_text = "已配置，尚未测试连接"
             if provider == "mineru":
                 status = (
-                    f"状态：待测试，协议 {provider_label}，路径 {config.normalized_mineru_endpoint()}，"
+                    f"状态：{state_text}。协议 {provider_label}，路径 {config.normalized_mineru_endpoint()}，"
                     f"模式 {config.normalized_mineru_mode()}"
                 )
             else:
-                status = f"状态：待测试，协议 {provider_label}，模型 {model_name}"
+                status = f"状态：{state_text}。协议 {provider_label}，模型 {model_name}"
         if test_message:
             status = f"{status}\n最近一次测试：{test_message}"
+        elif saved_message and tested_sig == current_sig:
+            status = f"{status}\n最近一次测试：{saved_message}"
         self.external_status.setText(status)
     def select_model(self, model_name: str):
         # 只发射信号，由信号连接的 on_model_changed 处理
