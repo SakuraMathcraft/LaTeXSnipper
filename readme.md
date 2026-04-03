@@ -9,7 +9,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v2.2-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v2.2.1-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
@@ -27,7 +27,7 @@
 
 ## 项目简介
 
-**LaTeXSnipper 2.2** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
+**LaTeXSnipper 2.2.1** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
 
 - 截图识别数学公式
 - 在数学工作台中继续编辑与计算
@@ -110,7 +110,7 @@
 ### 方法一：下载可执行文件
 
 1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper_setup_v2.2.exe`
+2. 下载最新版 `LaTeXSnipper_setup_v2.2.1.exe`
 3. 双击运行
 4. 首次启动按依赖向导完成环境准备
 5. 开始截图识别、手写识别或打开数学工作台
