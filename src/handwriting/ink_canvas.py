@@ -42,7 +42,6 @@ class InkCanvas(QWidget):
         self.pen_width = 4.0
         self.erase_tolerance = 14.0
         self.canvas_margin = 24.0
-        self._drag_start = QPointF()
         self._is_dragging = False
         self._is_panning = False
         self._pan_last_pos = QPoint()
@@ -53,16 +52,19 @@ class InkCanvas(QWidget):
         self._logical_width = 600
         self._logical_height = 520
         self._zoom = 1.0
-        self._min_zoom = 0.6
+        self._min_zoom = 0.3
         self._max_zoom = 2.2
-        self._zoom_step = 0.1
-        self._follow_margin_x = 112.0
-        self._follow_margin_y = 96.0
-        self._grow_threshold = 18.0
-        self._grow_step_x = 84
-        self._grow_step_y = 72
-        self._grow_cooldown_s = 0.28
+        self._zoom_step = 0.08
+        self._edge_guard_margin = 28.0
+        self._safe_write_margin_x = 30.0
+        self._safe_write_margin_y = 26.0
+        self._grow_threshold = 72.0
+        self._grow_step_x = 132
+        self._grow_step_y = 112
+        self._grow_cooldown_s = 0.08
         self._last_grow_ts = 0.0
+        self._write_guard_blocked = False
+        self._viewport_scene_rect = QRectF()
         self._is_dark = False
         self._ui_tokens = self._theme_tokens(False)
         self._erase_cursor = None
@@ -85,8 +87,6 @@ class InkCanvas(QWidget):
 
     def set_auto_focus_enabled(self, enabled: bool) -> None:
         self._auto_focus_enabled = bool(enabled)
-        if self._auto_focus_enabled and self._is_panning:
-            self._stop_pan()
 
     def ensure_minimum_extent(self, min_width: int = 0, min_height: int = 0) -> bool:
         target_w = self._logical_width
@@ -125,6 +125,10 @@ class InkCanvas(QWidget):
         if self._zoom == 1.0:
             return QPointF(point)
         return QPointF(point.x() * self._zoom, point.y() * self._zoom)
+
+    def set_viewport_scene_rect(self, rect: QRectF) -> None:
+        self._viewport_scene_rect = QRectF(rect)
+        self.update()
 
     def set_zoom(self, zoom: float) -> bool:
         zoom = max(self._min_zoom, min(self._max_zoom, float(zoom)))
@@ -209,7 +213,7 @@ class InkCanvas(QWidget):
         if self._tablet_active:
             event.accept()
             return
-        if event.button() == Qt.MouseButton.RightButton and not self._auto_focus_enabled:
+        if event.button() == Qt.MouseButton.RightButton:
             self._start_pan(event)
             return
         pos = self._to_scene_point(event.position())
@@ -227,6 +231,7 @@ class InkCanvas(QWidget):
             return
         pos = self._to_scene_point(event.position())
         if not self._is_dragging:
+            self._update_hover_cursor(pos)
             return super().mouseMoveEvent(event)
         self._continue_interaction(pos, pressure=None)
 
@@ -271,6 +276,7 @@ class InkCanvas(QWidget):
         painter.fillRect(self.rect(), QColor(self._ui_tokens["canvas_bg"]))
         painter.scale(self._zoom, self._zoom)
         self._paint_grid(painter, QRectF(0, 0, self._logical_width, self._logical_height), export_mode=False)
+        self._paint_write_zones(painter)
         for stroke in self.store.strokes:
             self._paint_stroke(painter, stroke, export_mode=False)
         if self.current_stroke is not None:
@@ -327,6 +333,15 @@ class InkCanvas(QWidget):
             return
         self.unsetCursor()
 
+    def _update_hover_cursor(self, pos: QPointF) -> None:
+        if self._is_panning:
+            self._apply_tool_cursor()
+            return
+        if self.current_tool in (HandwritingTool.WRITE, HandwritingTool.ERASE, HandwritingTool.SELECT_CORRECT) and self._is_outside_safe_write_rect(pos):
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+            return
+        self._apply_tool_cursor()
+
     def _theme_tokens(self, dark: bool) -> dict:
         if dark:
             return {
@@ -335,6 +350,9 @@ class InkCanvas(QWidget):
                 "stroke": "#f3f4f6",
                 "selection_border": "#7cc4ff",
                 "selection_fill": (124, 196, 255, 44),
+                "safe_border": "#88c5ff",
+                "guard_overlay": (8, 12, 18, 78),
+                "safe_overlay": (255, 255, 255, 6),
             }
         return {
             "canvas_bg": "#fff9d7",
@@ -342,6 +360,9 @@ class InkCanvas(QWidget):
             "stroke": "#111111",
             "selection_border": "#1f6feb",
             "selection_fill": (31, 111, 235, 32),
+            "safe_border": "#6f9fe6",
+            "guard_overlay": (120, 96, 22, 40),
+            "safe_overlay": (90, 78, 22, 10),
         }
 
     def _translate_path(self, path: QPainterPath, dx: float, dy: float) -> QPainterPath:
@@ -388,6 +409,10 @@ class InkCanvas(QWidget):
         delta = current - self._pan_last_pos
         self._pan_last_pos = current
         self.panRequested.emit(int(-delta.x()), int(-delta.y()))
+        scene_pos = self._to_scene_point(event.position())
+        if self._is_in_edge_guard_zone(scene_pos):
+            self._grow_scene_if_needed(scene_pos, force=True)
+            self.update()
         event.accept()
 
     def _stop_pan(self) -> None:
@@ -395,10 +420,16 @@ class InkCanvas(QWidget):
         self._apply_tool_cursor()
 
     def _begin_interaction(self, pos: QPointF, pressure: float | None) -> None:
-        self._drag_start = QPointF(pos)
         self._is_dragging = True
+        blocked_pos = self._guard_edge_transition(pos)
+        if blocked_pos is not None:
+            self._write_guard_blocked = True
+            self._is_dragging = False
+            return
         if self.current_tool == HandwritingTool.WRITE:
+            self._write_guard_blocked = False
             self.current_stroke = InkStroke.from_points([QPointF(pos)], width=self._resolve_pen_width(pressure))
+            return
         elif self.current_tool == HandwritingTool.ERASE:
             self._erase_at(pos)
         elif self.current_tool == HandwritingTool.SELECT_CORRECT:
@@ -406,46 +437,62 @@ class InkCanvas(QWidget):
             self.selection_path = QPainterPath(QPointF(pos))
             self.selection_rect = QRectF(pos, pos).normalized()
             self.selectionChanged.emit(True)
-        shifted = self._grow_scene_if_needed(pos)
-        shifted_point = QPointF(pos.x() + shifted.x(), pos.y() + shifted.y())
-        self._emit_viewport_follow(shifted_point, hard=shifted != QPointF())
 
     def _continue_interaction(self, pos: QPointF, pressure: float | None) -> None:
         if self.current_tool == HandwritingTool.WRITE and self.current_stroke is not None:
+            blocked_pos = self._guard_edge_transition(pos)
+            if blocked_pos is not None:
+                self._write_guard_blocked = True
+                if len(self.current_stroke.points) <= 1:
+                    self.current_stroke = None
+                self.update()
+                return
+            self._write_guard_blocked = False
             self.current_stroke.points.append(QPointF(pos))
             self.current_stroke.width = self._resolve_pen_width(pressure)
             self.current_stroke.rebuild_geometry()
-            shift = self._grow_scene_if_needed(pos)
-            follow_point = QPointF(pos.x() + shift.x(), pos.y() + shift.y())
-            self._emit_viewport_follow(follow_point, hard=(shift != QPointF()) or self._is_near_canvas_edge(follow_point))
+            self.update()
+            return
+        if self.current_tool == HandwritingTool.WRITE and self.current_stroke is None:
+            blocked_pos = self._guard_edge_transition(pos)
+            if blocked_pos is not None:
+                self._write_guard_blocked = True
+                self.update()
+                return
+            self._write_guard_blocked = False
+            self.current_stroke = InkStroke.from_points([QPointF(pos)], width=self._resolve_pen_width(pressure))
             self.update()
             return
         if self.current_tool == HandwritingTool.ERASE:
-            shift = self._grow_scene_if_needed(pos)
-            pos = QPointF(pos.x() + shift.x(), pos.y() + shift.y())
+            if self._guard_edge_transition(pos) is not None:
+                self.update()
+                return
             self._erase_at(pos)
-            self._emit_viewport_follow(pos, hard=(shift != QPointF()) or self._is_near_canvas_edge(pos))
             return
         if self.current_tool == HandwritingTool.SELECT_CORRECT:
-            shift = self._grow_scene_if_needed(pos)
-            if shift != QPointF():
-                pos = QPointF(pos.x() + shift.x(), pos.y() + shift.y())
+            if self._guard_edge_transition(pos) is not None:
+                self.update()
+                return
             self.selection_points.append(QPointF(pos))
             self.selection_rect = self.selection_rect.united(QRectF(pos, pos).normalized())
             self.selection_path = self._build_selection_path(closed=False)
-            self._emit_viewport_follow(pos, hard=(shift != QPointF()) or self._is_near_canvas_edge(pos))
             self.update()
             return
 
     def _finish_interaction(self) -> None:
         self._is_dragging = False
         if self.current_tool == HandwritingTool.WRITE and self.current_stroke is not None:
+            if len(self.current_stroke.points) <= 1 and self._write_guard_blocked:
+                self.current_stroke = None
+                self._write_guard_blocked = False
+                return
             if len(self.current_stroke.points) == 1:
                 p = self.current_stroke.points[0]
                 self.current_stroke.points.append(QPointF(p.x() + 0.1, p.y() + 0.1))
                 self.current_stroke.rebuild_geometry()
             self.store.add_stroke(self.current_stroke)
             self.current_stroke = None
+            self._write_guard_blocked = False
             self.contentChanged.emit()
             self.strokeFinished.emit()
             self._emit_content_focus_if_available()
@@ -486,6 +533,29 @@ class InkCanvas(QWidget):
         painter.drawPath(outline)
         painter.restore()
 
+    def _paint_write_zones(self, painter: QPainter) -> None:
+        safe = self._safe_write_rect()
+        full = QRectF(0.0, 0.0, float(self._logical_width), float(self._logical_height))
+        if safe.isNull() or safe.isEmpty() or not full.contains(safe):
+            return
+        painter.save()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(*self._ui_tokens["guard_overlay"]))
+        if safe.top() > full.top():
+            painter.drawRect(QRectF(full.left(), full.top(), full.width(), safe.top() - full.top()))
+        if safe.bottom() < full.bottom():
+            painter.drawRect(QRectF(full.left(), safe.bottom(), full.width(), full.bottom() - safe.bottom()))
+        if safe.left() > full.left():
+            painter.drawRect(QRectF(full.left(), safe.top(), safe.left() - full.left(), safe.height()))
+        if safe.right() < full.right():
+            painter.drawRect(QRectF(safe.right(), safe.top(), full.right() - safe.right(), safe.height()))
+        painter.setBrush(QColor(*self._ui_tokens["safe_overlay"]))
+        painter.drawRect(safe)
+        painter.setPen(QPen(QColor(self._ui_tokens["safe_border"]), 1.4, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(safe)
+        painter.restore()
+
     def _build_selection_path(self, closed: bool) -> QPainterPath:
         if not self.selection_points:
             return QPainterPath()
@@ -496,9 +566,9 @@ class InkCanvas(QWidget):
             path.closeSubpath()
         return path.simplified()
 
-    def _grow_scene_if_needed(self, point: QPointF) -> QPointF:
+    def _grow_scene_if_needed(self, point: QPointF, force: bool = False) -> QPointF:
         now = time.monotonic()
-        if now - self._last_grow_ts < self._grow_cooldown_s:
+        if not force and now - self._last_grow_ts < self._grow_cooldown_s:
             return QPointF()
         prev_logical_width = self._logical_width
         prev_logical_height = self._logical_height
@@ -508,10 +578,14 @@ class InkCanvas(QWidget):
         grow_down = point.y() > self._logical_height - self._grow_threshold and self._logical_height < self._scene_height
         if not (grow_left or grow_up or grow_right or grow_down):
             return QPointF()
-        shift_x = self._grow_step_x if grow_left else 0
-        shift_y = self._grow_step_y if grow_up else 0
-        new_w = prev_logical_width + (self._grow_step_x if (grow_left or grow_right) else 0)
-        new_h = prev_logical_height + (self._grow_step_y if (grow_up or grow_down) else 0)
+        remain_w = max(0, int(self._scene_width - prev_logical_width))
+        remain_h = max(0, int(self._scene_height - prev_logical_height))
+        step_x = remain_w if force else self._grow_step_x
+        step_y = remain_h if force else self._grow_step_y
+        shift_x = min(step_x, remain_w) if grow_left else 0
+        shift_y = min(step_y, remain_h) if grow_up else 0
+        new_w = prev_logical_width + (min(step_x, remain_w) if (grow_left or grow_right) else 0)
+        new_h = prev_logical_height + (min(step_y, remain_h) if (grow_up or grow_down) else 0)
         self._logical_width = min(int(new_w), int(self._scene_width))
         self._logical_height = min(int(new_h), int(self._scene_height))
         applied_shift_x = min(shift_x, max(0, self._logical_width - prev_logical_width)) if grow_left else 0
@@ -526,13 +600,46 @@ class InkCanvas(QWidget):
             )
         return QPointF(float(applied_shift_x), float(applied_shift_y))
 
-    def _is_near_canvas_edge(self, point: QPointF) -> bool:
+    def _safe_write_rect(self) -> QRectF:
+        if not self._viewport_scene_rect.isNull() and not self._viewport_scene_rect.isEmpty():
+            visible = self._viewport_scene_rect.intersected(QRectF(0.0, 0.0, self._logical_width, self._logical_height))
+            if not visible.isNull() and not visible.isEmpty():
+                margin_x = max(12.0, min(30.0, visible.width() * 0.07))
+                margin_y = max(10.0, min(26.0, visible.height() * 0.07))
+                safe = visible.adjusted(margin_x, margin_y, -margin_x, -margin_y)
+                if safe.width() >= 8.0 and safe.height() >= 8.0:
+                    return safe
+                return visible
+        left = min(self._safe_write_margin_x, max(0.0, self._logical_width / 4.0))
+        top = min(self._safe_write_margin_y, max(0.0, self._logical_height / 4.0))
+        width = max(1.0, self._logical_width - left * 2.0)
+        height = max(1.0, self._logical_height - top * 2.0)
+        return QRectF(left, top, width, height)
+
+    def _is_outside_safe_write_rect(self, point: QPointF) -> bool:
+        return not self._safe_write_rect().contains(point)
+
+    def _is_in_edge_guard_zone(self, point: QPointF) -> bool:
         return (
-            point.x() < self._follow_margin_x
-            or point.y() < self._follow_margin_y
-            or point.x() > self._logical_width - self._follow_margin_x
-            or point.y() > self._logical_height - self._follow_margin_y
+            point.x() < self._edge_guard_margin
+            or point.y() < self._edge_guard_margin
+            or point.x() > self._logical_width - self._edge_guard_margin
+            or point.y() > self._logical_height - self._edge_guard_margin
         )
+
+    def _guard_edge_transition(self, point: QPointF) -> QPointF | None:
+        if self.current_tool in (HandwritingTool.WRITE, HandwritingTool.ERASE, HandwritingTool.SELECT_CORRECT):
+            if not self._is_outside_safe_write_rect(point):
+                return None
+            return QPointF(point)
+        if not self._is_in_edge_guard_zone(point):
+            return None
+        shift = self._grow_scene_if_needed(point)
+        if shift == QPointF():
+            return None
+        shifted_point = QPointF(point.x() + shift.x(), point.y() + shift.y())
+        self._emit_viewport_follow(shifted_point, hard=True)
+        return shifted_point
 
     def _emit_viewport_follow(self, point: QPointF, hard: bool) -> None:
         self.viewportFollowRequested.emit(self._to_view_point(point), bool(hard))

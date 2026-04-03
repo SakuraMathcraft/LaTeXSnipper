@@ -5112,9 +5112,19 @@ class MainWindow(_QMainWindow):
         self.capture_button.clicked.connect(self.start_capture)
         left_layout.addWidget(self.capture_button)
 
-        # 历史记录标题 - 使用更现代的样式
+        # 历史记录标题与排序切换
+        history_header = QHBoxLayout()
+        history_header.setContentsMargins(0, 0, 0, 0)
+        history_header.setSpacing(6)
         self.history_title_label = QLabel("历史记录")
-        left_layout.addWidget(self.history_title_label)
+        history_header.addWidget(self.history_title_label)
+        history_header.addStretch()
+        self.history_reverse = bool(self.cfg.get("history_reverse", True))
+        self.history_order_button = PushButton("最新在前" if self.history_reverse else "最早在前")
+        self.history_order_button.setFixedHeight(28)
+        self.history_order_button.clicked.connect(self.toggle_history_order)
+        history_header.addWidget(self.history_order_button)
+        left_layout.addLayout(history_header)
 
         # 历史记录滚动区域
         self.history_scroll = QScrollArea()
@@ -5585,6 +5595,9 @@ class MainWindow(_QMainWindow):
         )
 
     def _history_row_index(self, row: QWidget):
+        actual_index = getattr(row, "_history_index", None)
+        if isinstance(actual_index, int) and 0 <= actual_index < len(self.history):
+            return actual_index
         # layout 最后一个是 stretch, 所以有效行数 = count - 1
         total = self.history_layout.count() - 1
         for i in range(total):
@@ -5644,11 +5657,11 @@ class MainWindow(_QMainWindow):
         self.model_status = msg
         self.refresh_status_label()
 
-    def set_action_status(self, msg: str, auto_clear_ms: int = 2500):
+    def set_action_status(self, msg: str, auto_clear_ms: int = 2500, parent=None):
         InfoBar.success(
             title="提示",
             content=msg,
-            parent=self,
+            parent=parent or self,
             position=InfoBarPosition.TOP_RIGHT,
             duration=auto_clear_ms
         )
@@ -5762,33 +5775,58 @@ class MainWindow(_QMainWindow):
 
     def _show_export_menu(self):
         """显示导出格式菜单"""
-        text = self.latex_editor.toPlainText().strip()
+        self._show_export_menu_for_source(
+            self.export_btn,
+            lambda: self.latex_editor.toPlainText(),
+            empty_hint="编辑器为空",
+        )
+
+    def _show_export_menu_for_source(self, anchor_widget, text_source, empty_hint: str = "内容为空", info_parent=None):
+        """在指定控件下方显示导出菜单，支持编辑器和结果对话框复用。"""
+        def _current_text() -> str:
+            try:
+                if callable(text_source):
+                    return (text_source() or "").strip()
+            except Exception:
+                return ""
+            return (str(text_source) if text_source is not None else "").strip()
+
+        text = _current_text()
         if not text:
-            self.set_action_status("编辑器为空")
+            self.set_action_status(empty_hint, parent=info_parent)
             return
 
+        def _export_current(format_type: str):
+            current = _current_text()
+            if not current:
+                self.set_action_status(empty_hint, parent=info_parent)
+                return
+            self._export_as(format_type, current, info_parent=info_parent)
+
         menu = CenterMenu(parent=self)
-        menu.addAction(Action("LaTeX (行内 $...$)", triggered=lambda: self._export_as("latex", text)))
-        menu.addAction(Action("LaTeX (display \\[...\\])", triggered=lambda: self._export_as("latex_display", text)))
-        menu.addAction(Action("LaTeX (equation 编号)", triggered=lambda: self._export_as("latex_equation", text)))
-        menu.addAction(Action("HTML", triggered=lambda: self._export_as("html", text)))
+        menu.addAction(Action("LaTeX (行内 $...$)", triggered=lambda: _export_current("latex")))
+        menu.addAction(Action("LaTeX (display \\[...\\])", triggered=lambda: _export_current("latex_display")))
+        menu.addAction(Action("LaTeX (equation 编号)", triggered=lambda: _export_current("latex_equation")))
+        menu.addAction(Action("HTML", triggered=lambda: _export_current("html")))
         menu.addSeparator()
-        menu.addAction(Action("Markdown (行内 $...$)", triggered=lambda: self._export_as("markdown_inline", text)))
-        menu.addAction(Action("Markdown (块级 $$...$$)", triggered=lambda: self._export_as("markdown_block", text)))
+        menu.addAction(Action("Markdown (行内 $...$)", triggered=lambda: _export_current("markdown_inline")))
+        menu.addAction(Action("Markdown (块级 $$...$$)", triggered=lambda: _export_current("markdown_block")))
         menu.addSeparator()
-        menu.addAction(Action("MathML", triggered=lambda: self._export_as("mathml", text)))
-        menu.addAction(Action("MathML (.mml)", triggered=lambda: self._export_as("mathml_mml", text)))
-        menu.addAction(Action("MathML (<m>)", triggered=lambda: self._export_as("mathml_m", text)))
-        menu.addAction(Action("MathML (attr)", triggered=lambda: self._export_as("mathml_attr", text)))
+        menu.addAction(Action("MathML", triggered=lambda: _export_current("mathml")))
+        menu.addAction(Action("MathML (.mml)", triggered=lambda: _export_current("mathml_mml")))
+        menu.addAction(Action("MathML (<m>)", triggered=lambda: _export_current("mathml_m")))
+        menu.addAction(Action("MathML (attr)", triggered=lambda: _export_current("mathml_attr")))
         menu.addSeparator()
-        menu.addAction(Action("Word OMML", triggered=lambda: self._export_as("omml", text)))
-        menu.addAction(Action("SVG Code", triggered=lambda: self._export_as("svgcode", text)))
+        menu.addAction(Action("Word OMML", triggered=lambda: _export_current("omml")))
+        menu.addAction(Action("SVG Code", triggered=lambda: _export_current("svgcode")))
 
-        # 在导出按钮位置显示菜单
-        btn_pos = self.export_btn.mapToGlobal(self.export_btn.rect().bottomLeft())
-        menu.exec(btn_pos)
+        if anchor_widget:
+            pos = anchor_widget.mapToGlobal(anchor_widget.rect().bottomLeft())
+        else:
+            pos = self.mapToGlobal(self.rect().center())
+        menu.exec(pos)
 
-    def _export_as(self, format_type: str, latex: str):
+    def _export_as(self, format_type: str, latex: str, info_parent=None):
         """导出公式为指定格式（支持多种格式）"""
         result = ""
         format_name = ""
@@ -5811,7 +5849,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = _mathml_htmlize(self._latex_to_mathml(clean))
             except Exception as e:
-                self.set_action_status(f"HTML 导出失败: {e}")
+                self.set_action_status(f"HTML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "HTML"
 
@@ -5829,7 +5867,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = self._latex_to_mathml(clean)
             except Exception as e:
-                self.set_action_status(f"MathML 导出失败: {e}")
+                self.set_action_status(f"MathML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "MathML"
 
@@ -5838,7 +5876,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = _mathml_with_prefix(self._latex_to_mathml(clean), "mml")
             except Exception as e:
-                self.set_action_status(f"MathML 导出失败: {e}")
+                self.set_action_status(f"MathML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "MathML (.mml)"
 
@@ -5847,7 +5885,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = _mathml_with_prefix(self._latex_to_mathml(clean), "m")
             except Exception as e:
-                self.set_action_status(f"MathML 导出失败: {e}")
+                self.set_action_status(f"MathML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "MathML (<m>)"
 
@@ -5856,7 +5894,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = _mathml_with_prefix(self._latex_to_mathml(clean), "attr")
             except Exception as e:
-                self.set_action_status(f"MathML 导出失败: {e}")
+                self.set_action_status(f"MathML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "MathML (attr)"
 
@@ -5864,7 +5902,7 @@ class MainWindow(_QMainWindow):
             try:
                 result = self._latex_to_omml(clean)
             except Exception as e:
-                self.set_action_status(f"OMML 导出失败: {e}")
+                self.set_action_status(f"OMML 导出失败: {e}", parent=info_parent)
                 return
             format_name = "Word OMML"
 
@@ -5873,21 +5911,21 @@ class MainWindow(_QMainWindow):
             try:
                 result = self._latex_to_svg_code(clean)
             except Exception as e:
-                self.set_action_status(f"SVG 导出失败: {e}")
+                self.set_action_status(f"SVG 导出失败: {e}", parent=info_parent)
                 return
             format_name = "SVG Code"
 
         if result:
             try:
                 QApplication.clipboard().setText(result)
-                self.set_action_status(f"已复制 {format_name} 格式")
+                self.set_action_status(f"已复制 {format_name} 格式", parent=info_parent)
             except Exception:
                 try:
                     import pyperclip
                     pyperclip.copy(result)
-                    self.set_action_status(f"已复制 {format_name} 格式")
+                    self.set_action_status(f"已复制 {format_name} 格式", parent=info_parent)
                 except Exception:
-                    self.set_action_status("复制失败")
+                    self.set_action_status("复制失败", parent=info_parent)
 
     def _latex_to_svg_code(self, latex: str) -> str:
         """将 LaTeX 转换为 SVG 代码"""
@@ -6377,6 +6415,31 @@ th {{
         else:
             self.set_action_status("公式已在历史中")
 
+    def _history_display_entries(self):
+        entries = list(enumerate(self.history))
+        if self.history_reverse:
+            entries.reverse()
+        return [
+            (display_index + 1, history_index, text)
+            for display_index, (history_index, text) in enumerate(entries)
+        ]
+
+    def _refresh_history_order_button(self):
+        if not hasattr(self, "history_order_button"):
+            return
+        if self.history_reverse:
+            self.history_order_button.setText("最新在前")
+            self.history_order_button.setToolTip("当前按最新记录在前显示，点击切换为最早在前")
+        else:
+            self.history_order_button.setText("最早在前")
+            self.history_order_button.setToolTip("当前按最早记录在前显示，点击切换为最新在前")
+
+    def toggle_history_order(self):
+        self.history_reverse = not bool(getattr(self, "history_reverse", False))
+        self.cfg.set("history_reverse", self.history_reverse)
+        self._refresh_history_order_button()
+        self.rebuild_history_ui()
+
     def rebuild_history_ui(self):
         for i in reversed(range(self.history_layout.count() - 1)):
             item = self.history_layout.itemAt(i)
@@ -6385,8 +6448,12 @@ th {{
                 self.history_layout.removeWidget(w)
                 w.setParent(None)
                 w.deleteLater()
-        for idx, t in enumerate(self.history):
-            self.history_layout.insertWidget(self.history_layout.count() - 1, self.create_history_row(t, idx + 1))
+        for display_index, history_index, text in self._history_display_entries():
+            self.history_layout.insertWidget(
+                self.history_layout.count() - 1,
+                self.create_history_row(text, display_index, history_index),
+            )
+        self._refresh_history_order_button()
         self.update_history_ui()
 
     def _row_is_alive(self, row):
@@ -6450,10 +6517,11 @@ th {{
         # 不标记 _deleted，直接调用
         self.delete_history_item(row, txt)
 
-    def create_history_row(self, t: str, index: int = 0):
+    def create_history_row(self, t: str, index: int = 0, history_index: int | None = None):
         row = QWidget(self.history_container)
         row._latex_text = t
         row._index = index
+        row._history_index = history_index
         row._deleted = False
         hl = QHBoxLayout(row)
         hl.setContentsMargins(6, 4, 6, 4)
@@ -7985,10 +8053,24 @@ th {{
                 preview_text.setPlainText(te.toPlainText())
             te.textChanged.connect(update_preview)
 
-        btn = PushButton(FluentIcon.ACCEPT, "确定")
-        btn.setFixedHeight(32)
-        btn.clicked.connect(lambda: self.accept_latex(dlg, te))
-        lay.addWidget(btn)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        export_btn = PushButton(FluentIcon.SHARE, "导出")
+        export_btn.setFixedHeight(32)
+        export_btn.clicked.connect(
+            lambda: self._show_export_menu_for_source(
+                export_btn,
+                lambda: te.toPlainText(),
+                empty_hint="识别结果为空",
+                info_parent=dlg,
+            )
+        )
+        confirm_btn = PrimaryPushButton(FluentIcon.ACCEPT, "确定")
+        confirm_btn.setFixedHeight(32)
+        confirm_btn.clicked.connect(lambda: self.accept_latex(dlg, te))
+        btn_row.addWidget(export_btn)
+        btn_row.addWidget(confirm_btn)
+        lay.addLayout(btn_row)
 
         dlg.show()
         dlg.raise_()
@@ -8516,6 +8598,15 @@ QLineEdit:focus {{
             pass
         self._refresh_preview()
         self.set_action_status("手写识别结果已写入主编辑器")
+        try:
+            if self.isMinimized():
+                self.showNormal()
+            else:
+                self.show()
+            self.raise_()
+            self.activateWindow()
+        except Exception:
+            pass
 
     def open_handwriting_window(self):
         preferred = self._get_preferred_model_for_predict()
