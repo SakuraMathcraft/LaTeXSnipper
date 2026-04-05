@@ -751,9 +751,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
             view_x = int(anchor_x - hbar.value())
             view_y = int(anchor_y - vbar.value())
             # SyncTeX x anchor tends to drift right by about one glyph on some fonts.
-            left_pad = max(6, int(round(float(band_h) * 0.78)))
+            left_pad = max(6, int(round(float(band_h) * 0.86)))
             left = int(view_x - left_pad)
-            top = int(view_y - int(round(float(band_h) * 0.65)))
+            top = int(view_y - int(round(float(band_h) * 0.78)))
             left = max(0, min(left, int(vp.width() - band_w)))
             top = max(0, min(top, int(vp.height() - band_h)))
             marker.move(left, top)

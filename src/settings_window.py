@@ -1,4 +1,4 @@
-﻿import os, sys, subprocess
+﻿import os, sys, subprocess, shutil
 from pathlib import Path
 import time
 import pyperclip
@@ -117,10 +117,14 @@ class SettingsWindow(QDialog):
     model_changed = pyqtSignal(str)
     env_torch_probe_done = pyqtSignal(str, object, str)
     pix2text_pkg_probe_done = pyqtSignal(bool)
+    latex_path_test_done = pyqtSignal(bool, str, str, str, str)
+    latex_auto_detect_done = pyqtSignal(bool, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._model_selection_syncing = False
+        self._latex_test_in_progress = False
+        self._latex_detect_in_progress = False
         self._external_test_thread = None
         self._external_test_worker = None
         self._external_help_window = None
@@ -396,15 +400,6 @@ class SettingsWindow(QDialog):
         latex_layout = QVBoxLayout(self.latex_options_widget)
         latex_layout.setContentsMargins(0, 8, 0, 0)
         latex_layout.setSpacing(6)
-        # LaTeX 编译器选择
-        latex_compiler_layout = QHBoxLayout()
-        latex_compiler_layout.addWidget(QLabel("编译器:"))
-        from qfluentwidgets import ComboBox as FluentComboBox
-        self.latex_compiler_combo = FluentComboBox()
-        self.latex_compiler_combo.setFixedHeight(32)
-        self.latex_compiler_combo.addItems(["pdflatex", "xelatex"])
-        latex_compiler_layout.addWidget(self.latex_compiler_combo)
-        latex_layout.addLayout(latex_compiler_layout)
         # LaTeX 路径选择
         latex_path_layout = QHBoxLayout()
         latex_path_layout.addWidget(QLabel("LaTeX 路径:"))
@@ -498,6 +493,8 @@ class SettingsWindow(QDialog):
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # 渲染引擎相关信号
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
+        self.latex_path_test_done.connect(self._on_latex_path_test_done)
+        self.latex_auto_detect_done.connect(self._on_latex_auto_detect_done)
         self.btn_browse_latex.clicked.connect(self._browse_latex_path)
         self.btn_detect_latex.clicked.connect(self._detect_latex)
         self.btn_test_latex.clicked.connect(self._test_latex_path)
@@ -524,9 +521,6 @@ class SettingsWindow(QDialog):
         self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
-        # 编译器切换时自动切换路径
-        if hasattr(self, 'latex_compiler_combo'):
-            self.latex_compiler_combo.currentIndexChanged.connect(self._on_latex_compiler_changed)
         # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
         QTimer.singleShot(120, self._warm_probe_cache_async)
         self.apply_theme_styles(force=True)
@@ -644,34 +638,24 @@ class SettingsWindow(QDialog):
                 pass
         import threading
         threading.Thread(target=worker, daemon=True).start()
-    def _on_latex_compiler_changed(self):
-        """切换 LaTeX 编译器时自动切换路径"""
-        idx = self.latex_compiler_combo.currentIndex()
-        current_path = self.latex_path_input.text().strip()
-        import os
-        # 仅在路径为空或为另一编译器默认名时自动切换
-        pdflatex_name = "pdflatex.exe"
-        xelatex_name = "xelatex.exe"
-        # 判断当前路径是否为 pdflatex 或 xelatex
-        if idx == 0:
-            # 选择 pdflatex
-            if (not current_path) or os.path.basename(current_path).lower() == xelatex_name:
-                # 自动切换为 pdflatex
-                if current_path:
-                    new_path = os.path.join(os.path.dirname(current_path), pdflatex_name)
-                else:
-                    new_path = pdflatex_name
-                self.latex_path_input.setText(new_path)
-        else:
-            # 选择 xelatex
-            if (not current_path) or os.path.basename(current_path).lower() == pdflatex_name:
-                if current_path:
-                    new_path = os.path.join(os.path.dirname(current_path), xelatex_name)
-                else:
-                    new_path = xelatex_name
-                self.latex_path_input.setText(new_path)
-        # 触发路径变更逻辑（如按钮状态等）
-        self._on_latex_path_changed()
+    def _compiler_for_engine(self, engine: str) -> str:
+        return "xelatex" if str(engine or "").strip() == "latex_xelatex" else "pdflatex"
+
+    def _sync_latex_path_for_engine(self, engine: str) -> None:
+        if not str(engine or "").startswith("latex_"):
+            return
+        target = self._compiler_for_engine(engine)
+        target_exe = f"{target}.exe"
+        other_exe = "pdflatex.exe" if target == "xelatex" else "xelatex.exe"
+        current_path = (self.latex_path_input.text() or "").strip()
+        if current_path:
+            base = os.path.basename(current_path).lower()
+            if base == other_exe:
+                self.latex_path_input.setText(os.path.join(os.path.dirname(current_path), target_exe))
+            return
+        candidate = shutil.which(target) or target_exe
+        if candidate:
+            self.latex_path_input.setText(candidate)
     def _on_terminal_env_changed(self, index: int):
         mapping = {0: "main"}
         self._terminal_env_key = mapping.get(index, "main")
@@ -1334,7 +1318,7 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[WARN] 初始化渲染引擎失败: {e}")
     def _on_render_engine_changed(self, index: int):
-        """渲染引擎改变 - 立即验证并测试"""
+        """渲染引擎改变 - 立即切换，不在主线程做重型验证。"""
         if index < 0:
             return
         # 从 _render_modes 列表获取对应的引擎数据
@@ -1346,27 +1330,13 @@ class SettingsWindow(QDialog):
         is_latex = engine.startswith("latex_")
         self.latex_options_widget.setVisible(is_latex)
         if is_latex:
-            # LaTeX 模式：先尝试自动检测
-            from backend.latex_renderer import LaTeXRenderer
+            self._sync_latex_path_for_engine(engine)
             latex_path = self.latex_path_input.text().strip()
             if not latex_path:
-                # 尝试自动检测
-                renderer = LaTeXRenderer()
-                if renderer.is_available():
-                    latex_path = renderer.latex_cmd
-                    self.latex_path_input.setText(latex_path)
-                    print(f"[LaTeX] 自动检测成功: {latex_path}")
-                else:
-                    # 检测失败，显示浮动通知并恢复
-                    self._show_notification("warning", "未检测到 LaTeX", 
-                                          "请点击浏览选择路径或安装 MiKTeX/TeX Live")
-                    self.render_engine_combo.setCurrentIndex(0)
-                    return
-            # 立即测试 LaTeX
-            self._test_latex_path()
-        else:
-            # 非 LaTeX 模式：直接保存（无需确认弹窗）
-            self._save_render_mode(engine)
+                self._show_notification("warning", "LaTeX 路径未配置", "已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。")
+
+        # 无论是否 LaTeX，引擎切换都立即保存；耗时验证由“验证路径”按钮触发。
+        self._save_render_mode(engine)
     def _load_latex_settings(self):
         """加载 LaTeX 设置"""
         try:
@@ -1379,6 +1349,8 @@ class SettingsWindow(QDialog):
             print(f"[WARN] 加载 LaTeX 设置失败: {e}")
     def _on_latex_path_changed(self):
         """LaTeX 路径改变 - 清除验证状态"""
+        if getattr(self, "_latex_test_in_progress", False):
+            return
         self.btn_test_latex.setText("验证路径")
         self.btn_test_latex.setEnabled(True)
     def _browse_latex_path(self):
@@ -1394,23 +1366,91 @@ class SettingsWindow(QDialog):
             self.latex_path_input.setText(file_path)
             self._save_latex_settings()
     def _detect_latex(self):
-        """自动检测 LaTeX"""
-        from backend.latex_renderer import LaTeXRenderer
-        renderer = LaTeXRenderer()  # 会自动检测
-        if renderer.is_available():
-            self.latex_path_input.setText(renderer.latex_cmd)
-            self._save_latex_settings()
-            self._show_notification("success", "检测成功", f"检测到 LaTeX:\n{renderer.latex_cmd}")
+        """异步自动检测 LaTeX（同时检测 pdflatex/xelatex）。"""
+        if getattr(self, "_latex_detect_in_progress", False):
+            return
+
+        self._latex_detect_in_progress = True
+        self.btn_detect_latex.setText("检测中...")
+        self.btn_detect_latex.setEnabled(False)
+
+        # 检测偏好以“当前渲染引擎选择”为准；非 LaTeX 模式时按当前路径推断。
+        current_engine = ""
+        idx = self.render_engine_combo.currentIndex()
+        if 0 <= idx < len(self._render_modes):
+            current_engine = self._render_modes[idx]
+        if current_engine == "latex_xelatex":
+            selected_compiler = "xelatex"
+        elif current_engine == "latex_pdflatex":
+            selected_compiler = "pdflatex"
         else:
-            self._show_notification("warning", "检测失败", 
-                                  "未检测到 LaTeX。请安装 MiKTeX/TeX Live 或手动指定路径")
+            base = os.path.basename((self.latex_path_input.text() or "").strip()).lower()
+            selected_compiler = "xelatex" if base == "xelatex.exe" else "pdflatex"
+        current_path = self.latex_path_input.text().strip()
+
+        def worker(preferred: str, current: str):
+            candidates = {
+                "pdflatex": (shutil.which("pdflatex") or "").strip(),
+                "xelatex": (shutil.which("xelatex") or "").strip(),
+            }
+
+            # 若 PATH 未命中，尝试从当前路径目录推断同级编译器。
+            try:
+                if current:
+                    base_dir = os.path.dirname(current)
+                    if base_dir and os.path.isdir(base_dir):
+                        pdflatex_exe = os.path.join(base_dir, "pdflatex.exe")
+                        xelatex_exe = os.path.join(base_dir, "xelatex.exe")
+                        if (not candidates["pdflatex"]) and os.path.exists(pdflatex_exe):
+                            candidates["pdflatex"] = pdflatex_exe
+                        if (not candidates["xelatex"]) and os.path.exists(xelatex_exe):
+                            candidates["xelatex"] = xelatex_exe
+            except Exception:
+                pass
+
+            chosen = ""
+            if candidates.get(preferred):
+                chosen = candidates[preferred]
+            elif candidates.get("pdflatex"):
+                chosen = candidates["pdflatex"]
+            elif candidates.get("xelatex"):
+                chosen = candidates["xelatex"]
+
+            pd = candidates.get("pdflatex") or "未找到"
+            xe = candidates.get("xelatex") or "未找到"
+            detail = f"pdflatex: {pd}\nxelatex: {xe}"
+            self.latex_auto_detect_done.emit(bool(chosen), chosen, detail)
+
+        import threading
+        threading.Thread(target=worker, args=(selected_compiler, current_path), daemon=True).start()
+
+    def _on_latex_auto_detect_done(self, ok: bool, latex_path: str, detail: str):
+        self._latex_detect_in_progress = False
+        self.btn_detect_latex.setText("自动检测")
+        self.btn_detect_latex.setEnabled(True)
+
+        if ok:
+            self.latex_path_input.setText(str(latex_path or ""))
+            self._save_latex_settings()
+            self._show_notification("success", "检测成功", detail)
+        else:
+            self._show_notification("warning", "检测失败", f"未检测到 LaTeX。\n\n{detail}")
     def _save_latex_settings(self):
         """保存 LaTeX 设置"""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 latex_path = self.latex_path_input.text().strip()
-                use_xelatex = self.latex_compiler_combo.currentIndex() == 1
+                mode = "auto"
+                idx = self.render_engine_combo.currentIndex()
+                if 0 <= idx < len(self._render_modes):
+                    mode = self._render_modes[idx]
+                if mode == "latex_xelatex":
+                    use_xelatex = True
+                elif mode == "latex_pdflatex":
+                    use_xelatex = False
+                else:
+                    use_xelatex = os.path.basename(latex_path).lower() == "xelatex.exe"
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
                     _latex_settings.settings["use_xelatex"] = use_xelatex
@@ -1418,40 +1458,66 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
     def _test_latex_path(self):
-        """测试 LaTeX 路径并验证是否可用"""
-        from backend.latex_renderer import LaTeXRenderer
+        """异步测试 LaTeX 路径，避免阻塞主线程 UI。"""
         latex_path = self.latex_path_input.text().strip()
         if not latex_path:
             self._show_notification("error", "路径为空", "请输入 LaTeX 路径或点击自动检测")
             return False
-        try:
-            # 创建 LaTeX 渲染器来验证路径
-            renderer = LaTeXRenderer(latex_path)
-            if not renderer.is_available():
-                self._show_notification("error", "路径无效", "找不到 LaTeX 可执行文件")
-                return False
-            # 测试渲染简单公式
-            print(f"[LaTeX] 测试路径: {latex_path}")
-            test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
-            if test_svg and len(test_svg) > 100:  # SVG 应该有合理的长度
-                self.btn_test_latex.setText("✓ 已验证")
-                self.btn_test_latex.setEnabled(False)
-                self._show_notification("success", "验证成功", "LaTeX 环境已就绪")
-                # 保存设置
-                self._save_latex_settings()
-                # 获取当前选择的渲染模式
-                current_index = self.render_engine_combo.currentIndex()
-                if current_index >= 0 and current_index < len(self._render_modes):
-                    engine = self._render_modes[current_index]
-                    self._save_render_mode(engine)
-                return True
-            else:
-                self._show_notification("error", "验证失败", "无法用该路径渲染公式，请检查安装")
-                return False
-        except Exception as e:
-            print(f"[ERROR] LaTeX 验证失败: {e}")
-            self._show_notification("error", "验证出错", str(e)[:100])
+        if getattr(self, "_latex_test_in_progress", False):
             return False
+
+        current_index = self.render_engine_combo.currentIndex()
+        engine = self._render_modes[current_index] if 0 <= current_index < len(self._render_modes) else "auto"
+        self._latex_test_in_progress = True
+        self.btn_test_latex.setText("验证中...")
+        self.btn_test_latex.setEnabled(False)
+
+        def worker(path_value: str, engine_value: str):
+            from backend.latex_renderer import LaTeXRenderer
+
+            ok = False
+            title = "验证失败"
+            message = "无法用该路径渲染公式，请检查安装"
+            try:
+                renderer = LaTeXRenderer(path_value)
+                if not renderer.is_available():
+                    title = "路径无效"
+                    message = "找不到 LaTeX 可执行文件"
+                else:
+                    print(f"[LaTeX] 测试路径: {path_value}")
+                    test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
+                    if test_svg and len(test_svg) > 100:
+                        ok = True
+                        title = "验证成功"
+                        message = "LaTeX 环境已就绪"
+            except Exception as e:
+                print(f"[ERROR] LaTeX 验证失败: {e}")
+                title = "验证出错"
+                message = str(e)[:100]
+            self.latex_path_test_done.emit(bool(ok), str(title), str(message), str(engine_value), str(path_value))
+
+        import threading
+
+        threading.Thread(target=worker, args=(latex_path, engine), daemon=True).start()
+        return True
+
+    def _on_latex_path_test_done(self, ok: bool, title: str, message: str, engine: str, tested_path: str):
+        self._latex_test_in_progress = False
+        if ok:
+            self.btn_test_latex.setText("✓ 已验证")
+            self.btn_test_latex.setEnabled(False)
+            # 若用户在验证期间未改路径，则直接保存；改过也保持显示验证成功状态。
+            try:
+                if self.latex_path_input.text().strip() == (tested_path or "").strip():
+                    self._save_latex_settings()
+            except Exception:
+                pass
+            compiler = "xelatex" if os.path.basename((tested_path or "").strip()).lower() == "xelatex.exe" else "pdflatex"
+            self._show_notification("success", title or "验证成功", f"已验证编译器: {compiler}\n路径: {tested_path or ''}")
+            return
+        self.btn_test_latex.setText("验证路径")
+        self.btn_test_latex.setEnabled(True)
+        self._show_notification("error", title or "验证失败", message or "无法用该路径渲染公式，请检查安装")
     def _show_notification(self, level: str, title: str, message: str):
         """显示浮动通知
         Args:

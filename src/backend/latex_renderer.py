@@ -417,8 +417,8 @@ class LaTeXRenderer:
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding='utf-8')
                         print(f"[LaTeX] 渲染成功: {len(svg_content)} bytes")
-                        # 轻微放大 SVG，避免主窗口里块高异常膨胀
-                        svg_content = self._enlarge_svg(svg_content, scale=1.6)
+                        # 适度放大 SVG，提升主窗口 LaTeX 引擎预览可读性
+                        svg_content = self._enlarge_svg(svg_content, scale=2.2)
                         return svg_content
                 except FileNotFoundError:
                     print("[WARN] pdftocairo 未找到，无法转换 PDF 到 SVG")
@@ -439,43 +439,24 @@ class LaTeXRenderer:
             修改后的 SVG 字符串
         """
         import re
-        # 匹配 <svg ... width="..." height="..." viewBox="... ... w h" ...>
-        def repl(match):
-            width = match.group("width")
-            height = match.group("height")
-            viewbox = match.group("viewbox")
-            # 放大 width/height
+
+        def _scale_attr(match):
+            name = match.group(1)
+            value = match.group(2)
+            unit = match.group(3) or ""
             try:
-                w = float(width)
-                h = float(height)
-                w2 = w * scale
-                h2 = h * scale
-                width_str = f'{w2:g}'
-                height_str = f'{h2:g}'
+                scaled = float(value) * float(scale)
+                return f'{name}="{scaled:g}{unit}"'
             except Exception:
-                width_str = width
-                height_str = height
-            # viewBox="x y w h"，只放大 w h
-            if viewbox:
-                vb = viewbox.split()
-                if len(vb) == 4:
-                    try:
-                        vb[2] = str(float(vb[2]) * scale)
-                        vb[3] = str(float(vb[3]) * scale)
-                    except Exception:
-                        pass
-                    viewbox_str = 'viewBox="' + ' '.join(vb) + '"'
-                else:
-                    viewbox_str = f'viewBox="{viewbox}"'
-            else:
-                viewbox_str = ''
-            return f'<svg width="{width_str}" height="{height_str}" {viewbox_str}'
-        # 替换 <svg ...>
+                return match.group(0)
+
+        # 仅放大 width/height；不要改 viewBox，避免抵消放大效果。
+        # 兼容无单位和带单位（pt/px/cm/mm/in）的场景。
         svg_content = re.sub(
-            r'<svg\s+[^>]*width="(?P<width>[0-9.]+)"\s+height="(?P<height>[0-9.]+)"(?:\s+viewBox="(?P<viewbox>[^"]+)")?',
-            repl,
+            r'\b(width|height)="([0-9]+(?:\.[0-9]+)?)(pt|px|cm|mm|in)?"',
+            _scale_attr,
             svg_content,
-            count=1
+            count=2,
         )
         return svg_content
     
