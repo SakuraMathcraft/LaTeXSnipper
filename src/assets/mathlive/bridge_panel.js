@@ -93,6 +93,27 @@ function toggleKeyboard() {
   }
 }
 
+function routeArrowKeyToMathfield(event) {
+  if (!mathfield || document.activeElement !== mathfield) return;
+  const commandMap = {
+    ArrowLeft: 'moveToPreviousChar',
+    ArrowRight: 'moveToNextChar',
+    ArrowUp: 'moveUp',
+    ArrowDown: 'moveDown',
+  };
+  const command = commandMap[event.key];
+  if (!command) return;
+  try {
+    const handled = mathfield.executeCommand?.(command);
+    if (handled !== false) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  } catch (_) {
+    // Ignore and keep default behavior for unsupported MathLive builds.
+  }
+}
+
 function installClipboardBridge() {
   if (!bridge) return;
   const clipboardApi = {
@@ -187,6 +208,7 @@ async function init() {
       syncKeyboardState();
       syncLayout();
     });
+    mathfield.addEventListener('keydown', routeArrowKeyToMathfield, true);
     mathfield.addEventListener('focusin', () => {
       queueMicrotask(() => {
         syncKeyboardState();

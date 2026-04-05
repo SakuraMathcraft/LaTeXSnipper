@@ -649,6 +649,22 @@ class HandwritingDocumentPreviewWindow(QDialog):
             return False
         page_rects = getattr(view, "_page_rects", None) or []
         page_sizes = getattr(view, "_page_sizes", None) or []
+        # In packaged builds, rendering/layout can be slightly behind after compile.
+        # Retry one layout pass before failing the jump.
+        if not page_rects or not page_sizes:
+            refreshed = False
+            for fn_name in ("_layout_pages", "_render_pages"):
+                fn = getattr(view, fn_name, None)
+                if callable(fn):
+                    try:
+                        fn()
+                        refreshed = True
+                        break
+                    except Exception:
+                        pass
+            if refreshed:
+                page_rects = getattr(view, "_page_rects", None) or []
+                page_sizes = getattr(view, "_page_sizes", None) or []
         idx = max(0, int(page) - 1)
         if idx >= len(page_rects) or idx >= len(page_sizes):
             return False
@@ -685,7 +701,14 @@ class HandwritingDocumentPreviewWindow(QDialog):
         vp = view.viewport()
         if vp is None:
             return
-        if self._pdf_jump_indicator is None:
+        marker = self._pdf_jump_indicator
+        if marker is not None:
+            try:
+                marker.parentWidget()
+            except RuntimeError:
+                marker = None
+                self._pdf_jump_indicator = None
+        if marker is None:
             marker = QWidget(vp)
             marker.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             marker.setStyleSheet(
@@ -697,7 +720,6 @@ class HandwritingDocumentPreviewWindow(QDialog):
             )
             marker.hide()
             self._pdf_jump_indicator = marker
-        marker = self._pdf_jump_indicator
         raw_h = int(round(float(line_height_px) * 0.68)) if line_height_px > 0 else 14
         band_h = max(8, min(18, raw_h))
         band_w = max(42, line_width_px if line_width_px > 0 else int(vp.width() * 0.55))
@@ -739,8 +761,12 @@ class HandwritingDocumentPreviewWindow(QDialog):
             return
 
     def _hide_pdf_jump_indicator(self) -> None:
-        if self._pdf_jump_indicator is not None:
-            self._pdf_jump_indicator.hide()
+        marker = self._pdf_jump_indicator
+        if marker is not None:
+            try:
+                marker.hide()
+            except RuntimeError:
+                self._pdf_jump_indicator = None
         self._pdf_jump_anchor_xy = None
 
     def _commit_mathlive_into_editor(self) -> None:
@@ -799,6 +825,16 @@ class HandwritingDocumentPreviewWindow(QDialog):
         return ""
 
     def _clear_preview_host(self) -> None:
+        self._pdf_jump_indicator_timer.stop()
+        marker = self._pdf_jump_indicator
+        self._pdf_jump_indicator = None
+        self._pdf_jump_anchor_xy = None
+        self._pdf_jump_band_size = (0, 0)
+        if marker is not None:
+            try:
+                marker.deleteLater()
+            except Exception:
+                pass
         if self.pdf_view is not None:
             try:
                 try:
@@ -1106,6 +1142,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def closeEvent(self, event) -> None:
         self._mathlive_anchor_pos = None
         self._mathlive_layout_timer.stop()
+        self._pdf_jump_indicator_timer.stop()
         try:
             self._clear_preview_host()
         except Exception:
