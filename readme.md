@@ -42,7 +42,7 @@
 
 <img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
 
-2.0 新增的数学工作台支持这样一条完整链路：
+`v2.0` 新增的数学工作台支持这样一条完整链路：
 
 1. 从主窗口截图识别公式
 2. 一键载入数学工作台
@@ -52,6 +52,7 @@
 6. 将结果写回主编辑器或复制 LaTeX / MathJSON
 
 ### 自动排版文档演示
+<img width="1919" height="1014" alt="v2 3深色" src="https://github.com/user-attachments/assets/c6dffd39-26d9-4e54-aba9-a4b010d3603e" />
 
 `v2.3` 新增的自动排版文档窗口支持文档级编辑与预览联动：
 
