@@ -4,13 +4,15 @@ import html
 import math
 import re
 import time
+from dataclasses import replace
 from pathlib import Path
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, QUrl, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QMouseEvent, QWheelEvent
-from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QScrollArea, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRect, QRectF, QThread, QTimer, QUrl, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QIcon, QMouseEvent, QWheelEvent
+from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
+from backend.external_model import ExternalModelClient
 from .ink_canvas import InkCanvas
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
@@ -26,31 +28,35 @@ try:
 except Exception:  # pragma: no cover
     QWebEngineSettings = None
 
+from .document_preview_window import (
+    HandwritingDocumentPreviewWindow as DocumentPreviewWindow,
+    SlowZoomPlainTextEdit as PreviewPlainTextEdit,
+    SlowZoomWebView as PreviewWebView,
+)
 
-class SlowZoomPlainTextEdit(QPlainTextEdit):
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = event.angleDelta().y()
-            if delta:
-                self.zoomIn(1 if delta > 0 else -1)
-                event.accept()
+
+class _HandwritingDocumentLayoutWorker(QObject):
+    finished = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, config, image):
+        super().__init__()
+        self.config = config
+        self.image = image
+
+    def run(self) -> None:
+        try:
+            from .recognizer import qimage_to_pil
+
+            pil_img = qimage_to_pil(self.image)
+            result = ExternalModelClient(self.config).predict(pil_img)
+            text = result.best_text("text").strip()
+            if not text:
+                self.failed.emit("自动排版结果为空")
                 return
-        super().wheelEvent(event)
-
-
-if QWebEngineView is not None:
-    class SlowZoomWebView(QWebEngineView):
-        def wheelEvent(self, event: QWheelEvent) -> None:
-            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                delta = event.angleDelta().y()
-                if delta:
-                    step = 0.08 if delta > 0 else -0.08
-                    self.setZoomFactor(max(0.5, min(3.0, self.zoomFactor() + step)))
-                    event.accept()
-                    return
-            super().wheelEvent(event)
-else:
-    SlowZoomWebView = None
+            self.finished.emit(text)
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 class HandwritingWindow(QDialog):
@@ -64,6 +70,8 @@ class HandwritingWindow(QDialog):
         self._recognize_pending = False
         self._recognize_thread = None
         self._recognize_worker = None
+        self._layout_thread = None
+        self._layout_worker = None
         self._closing = False
         self._last_result = ""
         self._theme_is_dark_cached = None
@@ -72,6 +80,7 @@ class HandwritingWindow(QDialog):
         self._pending_zoom_anchor = None
         self._active_zoom_anchor = None
         self._last_busy_notice_ts = 0.0
+        self._document_preview_window = None
         self._build_ui()
         self._wire_events()
 
@@ -176,7 +185,7 @@ class HandwritingWindow(QDialog):
         self.recognition_type_label.setObjectName("handwritingHint")
         result_header.addWidget(self.recognition_type_label)
         result_layout.addLayout(result_header)
-        self.result_editor = SlowZoomPlainTextEdit(self)
+        self.result_editor = PreviewPlainTextEdit(self)
         self.result_editor.setPlaceholderText("手写识别结果会显示在这里，可直接手动修正。")
         self.result_editor.setMinimumHeight(150)
         result_layout.addWidget(self.result_editor)
@@ -191,8 +200,8 @@ class HandwritingWindow(QDialog):
         preview_layout.addWidget(self.preview_title)
         self.preview_view = None
         self.preview_fallback = None
-        if SlowZoomWebView is not None:
-            self.preview_view = SlowZoomWebView(self)
+        if PreviewWebView is not None:
+            self.preview_view = PreviewWebView(self)
             self.preview_view.setObjectName("handwritingPreviewView")
             if QWebEngineSettings is not None:
                 try:
@@ -218,10 +227,17 @@ class HandwritingWindow(QDialog):
         bottom.addWidget(self.status_label)
         bottom.addStretch(1)
         self.copy_btn = PushButton(FluentIcon.COPY, "复制 LaTeX")
+        layout_icon = getattr(FluentIcon, "HIGHLIGHT", None) or getattr(FluentIcon, "HIGHTLIGHT", FluentIcon.ALIGNMENT)
+        self.layout_btn = PushButton(layout_icon, "自动排版")
         self.insert_btn = PrimaryPushButton(FluentIcon.ACCEPT, "插入")
         self.copy_btn.setFixedHeight(34)
+        self.layout_btn.setFixedHeight(34)
         self.insert_btn.setFixedHeight(34)
+        self._layout_btn_opacity = QGraphicsOpacityEffect(self.layout_btn)
+        self._layout_btn_opacity.setOpacity(1.0)
+        self.layout_btn.setGraphicsEffect(self._layout_btn_opacity)
         bottom.addWidget(self.copy_btn)
+        bottom.addWidget(self.layout_btn)
         bottom.addWidget(self.insert_btn)
         root.addLayout(bottom)
 
@@ -240,6 +256,7 @@ class HandwritingWindow(QDialog):
         self._ui_ready = True
         self.apply_theme_styles(force=True)
         self._apply_auto_focus_state(False)
+        self._update_layout_button_state()
         QTimer.singleShot(0, self._sync_canvas_extent_to_viewport)
 
     def resizeEvent(self, event) -> None:
@@ -285,6 +302,7 @@ class HandwritingWindow(QDialog):
         self.undo_btn.clicked.connect(self._undo)
         self.redo_btn.clicked.connect(self._redo)
         self.copy_btn.clicked.connect(self._copy_result)
+        self.layout_btn.clicked.connect(self._auto_layout_document)
         self.insert_btn.clicked.connect(self._insert_result)
         self.auto_focus_checkbox.toggled.connect(self._apply_auto_focus_state)
         self.canvas.contentChanged.connect(self._on_canvas_changed)
@@ -651,6 +669,19 @@ class HandwritingWindow(QDialog):
     def _refresh_recognition_context(self) -> None:
         if hasattr(self, "recognition_type_label"):
             self.recognition_type_label.setText(f"当前识别类型：{self._get_active_model_label()}")
+        self._update_layout_button_state()
+
+    def _update_layout_button_state(self) -> None:
+        if not hasattr(self, "layout_btn"):
+            return
+        available = self._get_active_model_key() == "external_model" and self._is_external_model_ready() and not self._closing
+        busy = self._is_layout_busy()
+        self.layout_btn.setEnabled(not busy and not self._closing)
+        self.layout_btn.setText("排版中..." if self._is_layout_busy() else "自动排版")
+        opacity = 1.0 if available or busy else 0.55
+        effect = getattr(self, "_layout_btn_opacity", None)
+        if effect is not None:
+            effect.setOpacity(opacity)
 
     def _on_canvas_changed(self) -> None:
         if self.canvas.store.is_empty():
@@ -747,6 +778,7 @@ class HandwritingWindow(QDialog):
         self.result_editor.blockSignals(False)
         self._refresh_preview_from_text(text)
         self.status_label.setText("已更新")
+        self._update_layout_button_state()
 
     def _on_recognition_failed(self, error: str) -> None:
         if self._closing:
@@ -755,6 +787,7 @@ class HandwritingWindow(QDialog):
         self.status_label.setText(f"识别失败: {brief}")
         brief = brief.rstrip("。.!！？? ")
         self._show_error("手写识别失败", f"{brief}。可手动擦除后重写，或直接编辑右侧 LaTeX 结果。")
+        self._update_layout_button_state()
 
     def _on_result_editor_changed(self) -> None:
         self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
@@ -1039,6 +1072,109 @@ class HandwritingWindow(QDialog):
         self.status_label.setText("已复制 LaTeX")
         self._show_info("已复制", "LaTeX 已复制到剪贴板。")
 
+    def _build_math_document_prompt(self, recognized_text: str) -> str:
+        base = (
+            "你是一个数学文档排版助手。"
+            "请根据图片中的手写数学内容，整理为一份完整、可编译、结构清晰的 XeLaTeX 文档源码。"
+            "输出必须是完整的 .tex 文档，不要解释，不要添加说明，不要输出 markdown 代码块。"
+            "文档类固定使用 \\documentclass[UTF8]{ctexart}。"
+            "默认只使用 amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow。"
+            "只有在图片中明确存在示意图且无法用普通公式表达时，才允许额外使用 tikz。"
+            "必须包含导言区与 \\begin{document}...\\end{document}。"
+            "严格保持原始数学含义，不要擅自补充证明、解释、例子。"
+            "不确定内容可用 TeX 注释 % TODO: ... 标记。"
+        )
+        draft = str(recognized_text or "").strip()
+        if not draft:
+            return base
+        return base + "\n\n以下是当前识别草稿文本，请优先参考它修正文档结构，但图片仍是最终依据：\n" + draft
+
+    def _auto_layout_document(self) -> None:
+        if self._closing:
+            return
+        if self._get_active_model_key() != "external_model":
+            self.status_label.setText("自动排版不可用")
+            self._show_warning("当前不可用", "自动排版仅在外部模型模式下可用。")
+            return
+        if not self._is_external_model_ready():
+            self.status_label.setText("外部模型未配置")
+            self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+            return
+        if self._recognizing:
+            self.status_label.setText("等待识别完成后排版")
+            self._show_info("正在识别", "请等待当前手写识别完成后再自动排版。")
+            return
+        if self._is_layout_busy():
+            self.status_label.setText("自动排版中")
+            self._show_info("排版中", "自动排版任务正在进行，请稍候。")
+            return
+        export = self.canvas.export_image()
+        if export.is_empty or export.image is None:
+            self.status_label.setText("没有可排版内容")
+            self._show_warning("没有可排版内容", "请先写入笔迹并完成识别。")
+            return
+        cfg = self._get_external_model_config()
+        if cfg is None:
+            self.status_label.setText("外部模型未配置")
+            self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+            return
+        runtime_cfg = replace(
+            cfg,
+            output_mode="text",
+            prompt_template="math_document_layout_v1",
+            custom_prompt=self._build_math_document_prompt(self.result_editor.toPlainText().strip()),
+        )
+        self.status_label.setText("自动排版中")
+        self._layout_thread = QThread()
+        self._layout_worker = _HandwritingDocumentLayoutWorker(runtime_cfg, export.image)
+        worker = self._layout_worker
+        thread = self._layout_thread
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_document_layout_finished)
+        worker.failed.connect(self._on_document_layout_failed)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._teardown_layout)
+        thread.start()
+        self._update_layout_button_state()
+
+    def _teardown_layout(self, *_args) -> None:
+        self._layout_thread = None
+        self._layout_worker = None
+        if not self._closing and self.status_label.text() == "自动排版中":
+            self.status_label.setText("已更新")
+        self._update_layout_button_state()
+
+    def _on_document_layout_finished(self, text: str) -> None:
+        if self._closing:
+            return
+        doc_text = str(text or "").strip()
+        if not doc_text:
+            self.status_label.setText("排版结果为空")
+            self._show_warning("排版结果为空", "外部模型未返回可用的 TeX 文档。")
+            return
+        if self._document_preview_window is None:
+            self._document_preview_window = DocumentPreviewWindow()
+        self._document_preview_window.set_document(doc_text)
+        self._document_preview_window.show()
+        self._document_preview_window.raise_()
+        self._document_preview_window.activateWindow()
+        self.status_label.setText("自动排版完成")
+        self._show_info("自动排版完成", "已生成可编辑的 TeX 文档预览窗口。")
+
+    def _on_document_layout_failed(self, error: str) -> None:
+        if self._closing:
+            return
+        brief = (error or "自动排版失败").strip()
+        self.status_label.setText(f"排版失败: {brief}")
+        self._show_error("自动排版失败", brief)
+
+    def _is_layout_busy(self) -> bool:
+        return bool(self._layout_thread is not None and self._layout_thread.isRunning())
+
     def is_recognizing_busy(self) -> bool:
         return bool(
             self._recognizing
@@ -1076,6 +1212,20 @@ class HandwritingWindow(QDialog):
         self.focus_timer.stop()
         self._h_scroll_anim.stop()
         self._v_scroll_anim.stop()
+        layout_thread = self._layout_thread
+        if layout_thread is not None:
+            try:
+                layout_thread.requestInterruption()
+            except Exception:
+                pass
+            try:
+                layout_thread.quit()
+            except Exception:
+                pass
+            try:
+                layout_thread.wait(150)
+            except Exception:
+                pass
         thread = self._recognize_thread
         if thread is not None:
             try:
@@ -1091,3 +1241,4 @@ class HandwritingWindow(QDialog):
             except Exception:
                 pass
         super().closeEvent(event)
+

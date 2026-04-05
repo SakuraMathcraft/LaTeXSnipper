@@ -111,6 +111,16 @@ class ExternalModelResult:
     model_name: str = ""
     raw: dict | None = None
 
+    def _strip_outer_code_fence(self, value: str) -> str:
+        text = str(value or "").strip()
+        if not text.startswith("```"):
+            return text
+        match = re.fullmatch(r"```[ \t]*([A-Za-z0-9_+-]*)[ \t]*\n?(.*?)\n?```", text, flags=re.DOTALL)
+        if not match:
+            return text
+        inner = (match.group(2) or "").strip()
+        return inner or text
+
     def _normalize_common_text(self, value: str) -> str:
         text = (value or "").replace("\r\n", "\n")
         if not text:
@@ -120,6 +130,7 @@ class ExternalModelResult:
         text = re.sub(r"<\|(?:begin|end)_of_image\|>", "", text)
         text = re.sub(r"<\|(?:vision_start|vision_end|image_pad|img_pad)\|>", "", text)
         text = re.sub(r"</?image>", "", text, flags=re.IGNORECASE)
+        text = self._strip_outer_code_fence(text)
 
         lines: list[str] = []
         for raw_line in text.split("\n"):
