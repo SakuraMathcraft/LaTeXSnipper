@@ -37,6 +37,51 @@ class PopplerBackendStatus:
     detail: str
 
 
+class _ReusableTempDir:
+    """A fixed temp folder that can be reused and cleaned between previews."""
+
+    def __init__(self, path: Path):
+        self._path = Path(path)
+        self._path.mkdir(parents=True, exist_ok=True)
+        self.name = str(self._path)
+
+    def clear(self) -> None:
+        try:
+            for child in self._path.iterdir():
+                try:
+                    if child.is_dir():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def cleanup(self) -> None:
+        # Keep the fixed directory itself, but clear all generated files.
+        self.clear()
+
+
+def _cleanup_legacy_poppler_temp_dirs(max_age_seconds: int = 24 * 3600) -> None:
+    """Best-effort cleanup for old random temp dirs created by legacy builds."""
+    base = Path(tempfile.gettempdir())
+    now = time.time()
+    for path in base.glob("latexsnipper-poppler-svg-*"):
+        if not path.is_dir():
+            continue
+        try:
+            age = now - path.stat().st_mtime
+            if age < max_age_seconds:
+                continue
+        except Exception:
+            continue
+        try:
+            shutil.rmtree(path, ignore_errors=True)
+        except Exception:
+            pass
+
+
 def _which(command: str) -> str:
     try:
         return shutil.which(command) or ""
@@ -274,6 +319,7 @@ class _MagnifierRenderWorker(QObject):
 
 class PopplerPdfView(QScrollArea):
     syncJumpRequested = pyqtSignal(int, float, float)
+    _legacy_temp_cleaned = False
     _magnifier_render_request = pyqtSignal(int, str, float, float, float, float, int, float, float, bool)
 
     def __init__(self, parent=None):
@@ -342,7 +388,12 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_gpu_enabled = bool(QOpenGLWidget is not None and _has_nvidia_gpu_silent())
         if self._magnifier_gpu_enabled and self._window_has_qquickwidget():
             self._magnifier_gpu_enabled = False
-        self._temp_dir = tempfile.TemporaryDirectory(prefix="latexsnipper-poppler-svg-")
+        if not PopplerPdfView._legacy_temp_cleaned:
+            _cleanup_legacy_poppler_temp_dirs()
+            PopplerPdfView._legacy_temp_cleaned = True
+        fixed_temp_root = Path(tempfile.gettempdir()) / "latexsnipper-poppler-svg"
+        self._temp_dir = _ReusableTempDir(fixed_temp_root)
+        self._temp_dir.clear()
         self._canvas = _PopplerSvgCanvas(self, self)
         self._canvas.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setWidget(self._canvas)
@@ -499,6 +550,7 @@ class PopplerPdfView(QScrollArea):
 
     def load_document(self, pdf_path: str) -> None:
         self._doc_path = str(pdf_path or "")
+        self._temp_dir.clear()
         self._page_count = 0
         self._page_sizes = []
         self._page_rects = []
