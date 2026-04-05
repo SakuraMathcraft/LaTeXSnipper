@@ -3322,6 +3322,7 @@ def _preview_theme_tokens() -> dict:
         return {
             "body_bg": "#14171d",
             "body_text": "#e8ebf0",
+            "latex_formula_text": "#ffffff",
             "panel_bg": "#1d222b",
             "label_text": "#8ec5ff",
             "label_bg": "#1e334a",
@@ -3347,6 +3348,7 @@ def _preview_theme_tokens() -> dict:
     return {
         "body_bg": "#fafafa",
         "body_text": "#1f2328",
+        "latex_formula_text": "#1f2328",
         "panel_bg": "#f8f9fa",
         "label_text": "#1976d2",
         "label_bg": "#e3f2fd",
@@ -3598,13 +3600,14 @@ def _get_mathjax_base_url():
                         _MATHJAX_LOGGED_KEYS.add("cdn")
                     cdn_url = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/"
                     return QUrl(cdn_url)
-                # 如果选择了 LaTeX，不返回 MathJax URL（在渲染逻辑中单独处理）
+                # LaTeX 模式下主窗口/结果窗口仍可能包含 MathJax 内容（如混合文本、回退渲染），
+                # 这里继续返回本地 base_url，避免空 base 触发 CDN 回退。
                 elif mode and mode.startswith("latex_"):
                     mode_key = f"latex:{mode}"
                     if mode_key not in _MATHJAX_LOGGED_KEYS:
-                        print(f"[MathJax] 使用 LaTeX 渲染模式: {mode}")
+                        print(f"[MathJax] LaTeX 模式下仍使用本地 MathJax base: {mode}")
                         _MATHJAX_LOGGED_KEYS.add(mode_key)
-                    return QUrl()  # 返回空 URL
+                    # continue: resolve local MathJax base URL below
         except Exception as e:
             print(f"[WARN] 获取渲染模式失败: {e}")
         
@@ -6182,15 +6185,21 @@ class MainWindow(_QMainWindow):
             # 构建各个内容块
             content_blocks = []
             has_math = False  # 是否需要加载 MathJax
+            normalized_types = []
             
             for content, label, content_type in items:
+                normalized_type = normalize_content_type(content_type)
+                normalized_types.append(normalized_type)
                 block_html = self._render_content_block(content, label, content_type)
                 content_blocks.append(block_html)
                 # 检查是否需要 MathJax
-                if normalize_content_type(content_type) in ("pix2text", "pix2text_mixed"):
+                if normalized_type in ("pix2text", "pix2text_mixed"):
                     has_math = True
             
             body_content = "\n".join(content_blocks)
+            # 单条公式/混合公式预览统一为无边框容器，和普通公式预览视觉一致。
+            single_formula_like = len(items) == 1 and all(t in ("pix2text", "pix2text_mixed") for t in normalized_types)
+            body_cls = "single-formula-like" if single_formula_like else ""
             
             # 构建完整 HTML
             mathjax_config = '''
@@ -6233,6 +6242,16 @@ body {{
     background: {tokens['panel_bg']};
     border-radius: 8px;
     border-left: 4px solid {tokens['border_formula']};
+}}
+body.single-formula-like .content-block {{
+    margin-bottom: 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    border-left: none;
+}}
+body.single-formula-like .block-label {{
+    display: none;
 }}
 .content-block.text-type {{
     border-left-color: {tokens['border_text']};
@@ -6282,8 +6301,33 @@ body {{
     margin: 0 auto;
 }}
 .formula-content.latex-svg svg {{
+    display: block;
+    margin: 0 auto;
+    max-width: calc(100% / 1.5);
+    height: auto;
     transform: scale(1.5);
     transform-origin: center center;
+}}
+.formula-content.latex-svg {{
+    color: {tokens['latex_formula_text']};
+    padding-top: 0.25em;
+    padding-bottom: 0.25em;
+}}
+.formula-content.latex-svg svg[fill]:not([fill="none"]),
+.formula-content.latex-svg svg *[fill]:not([fill="none"]) {{
+    fill: currentColor !important;
+}}
+.formula-content.latex-svg svg[stroke]:not([stroke="none"]),
+.formula-content.latex-svg svg *[stroke]:not([stroke="none"]) {{
+    stroke: currentColor !important;
+}}
+.formula-content.latex-svg svg[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]),
+.formula-content.latex-svg svg *[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]) {{
+    fill: currentColor !important;
+}}
+.formula-content.latex-svg svg[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]),
+.formula-content.latex-svg svg *[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]) {{
+    stroke: currentColor !important;
 }}
 .text-content {{
     white-space: pre-wrap;
@@ -6309,7 +6353,7 @@ th {{
 }}
 </style>
 </head>
-<body>{body_content}</body>
+<body class="{body_cls}">{body_content}</body>
 </html>'''
         except Exception as e:
             # 返回错误提示 HTML
@@ -8427,7 +8471,7 @@ th {{
     }},
     svg: {{
       fontCache: 'global',
-      scale: 1
+            scale: 1.2
     }},
     options: {{
       enableMenu: false,
@@ -8453,17 +8497,17 @@ body {{
 }}
 .content {{
        min-height: calc(100vh - 32px);
-       background: {tokens['panel_bg']};
-       border: 1px solid {tokens['table_border']};
-       border-radius: 10px;
-       padding: 14px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
        box-sizing: border-box;
 }}
 .content br {{
        line-height: 1.8;
 }}
 .MathJax, .mjx-container {{
-       font-size: 1.1em;
+    font-size: 1.5em !important;
        color: {tokens['body_text']} !important;
 }}
 a {{
@@ -8511,12 +8555,32 @@ pre, code {{
 <html>
 <head>
 <meta charset="UTF-8">
+<script>
+    window.MathJax = {{
+        tex: {{
+            inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+            displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+            processEscapes: true
+        }},
+        svg: {{
+            fontCache: 'global',
+            scale: 1.2
+        }},
+        options: {{
+            enableMenu: false,
+            skipHtmlTags: [],
+            ignoreHtmlClass: [],
+            processHtmlClass: []
+        }}
+    }};
+</script>
 <script src="es5/tex-mml-chtml.js" async></script>
 <style>
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; background: {tokens['body_bg']}; color: {tokens['body_text']}; }}
 .item {{ margin-bottom: 16px; padding: 12px; background: {tokens['panel_bg']}; border: 1px solid {tokens['table_border']}; border-radius: 8px; }}
 .label {{ display: inline-block; background: {tokens['border_formula']}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }}
 .content {{ line-height: 1.8; font-size: 14px; }}
+.MathJax, .mjx-container {{ font-size: 1.5em !important; color: {tokens['body_text']} !important; }}
 </style>
 </head>
 <body>{"".join(items_html) if items_html else f"<p style='color:{tokens['muted_text']};'>暂无内容</p>"}</body>
@@ -9270,7 +9334,8 @@ class EditFormulaDialog(QDialog):
         if ensure_webengine_loaded():
             self.preview_view = QWebEngineView()
             self.preview_view.setMinimumHeight(200)
-            self.preview_view.setHtml(build_math_html(latex or ""), _get_mathjax_base_url())
+            init_html, init_base_url = self._build_preview_payload(latex or "")
+            self.preview_view.setHtml(init_html, init_base_url)
             self._pending_latex = latex or ""
             lay.addWidget(self.preview_view, 1)
             
@@ -9300,6 +9365,42 @@ class EditFormulaDialog(QDialog):
             return
         self._theme_is_dark_cached = dark
         _apply_dialog_theme(self)
+        if self.preview_view is not None:
+            self._pending_latex = ""
+            self._do_render()
+
+    def _fallback_local_mathjax_base_url(self):
+        from PyQt6.QtCore import QUrl
+        # 编辑窗口固定使用本地 MathJax，避免受全局渲染模式（如 CDN）影响。
+        candidates = []
+        try:
+            if APP_DIR and str(APP_DIR).strip():
+                candidates.append(Path(APP_DIR) / "assets" / "MathJax-3.2.2" / "es5")
+        except Exception:
+            pass
+        try:
+            exe_dir = Path(sys.executable).parent
+            candidates.append(exe_dir / "_internal" / "assets" / "MathJax-3.2.2" / "es5")
+            candidates.append(exe_dir / "assets" / "MathJax-3.2.2" / "es5")
+        except Exception:
+            pass
+        try:
+            candidates.append(Path(__file__).parent / "assets" / "MathJax-3.2.2" / "es5")
+        except Exception:
+            pass
+
+        for es5_dir in candidates:
+            try:
+                if es5_dir.exists():
+                    return QUrl.fromLocalFile(str(es5_dir) + os.sep)
+            except Exception:
+                pass
+        return QUrl()
+
+    def _build_preview_payload(self, latex: str):
+        text = str(latex or "").strip()
+        # 编辑窗口固定使用本地 MathJax，不再异步切换到 LaTeX-SVG。
+        return build_math_html(text), self._fallback_local_mathjax_base_url()
 
     def event(self, e):
         result = super().event(e)
@@ -9327,10 +9428,18 @@ class EditFormulaDialog(QDialog):
             return
         self._pending_latex = latex
         try:
-            html = build_math_html(latex)
-            self.preview_view.setHtml(html, _get_mathjax_base_url())
+            html, base_url = self._build_preview_payload(latex)
+            self.preview_view.setHtml(html, base_url)
         except Exception as e:
             print(f"[EditDialog Render] 渲染失败: {e}")
+
+    def closeEvent(self, event):
+        try:
+            if hasattr(self, '_render_timer') and self._render_timer:
+                self._render_timer.stop()
+        except Exception:
+            pass
+        return super().closeEvent(event)
 
     def value(self) -> str:
         return self.editor.toPlainText().strip()
