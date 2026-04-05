@@ -51,6 +51,17 @@
 5. 执行 `计算 / 化简 / 数值化 / 展开 / 因式分解 / 求解`
 6. 将结果写回主编辑器或复制 LaTeX / MathJSON
 
+### 自动排版文档演示
+
+`v2.3` 新增的自动排版文档窗口支持文档级编辑与预览联动：
+
+1. 从手写识别窗口打开“自动排版”
+2. 在左侧 `TeX 文档` 区编辑完整源码
+3. 使用内置公式编辑器补录复杂结构并回写源码
+4. 点击“编译预览 PDF”生成文档预览
+5. 在源码与 PDF 之间执行双向定位（SyncTeX）
+6. 需要时导出 `.tex` 或 `PDF` 交付
+
 ### 手写识别演示
 
 <img width="1408" height="916" alt="手写识别readme" src="https://github.com/user-attachments/assets/3fe98e41-218e-452c-96c1-cc805ab3e0f2" />
@@ -134,6 +145,15 @@ python src/main.py
 
 ```text
 LaTeXSnipper/
+├── apps/
+│   ├── android-client/
+│   │   ├── src/
+│   │   └── android/
+│   └── tauri-client/
+│       └── src-tauri/
+├── contracts/
+│   ├── daemon_rpc_contract.v1.json
+│   └── events.v1.json
 ├── src/
 │   ├── main.py
 │   ├── deps_bootstrap.py
@@ -150,6 +170,10 @@ LaTeXSnipper/
 │   │   └── advanced_cas.py
 │   ├── handwriting/
 │   │   ├── handwriting_window.py
+│   │   ├── document_preview_window.py
+│   │   ├── tex_document_utils.py
+│   │   ├── pdf_view_poppler.py
+│   │   ├── pdf_view_fitz.py
 │   │   ├── ink_canvas.py
 │   │   ├── stroke_store.py
 │   │   ├── recognizer.py
@@ -160,10 +184,16 @@ LaTeXSnipper/
 │   │   └── mathlive/
 │   │       ├── index.html
 │   │       ├── app.css
-│   │       └── app.js
+│   │       ├── app.js
+│   │       ├── bridge_panel.html
+│   │       └── bridge_panel.js
 │   ├── core/
+│   ├── models/
 │   └── ui/
+├── build/
 ├── LaTeXSnipper.spec
+├── requirements.txt
+├── requirements-build.txt
 ├── version_info.txt
 └── readme.md
 ```
