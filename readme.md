@@ -27,14 +27,12 @@
 
 ## 项目简介
 
-**LaTeXSnipper 2.3** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
+**LaTeXSnipper** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
 
 - 截图识别数学公式
 - 在数学工作台中继续编辑与计算
 - 直接在手写识别窗口中书写并自动转 LaTeX
 - 再将结果写回主编辑器或复制到剪贴板
-
-`v2.0` 引入了独立的 **数学工作台**；`v2.1` 补上了独立的 **手写识别窗口**；`v2.2` 则新增了 **外部模型识别入口**，让“截图输入 + 编辑计算 + 手写输入 + 外部模型接入”四条链路开始汇合。
 
 ---
 
@@ -52,6 +50,17 @@
 4. 使用虚拟数学键盘补录上下标、分式、积分、级数等结构
 5. 执行 `计算 / 化简 / 数值化 / 展开 / 因式分解 / 求解`
 6. 将结果写回主编辑器或复制 LaTeX / MathJSON
+
+### 自动排版文档演示
+
+`v2.3` 新增的自动排版文档窗口支持文档级编辑与预览联动：
+
+1. 从手写识别窗口打开“自动排版”
+2. 在左侧 `TeX 文档` 区编辑完整源码
+3. 使用内置公式编辑器补录复杂结构并回写源码
+4. 点击“编译预览 PDF”生成文档预览
+5. 在源码与 PDF 之间执行双向定位（SyncTeX）
+6. 需要时导出 `.tex` 或 `PDF` 交付
 
 ### 手写识别演示
 
@@ -136,6 +145,15 @@ python src/main.py
 
 ```text
 LaTeXSnipper/
+├── apps/
+│   ├── android-client/
+│   │   ├── src/
+│   │   └── android/
+│   └── tauri-client/
+│       └── src-tauri/
+├── contracts/
+│   ├── daemon_rpc_contract.v1.json
+│   └── events.v1.json
 ├── src/
 │   ├── main.py
 │   ├── deps_bootstrap.py
@@ -152,6 +170,10 @@ LaTeXSnipper/
 │   │   └── advanced_cas.py
 │   ├── handwriting/
 │   │   ├── handwriting_window.py
+│   │   ├── document_preview_window.py
+│   │   ├── tex_document_utils.py
+│   │   ├── pdf_view_poppler.py
+│   │   ├── pdf_view_fitz.py
 │   │   ├── ink_canvas.py
 │   │   ├── stroke_store.py
 │   │   ├── recognizer.py
@@ -162,10 +184,16 @@ LaTeXSnipper/
 │   │   └── mathlive/
 │   │       ├── index.html
 │   │       ├── app.css
-│   │       └── app.js
+│   │       ├── app.js
+│   │       ├── bridge_panel.html
+│   │       └── bridge_panel.js
 │   ├── core/
+│   ├── models/
 │   └── ui/
+├── build/
 ├── LaTeXSnipper.spec
+├── requirements.txt
+├── requirements-build.txt
 ├── version_info.txt
 └── readme.md
 ```
