@@ -10,6 +10,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton, isDarkTheme
 
+from editor.latex_snippet_panel import LATEX_SNIPPETS, LaTeXSnippetPanel
 from editor.workbench_bridge import WorkbenchBridge
 from utils import resource_path
 
@@ -31,18 +32,7 @@ class WorkbenchWindow(QWidget):
         "无穷乘积": r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)",
         "Wallis 乘积": r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}",
     }
-    INSERT_SNIPPETS = {
-        "分式  (/)": "fraction",
-        "上标  (Shift+^)": "superscript",
-        "下标  (Shift+_)": "subscript",
-        "上下标  (Shift+_ + Shift+^)": "subsuperscript",
-        "根号  (sqrt)": "sqrt",
-        "求和  (sum)": "sum",
-        "连乘  (prod)": "product",
-        "积分  (int)": "integral",
-        "矩阵  (matrix)": "matrix2",
-        "换行  (Shift+Enter)": "newline",
-    }
+    INSERT_SNIPPETS = {label: key for label, (key, _template) in LATEX_SNIPPETS.items()}
     COMPUTE_ACTIONS = {
         "计算": "evaluate",
         "化简": "simplify",
@@ -95,8 +85,9 @@ class WorkbenchWindow(QWidget):
         self.factor_btn = PushButton(FluentIcon.TILES, "因式分解")
         self.multiline_combo = ComboBox()
         self.multiline_apply_btn = PushButton(FluentIcon.APPLICATION, "应用")
-        self.snippet_combo = ComboBox()
-        self.snippet_insert_btn = PushButton(FluentIcon.CODE, "插入")
+        self.snippet_panel = LaTeXSnippetPanel(self, on_insert_key=self._insert_snippet_key)
+        self.snippet_combo = self.snippet_panel.combo
+        self.snippet_insert_btn = self.snippet_panel.button
         self.copy_combo = ComboBox()
         self.copy_run_btn = PushButton(FluentIcon.PASTE, "复制")
         self.insert_btn = PushButton(FluentIcon.FOLDER_ADD, "写回")
@@ -105,8 +96,6 @@ class WorkbenchWindow(QWidget):
         self.multiline_combo.addItem("displaylines", userData="displaylines")
         self.multiline_combo.addItem("multline", userData="multline")
         self.multiline_combo.addItem("align", userData="align")
-        for label, key in self.INSERT_SNIPPETS.items():
-            self.snippet_combo.addItem(label, userData=key)
         for label, key in self.COPY_ACTIONS.items():
             self.copy_combo.addItem(label, userData=key)
         for name in self.EXAMPLES:
@@ -132,8 +121,6 @@ class WorkbenchWindow(QWidget):
         self.example_combo.setMinimumWidth(132)
         self.multiline_combo.setFixedHeight(32)
         self.multiline_combo.setMinimumWidth(112)
-        self.snippet_combo.setFixedHeight(32)
-        self.snippet_combo.setMinimumWidth(112)
         self.copy_combo.setFixedHeight(32)
         self.copy_combo.setMinimumWidth(126)
 
@@ -160,8 +147,7 @@ class WorkbenchWindow(QWidget):
         bottom_bar.addWidget(self.factor_btn)
         bottom_bar.addWidget(self._make_group_divider())
         bottom_bar.addWidget(self._make_group_label("快捷插入"))
-        bottom_bar.addWidget(self.snippet_combo)
-        bottom_bar.addWidget(self.snippet_insert_btn)
+        bottom_bar.addWidget(self.snippet_panel)
         bottom_bar.addWidget(self._make_group_divider())
         bottom_bar.addWidget(self._make_group_label("示例"))
         bottom_bar.addWidget(self.example_combo)
@@ -221,7 +207,6 @@ class WorkbenchWindow(QWidget):
         self.expand_btn.clicked.connect(lambda: self._run_compute_action("expand"))
         self.factor_btn.clicked.connect(lambda: self._run_compute_action("factor"))
         self.multiline_apply_btn.clicked.connect(self._apply_multiline_layout)
-        self.snippet_insert_btn.clicked.connect(self._insert_snippet)
         self.copy_run_btn.clicked.connect(self._run_selected_copy_action)
         self.insert_btn.clicked.connect(lambda: self._run_js("window.workbenchApi?.insertToMain();"))
         self.example_load_btn.clicked.connect(self._load_selected_example)
@@ -351,8 +336,7 @@ class WorkbenchWindow(QWidget):
         kind = self.multiline_combo.currentData() or self.multiline_combo.currentText().strip() or "displaylines"
         self._run_js(f"window.workbenchApi?.applyMultilineLayout({self._json_arg(str(kind))});")
 
-    def _insert_snippet(self) -> None:
-        key = self.snippet_combo.currentData() or self.snippet_combo.currentText().strip()
+    def _insert_snippet_key(self, key: str) -> None:
         self._run_js(f"window.workbenchApi?.insertSnippet({self._json_arg(str(key))});")
 
     def _run_compute_action(self, action: str) -> None:
