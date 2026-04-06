@@ -2444,7 +2444,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
         "• 若你只使用外部模型，可跳过 pix2text 依赖安装，直接在设置页配置外部模型。\n"
-        "• 当前版本不再包含 pix2tex / UniMERNet 相关依赖。\n"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
