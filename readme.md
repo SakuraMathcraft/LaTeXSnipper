@@ -2,7 +2,7 @@
 
 <div align="center">
 
-> 🎯**识别 + 编辑 + 计算 + 手写输入** | 从截图识别工具升级为桌面数学工作台
+> A desktop math workspace for **capture -> recognize -> edit -> compute -> handwrite**
 <img width="1919" height="1018" alt="主界面-浅色" src="https://github.com/user-attachments/assets/54561c3b-1a60-438a-b8f0-6c6419674b8f" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
@@ -17,7 +17,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
 [![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
 
-### Star 历史
+### Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
 
@@ -25,109 +25,111 @@
 
 ---
 
-## 项目简介
+## Overview
 
-**LaTeXSnipper** 已经不只是“截图公式 -> 输出 LaTeX”的识别工具，而是一个围绕数学内容工作的桌面工作台：
+**LaTeXSnipper** is no longer just a "screenshot formula -> LaTeX" utility.
+It is a desktop workspace built for end-to-end math content workflows:
 
-- 截图识别数学公式
-- 在数学工作台中继续编辑与计算
-- 直接在手写识别窗口中书写并自动转 LaTeX
-- 再将结果写回主编辑器或复制到剪贴板
+- Capture and recognize mathematical content from screenshots
+- Continue editing and computing in the integrated math workbench
+- Handwrite expressions in a dedicated canvas and convert to LaTeX
+- Send results back to the main editor or copy to clipboard
 
 ---
 
-## 功能演示
+## Feature Walkthrough
 
-### 数学工作台演示
+### Math Workbench
 
 <img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
 
-`v2.0` 新增的数学工作台支持这样一条完整链路：
+The `v2.0` Math Workbench supports a complete workflow:
 
-1. 从主窗口截图识别公式
-2. 一键载入数学工作台
-3. 在 `MathLive` 编辑区继续修改公式
-4. 使用虚拟数学键盘补录上下标、分式、积分、级数等结构
-5. 执行 `计算 / 化简 / 数值化 / 展开 / 因式分解 / 求解`
-6. 将结果写回主编辑器或复制 LaTeX / MathJSON
+1. Capture and recognize formulas from the main window
+2. Load results into the workbench in one click
+3. Edit expressions in the `MathLive` area
+4. Use the virtual math keyboard for fractions, superscripts, integrals, series, and more
+5. Run `Compute / Simplify / Numeric / Expand / Factor / Solve`
+6. Write results back to the editor or copy as LaTeX / MathJSON
 
-### 自动排版文档演示
+### Auto Typesetting Document Window
+
 <img width="1919" height="1014" alt="v2 3深色" src="https://github.com/user-attachments/assets/c6dffd39-26d9-4e54-aba9-a4b010d3603e" />
 
-`v2.3` 新增的自动排版文档窗口支持文档级编辑与预览联动：
+The `v2.3` Auto Typesetting Document Window supports source-level editing with synchronized preview:
 
-1. 从手写识别窗口打开“自动排版”
-2. 在左侧 `TeX 文档` 区编辑完整源码
-3. 使用内置公式编辑器补录复杂结构并回写源码
-4. 点击“编译预览 PDF”生成文档预览
-5. 在源码与 PDF 之间执行双向定位（SyncTeX）
-6. 需要时导出 `.tex` 或 `PDF` 交付
+1. Open "Auto Typesetting" from the handwriting window
+2. Edit full source in the left `TeX Document` pane
+3. Insert complex expressions with the built-in formula editor
+4. Compile and preview PDF directly
+5. Navigate bi-directionally between source and PDF via SyncTeX
+6. Export `.tex` or `PDF` when needed
 
-### 手写识别演示
+### Handwriting Recognition
 
 <img width="1408" height="916" alt="手写识别readme" src="https://github.com/user-attachments/assets/3fe98e41-218e-452c-96c1-cc805ab3e0f2" />
 
-`v2.1` 新增的手写识别窗口支持这样一条完整链路：
+The `v2.1` handwriting window supports the following flow:
 
-1. 从主窗口打开“手写识别”
-2. 在独立画布中直接书写公式
-3. 停笔后自动调用 `pix2text` 识别
-4. 在右侧实时查看 `LaTeX 结果` 与渲染预览
-5. 直接复制 LaTeX，或插回主编辑器继续处理
+1. Open "Handwriting Recognition" from the main window
+2. Write formulas directly on an isolated canvas
+3. Trigger `pix2text` recognition automatically after pen-up
+4. See live `LaTeX output` and rendered preview on the right
+5. Copy LaTeX directly or insert it back into the main editor
 
 ---
 
-## 核心功能
+## Core Features
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 📸 公式识别 | 截图识别数学公式，支持公式/文本/混合内容 |
-| ✍️ 手写识别 | 独立手写窗口，支持停笔自动识别与实时预览 |
-| 🧮 数学工作台 | 独立工作台窗口，支持编辑、计算、写回 |
-| ⌨️ 公式编辑 | 接入 `MathLive math-field` 与虚拟数学键盘 |
-| 🔄 多格式输出 | 支持 LaTeX、Markdown、MathML、HTML、OMML、SVG |
-| 📐 基础计算 | 支持计算、化简、数值化、展开、求解 |
-| 🧠 高级求解 | `SymPy/mpmath` 本地高级引擎兜底复杂表达式 |
-| 🌙 主题适配 | 主窗口、工作台、手写识别、更新器、依赖向导适配浅色/深色模式 |
-| 🔐 离线优先 | 识别与高级求解均可在本地进行，保护隐私 |
+| 📸 Formula recognition | Screenshot-based recognition for formulas, text, and mixed content |
+| ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
+| 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
+| ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
+| 🔄 Multi-format export | LaTeX, Markdown, MathML, HTML, OMML, SVG |
+| 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
+| 🧠 Advanced fallback | Local `SymPy/mpmath` engine for harder expressions |
+| 🌙 Theme support | Light/Dark adaptation across windows and tools |
+| 🔐 Offline-first | Recognition and advanced solving can run locally for privacy |
 
 ---
 
-## 数学工作台支持的计算类型
+## Computation Coverage
 
-当前工作台已经覆盖下列常见场景：
+The workbench currently covers common scenarios such as:
 
-- 多项式展开
-- 因式分解
-- 方程求解
-- 无理根与复根求解回退
-- 定积分与广义积分
-- 无穷级数
-- 无穷乘积
-- 极限
-- 导数
-- 数值近似与常数识别
+- Polynomial expansion
+- Factorization
+- Equation solving
+- Irrational/complex root fallback solving
+- Definite and improper integrals
+- Infinite series
+- Infinite products
+- Limits
+- Derivatives
+- Numeric approximation and constant recognition
 
-对于重表达式，系统会按如下策略自动回退：
+For heavy expressions, the engine uses automatic fallback:
 
-1. 前端 `Compute Engine` 快速尝试
-2. 超时、失败或结果不可靠时切换本地高级引擎
-3. 本地高级引擎使用 `SymPy/mpmath`
-4. 对部分经典常数结果执行数值识别与闭式恢复
+1. Try frontend `Compute Engine` first
+2. Switch to local advanced engine on timeout/failure/unreliable results
+3. Use `SymPy/mpmath` for robust fallback
+4. Recover closed forms for selected known constants from numeric output
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 方法一：下载可执行文件
+### Option 1: Download the executable
 
-1. 访问 [Releases 页面](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. 下载最新版 `LaTeXSnipper_setup_v2.3.exe`
-3. 双击运行
-4. 首次启动按依赖向导完成环境准备
-5. 开始截图识别、手写识别或打开数学工作台
+1. Visit the [Releases page](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
+2. Download the latest `LaTeXSnipper_setup_v2.3.exe`
+3. Run the installer
+4. Complete environment setup via the dependency wizard on first launch
+5. Start capturing, handwriting, or using the math workbench
 
-### 方法二：从源码运行
+### Option 2: Run from source
 
 ```bash
 git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
@@ -142,7 +144,7 @@ python src/main.py
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```text
 LaTeXSnipper/
@@ -201,35 +203,35 @@ LaTeXSnipper/
 
 ---
 
-## 贡献指南
+## Contributing
 
-欢迎通过以下方式参与：
+Contributions are welcome:
 
-1. Fork 本仓库
-2. 创建功能分支
-3. 提交改动
-4. 推送分支
-5. 发起 Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push your branch
+5. Open a Pull Request
 
-建议优先关注：
+Recommended focus areas:
 
-- 手写识别交互体验
-- 数学工作台交互体验
-- 高级求解器稳定性
-- 打包版运行验证
-- 主题适配与界面一致性
-
----
-
-## 许可证
-
-本项目基于 [MIT License](LICENSE) 开源。
+- Handwriting UX
+- Math workbench UX
+- Advanced solver stability
+- Packaged runtime verification
+- Theme consistency across windows
 
 ---
 
-## 致谢
+## License
 
-感谢以下项目：
+This project is open-sourced under the [MIT License](LICENSE).
+
+---
+
+## Acknowledgements
+
+Special thanks to:
 
 - [pix2tex](https://github.com/lukas-blecher/LaTeX-OCR)
 - [pix2text](https://github.com/breezedeus/pix2text)
@@ -245,8 +247,8 @@ LaTeXSnipper/
 
 <div align="center">
 
-| 下载 | 问题反馈 | 讨论 | Wiki |
+| Download | Issues | Discussions | Wiki |
 |---|---|---|---|
-| [最新版本](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) | [提交 Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues) | [Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions) | [项目 Wiki](https://github.com/SakuraMathcraft/LaTeXSnipper/wiki) |
+| [Latest Release](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) | [Open an Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues) | [Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions) | [Project Wiki](https://github.com/SakuraMathcraft/LaTeXSnipper/wiki) |
 
 </div>
