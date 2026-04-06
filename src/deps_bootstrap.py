@@ -2089,7 +2089,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     dlg.setWindowTitle("依赖管理向导")
     lay = QVBoxLayout(dlg)
     lay.setSpacing(8)
-    lay.setContentsMargins(16, 16, 16, 16)
+    lay.setContentsMargins(16, 16, 16, 12)
 
     def _force_quit():
         # 可选：通知后台停止任务
@@ -2190,7 +2190,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         status_color = theme["warn"]
     
     env_info = QLabel(status_text)
-    env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:6px;")
+    env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
     lay.addWidget(env_info)
     lay.addWidget(QLabel("选择需要安装的功能层:"))
 
@@ -2334,7 +2334,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_row = QHBoxLayout()
     path_edit = QLineEdit(deps_dir)
     path_edit.setReadOnly(True)
-    btn_path = PushButton(FluentIcon.FOLDER, "更改安装(依赖加载)路径")
+    btn_path = PushButton(FluentIcon.FOLDER, "更改依赖安装/加载路径")
     btn_path.setFixedHeight(36)
     btn_path.setToolTip("更改后需要重启程序才能生效")
     path_row.addWidget(QLabel("依赖安装/加载路径:"))
@@ -2443,9 +2443,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可跳过 pix2text 依赖安装，直接在设置页配置外部模型。\n"
+        "• 若你只使用外部模型，可跳过 pix2text 依赖安装，直接在设置页配置外部模型。"
     )
-    desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
+    desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
     lay.addWidget(desc)
     chosen = {"layers": None, "mirror": False, "mirror_source": _current_mirror_source(), "deps_path": deps_dir, "force_enter": False,
               "verified_in_ui": verified_in_ui}
