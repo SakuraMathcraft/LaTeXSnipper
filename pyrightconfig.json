@@ -1,0 +1,28 @@
+{
+    "pythonVersion": "3.11",
+    "typeCheckingMode": "off",
+    "include": [
+        "src"
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "build",
+        "python311",
+        "apps",
+        "src/deps/python311"
+    ],
+    "reportUnusedImport": "warning",
+    "reportUnusedVariable": "warning",
+    "reportUnusedFunction": "warning",
+    "reportUnusedClass": "warning",
+    "reportGeneralTypeIssues": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportArgumentType": "none",
+    "reportAssignmentType": "none",
+    "executionEnvironments": [
+        {
+            "root": "src"
+        }
+    ]
+}

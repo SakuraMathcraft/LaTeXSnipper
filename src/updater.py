@@ -14,7 +14,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
 try:
-    import markdown2
+    import markdown2  # pyright: ignore[reportMissingImports]
 except ImportError:
     markdown2 = None
 
@@ -766,7 +766,7 @@ pre,code{{background:{theme['code_bg']};color:{theme['text']};}}
 pre{{padding:8px;border-radius:4px;overflow:auto;}}
 code{{padding:2px 4px;border-radius:3px;}}
 img{{max-width:100%;border:1px solid {theme['border']};border-radius:4px;}}
-table{border-collapse:collapse;}
+table{{border-collapse:collapse;}}
 table,th,td{{border:1px solid {theme['border']};padding:4px;}}
 a{{color:{theme['accent']};}}
 </style>

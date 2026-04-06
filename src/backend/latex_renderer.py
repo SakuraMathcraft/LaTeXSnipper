@@ -376,7 +376,6 @@ class LaTeXRenderer:
         Returns:
             SVG 字符串，或 None 表示失败
         """
-        import re
         if not self.is_available():
             print("[LaTeX] LaTeX 不可用，跳过渲染")
             return None
@@ -417,8 +416,8 @@ class LaTeXRenderer:
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding='utf-8')
                         print(f"[LaTeX] 渲染成功: {len(svg_content)} bytes")
-                        # 适度放大 SVG，提升主窗口 LaTeX 引擎预览可读性
-                        svg_content = self._enlarge_svg(svg_content, scale=2.2)
+                        # 温和放大 SVG，避免与前端缩放叠加后显得过大
+                        svg_content = self._enlarge_svg(svg_content, scale=1.6)
                         return svg_content
                 except FileNotFoundError:
                     print("[WARN] pdftocairo 未找到，无法转换 PDF 到 SVG")

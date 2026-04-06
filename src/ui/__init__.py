@@ -7,12 +7,10 @@ from .dialogs import (
     SettingsWindow,
     custom_warning_dialog
 )
-from .windows import MainWindow, FavoritesWindow
 from .widgets import PredictionWorker
 
 __all__ = [
     'LogViewerDialog', 'EditFormulaDialog', 'SettingsWindow',
     'custom_warning_dialog',
-    'MainWindow', 'FavoritesWindow',
     'PredictionWorker'
 ]

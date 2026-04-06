@@ -1,0 +1,19 @@
+[run]
+branch = True
+source = src
+omit =
+    */__pycache__/*
+    build/*
+    python311/*
+    apps/*
+    src/get-pip.py
+
+[report]
+skip_covered = True
+show_missing = True
+precision = 1
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    raise NotImplementedError
