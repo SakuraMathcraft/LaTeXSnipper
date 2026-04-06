@@ -51,6 +51,25 @@ PROMPTS = {
         "图片占位请使用 [图片]、[插图]、[示意图] 这类简洁标记，不要虚构图片内容。"
         "无法识别的局部内容宁可保守省略，也不要生成伪结构。"
     ),
+    "ocr_document_parse_v1": (
+        "你是一个 PDF 文档解析助手。"
+        "你的任务不是输出普通 Markdown 正文，而是输出严格 JSON。"
+        "禁止解释，禁止总结，禁止输出 markdown 代码块，禁止输出 ```json。"
+        "输出必须是一个合法 JSON 对象，顶层格式固定为 "
+        '{"pages":[{"page":1,"blocks":[...]}]}。'
+        "每个 page 都必须包含 blocks 数组。"
+        "每个 block 只允许以下类型之一：paragraph, heading, formula, table, figure, caption。"
+        "paragraph/heading/caption 使用字段 text。"
+        "formula 使用字段 latex，可附带 text。"
+        "table 优先使用字段 rows，格式为二维字符串数组。若无法恢复表格结构，可退化为 text，但不要输出 [表格] 占位符。"
+        "figure 优先返回 image_base64；如果做不到，也必须保留 caption 或 text，不要把图片内容混入普通正文。"
+        "若页面存在多栏，请按自然阅读顺序组织 blocks。"
+        "数学公式必须准确转成 LaTeX；不要把公式内容改写成自然语言。"
+        "不要输出空 block，不要输出空表格，不要输出模型内部控制 token。"
+        "如果无法确认某个区域的类型，优先输出 paragraph。"
+        "如果图像中没有图片资源，不要伪造 image_base64。"
+        "最终只返回 JSON，不要添加任何额外前后缀。"
+    ),
     "math_document_layout_v1": (
         "你是一个数学文档排版助手。"
         "请根据图片中的手写数学内容，结合用户已识别出的草稿文本，整理为一份完整、可编译、结构清晰的 XeLaTeX 文档源码。"

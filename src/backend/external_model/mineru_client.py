@@ -1,3 +1,5 @@
+import base64
+
 import requests
 from urllib.parse import urlparse
 
@@ -9,8 +11,8 @@ class MineruClient:
     def __init__(self, config: ExternalModelConfig):
         self.config = config
 
-    def _headers(self) -> dict:
-        headers = {"Content-Type": "application/json"}
+    def _headers(self, include_content_type: bool = True) -> dict:
+        headers = {"Content-Type": "application/json"} if include_content_type else {}
         api_key = self.config.normalized_api_key()
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -64,21 +66,62 @@ class MineruClient:
         endpoint = self.config.normalized_mineru_endpoint()
         model_name = self.config.normalized_model_name()
         output_mode = self.config.normalized_output_mode()
-        payload = {
-            "image_base64": image_b64,
-            "mode": self.config.normalized_mineru_mode(),
-            "output": output_mode,
-        }
-        if model_name:
-            payload["model"] = model_name
+        url = f"{base_url}{endpoint}"
+
         try:
-            url = f"{base_url}{endpoint}"
-            resp = requests.post(
-                url,
-                headers=self._headers(),
-                json=payload,
-                timeout=timeout,
-            )
+            if endpoint.rstrip("/").endswith("/file_parse"):
+                image_bytes = base64.b64decode(image_b64.encode("ascii"))
+                # Prefer GPU-heavy backends by default, and gracefully fallback.
+                backend_candidates = ["vlm-auto-engine", "hybrid-auto-engine", "pipeline"]
+                parse_mode = "parse" in str(getattr(self.config, "prompt_template", "") or "").strip().lower()
+                resp = None
+                last_error: requests.RequestException | None = None
+                for backend in backend_candidates:
+                    data = {
+                        "backend": backend,
+                        "parse_method": "auto",
+                        "formula_enable": "true",
+                        "table_enable": "true",
+                        "return_md": "true",
+                        "return_middle_json": "true",
+                        "return_model_output": "false",
+                        "return_content_list": "false",
+                        "return_images": "true" if parse_mode else "false",
+                        "response_format_zip": "false",
+                    }
+                    try:
+                        resp = requests.post(
+                            url,
+                            headers=self._headers(include_content_type=False),
+                            files=[("files", ("image.png", image_bytes, "image/png"))],
+                            data=data,
+                            timeout=timeout,
+                        )
+                        resp.raise_for_status()
+                        break
+                    except requests.RequestException as e:
+                        last_error = e
+                        resp = None
+                        continue
+
+                if resp is None:
+                    assert last_error is not None
+                    raise last_error
+            else:
+                payload = {
+                    "image_base64": image_b64,
+                    "mode": self.config.normalized_mineru_mode(),
+                    "output": output_mode,
+                }
+                if model_name:
+                    payload["model"] = model_name
+                resp = requests.post(
+                    url,
+                    headers=self._headers(),
+                    json=payload,
+                    timeout=timeout,
+                )
+
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
@@ -97,31 +140,79 @@ class MineruClient:
             provider="mineru",
             model_name=model_name or "mineru",
             raw=raw if isinstance(raw, dict) else None,
+            structured_payload=self._extract_structured_payload(raw),
         )
 
     def _extract_text(self, raw: dict) -> str:
-        if not isinstance(raw, dict):
-            raise ExternalModelResponseError("MinerU 返回格式不受支持")
+        def _walk(node, depth: int = 0) -> str:
+            if depth > 8:
+                return ""
+            if isinstance(node, str):
+                text = node.strip()
+                return text if text else ""
+            if isinstance(node, dict):
+                direct_keys = (
+                    "markdown",
+                    "md_content",
+                    "md",
+                    "latex",
+                    "text",
+                    "result",
+                    "content",
+                    "output",
+                )
+                for key in direct_keys:
+                    value = node.get(key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
 
-        candidates = [
-            raw.get("markdown"),
-            raw.get("latex"),
-            raw.get("text"),
-            raw.get("result"),
-            raw.get("content"),
-            raw.get("output"),
-        ]
+                priority_keys = (
+                    "data",
+                    "results",
+                    "result",
+                    "outputs",
+                    "documents",
+                    "files",
+                    "items",
+                    "pages",
+                    "content_list",
+                )
+                for key in priority_keys:
+                    if key not in node:
+                        continue
+                    text = _walk(node.get(key), depth + 1)
+                    if text:
+                        return text
+
+                for value in node.values():
+                    text = _walk(value, depth + 1)
+                    if text:
+                        return text
+                return ""
+
+            if isinstance(node, list):
+                for item in node:
+                    text = _walk(item, depth + 1)
+                    if text:
+                        return text
+            return ""
+
+        text = _walk(raw)
+        if text:
+            return text
+        if not isinstance(raw, (dict, list)):
+            raise ExternalModelResponseError("MinerU 返回格式不受支持")
+        return ""
+
+    def _extract_structured_payload(self, raw: dict) -> dict | None:
+        if isinstance(raw, list):
+            return {"items": raw}
+        if not isinstance(raw, dict):
+            return None
         data = raw.get("data")
         if isinstance(data, dict):
-            candidates.extend([
-                data.get("markdown"),
-                data.get("latex"),
-                data.get("text"),
-                data.get("content"),
-                data.get("result"),
-            ])
-
-        for item in candidates:
-            if isinstance(item, str) and item.strip():
-                return item.strip()
-        return ""
+            if any(key in data for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items", "content_list")):
+                return data
+        if any(key in raw for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items", "content_list")):
+            return raw
+        return None

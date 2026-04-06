@@ -12,7 +12,7 @@ DEFAULT_CONFIG = {
     "external_model_prompt_template": "ocr_formula_v1",
     "external_model_custom_prompt": "",
     "external_model_preset": "",
-    "external_model_mineru_endpoint": "/v1/parse",
+    "external_model_mineru_endpoint": "/file_parse",
     "external_model_mineru_test_endpoint": "/health",
     "external_model_mineru_mode": "auto",
 }
@@ -36,7 +36,7 @@ class ExternalModelConfig:
     prompt_template: str = "ocr_formula_v1"
     custom_prompt: str = ""
     preset: str = ""
-    mineru_endpoint: str = "/v1/parse"
+    mineru_endpoint: str = "/file_parse"
     mineru_test_endpoint: str = "/health"
     mineru_mode: str = "auto"
 
@@ -65,9 +65,9 @@ class ExternalModelConfig:
         return str(self.api_key or "").strip()
 
     def normalized_mineru_endpoint(self) -> str:
-        value = str(self.mineru_endpoint or "/v1/parse").strip()
+        value = str(self.mineru_endpoint or "/file_parse").strip()
         if not value:
-            value = "/v1/parse"
+            value = "/file_parse"
         if not value.startswith("/"):
             value = f"/{value}"
         return value
@@ -110,6 +110,7 @@ class ExternalModelResult:
     provider: str = ""
     model_name: str = ""
     raw: dict | None = None
+    structured_payload: dict | None = None
 
     def _strip_outer_code_fence(self, value: str) -> str:
         text = str(value or "").strip()
@@ -177,7 +178,7 @@ def load_config_from_mapping(mapping) -> ExternalModelConfig:
         prompt_template=str(get_config_value(mapping, "external_model_prompt_template") or "ocr_formula_v1"),
         custom_prompt=str(get_config_value(mapping, "external_model_custom_prompt") or ""),
         preset=str(get_config_value(mapping, "external_model_preset") or ""),
-        mineru_endpoint=str(get_config_value(mapping, "external_model_mineru_endpoint") or "/v1/parse"),
+        mineru_endpoint=str(get_config_value(mapping, "external_model_mineru_endpoint") or "/file_parse"),
         mineru_test_endpoint=str(get_config_value(mapping, "external_model_mineru_test_endpoint") or "/health"),
         mineru_mode=str(get_config_value(mapping, "external_model_mineru_mode") or "auto"),
     )
