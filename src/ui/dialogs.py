@@ -9,11 +9,8 @@ from PyQt6.QtWidgets import (
     QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon
 
 from qfluentwidgets import PrimaryPushButton
-
-from core.utils import resource_path
 
 
 class LogViewerDialog(QDialog):

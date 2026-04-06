@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 from PyQt6.QtCore import QPoint, QRect, QRectF, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QCursor, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap, QWheelEvent
 from PyQt6.QtGui import QRegion
@@ -255,7 +253,6 @@ if fitz is not None:
             self._page_pixmaps = []
             self._page_rects = []
             self._page_sizes = []
-            y = self._page_margin
             viewport_w = self.viewport().width()
             max_w = viewport_w
             page_count = len(self._doc)

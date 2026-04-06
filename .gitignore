@@ -24,6 +24,14 @@ dist/
 src/deps/python311/
 src/models/
 
+# Local runtime components (do not version)
+python311/
+python-*.exe
+wix*-binaries.zip
+nsis_tauri_utils.dll
+crash_log.txt
+tauri_stderr.log
+
 # Logs
 *.log
 

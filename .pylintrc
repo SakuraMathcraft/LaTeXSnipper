@@ -1,0 +1,19 @@
+[MASTER]
+jobs=0
+ignore-patterns=^\.?#,.*__pycache__.*,.*\.venv.*,.*python311.*,.*build.*
+
+[MESSAGES CONTROL]
+disable=all
+enable=
+    unused-import,
+    unused-variable,
+    unused-argument,
+    unused-private-member,
+    unreachable,
+    pointless-statement
+
+[REPORTS]
+score=no
+
+[FORMAT]
+max-line-length=120

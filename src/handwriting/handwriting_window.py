@@ -7,8 +7,8 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRect, QRectF, QThread, QTimer, QUrl, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QMouseEvent, QWheelEvent
+from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, QUrl, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
@@ -17,11 +17,6 @@ from .ink_canvas import InkCanvas
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
 from utils import resource_path
-
-try:
-    from PyQt6.QtWebEngineWidgets import QWebEngineView
-except Exception:  # pragma: no cover
-    QWebEngineView = None
 
 try:
     from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -434,26 +429,22 @@ class HandwritingWindow(QDialog):
         self.canvas.set_dark_mode(dark)
         if dark:
             bg = "#171c24"
-            border = "#344151"
             text = "#eef2f7"
             subtext = "#a9b4c3"
             editor_bg = "#151a22"
             editor_border = "rgba(110, 130, 156, 0.45)"
             cb_text = "#c8d1dc"
             card_bg = "#151b23"
-            panel_bg = "#121821"
             subpanel_bg = "#121821"
             divider = "rgba(91, 111, 138, 0.24)"
         else:
             bg = "#f5f7fb"
-            border = "#d9e0e8"
             text = "#16202a"
             subtext = "#6b7787"
             editor_bg = "#ffffff"
             editor_border = "rgba(148, 163, 184, 0.55)"
             cb_text = "#334155"
             card_bg = "#ffffff"
-            panel_bg = "#f8fafc"
             subpanel_bg = "#ffffff"
             divider = "rgba(148, 163, 184, 0.22)"
         self.setStyleSheet(

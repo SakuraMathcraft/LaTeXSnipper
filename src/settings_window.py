@@ -3,10 +3,9 @@ from pathlib import Path
 import time
 import pyperclip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QFileDialog, QInputDialog, QMessageBox, QCheckBox, QScrollArea, QPlainTextEdit)
-from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, InfoBar, InfoBarPosition, MessageBox
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QInputDialog, QCheckBox, QScrollArea, QPlainTextEdit)
+from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
 from updater import check_update_dialog
-from deps_bootstrap import custom_warning_dialog
 from backend.torch_runtime import (
     TORCH_CUDA_MATRIX,
     TORCH_CPU_PLAN,
@@ -182,8 +181,8 @@ class SettingsWindow(QDialog):
         self.model_combo.setFixedHeight(36)
         # 添加识别模型选项
         self._model_options = [
-            ("pix2text", "pix2text - 公式识别"),
-            ("external_model", "外部模型..."),
+            ("pix2text", "内置模型"),
+            ("external_model", "外部模型"),
         ]
         for key, label in self._model_options:
             self.model_combo.addItem(label, userData=key)
@@ -242,13 +241,6 @@ class SettingsWindow(QDialog):
         external_layout = QVBoxLayout(self.external_model_widget)
         external_layout.setContentsMargins(0, 6, 0, 0)
         external_layout.setSpacing(6)
-        self.external_intro = QLabel(
-            "先填写协议、Base URL 和模型名，再点击“测试连接”。\n"
-            "图片/截图/手写使用这里的输出偏好与提示词；PDF 导出格式在 PDF 入口单独选择。"
-        )
-        self.external_intro.setWordWrap(True)
-        self.external_intro.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
-        external_layout.addWidget(self.external_intro)
         preset_row = QHBoxLayout()
         preset_row.setContentsMargins(0, 0, 0, 0)
         preset_row.setSpacing(6)
@@ -1615,7 +1607,7 @@ class SettingsWindow(QDialog):
             env_key = None
         import subprocess
         import os
-        from qfluentwidgets import MessageBox, InfoBar, InfoBarPosition
+        from qfluentwidgets import MessageBox
         if env_key is None:
             env_key = self._get_terminal_env_key()
         # 统一只打开主环境终端。

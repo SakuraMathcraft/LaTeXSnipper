@@ -1,6 +1,5 @@
 import threading
 import urllib.request
-import shutil
 import os
 import sys
 from pathlib import Path
@@ -444,7 +443,7 @@ class InstallWorker(QThread):
             fail_count = 0
             failed_pkgs = []  # 记录失败的包
             
-            for i, pkg in enumerate(pending, start=1):
+            for _, pkg in enumerate(pending, start=1):
                 while not self.pause_event.is_set():
                     if self.stop_event.is_set():
                         self.log_updated.emit("[CANCEL] 用户取消安装。")
@@ -1307,7 +1306,8 @@ def _inject_private_python_paths(pyexe: Path):
     if os.name == "nt":
         try:
             import os as _os
-            from ctypes import windll  # noqa: F401  触发加载机制
+            from ctypes import windll as _windll
+            _ = _windll  # 触发 ctypes 的 Windows 加载路径机制
             torch_lib = sp / "torch" / "lib"
             dlls_dir = pyexe.parent / "DLLs"
             if torch_lib.exists():
@@ -2055,8 +2055,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 使用外部传入的 installed_layers；不覆盖
     from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QCheckBox, QLabel,
                                  QHBoxLayout, QFileDialog, QLineEdit, QMessageBox, QApplication)
-    from PyQt6.QtCore import Qt
-    from qfluentwidgets import PushButton, FluentIcon, ComboBox, setTheme, Theme
+    from qfluentwidgets import PushButton, FluentIcon, ComboBox
 
     def _is_dark_ui() -> bool:
         app = QApplication.instance()
@@ -2065,13 +2064,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         c = app.palette().window().color()
         return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
-    def _sync_fluent_theme() -> None:
-        try:
-            setTheme(Theme.DARK if _is_dark_ui() else Theme.LIGHT)
-        except Exception:
-            pass
-
-    _sync_fluent_theme()
+    # 与主窗口保持一致：统一使用本模块的 Fluent 主题同步逻辑。
+    _sync_deps_fluent_theme()
 
     theme = {
         "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
@@ -2093,22 +2087,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
     dlg.setWindowTitle("依赖管理向导")
-    dlg.setStyleSheet(
-        "QDialog {"
-        f"background: {theme['dialog_bg']}; color: {theme['text']};"
-        "}"
-        "QLabel {"
-        f"color: {theme['text']};"
-        "}"
-        "QLineEdit {"
-        f"background: {theme['input_bg']}; color: {theme['text']};"
-        f"border: 1px solid {theme['border']}; border-radius: 6px; padding: 4px 6px;"
-        "}"
-        "QCheckBox {"
-        f"color: {theme['text']}; spacing: 8px;"
-        "}"
-    )
     lay = QVBoxLayout(dlg)
+    lay.setSpacing(8)
+    lay.setContentsMargins(16, 16, 16, 16)
 
     def _force_quit():
         # 可选：通知后台停止任务
@@ -2252,7 +2233,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     border: 1px solid {theme['warn']};
                 }}
             """)
-            import subprocess
             def make_del_func(layer_name):
                 def _del():
                     reply = _exec_close_only_message_box(
@@ -2361,14 +2341,20 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_row.addWidget(path_edit, 1)
     path_row.addWidget(btn_path)
     lay.addLayout(path_row)
-    # 镜像选择
+
+    # 下载源选择（与主设置页保持一致的 Fluent 风格）
+    mirror_row = QHBoxLayout()
+    mirror_row.setContentsMargins(0, 0, 0, 0)
+    mirror_row.setSpacing(6)
+    mirror_row.addWidget(QLabel("下载源:"))
     mirror_box = ComboBox()
     mirror_box.addItem("官方 PyPI", userData="off")
     mirror_box.addItem("清华镜像", userData="tuna")
-    mirror_box.setFixedHeight(36)
-    lay.addWidget(mirror_box)
+    mirror_box.setFixedHeight(30)
+    mirror_row.addWidget(mirror_box, 1)
+    lay.addLayout(mirror_row)
 
-    def _mirror_enabled() -> bool:
+    def _current_mirror_source() -> str:
         try:
             idx = int(mirror_box.currentIndex())
         except Exception:
@@ -2385,7 +2371,43 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             except Exception:
                 text = ""
             value = "tuna" if "清华" in text else "off"
-        return str(value) == "tuna"
+        value = str(value or "off").strip().lower()
+        return "tuna" if value == "tuna" else "off"
+
+    def _load_saved_mirror_source() -> str:
+        try:
+            cfg_path = _load_config_path()
+            if cfg_path.exists():
+                data = json.loads(cfg_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    saved = str(data.get("deps_mirror_source", "")).strip().lower()
+                    if saved in ("off", "tuna"):
+                        return saved
+        except Exception:
+            pass
+        return "off"
+
+    def _save_mirror_source(source: str) -> None:
+        try:
+            cfg_path = _load_config_path()
+            cfg = {}
+            if cfg_path.exists():
+                try:
+                    cfg = json.loads(cfg_path.read_text(encoding="utf-8")) or {}
+                except Exception:
+                    cfg = {}
+            cfg["deps_mirror_source"] = source
+            cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    _saved_mirror = _load_saved_mirror_source()
+    mirror_box.setCurrentIndex(1 if _saved_mirror == "tuna" else 0)
+
+    def _on_mirror_changed(_index: int) -> None:
+        _save_mirror_source(_current_mirror_source())
+
+    mirror_box.currentIndexChanged.connect(_on_mirror_changed)
 
     # ---------- 按钮布局 ----------
     btn_row = QHBoxLayout()
@@ -2426,7 +2448,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;")
     lay.addWidget(desc)
-    chosen = {"layers": None, "mirror": False, "deps_path": deps_dir, "force_enter": False,
+    chosen = {"layers": None, "mirror": False, "mirror_source": _current_mirror_source(), "deps_path": deps_dir, "force_enter": False,
               "verified_in_ui": verified_in_ui}
     # 动态更新按钮和警告
     def update_ui():
@@ -2524,9 +2546,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def enter():
         """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许强制进入。"""
         sel = [L for L, c in checks.items() if c.isChecked()]
+        mirror_source = _current_mirror_source()
         chosen["layers"] = sel
-        chosen["mirror"] = _mirror_enabled()
+        chosen["mirror"] = (mirror_source == "tuna")
+        chosen["mirror_source"] = mirror_source
         chosen["deps_path"] = path_edit.text()
+        _save_mirror_source(mirror_source)
         
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
@@ -2565,9 +2590,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             return
         chosen["layers"] = sel
-        chosen["mirror"] = _mirror_enabled()
+        mirror_source = _current_mirror_source()
+        chosen["mirror"] = (mirror_source == "tuna")
+        chosen["mirror_source"] = mirror_source
         chosen["deps_path"] = path_edit.text()
         chosen["force_enter"] = False
+        _save_mirror_source(mirror_source)
         dlg.accept()
 
     btn_download.clicked.connect(download)
@@ -2577,44 +2605,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     import sys
 
     def _ask_exit_confirm() -> QMessageBox.StandardButton:
-        msg = QMessageBox(dlg)
-        msg.setIcon(QMessageBox.Icon.Question)
-        msg.setWindowTitle("退出确认")
-        msg.setText("确定要退出安装向导并关闭程序吗？")
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        return _exec_close_only_message_box(
+            dlg,
+            "退出确认",
+            "确定要退出安装向导并关闭程序吗？",
+            icon=QMessageBox.Icon.Question,
+            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            default_button=QMessageBox.StandardButton.No,
         )
-        msg.setDefaultButton(QMessageBox.StandardButton.No)
-        msg.setWindowFlags(
-            (
-                msg.windowFlags()
-                | Qt.WindowType.CustomizeWindowHint
-                | Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowCloseButtonHint
-                | Qt.WindowType.WindowSystemMenuHint
-            )
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-            & ~Qt.WindowType.WindowMinMaxButtonsHint
-            & ~Qt.WindowType.WindowContextHelpButtonHint
-        )
-        return QMessageBox.StandardButton(msg.exec())
-
-    # ---------- 安全退出逻辑 ----------
-    def safe_exit():
-        """安全退出程序"""
-        try:
-            global stop_event
-            if 'stop_event' in globals():
-                stop_event.set()
-        except Exception:
-            pass
-
-        reply = _ask_exit_confirm()
-
-        if reply == QMessageBox.StandardButton.Yes:
-            QTimer.singleShot(100, lambda: QApplication.instance().quit())
-            QTimer.singleShot(2000, lambda: sys.exit(0))
 
     # ---------- UI 刷新函数 ----------
     def refresh_ui():
@@ -2741,18 +2739,7 @@ def _progress_dialog():
         if (not force) and getattr(dlg, "_theme_is_dark_cached", None) == theme["dark"]:
             return
         dlg._theme_is_dark_cached = theme["dark"]
-        dlg.setStyleSheet(
-            f"""
-            QDialog {{ background: {theme['dialog_bg']}; color: {theme['text']}; }}
-            QLabel {{ color: {theme['text']}; }}
-            QTextEdit {{
-                background: {theme['panel_bg']};
-                color: {theme['text']};
-                border: 1px solid {theme['border']};
-                border-radius: 6px;
-            }}
-            """
-        )
+        # 与主 Fluent 主题对齐：不手工覆盖整窗和文本框背景。
         info.setStyleSheet(f"color: {theme['muted']};")
         progress.setStyleSheet("""
             QProgressBar {
@@ -2840,28 +2827,6 @@ def _sync_deps_fluent_theme() -> None:
     except Exception:
         pass
 
-
-def _apply_deps_message_box_theme(msg):
-    t = _deps_dialog_theme()
-    try:
-        msg.setStyleSheet(
-            "QMessageBox {"
-            f"background: {t['dialog_bg']}; color: {t['text']};"
-            "}"
-            "QLabel {"
-            f"color: {t['text']};"
-            "}"
-            "QPushButton {"
-            f"background: {t['panel_bg']}; color: {t['accent']};"
-            f"border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 12px; min-width: 72px;"
-            "}"
-            "QPushButton:hover {"
-            f"background: {t['btn_hover']}; border: 1px solid {t['accent']};"
-            "}"
-        )
-    except Exception:
-        pass
-
 def _exec_close_only_message_box(
     parent,
     title: str,
@@ -2879,57 +2844,20 @@ def _exec_close_only_message_box(
     if default_button is not None:
         msg.setDefaultButton(default_button)
     _apply_close_only_window_flags(msg)
-    _apply_deps_message_box_theme(msg)
     return QMessageBox.StandardButton(msg.exec())
 
 def custom_warning_dialog(title, message, parent=None):
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QHBoxLayout
-    from qfluentwidgets import PushButton, FluentIcon
-    from PyQt6.QtGui import QIcon
-
+    from PyQt6.QtWidgets import QMessageBox as _QMessageBox
     _sync_deps_fluent_theme()
-    dlg = QDialog(parent)
-    _apply_close_only_window_flags(dlg)
-    dlg.setWindowTitle(title)
-    dlg.setModal(True)
-    t = _deps_dialog_theme()
-    dlg.setStyleSheet(
-        "QDialog {"
-        f"background: {t['dialog_bg']}; color: {t['text']};"
-        "}"
-        "QLabel {"
-        f"color: {t['text']};"
-        "}"
-        "QPushButton {"
-        f"background: {t['panel_bg']}; color: {t['accent']};"
-        f"border: 1px solid {t['border']}; border-radius: 6px; padding: 6px 12px;"
-        "}"
-        "QPushButton:hover {"
-        f"background: {t['btn_hover']}; border: 1px solid {t['accent']};"
-        "}"
+    _exec_close_only_message_box(
+        parent,
+        title,
+        message,
+        icon=_QMessageBox.Icon.Warning,
+        buttons=_QMessageBox.StandardButton.Ok,
+        default_button=_QMessageBox.StandardButton.Ok,
     )
-
-    # 添加图标
-    icon_path = resource_path("assets/icon.ico")
-    if os.path.exists(icon_path):
-        dlg.setWindowIcon(QIcon(icon_path))
-
-    lay = QVBoxLayout(dlg)
-    lay.addWidget(QLabel(message))
-
-    btn_row = QHBoxLayout()
-    ok_btn = PushButton(FluentIcon.ACCEPT, "确定")
-    ok_btn.setFixedHeight(32)
-    ok_btn.clicked.connect(dlg.accept)
-    btn_row.addStretch()
-    btn_row.addWidget(ok_btn)
-    lay.addLayout(btn_row)
-
-    # 按内容自适应，随后固定，避免出现过大空白
-    dlg.adjustSize()
-    dlg.setFixedSize(dlg.sizeHint())
-
-    return dlg.exec() == QDialog.DialogCode.Accepted
+    return True
 
 def clear_deps_state():
     """
@@ -3278,7 +3206,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     return True
 
             chosen_layers = chosen.get("layers", [])
-            use_mirror = chosen.get("mirror", False)
+            mirror_source = str(chosen.get("mirror_source", "")).strip().lower()
+            if mirror_source in ("off", "tuna"):
+                use_mirror = (mirror_source == "tuna")
+            else:
+                use_mirror = bool(chosen.get("mirror", False))
+                mirror_source = "tuna" if use_mirror else "off"
+            print(f"[INFO] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
             deps_dir = chosen.get("deps_path", deps_dir)
             deps_path = Path(deps_dir)
             state_path = deps_path / STATE_FILE
@@ -3336,7 +3270,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 pkgs = _filter_packages(pkgs)
                 log_q = queue.Queue()
-                error_box = {"err": None}
                 stop_event = threading.Event()
                 pause_event = threading.Event()
                 state_lock = threading.Lock()

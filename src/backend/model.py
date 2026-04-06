@@ -229,7 +229,7 @@ class ModelWrapper(QObject):
             self.torch = torch
             if torch.cuda.is_available():
                 self.device = "cuda"
-                self._emit(f"[INFO] device: cuda:0 (name={torch.cuda.get_device_name(0)})")
+                self._emit("[INFO] device: cuda")
             else:
                 self.device = "cpu"
                 self._emit("[INFO] device: cpu")
@@ -918,18 +918,18 @@ class ModelWrapper(QObject):
             stable_cfg = {"layout": {"model_type": "DocYoloLayoutParser"}, "text_formula": {"formula": {"model_name": "mfr", "model_backend": "onnx"}}}
             try:
                 try:
-                    ver = _md.version("pix2text")
+                    _md.version("pix2text")
                 except Exception:
-                    ver = str(getattr(pix2text, "__version__", ""))
+                    str(getattr(pix2text, "__version__", ""))
                 Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
-                print(json.dumps({"ok": True, "ver": ver}))
+                print(json.dumps({"ok": True}))
             except Exception as e:
                 print(json.dumps({"ok": False, "error": str(e)}))
             """
         ).strip()
 
         try:
-            ok, ver, fail_detail = self._probe_and_bootstrap_pix2text(
+            ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
                 deps_python, probe_code, bootstrap_code
             )
 
@@ -950,7 +950,7 @@ class ModelWrapper(QObject):
                             f"[WARN] pix2text cache cleanup finished but no broken dir found"
                             f"{f' under {c_root}' if c_root else ''}"
                         )
-                    ok, ver, fail_detail = self._probe_and_bootstrap_pix2text(
+                    ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
                         deps_python, probe_code, bootstrap_code
                     )
                 else:

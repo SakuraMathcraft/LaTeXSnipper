@@ -10,7 +10,6 @@ MathJax 渲染模块 - 解决打包后的沙箱问题
 4. 详细的调试日志
 """
 
-import os
 import sys
 from pathlib import Path
 from PyQt6.QtCore import QUrl
