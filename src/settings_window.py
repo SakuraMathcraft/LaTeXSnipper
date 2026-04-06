@@ -85,7 +85,7 @@ class ExternalModelHelpWindow(QDialog):
             "MinerU 示例\n"
             "1. 协议：MinerU\n"
             "2. Base URL：http://127.0.0.1:8000\n"
-            "3. 解析接口路径：按实际服务填写，例如 /v1/parse\n"
+            "3. 解析接口路径：按实际服务填写，例如 /file_parse\n"
             "4. 健康检查路径：按实际服务填写，例如 /health\n\n"
             "线上接口示例\n"
             "1. 协议：按服务要求选择 OpenAI-compatible 或 Ollama\n"
@@ -279,7 +279,7 @@ class SettingsWindow(QDialog):
         self.external_api_key_input.setFixedHeight(32)
         external_layout.addWidget(self.external_api_key_input)
         self.external_mineru_endpoint_input = QLineEdit()
-        self.external_mineru_endpoint_input.setPlaceholderText("MinerU 解析接口路径（例如 /v1/parse）")
+        self.external_mineru_endpoint_input.setPlaceholderText("MinerU 解析接口路径（例如 /file_parse）")
         self.external_mineru_endpoint_input.setFixedHeight(32)
         external_layout.addWidget(self.external_mineru_endpoint_input)
         self.external_mineru_test_endpoint_input = QLineEdit()
@@ -2067,7 +2067,7 @@ class SettingsWindow(QDialog):
         self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
         self._set_combo_value(self.external_output_combo, str(preset.get("output_mode") or "latex"))
         self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
-        self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/v1/parse"))
+        self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/file_parse"))
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
         self._set_combo_value(self.external_mineru_mode_combo, str(preset.get("mineru_mode") or "auto"))
         self.external_hint.setText(str(preset.get("hint") or ""))

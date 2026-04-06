@@ -2,6 +2,7 @@ import time
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from .asset_store import PdfAssetStore
 from .document_pipeline import ExternalDocumentPipeline
 from .schemas import ExternalModelConfig
 
@@ -36,6 +37,7 @@ class ExternalModelPdfWorker(QObject):
 
     def run(self):
         t0 = time.perf_counter()
+        asset_store = None
 
         def _set_elapsed():
             self.elapsed = time.perf_counter() - t0
@@ -61,12 +63,19 @@ class ExternalModelPdfWorker(QObject):
             self.failed.emit(f"PDF 打开失败: {e}")
             return
 
-        pipeline = ExternalDocumentPipeline(self.config, self.output_format, self.document_mode)
+        asset_store = (
+            PdfAssetStore(task_id="latest", overwrite_existing=True)
+            if self.document_mode == "parse"
+            else None
+        )
+        pipeline = ExternalDocumentPipeline(self.config, self.output_format, self.document_mode, asset_store=asset_store)
         total = min(max(int(self.max_pages or 1), 1), doc.page_count or 1)
         results = []
         try:
             for i in range(total):
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                    if asset_store is not None:
+                        asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit("已取消")
                     return
@@ -78,10 +87,14 @@ class ExternalModelPdfWorker(QObject):
                     results.append(page_result)
                 self.progress.emit(i + 1, total)
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                    if asset_store is not None:
+                        asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit("已取消")
                     return
         except Exception as e:
+            if asset_store is not None:
+                asset_store.cleanup()
             _set_elapsed()
             self.failed.emit(str(e))
             return
@@ -94,6 +107,8 @@ class ExternalModelPdfWorker(QObject):
         content = pipeline.compose_document(results)
         self.structured_result = pipeline.build_structured_result()
         if not content.strip():
+            if asset_store is not None:
+                asset_store.cleanup()
             _set_elapsed()
             self.failed.emit("识别结果为空")
             return

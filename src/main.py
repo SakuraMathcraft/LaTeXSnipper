@@ -3755,6 +3755,11 @@ def _mathml_htmlize(mathml: str) -> str:
     mathml = mathml.replace("&#x221E;", _MATHML_INF).replace("&#X221E;", _MATHML_INF)
     return mathml
 
+def _mathml_to_html_fragment(mathml: str) -> str:
+    """将 MathML 包装为可直接嵌入网页的 HTML 片段。"""
+    html_mathml = _mathml_htmlize(mathml)
+    return f'<span class="latexsnipper-math" data-format="mathml">{html_mathml}</span>'
+
 def _mathml_with_prefix(mathml: str, prefix: str) -> str:
     """将 MathML 标签统一加命名空间前缀，如 mml:, m:, attr:。"""
     if not mathml:
@@ -4248,7 +4253,6 @@ class FavoritesWindow(_QMainWindow):
         a_latex = export_menu.addAction("LaTeX (行内 $...$)")
         a_latex_display = export_menu.addAction("LaTeX (display \\[...\\])")
         a_latex_equation = export_menu.addAction("LaTeX (equation 编号)")
-        a_html = export_menu.addAction("HTML")
         export_menu.addSeparator()
         a_md_inline = export_menu.addAction("Markdown (行内 $...$)")
         a_md_block = export_menu.addAction("Markdown (块级 $$...$$)")
@@ -4258,6 +4262,7 @@ class FavoritesWindow(_QMainWindow):
         a_mathml_m = export_menu.addAction("MathML (<m>)")
         a_mathml_attr = export_menu.addAction("MathML (attr)")
         export_menu.addSeparator()
+        a_html = export_menu.addAction("HTML")
         a_omml = export_menu.addAction("Word OMML")
         a_svgcode = export_menu.addAction("SVG Code")
         
@@ -4352,7 +4357,7 @@ class FavoritesWindow(_QMainWindow):
         elif format_type == "html":
             # HTML 格式
             try:
-                result = _mathml_htmlize(self._latex_to_mathml(clean))
+                result = _mathml_to_html_fragment(self._latex_to_mathml(clean))
             except Exception as e:
                 self._set_status(f"HTML 导出失败: {e}")
                 return
@@ -4790,12 +4795,15 @@ class PdfResultWindow(_QMainWindow):
         self.btn_save.clicked.connect(self._do_save)
         self.btn_close.clicked.connect(self.close)
         self._theme_is_dark_cached = None
+        self._structured_result = None
         self._apply_theme_styles(force=True)
 
-    def set_content(self, text: str, fmt_key: str, preference_label: str = ""):
+    def set_content(self, text: str, fmt_key: str, preference_label: str = "", structured_result: dict | None = None):
         self._fmt_key = fmt_key
         self._preference_label = str(preference_label or "").strip()
-        title = "PDF 识别结果"
+        self._structured_result = structured_result if isinstance(structured_result, dict) else None
+        mode = str((self._structured_result or {}).get("mode", "") or "").strip().lower()
+        title = "PDF 文档解析结果" if mode == "parse" else "PDF 识别结果"
         if self._preference_label:
             title = f"{title} - {self._preference_label}"
         self.setWindowTitle(title)
@@ -4843,9 +4851,126 @@ class PdfResultWindow(_QMainWindow):
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(self.editor.toPlainText())
+            self._export_structured_assets(path)
             self._emit_status("已保存文档")
         except Exception as e:
             custom_warning_dialog("错误", f"保存失败: {e}", self)
+
+    def _export_structured_assets(self, document_path: str):
+        payload = self._structured_result if isinstance(self._structured_result, dict) else {}
+        assets_root = str(payload.get("assets_root", "") or "").strip()
+        assets = payload.get("assets") or []
+        inline_images = payload.get("inline_images") or {}
+        if self._fmt_key != "markdown":
+            return
+        import shutil
+        import re
+        import base64
+
+        base_dir = pathlib.Path(document_path).parent
+        copied = 0
+
+        if assets_root and isinstance(assets, list) and assets:
+            for item in assets:
+                if not isinstance(item, dict):
+                    continue
+                src = pathlib.Path(str(item.get("abs_path", "") or "").strip())
+                rel = str(item.get("rel_path", "") or "").strip()
+                if not rel and src.name:
+                    rel = f"assets/{src.name}"
+                if not rel or not src.exists():
+                    continue
+                dst = base_dir / pathlib.Path(rel)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dst)
+                copied += 1
+
+        # For MinerU /file_parse markdown, image references are often relative
+        # paths like images/*.jpg. When structured assets are unavailable,
+        # locate source roots from payload and copy referenced files.
+        text = self.editor.toPlainText() if hasattr(self, "editor") else ""
+        img_refs = re.findall(r"(?:!|！)\s*\[[^\]]*\]\s*\(([^)]+)\)", text or "")
+        if not img_refs:
+            return
+
+        def _looks_local_rel_path(p: str) -> bool:
+            s = str(p or "").strip()
+            if not s:
+                return False
+            low = s.lower()
+            if low.startswith("http://") or low.startswith("https://") or low.startswith("data:"):
+                return False
+            return True
+
+        def _collect_candidate_dirs(node, acc: set[pathlib.Path]):
+            if isinstance(node, dict):
+                for v in node.values():
+                    _collect_candidate_dirs(v, acc)
+                return
+            if isinstance(node, list):
+                for v in node:
+                    _collect_candidate_dirs(v, acc)
+                return
+            if not isinstance(node, str):
+                return
+            s = node.strip()
+            if not s:
+                return
+            p = pathlib.Path(s)
+            try:
+                if p.exists():
+                    if p.is_dir():
+                        acc.add(p)
+                    elif p.is_file():
+                        acc.add(p.parent)
+            except Exception:
+                pass
+
+        candidate_dirs: set[pathlib.Path] = set()
+        if assets_root:
+            p = pathlib.Path(assets_root)
+            if p.exists() and p.is_dir():
+                candidate_dirs.add(p)
+                candidate_dirs.add(p.parent)
+        _collect_candidate_dirs(payload, candidate_dirs)
+
+        for ref in img_refs:
+            rel = str(ref or "").strip().strip('"').strip("'")
+            if not _looks_local_rel_path(rel):
+                continue
+            rel_path = pathlib.Path(rel)
+            dst = base_dir / rel_path
+            if dst.exists():
+                continue
+            found_src = None
+            for d in candidate_dirs:
+                src = d / rel_path
+                if src.exists() and src.is_file():
+                    found_src = src
+                    break
+            if found_src is not None:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(found_src, dst)
+                copied += 1
+                continue
+
+            # Fallback: materialize image from MinerU inline image map.
+            if isinstance(inline_images, dict):
+                key = rel_path.name
+                data_uri = str(inline_images.get(key, "") or "").strip()
+                if data_uri.startswith("data:") and "," in data_uri:
+                    payload_b64 = data_uri.split(",", 1)[1]
+                else:
+                    payload_b64 = data_uri
+                if payload_b64:
+                    try:
+                        raw = base64.b64decode(payload_b64, validate=False)
+                        if raw:
+                            dst.parent.mkdir(parents=True, exist_ok=True)
+                            dst.write_bytes(raw)
+                            copied += 1
+                    except Exception:
+                        pass
 
     def closeEvent(self, event):
         try:
@@ -4904,6 +5029,7 @@ class MainWindow(_QMainWindow):
         self._pdf_output_format = None
         self._pdf_doc_style = None
         self._pdf_dpi = None
+        self._pdf_structured_result = None
         self._pdf_result_window = None
         self._predict_result_dialog = None
         self._pix2text_env_state = None
@@ -5414,7 +5540,6 @@ class MainWindow(_QMainWindow):
         export_menu.addAction(Action("LaTeX (行内 $...$)", triggered=lambda: self._export_as("latex", latex)))
         export_menu.addAction(Action("LaTeX (display \\[...\\])", triggered=lambda: self._export_as("latex_display", latex)))
         export_menu.addAction(Action("LaTeX (equation 编号)", triggered=lambda: self._export_as("latex_equation", latex)))
-        export_menu.addAction(Action("HTML", triggered=lambda: self._export_as("html", latex)))
         export_menu.addSeparator()
         export_menu.addAction(Action("Markdown (行内 $...$)", triggered=lambda: self._export_as("markdown_inline", latex)))
         export_menu.addAction(Action("Markdown (块级 $$...$$)", triggered=lambda: self._export_as("markdown_block", latex)))
@@ -5424,6 +5549,7 @@ class MainWindow(_QMainWindow):
         export_menu.addAction(Action("MathML (<m>)", triggered=lambda: self._export_as("mathml_m", latex)))
         export_menu.addAction(Action("MathML (attr)", triggered=lambda: self._export_as("mathml_attr", latex)))
         export_menu.addSeparator()
+        export_menu.addAction(Action("HTML", triggered=lambda: self._export_as("html", latex)))
         export_menu.addAction(Action("Word OMML", triggered=lambda: self._export_as("omml", latex)))
         export_menu.addAction(Action("SVG Code", triggered=lambda: self._export_as("svgcode", latex)))
         m.addMenu(export_menu)
@@ -5944,7 +6070,6 @@ class MainWindow(_QMainWindow):
         menu.addAction(Action("LaTeX (行内 $...$)", triggered=lambda: _export_current("latex")))
         menu.addAction(Action("LaTeX (display \\[...\\])", triggered=lambda: _export_current("latex_display")))
         menu.addAction(Action("LaTeX (equation 编号)", triggered=lambda: _export_current("latex_equation")))
-        menu.addAction(Action("HTML", triggered=lambda: _export_current("html")))
         menu.addSeparator()
         menu.addAction(Action("Markdown (行内 $...$)", triggered=lambda: _export_current("markdown_inline")))
         menu.addAction(Action("Markdown (块级 $$...$$)", triggered=lambda: _export_current("markdown_block")))
@@ -5954,6 +6079,7 @@ class MainWindow(_QMainWindow):
         menu.addAction(Action("MathML (<m>)", triggered=lambda: _export_current("mathml_m")))
         menu.addAction(Action("MathML (attr)", triggered=lambda: _export_current("mathml_attr")))
         menu.addSeparator()
+        menu.addAction(Action("HTML", triggered=lambda: _export_current("html")))
         menu.addAction(Action("Word OMML", triggered=lambda: _export_current("omml")))
         menu.addAction(Action("SVG Code", triggered=lambda: _export_current("svgcode")))
 
@@ -5984,7 +6110,7 @@ class MainWindow(_QMainWindow):
         elif format_type == "html":
             # HTML 格式，可在网页中使用
             try:
-                result = _mathml_htmlize(self._latex_to_mathml(clean))
+                result = _mathml_to_html_fragment(self._latex_to_mathml(clean))
             except Exception as e:
                 self.set_action_status(f"HTML 导出失败: {e}", parent=info_parent)
                 return
@@ -7547,11 +7673,23 @@ th {{
                 return None
             return dlg.textValue()
 
-        fmt_items = ["Markdown", "LaTeX"]
-        fmt = _pick_item("导出格式", "请选择导出格式：", fmt_items, 0)
-        if not fmt:
-            return None
-        fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
+        doc_mode = "document"
+        external_cfg = self._get_external_model_config() if self.current_model == "external_model" else None
+        external_provider = external_cfg.normalized_provider() if external_cfg is not None else ""
+
+        if self.current_model == "external_model" and external_provider == "mineru":
+            # MinerU PDF flow is parse-only to keep behavior aligned with
+            # its markdown-first document parsing capabilities.
+            doc_mode = "parse"
+
+        if doc_mode == "parse":
+            fmt_key = "markdown"
+        else:
+            fmt_items = ["Markdown", "LaTeX"]
+            fmt = _pick_item("导出格式", "请选择导出格式：", fmt_items, 0)
+            if not fmt:
+                return None
+            fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
 
         from PyQt6.QtWidgets import QDialogButtonBox, QSlider
 
@@ -7619,7 +7757,7 @@ th {{
         if dlg.exec() != int(QDialog.DialogCode.Accepted):
             return None
         dpi = int(slider.value())
-        return fmt_key, dpi
+        return fmt_key, dpi, doc_mode
 
     def _upload_pdf_recognition(self):
         """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
@@ -7708,10 +7846,11 @@ th {{
         opts = self._prompt_pdf_output_options()
         if not opts:
             return
-        fmt_key, dpi = opts
+        fmt_key, dpi, doc_mode = opts
         self._pdf_output_format = fmt_key
-        self._pdf_doc_style = "document"
+        self._pdf_doc_style = doc_mode
         self._pdf_dpi = dpi
+        self._pdf_structured_result = None
 
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
@@ -7724,20 +7863,21 @@ th {{
         if self.current_model == "external_model":
             config = self._get_external_model_config()
             config.output_mode = fmt_key
-            config.prompt_template = "ocr_document_page_v1"
+            config.prompt_template = "ocr_document_parse_v1" if doc_mode == "parse" else "ocr_document_page_v1"
             self.pdf_predict_worker = ExternalModelPdfWorker(
                 config,
                 file_path,
                 pages,
                 fmt_key,
                 dpi,
-                "document",
+                doc_mode,
             )
         else:
             self.pdf_predict_worker = PdfPredictWorker(self.model, file_path, pages, self.current_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
-        self.pdf_progress = QProgressDialog("正在识别 PDF（取消将在当前页结束后生效）...", "取消", 0, pages, self)
+        progress_text = "正在解析 PDF 文档结构（取消将在当前页结束后生效）..." if doc_mode == "parse" else "正在识别 PDF（取消将在当前页结束后生效）..."
+        self.pdf_progress = QProgressDialog(progress_text, "取消", 0, pages, self)
         # 进度框改为非模态，避免父窗口被锁死后无法恢复交互
         self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
         self.pdf_progress.setMinimumDuration(0)
@@ -7845,10 +7985,10 @@ th {{
 
         return wrap_document_output(content, fmt_key, style_key)
 
-    def _show_document_dialog(self, text: str, fmt_key: str):
+    def _show_document_dialog(self, text: str, fmt_key: str, structured_result: dict | None = None):
         if not self._pdf_result_window:
             self._pdf_result_window = PdfResultWindow(status_cb=self.set_action_status, window_icon=self.icon)
-        self._pdf_result_window.set_content(text, fmt_key)
+        self._pdf_result_window.set_content(text, fmt_key, structured_result=structured_result)
         print(f"[DEBUG] PDF 结果窗口打开 length={len(text or '')}")
         self._pdf_result_window.show()
         self._pdf_result_window.raise_()
@@ -7884,12 +8024,14 @@ th {{
             pass
         fmt_key = self._pdf_output_format or "markdown"
         style_key = self._pdf_doc_style or "document"
+        structured_result = getattr(getattr(self, "pdf_predict_worker", None), "structured_result", None)
+        self._pdf_structured_result = structured_result if isinstance(structured_result, dict) else None
         doc = self._wrap_document_output(content, fmt_key, style_key)
         if not doc:
             custom_warning_dialog("提示", "识别结果为空", self)
             return
         # 延迟到下一轮事件循环打开，确保线程 quit/cleanup 与模态释放先完成
-        QTimer.singleShot(0, lambda d=doc, f=fmt_key: self._show_document_dialog(d, f))
+        QTimer.singleShot(0, lambda d=doc, f=fmt_key, s=self._pdf_structured_result: self._show_document_dialog(d, f, s))
 
     def _on_pdf_predict_fail(self, msg: str):
         self._release_pdf_progress()

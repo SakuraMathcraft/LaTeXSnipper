@@ -42,7 +42,7 @@ PRESETS = {
         "model_name": "",
         "output_mode": "markdown",
         "prompt_template": "ocr_document_page_v1",
-        "mineru_endpoint": "/v1/parse",
+        "mineru_endpoint": "/file_parse",
         "mineru_test_endpoint": "/health",
         "mineru_mode": "document",
         "hint": "MinerU 原生接口：可不填模型名，需确认解析接口路径和健康检查路径。",
