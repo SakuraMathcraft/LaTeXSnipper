@@ -3990,6 +3990,7 @@ def ensure_webengine_loaded() -> bool:
 
 from utils import resource_path
 from handwriting import HandwritingWindow
+from handwriting.bilingual_pdf_window import BilingualPdfWindow
 from qfluentwidgets import RoundMenu, Action
 
 class CenterMenu(RoundMenu):
@@ -5009,8 +5010,8 @@ class MainWindow(_QMainWindow):
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
 
         self.setWindowTitle("LaTeX Snipper")
-        self.resize(1180, 760)
-        self.setMinimumSize(1180, 760)
+        self.resize(1280, 760)
+        self.setMinimumSize(1280, 760)
 
         # 在模型初始化前
         req_path = os.path.join(os.path.dirname(__file__), "requirements.txt")
@@ -5041,6 +5042,7 @@ class MainWindow(_QMainWindow):
         self.settings_window = None
         self.shortcut_window = None
         self.handwriting_window = None
+        self.bilingual_pdf_window = None
         self._theme_is_dark_cached = None
         self._auto_theme_sync_in_progress = False
         self._auto_theme_refresh_timer = QTimer(self)
@@ -5270,6 +5272,8 @@ class MainWindow(_QMainWindow):
         self.export_btn.clicked.connect(self._show_export_menu)
         self.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, "手写识别")
         self.handwriting_btn.clicked.connect(self.open_handwriting_window)
+        self.bilingual_reading_btn = PushButton(FluentIcon.BOOK_SHELF, "双语阅读")
+        self.bilingual_reading_btn.clicked.connect(self.open_bilingual_reader)
         self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "数学工作台")
         self.workbench_btn.clicked.connect(self.open_workbench)
         editor_actions = QHBoxLayout()
@@ -5280,6 +5284,7 @@ class MainWindow(_QMainWindow):
         editor_actions.addWidget(self.handwriting_btn)
         editor_actions.addWidget(self.copy_editor_btn)
         editor_actions.addWidget(self.export_btn)
+        editor_actions.addWidget(self.bilingual_reading_btn)
         editor_actions.addWidget(self.workbench_btn)
         editor_header.addLayout(editor_actions)
         right_layout.addLayout(editor_header)
@@ -5362,7 +5367,7 @@ class MainWindow(_QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([400, 600])  # 初始宽度比例
+        splitter.setSizes([420, 900])  # 初始宽度比例
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
 
@@ -9179,6 +9184,28 @@ QLineEdit:focus {{
             self.workbench_window.set_latex(current)
         self.workbench_window.raise_()
         self.workbench_window.activateWindow()
+
+    def open_bilingual_reader(self):
+        window = getattr(self, "bilingual_pdf_window", None)
+        if window is not None:
+            try:
+                if window.isVisible():
+                    window.raise_()
+                    window.activateWindow()
+                    return
+            except RuntimeError:
+                pass
+            self.bilingual_pdf_window = None
+        try:
+            window = BilingualPdfWindow(cfg=self.cfg, parent=None)
+        except Exception as exc:
+            custom_warning_dialog("错误", f"双语阅读窗口初始化失败: {exc}", self)
+            return
+        self.bilingual_pdf_window = window
+        window.destroyed.connect(lambda: setattr(self, "bilingual_pdf_window", None))
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def show_window(self):
         self.system_provider.activate_window(self)

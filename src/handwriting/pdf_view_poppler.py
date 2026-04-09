@@ -1108,7 +1108,7 @@ class PopplerPdfView(QScrollArea):
             pass
         return False
 
-    def _switch_magnifier_to_cpu(self, reason: str) -> None:
+    def _switch_magnifier_to_cpu(self, reason: str, show_feedback: bool = True) -> None:
         if not self._magnifier_gpu_enabled:
             return
         old = self._magnifier_label
@@ -1130,7 +1130,11 @@ class PopplerPdfView(QScrollArea):
                 old.deleteLater()
         except Exception:
             pass
-        self._show_gpu_fallback_infobar(reason)
+        if show_feedback:
+            self._show_gpu_fallback_infobar(reason)
+
+    def force_cpu_magnifier(self, reason: str = "", show_feedback: bool = False) -> None:
+        self._switch_magnifier_to_cpu(reason or "已切换为 CPU 放大镜。", show_feedback=show_feedback)
 
     def _gpu_surface_has_artifact(self) -> bool:
         if not self._magnifier_gpu_enabled:

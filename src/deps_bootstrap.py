@@ -832,6 +832,7 @@ import requests
 import lxml
 # BASIC 仅验证非 GUI 运行依赖
 import onnxruntime as onnxruntime
+import argostranslate
 print("BASIC OK")
 """,
     "CORE": """
@@ -1160,6 +1161,7 @@ LAYER_MAP = {
         "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=26.0",
         "requests~=2.32.5",
         "numpy>=1.26.4", "filelock~=3.13.1",
+        "argostranslate~=1.9.6",
         "pydantic~=2.9.2", "regex~=2024.9.11",
         "safetensors~=0.6.2", "sentencepiece~=0.1.99",
         "certifi~=2024.2.2", "idna~=3.6", "urllib3~=2.5.0",

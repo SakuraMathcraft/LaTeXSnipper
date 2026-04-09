@@ -665,7 +665,8 @@ class HandwritingWindow(QDialog):
     def _update_layout_button_state(self) -> None:
         if not hasattr(self, "layout_btn"):
             return
-        available = self._get_active_model_key() == "external_model" and self._is_external_model_ready() and not self._closing
+        active_model = self._get_active_model_key()
+        available = (active_model != "external_model" or self._is_external_model_ready()) and not self._closing
         busy = self._is_layout_busy()
         self.layout_btn.setEnabled(not busy and not self._closing)
         self.layout_btn.setText("排版中..." if self._is_layout_busy() else "自动排版")
@@ -1083,11 +1084,8 @@ class HandwritingWindow(QDialog):
     def _auto_layout_document(self) -> None:
         if self._closing:
             return
-        if self._get_active_model_key() != "external_model":
-            self.status_label.setText("自动排版不可用")
-            self._show_warning("当前不可用", "自动排版仅在外部模型模式下可用。")
-            return
-        if not self._is_external_model_ready():
+        active_model = self._get_active_model_key()
+        if active_model == "external_model" and not self._is_external_model_ready():
             self.status_label.setText("外部模型未配置")
             self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
             return
@@ -1098,6 +1096,16 @@ class HandwritingWindow(QDialog):
         if self._is_layout_busy():
             self.status_label.setText("自动排版中")
             self._show_info("排版中", "自动排版任务正在进行，请稍候。")
+            return
+        if active_model != "external_model":
+            draft = self.result_editor.toPlainText().strip()
+            if not draft:
+                self.status_label.setText("没有可排版内容")
+                self._show_warning("没有可排版内容", "请先写入笔迹并完成识别，或补充可编辑的 TeX 草稿。")
+                return
+            self._open_document_preview(draft)
+            self.status_label.setText("已打开文档编辑")
+            self._show_info("已打开文档编辑", "当前为本地模型模式，可继续编辑源码并编译 PDF。")
             return
         export = self.canvas.export_image()
         if export.is_empty or export.image is None:
@@ -1132,6 +1140,14 @@ class HandwritingWindow(QDialog):
         thread.start()
         self._update_layout_button_state()
 
+    def _open_document_preview(self, doc_text: str) -> None:
+        if self._document_preview_window is None:
+            self._document_preview_window = DocumentPreviewWindow()
+        self._document_preview_window.set_document(doc_text)
+        self._document_preview_window.show()
+        self._document_preview_window.raise_()
+        self._document_preview_window.activateWindow()
+
     def _teardown_layout(self, *_args) -> None:
         self._layout_thread = None
         self._layout_worker = None
@@ -1147,14 +1163,9 @@ class HandwritingWindow(QDialog):
             self.status_label.setText("排版结果为空")
             self._show_warning("排版结果为空", "外部模型未返回可用的 TeX 文档。")
             return
-        if self._document_preview_window is None:
-            self._document_preview_window = DocumentPreviewWindow()
-        self._document_preview_window.set_document(doc_text)
-        self._document_preview_window.show()
-        self._document_preview_window.raise_()
-        self._document_preview_window.activateWindow()
+        self._open_document_preview(doc_text)
         self.status_label.setText("自动排版完成")
-        self._show_info("自动排版完成", "已生成可编辑的 TeX 文档预览窗口。")
+        self._show_info("自动排版完成", "外部模型已生成可编辑的 TeX 文档窗口。")
 
     def _on_document_layout_failed(self, error: str) -> None:
         if self._closing:
@@ -1232,4 +1243,3 @@ class HandwritingWindow(QDialog):
             except Exception:
                 pass
         super().closeEvent(event)
-
