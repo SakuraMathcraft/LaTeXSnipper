@@ -1075,8 +1075,21 @@ class BilingualPdfWindow(QDialog):
             return
         self._apply_translation_payload(payload)
 
+    def _normalize_translate_error(self, error: str) -> str:
+        text = str(error or "").strip()
+        if not text:
+            return "翻译失败：未知错误。"
+        low = text.lower()
+        if "401" in low or "403" in low or "unauthorized" in low or "forbidden" in low:
+            return "翻译失败：鉴权失败，请检查 API Key、订阅密钥、区域或接口权限。"
+        if "429" in low or "too many requests" in low or "rate limit" in low or "quota" in low:
+            return "翻译失败：接口已触发限流或免费额度不足，请稍后重试或检查额度。"
+        if any(code in low for code in ("500", "502", "503", "504", "internal server error", "bad gateway", "service unavailable", "gateway timeout")):
+            return "翻译失败：翻译服务暂时异常，请稍后重试。"
+        return f"翻译失败：{text}"
+
     def _on_translate_failed(self, error: str) -> None:
-        self.translated_text.setPlainText(f"翻译失败：{str(error or '').strip()}")
+        self.translated_text.setPlainText(self._normalize_translate_error(error))
         self.translate_progress_text.setText("翻译失败")
 
     def _update_page_label(self) -> None:
