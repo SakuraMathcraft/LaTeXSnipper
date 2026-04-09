@@ -6,9 +6,9 @@ import json
 import os
 import sys
 
-from PyQt6.QtCore import QObject, QProcess, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QProcess, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton
 
 from handwriting.pdf_view_fitz import FitzPdfView
@@ -81,6 +81,15 @@ class _ArgosModelInstallWorker(QThread):
                     pass
 
 
+_ENGINE_ITEMS = [
+    ("source_only", "仅显示原文"),
+    ("argos", "Argos Translate"),
+    ("azure_translator", "Azure Translator"),
+    ("google_cloud", "Google Cloud Translation"),
+    ("deepl_api_free", "DeepL API Free"),
+]
+
+
 class BilingualPdfWindow(QDialog):
     def __init__(self, cfg=None, parent=None):
         super().__init__(parent)
@@ -136,9 +145,11 @@ class BilingualPdfWindow(QDialog):
         self.translate_current_btn = PushButton(FluentIcon.LANGUAGE, "翻译当前页", self)
         self.page_label = QLabel("未打开 PDF", self)
         self.engine_combo = ComboBox(self)
-        self.engine_combo.setMinimumWidth(180)
-        self.engine_combo.addItem("仅显示原文", userData="source_only")
-        self.engine_combo.addItem("Argos Translate", userData="argos")
+        self.engine_combo.setFixedWidth(164)
+        for key, label in _ENGINE_ITEMS:
+            self.engine_combo.addItem(label, userData=key)
+        self.config_engine_btn = PushButton(FluentIcon.SETTING, "接口配置", self)
+        self.config_engine_btn.setFixedHeight(34)
         self.install_argos_btn = PushButton(FluentIcon.DOWNLOAD, "安装英中模型", self)
         self.install_argos_btn.setFixedHeight(34)
         self.argos_status_label = QLabel("", self)
@@ -147,22 +158,23 @@ class BilingualPdfWindow(QDialog):
         self.argos_install_progress.setFixedHeight(6)
         self.argos_install_progress.hide()
         self.pdf_backend_combo = ComboBox(self)
-        self.pdf_backend_combo.setMinimumWidth(148)
+        self.pdf_backend_combo.setFixedWidth(112)
         self.pdf_backend_combo.addItem("自动", userData="auto")
-        self.pdf_backend_combo.addItem("Poppler(高清)", userData="poppler")
-        self.pdf_backend_combo.addItem("Fitz(兼容)", userData="fitz")
+        self.pdf_backend_combo.addItem("Poppler", userData="poppler")
+        self.pdf_backend_combo.addItem("Fitz", userData="fitz")
         self.pdf_backend_status_label = QLabel("", self)
+        self.pdf_backend_status_label.hide()
         for widget in (self.open_pdf_btn, self.translate_current_btn):
             widget.setFixedHeight(34)
         toolbar.addWidget(self.open_pdf_btn)
         toolbar.addWidget(self.translate_current_btn)
         toolbar.addWidget(self.engine_combo)
+        toolbar.addWidget(self.config_engine_btn)
         toolbar.addWidget(self.install_argos_btn)
         toolbar.addWidget(self.argos_status_label)
         toolbar.addWidget(self.pdf_backend_combo)
-        toolbar.addStretch(1)
         toolbar.addWidget(self.page_label)
-        toolbar.addWidget(self.pdf_backend_status_label)
+        toolbar.addStretch(1)
         root.addLayout(toolbar)
 
         self.argos_progress_row = QHBoxLayout()
@@ -220,17 +232,19 @@ class BilingualPdfWindow(QDialog):
 
         self.main_splitter.addWidget(self.preview_host)
         self.main_splitter.addWidget(self.text_splitter)
-        self.main_splitter.setStretchFactor(0, 5)
-        self.main_splitter.setStretchFactor(1, 4)
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 2)
+        self.main_splitter.setSizes([330, 650])
         root.addWidget(self.main_splitter, 1)
 
         self.open_pdf_btn.clicked.connect(self.open_pdf_dialog)
-        self.translate_current_btn.clicked.connect(self._translate_current_page)
+        self.translate_current_btn.clicked.connect(self._manual_translate_current_page)
+        self.config_engine_btn.clicked.connect(self._open_engine_config_dialog)
         self.install_argos_btn.clicked.connect(self._install_argos_model)
         self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
         self.pdf_backend_combo.currentIndexChanged.connect(self._on_pdf_backend_changed)
         self._apply_theme()
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
 
     def _load_saved_preferences(self) -> None:
         if self.cfg is None:
@@ -264,6 +278,175 @@ class BilingualPdfWindow(QDialog):
         self.pdf_backend_status_label.setStyleSheet("font-size: 12px; color: #7a8698;")
         self.argos_status_label.setStyleSheet("font-size: 12px; color: #7a8698;")
 
+    def _current_engine(self) -> str:
+        return str(self.engine_combo.currentData() or "source_only").strip()
+
+    def _engine_label(self, engine: str) -> str:
+        target = str(engine or "source_only").strip()
+        for key, label in _ENGINE_ITEMS:
+            if key == target:
+                return label
+        return target or "未知引擎"
+
+    def _engine_needs_remote_config(self, engine: str) -> bool:
+        return str(engine or "").strip() in {"azure_translator", "google_cloud", "deepl_api_free"}
+
+    def _remote_engine_defaults(self, engine: str) -> dict[str, str]:
+        target = str(engine or "").strip()
+        if target == "azure_translator":
+            return {
+                "endpoint": "https://api.cognitive.microsofttranslator.com",
+                "api_key": "",
+                "region": "",
+                "timeout_sec": "60",
+            }
+        if target == "deepl_api_free":
+            return {
+                "endpoint": "https://api-free.deepl.com",
+                "api_key": "",
+                "timeout_sec": "60",
+            }
+        if target == "google_cloud":
+            return {
+                "endpoint": "https://translation.googleapis.com/language/translate/v2",
+                "api_key": "",
+                "timeout_sec": "60",
+            }
+        return {}
+
+    def _remote_engine_config(self, engine: str) -> dict[str, str]:
+        defaults = self._remote_engine_defaults(engine)
+        if not defaults:
+            return {}
+        result = dict(defaults)
+        if self.cfg is None:
+            return result
+        for key, default_value in defaults.items():
+            try:
+                result[key] = str(self.cfg.get(f"bilingual_translate_{engine}_{key}", default_value) or default_value)
+            except Exception:
+                result[key] = str(default_value)
+        return result
+
+    def _save_remote_engine_config(self, engine: str, config: dict[str, str]) -> None:
+        if self.cfg is None:
+            return
+        for key, value in config.items():
+            self._save_preference(f"bilingual_translate_{engine}_{key}", str(value or "").strip())
+
+    def _remote_engine_ready(self, engine: str) -> tuple[bool, str]:
+        config = self._remote_engine_config(engine)
+        if not config:
+            return False, "当前翻译引擎不支持配置。"
+        if engine == "azure_translator":
+            if not config.get("api_key", "").strip():
+                return False, "未配置订阅密钥"
+            return True, "接口已配置"
+        if engine in {"deepl_api_free", "google_cloud"}:
+            if not config.get("api_key", "").strip():
+                return False, "未配置 API Key"
+            return True, "接口已配置"
+        return False, "接口未配置"
+
+    def _engine_status_message(self, engine: str) -> str:
+        target = str(engine or "source_only").strip()
+        if target == "source_only":
+            return ""
+        if target == "argos":
+            return self._argos_status_message()
+        ready, message = self._remote_engine_ready(target)
+        return f"{self._engine_label(target)}已配置" if ready else f"{self._engine_label(target)}{message}"
+
+    def _open_engine_config_dialog(self) -> None:
+        engine = self._current_engine()
+        if not self._engine_needs_remote_config(engine):
+            InfoBar.info(title="当前引擎无需接口配置", content="该翻译引擎不依赖远程接口配置。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            return
+        config = self._remote_engine_config(engine)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{self._engine_label(engine)} 配置")
+        dialog.setMinimumWidth(460)
+        dialog.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
+        hint = QLabel("仅对当前双语阅读功能生效。保存后会写入本地配置。", dialog)
+        hint.setStyleSheet("font-size: 12px; color: #7a8698;")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        site_map = {
+            "azure_translator": ("申请入口", "https://portal.azure.com/"),
+            "google_cloud": ("申请入口", "https://console.cloud.google.com/apis/library/translate.googleapis.com"),
+            "deepl_api_free": ("申请入口", "https://www.deepl.com/pro-api"),
+        }
+        site_label, site_url = site_map.get(engine, ("", ""))
+        if site_url:
+            site_link = QLabel(
+                f'<a href="{site_url}" style="color:#4f8cff;text-decoration:none;">{site_label}: {site_url}</a>',
+                dialog,
+            )
+            site_link.setOpenExternalLinks(True)
+            site_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+            site_link.setStyleSheet("font-size: 12px; color: #7a8698;")
+            site_link.setWordWrap(True)
+            layout.addWidget(site_link)
+        fields: dict[str, QLineEdit] = {}
+
+        def add_field(title: str, key: str, placeholder: str, secret: bool = False) -> None:
+            layout.addWidget(QLabel(title, dialog))
+            edit = QLineEdit(dialog)
+            edit.setFixedHeight(32)
+            edit.setPlaceholderText(placeholder)
+            edit.setText(str(config.get(key, "") or ""))
+            if secret:
+                edit.setEchoMode(QLineEdit.EchoMode.Password)
+            layout.addWidget(edit)
+            fields[key] = edit
+
+        if engine == "azure_translator":
+            add_field("Endpoint", "endpoint", "默认 https://api.cognitive.microsofttranslator.com")
+            add_field("订阅密钥", "api_key", "Azure Translator Key", secret=True)
+            add_field("区域(可选)", "region", "例如 eastasia")
+            add_field("超时(秒)", "timeout_sec", "60")
+        elif engine == "deepl_api_free":
+            add_field("Endpoint", "endpoint", "默认 https://api-free.deepl.com")
+            add_field("API Key", "api_key", "DeepL Key", secret=True)
+            add_field("超时(秒)", "timeout_sec", "60")
+        elif engine == "google_cloud":
+            add_field("Endpoint", "endpoint", "默认 https://translation.googleapis.com/language/translate/v2")
+            add_field("API Key", "api_key", "Google Cloud Key", secret=True)
+            add_field("超时(秒)", "timeout_sec", "60")
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        cancel_btn = PushButton(FluentIcon.CLOSE, "取消", dialog)
+        save_btn = PushButton(FluentIcon.SAVE, "保存", dialog)
+        cancel_btn.clicked.connect(dialog.reject)
+
+        def save_and_close() -> None:
+            payload = {key: widget.text().strip() for key, widget in fields.items()}
+            self._save_remote_engine_config(engine, payload)
+            self._translation_cache.clear()
+            self._prefetch_queue.clear()
+            self._refresh_engine_ui_state()
+            dialog.accept()
+            InfoBar.success(title="配置已保存", content=f"{self._engine_label(engine)} 接口配置已更新。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            if self._pdf_path:
+                self._reset_translation_panel_for_page(self._current_page, engine)
+
+        save_btn.clicked.connect(save_and_close)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(save_btn)
+        layout.addLayout(btn_row)
+        dialog.setFixedSize(dialog.sizeHint().expandedTo(dialog.minimumSizeHint()))
+        dialog.exec()
+
     def _argos_language_pair_ready(self) -> bool:
         if argos_translate is None:
             return False
@@ -285,36 +468,40 @@ class BilingualPdfWindow(QDialog):
             return "英译中模型已就绪"
         return "未安装英译中模型"
 
-    def _refresh_argos_ui_state(self) -> None:
-        engine = str(self.engine_combo.currentData() or "source_only").strip()
-        status = self._argos_status_message()
+    def _refresh_engine_ui_state(self) -> None:
+        engine = self._current_engine()
+        status = self._engine_status_message(engine)
         self.argos_status_label.setText(status)
         installing = self._argos_install_worker is not None and self._argos_install_worker.isRunning()
         translating = self._translate_process is not None and self._translate_process.state() != QProcess.ProcessState.NotRunning
-        self.install_argos_btn.setVisible(engine == "argos")
-        self.argos_status_label.setVisible(engine == "argos")
-        can_install = status not in {"英译中模型已就绪", "Argos 运行库未安装"} and (not installing)
+        busy_foreground = translating and not self._translate_process_silent
+        show_install_button = engine == "argos" and (installing or self._argos_status_message() != "英译中模型已就绪")
+        self.install_argos_btn.setVisible(show_install_button)
+        self.config_engine_btn.setVisible(self._engine_needs_remote_config(engine))
+        self.argos_status_label.setVisible(engine != "source_only")
+        can_install = self._argos_status_message() not in {"英译中模型已就绪", "Argos 运行库未安装"} and (not installing)
         self.install_argos_btn.setEnabled(can_install)
         self.argos_install_progress.setVisible(engine == "argos" and installing)
         self.argos_progress_text.setVisible(engine == "argos" and installing)
         if not installing:
             self.argos_progress_text.clear()
-        self.translate_current_btn.setEnabled(not translating)
-        self.engine_combo.setEnabled(not translating)
-        self.translate_progress.setVisible(translating and not self._translate_process_silent)
-        self.translate_progress_text.setVisible(translating and not self._translate_process_silent)
-        if not translating:
+        self.translate_current_btn.setEnabled(not busy_foreground)
+        self.engine_combo.setEnabled(not busy_foreground)
+        self.config_engine_btn.setEnabled(not busy_foreground)
+        self.translate_progress.setVisible(busy_foreground)
+        self.translate_progress_text.setVisible(busy_foreground)
+        if not busy_foreground:
             self.translate_progress_text.clear()
 
     def _ensure_argos_ready_for_translation(self) -> bool:
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
         if self._argos_language_pair_ready():
             return True
         self.translated_text.setPlainText("未安装 Argos 英译中模型，请先点击“安装英中模型”。")
         return False
 
     def _install_argos_model(self) -> None:
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
         if self._argos_language_pair_ready():
             InfoBar.success(title="模型已就绪", content="当前环境已安装 Argos 英译中模型。", parent=self, position=InfoBarPosition.TOP, duration=2200)
             return
@@ -337,12 +524,12 @@ class BilingualPdfWindow(QDialog):
         self.argos_progress_text.setText(text)
 
     def _on_argos_install_finished(self, ok: bool, message: str) -> None:
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
         if ok:
             self.argos_status_label.setText("英译中模型已就绪")
             self.argos_progress_text.setText("安装完成")
             InfoBar.success(title="安装完成", content=str(message or "Argos 英译中模型已安装。"), parent=self, position=InfoBarPosition.TOP, duration=2600)
-            if str(self.engine_combo.currentData() or "") == "argos" and self._pdf_path:
+            if self._current_engine() == "argos" and self._pdf_path:
                 self._translate_current_page()
             return
         self.argos_status_label.setText("未安装英译中模型")
@@ -352,7 +539,7 @@ class BilingualPdfWindow(QDialog):
 
     def _on_argos_install_thread_finished(self) -> None:
         self._argos_install_worker = None
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
 
     def open_pdf_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "打开 PDF", "", "PDF 文件 (*.pdf);;所有文件 (*.*)")
@@ -536,7 +723,7 @@ class BilingualPdfWindow(QDialog):
         self.source_text.setPlainText(text)
         self._update_page_label()
         if trigger_translate:
-            engine = str(self.engine_combo.currentData() or "source_only").strip()
+            engine = self._current_engine()
             cached = self._get_cached_translation(page_no, engine)
             if cached is not None:
                 self._apply_translation_payload(cached)
@@ -559,10 +746,13 @@ class BilingualPdfWindow(QDialog):
         return "\n".join(compact).strip()
 
     def _on_engine_changed(self) -> None:
-        engine = str(self.engine_combo.currentData() or "source_only").strip()
+        engine = self._current_engine()
         self._save_preference("bilingual_reader_engine", engine)
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
         if self._initializing:
+            return
+        if not self._pdf_path:
+            self._reset_translation_panel_for_page(self._current_page, engine, source_text="")
             return
         self._translate_current_page()
 
@@ -592,6 +782,12 @@ class BilingualPdfWindow(QDialog):
             self.translated_title.setText("当前页中文 (仅显示原文)")
             self.translated_text.setPlainText("当前页未启用翻译引擎。")
             return
+        if self._engine_needs_remote_config(engine):
+            ready, message = self._remote_engine_ready(str(engine))
+            if not ready:
+                self.translated_title.setText(f"当前页中文 ({self._engine_label(engine)})")
+                self.translated_text.setPlainText(f"{self._engine_label(engine)} 未就绪：{message}。请先点击“接口配置”。")
+                return
         self.translated_title.setText("当前页中文 (等待翻译)")
         self.translated_text.setPlainText("正在准备当前页译文...")
 
@@ -620,7 +816,7 @@ class BilingualPdfWindow(QDialog):
             return
         if self._translate_process is not None and self._translate_process.state() != QProcess.ProcessState.NotRunning:
             return
-        engine = str(self.engine_combo.currentData() or "source_only").strip()
+        engine = self._current_engine()
         if engine != "argos":
             self._prefetch_queue.clear()
             return
@@ -643,20 +839,23 @@ class BilingualPdfWindow(QDialog):
         pyexe = self._resolve_translation_python()
         script = (
             "import json,sys\n"
+            "import html\n"
+            "from urllib import parse, request\n"
             "payload=json.loads(sys.stdin.read() or '{}')\n"
             "page_no=int(payload.get('page_no',1))\n"
             "text=str(payload.get('source_text','') or '').strip()\n"
             "engine=str(payload.get('engine_key','source_only') or 'source_only')\n"
+            "cfg=dict(payload.get('engine_config') or {})\n"
             "result={'page_no':page_no,'source_text':text,'translated_text':'','engine_name':''}\n"
+            "def read_json(req, timeout):\n"
+            "    with request.urlopen(req, timeout=timeout) as resp:\n"
+            "        return json.loads(resp.read().decode('utf-8', errors='replace') or '{}')\n"
             "if not text:\n"
             "    result['engine_name']='无文本'\n"
             "elif engine=='source_only':\n"
             "    result['translated_text']='当前页未启用翻译引擎。'\n"
             "    result['engine_name']='仅显示原文'\n"
-            "elif engine!='argos':\n"
-            "    result['translated_text']='当前翻译引擎暂未实现。'\n"
-            "    result['engine_name']=engine\n"
-            "else:\n"
+            "elif engine=='argos':\n"
             "    import argostranslate.translate as t\n"
             "    installed=list(t.get_installed_languages() or [])\n"
             "    src=next((lang for lang in installed if getattr(lang,'code','')=='en'),None)\n"
@@ -668,6 +867,55 @@ class BilingualPdfWindow(QDialog):
             "        translator=src.get_translation(dst)\n"
             "        translated=str(translator.translate(text) or '').strip()\n"
             "        result['translated_text']=translated or '当前页翻译结果为空。'\n"
+            "elif engine=='azure_translator':\n"
+            "    endpoint=str(cfg.get('endpoint','https://api.cognitive.microsofttranslator.com') or 'https://api.cognitive.microsofttranslator.com').strip().rstrip('/')\n"
+            "    api_key=str(cfg.get('api_key','') or '').strip()\n"
+            "    region=str(cfg.get('region','') or '').strip()\n"
+            "    timeout=max(5,int(str(cfg.get('timeout_sec','60') or '60')))\n"
+            "    if not api_key:\n"
+            "        raise RuntimeError('Azure Translator 缺少订阅密钥。')\n"
+            "    headers={'Content-Type':'application/json','Ocp-Apim-Subscription-Key':api_key}\n"
+            "    if region:\n"
+            "        headers['Ocp-Apim-Subscription-Region']=region\n"
+            "    url=endpoint + '/translate?' + parse.urlencode({'api-version':'3.0','from':'en','to':'zh-Hans'})\n"
+            "    req=request.Request(url, data=json.dumps([{'text':text}], ensure_ascii=False).encode('utf-8'), headers=headers, method='POST')\n"
+            "    data=read_json(req, timeout)\n"
+            "    translated=''\n"
+            "    if isinstance(data, list) and data:\n"
+            "        translated=str((((data[0] or {}).get('translations') or [{}])[0] or {}).get('text','') or '').strip()\n"
+            "    result['engine_name']='Azure Translator'\n"
+            "    result['translated_text']=translated or '当前页翻译结果为空。'\n"
+            "elif engine=='deepl_api_free':\n"
+            "    endpoint=str(cfg.get('endpoint','https://api-free.deepl.com') or 'https://api-free.deepl.com').strip().rstrip('/')\n"
+            "    api_key=str(cfg.get('api_key','') or '').strip()\n"
+            "    timeout=max(5,int(str(cfg.get('timeout_sec','60') or '60')))\n"
+            "    if not api_key:\n"
+            "        raise RuntimeError('DeepL API Free 缺少 API Key。')\n"
+            "    if not endpoint.endswith('/v2/translate'):\n"
+            "        endpoint=endpoint + '/v2/translate'\n"
+            "    body=parse.urlencode({'auth_key':api_key,'text':text,'source_lang':'EN','target_lang':'ZH-HANS'}).encode('utf-8')\n"
+            "    req=request.Request(endpoint, data=body, headers={'Content-Type':'application/x-www-form-urlencoded'}, method='POST')\n"
+            "    data=read_json(req, timeout)\n"
+            "    translations=list(data.get('translations') or [])\n"
+            "    translated=str((translations[0] or {}).get('text','') or '').strip() if translations else ''\n"
+            "    result['engine_name']='DeepL API Free'\n"
+            "    result['translated_text']=translated or '当前页翻译结果为空。'\n"
+            "elif engine=='google_cloud':\n"
+            "    endpoint=str(cfg.get('endpoint','https://translation.googleapis.com/language/translate/v2') or 'https://translation.googleapis.com/language/translate/v2').strip()\n"
+            "    api_key=str(cfg.get('api_key','') or '').strip()\n"
+            "    timeout=max(5,int(str(cfg.get('timeout_sec','60') or '60')))\n"
+            "    if not api_key:\n"
+            "        raise RuntimeError('Google Cloud 缺少 API Key。')\n"
+            "    url=endpoint + ('&' if '?' in endpoint else '?') + parse.urlencode({'key':api_key})\n"
+            "    req=request.Request(url, data=json.dumps({'q':text,'source':'en','target':'zh-CN','format':'text'}, ensure_ascii=False).encode('utf-8'), headers={'Content-Type':'application/json'}, method='POST')\n"
+            "    data=read_json(req, timeout)\n"
+            "    translations=list((((data or {}).get('data') or {}).get('translations') or []))\n"
+            "    translated=str((translations[0] or {}).get('translatedText','') or '').strip() if translations else ''\n"
+            "    result['engine_name']='Google Cloud Translation'\n"
+            "    result['translated_text']=html.unescape(translated) or '当前页翻译结果为空。'\n"
+            "else:\n"
+            "    result['translated_text']='当前翻译引擎暂未实现。'\n"
+            "    result['engine_name']=engine\n"
             "sys.stdout.write(json.dumps(result, ensure_ascii=False))\n"
         )
         process.start(pyexe, ["-c", script])
@@ -676,35 +924,64 @@ class BilingualPdfWindow(QDialog):
                 "page_no": int(page_no),
                 "source_text": source_text,
                 "engine_key": engine,
+                "engine_config": self._remote_engine_config(engine),
             },
             ensure_ascii=False,
         ).encode("utf-8")
         process.write(payload)
         process.closeWriteChannel()
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
 
-    def _translate_current_page(self) -> None:
+    def _manual_translate_current_page(self) -> None:
+        self._translate_current_page(force=True, show_feedback=True)
+
+    def _translate_current_page(self, force: bool = False, show_feedback: bool = False) -> None:
         if self._closing:
             return
         if not self._pdf_path:
             InfoBar.info(title="未打开 PDF", content="请先打开 PDF，再执行当前页翻译。", parent=self, position=InfoBarPosition.TOP, duration=2200)
             return
-        engine = str(self.engine_combo.currentData() or "source_only").strip()
+        engine = self._current_engine()
+        if engine == "source_only":
+            if show_feedback:
+                InfoBar.info(title="当前为仅显示原文", content="切换到可用翻译引擎后才能执行中文翻译。", parent=self, position=InfoBarPosition.TOP, duration=2400)
+            self._reset_translation_panel_for_page(self._current_page, engine)
+            return
         if engine == "argos" and not self._ensure_argos_ready_for_translation():
             return
+        if self._engine_needs_remote_config(engine):
+            ready, message = self._remote_engine_ready(engine)
+            if not ready:
+                self._reset_translation_panel_for_page(self._current_page, engine)
+                if show_feedback:
+                    InfoBar.warning(title="接口未配置", content=f"{self._engine_label(engine)}：{message}。", parent=self, position=InfoBarPosition.TOP, duration=2800)
+                return
+        if force:
+            self._translation_cache.pop(self._translation_cache_key(self._current_page, engine), None)
         cached = self._get_cached_translation(self._current_page, engine)
         if cached is not None:
             self._apply_translation_payload(cached)
             self._queue_prefetch(self._current_page, engine)
             self._try_start_prefetch()
+            if show_feedback:
+                InfoBar.success(title="已刷新当前页", content="当前页译文已从缓存恢复。", parent=self, position=InfoBarPosition.TOP, duration=1800)
             return
         if self._translate_process is not None and self._translate_process.state() != QProcess.ProcessState.NotRunning:
             self._pending_translate_page = self._current_page
+            if show_feedback:
+                InfoBar.info(title="翻译进行中", content="当前页翻译任务已加入等待队列。", parent=self, position=InfoBarPosition.TOP, duration=1800)
             return
         source_text = self._extract_page_text(self._current_page)
+        if not source_text:
+            self.translated_text.clear()
+            if show_feedback:
+                InfoBar.info(title="当前页无文本", content="该页面没有可翻译的文本层内容。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            return
         self.translated_text.setPlainText("翻译中..." if source_text else "")
         self.translate_progress_text.setText("正在翻译当前页...")
         self._start_translation_process(page_no=self._current_page, source_text=source_text, engine=engine, silent=False)
+        if show_feedback:
+            InfoBar.success(title="开始翻译", content="已重新翻译当前页。", parent=self, position=InfoBarPosition.TOP, duration=1600)
 
     def _resolve_translation_python(self) -> str:
         candidate = str(os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
@@ -723,7 +1000,7 @@ class BilingualPdfWindow(QDialog):
                 process.deleteLater()
             except Exception:
                 pass
-        self._refresh_argos_ui_state()
+        self._refresh_engine_ui_state()
         if self._closing:
             return
         pending = self._pending_translate_page
@@ -798,8 +1075,21 @@ class BilingualPdfWindow(QDialog):
             return
         self._apply_translation_payload(payload)
 
+    def _normalize_translate_error(self, error: str) -> str:
+        text = str(error or "").strip()
+        if not text:
+            return "翻译失败：未知错误。"
+        low = text.lower()
+        if "401" in low or "403" in low or "unauthorized" in low or "forbidden" in low:
+            return "翻译失败：鉴权失败，请检查 API Key、订阅密钥、区域或接口权限。"
+        if "429" in low or "too many requests" in low or "rate limit" in low or "quota" in low:
+            return "翻译失败：接口已触发限流或免费额度不足，请稍后重试或检查额度。"
+        if any(code in low for code in ("500", "502", "503", "504", "internal server error", "bad gateway", "service unavailable", "gateway timeout")):
+            return "翻译失败：翻译服务暂时异常，请稍后重试。"
+        return f"翻译失败：{text}"
+
     def _on_translate_failed(self, error: str) -> None:
-        self.translated_text.setPlainText(f"翻译失败：{str(error or '').strip()}")
+        self.translated_text.setPlainText(self._normalize_translate_error(error))
         self.translate_progress_text.setText("翻译失败")
 
     def _update_page_label(self) -> None:
