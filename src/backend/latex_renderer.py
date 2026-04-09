@@ -12,9 +12,24 @@ import tempfile
 import shutil
 import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 import json
+
+
+@dataclass
+class LaTeXCompileResult:
+    pdf_path: Optional[Path]
+    summary: str = ""
+    log_text: str = ""
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    return_code: Optional[int] = None
+    engine: str = ""
+    generated_pdf: bool = False
+    timed_out: bool = False
+    log_path: Optional[Path] = None
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -142,30 +157,127 @@ def _extract_latex_error_message(log_text: str, tex_file: Path) -> str:
     return ""
 
 
-def compile_tex_document(
+def _extract_latex_errors(log_text: str, tex_file: Path) -> list[str]:
+    lines = [line.rstrip() for line in str(log_text or "").splitlines()]
+    tex_name = tex_file.name
+    tex_path = str(tex_file)
+    errors = []
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("! "):
+            detail = [stripped]
+            for extra in lines[index + 1:index + 4]:
+                extra_stripped = extra.strip()
+                if extra_stripped:
+                    detail.append(extra_stripped)
+                if extra_stripped.startswith("l.") or extra_stripped.startswith(tex_name) or extra_stripped.startswith(tex_path):
+                    break
+            errors.append(" | ".join(detail))
+            continue
+        if tex_name in stripped or tex_path in stripped:
+            if ": error:" in stripped.lower() or re.search(r":\d+:", stripped):
+                detail = [stripped]
+                for extra in lines[index + 1:index + 3]:
+                    extra_stripped = extra.strip()
+                    if extra_stripped and not extra_stripped.startswith("This is "):
+                        detail.append(extra_stripped)
+                errors.append(" | ".join(detail))
+
+    seen = set()
+    compact = []
+    for item in errors:
+        cleaned = re.sub(r"\s+", " ", item).strip()[:400]
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            compact.append(cleaned)
+    return compact
+
+
+def _extract_latex_warnings(log_text: str) -> list[str]:
+    warnings = []
+    for raw_line in str(log_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if "warning" not in lower:
+            continue
+        if lower.startswith("this is "):
+            continue
+        cleaned = re.sub(r"\s+", " ", line).strip()[:300]
+        if cleaned:
+            warnings.append(cleaned)
+
+    seen = set()
+    unique = []
+    for item in warnings:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+def _read_compile_log_file(log_file: Path) -> str:
+    try:
+        if log_file.exists():
+            return log_file.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    return ""
+
+
+def _merge_compile_logs(stdout_text: str, stderr_text: str, file_log_text: str) -> str:
+    parts = []
+    if stdout_text:
+        parts.append(stdout_text.strip())
+    if stderr_text:
+        parts.append(stderr_text.strip())
+    if file_log_text:
+        file_log = file_log_text.strip()
+        if file_log and file_log not in "\n\n".join(parts):
+            parts.append(file_log)
+    return "\n\n".join(part for part in parts if part)
+
+
+def compile_tex_document_detailed(
     tex_content: str,
     output_dir: Path,
     jobname: str = "document_preview",
     timeout: int = 25,
-) -> Tuple[Optional[Path], str]:
+) -> LaTeXCompileResult:
     mode = get_document_render_mode()
     if not is_supported_document_render_mode(mode):
-        return None, "请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。"
+        return LaTeXCompileResult(
+            pdf_path=None,
+            summary="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。",
+        )
 
     latex_path = _latex_settings.get_latex_path() if _latex_settings else None
     latex_cmd = _resolve_latex_command_for_mode(mode, latex_path)
+    engine_name = "xelatex" if mode == "latex_xelatex" else "pdflatex"
     if not latex_cmd:
-        engine_name = "xelatex" if mode == "latex_xelatex" else "pdflatex"
-        return None, f"未找到可用的 {engine_name}，请先在设置中完成 LaTeX 路径配置。"
+        return LaTeXCompileResult(
+            pdf_path=None,
+            summary=f"未找到可用的 {engine_name}，请先在设置中完成 LaTeX 路径配置。",
+            engine=engine_name,
+        )
 
     text = str(tex_content or "").strip()
     if not text:
-        return None, "当前没有可编译的 TeX 文档内容。"
+        return LaTeXCompileResult(
+            pdf_path=None,
+            summary="当前没有可编译的 TeX 文档内容。",
+            engine=engine_name,
+        )
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     tex_file = output_path / f"{jobname}.tex"
     pdf_file = output_path / f"{jobname}.pdf"
+    log_file = output_path / f"{jobname}.log"
     tex_file.write_text(text, encoding="utf-8")
 
     try:
@@ -173,7 +285,6 @@ def compile_tex_document(
             [
                 latex_cmd,
                 "-interaction=nonstopmode",
-                "-halt-on-error",
                 "-file-line-error",
                 "-synctex=1",
                 "-output-directory",
@@ -188,19 +299,73 @@ def compile_tex_document(
             cwd=str(output_path),
             **_hidden_subprocess_kwargs(),
         )
-    except subprocess.TimeoutExpired:
-        return None, "TeX 文档编译超时，请检查内容或 LaTeX 环境。"
+        file_log_text = _read_compile_log_file(log_file)
+        log_text = _merge_compile_logs(result.stdout, result.stderr, file_log_text)
+        errors = _extract_latex_errors(log_text, tex_file)
+        warnings = _extract_latex_warnings(log_text)
+        generated_pdf = pdf_file.exists()
+        if generated_pdf and errors:
+            summary = "编译存在错误，已尽量生成 PDF。请查看下方编译日志。"
+        elif generated_pdf and warnings:
+            summary = "编译完成，但存在警告；请查看下方编译日志。"
+        elif generated_pdf:
+            summary = ""
+        else:
+            cleaned = _extract_latex_error_message(log_text, tex_file)
+            if cleaned:
+                cleaned = re.sub(r"\s+", " ", cleaned).strip()[:320]
+            summary = cleaned or "TeX 文档编译失败，请检查源码和 LaTeX 环境。"
+        return LaTeXCompileResult(
+            pdf_path=pdf_file if generated_pdf else None,
+            summary=summary,
+            log_text=log_text,
+            errors=errors,
+            warnings=warnings,
+            return_code=int(result.returncode),
+            engine=engine_name,
+            generated_pdf=generated_pdf,
+            log_path=log_file if log_file.exists() else None,
+        )
+    except subprocess.TimeoutExpired as exc:
+        file_log_text = _read_compile_log_file(log_file)
+        log_text = _merge_compile_logs(
+            getattr(exc, "stdout", "") or "",
+            getattr(exc, "stderr", "") or "",
+            file_log_text,
+        )
+        return LaTeXCompileResult(
+            pdf_path=pdf_file if pdf_file.exists() else None,
+            summary="TeX 文档编译超时，请检查内容或 LaTeX 环境。",
+            log_text=log_text,
+            errors=_extract_latex_errors(log_text, tex_file),
+            warnings=_extract_latex_warnings(log_text),
+            engine=engine_name,
+            generated_pdf=pdf_file.exists(),
+            timed_out=True,
+            log_path=log_file if log_file.exists() else None,
+        )
     except Exception as exc:
-        return None, f"TeX 文档编译失败: {exc}"
+        return LaTeXCompileResult(
+            pdf_path=None,
+            summary=f"TeX 文档编译失败: {exc}",
+            engine=engine_name,
+            log_path=log_file if log_file.exists() else None,
+        )
 
-    if result.returncode != 0 or not pdf_file.exists():
-        log_text = "\n".join(filter(None, [result.stdout, result.stderr]))
-        cleaned = _extract_latex_error_message(log_text, tex_file)
-        if cleaned:
-            cleaned = re.sub(r"\s+", " ", cleaned).strip()[:320]
-        return None, cleaned or "TeX 文档编译失败，请检查源码和 LaTeX 环境。"
 
-    return pdf_file, ""
+def compile_tex_document(
+    tex_content: str,
+    output_dir: Path,
+    jobname: str = "document_preview",
+    timeout: int = 25,
+) -> Tuple[Optional[Path], str]:
+    result = compile_tex_document_detailed(
+        tex_content=tex_content,
+        output_dir=output_dir,
+        jobname=jobname,
+        timeout=timeout,
+    )
+    return result.pdf_path if result.generated_pdf else None, result.summary
 
 
 def synctex_edit_from_pdf(
