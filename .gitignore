@@ -37,6 +37,7 @@ tauri_stderr.log
 
 # Release notes (local docs, do not version)
 RELEASE_NOTES*.md
+docs/
 
 # Android signing
 *.jks

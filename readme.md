@@ -9,7 +9,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v2.3-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v2.3.1-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
@@ -56,7 +56,7 @@ The `v2.0` Math Workbench supports a complete workflow:
 
 <img width="1919" height="1014" alt="v2 3深色" src="https://github.com/user-attachments/assets/c6dffd39-26d9-4e54-aba9-a4b010d3603e" />
 
-The `v2.3` Auto Typesetting Document Window supports source-level editing with synchronized preview:
+The `v2.3.1` Auto Typesetting Document Window supports source-level editing with synchronized preview:
 
 1. Open "Auto Typesetting" from the handwriting window
 2. Edit full source in the left `TeX Document` pane
@@ -124,7 +124,7 @@ For heavy expressions, the engine uses automatic fallback:
 ### Option 1: Download the executable
 
 1. Visit the [Releases page](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. Download the latest `LaTeXSnipper_setup_v2.3.exe`
+2. Download the latest `LaTeXSnipper_setup_v2.3.1.exe`
 3. Run the installer
 4. Complete environment setup via the dependency wizard on first launch
 5. Start capturing, handwriting, or using the math workbench
