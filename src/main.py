@@ -1344,6 +1344,35 @@ def _config_path() -> Path:
     # 统一配置路径：~/.latexsnipper/LaTeXSnipper_config.json
     return _app_state_dir() / CONFIG_FILENAME
 
+def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
+    if path is None:
+        return False
+    try:
+        text = str(path.resolve()).lower()
+    except Exception:
+        text = str(path).lower()
+    return ("_internal" in text) and text.endswith("\\deps")
+
+def _current_dev_install_base_dir() -> Path | None:
+    if _is_packaged_mode():
+        return None
+    try:
+        exe_path = Path(sys.executable).resolve()
+        if exe_path.parent.name.lower() == "python311" and exe_path.parent.parent.name.lower() == "deps":
+            base = exe_path.parent.parent
+            if base.exists():
+                return base
+    except Exception:
+        pass
+    try:
+        base = (APP_DIR / "deps").resolve()
+        pyexe = base / "python311" / "python.exe"
+        if pyexe.exists() and _same_exe(str(pyexe), sys.executable):
+            return base
+    except Exception:
+        pass
+    return None
+
 def _read_install_base_dir() -> Path | None:
     cfg = _config_path()
     if cfg.exists():
@@ -1351,6 +1380,8 @@ def _read_install_base_dir() -> Path | None:
             data = json.loads(cfg.read_text("utf-8"))
             p = Path(data.get("install_base_dir", "")).expanduser()
             if p and p.exists():
+                if (not _is_packaged_mode()) and _looks_like_packaged_deps_dir(p):
+                    return None
                 return p
         except Exception:
             pass
@@ -1450,6 +1481,11 @@ def resolve_install_base_dir() -> Path:
     """
     import time
     import subprocess
+
+    if not _is_packaged_mode():
+        current_dev_base = _current_dev_install_base_dir()
+        if current_dev_base is not None:
+            return current_dev_base
     
     # 第1步：读取配置中的依赖目录
     p = _read_install_base_dir()
@@ -2132,10 +2168,11 @@ def _relaunch_with(pyexe: str):
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
     try:
-        subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
+        proc = subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
     except Exception as e:
         print(f"[ERROR] 启动子进程失败: {e}")
         sys.exit(6)
+    print(f"[INFO] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
 
 def _native_message_box(title: str, text: str, flags: int = 0x00000040 | 0x00000004) -> int:
@@ -8934,8 +8971,49 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
         except Exception as e:
             print(f"[Hotkey] global failed: {e}")
 
+    def _has_blocking_window(self) -> bool:
+        app = QApplication.instance()
+        if app is None:
+            return False
+        try:
+            modal = app.activeModalWidget()
+            if modal is not None and modal is not self and modal.isVisible():
+                return True
+        except Exception:
+            pass
+        try:
+            popup = app.activePopupWidget()
+            if popup is not None and popup.isVisible():
+                return True
+        except Exception:
+            pass
+        try:
+            for widget in app.topLevelWidgets():
+                if widget is None or widget is self or (not widget.isVisible()):
+                    continue
+                try:
+                    if bool(widget.isModal()) or widget.windowModality() != Qt.WindowModality.NonModal:
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return False
+
     def on_hotkey_triggered(self):
         print("[Hotkey] Triggered")
+        if self._has_blocking_window():
+            try:
+                InfoBar.info(
+                    title="提示",
+                    content="请先关闭当前对话框，再执行截图识别",
+                    parent=self._get_infobar_parent(),
+                    duration=2200,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
+            return
         self.start_capture()
 
     # 设置快捷键窗口支持 ESC 关闭

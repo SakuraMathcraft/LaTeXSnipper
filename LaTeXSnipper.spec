@@ -10,6 +10,7 @@ This spec bundles required resources/dependencies so the app can run on target m
 
 import os
 import sys
+import shutil
 from pathlib import Path
 
 import PyQt6
@@ -58,9 +59,7 @@ def _collect_pywin32_system32_binaries():
 
 extra_binaries += _collect_pywin32_system32_binaries()
 
-# Data files for render/convert toolchain
-extra_datas += collect_data_files("matplotlib")
-extra_datas += collect_data_files("latex2mathml")
+# Data files for bundled minimal runtime
 extra_datas += collect_data_files("certifi")
 
 
@@ -79,6 +78,50 @@ def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
             dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
         out.append((str(p), dest_dir))
     return out
+
+
+def _prune_collect_tree(dist_root: Path):
+    """Remove weakly-related runtime artifacts from final onedir output."""
+    if not dist_root.exists():
+        return
+    remove_names = {"Pythonwin", "setuptools", "google"}
+    remove_prefixes = (
+        "aiohttp",
+        "frozenlist",
+        "multidict",
+        "propcache",
+        "yarl",
+        "ctranslate2",
+        "psutil",
+        "numpy",
+        "numpy.libs",
+        "lxml",
+        "fitz",
+        "matplotlib",
+        "latex2mathml",
+        "contourpy",
+        "fontTools",
+        "kiwisolver",
+        "shapely",
+        "pyclipper",
+        "yaml",
+        "markupsafe",
+        "pydantic_core",
+        "regex",
+        "safetensors",
+        "sentencepiece",
+    )
+    for child in dist_root.iterdir():
+        try:
+            name = child.name
+            if child.is_dir() and (
+                name in remove_names
+                or name.endswith(".dist-info")
+                or any(name == prefix or name.startswith(f"{prefix}.") for prefix in remove_prefixes)
+            ):
+                shutil.rmtree(child, ignore_errors=True)
+        except Exception as exc:
+            print(f"[SPEC] prune skip {child}: {exc}")
 
 
 # Bundle root python311 folder (offline dependency deployment)
@@ -104,17 +147,6 @@ a = Analysis(
     pathex=[str(SRC)],
     binaries=[] + extra_binaries,
     datas=[
-        # Single files under src
-        (str(SRC / "compat_messagebox.py"), "."),
-        (str(SRC / "deps_bootstrap.py"), "."),
-        (str(SRC / "get-pip.py"), "."),
-        (str(SRC / "runtime_hook_env.py"), "."),
-        (str(SRC / "updater.py"), "."),
-        (str(SRC / "utils.py"), "."),
-        (str(SRC / "__init__.py"), "."),
-        (str(SRC / "main.py"), "."),
-        (str(SRC / "settings_window.py"), "."),
-
         # Resource folders
         (str(SRC / "assets"), "assets"),
 
@@ -174,23 +206,6 @@ a = Analysis(
         "PyQt6.QtWebEngineWidgets",
         "PyQt6.QtWebEngineCore",
 
-        # SVG/render stack
-        "matplotlib",
-        "matplotlib.mathtext",
-        "matplotlib.backends.backend_agg",
-        "matplotlib.backends.backend_svg",
-
-        # LaTeX conversion
-        "latex2mathml",
-        "latex2mathml.converter",
-
-        # Math libs
-        "sympy",
-        "mpmath",
-        "networkx",
-        "humanfriendly",
-        "onnx",
-
         # Shared torch runtime module
         "backend.torch_runtime",
         "editor",
@@ -230,7 +245,37 @@ a = Analysis(
         "keras",
         "scipy",
         "pandas",
+        "numpy",
         "numpy.distutils",
+        "onnx",
+        "google",
+        "google.protobuf",
+        "aiohttp",
+        "frozenlist",
+        "multidict",
+        "propcache",
+        "yarl",
+        "ctranslate2",
+        "psutil",
+        "lxml",
+        "fitz",
+        "matplotlib",
+        "latex2mathml",
+        "contourpy",
+        "fontTools",
+        "kiwisolver",
+        "shapely",
+        "pyclipper",
+        "yaml",
+        "markupsafe",
+        "pydantic_core",
+        "regex",
+        "safetensors",
+        "sentencepiece",
+        "Pythonwin",
+        "win32ui",
+        "setuptools",
+        "pkg_resources",
 
         # Unused modules
         "tkinter",
@@ -273,3 +318,5 @@ coll = COLLECT(
     upx_exclude=[],
     name="LaTeXSnipper",
 )
+
+_prune_collect_tree(Path(DISTPATH) / "LaTeXSnipper" / "_internal")

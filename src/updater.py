@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QTextBrowser,
     QHBoxLayout, QProgressBar, QApplication, QMessageBox
 )
-from PyQt6.QtGui import QTextDocument
+from PyQt6.QtGui import QTextDocument, QFont
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
@@ -68,34 +68,6 @@ def _update_dialog_theme() -> dict:
         "warn_border": "#f5c182",
         "warn_text": "#d35400",
     }
-
-
-def _build_dialog_qss(theme: dict) -> str:
-    return f"""
-QDialog{{background:{theme['dialog_bg']};}}
-QLabel{{color:{theme['text']};font-size:13px;}}
-QTextBrowser{{
-  background:{theme['panel_bg']};
-  color:{theme['text']};
-  border:1px solid {theme['border']};
-  border-radius:6px;
-  font-family:Consolas,'Microsoft YaHei',monospace;
-  font-size:12px;
-  padding:6px;
-}}
-QProgressBar{{
-  border:1px solid {theme['border']};
-  border-radius:6px;
-  background:{theme['panel_bg']};
-  color:{theme['text']};
-  text-align:center;
-  height:12px;
-}}
-QProgressBar::chunk{{
-  background:{theme['accent']};
-  border-radius:6px;
-}}
-"""
 
 _session = requests.Session()
 _session.headers.update({
@@ -646,18 +618,20 @@ def check_update_dialog(parent=None):
     dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
     dlg.resize(650, 520)
     theme = _update_dialog_theme()
-    dlg.setStyleSheet(_build_dialog_qss(theme))
     dlg.setModal(False)
     dlg.setWindowModality(Qt.WindowModality.NonModal)
     _UPDATE_DIALOG = dlg
     dlg.destroyed.connect(_clear_global)
 
     lay = QVBoxLayout(dlg)
-    title = QLabel("版本更新"); title.setStyleSheet("font-size:18px;font-weight:600;margin-bottom:4px;")
+    title = QLabel("版本更新")
+    title_font = QFont(title.font())
+    title_font.setPointSize(max(title_font.pointSize(), 14))
+    title_font.setBold(True)
+    title.setFont(title_font)
     lay.addWidget(title)
     lbl_current = QLabel(f"当前版本: {__version__}"); lay.addWidget(lbl_current)
     lbl_status = QLabel("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
-    lbl_status.setStyleSheet(f"color:{theme['muted']};margin-bottom:4px;")
     lay.addWidget(lbl_status)
     bar = QProgressBar(); bar.setRange(0, 0); lay.addWidget(bar)
 
@@ -761,11 +735,10 @@ def check_update_dialog(parent=None):
             )
             style = f"""
 <style>
-body{{font-family:Consolas,'Microsoft YaHei',monospace;font-size:12px;line-height:1.5;color:{theme['text']};background:{theme['panel_bg']};}}
-pre,code{{background:{theme['code_bg']};color:{theme['text']};}}
-pre{{padding:8px;border-radius:4px;overflow:auto;}}
-code{{padding:2px 4px;border-radius:3px;}}
-img{{max-width:100%;border:1px solid {theme['border']};border-radius:4px;}}
+body{{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:12px;line-height:1.55;color:{theme['text']};}}
+pre{{white-space:pre-wrap;overflow-wrap:anywhere;}}
+code,pre{{font-family:Consolas,'Microsoft YaHei',monospace;}}
+img{{max-width:100%;}}
 table{{border-collapse:collapse;}}
 table,th,td{{border:1px solid {theme['border']};padding:4px;}}
 a{{color:{theme['accent']};}}
