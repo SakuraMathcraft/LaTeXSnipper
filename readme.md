@@ -2,7 +2,7 @@
 
 <div align="center">
 
-> A desktop math workspace for **capture -> recognize -> edit -> compute -> handwrite**
+> A desktop math workspace for **capture -> recognize -> handwrite -> edit -> compute**
 <img width="1919" height="1018" alt="主界面-浅色" src="https://github.com/user-attachments/assets/54561c3b-1a60-438a-b8f0-6c6419674b8f" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
