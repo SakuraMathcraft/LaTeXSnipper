@@ -2736,7 +2736,7 @@ import json
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
-from backend.model import ModelWrapper
+from backend.model import ModelWrapper, classify_pix2text_failure
 from backend.model_factory import create_model_wrapper
 from backend.external_model import ExternalModelPdfWorker, ExternalModelWorker, load_config_from_mapping
 from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
@@ -7223,6 +7223,10 @@ th {{
             try:
                 self._apply_pix2text_env()
                 ok = bool(self.model._lazy_load_pix2text())
+                if (not ok) and not err:
+                    getter = getattr(self.model, "get_error", None)
+                    if callable(getter):
+                        err = str(getter() or "")
             except Exception as e:
                 ok = False
                 err = str(e)
@@ -7288,15 +7292,16 @@ th {{
 
         self._report_startup_progress("模型预热未完成，首次识别时重试")
         self.set_model_status(f"未就绪 ({preferred})")
+        fail_info = classify_pix2text_failure(err)
         if announce_success:
             InfoBar.warning(
-                title="模型预热未完成",
-                content="pix2text 预热失败，将在首次识别时重试",
+                title=fail_info["title"] or "模型预热未完成",
+                content=fail_info["user_message"] or "pix2text 预热失败，将在首次识别时重试",
                 parent=self._get_infobar_parent(),
-                duration=3500,
+                duration=4200,
                 position=InfoBarPosition.TOP
             )
-        fail_msg = err or "pix2text 模型未部署或加载失败。"
+        fail_msg = fail_info["user_message"] or err or "pix2text 模型未部署或加载失败。"
         for _, cb_fail in callbacks:
             if callable(cb_fail):
                 try:

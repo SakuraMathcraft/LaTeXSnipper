@@ -101,6 +101,108 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
+def classify_pix2text_failure(detail: str) -> dict[str, str]:
+    raw = str(detail or "").strip()
+    lower = raw.lower()
+
+    def _pack(code: str, title: str, user_message: str, log_message: str) -> dict[str, str]:
+        return {
+            "code": code,
+            "title": title,
+            "user_message": user_message,
+            "log_message": log_message,
+        }
+
+    if not raw:
+        return _pack(
+            "UNKNOWN",
+            "模型预热未完成",
+            "pix2text 预热失败，请打开运行日志查看具体原因。",
+            "未拿到明确异常文本，需结合上游日志继续排查。",
+        )
+
+    if "no module named" in lower and "pix2text" in lower:
+        return _pack(
+            "PIX2TEXT_MISSING",
+            "缺少 pix2text",
+            "未安装 pix2text 依赖，请先完成依赖向导中的 BASIC/CORE 安装。",
+            "pix2text 模块未安装，当前环境无法启动识别模型。",
+        )
+
+    if "no module named" in lower and "onnxruntime" in lower:
+        return _pack(
+            "ONNXRUNTIME_MISSING",
+            "缺少 onnxruntime",
+            "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
+            "onnxruntime 模块缺失，pix2text 的 ONNX 后端不可用。",
+        )
+
+    if "no module named" in lower and "torch" in lower:
+        return _pack(
+            "TORCH_MISSING",
+            "缺少 torch",
+            "未安装 torch 依赖，请重新校验依赖层是否安装完整。",
+            "torch 模块缺失，pix2text 无法初始化运行时。",
+        )
+
+    if "onnxruntime_pybind11_state" in lower and ("拒绝访问" in raw or "access is denied" in lower):
+        return _pack(
+            "ORT_ACCESS_DENIED",
+            "onnxruntime 被拦截",
+            "onnxruntime DLL 被系统拒绝访问，疑似被杀毒软件/Defender 拦截或目录权限受限。",
+            "onnxruntime DLL 加载被拒绝访问，优先检查杀毒软件隔离、Defender 和目录权限。",
+        )
+
+    if "cuda_path is set but cuda wasn't able to be loaded" in lower or "createexecutionproviderinstance" in lower:
+        return _pack(
+            "CUDA_RUNTIME_BROKEN",
+            "CUDA 环境异常",
+            "检测到 CUDA/cuDNN 环境异常，当前 GPU 推理不可用，请修复 CUDA 环境或改用 CPU。",
+            "CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 PATH 配置错误。",
+        )
+
+    if ("c10.dll" in lower or "\\torch\\lib\\" in lower or "/torch/lib/" in lower) and (
+        "winerror 1114" in lower or "dll load failed" in lower or "error loading" in lower
+    ):
+        return _pack(
+            "TORCH_DLL_LOAD_FAILED",
+            "Torch 运行库加载失败",
+            "Torch 运行库加载失败，常见原因是 VC++ 运行库缺失、杀毒软件拦截或依赖安装不完整。",
+            "torch DLL 加载失败，优先检查 Microsoft Visual C++ 2015-2022 x64、杀毒软件拦截和损坏安装。",
+        )
+
+    if "expected str, bytes or os.pathlike object, not nonetype" in lower:
+        return _pack(
+            "BROKEN_DEP_PATH",
+            "依赖环境异常",
+            "依赖环境路径异常或安装不完整，请重新校验依赖层，必要时删除损坏依赖后重装。",
+            "运行时拿到了空路径对象，通常表示依赖环境不完整、路径注入失败或安装目录损坏。",
+        )
+
+    if "missing encoder" in lower or "missing decoder" in lower:
+        return _pack(
+            "BROKEN_ONNX_CACHE",
+            "模型缓存损坏",
+            "检测到 pix2text 模型缓存不完整，请重新下载模型或清理损坏缓存后重试。",
+            "pix2text ONNX 缓存缺少 encoder/decoder 文件，属于不完整模型缓存。",
+        )
+
+    if "timeout" in lower:
+        return _pack(
+            "WARMUP_TIMEOUT",
+            "模型预热超时",
+            "pix2text 首次预热超时，可能是网络过慢、模型下载未完成或环境响应异常。",
+            "预热阶段超时，需继续排查网络、模型下载和运行时初始化耗时。",
+        )
+
+    return _pack(
+        "UNKNOWN",
+        "模型预热未完成",
+        "pix2text 预热失败，请打开运行日志查看具体依赖错误。",
+        f"未命中已知错误分类，原始错误: {raw[:300]}",
+    )
+
+
 class ModelWrapper(QObject):
     """v1.05: pix2text-only model wrapper."""
 
@@ -124,6 +226,8 @@ class ModelWrapper(QObject):
         self._ort_gpu_available = None
         self._ort_probe_raw = ""
         self.last_used_model = None
+        self._last_pix2text_error = ""
+        self._last_pix2text_error_code = ""
 
         if self._is_frozen:
             self._emit("[INFO] packaged mode: pix2text runs in subprocess")
@@ -212,7 +316,7 @@ class ModelWrapper(QObject):
 
     def get_error(self) -> str | None:
         if self._pix2text_import_failed:
-            return "pix2text not ready"
+            return self._last_pix2text_error or "pix2text not ready"
         return None
 
     def get_status_text(self) -> str:
@@ -235,7 +339,19 @@ class ModelWrapper(QObject):
                 self._emit("[INFO] device: cpu")
         except Exception as e:
             self.device = "cpu"
-            self._emit(f"[WARN] torch import failed, fallback cpu: {e}")
+            info = classify_pix2text_failure(str(e))
+            self._emit(f"[WARN] torch import failed [{info['code']}], fallback cpu: {e}")
+            self._emit(f"[DIAG] {info['log_message']}")
+
+    def _set_pix2text_error(self, detail: str) -> dict[str, str]:
+        info = classify_pix2text_failure(detail)
+        self._last_pix2text_error = str(info.get("user_message", "") or "").strip()
+        self._last_pix2text_error_code = str(info.get("code", "") or "").strip()
+        return info
+
+    def _clear_pix2text_error(self) -> None:
+        self._last_pix2text_error = ""
+        self._last_pix2text_error_code = ""
 
     def _probe_onnxruntime(self) -> None:
         probe_code = textwrap.dedent(
@@ -275,7 +391,10 @@ class ModelWrapper(QObject):
             self._emit(f"[WARN] onnxruntime probe returned no JSON: {self._ort_probe_raw[:300]}")
             return
         if not info.get("ok"):
-            self._emit(f"[WARN] onnxruntime probe failed: {info.get('err', '<unknown>')}")
+            raw_err = str(info.get("err", "<unknown>") or "<unknown>")
+            diag = classify_pix2text_failure(raw_err)
+            self._emit(f"[WARN] onnxruntime probe failed [{diag['code']}]: {raw_err}")
+            self._emit(f"[DIAG] {diag['log_message']}")
             return
 
         providers = info.get("providers", [])
@@ -820,7 +939,9 @@ class ModelWrapper(QObject):
         if not probe_err and probe_output:
             probe_err = probe_output[:220]
         if probe_err:
-            self._emit(f"[WARN] pix2text probe failed detail: {probe_err}")
+            diag = classify_pix2text_failure(probe_err)
+            self._emit(f"[WARN] pix2text probe failed detail [{diag['code']}]: {probe_err}")
+            self._emit(f"[DIAG] {diag['log_message']}")
         self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
 
         proc = subprocess.run(
@@ -837,7 +958,9 @@ class ModelWrapper(QObject):
         boot_result = _extract_json(boot_out)
         if not (boot_result and boot_result.get("ok")):
             err = (boot_result or {}).get("error") or (boot_out[:220] if boot_out else "unknown")
-            self._emit(f"[WARN] pix2text bootstrap failed: {err}")
+            diag = classify_pix2text_failure(str(err))
+            self._emit(f"[WARN] pix2text bootstrap failed [{diag['code']}]: {err}")
+            self._emit(f"[DIAG] {diag['log_message']}")
             return False, "", str(err)
 
         ver = (boot_result or {}).get("ver", "") or "unknown"
@@ -957,12 +1080,17 @@ class ModelWrapper(QObject):
                     self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")
 
             if not ok:
+                info = self._set_pix2text_error(fail_detail or "pix2text 模型未部署或加载失败。")
+                self._emit(f"[WARN] pix2text warmup classified as [{info['code']}]")
+                self._emit(f"[DIAG] {info['log_message']}")
                 self._pix2text_import_failed = True
                 return False
 
             worker_ready = bool(self._ensure_pix2text_worker())
             if not worker_ready:
                 self._emit("[WARN] pix2text worker not ready after probe/bootstrap")
+                info = self._set_pix2text_error("pix2text worker 启动失败，依赖环境可能不完整或被系统拦截。")
+                self._emit(f"[DIAG] {info['log_message']}")
                 self._pix2text_subprocess_ready = False
                 self._pix2text_import_failed = True
                 return False
@@ -977,9 +1105,12 @@ class ModelWrapper(QObject):
 
             self._pix2text_subprocess_ready = True
             self._pix2text_import_failed = False
+            self._clear_pix2text_error()
             return True
         except Exception as e:
-            self._emit(f"[WARN] pix2text lazy load exception: {e}")
+            info = self._set_pix2text_error(str(e))
+            self._emit(f"[WARN] pix2text lazy load exception [{info['code']}]: {e}")
+            self._emit(f"[DIAG] {info['log_message']}")
             self._pix2text_import_failed = True
             return False
 
