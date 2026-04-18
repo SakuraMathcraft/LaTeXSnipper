@@ -3128,12 +3128,20 @@ def _silent_install_python311(installer: Path, target_dir: Path, timeout: int = 
 
 # --------------- 主入口 ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
-                deps_dir=None, from_settings=False, force_verify=False):
+                deps_dir=None, from_settings=False, force_verify=False, before_show_ui=None):
     from PyQt6.QtWidgets import QApplication, QFileDialog
     app = QApplication.instance()
     if app is None:
         print("[WARN] ensure_deps 需要 GUI，但当前未创建 QApplication。请在主程序创建 QApplication 后再调用。")
         return False
+
+    def _notify_before_show_ui():
+        if not callable(before_show_ui):
+            return
+        try:
+            before_show_ui()
+        except Exception as e:
+            print(f"[WARN] before_show_ui callback failed: {e}")
 
     # 2) 先读配置，再决定是否弹目录选择框
     cfg_path = _load_config_path()
@@ -3142,6 +3150,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     if not deps_dir:
         parent = app.activeWindow()  # 没有也可为 None
+        _notify_before_show_ui()
         chosen = QFileDialog.getExistingDirectory(parent, "选择依赖安装/加载目录", str(Path.home()))
         if not chosen:
             # 用户取消，安全返回，避免后续对 None/省略号做路径拼接
@@ -3323,6 +3332,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 from_settings=from_settings,
                 force_verify=force_verify
             )
+            _notify_before_show_ui()
             result = dlg.exec()
             if result != dlg.DialogCode.Accepted:
                 # 用户在依赖选择窗口点“退出程序”

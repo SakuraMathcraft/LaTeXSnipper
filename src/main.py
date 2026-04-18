@@ -507,6 +507,21 @@ def _finish_startup_splash(splash, window=None):
         pass
 
 
+def _hide_startup_splash_for_modal():
+    """Hide the startup splash before showing dependency dialogs."""
+    splash = _STARTUP_SPLASH
+    if not splash:
+        return
+    try:
+        if splash.isVisible():
+            splash.hide()
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+    except Exception:
+        pass
+
+
 _ensure_startup_splash("配置 WebEngine 运行环境...")
 
 
@@ -2847,6 +2862,7 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
                 always_show_ui=False,
                 require_layers=("BASIC", "CORE"),
                 deps_dir=str(BASE_DIR),
+                before_show_ui=_hide_startup_splash_for_modal,
             )
             if _ok:
                 os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
@@ -2862,10 +2878,15 @@ def ensure_deps(*args, **kwargs):
         return True
     # 真需要时再按需引入并调用（通常用不到）
     import deps_bootstrap as _db
+    prompt_ui = bool(kwargs.get("prompt_ui", True))
+    if prompt_ui:
+        kwargs.setdefault("before_show_ui", _hide_startup_splash_for_modal)
     ok = _db.ensure_deps(*args, **kwargs)
     if ok:
         os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
     return ok
+
+
 def show_dependency_wizard(always_show_ui=False):
     # 默认不展示；仅在明确需要时才展示（always_show_ui=True）
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
@@ -2873,7 +2894,7 @@ def show_dependency_wizard(always_show_ui=False):
     try:
         import deps_bootstrap as _db
         # 依赖向导统一收口到 ensure_deps，一处负责校验与展示。
-        ok = _db.ensure_deps(always_show_ui=always_show_ui)
+        ok = _db.ensure_deps(always_show_ui=always_show_ui, before_show_ui=_hide_startup_splash_for_modal)
         if ok:
             os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
         return ok
@@ -5642,8 +5663,8 @@ class MainWindow(_QMainWindow):
         latex = self._safe_row_text(row)
         m = CenterMenu(parent=self)
         m.addAction(Action("编辑", triggered=lambda: self._edit_history_row(row)))
-        m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
         m.addAction(Action("复制", triggered=lambda: self._do_copy_row(row)))
+        m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
 
         # 导出子菜单 - 增加更多导出格式
         export_menu = CenterMenu("导出为...", parent=m)
@@ -5664,7 +5685,7 @@ class MainWindow(_QMainWindow):
         export_menu.addAction(Action("SVG Code", triggered=lambda: self._export_as("svgcode", latex)))
         m.addMenu(export_menu)
 
-        m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
+        m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
         m.addAction(Action("删除", triggered=lambda: self._do_delete_row(row)))
         m.exec(global_pos)
 
@@ -5740,9 +5761,6 @@ class MainWindow(_QMainWindow):
         except Exception:
             return 0
 
-    def _get_capture_remember_last_screen(self) -> bool:
-        return bool(self.cfg.get("capture_remember_last_screen", True))
-
     def _set_capture_display_mode(self, mode: str, index: int | None = None):
         m = (mode or "auto").strip().lower()
         if m not in ("auto", "index"):
@@ -5760,20 +5778,6 @@ class MainWindow(_QMainWindow):
         else:
             idx = self._get_capture_display_index() or 0
             self.set_action_status(f"截图屏幕模式: 屏幕 {idx + 1}")
-
-    def _set_capture_remember_last_screen(self, enabled: bool):
-        self.cfg.set("capture_remember_last_screen", bool(enabled))
-        self.update_tray_menu()
-        self.set_action_status("已开启记住上次屏幕" if enabled else "已关闭记住上次屏幕")
-
-    def _on_capture_screen_selected(self, index: int):
-        if not self._get_capture_remember_last_screen():
-            return
-        try:
-            self.cfg.set("capture_display_index", max(0, int(index)))
-            self.update_tray_tooltip()
-        except Exception:
-            pass
 
     def _build_capture_display_submenu(self, tray_menu: QMenu):
         from PyQt6.QtGui import QGuiApplication
@@ -5795,13 +5799,6 @@ class MainWindow(_QMainWindow):
             act.setCheckable(True)
             act.setChecked(mode == "index" and idx == i)
             act.triggered.connect(lambda _=False, screen_idx=i: self._set_capture_display_mode("index", screen_idx))
-
-        submenu.addSeparator()
-        remember_enabled = self._get_capture_remember_last_screen()
-        act_remember = submenu.addAction("记住上次使用的屏幕")
-        act_remember.setCheckable(True)
-        act_remember.setChecked(remember_enabled)
-        act_remember.triggered.connect(lambda checked: self._set_capture_remember_last_screen(bool(checked)))
 
     def _safe_call(self, name, fn):
         print(f"[SlotEnter] {name}")
@@ -6921,32 +6918,44 @@ th {{
         row._index_label = None
         hl = QHBoxLayout(row)
         hl.setContentsMargins(6, 4, 6, 4)
+        hl.setSpacing(6)
         
         # 编号标签
         if index > 0:
             num_lbl = QLabel(f"#{index}")
             num_lbl.setFixedWidth(35)
+            num_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             row._index_label = num_lbl
             hl.addWidget(num_lbl)
+
+        text_col = QVBoxLayout()
+        text_col.setContentsMargins(0, 0, 0, 0)
+        text_col.setSpacing(2)
         
         # 公式名称（如果有）
         formula_name = self._formula_names.get(t, "")
         if formula_name:
             name_lbl = QLabel(f"[{formula_name}]")
-            hl.addWidget(name_lbl)
+            name_lbl.setWordWrap(True)
+            name_lbl.setMinimumWidth(0)
+            name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            text_col.addWidget(name_lbl)
             row._name_label = name_lbl
         else:
             row._name_label = None
         
         lbl = QLabel(t)
         lbl.setWordWrap(True)
+        lbl.setMinimumWidth(0)
+        lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl.setCursor(Qt.CursorShape.PointingHandCursor)
         # 优化字体显示
         from PyQt6.QtGui import QFont
         label_font = QFont("Consolas", 9)
         label_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         lbl.setFont(label_font)
-        hl.addWidget(lbl, 1)
+        text_col.addWidget(lbl)
+        hl.addLayout(text_col, 1)
         row._content_label = lbl
         self._apply_history_row_theme(row)
 
@@ -6981,6 +6990,7 @@ th {{
             b = PushButton(icon, text)
             b.setToolTip(tip)
             b.setFixedSize(85, 30)
+            b.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             row_ref2 = weakref.ref(row)
 
             def _wrapped():
@@ -6990,12 +7000,10 @@ th {{
                 handler(r)
 
             b.clicked.connect(_wrapped)
-            hl.addWidget(b)
+            hl.addWidget(b, 0, Qt.AlignmentFlag.AlignTop)
             return b
 
         add_btn("复制", "复制到剪贴板", self._do_copy_row, FluentIcon.COPY)
-        add_btn("收藏", "加入收藏夹", self._do_fav_row, FluentIcon.HEART)
-        add_btn("删除", "删除该条记录", self._do_delete_row, FluentIcon.DELETE)
         row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
         def _ctx(pos):
@@ -7066,13 +7074,12 @@ th {{
         self.set_action_status("已删除")
         self.update_history_ui()
     def update_history_ui(self):
+        self.clear_history_button.setText("清空历史记录")
         if self.history:
             # 有历史
-            self.clear_history_button.setText("清空历史记录")
             self.clear_history_button.setToolTip("清空所有历史记录")
         else:
             # 无历史但仍可点，点击会弹出提示（逻辑已在 clear_history 内）
-            self.clear_history_button.setText("清空历史记录（无记录）")
             self.clear_history_button.setToolTip("当前无历史记录，点击会提示")
         # 始终保持可点
         self.clear_history_button.setEnabled(True)
@@ -8198,8 +8205,6 @@ th {{
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
-            remember_last_screen=self._get_capture_remember_last_screen(),
-            on_screen_selected=self._on_capture_screen_selected,
         )
         self.overlay = self.screenshot_provider.create_overlay(cfg)
         self.overlay.installEventFilter(self)
@@ -8221,12 +8226,16 @@ th {{
         return super().eventFilter(obj, event)
 
     def on_capture_done(self, pixmap):
+        capture_failure_message = ""
         if self.overlay:
+            capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
             self.overlay.close()
             self.overlay = None
         QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
         if pixmap is None:
             QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
+            if capture_failure_message:
+                QTimer.singleShot(0, lambda msg=capture_failure_message: self._show_capture_failure_info(msg))
             return
         if self.is_recognition_busy(source="main"):
             self._restore_hidden_unpinned_predict_result_dialog()
@@ -8239,6 +8248,27 @@ th {{
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
         self._start_predict_with_pil(img)
+
+    def _show_capture_failure_info(self, message: str):
+        text = str(message or "").strip()
+        if not text:
+            return
+        try:
+            self.system_provider.activate_window(self)
+        except Exception:
+            try:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+            except Exception:
+                pass
+        InfoBar.warning(
+            title="截图屏幕不匹配",
+            content=text,
+            parent=self,
+            duration=6200,
+            position=InfoBarPosition.TOP,
+        )
 
     def update_tray_menu(self):
         hk = self.cfg.get("hotkey", "Ctrl+F")
@@ -9900,12 +9930,6 @@ if __name__ == "__main__":
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
             _update_startup_splash(splash, "检查依赖中...")
-            try:
-                if splash:
-                    splash.hide()
-                    app.processEvents()
-            except Exception:
-                pass
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:
                 sys.exit(1)
@@ -9940,13 +9964,6 @@ if __name__ == "__main__":
             or open_wizard_on_start
             or (not deps_ready_cached)
         )
-        if needs_interactive_deps_ui:
-            try:
-                if splash:
-                    splash.hide()
-                    app.processEvents()
-            except Exception:
-                pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)

@@ -66,25 +66,25 @@ def map_global_rect_to_screen_capture(
     return local_logical, logical_capture
 
 class ScreenCaptureOverlay(QWidget):
-    selection_done = pyqtSignal(object)  # 鍙戝皠 QPixmap
+    selection_done = pyqtSignal(object)  # Emits QPixmap or None.
 
     def __init__(
         self,
         capture_display_mode: str = "auto",
         preferred_screen_index: int | None = None,
-        remember_last_screen: bool = False,
-        on_screen_selected=None,
     ):
         super().__init__()
         self.start_pos = None
         self.end_pos = None
         self.current_pos = None
+        self.start_global_pos = None
+        self.end_global_pos = None
+        self.current_global_pos = None
+        self.last_capture_failure_message = ""
         self.capture_display_mode = (capture_display_mode or "auto").strip().lower()
         if self.capture_display_mode not in ("auto", "index"):
             self.capture_display_mode = "auto"
         self.preferred_screen_index = preferred_screen_index
-        self.remember_last_screen = bool(remember_last_screen)
-        self.on_screen_selected = on_screen_selected
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
@@ -109,6 +109,10 @@ class ScreenCaptureOverlay(QWidget):
         return QRect(self.start_pos, self.end_pos).normalized()
 
     def _selection_size(self) -> tuple[int, int]:
+        if self.start_global_pos and self.end_global_pos:
+            width = abs(int(self.end_global_pos.x() - self.start_global_pos.x()))
+            height = abs(int(self.end_global_pos.y() - self.start_global_pos.y()))
+            return (width, height)
         if not self.start_pos or not self.end_pos:
             return (0, 0)
         width = abs(int(self.end_pos.x() - self.start_pos.x()))
@@ -118,17 +122,17 @@ class ScreenCaptureOverlay(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 95))  # 澶栧洿鍙樻殫锛屾洿鑱氱劍
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 95))
         rect = self._selection_rect()
 
-        # 閫夋鍐呬繚鎸佸師浜害锛堟竻闄ら伄缃╋級
+        # Keep the selected area clear while dimming the rest of the desktop.
         if rect:
             painter.save()
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
             painter.fillRect(rect, Qt.GlobalColor.transparent)
             painter.restore()
 
-        # 榧犳爣鍗佸瓧鍑嗘槦
+        # Draw a visible crosshair over both bright and dark backgrounds.
         if self.current_pos:
             # 双层准星：外黑内白，兼顾深/浅背景可见性
             arm = 12
@@ -145,11 +149,15 @@ class ScreenCaptureOverlay(QWidget):
             painter.setPen(pen)
             painter.drawRect(rect)
 
-            # 灏哄涓庡潗鏍囨爣娉紙绫讳技 Snipaste锛氬x楂?+ 宸︿笂瑙掑潗鏍囷級
+            # Show logical selection size and global top-left coordinates.
             width, height = self._selection_size()
             if width > 0 and height > 0:
-                gx = int(self.geometry().x() + rect.left())
-                gy = int(self.geometry().y() + rect.top())
+                if self.start_global_pos and self.end_global_pos:
+                    gx = min(int(self.start_global_pos.x()), int(self.end_global_pos.x()))
+                    gy = min(int(self.start_global_pos.y()), int(self.end_global_pos.y()))
+                else:
+                    gx = int(self.geometry().x() + rect.left())
+                    gy = int(self.geometry().y() + rect.top())
                 text = f"{width} x {height}  ({gx}, {gy})"
                 font = QFont("Segoe UI", 10)
                 painter.setFont(font)
@@ -178,19 +186,26 @@ class ScreenCaptureOverlay(QWidget):
 
     def mousePressEvent(self, event):
         self.current_pos = event.position().toPoint()
+        self.current_global_pos = event.globalPosition().toPoint()
         self.start_pos = self.current_pos
         self.end_pos = self.start_pos
+        self.start_global_pos = self.current_global_pos
+        self.end_global_pos = self.start_global_pos
         self.update()
 
     def mouseMoveEvent(self, event):
         self.current_pos = event.position().toPoint()
+        self.current_global_pos = event.globalPosition().toPoint()
         if self.start_pos:
             self.end_pos = self.current_pos
+            self.end_global_pos = self.current_global_pos
         self.update()
 
     def mouseReleaseEvent(self, event):
         self.current_pos = event.position().toPoint()
+        self.current_global_pos = event.globalPosition().toPoint()
         self.end_pos = self.current_pos
+        self.end_global_pos = self.current_global_pos
         self.update()
         self.capture_selection()
 
@@ -199,6 +214,9 @@ class ScreenCaptureOverlay(QWidget):
             self.start_pos = None
             self.end_pos = None
             self.current_pos = None
+            self.start_global_pos = None
+            self.end_global_pos = None
+            self.current_global_pos = None
             try:
                 self.releaseKeyboard()
             except Exception:
@@ -218,7 +236,27 @@ class ScreenCaptureOverlay(QWidget):
         except Exception:
             pass
 
+    def _screen_label(self, index: int, screens) -> str:
+        if 0 <= int(index) < len(screens):
+            try:
+                name = str(screens[index].name() or "").strip()
+            except Exception:
+                name = ""
+            if name:
+                return f"屏幕 {int(index) + 1}（{name}）"
+        return f"屏幕 {int(index) + 1}"
+
+    def _build_screen_mismatch_message(self, target_idx: int, actual_idx: int, screens) -> str:
+        target = self._screen_label(target_idx, screens)
+        actual = self._screen_label(actual_idx, screens)
+        return (
+            f"当前截图模式固定为{target}，但你框选的是{actual}。"
+            f"请在托盘菜单选择“截图屏幕模式 > {actual}”，"
+            "或切换为“自动（按鼠标释放点）”后再截图。"
+        )
+
     def capture_selection(self):
+        self.last_capture_failure_message = ""
         if not self.start_pos or not self.end_pos:
             self.selection_done.emit(None)
             return
@@ -226,20 +264,34 @@ class ScreenCaptureOverlay(QWidget):
         if rect is None:
             self.selection_done.emit(None)
             return
-        x1, y1 = int(rect.left()), int(rect.top())
-        width, height = self._selection_size()
+
+        if self.start_global_pos and self.end_global_pos:
+            global_x = min(int(self.start_global_pos.x()), int(self.end_global_pos.x()))
+            global_y = min(int(self.start_global_pos.y()), int(self.end_global_pos.y()))
+            width = abs(int(self.end_global_pos.x() - self.start_global_pos.x()))
+            height = abs(int(self.end_global_pos.y() - self.start_global_pos.y()))
+            global_release_x = int((self.current_global_pos or self.end_global_pos).x())
+            global_release_y = int((self.current_global_pos or self.end_global_pos).y())
+        else:
+            x1, y1 = int(rect.left()), int(rect.top())
+            width, height = self._selection_size()
+            overlay_geo = self.geometry()
+            global_x = int(overlay_geo.x() + x1)
+            global_y = int(overlay_geo.y() + y1)
+            global_release_x = int(overlay_geo.x() + self.current_pos.x())
+            global_release_y = int(overlay_geo.y() + self.current_pos.y())
+
         if width <= 0 or height <= 0:
             self.selection_done.emit(None)
             return
 
-        overlay_geo = self.geometry()
-        global_x = int(overlay_geo.x() + x1)
-        global_y = int(overlay_geo.y() + y1)
-        global_release_x = int(overlay_geo.x() + self.current_pos.x())
-        global_release_y = int(overlay_geo.y() + self.current_pos.y())
-
         screens = QGuiApplication.screens()
         screen_geos = [_rect_to_tuple(s.geometry()) for s in screens]
+        actual_idx = choose_screen_index(
+            (global_release_x, global_release_y),
+            screen_geos,
+            mode="auto",
+        )
         target_idx = choose_screen_index(
             (global_release_x, global_release_y),
             screen_geos,
@@ -263,17 +315,14 @@ class ScreenCaptureOverlay(QWidget):
             float(screen.devicePixelRatio() or 1.0),
         )
         if mapped is None:
+            if self.capture_display_mode == "index" and actual_idx != target_idx and 0 <= actual_idx < len(screens):
+                self.last_capture_failure_message = self._build_screen_mismatch_message(target_idx, actual_idx, screens)
             self.selection_done.emit(None)
             return
 
         _logical_rect, native_rect = mapped
         nx, ny, nw, nh = native_rect
         pixmap = screen.grabWindow(0, nx, ny, nw, nh)
-        try:
-            if self.remember_last_screen and callable(self.on_screen_selected):
-                self.on_screen_selected(int(target_idx))
-        except Exception:
-            pass
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 
         self.selection_done.emit(pixmap)

@@ -57,8 +57,6 @@ class WindowsScreenshotProvider:
         return ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
-            remember_last_screen=cfg.remember_last_screen,
-            on_screen_selected=cfg.on_screen_selected,
         )
 
 
