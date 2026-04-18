@@ -5761,9 +5761,6 @@ class MainWindow(_QMainWindow):
         except Exception:
             return 0
 
-    def _get_capture_remember_last_screen(self) -> bool:
-        return bool(self.cfg.get("capture_remember_last_screen", True))
-
     def _set_capture_display_mode(self, mode: str, index: int | None = None):
         m = (mode or "auto").strip().lower()
         if m not in ("auto", "index"):
@@ -5781,20 +5778,6 @@ class MainWindow(_QMainWindow):
         else:
             idx = self._get_capture_display_index() or 0
             self.set_action_status(f"截图屏幕模式: 屏幕 {idx + 1}")
-
-    def _set_capture_remember_last_screen(self, enabled: bool):
-        self.cfg.set("capture_remember_last_screen", bool(enabled))
-        self.update_tray_menu()
-        self.set_action_status("已开启记住上次屏幕" if enabled else "已关闭记住上次屏幕")
-
-    def _on_capture_screen_selected(self, index: int):
-        if not self._get_capture_remember_last_screen():
-            return
-        try:
-            self.cfg.set("capture_display_index", max(0, int(index)))
-            self.update_tray_tooltip()
-        except Exception:
-            pass
 
     def _build_capture_display_submenu(self, tray_menu: QMenu):
         from PyQt6.QtGui import QGuiApplication
@@ -5816,13 +5799,6 @@ class MainWindow(_QMainWindow):
             act.setCheckable(True)
             act.setChecked(mode == "index" and idx == i)
             act.triggered.connect(lambda _=False, screen_idx=i: self._set_capture_display_mode("index", screen_idx))
-
-        submenu.addSeparator()
-        remember_enabled = self._get_capture_remember_last_screen()
-        act_remember = submenu.addAction("记住上次使用的屏幕")
-        act_remember.setCheckable(True)
-        act_remember.setChecked(remember_enabled)
-        act_remember.triggered.connect(lambda checked: self._set_capture_remember_last_screen(bool(checked)))
 
     def _safe_call(self, name, fn):
         print(f"[SlotEnter] {name}")
@@ -8229,8 +8205,6 @@ th {{
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
-            remember_last_screen=self._get_capture_remember_last_screen(),
-            on_screen_selected=self._on_capture_screen_selected,
         )
         self.overlay = self.screenshot_provider.create_overlay(cfg)
         self.overlay.installEventFilter(self)
@@ -8252,12 +8226,16 @@ th {{
         return super().eventFilter(obj, event)
 
     def on_capture_done(self, pixmap):
+        capture_failure_message = ""
         if self.overlay:
+            capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
             self.overlay.close()
             self.overlay = None
         QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
         if pixmap is None:
             QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
+            if capture_failure_message:
+                QTimer.singleShot(0, lambda msg=capture_failure_message: self._show_capture_failure_info(msg))
             return
         if self.is_recognition_busy(source="main"):
             self._restore_hidden_unpinned_predict_result_dialog()
@@ -8270,6 +8248,27 @@ th {{
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
         self._start_predict_with_pil(img)
+
+    def _show_capture_failure_info(self, message: str):
+        text = str(message or "").strip()
+        if not text:
+            return
+        try:
+            self.system_provider.activate_window(self)
+        except Exception:
+            try:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+            except Exception:
+                pass
+        InfoBar.warning(
+            title="截图屏幕不匹配",
+            content=text,
+            parent=self,
+            duration=6200,
+            position=InfoBarPosition.TOP,
+        )
 
     def update_tray_menu(self):
         hk = self.cfg.get("hotkey", "Ctrl+F")

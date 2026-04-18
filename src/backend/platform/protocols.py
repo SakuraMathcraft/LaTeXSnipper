@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Protocol
+from typing import Protocol
 
 
 class PermissionState(str, Enum):
@@ -21,8 +21,6 @@ class PermissionResult:
 class ScreenshotConfig:
     capture_display_mode: str = "auto"
     preferred_screen_index: int | None = 0
-    remember_last_screen: bool = True
-    on_screen_selected: Callable[[int], None] | None = None
 
 
 class IHotkeyProvider(Protocol):
