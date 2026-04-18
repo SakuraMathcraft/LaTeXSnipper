@@ -81,6 +81,7 @@ class ScreenCaptureOverlay(QWidget):
         self.end_global_pos = None
         self.current_global_pos = None
         self.last_capture_failure_message = ""
+        self.last_capture_screen_index = None
         self.capture_display_mode = (capture_display_mode or "auto").strip().lower()
         if self.capture_display_mode not in ("auto", "index"):
             self.capture_display_mode = "auto"
@@ -257,6 +258,7 @@ class ScreenCaptureOverlay(QWidget):
 
     def capture_selection(self):
         self.last_capture_failure_message = ""
+        self.last_capture_screen_index = None
         if not self.start_pos or not self.end_pos:
             self.selection_done.emit(None)
             return
@@ -323,6 +325,7 @@ class ScreenCaptureOverlay(QWidget):
         _logical_rect, native_rect = mapped
         nx, ny, nw, nh = native_rect
         pixmap = screen.grabWindow(0, nx, ny, nw, nh)
+        self.last_capture_screen_index = int(target_idx)
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 
         self.selection_done.emit(pixmap)

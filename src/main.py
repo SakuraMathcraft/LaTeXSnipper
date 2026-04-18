@@ -5111,6 +5111,7 @@ class MainWindow(_QMainWindow):
         self._pending_model_warmup_result = None
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
         self._post_show_tasks_started = False
+        self._startup_centered_once = False
         self._pending_hotkey_seq = None
 
         self.setWindowTitle("LaTeX Snipper")
@@ -5127,6 +5128,8 @@ class MainWindow(_QMainWindow):
         self._predict_busy = False
         self.setAcceptDrops(True)
         self.overlay = None
+        self._last_capture_screen_index = None
+        self._next_predict_result_screen_index = None
         self.predict_thread = None
         self.predict_worker = None
         self.pdf_predict_thread = None
@@ -5515,6 +5518,33 @@ class MainWindow(_QMainWindow):
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
+
+    def _center_on_startup_screen_once(self) -> None:
+        if getattr(self, "_startup_centered_once", False):
+            return
+        self._startup_centered_once = True
+        try:
+            from PyQt6.QtGui import QGuiApplication
+
+            app = QGuiApplication.instance()
+            screen = app.primaryScreen() if app is not None else None
+            if screen is None:
+                return
+            geo = screen.availableGeometry()
+            frame = self.frameGeometry()
+            frame.moveCenter(geo.center())
+            top_left = frame.topLeft()
+            max_x = geo.right() - frame.width() + 1
+            max_y = geo.bottom() - frame.height() + 1
+            x = max(geo.left(), min(top_left.x(), max_x))
+            y = max(geo.top(), min(top_left.y(), max_y))
+            self.move(x, y)
+        except Exception:
+            pass
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._center_on_startup_screen_once()
 
     def start_post_show_tasks(self):
         """Start deferred tasks after the main window is visible."""
@@ -7860,6 +7890,7 @@ th {{
 
     def _recognize_image_file(self, file_path: str | Path):
         """Recognize a local image file selected by dialog or dropped onto the window."""
+        self._next_predict_result_screen_index = None
         path = Path(file_path)
         if not path.is_file():
             custom_warning_dialog("错误", f"图片文件不存在: {path}", self)
@@ -8018,6 +8049,7 @@ th {{
 
     def _recognize_pdf_file(self, file_path: str | Path):
         """Recognize a local PDF file selected by dialog or dropped onto the window."""
+        self._next_predict_result_screen_index = None
         path = Path(file_path)
         if not path.is_file():
             custom_warning_dialog("错误", f"PDF 文件不存在: {path}", self)
@@ -8318,6 +8350,8 @@ th {{
         custom_warning_dialog("错误", msg, self)
 
     def start_capture(self):
+        self._last_capture_screen_index = None
+        self._next_predict_result_screen_index = None
         self._prepare_predict_result_dialog_for_capture()
         pinned_dialog = getattr(self, "_restore_predict_result_dialog_after_capture", None)
         if not self.isVisible() and pinned_dialog is None:
@@ -8366,6 +8400,9 @@ th {{
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
+            screen_index = getattr(self.overlay, "last_capture_screen_index", None)
+            self._last_capture_screen_index = int(screen_index) if screen_index is not None else None
+            self._next_predict_result_screen_index = self._last_capture_screen_index
             self.overlay.close()
             self.overlay = None
         QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
@@ -8456,6 +8493,49 @@ th {{
         except Exception:
             pass
         return True
+
+    def _move_predict_result_dialog_to_screen(self, dlg: QDialog, screen_index: int | None) -> None:
+        if screen_index is None or bool(getattr(dlg, "_predict_result_pinned", False)):
+            return
+        try:
+            from PyQt6.QtGui import QGuiApplication
+
+            screens = QGuiApplication.screens()
+            idx = int(screen_index)
+            if idx < 0 or idx >= len(screens):
+                return
+            geo = screens[idx].availableGeometry()
+            size = dlg.size()
+            main_screen = None
+            try:
+                handle = self.windowHandle()
+                if handle is not None:
+                    main_screen = handle.screen()
+            except Exception:
+                main_screen = None
+            if main_screen is None:
+                try:
+                    main_screen = QGuiApplication.screenAt(self.frameGeometry().center())
+                except Exception:
+                    main_screen = None
+            same_screen_as_main = bool(main_screen is screens[idx])
+
+            if self.isVisible() and not self.isMinimized() and same_screen_as_main:
+                width = min(int(size.width()), int(geo.width()))
+                height = min(int(size.height()), int(geo.height()))
+                x = int(geo.x() + max(0, (geo.width() - width) // 2))
+                y = int(geo.y() + max(0, (geo.height() - height) // 2))
+            else:
+                margin = 24
+                x = int(geo.x() + margin)
+                y = int(geo.y() + margin)
+            max_x = geo.right() - int(size.width()) + 1
+            max_y = geo.bottom() - int(size.height()) + 1
+            x = max(geo.left(), min(x, max_x))
+            y = max(geo.top(), min(y, max_y))
+            dlg.move(x, y)
+        except Exception:
+            pass
 
     def _predict_result_pinned_size(self) -> tuple[int, int]:
         """识别结果窗口置顶固定后的紧凑尺寸。"""
@@ -8729,6 +8809,8 @@ th {{
 
     def show_confirm_dialog(self, latex_code: str):
         """显示识别结果确认对话框"""
+        result_screen_index = self._next_predict_result_screen_index
+        self._next_predict_result_screen_index = None
         code = (latex_code or "").strip()
         if not code:
             _exec_close_only_message_box(self, "提示", "结果为空")
@@ -8903,6 +8985,7 @@ th {{
         lay.addLayout(btn_row)
         pin_btn.toggled.connect(lambda checked: self._set_predict_result_pinned(dlg, pin_btn, checked))
 
+        self._move_predict_result_dialog_to_screen(dlg, result_screen_index)
         dlg.show()
         dlg.raise_()
         dlg.activateWindow()
@@ -9151,6 +9234,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 </html>'''
 
     def on_predict_fail(self, msg: str):
+        self._next_predict_result_screen_index = None
         self._restore_hidden_unpinned_predict_result_dialog()
         self.set_model_status("失败")
         try:
