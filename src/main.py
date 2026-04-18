@@ -5663,8 +5663,8 @@ class MainWindow(_QMainWindow):
         latex = self._safe_row_text(row)
         m = CenterMenu(parent=self)
         m.addAction(Action("编辑", triggered=lambda: self._edit_history_row(row)))
-        m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
         m.addAction(Action("复制", triggered=lambda: self._do_copy_row(row)))
+        m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
 
         # 导出子菜单 - 增加更多导出格式
         export_menu = CenterMenu("导出为...", parent=m)
@@ -5685,7 +5685,7 @@ class MainWindow(_QMainWindow):
         export_menu.addAction(Action("SVG Code", triggered=lambda: self._export_as("svgcode", latex)))
         m.addMenu(export_menu)
 
-        m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
+        m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
         m.addAction(Action("删除", triggered=lambda: self._do_delete_row(row)))
         m.exec(global_pos)
 
@@ -6942,32 +6942,44 @@ th {{
         row._index_label = None
         hl = QHBoxLayout(row)
         hl.setContentsMargins(6, 4, 6, 4)
+        hl.setSpacing(6)
         
         # 编号标签
         if index > 0:
             num_lbl = QLabel(f"#{index}")
             num_lbl.setFixedWidth(35)
+            num_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             row._index_label = num_lbl
             hl.addWidget(num_lbl)
+
+        text_col = QVBoxLayout()
+        text_col.setContentsMargins(0, 0, 0, 0)
+        text_col.setSpacing(2)
         
         # 公式名称（如果有）
         formula_name = self._formula_names.get(t, "")
         if formula_name:
             name_lbl = QLabel(f"[{formula_name}]")
-            hl.addWidget(name_lbl)
+            name_lbl.setWordWrap(True)
+            name_lbl.setMinimumWidth(0)
+            name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            text_col.addWidget(name_lbl)
             row._name_label = name_lbl
         else:
             row._name_label = None
         
         lbl = QLabel(t)
         lbl.setWordWrap(True)
+        lbl.setMinimumWidth(0)
+        lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl.setCursor(Qt.CursorShape.PointingHandCursor)
         # 优化字体显示
         from PyQt6.QtGui import QFont
         label_font = QFont("Consolas", 9)
         label_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         lbl.setFont(label_font)
-        hl.addWidget(lbl, 1)
+        text_col.addWidget(lbl)
+        hl.addLayout(text_col, 1)
         row._content_label = lbl
         self._apply_history_row_theme(row)
 
@@ -7002,6 +7014,7 @@ th {{
             b = PushButton(icon, text)
             b.setToolTip(tip)
             b.setFixedSize(85, 30)
+            b.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             row_ref2 = weakref.ref(row)
 
             def _wrapped():
@@ -7011,12 +7024,10 @@ th {{
                 handler(r)
 
             b.clicked.connect(_wrapped)
-            hl.addWidget(b)
+            hl.addWidget(b, 0, Qt.AlignmentFlag.AlignTop)
             return b
 
         add_btn("复制", "复制到剪贴板", self._do_copy_row, FluentIcon.COPY)
-        add_btn("收藏", "加入收藏夹", self._do_fav_row, FluentIcon.HEART)
-        add_btn("删除", "删除该条记录", self._do_delete_row, FluentIcon.DELETE)
         row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
         def _ctx(pos):
@@ -7087,13 +7098,12 @@ th {{
         self.set_action_status("已删除")
         self.update_history_ui()
     def update_history_ui(self):
+        self.clear_history_button.setText("清空历史记录")
         if self.history:
             # 有历史
-            self.clear_history_button.setText("清空历史记录")
             self.clear_history_button.setToolTip("清空所有历史记录")
         else:
             # 无历史但仍可点，点击会弹出提示（逻辑已在 clear_history 内）
-            self.clear_history_button.setText("清空历史记录（无记录）")
             self.clear_history_button.setToolTip("当前无历史记录，点击会提示")
         # 始终保持可点
         self.clear_history_button.setEnabled(True)
