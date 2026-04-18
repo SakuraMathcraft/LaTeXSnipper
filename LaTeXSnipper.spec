@@ -123,6 +123,58 @@ def _prune_collect_tree(dist_root: Path):
         except Exception as exc:
             print(f"[SPEC] prune skip {child}: {exc}")
 
+    _prune_bundled_python_site_packages(dist_root)
+
+
+def _prune_bundled_python_site_packages(dist_root: Path):
+    """Keep bundled python311 as an installer/runtime seed, not as a dependency layer."""
+    site_packages = dist_root / "deps" / "python311" / "Lib" / "site-packages"
+    if not site_packages.exists():
+        return
+
+    keep_names = {
+        "_distutils_hack",
+        "distutils-precedence.pth",
+        "pip",
+        "pkg_resources",
+        "README.txt",
+        "setuptools",
+        "wheel",
+    }
+    keep_prefixes = (
+        "pip-",
+        "setuptools-",
+        "wheel-",
+    )
+
+    for child in site_packages.iterdir():
+        try:
+            name = child.name
+            if name in keep_names or any(name.startswith(prefix) for prefix in keep_prefixes):
+                continue
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+            print(f"[SPEC] pruned bundled python package: {child.relative_to(dist_root)}")
+        except Exception as exc:
+            print(f"[SPEC] prune bundled python package skip {child}: {exc}")
+
+    scripts_dir = dist_root / "deps" / "python311" / "Scripts"
+    if scripts_dir.exists():
+        for child in scripts_dir.iterdir():
+            try:
+                name = child.name.lower()
+                if name.startswith(("pip", "easy_install", "wheel")):
+                    continue
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=True)
+                else:
+                    child.unlink(missing_ok=True)
+                print(f"[SPEC] pruned bundled python script: {child.relative_to(dist_root)}")
+            except Exception as exc:
+                print(f"[SPEC] prune bundled python script skip {child}: {exc}")
+
 
 # Bundle root python311 folder (offline dependency deployment)
 BUNDLED_PY311 = ROOT / "python311"

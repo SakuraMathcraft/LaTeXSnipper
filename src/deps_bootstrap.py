@@ -35,10 +35,10 @@ except Exception:
                     pass
 
     class _SignalDescriptor:
-        def __set_name__(self, owner, name):
+        def __set_name__(self, _owner, name):
             self._name = f"__sig_{name}"
 
-        def __get__(self, instance, owner):
+        def __get__(self, instance, _owner):
             if instance is None:
                 return self
             sig = instance.__dict__.get(self._name)
@@ -428,7 +428,7 @@ class InstallWorker(QThread):
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
 
             # 固定 pix2text 依赖安装顺序，降低 resolver 回溯概率。
-            pending = _reorder_pix2text_install_specs(pending)
+            pending = _reorder_pix2text_install_specs(pending, gpu_runtime_first=want_gpu_torch)
 
             if not pending:
                 self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
@@ -592,17 +592,21 @@ class LayerVerifyWorker(QThread):
     log_updated = pyqtSignal(str)
     done = pyqtSignal(list, list)  # (ok_layers, fail_layers)
 
-    def __init__(self, pyexe: str, chosen_layers: list, state_path):
+    def __init__(self, pyexe: str, chosen_layers: list, state_path, strict: bool = False):
         super().__init__()
         self.pyexe = pyexe
         self.chosen_layers = list(chosen_layers or [])
         self.state_path = state_path
+        self.strict = bool(strict)
 
     def run(self):
         verify_ok_layers = []
         verify_fail_layers = []
         for lyr in self.chosen_layers:
-            v_ok, v_err = _verify_layer_runtime(self.pyexe, lyr, timeout=60)
+            timeout = 120 if self.strict else 60
+            v_ok, v_err = _verify_layer_runtime(
+                self.pyexe, lyr, timeout=timeout, strict=self.strict
+            )
             if v_ok:
                 verify_ok_layers.append(lyr)
                 self.log_updated.emit(f"  [OK] {lyr} 验证通过")
@@ -779,6 +783,10 @@ def _onnxruntime_gpu_spec_for_torch_url(torch_url: str | None, prefer_gpu: bool 
 
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
+    "pix2text": "pix2text==1.1.6",
+    "cnocr": "cnocr==2.3.2.2",
+    "cnstd": "cnstd==1.2.6.1",
+    "rapidocr": "rapidocr==3.5.0",
     "protobuf": "protobuf>=3.20,<5",
 }
 
@@ -797,8 +805,6 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
         try:
             cur = installed_before.get(pkg)
             if cur and _version_satisfies_spec(pkg, cur, spec):
-                if log_fn:
-                    log_fn(f"  [SKIP] {pkg} 当前版本 {cur} 已满足 {spec}")
                 continue
             # 使用 --no-deps 避免触发依赖解析
             cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall"]
@@ -824,6 +830,57 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
 
 # 各功能层的运行时验证测试代码
 # 每个层需要验证的核心导入，确保包不仅安装了，还能真正工作
+_CORE_PIX2TEXT_VERIFY_CODE = """
+import importlib.metadata
+import importlib.util
+import warnings
+from pathlib import Path
+
+if importlib.util.find_spec("pix2text") is None:
+    raise RuntimeError("pix2text not installed")
+
+print("pix2text version:", importlib.metadata.version("pix2text"))
+
+try:
+    from rapidocr.inference_engine.onnxruntime import main as _rapidocr_ort_main
+    _orig_init = _rapidocr_ort_main.OrtInferSession.__init__
+    if not getattr(_orig_init, "_latexsnipper_model_root_dir_patch", False):
+        def _patched_init(self, cfg):
+            try:
+                if cfg.get("model_root_dir") is None:
+                    model_path = cfg.get("model_path")
+                    if model_path:
+                        cfg["model_root_dir"] = str(Path(model_path).expanduser().resolve().parent)
+            except Exception:
+                try:
+                    model_path = cfg.get("model_path")
+                    if model_path:
+                        cfg["model_root_dir"] = str(Path(model_path).parent)
+                except Exception:
+                    pass
+            return _orig_init(self, cfg)
+
+        _patched_init._latexsnipper_model_root_dir_patch = True
+        _rapidocr_ort_main.OrtInferSession.__init__ = _patched_init
+except Exception:
+    pass
+
+warnings.filterwarnings("ignore")
+from pix2text import Pix2Text
+stable_cfg = {
+    "layout": {"model_type": "DocYoloLayoutParser"},
+    "text_formula": {
+        "formula": {"model_name": "mfr", "model_backend": "onnx"}
+    },
+}
+Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
+import latex2mathml.converter
+import matplotlib
+import matplotlib.mathtext
+import fitz
+print("CORE OK")
+"""
+
 LAYER_VERIFY_CODE = {
     "BASIC": """
 import numpy as np
@@ -884,6 +941,9 @@ print("CORE STRICT OK")
 """,
 }
 
+LAYER_VERIFY_CODE["CORE"] = _CORE_PIX2TEXT_VERIFY_CODE
+LAYER_VERIFY_CODE_STRICT["CORE"] = _CORE_PIX2TEXT_VERIFY_CODE
+
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: bool = False) -> tuple:
     """
     验证某个功能层是否能在运行时正常工作。
@@ -892,6 +952,9 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: boo
     """
     import subprocess
     
+    if layer == "CORE":
+        timeout = max(timeout, 360 if strict else 240)
+
     if strict and layer in LAYER_VERIFY_CODE_STRICT:
         code = LAYER_VERIFY_CODE_STRICT[layer]
         timeout = max(timeout, 180)
@@ -1160,11 +1223,11 @@ LAYER_MAP = {
         "lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=26.0",
         "requests~=2.32.5",
-        "numpy>=1.26.4", "filelock~=3.13.1",
+        "numpy~=1.26.4", "filelock~=3.13.1",
         "argostranslate~=1.9.6",
-        "pydantic~=2.9.2", "regex~=2024.9.11",
+        "pydantic~=2.9.2", "regex~=2026.4.4",
         "safetensors~=0.6.2", "sentencepiece~=0.1.99",
-        "certifi~=2024.2.2", "idna~=3.6", "urllib3~=2.5.0",
+        "certifi~=2026.2.25", "idna~=3.6", "urllib3~=2.5.0",
         "psutil~=7.1.0",
         "typing_extensions>=4.12.2",
     ],
@@ -1173,11 +1236,14 @@ LAYER_MAP = {
         "transformers==4.55.4",
         "tokenizers==0.21.4",
         "optimum-onnx>=0.0.3",
+        "rapidocr==3.5.0",
+        "cnstd==1.2.6.1",
+        "cnocr==2.3.2.2",
         "pix2text==1.1.6",
         "protobuf>=3.20,<5",  # wandb 需要旧版 protobuf，6.x 会导致 Result 属性缺失
-        "latex2mathml>=2.0.0",  # LaTeX 转 MathML 的支持
-        "matplotlib~=3.8.4",  # LaTeX 公式转 SVG 的支持
-        "pymupdf~=1.23.0",  # PDF 识别依赖
+        "latex2mathml>=3.81.0",  # LaTeX 转 MathML 的支持
+        "matplotlib~=3.10.8",  # LaTeX 公式转 SVG 的支持
+        "pymupdf~=1.27.2.2",  # PDF 识别依赖
     ],
     # HEAVY_CPU: PyTorch CPU 版层（torch 三件套版本会在安装时按策略动态改写）
     "HEAVY_CPU": [
@@ -1521,14 +1587,44 @@ def _filter_packages(pkgs):
     return _reorder_pix2text_install_specs(res)
 
 
-def _reorder_pix2text_install_specs(pkgs):
+def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
     """
     Keep pix2text dependency chain in a stable order to reduce pip backtracking.
-    Priority: transformers -> tokenizers -> optimum-onnx -> pix2text -> pymupdf -> others (stable).
+    When installing the GPU layer, install the GPU runtime before pix2text so
+    pip does not temporarily settle on CPU torch/onnxruntime from pix2text deps.
     """
     if not pkgs:
         return []
-    priority = ("transformers", "tokenizers", "optimum-onnx", "pix2text", "pymupdf")
+    names = {
+        re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
+        for spec in pkgs
+    }
+    if gpu_runtime_first or "onnxruntime-gpu" in names:
+        priority = (
+            "torch",
+            "torchvision",
+            "torchaudio",
+            "onnxruntime-gpu",
+            "transformers",
+            "tokenizers",
+            "optimum-onnx",
+            "rapidocr",
+            "cnstd",
+            "cnocr",
+            "pix2text",
+            "pymupdf",
+        )
+    else:
+        priority = (
+            "transformers",
+            "tokenizers",
+            "optimum-onnx",
+            "rapidocr",
+            "cnstd",
+            "cnocr",
+            "pix2text",
+            "pymupdf",
+        )
     grouped = {k: [] for k in priority}
     tail = []
     for spec in pkgs:
@@ -2055,8 +2151,10 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path, from_settings=False, force_verify=False):
     import sys
     # 使用外部传入的 installed_layers；不覆盖
+    from PyQt6.QtGui import QColor, QPalette
+    from PyQt6.QtCore import QSize
     from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QCheckBox, QLabel,
-                                 QHBoxLayout, QFileDialog, QLineEdit, QMessageBox, QApplication)
+                                 QHBoxLayout, QFileDialog, QLineEdit, QMessageBox, QApplication, QToolButton)
     from qfluentwidgets import PushButton, FluentIcon, ComboBox
 
     def _is_dark_ui() -> bool:
@@ -2083,6 +2181,72 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "btn_bg": "#2b3440" if _is_dark_ui() else "#f8fbff",
         "btn_hover": "#344151" if _is_dark_ui() else "#eef6ff",
     }
+
+    def _style_layer_checkbox(cb, warn_text=False):
+        text_color = theme["warn"] if warn_text else (theme["text"] if cb.isEnabled() else theme["muted"])
+        disabled_color = theme["muted"]
+        pal = cb.palette()
+        for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+            pal.setColor(group, QPalette.ColorRole.WindowText, QColor(text_color))
+            pal.setColor(group, QPalette.ColorRole.ButtonText, QColor(text_color))
+            pal.setColor(group, QPalette.ColorRole.Text, QColor(text_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(disabled_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(disabled_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(disabled_color))
+        cb.setPalette(pal)
+        cb.setStyleSheet("")
+
+    def _style_installed_layer_label(cb):
+        _style_layer_checkbox(cb)
+        fill = "#3a4350" if _is_dark_ui() else "#d8dee6"
+        border = "#556170" if _is_dark_ui() else "#c0c7d0"
+        cb.setStyleSheet(
+            "QCheckBox { spacing: 3px; }"
+            "QCheckBox::indicator {"
+            " width: 14px;"
+            " height: 14px;"
+            " margin: 0px 0px 0px 3px;"
+            " padding: 0px;"
+            f" border: 1px solid {border};"
+            " border-radius: 4px;"
+            f" background: {fill};"
+            " image: none;"
+            "}"
+            "QCheckBox::indicator:disabled,"
+            "QCheckBox::indicator:unchecked:disabled,"
+            "QCheckBox::indicator:checked:disabled {"
+            f" border: 1px solid {border};"
+            " border-radius: 4px;"
+            f" background: {fill};"
+            " image: none;"
+            "}"
+        )
+
+    def _style_layer_delete_button(btn):
+        btn.setFixedSize(30, 30)
+        btn.setIcon(FluentIcon.DELETE.icon())
+        btn.setIconSize(QSize(18, 18))
+        btn.setToolTip("删除该依赖层")
+        btn.setStyleSheet(f"""
+            QToolButton {{
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 4px;
+                color: {theme['muted']};
+                padding: 0px;
+                margin: 0px;
+            }}
+            QToolButton:hover {{
+                background: {theme['btn_hover']};
+                color: {theme['warn']};
+                border: 1px solid {theme['warn']};
+            }}
+            QToolButton:pressed {{
+                background: {theme['input_bg']};
+                color: {theme['warn']};
+                border: 1px solid {theme['warn']};
+            }}
+        """)
 
     dlg = QDialog()
     icon_path = resource_path("assets/icon.ico")
@@ -2209,32 +2373,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             cb.setChecked(True)
             cb.setEnabled(True)
             cb.setText(f"{layer}（需要修复）")
-            cb.setStyleSheet(f"color: {theme['warn']};")
+            _style_layer_checkbox(cb, warn_text=True)
         elif layer in installed_layers["layers"]:
             cb.setChecked(False)
             cb.setEnabled(False)
             cb.setText(f"{layer}（已安装）")
-            # 新增删除按钮，使用 FluentIcon.DELETE（垃圾筐图标）
-            del_btn = PushButton(FluentIcon.DELETE, "")
-            del_btn.setFixedSize(32, 32)
-            del_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent;
-                    border: none;
-                    border-radius: 4px;
-                    color: {theme['muted']};
-                }}
-                QPushButton:hover {{
-                    background: {theme['btn_hover']};
-                    color: {theme['warn']};
-                    border: 1px solid {theme['warn']};
-                }}
-                QPushButton:pressed {{
-                    background: {theme['input_bg']};
-                    color: {theme['warn']};
-                    border: 1px solid {theme['warn']};
-                }}
-            """)
+            _style_installed_layer_label(cb)
+            del_btn = QToolButton()
+            _style_layer_delete_button(del_btn)
             def make_del_func(layer_name):
                 def _del():
                     reply = _exec_close_only_message_box(
@@ -2295,6 +2441,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             cb.setEnabled(True)
             cb.setChecked(layer in default_select)
             cb.setText(layer)
+            _style_layer_checkbox(cb)
         checks[layer] = cb
         row.addWidget(cb)
         if del_btn:
@@ -2488,10 +2635,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     cb.setChecked(False)
                     cb.setEnabled(False)
                     cb.setText(f"{layer}（已安装）")
+                    _style_installed_layer_label(cb)
                 else:
                     cb.setEnabled(True)
                     cb.setChecked(layer in default_select)
                     cb.setText(layer)
+                    _style_layer_checkbox(cb)
             # 移除与 venv/调试相关输出，避免策略混用
             update_ui()
             # 保存新路径到配置
@@ -2641,16 +2790,17 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     cb.setChecked(True)
                     cb.setEnabled(True)
                     cb.setText(f"{layer}（需要修复）")
-                    cb.setStyleSheet(f"color: {theme['warn']};")
+                    _style_layer_checkbox(cb, warn_text=True)
                 elif layer in installed_layers["layers"]:
                     cb.setChecked(False)
                     cb.setEnabled(False)
                     cb.setText(f"{layer}（已安装）")
+                    _style_installed_layer_label(cb)
                 else:
                     cb.setEnabled(True)
                     cb.setChecked(layer in default_select)
                     cb.setText(layer)
-                    cb.setStyleSheet("")
+                    _style_layer_checkbox(cb)
 
             env_info.setText(
                 f"当前依赖环境：{deps_dir}\n已安装层：{', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
@@ -3393,11 +3543,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         except Exception:
                             pass
 
-                    verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
+                    verify_worker = LayerVerifyWorker(
+                        pyexe, chosen_layers, state_path, strict=force_verify
+                    )
                     verify_worker_holder["obj"] = verify_worker
                     verify_worker.log_updated.connect(_append_log)
 
-                    def on_verify_done(ok_layers: list, fail_layers: list):
+                    def on_verify_done(_ok_layers: list, fail_layers: list):
                         if ui_closed["value"] or (not _is_alive(dlg)):
                             return
                         if fail_layers:

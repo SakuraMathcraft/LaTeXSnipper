@@ -3,6 +3,7 @@ from pathlib import Path
 import time
 import pyperclip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
+from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QInputDialog, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
 from updater import check_update_dialog
@@ -176,7 +177,6 @@ class SettingsWindow(QDialog):
         # 模型选择区域
         lay.addWidget(QLabel("选择识别模型:"))
         # 使用下拉框支持内置模型与外部模型入口
-        from qfluentwidgets import ComboBox
         self.model_combo = ComboBox()
         self.model_combo.setFixedHeight(36)
         # 添加识别模型选项
@@ -373,8 +373,7 @@ class SettingsWindow(QDialog):
         # ============ 渲染引擎设置 ============
         lay.addWidget(QLabel("公式渲染引擎:"))
         # 渲染引擎选择 - 使用 qfluentwidgets ComboBox 保持一致的外观
-        from qfluentwidgets import ComboBox as FluentComboBox
-        self.render_engine_combo = FluentComboBox()
+        self.render_engine_combo = ComboBox()
         self.render_engine_combo.setFixedHeight(36)
         # 添加项目
         self.render_engine_combo.addItems([
@@ -463,7 +462,7 @@ class SettingsWindow(QDialog):
         deps_row_layout.setSpacing(6)
         self.btn_deps_wizard = PushButton(FluentIcon.DEVELOPER_TOOLS, "依赖管理向导")
         self.btn_deps_wizard.setFixedHeight(36)
-        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/升级 GPU 加速层、模型依赖等")
+        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/升级 GPU 加速层、模型依赖等。\n从设置页进入会执行真实依赖校验。")
         deps_row_layout.addWidget(self.btn_deps_wizard, 1)
         self.btn_open_pix2text_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
         self.btn_open_pix2text_cache.setFixedHeight(36)
@@ -566,12 +565,14 @@ class SettingsWindow(QDialog):
     def _theme_tokens(self) -> dict:
         if self._is_dark_mode():
             return {
+                "text": "#e7ebf0",
                 "muted": "#b6beca",
                 "compute_gpu": "#7bd88f",
                 "compute_cpu": "#ffb35c",
                 "compute_unknown": "#9ea7b3",
             }
         return {
+            "text": "#222222",
             "muted": "#666666",
             "compute_gpu": "#2e7d32",
             "compute_cpu": "#f57c00",
@@ -585,6 +586,18 @@ class SettingsWindow(QDialog):
         if self._compute_mode_state == "cpu":
             return t["compute_cpu"]
         return t["compute_unknown"]
+
+    def _style_native_checkbox(self, checkbox: QCheckBox, text_color: str, disabled_color: str) -> None:
+        pal = checkbox.palette()
+        for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+            pal.setColor(group, QPalette.ColorRole.WindowText, QColor(text_color))
+            pal.setColor(group, QPalette.ColorRole.ButtonText, QColor(text_color))
+            pal.setColor(group, QPalette.ColorRole.Text, QColor(text_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(disabled_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(disabled_color))
+        pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(disabled_color))
+        checkbox.setPalette(pal)
+        checkbox.setStyleSheet("")
 
     def apply_theme_styles(self, force: bool = False):
         dark = self._is_dark_mode()
@@ -604,6 +617,8 @@ class SettingsWindow(QDialog):
             self.lbl_compute_mode.setStyleSheet(
                 f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"
             )
+        if hasattr(self, "startup_console_checkbox") and self.startup_console_checkbox is not None:
+            self._style_native_checkbox(self.startup_console_checkbox, t["text"], t["muted"])
 
     def event(self, e):
         result = super().event(e)
@@ -661,7 +676,7 @@ class SettingsWindow(QDialog):
             return value.strip().lower() in ("1", "true", "yes", "on")
         return False
 
-    def _on_startup_console_changed(self, state: int):
+    def _on_startup_console_changed(self, _state: int):
         # PyQt6 的 CheckState 不是可直接 int() 的枚举，直接读控件状态最稳妥。
         enabled = bool(self.startup_console_checkbox.isChecked())
         try:
@@ -759,7 +774,7 @@ class SettingsWindow(QDialog):
             return info
         except Exception as e:
             return {"present": False, "error": str(e)}
-        return {"present": False, "error": "probe failed"}
+
     def _set_env_torch_ui(self, env_key: str, info: dict, pyexe: str):
         env_key = "pix2text"
         label = self.pix2text_torch_status
@@ -896,7 +911,7 @@ class SettingsWindow(QDialog):
         self,
         pyexe: str,
         mode: str,
-        shared_site_hint: str = "",
+        _shared_site_hint: str = "",
         gpu_tag: str = "",
     ) -> list[str]:
         """
@@ -904,21 +919,14 @@ class SettingsWindow(QDialog):
         仅共享 torch；不固定 numpy，不额外约束其它包。
         """
         common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
-        shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
         verify_code = (
-            "import os,sys; "
-            f"s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
-            "added=(bool(s) and os.path.isdir(s) and s not in sys.path); "
-            "(sys.path.insert(0,s) if added else None); "
-            "tl=(os.path.join(s,'torch','lib') if s else ''); "
-            "(os.add_dll_directory(tl) if (tl and os.path.isdir(tl) and hasattr(os,'add_dll_directory')) else None); "
-            "os.environ['PATH']=((tl+os.pathsep+os.environ.get('PATH','')) if (tl and os.path.isdir(tl)) else os.environ.get('PATH','')); "
-            "import torch; "
-            "import torchvision; "
-            "import importlib.util as _iu; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
-            "(sys.path.remove(s) if (added and s in sys.path) else None); "
+            "import warnings; "
+            "warnings.filterwarnings('ignore'); "
             "from pix2text import Pix2Text; "
-            "print('pix2text ok')"
+            "stable_cfg={'layout': {'model_type': 'DocYoloLayoutParser'}, 'text_formula': {'formula': {'model_name': 'mfr', 'model_backend': 'onnx'}}}; "
+            "Pix2Text.from_config(total_configs=stable_cfg, device='cpu', enable_table=False); "
+            "import latex2mathml.converter; import matplotlib.mathtext; import fitz; "
+            "print('pix2text cpu/onnx ok')"
         )
         steps = [
             f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
@@ -926,7 +934,7 @@ class SettingsWindow(QDialog):
             f"\"{pyexe}\" -m pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" {common_flags}",
             f"\"{pyexe}\" -m pip install -U \"optimum-onnx>=0.0.3\" {common_flags}",
             f"\"{pyexe}\" -m pip install -U \"pix2text==1.1.6\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"pymupdf~=1.23.0\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" {common_flags}",
         ]
         # pix2text 依赖链可能回拉 onnxruntime，末尾强制修正 CPU/GPU 最终状态（互斥）。
         if (mode or "").strip().lower() == "gpu":
@@ -1699,11 +1707,12 @@ class SettingsWindow(QDialog):
             "echo   - built-in dependency wizard manages the pix2text path",
             "echo   - external_model uses independently deployed local/online services",
             "echo   - use unified main dependency env",
-            "echo   - CPU/GPU switch only changes torch + onnxruntime",
+            "echo   - pix2text formula warmup uses CPU/ONNX first; torch failure does not always mean pix2text is unusable",
+            "echo   - HEAVY_CPU/HEAVY_GPU health is checked separately through torch + onnxruntime",
             f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",
             "echo.",
             "echo [Version Fix]",
-            "echo   pip install protobuf==4.25.8",
+            "echo   pip install \"protobuf>=3.20,<5\"",
             "echo.",
             "echo [PyTorch GPU]",
             "echo   nvcc --version",
@@ -1723,8 +1732,13 @@ class SettingsWindow(QDialog):
             "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   pip install -U \"optimum-onnx>=0.0.3\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   pip install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   pip install -U \"pymupdf~=1.23.0\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); from pix2text import Pix2Text; print('pix2text ok')\"",
+            "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo.",
+            "echo [Pix2Text CPU/ONNX Check]",
+            "echo   python -c \"import warnings; warnings.filterwarnings('ignore'); from pix2text import Pix2Text; stable_cfg={'layout': {'model_type': 'DocYoloLayoutParser'}, 'text_formula': {'formula': {'model_name': 'mfr', 'model_backend': 'onnx'}}}; Pix2Text.from_config(total_configs=stable_cfg, device='cpu', enable_table=False); import latex2mathml.converter; import matplotlib.mathtext; import fitz; print('pix2text cpu/onnx ok')\"",
+            "echo.",
+            "echo [Torch / HEAVY Check]",
+            "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); print('torch', getattr(torch,'__version__','')); print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda',''))\"",
             "echo.",
         ]
         help_lines += [

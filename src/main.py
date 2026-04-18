@@ -3,6 +3,49 @@ import os, sys, pathlib, datetime, faulthandler, json, subprocess, builtins, ate
 # --- 早期 GUI 依赖检测与自动修复 ---
 import sys, os, subprocess, importlib
 
+STABLE_GUI_PIP_SPECS = [
+    "PyQt6==6.10.0",
+    "PyQt6-Qt6==6.10.0",
+    "PyQt6-WebEngine==6.10.0",
+    "PyQt6-WebEngine-Qt6==6.10.0",
+    "PyQt6-Fluent-Widgets==1.11.2",
+]
+
+STABLE_GUI_VERSION_PINS = {
+    "PyQt6": "6.10.0",
+    "PyQt6-Qt6": "6.10.0",
+    "PyQt6-WebEngine": "6.10.0",
+    "PyQt6-WebEngine-Qt6": "6.10.0",
+    "PyQt6-Fluent-Widgets": "1.11.2",
+}
+
+
+def _gui_dep_version_mismatches():
+    try:
+        import importlib.metadata as metadata
+    except Exception:
+        return []
+
+    mismatches = []
+    for dist_name, expected in STABLE_GUI_VERSION_PINS.items():
+        try:
+            actual = metadata.version(dist_name)
+        except metadata.PackageNotFoundError:
+            actual = None
+        except Exception:
+            actual = None
+        if actual != expected:
+            shown = actual if actual is not None else "未安装"
+            mismatches.append(f"{dist_name}={shown}，期望 {expected}")
+    return mismatches
+
+
+def _install_stable_gui_deps(pyexe: str, reason: str):
+    print(f"[WARN] GUI 依赖需要修复：{reason}")
+    subprocess.check_call([pyexe, "-m", "pip", "install", "--force-reinstall", *STABLE_GUI_PIP_SPECS])
+    importlib.invalidate_caches()
+
+
 def _early_ensure_pyqt6_and_pywin32():
     import os, sys, subprocess, importlib
     pyexe = sys.executable
@@ -13,13 +56,17 @@ def _early_ensure_pyqt6_and_pywin32():
         print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
         return
 
+    mismatches = _gui_dep_version_mismatches()
+    if mismatches:
+        _install_stable_gui_deps(pyexe, "; ".join(mismatches))
+
     # 检查 PyQt6
     try:
         import PyQt6 as _PyQt6
         _ = _PyQt6
     except ImportError:
         print("[WARN] 未检测到 PyQt6，尝试自动安装...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-WebEngine~=6.9.0", "PyQt6-Fluent-Widgets"])
+        _install_stable_gui_deps(pyexe, "PyQt6 未安装")
         importlib.invalidate_caches()
         import PyQt6 as _PyQt6
         _ = _PyQt6
@@ -31,7 +78,7 @@ def _early_ensure_pyqt6_and_pywin32():
             _ = _QtWebEngineWidgets
         except Exception:
             print("[WARN] 未检测到 PyQt6-WebEngine，尝试自动安装...")
-            subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-WebEngine~=6.9.0"])
+            _install_stable_gui_deps(pyexe, "PyQt6-WebEngine 未安装")
             importlib.invalidate_caches()
 
     # 检查 qfluentwidgets（PyQt6-Fluent-Widgets）
@@ -40,7 +87,7 @@ def _early_ensure_pyqt6_and_pywin32():
         _ = _qfluentwidgets
     except ImportError:
         print("[WARN] 未检测到 PyQt6-Fluent-Widgets，尝试自动安装...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "PyQt6-Fluent-Widgets"])
+        _install_stable_gui_deps(pyexe, "PyQt6-Fluent-Widgets 未安装")
         importlib.invalidate_caches()
         import qfluentwidgets as _qfluentwidgets
         _ = _qfluentwidgets
@@ -52,7 +99,7 @@ def _early_ensure_pyqt6_and_pywin32():
         _ = _win32api
     except ImportError:
         print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "pywin32"])
+        subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
         importlib.invalidate_caches()
         # 关键：安装后直接提示用户重启
         print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
@@ -67,7 +114,7 @@ def _early_ensure_pyqt6_and_pywin32():
     except ImportError:
         print("[WARN] 未检测到 pyperclip，尝试自动安装...")
         try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "pyperclip"])
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pyperclip"])
             importlib.invalidate_caches()
             import pyperclip as _pyperclip
             _ = _pyperclip
@@ -87,7 +134,7 @@ def _early_ensure_pyqt6_and_pywin32():
     except ImportError:
         print("[WARN] 未检测到 requests，尝试自动安装...")
         try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "-U", "requests"])
+            subprocess.check_call([pyexe, "-m", "pip", "install", "requests"])
             importlib.invalidate_caches()
             import requests as _requests
             _ = _requests
@@ -110,6 +157,7 @@ def resource_path(relative_path):
 # 全局配置文件名（仅定义一次）
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
+_APP_LOG_DIR_CACHE = None
 
 
 def _app_state_dir():
@@ -119,6 +167,41 @@ def _app_state_dir():
     except Exception:
         pass
     return p
+
+
+def _app_log_dir() -> pathlib.Path:
+    """Return a writable log directory, falling back when the profile log dir is locked."""
+    global _APP_LOG_DIR_CACHE
+    if _APP_LOG_DIR_CACHE is not None:
+        return _APP_LOG_DIR_CACHE
+
+    import tempfile
+
+    candidates = [
+        _app_state_dir() / "logs",
+    ]
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        candidates.append(pathlib.Path(local_app_data) / "LaTeXSnipper" / "logs")
+    candidates.append(pathlib.Path(tempfile.gettempdir()) / "LaTeXSnipper" / "logs")
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / f".write-test-{os.getpid()}.tmp"
+            probe.write_text("ok", encoding="utf-8")
+            try:
+                probe.unlink()
+            except Exception:
+                pass
+            _APP_LOG_DIR_CACHE = candidate
+            return candidate
+        except Exception:
+            continue
+
+    fallback = pathlib.Path(tempfile.gettempdir())
+    _APP_LOG_DIR_CACHE = fallback
+    return fallback
 
 # 全局持有 crash 日志文件句柄，避免被 GC 或提前关闭
 _CRASH_FH = None
@@ -261,6 +344,172 @@ if not _ensure_single_instance():
 atexit.register(_release_single_instance_lock)
 
 
+# --------- Startup Splash ---------
+_STARTUP_SPLASH = None
+
+
+class _StartupDialog(QWidget):
+    def __init__(self, pixmap, flags):
+        super().__init__(None, flags)
+        self._label = QLabel(self)
+        self._label.setScaledContents(False)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setPixmap(pixmap)
+
+    def setPixmap(self, pixmap):
+        self._label.setPixmap(pixmap)
+        dpr = float(pixmap.devicePixelRatio() or 1.0)
+        logical_w = max(1, int(round(pixmap.width() / dpr)))
+        logical_h = max(1, int(round(pixmap.height() / dpr)))
+        self._label.setGeometry(0, 0, logical_w, logical_h)
+        self.resize(logical_w, logical_h)
+
+    def finish(self, _window=None):
+        self.close()
+
+
+def _build_startup_splash_pixmap(app, status_text: str = ""):
+    """Build a crisp high-DPI splash pixmap with a safe status text area."""
+    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QIcon, QFontMetrics
+    from PyQt6.QtCore import Qt, QRect
+
+    logical_w, logical_h = 340, 360
+    dpr = 1.0
+    try:
+        screen = app.primaryScreen() if app else None
+        if screen is not None:
+            dpr = float(screen.devicePixelRatio() or 1.0)
+    except Exception:
+        dpr = 1.0
+
+    pm = QPixmap(int(logical_w * dpr), int(logical_h * dpr))
+    pm.setDevicePixelRatio(dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pm)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(248, 248, 248, 246))
+    painter.drawRoundedRect(10, 10, logical_w - 20, logical_h - 20, 20, 20)
+
+    icon_path = resource_path("assets/icon.ico")
+    icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
+    icon_size = 112
+    if not icon.isNull():
+        icon_rect = QRect((logical_w - icon_size) // 2, 72, icon_size, icon_size)
+        icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter)
+
+    painter.setPen(QColor(38, 38, 38))
+    title_font = QFont("Microsoft YaHei UI", 16)
+    title_font.setBold(True)
+    painter.setFont(title_font)
+    painter.drawText(QRect(0, 196, logical_w, 34), int(Qt.AlignmentFlag.AlignCenter), "LaTeXSnipper")
+
+    painter.setPen(QColor(110, 110, 110))
+    sub_font = QFont("Microsoft YaHei UI", 11)
+    painter.setFont(sub_font)
+    painter.drawText(QRect(0, 232, logical_w, 24), int(Qt.AlignmentFlag.AlignCenter), "正在启动...")
+
+    status_font = QFont("Microsoft YaHei UI", 10)
+    painter.setFont(status_font)
+    fm = QFontMetrics(status_font)
+    safe_text = fm.elidedText((status_text or "").strip(), Qt.TextElideMode.ElideRight, logical_w - 44)
+    painter.setPen(QColor(92, 92, 92))
+    painter.drawText(QRect(22, 270, logical_w - 44, 32), int(Qt.AlignmentFlag.AlignCenter), safe_text)
+
+    painter.end()
+    return pm
+
+
+def _create_startup_splash(app):
+    """Create a centered splash window to indicate app is loading."""
+    try:
+        pm = _build_startup_splash_pixmap(app, "")
+
+        splash = _StartupDialog(
+            pm,
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint,
+        )
+        splash._lsn_status = ""
+        try:
+            screen = app.primaryScreen()
+            if screen is not None:
+                geo = screen.availableGeometry()
+                splash.move(geo.center().x() - splash.width() // 2, geo.center().y() - splash.height() // 2)
+        except Exception:
+            pass
+        splash.show()
+        app.processEvents()
+        return splash
+    except Exception as e:
+        print(f"[WARN] startup splash init failed: {e}")
+        return None
+
+
+def _update_startup_splash(splash, message: str):
+    if not splash:
+        return
+    try:
+        app = QApplication.instance()
+        if app is not None:
+            splash._lsn_status = str(message or "")
+            splash.setPixmap(_build_startup_splash_pixmap(app, splash._lsn_status))
+            app.processEvents()
+    except Exception:
+        pass
+
+
+def _ensure_startup_splash(message: str = ""):
+    global _STARTUP_SPLASH
+    app = QApplication.instance()
+    if app is None:
+        return None
+    if _STARTUP_SPLASH is None:
+        _STARTUP_SPLASH = _create_startup_splash(app)
+    _update_startup_splash(_STARTUP_SPLASH, message)
+    return _STARTUP_SPLASH
+
+
+def _take_startup_splash(app, message: str = ""):
+    global _STARTUP_SPLASH
+    splash = _STARTUP_SPLASH or _create_startup_splash(app)
+    _STARTUP_SPLASH = splash
+    try:
+        if splash is not None and not splash.isVisible():
+            splash.show()
+            app.processEvents()
+    except Exception:
+        pass
+    _update_startup_splash(splash, message)
+    return splash
+
+
+def _finish_startup_splash(splash, window=None):
+    global _STARTUP_SPLASH
+    try:
+        if window is not None and hasattr(window, "_startup_progress"):
+            window._startup_progress = None
+    except Exception:
+        pass
+    try:
+        if splash:
+            splash.finish(window)
+    except Exception:
+        pass
+    try:
+        if splash is not None and _STARTUP_SPLASH is splash:
+            _STARTUP_SPLASH = None
+    except Exception:
+        pass
+
+
+_ensure_startup_splash("配置 WebEngine 运行环境...")
+
+
 # ============ QWebEngine 运行环境预配置 ============
 # 仅设置环境变量，不导入 WebEngine 模块
 def _apply_webengine_env_overrides():
@@ -322,6 +571,7 @@ def _apply_webengine_env_overrides():
                 break
 
 _apply_webengine_env_overrides()
+_ensure_startup_splash("配置 MathJax 与 WebEngine...")
 
 # ============ QWebEngine 沙箱配置 ============
 # 在使用 QWebEngineView 之前配置，以确保 MathJax 资源可以被正确加载
@@ -374,7 +624,7 @@ class LogViewerDialog(QDialog):
         self.timer.setInterval(300)
         self.timer.timeout.connect(self._poll_file)
         self.timer.start()
-        self._poll_file(initial=True)
+        self._poll_file(_initial=True)
         self._apply_theme_styles(force=True)
 
     def _apply_theme_styles(self, force: bool = False):
@@ -411,7 +661,7 @@ class LogViewerDialog(QDialog):
         except Exception:
             pass
 
-    def _poll_file(self, initial: bool = False):
+    def _poll_file(self, _initial: bool = False):
         try:
             with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
                 f.seek(self._pos)
@@ -513,7 +763,7 @@ class RuntimeLogDialog(QDialog):
         self.timer.setInterval(150)
         self.timer.timeout.connect(self._poll_file)
         self.timer.start()
-        self._poll_file(initial=True)
+        self._poll_file(_initial=True)
         self._apply_theme_styles(force=True)
 
     def _apply_theme_styles(self, force: bool = False):
@@ -575,7 +825,7 @@ class RuntimeLogDialog(QDialog):
         except Exception:
             pass
 
-    def _poll_file(self, initial: bool = False):
+    def _poll_file(self, _initial: bool = False):
         try:
             with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
                 f.seek(self._pos)
@@ -630,12 +880,6 @@ _PRINT_BRIDGE_INSTALLED = False
 _RUNTIME_SESSION_HANDLER = None
 _APP_LOGGING_INITIALIZED = False
 
-# 安全占位导入：修复“未解析 rapidocr”
-try:
-    import rapidocr  # type: ignore
-except Exception:
-    rapidocr = type("rapidocr", (), {})()  # 空对象，占位
-
 # 注意：init_app_logging、open_realtime_log_window、_read_deps_dir_from_config、
 # open_deps_terminal 的定义见下方，此处移除了重复版本
 
@@ -646,7 +890,7 @@ def init_app_logging() -> Path:
     多次调用会复用已存在的处理器。
     """
     global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
-    log_dir = Path.home() / ".latexsnipper" / "logs"
+    log_dir = Path(_app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "app.log"
 
@@ -666,15 +910,39 @@ def init_app_logging() -> Path:
 
     fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
     file_handler = None
+    active_log_path = log_path
     if not has_file:
-        fh = RotatingFileHandler(log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
-        fh.setFormatter(fmt)
-        root.addHandler(fh)
-        file_handler = fh
+        try:
+            fh = RotatingFileHandler(log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+        except PermissionError as e:
+            active_log_path = log_dir / f"app-{os.getpid()}.log"
+            try:
+                fh = RotatingFileHandler(active_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+                try:
+                    if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
+                        sys.__stderr__.write(
+                            f"[WARN] app.log 被占用，已切换到 {active_log_path}: {e}\n"
+                        )
+                except Exception:
+                    pass
+            except Exception as fallback_error:
+                fh = None
+                try:
+                    if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
+                        sys.__stderr__.write(
+                            f"[WARN] 无法初始化文件日志，继续仅使用控制台日志: {fallback_error}\n"
+                        )
+                except Exception:
+                    pass
+        if fh is not None:
+            fh.setFormatter(fmt)
+            root.addHandler(fh)
+            file_handler = fh
     else:
         for h in root.handlers:
             if isinstance(h, RotatingFileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path)):
                 file_handler = h
+                active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
     if not has_stream:
         # 固定写到原始 stdout，避免后续 stdout 重定向导致 logging 链路异常。
@@ -713,9 +981,9 @@ def init_app_logging() -> Path:
         builtins.print = _print_bridge
         _PRINT_BRIDGE_INSTALLED = True
 
-    APP_LOG_FILE = log_path
+    APP_LOG_FILE = active_log_path
     if not getattr(root, "_latexsnipper_session_logged", False):
-        logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, log_path)
+        logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, active_log_path)
         setattr(root, "_latexsnipper_session_logged", True)
     
     # 初始化 LaTeX 设置
@@ -729,7 +997,7 @@ def init_app_logging() -> Path:
 
     _APP_LOGGING_INITIALIZED = True
     
-    return log_path
+    return active_log_path
 
 def open_realtime_log_window(parent=None):
     """
@@ -926,6 +1194,7 @@ def _install_border_radius_shim() -> None:
     except Exception:
         pass
 _install_border_radius_shim()
+
 
 import sys, os
 base_path = os.path.dirname(os.path.abspath(__file__))
@@ -1146,7 +1415,7 @@ def _runtime_log_path() -> Path:
     global _LSN_RUNTIME_LOG_PATH
     if _LSN_RUNTIME_LOG_PATH is not None:
         return _LSN_RUNTIME_LOG_PATH
-    p = _app_state_dir() / "logs" / "runtime-console.log"
+    p = _app_log_dir() / "runtime-console.log"
     p.parent.mkdir(parents=True, exist_ok=True)
     _LSN_RUNTIME_LOG_PATH = p
     return p
@@ -1324,7 +1593,7 @@ def open_debug_console(force: bool = False, tee: bool = True):
         _hook_runtime_log_streams(tee=tee)
         _show_runtime_log_window()
         _LSN_DEBUG_CONSOLE_READY = True
-        print("[INFO] GUI 日志窗口已打开（初始化与运行日志）。")
+        print("[INFO] GUI 日志窗口已打开")
     except Exception:
         try:
             if sys.__stdout__ and not getattr(sys.__stdout__, "closed", False):
@@ -2175,7 +2444,7 @@ def _relaunch_with(pyexe: str):
     print(f"[INFO] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
 
-def _native_message_box(title: str, text: str, flags: int = 0x00000040 | 0x00000004) -> int:
+def _native_message_box(title: str, text: str, flags: int = 0x00000040 | 0x00000004 | 0x00040000) -> int:
     """
     使用 Win32 原生 MessageBox（无 PyQt6 也可用）。
     返回值：6=Yes, 7=No。失败时返回 7。
@@ -2254,8 +2523,9 @@ def _ensure_gui_deps_or_prompt(pyexe: str | None):
         if _try_import_gui():
             print("[OK] pywin32 安装完成，GUI 依赖已就绪。")
             return
-    shown_cmd = (f"{pyexe} -m pip install -U PyQt6 PyQt6-Fluent-Widgets"
-                 if pyexe else "python -m pip install -U PyQt6 PyQt6-Fluent-Widgets")
+    gui_specs = list(STABLE_GUI_PIP_SPECS)
+    shown_cmd = (f"{pyexe} -m pip install {' '.join(gui_specs)}"
+                 if pyexe else f"python -m pip install {' '.join(gui_specs)}")
     msg = (
         "检测到 GUI 依赖缺失，将尝试安装：\n\n"
         f"{shown_cmd}\n\n"
@@ -2270,7 +2540,7 @@ def _ensure_gui_deps_or_prompt(pyexe: str | None):
         print("[ERROR] 无有效解释器用于安装，取消。")
         return
 
-    ok = _run_pip_install(pyexe, ["PyQt6", "PyQt6-Fluent-Widgets"])
+    ok = _run_pip_install(pyexe, gui_specs)
     if not ok:
         print("[ERROR] 依赖安装失败。")
         return
@@ -2464,133 +2734,14 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
 # --- 启动顺序修正：先确定 TARGET_PY，再决定是否重启 ---
 # 注意：_same_exe、_in_ide、_relaunch_with、_run_python_installer 已在上方定义，此处移除重复
 
+_ensure_startup_splash("加载依赖向导模块...")
 from deps_bootstrap import custom_warning_dialog, clear_deps_state
+_ensure_startup_splash("加载设置模块...")
 from settings_window import SettingsWindow
-
-# --------- Startup Splash ---------
-class _StartupDialog(QWidget):
-    def __init__(self, pixmap, flags):
-        super().__init__(None, flags)
-        self._label = QLabel(self)
-        self._label.setScaledContents(False)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setPixmap(pixmap)
-
-    def setPixmap(self, pixmap):
-        self._label.setPixmap(pixmap)
-        dpr = float(pixmap.devicePixelRatio() or 1.0)
-        logical_w = max(1, int(round(pixmap.width() / dpr)))
-        logical_h = max(1, int(round(pixmap.height() / dpr)))
-        self._label.setGeometry(0, 0, logical_w, logical_h)
-        self.resize(logical_w, logical_h)
-
-    def finish(self, _window=None):
-        self.close()
-
-
-def _build_startup_splash_pixmap(app, status_text: str = ""):
-    """Build a crisp high-DPI splash pixmap with a safe status text area."""
-    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QIcon, QFontMetrics
-    from PyQt6.QtCore import Qt, QRect
-
-    logical_w, logical_h = 340, 360
-    dpr = 1.0
-    try:
-        screen = app.primaryScreen() if app else None
-        if screen is not None:
-            dpr = float(screen.devicePixelRatio() or 1.0)
-    except Exception:
-        dpr = 1.0
-
-    pm = QPixmap(int(logical_w * dpr), int(logical_h * dpr))
-    pm.setDevicePixelRatio(dpr)
-    pm.fill(Qt.GlobalColor.transparent)
-
-    painter = QPainter(pm)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-
-    # Card background
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor(248, 248, 248, 246))
-    painter.drawRoundedRect(10, 10, logical_w - 20, logical_h - 20, 20, 20)
-
-    # Icon
-    icon_path = resource_path("assets/icon.ico")
-    icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
-    icon_size = 112
-    if not icon.isNull():
-        icon_rect = QRect((logical_w - icon_size) // 2, 72, icon_size, icon_size)
-        icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter)
-
-    # Title
-    painter.setPen(QColor(38, 38, 38))
-    title_font = QFont("Microsoft YaHei UI", 16)
-    title_font.setBold(True)
-    painter.setFont(title_font)
-    painter.drawText(QRect(0, 196, logical_w, 34), int(Qt.AlignmentFlag.AlignCenter), "LaTeXSnipper")
-
-    # Subtitle
-    painter.setPen(QColor(110, 110, 110))
-    sub_font = QFont("Microsoft YaHei UI", 11)
-    painter.setFont(sub_font)
-    painter.drawText(QRect(0, 232, logical_w, 24), int(Qt.AlignmentFlag.AlignCenter), "正在启动...")
-
-    # Dynamic status text (strictly inside card)
-    status_font = QFont("Microsoft YaHei UI", 10)
-    painter.setFont(status_font)
-    fm = QFontMetrics(status_font)
-    safe_text = fm.elidedText((status_text or "").strip(), Qt.TextElideMode.ElideRight, logical_w - 44)
-    painter.setPen(QColor(92, 92, 92))
-    painter.drawText(QRect(22, 270, logical_w - 44, 32), int(Qt.AlignmentFlag.AlignCenter), safe_text)
-
-    painter.end()
-    return pm
-
-
-def _create_startup_splash(app):
-    """Create a centered splash window to indicate app is loading."""
-    try:
-        pm = _build_startup_splash_pixmap(app, "")
-
-        splash = _StartupDialog(
-            pm,
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint,
-        )
-        splash._lsn_status = ""
-        try:
-            screen = app.primaryScreen()
-            if screen is not None:
-                geo = screen.availableGeometry()
-                splash.move(geo.center().x() - splash.width() // 2, geo.center().y() - splash.height() // 2)
-        except Exception:
-            pass
-        splash.show()
-        app.processEvents()
-        return splash
-    except Exception as e:
-        print(f"[WARN] startup splash init failed: {e}")
-        return None
-
-
-def _update_startup_splash(splash, message: str):
-    if not splash:
-        return
-    try:
-        app = QApplication.instance()
-        if app is not None:
-            splash._lsn_status = str(message or "")
-            splash.setPixmap(_build_startup_splash_pixmap(app, splash._lsn_status))
-        app = QApplication.instance()
-        if app is not None:
-            app.processEvents()
-    except Exception:
-        pass
 
 # 1) 解析/选择安装目录
 from pathlib import Path
+_ensure_startup_splash("定位依赖目录...")
 INSTALL_BASE_DIR = resolve_install_base_dir()
 
 # 3) 打包模式下：检查是否需要重定向到私有解释器
@@ -2646,6 +2797,7 @@ if _is_packaged_mode():
 BASE_DIR = Path(INSTALL_BASE_DIR)
 _clean_bad_env()
 
+_ensure_startup_splash("检查 Python 运行时...")
 TARGET_PY = ensure_full_python_or_prompt(BASE_DIR)
 if not TARGET_PY:
     print("[ERROR] 未找到可用的完整 Python 3.11。")
@@ -2667,11 +2819,13 @@ elif _in_ide():
 
 # 只有在非 BOOTSTRAPPED 模式下才修改 sys.path
 if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
+    _ensure_startup_splash("挂载私有依赖环境...")
     _sanitize_sys_path(TARGET_PY, BASE_DIR)
     if _is_packaged_mode():
         _append_private_site_packages(TARGET_PY)
         _block_pyqt6_from_private(TARGET_PY)
     else:
+        _ensure_startup_splash("检查 GUI 依赖版本...")
         _ensure_gui_deps_or_prompt(TARGET_PY)
 
     # 5) Startup deps check: show wizard only when required layers are missing.
@@ -2685,6 +2839,7 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
         print("[INFO] startup deps precheck skipped (wizard/force-verify mode)")
     else:
         import importlib as _imp
+        _ensure_startup_splash("检查已安装功能层...")
         _db = _imp.import_module("deps_bootstrap")
         try:
             _ok = _db.ensure_deps(
@@ -3032,118 +3187,6 @@ def get_install_base_dir():
 # 在 main.py 最前面调用
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
-
-_ocr_loaded = False
-_rapidocr_engine = None
-_rapidocr_module = None
-def get_ocr_backend():
-    """
-    懒加载 OCR 依赖；若未安装则静默禁用 OCR 功能。
-    """
-    global _ocr_loaded, _rapidocr_module
-    if _rapidocr_module is not None:
-        return _rapidocr_module
-
-    if not _ocr_loaded:
-        try:
-            import rapidocr as _rapidocr  # noqa: F401
-        except ModuleNotFoundError:
-            print("[OCR] rapidocr 未安装，OCR 功能已禁用。")
-            return None
-        _rapidocr_module = _rapidocr
-        _ocr_loaded = True
-    return _rapidocr_module
-def run_ocr(img_src):
-    global _rapidocr_engine
-    rapidocr = get_ocr_backend()
-    if rapidocr is None:
-        return ""
-
-    # 延迟导入依赖
-    from pathlib import Path
-    from io import BytesIO
-    from PIL import Image
-    import numpy as np
-    def to_ndarray(src):
-        # 文件路径
-        if isinstance(src, (str, Path)):
-            return np.array(Image.open(src).convert("RGB"))
-        # PIL.Image
-        if isinstance(src, Image.Image):
-            return np.array(src.convert("RGB"))
-        # Qt 图像
-        try:
-            from PyQt6.QtGui import QPixmap, QImage
-            if isinstance(src, QPixmap):
-                qimg = src.toImage()
-                return to_ndarray(qimg)
-            if isinstance(src, QImage):
-                buf = qimg_to_bytes(src)
-                return np.array(Image.open(BytesIO(buf)).convert("RGB"))
-        except Exception:
-            pass
-        # bytes
-        if isinstance(src, (bytes, bytearray)):
-            return np.array(Image.open(BytesIO(src)).convert("RGB"))
-        raise TypeError(f"不支持的 img_src 类型: {type(src)}")
-
-    def qimg_to_bytes(qimg):
-        from PyQt6.QtCore import QBuffer, QIODevice
-        buf = QBuffer()
-        buf.open(QIODevice.OpenModeFlag.ReadWrite)
-        qimg.save(buf, "PNG")
-        data = bytes(buf.data())
-        buf.close()
-        return data
-    img = to_ndarray(img_src)
-    # 2. 初始化引擎（一次）
-    if _rapidocr_engine is None:
-        # 兼容不同 rapidocr 版本的入口
-        engine = None
-        # v3.x 典型: from rapidocr import RapidOCR
-        if hasattr(rapidocr, "RapidOCR"):
-            engine = rapidocr.RapidOCR()
-        else:
-            # 兜底：某些版本 main.RapidOCR
-            # 修复未解析 rapidocr：安全占位导入
-            try:
-                import rapidocr  # type: ignore
-            except Exception:
-                rapidocr = None  # type: ignore
-                pass
-        if engine is None:
-            raise RuntimeError("未找到 RapidOCR 引擎入口 (RapidOCR 类缺失)")
-        _rapidocr_engine = engine
-    engine = _rapidocr_engine
-    # 3. 推理
-    try:
-        result = engine(img)  # 常见返回: ([(text, box, score), ...], elapse) 或 (text_lines, elapse)
-    except Exception as e:
-        print(f"[OCR] 调用失败: {e}")
-        return ""
-    # 4. 解析结果
-    def extract_text(res):
-        if not res:
-            return ""
-        # 结构 (lines, elapse)
-        if isinstance(res, (list, tuple)) and len(res) == 2 and isinstance(res[0], (list, tuple)):
-            lines = res[0]
-        else:
-            lines = res
-        collected = []
-        for item in lines:
-            # item 可能是 (text, box, score) 或 dict
-            if isinstance(item, (list, tuple)):
-                if item:
-                    collected.append(str(item[0]))
-            elif isinstance(item, dict):
-                t = item.get("text") or item.get("label")
-                if t:
-                    collected.append(str(t))
-            elif isinstance(item, str):
-                collected.append(item)
-        return "\n".join(t.strip() for t in collected if t and t.strip())
-    return extract_text(result)
 import os, sys, subprocess, importlib
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
 os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
@@ -5043,8 +5086,11 @@ class MainWindow(_QMainWindow):
     def __init__(self, startup_progress=None):
         super().__init__()
         self._startup_progress = startup_progress
+        self._report_startup_progress("读取配置与启动参数...")
         self._pending_model_warmup_result = None
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
+        self._post_show_tasks_started = False
+        self._pending_hotkey_seq = None
 
         self.setWindowTitle("LaTeX Snipper")
         self.resize(1280, 760)
@@ -5070,6 +5116,8 @@ class MainWindow(_QMainWindow):
         self._pdf_structured_result = None
         self._pdf_result_window = None
         self._predict_result_dialog = None
+        self._restore_predict_result_dialog_after_capture = None
+        self._hidden_unpinned_predict_result_dialog_for_capture = None
         self._pix2text_env_state = None
         self._main_torch_cache_ttl_sec = 45.0
         self._main_torch_cache_ts = 0.0
@@ -5198,18 +5246,9 @@ class MainWindow(_QMainWindow):
         self.status_label = QLabel()
         self.refresh_status_label()
 
-        try:
-            if self.model:
-                if self._get_preferred_model_for_predict() == "external_model":
-                    self._report_startup_progress("外部模型模式已启用")
-                else:
-                    self._report_startup_progress("正在后台预热识别模型与 worker...")
-                QTimer.singleShot(0, self._warmup_desired_model)
-        except Exception:
-            pass
-
         # 收藏窗口改为懒加载，降低首屏初始化耗时。
         self.favorites_window = None
+        self._report_startup_progress("初始化平台能力与快捷键...")
         self.platform_registry = PlatformCapabilityRegistry(
             parent=self,
             disable_global_hotkey=PLATFORM_DISABLE_GLOBAL_HOTKEY,
@@ -5223,7 +5262,9 @@ class MainWindow(_QMainWindow):
         seq = self.cfg.get("hotkey", "Ctrl+F")
         if not (seq.startswith("Ctrl+") and len(seq) == 6):
             seq = "Ctrl+F"
-        QTimer.singleShot(0, lambda: self.register_hotkey(seq))
+        self._pending_hotkey_seq = seq
+
+        self._report_startup_progress("构建主窗口界面...")
 
         # ========== 左侧面板：历史记录 ==========
         left_panel = QWidget()
@@ -5345,6 +5386,7 @@ class MainWindow(_QMainWindow):
         right_layout.addLayout(preview_header)
 
         # 初始化 WebEngine 渲染视图
+        self._report_startup_progress("初始化公式预览引擎...")
         self.preview_view = None
         self._render_timer = None
         self._pending_latex = ""
@@ -5417,8 +5459,18 @@ class MainWindow(_QMainWindow):
         self.setCentralWidget(container)
 
         # 托盘
+        self._report_startup_progress("初始化系统托盘与历史记录...")
         self.tray_icon = self.system_provider.create_tray(self.icon, self)
         self.update_tray_tooltip()
+        try:
+            from PyQt6.QtGui import QGuiApplication
+
+            qapp = QGuiApplication.instance()
+            if qapp is not None:
+                qapp.screenAdded.connect(lambda _screen: QTimer.singleShot(0, self.update_tray_menu))
+                qapp.screenRemoved.connect(lambda _screen: QTimer.singleShot(0, self.update_tray_menu))
+        except Exception:
+            pass
         # 初始化界面
         self.load_history()
         self.update_history_ui()
@@ -5431,6 +5483,22 @@ class MainWindow(_QMainWindow):
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
+
+    def start_post_show_tasks(self):
+        """Start deferred tasks after the main window is visible."""
+        if getattr(self, "_post_show_tasks_started", False):
+            return
+        self._post_show_tasks_started = True
+
+        seq = getattr(self, "_pending_hotkey_seq", None)
+        if seq:
+            QTimer.singleShot(0, lambda seq=seq: self.register_hotkey(seq))
+
+        try:
+            if self.model:
+                QTimer.singleShot(0, self._warmup_desired_model)
+        except Exception:
+            pass
 
     def _ensure_favorites_window(self):
         if self.favorites_window is None:
@@ -7451,15 +7519,18 @@ th {{
 
     def _start_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.is_recognition_busy(source="main"):
+            self._restore_hidden_unpinned_predict_result_dialog()
             self._show_recognition_busy_info()
             return
         if self.current_model == "external_model" or self._get_preferred_model_for_predict() == "external_model":
             self._start_external_predict_with_pil(img, external_prompt_template=external_prompt_template)
             return
         if not self.model:
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         if self.predict_thread and self.predict_thread.isRunning():
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         preferred = self._get_preferred_model_for_predict()
@@ -7501,6 +7572,7 @@ th {{
 
     def _start_external_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.predict_thread and self.predict_thread.isRunning():
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         config = self._get_external_model_config()
@@ -7508,6 +7580,7 @@ th {{
         if one_shot_template:
             config.prompt_template = one_shot_template
         if not self._is_external_model_configured():
+            self._restore_hidden_unpinned_predict_result_dialog()
             self.set_model_status("外部模型未配置")
             self.set_action_status("请先在设置中配置外部模型", auto_clear_ms=3000)
             self.open_settings()
@@ -8114,10 +8187,12 @@ th {{
         if not self.isVisible() and pinned_dialog is None:
             self.showMinimized()  # 只最小化显示，不抢前台
         if not self.model:
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         perm = self.screenshot_provider.request_permission()
         if getattr(perm, "state", None) == "denied":
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
             return
         cfg = ScreenshotConfig(
@@ -8140,6 +8215,7 @@ th {{
                     pass
                 self.overlay = None
                 QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
+                QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
                 self.set_action_status("已取消截图")
                 return True
         return super().eventFilter(obj, event)
@@ -8150,13 +8226,16 @@ th {{
             self.overlay = None
         QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
         if pixmap is None:
+            QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
             return
         if self.is_recognition_busy(source="main"):
+            self._restore_hidden_unpinned_predict_result_dialog()
             self._show_recognition_busy_info()
             return
         try:
             img = self._qpixmap_to_pil(pixmap)
         except Exception as e:
+            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
         self._start_predict_with_pil(img)
@@ -8194,6 +8273,22 @@ th {{
         current = getattr(self, "_predict_result_dialog", None)
         if dialog_obj is None or current is dialog_obj:
             self._predict_result_dialog = None
+        hidden = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
+        if dialog_obj is None or hidden is dialog_obj:
+            self._hidden_unpinned_predict_result_dialog_for_capture = None
+        restoring = getattr(self, "_restore_predict_result_dialog_after_capture", None)
+        if dialog_obj is None or restoring is dialog_obj:
+            self._restore_predict_result_dialog_after_capture = None
+
+    def _is_predict_result_dialog_alive(self, dlg) -> bool:
+        if dlg is None:
+            return False
+        try:
+            if sip is not None and sip.isdeleted(dlg):
+                return False
+        except Exception:
+            pass
+        return True
 
     def _predict_result_pinned_size(self) -> tuple[int, int]:
         """识别结果窗口置顶固定后的紧凑尺寸。"""
@@ -8366,24 +8461,24 @@ th {{
     def _prepare_predict_result_dialog_for_capture(self):
         dlg = getattr(self, "_predict_result_dialog", None)
         self._restore_predict_result_dialog_after_capture = None
-        if dlg is None:
+        self._hidden_unpinned_predict_result_dialog_for_capture = None
+        if not self._is_predict_result_dialog_alive(dlg):
             return
         try:
             if bool(getattr(dlg, "_predict_result_pinned", False)) and dlg.isVisible():
                 self._restore_predict_result_dialog_after_capture = dlg
+            elif dlg.isVisible():
+                self._hidden_unpinned_predict_result_dialog_for_capture = dlg
+                dlg.hide()
         except Exception:
             self._restore_predict_result_dialog_after_capture = None
+            self._hidden_unpinned_predict_result_dialog_for_capture = None
 
     def _restore_predict_result_dialog_visibility(self):
         dlg = getattr(self, "_restore_predict_result_dialog_after_capture", None)
         self._restore_predict_result_dialog_after_capture = None
-        if dlg is None:
+        if not self._is_predict_result_dialog_alive(dlg):
             return
-        try:
-            if sip is not None and sip.isdeleted(dlg):
-                return
-        except Exception:
-            pass
         try:
             dlg.show()
             if bool(getattr(dlg, "_predict_result_pinned", False)):
@@ -8393,6 +8488,25 @@ th {{
             dlg.activateWindow()
         except Exception:
             pass
+
+    def _restore_hidden_unpinned_predict_result_dialog(self):
+        dlg = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
+        self._hidden_unpinned_predict_result_dialog_for_capture = None
+        if not self._is_predict_result_dialog_alive(dlg):
+            return
+        try:
+            if bool(getattr(dlg, "_predict_result_pinned", False)):
+                return
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
+        except Exception:
+            pass
+
+    def _discard_hidden_unpinned_predict_result_dialog(self, dialog_obj=None):
+        hidden = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
+        if dialog_obj is None or hidden is dialog_obj:
+            self._hidden_unpinned_predict_result_dialog_for_capture = None
 
     def on_predict_ok(self, latex: str):
         used = None
@@ -8444,6 +8558,7 @@ th {{
                 except Exception:
                     pass
         self.show_confirm_dialog(latex)
+        self._discard_hidden_unpinned_predict_result_dialog()
 
     def show_confirm_dialog(self, latex_code: str):
         """显示识别结果确认对话框"""
@@ -8869,6 +8984,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 </html>'''
 
     def on_predict_fail(self, msg: str):
+        self._restore_hidden_unpinned_predict_result_dialog()
         self.set_model_status("失败")
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -9717,13 +9833,44 @@ def _schedule_torch_runtime_probe() -> None:
     """后台探测 torch 运行时，避免阻塞主线程启动。"""
     import threading
 
+    def _torch_runtime_probe_hint(exc: BaseException) -> str:
+        msg = str(exc or "")
+        lower = msg.lower()
+        mod_name = getattr(exc, "name", "") if isinstance(exc, ModuleNotFoundError) else ""
+
+        if mod_name == "torch" or ("no module named" in lower and "torch" in lower):
+            return "未安装 torch；如需使用内置 pix2text，请在依赖管理向导中安装/修复 CORE 或 HEAVY 层。"
+
+        if mod_name in {"torchvision", "torchaudio"} or (
+            "no module named" in lower and ("torchvision" in lower or "torchaudio" in lower)
+        ):
+            return "torch 相关组件不完整；请在依赖管理向导中修复 HEAVY_CPU/HEAVY_GPU 层。"
+
+        dll_markers = (
+            "dll load failed",
+            "error loading",
+            "winerror 126",
+            "winerror 127",
+            "winerror 193",
+            "winerror 1114",
+            "vcruntime",
+            "msvcp",
+            "\\torch\\lib\\",
+            "/torch/lib/",
+            "c10.dll",
+        )
+        if any(x in lower for x in dll_markers):
+            return "torch 二进制依赖加载失败；请检查 torch 安装是否损坏、CPU/GPU 轮子是否混装，必要时再检查 Microsoft Visual C++ 2015-2022 x64 运行库。"
+
+        return "torch 运行时探测失败；请查看上一行异常，并通过依赖管理向导重新校验或修复 HEAVY 层。"
+
     def _worker():
         try:
             import torch  # noqa: F401
             _ = torch
         except Exception as e:
             print("[WARN] torch 初始化失败：", e)
-            print("[HINT] 请安装 Microsoft Visual C++ 2015–2022(x64) 运行库后重试。")
+            print("[HINT]", _torch_runtime_probe_hint(e))
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -9742,8 +9889,7 @@ if __name__ == "__main__":
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
-        splash = _create_startup_splash(app)
-        _update_startup_splash(splash, "初始化界面...")
+        splash = _take_startup_splash(app, "初始化界面...")
         # 3) UI 主题（可选）
         try:
             from qfluentwidgets import setThemeColor
@@ -9763,21 +9909,17 @@ if __name__ == "__main__":
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:
                 sys.exit(1)
-            splash = _create_startup_splash(app)
-            _update_startup_splash(splash, "依赖检查完成，继续启动...")
+            splash = _take_startup_splash(app, "依赖检查完成，继续启动...")
         _update_startup_splash(splash, "初始化运行环境...")
         _update_startup_splash(splash, "加载主窗口...")
         win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
         _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
+        win.start_post_show_tasks()
         QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
         _schedule_torch_runtime_probe()
-        try:
-            if splash:
-                splash.finish(win)
-        except Exception:
-            pass
+        _finish_startup_splash(splash, win)
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
     else:
@@ -9786,8 +9928,7 @@ if __name__ == "__main__":
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
-        splash = _create_startup_splash(app)
-        _update_startup_splash(splash, "初始化界面...")
+        splash = _take_startup_splash(app, "初始化界面...")
         force_deps_check = '--force-deps-check' in sys.argv
         open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
         force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
@@ -9816,7 +9957,7 @@ if __name__ == "__main__":
         if not ok:
             sys.exit(1)
         if needs_interactive_deps_ui:
-            splash = _create_startup_splash(app)
+            splash = _take_startup_splash(app, "依赖检查完成，继续启动...")
         _update_startup_splash(splash, "依赖检查完成，继续启动...")
         try:
             from qfluentwidgets import setThemeColor
@@ -9830,13 +9971,10 @@ if __name__ == "__main__":
         print("[DEBUG] MainWindow 创建完成，准备显示窗口")
         _update_startup_splash(splash, "主窗口已加载，正在显示...")
         win.show()
+        win.start_post_show_tasks()
         QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
         _schedule_torch_runtime_probe()
-        try:
-            if splash:
-                splash.finish(win)
-        except Exception:
-            pass
+        _finish_startup_splash(splash, win)
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
 

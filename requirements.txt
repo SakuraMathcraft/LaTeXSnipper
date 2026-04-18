@@ -1,1 +1,5 @@
-﻿
+PyQt6==6.10.0
+PyQt6-Qt6==6.10.0
+PyQt6-WebEngine==6.10.0
+PyQt6-WebEngine-Qt6==6.10.0
+PyQt6-Fluent-Widgets==1.11.2
