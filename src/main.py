@@ -507,6 +507,21 @@ def _finish_startup_splash(splash, window=None):
         pass
 
 
+def _hide_startup_splash_for_modal():
+    """Hide the startup splash before showing dependency dialogs."""
+    splash = _STARTUP_SPLASH
+    if not splash:
+        return
+    try:
+        if splash.isVisible():
+            splash.hide()
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+    except Exception:
+        pass
+
+
 _ensure_startup_splash("配置 WebEngine 运行环境...")
 
 
@@ -2847,6 +2862,7 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
                 always_show_ui=False,
                 require_layers=("BASIC", "CORE"),
                 deps_dir=str(BASE_DIR),
+                before_show_ui=_hide_startup_splash_for_modal,
             )
             if _ok:
                 os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
@@ -2862,10 +2878,15 @@ def ensure_deps(*args, **kwargs):
         return True
     # 真需要时再按需引入并调用（通常用不到）
     import deps_bootstrap as _db
+    prompt_ui = bool(kwargs.get("prompt_ui", True))
+    if prompt_ui:
+        kwargs.setdefault("before_show_ui", _hide_startup_splash_for_modal)
     ok = _db.ensure_deps(*args, **kwargs)
     if ok:
         os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
     return ok
+
+
 def show_dependency_wizard(always_show_ui=False):
     # 默认不展示；仅在明确需要时才展示（always_show_ui=True）
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
@@ -2873,7 +2894,7 @@ def show_dependency_wizard(always_show_ui=False):
     try:
         import deps_bootstrap as _db
         # 依赖向导统一收口到 ensure_deps，一处负责校验与展示。
-        ok = _db.ensure_deps(always_show_ui=always_show_ui)
+        ok = _db.ensure_deps(always_show_ui=always_show_ui, before_show_ui=_hide_startup_splash_for_modal)
         if ok:
             os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
         return ok
@@ -9900,12 +9921,6 @@ if __name__ == "__main__":
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
             _update_startup_splash(splash, "检查依赖中...")
-            try:
-                if splash:
-                    splash.hide()
-                    app.processEvents()
-            except Exception:
-                pass
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:
                 sys.exit(1)
@@ -9940,13 +9955,6 @@ if __name__ == "__main__":
             or open_wizard_on_start
             or (not deps_ready_cached)
         )
-        if needs_interactive_deps_ui:
-            try:
-                if splash:
-                    splash.hide()
-                    app.processEvents()
-            except Exception:
-                pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
