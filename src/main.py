@@ -5125,6 +5125,7 @@ class MainWindow(_QMainWindow):
         self.model_status = "未加载"
         self.action_status = ""
         self._predict_busy = False
+        self.setAcceptDrops(True)
         self.overlay = None
         self.predict_thread = None
         self.predict_worker = None
@@ -5472,6 +5473,16 @@ class MainWindow(_QMainWindow):
         splitter.setCollapsible(1, False)
 
         container = QWidget()
+        for drop_target in (
+            left_panel,
+            right_panel,
+            splitter,
+            container,
+            self.latex_editor,
+            self.preview_view,
+            getattr(self, "preview_fallback_label", None),
+        ):
+            self._enable_file_drop_target(drop_target)
         main_layout = QVBoxLayout(container)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(splitter)
@@ -7495,6 +7506,98 @@ th {{
         """返回可读的图片扩展名列表（用于提示）。"""
         return [p.replace("*.", "").upper() for p in self._get_supported_image_patterns()]
 
+    def _get_supported_image_suffixes(self) -> set[str]:
+        return {p.replace("*", "").lower() for p in self._get_supported_image_patterns() if p.startswith("*.")}
+
+    def _local_drop_paths(self, event) -> list[Path]:
+        try:
+            mime = event.mimeData()
+            if mime is None or not mime.hasUrls():
+                return []
+            paths: list[Path] = []
+            for url in mime.urls():
+                if not url.isLocalFile():
+                    continue
+                path = Path(url.toLocalFile())
+                if path.is_file():
+                    paths.append(path)
+            return paths
+        except Exception:
+            return []
+
+    def _drop_file_kind(self, path: Path) -> str | None:
+        suffix = str(path.suffix or "").lower()
+        if suffix == ".pdf":
+            return "pdf"
+        if suffix in self._get_supported_image_suffixes():
+            return "image"
+        return None
+
+    def _drag_contains_local_file(self, event) -> bool:
+        return bool(self._local_drop_paths(event))
+
+    def _show_drop_file_warning(self, content: str) -> None:
+        try:
+            InfoBar.warning(
+                title="无法处理拖入文件",
+                content=content,
+                parent=self,
+                duration=3200,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            custom_warning_dialog("提示", content, self)
+
+    def _enable_file_drop_target(self, widget) -> None:
+        if widget is None:
+            return
+        try:
+            widget.setAcceptDrops(True)
+        except Exception:
+            pass
+        try:
+            widget.installEventFilter(self)
+        except Exception:
+            pass
+
+    def dragEnterEvent(self, event):
+        if self._drag_contains_local_file(event):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if self._drag_contains_local_file(event):
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        paths = self._local_drop_paths(event)
+        if len(paths) != 1:
+            if paths:
+                self._show_drop_file_warning("请一次只拖入一个图片或 PDF 文件。")
+                event.acceptProposedAction()
+            else:
+                img_exts = ", ".join(self._get_supported_image_extensions())
+                self._show_drop_file_warning(f"请拖入单个图片或 PDF 文件。支持图片格式：{img_exts}。")
+                event.ignore()
+            return
+
+        path = paths[0]
+        kind = self._drop_file_kind(path)
+        if not kind:
+            img_exts = ", ".join(self._get_supported_image_extensions())
+            self._show_drop_file_warning(f"请拖入单个图片或 PDF 文件。支持图片格式：{img_exts}。")
+            event.ignore()
+            return
+
+        event.acceptProposedAction()
+        if kind == "image":
+            self._recognize_image_file(path)
+        elif kind == "pdf":
+            self._recognize_pdf_file(path)
+
     def _show_recognition_busy_info(self, content: str = "正在识别，请稍候") -> None:
         try:
             InfoBar.info(
@@ -7743,9 +7846,6 @@ th {{
 
     def _upload_image_recognition(self):
         """上传图片并识别公式/文本。"""
-        if not self.model:
-            custom_warning_dialog("错误", "模型未初始化", self)
-            return
         patterns = self._get_supported_image_patterns()
         filter_ = f"图片文件 ({' '.join(patterns)})"
         file_path, _ = QFileDialog.getOpenFileName(
@@ -7756,8 +7856,26 @@ th {{
         )
         if not file_path:
             return
+        self._recognize_image_file(Path(file_path))
+
+    def _recognize_image_file(self, file_path: str | Path):
+        """Recognize a local image file selected by dialog or dropped onto the window."""
+        path = Path(file_path)
+        if not path.is_file():
+            custom_warning_dialog("错误", f"图片文件不存在: {path}", self)
+            return
+        if self._drop_file_kind(path) != "image":
+            img_exts = ", ".join(self._get_supported_image_extensions())
+            custom_warning_dialog("提示", f"不支持的图片格式。支持格式：{img_exts}", self)
+            return
+        if self.is_recognition_busy(source="main"):
+            self._show_recognition_busy_info()
+            return
+        if not self.model and self._get_preferred_model_for_predict() != "external_model":
+            custom_warning_dialog("错误", "模型未初始化", self)
+            return
         try:
-            img = Image.open(file_path)
+            img = Image.open(path)
             if img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
         except Exception as e:
@@ -7888,6 +8006,25 @@ th {{
 
     def _upload_pdf_recognition(self):
         """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 PDF 文件",
+            "",
+            "PDF 文件 (*.pdf);;所有文件 (*.*)"
+        )
+        if not file_path:
+            return
+        self._recognize_pdf_file(Path(file_path))
+
+    def _recognize_pdf_file(self, file_path: str | Path):
+        """Recognize a local PDF file selected by dialog or dropped onto the window."""
+        path = Path(file_path)
+        if not path.is_file():
+            custom_warning_dialog("错误", f"PDF 文件不存在: {path}", self)
+            return
+        if self._drop_file_kind(path) != "pdf":
+            custom_warning_dialog("提示", "请拖入或选择 PDF 文件。", self)
+            return
         if not self.model and self._get_preferred_model_for_predict() != "external_model":
             custom_warning_dialog("错误", "模型未初始化", self)
             return
@@ -7920,21 +8057,13 @@ th {{
                     return
             else:
                 return
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择 PDF 文件",
-            "",
-            "PDF 文件 (*.pdf);;所有文件 (*.*)"
-        )
-        if not file_path:
-            return
         try:
             import fitz  # PyMuPDF
         except Exception as e:
             custom_warning_dialog("错误", f"缺少 PyMuPDF 依赖: {e}\n请在依赖环境中安装 pymupdf。", self)
             return
         try:
-            doc = fitz.open(file_path)
+            doc = fitz.open(str(path))
             total_pages = doc.page_count
             doc.close()
         except Exception as e:
@@ -7993,14 +8122,14 @@ th {{
             config.prompt_template = "ocr_document_parse_v1" if doc_mode == "parse" else "ocr_document_page_v1"
             self.pdf_predict_worker = ExternalModelPdfWorker(
                 config,
-                file_path,
+                str(path),
                 pages,
                 fmt_key,
                 dpi,
                 doc_mode,
             )
         else:
-            self.pdf_predict_worker = PdfPredictWorker(self.model, file_path, pages, self.current_model, fmt_key, dpi)
+            self.pdf_predict_worker = PdfPredictWorker(self.model, str(path), pages, self.current_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         progress_text = "正在解析 PDF 文档结构（取消将在当前页结束后生效）..." if doc_mode == "parse" else "正在识别 PDF（取消将在当前页结束后生效）..."
@@ -8212,6 +8341,14 @@ th {{
         self.system_provider.activate_window(self.overlay)
 
     def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+            if self._drag_contains_local_file(event):
+                event.acceptProposedAction()
+                return True
+        if event.type() == QEvent.Type.Drop:
+            if self._local_drop_paths(event):
+                self.dropEvent(event)
+                return True
         if obj is getattr(self, "overlay", None) and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Escape:
                 try:
