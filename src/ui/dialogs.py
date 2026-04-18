@@ -51,7 +51,7 @@ class LogViewerDialog(QDialog):
         self.timer.setInterval(300)
         self.timer.timeout.connect(self._poll_file)
         self.timer.start()
-        self._poll_file(initial=True)
+        self._poll_file(_initial=True)
 
     def _ensure_file(self):
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -77,7 +77,7 @@ class LogViewerDialog(QDialog):
         except Exception:
             pass
 
-    def _poll_file(self, initial: bool = False):
+    def _poll_file(self, _initial: bool = False):
         try:
             with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
                 f.seek(self._pos)

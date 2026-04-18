@@ -18,10 +18,10 @@ except Exception:
                     pass
 
     class _SignalDescriptor:
-        def __set_name__(self, owner, name):
+        def __set_name__(self, _owner, name):
             self._name = f"__sig_{name}"
 
-        def __get__(self, instance, owner):
+        def __get__(self, instance, _owner):
             if instance is None:
                 return self
             sig = instance.__dict__.get(self._name)
@@ -99,6 +99,45 @@ def _extract_json(text: str) -> dict | None:
         return obj if isinstance(obj, dict) else None
     except Exception:
         return None
+
+
+def _pix2text_runtime_compat_code() -> str:
+    return textwrap.dedent(
+        r"""
+        def _patch_rapidocr_model_root_dir():
+            try:
+                from pathlib import Path
+                from rapidocr.inference_engine.onnxruntime import main as _rapidocr_ort_main
+            except Exception:
+                return
+            try:
+                _orig_init = _rapidocr_ort_main.OrtInferSession.__init__
+                if getattr(_orig_init, "_latexsnipper_model_root_dir_patch", False):
+                    return
+            except Exception:
+                return
+
+            def _patched_init(self, cfg):
+                try:
+                    if cfg.get("model_root_dir") is None:
+                        _model_path = cfg.get("model_path")
+                        if _model_path:
+                            cfg["model_root_dir"] = str(Path(_model_path).expanduser().resolve().parent)
+                except Exception:
+                    try:
+                        _model_path = cfg.get("model_path")
+                        if _model_path:
+                            cfg["model_root_dir"] = str(Path(_model_path).parent)
+                    except Exception:
+                        pass
+                return _orig_init(self, cfg)
+
+            _patched_init._latexsnipper_model_root_dir_patch = True
+            _rapidocr_ort_main.OrtInferSession.__init__ = _patched_init
+
+        _patch_rapidocr_model_root_dir()
+        """
+    ).strip()
 
 
 def classify_pix2text_failure(detail: str) -> dict[str, str]:
@@ -417,176 +456,184 @@ class ModelWrapper(QObject):
         except Exception:
             pass
     def _pix2text_worker_code(self) -> str:
-        return textwrap.dedent(
-            r"""
-            import json
-            import os
-            import sys
-            from PIL import Image
+        return (
+            textwrap.dedent(
+                r"""
+                import json
+                import os
+                import sys
+                from PIL import Image
 
-            def _bootstrap_shared_torch():
-                _shared_site = (
-                    os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
-                    or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
-                    or ""
-                ).strip()
-                if not (_shared_site and os.path.isdir(_shared_site)):
-                    return
-                _added = False
-                try:
-                    if _shared_site not in sys.path:
-                        sys.path.insert(0, _shared_site)
-                        _added = True
-                except Exception:
-                    pass
-                try:
-                    _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                    if os.path.isdir(_torch_lib):
-                        if hasattr(os, "add_dll_directory"):
-                            os.add_dll_directory(_torch_lib)
-                        os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                except Exception:
-                    pass
-                try:
+                def _bootstrap_shared_torch():
+                    _shared_site = (
+                        os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
+                        or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
+                        or ""
+                    ).strip()
+                    if not (_shared_site and os.path.isdir(_shared_site)):
+                        return
+                    _added = False
                     try:
-                        import torch  # noqa: F401
+                        if _shared_site not in sys.path:
+                            sys.path.insert(0, _shared_site)
+                            _added = True
                     except Exception:
                         pass
                     try:
-                        import torchvision  # noqa: F401
+                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
+                        if os.path.isdir(_torch_lib):
+                            if hasattr(os, "add_dll_directory"):
+                                os.add_dll_directory(_torch_lib)
+                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
                     except Exception:
                         pass
                     try:
-                        import torchaudio  # noqa: F401
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                finally:
-                    if _added:
                         try:
-                            sys.path.remove(_shared_site)
+                            import torch  # noqa: F401
                         except Exception:
                             pass
-
-            def _pick_device():
-                try:
-                    import torch
-                    torch_cuda = bool(torch.cuda.is_available())
-                except Exception:
-                    torch_cuda = False
-                try:
-                    import onnxruntime as ort
-                    ort_cuda = "CUDAExecutionProvider" in (ort.get_available_providers() or [])
-                except Exception:
-                    ort_cuda = False
-                return "cuda" if (torch_cuda and ort_cuda) else "cpu"
-
-            def _build_p2t(dev, enable_table=False):
-                from pix2text import Pix2Text
-                stable_cfg = {
-                    "layout": {"model_type": "DocYoloLayoutParser"},
-                    "text_formula": {
-                        "formula": {"model_name": "mfr", "model_backend": "onnx"}
-                    },
-                }
-                try:
-                    return Pix2Text.from_config(total_configs=stable_cfg, device=dev, enable_table=enable_table)
-                except Exception:
-                    try:
-                        return Pix2Text.from_config(device=dev, enable_table=enable_table)
+                        try:
+                            import torchvision  # noqa: F401
+                        except Exception:
+                            pass
+                        try:
+                            import torchaudio  # noqa: F401
+                        except Exception:
+                            pass
                     except Exception:
-                        return Pix2Text(device=dev, enable_table=enable_table)
+                        pass
+                    finally:
+                        if _added:
+                            try:
+                                sys.path.remove(_shared_site)
+                            except Exception:
+                                pass
 
-            def _as_text(obj):
-                if isinstance(obj, str):
-                    return obj.strip()
-                if isinstance(obj, dict):
-                    return str(obj.get("html") or obj.get("text") or obj)
-                if isinstance(obj, list):
-                    out = []
-                    for item in obj:
-                        if isinstance(item, dict):
-                            out.append(str(item.get("text", item)))
-                        else:
-                            out.append(str(item))
-                    return " ".join(x.strip() for x in out if str(x).strip())
-                return str(obj)
+                def _pick_device():
+                    try:
+                        import torch
+                        torch_cuda = bool(torch.cuda.is_available())
+                    except Exception:
+                        torch_cuda = False
+                    try:
+                        import onnxruntime as ort
+                        ort_cuda = "CUDAExecutionProvider" in (ort.get_available_providers() or [])
+                    except Exception:
+                        ort_cuda = False
+                    return "cuda" if (torch_cuda and ort_cuda) else "cpu"
 
-            def _run_mode(model_main, model_table, img, mode):
-                if mode == "formula":
+                def _build_p2t(dev, enable_table=False):
+                    from pix2text import Pix2Text
+                    stable_cfg = {
+                        "layout": {"model_type": "DocYoloLayoutParser"},
+                        "text_formula": {
+                            "formula": {"model_name": "mfr", "model_backend": "onnx"}
+                        },
+                    }
+                    try:
+                        return Pix2Text.from_config(total_configs=stable_cfg, device=dev, enable_table=enable_table)
+                    except Exception:
+                        try:
+                            return Pix2Text.from_config(device=dev, enable_table=enable_table)
+                        except Exception:
+                            return Pix2Text(device=dev, enable_table=enable_table)
+
+                def _as_text(obj):
+                    if isinstance(obj, str):
+                        return obj.strip()
+                    if isinstance(obj, dict):
+                        return str(obj.get("html") or obj.get("text") or obj)
+                    if isinstance(obj, list):
+                        out = []
+                        for item in obj:
+                            if isinstance(item, dict):
+                                out.append(str(item.get("text", item)))
+                            else:
+                                out.append(str(item))
+                        return " ".join(x.strip() for x in out if str(x).strip())
+                    return str(obj)
+
+                def _run_mode(model_main, model_table, img, mode):
+                    if mode == "formula":
+                        return _as_text(model_main.recognize_formula(img))
+                    if mode == "text":
+                        return _as_text(model_main.recognize_text(img))
+                    if mode == "mixed":
+                        return _as_text(model_main.recognize(img))
+                    if mode == "page":
+                        return _as_text(model_main.recognize_page(img))
+                    if mode == "table":
+                        m = model_table if model_table is not None else model_main
+                        table_ocr = getattr(m, "table_ocr", None)
+                        if callable(table_ocr):
+                            return _as_text(table_ocr(img))
+                        if hasattr(table_ocr, "recognize") and callable(table_ocr.recognize):
+                            return _as_text(table_ocr.recognize(img))
+                        if hasattr(table_ocr, "ocr") and callable(table_ocr.ocr):
+                            return _as_text(table_ocr.ocr(img))
+                        return _as_text(m.recognize(img))
                     return _as_text(model_main.recognize_formula(img))
-                if mode == "text":
-                    return _as_text(model_main.recognize_text(img))
-                if mode == "mixed":
-                    return _as_text(model_main.recognize(img))
-                if mode == "page":
-                    return _as_text(model_main.recognize_page(img))
-                if mode == "table":
-                    m = model_table if model_table is not None else model_main
-                    table_ocr = getattr(m, "table_ocr", None)
-                    if callable(table_ocr):
-                        return _as_text(table_ocr(img))
-                    if hasattr(table_ocr, "recognize") and callable(table_ocr.recognize):
-                        return _as_text(table_ocr.recognize(img))
-                    if hasattr(table_ocr, "ocr") and callable(table_ocr.ocr):
-                        return _as_text(table_ocr.ocr(img))
-                    return _as_text(m.recognize(img))
-                return _as_text(model_main.recognize_formula(img))
 
-            _bootstrap_shared_torch()
-
-            model = None
-            model_table = None
-            try:
-                import warnings
-                warnings.filterwarnings("ignore")
-                device = _pick_device()
-                model = _build_p2t(device, enable_table=False)
-                print(json.dumps({"ready": True, "ok": True, "device": device}), flush=True)
-            except Exception as e:
-                print(json.dumps({"ready": True, "ok": False, "error": str(e)}), flush=True)
-
-            for line in sys.stdin:
-                line = line.strip()
-                if not line:
-                    continue
-                if line == "__quit__":
-                    break
-
+                _bootstrap_shared_torch()
+                """
+            ).strip()
+            + "\n\n"
+            + _pix2text_runtime_compat_code()
+            + "\n\n"
+            + textwrap.dedent(
+                r"""
+                model = None
+                model_table = None
                 try:
-                    req = json.loads(line)
-                except Exception:
-                    req = {"image": line, "mode": "formula"}
-
-                if req.get("ping"):
-                    print(json.dumps({"ok": True, "ready": True}), flush=True)
-                    continue
-
-                img_path = req.get("image", "")
-                mode = req.get("mode", "formula")
-                if not img_path:
-                    print(json.dumps({"ok": False, "error": "image path missing"}), flush=True)
-                    continue
-                if model is None:
-                    print(json.dumps({"ok": False, "error": "pix2text not ready"}), flush=True)
-                    continue
-
-                try:
-                    img = Image.open(img_path)
+                    import warnings
+                    warnings.filterwarnings("ignore")
+                    device = _pick_device()
+                    model = _build_p2t(device, enable_table=False)
+                    print(json.dumps({"ready": True, "ok": True, "device": device}), flush=True)
                 except Exception as e:
-                    print(json.dumps({"ok": False, "error": f"open image failed: {e}"}), flush=True)
-                    continue
+                    print(json.dumps({"ready": True, "ok": False, "error": str(e)}), flush=True)
 
-                try:
-                    if mode == "table" and model_table is None:
-                        model_table = _build_p2t(_pick_device(), enable_table=True)
-                    result = _run_mode(model, model_table, img, mode)
-                    print(json.dumps({"ok": True, "result": result}), flush=True)
-                except Exception as e:
-                    print(json.dumps({"ok": False, "error": str(e)}), flush=True)
-            """
-        ).strip()
+                for line in sys.stdin:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line == "__quit__":
+                        break
+
+                    try:
+                        req = json.loads(line)
+                    except Exception:
+                        req = {"image": line, "mode": "formula"}
+
+                    if req.get("ping"):
+                        print(json.dumps({"ok": True, "ready": True}), flush=True)
+                        continue
+
+                    img_path = req.get("image", "")
+                    mode = req.get("mode", "formula")
+                    if not img_path:
+                        print(json.dumps({"ok": False, "error": "image path missing"}), flush=True)
+                        continue
+                    if model is None:
+                        print(json.dumps({"ok": False, "error": "pix2text not ready"}), flush=True)
+                        continue
+
+                    try:
+                        img = Image.open(img_path)
+                    except Exception as e:
+                        print(json.dumps({"ok": False, "error": f"open image failed: {e}"}), flush=True)
+                        continue
+
+                    try:
+                        if mode == "table" and model_table is None:
+                            model_table = _build_p2t(_pick_device(), enable_table=True)
+                        result = _run_mode(model, model_table, img, mode)
+                        print(json.dumps({"ok": True, "result": result}), flush=True)
+                    except Exception as e:
+                        print(json.dumps({"ok": False, "error": str(e)}), flush=True)
+                """
+            ).strip()
+        )
 
     def _ensure_pix2text_worker(self) -> bool:
         try:
@@ -655,139 +702,147 @@ class ModelWrapper(QObject):
 
         raise RuntimeError("pix2text worker no output")
     def _pix2text_oneshot_code(self) -> str:
-        return textwrap.dedent(
-            r"""
-            import json
-            import os
-            import sys
-            from PIL import Image
+        return (
+            textwrap.dedent(
+                r"""
+                import json
+                import os
+                import sys
+                from PIL import Image
 
-            def _bootstrap_shared_torch():
-                _shared_site = (
-                    os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
-                    or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
-                    or ""
-                ).strip()
-                if not (_shared_site and os.path.isdir(_shared_site)):
-                    return
-                _added = False
-                try:
-                    if _shared_site not in sys.path:
-                        sys.path.insert(0, _shared_site)
-                        _added = True
-                except Exception:
-                    pass
-                try:
-                    _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                    if os.path.isdir(_torch_lib):
-                        if hasattr(os, "add_dll_directory"):
-                            os.add_dll_directory(_torch_lib)
-                        os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                except Exception:
-                    pass
-                try:
+                def _bootstrap_shared_torch():
+                    _shared_site = (
+                        os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
+                        or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
+                        or ""
+                    ).strip()
+                    if not (_shared_site and os.path.isdir(_shared_site)):
+                        return
+                    _added = False
                     try:
-                        import torch  # noqa: F401
+                        if _shared_site not in sys.path:
+                            sys.path.insert(0, _shared_site)
+                            _added = True
                     except Exception:
                         pass
                     try:
-                        import torchvision  # noqa: F401
+                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
+                        if os.path.isdir(_torch_lib):
+                            if hasattr(os, "add_dll_directory"):
+                                os.add_dll_directory(_torch_lib)
+                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
                     except Exception:
                         pass
                     try:
-                        import torchaudio  # noqa: F401
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                finally:
-                    if _added:
                         try:
-                            sys.path.remove(_shared_site)
+                            import torch  # noqa: F401
                         except Exception:
                             pass
-
-            def _pick_device():
-                try:
-                    import torch
-                    torch_cuda = bool(torch.cuda.is_available())
-                except Exception:
-                    torch_cuda = False
-                try:
-                    import onnxruntime as ort
-                    ort_cuda = "CUDAExecutionProvider" in (ort.get_available_providers() or [])
-                except Exception:
-                    ort_cuda = False
-                return "cuda" if (torch_cuda and ort_cuda) else "cpu"
-
-            def _build_p2t(dev, enable_table=False):
-                from pix2text import Pix2Text
-                stable_cfg = {
-                    "layout": {"model_type": "DocYoloLayoutParser"},
-                    "text_formula": {
-                        "formula": {"model_name": "mfr", "model_backend": "onnx"}
-                    },
-                }
-                try:
-                    return Pix2Text.from_config(total_configs=stable_cfg, device=dev, enable_table=enable_table)
-                except Exception:
-                    try:
-                        return Pix2Text.from_config(device=dev, enable_table=enable_table)
+                        try:
+                            import torchvision  # noqa: F401
+                        except Exception:
+                            pass
+                        try:
+                            import torchaudio  # noqa: F401
+                        except Exception:
+                            pass
                     except Exception:
-                        return Pix2Text(device=dev, enable_table=enable_table)
+                        pass
+                    finally:
+                        if _added:
+                            try:
+                                sys.path.remove(_shared_site)
+                            except Exception:
+                                pass
 
-            def _as_text(obj):
-                if isinstance(obj, str):
-                    return obj.strip()
-                if isinstance(obj, dict):
-                    return str(obj.get("html") or obj.get("text") or obj)
-                if isinstance(obj, list):
-                    out = []
-                    for item in obj:
-                        if isinstance(item, dict):
-                            out.append(str(item.get("text", item)))
-                        else:
-                            out.append(str(item))
-                    return " ".join(x.strip() for x in out if str(x).strip())
-                return str(obj)
+                def _pick_device():
+                    try:
+                        import torch
+                        torch_cuda = bool(torch.cuda.is_available())
+                    except Exception:
+                        torch_cuda = False
+                    try:
+                        import onnxruntime as ort
+                        ort_cuda = "CUDAExecutionProvider" in (ort.get_available_providers() or [])
+                    except Exception:
+                        ort_cuda = False
+                    return "cuda" if (torch_cuda and ort_cuda) else "cpu"
 
-            _bootstrap_shared_torch()
+                def _build_p2t(dev, enable_table=False):
+                    from pix2text import Pix2Text
+                    stable_cfg = {
+                        "layout": {"model_type": "DocYoloLayoutParser"},
+                        "text_formula": {
+                            "formula": {"model_name": "mfr", "model_backend": "onnx"}
+                        },
+                    }
+                    try:
+                        return Pix2Text.from_config(total_configs=stable_cfg, device=dev, enable_table=enable_table)
+                    except Exception:
+                        try:
+                            return Pix2Text.from_config(device=dev, enable_table=enable_table)
+                        except Exception:
+                            return Pix2Text(device=dev, enable_table=enable_table)
 
-            img_path = sys.argv[1]
-            mode = sys.argv[2] if len(sys.argv) > 2 else "formula"
-            try:
-                import warnings
-                warnings.filterwarnings("ignore")
-                dev = _pick_device()
-                p2t = _build_p2t(dev, enable_table=(mode == "table"))
-                img = Image.open(img_path)
+                def _as_text(obj):
+                    if isinstance(obj, str):
+                        return obj.strip()
+                    if isinstance(obj, dict):
+                        return str(obj.get("html") or obj.get("text") or obj)
+                    if isinstance(obj, list):
+                        out = []
+                        for item in obj:
+                            if isinstance(item, dict):
+                                out.append(str(item.get("text", item)))
+                            else:
+                                out.append(str(item))
+                        return " ".join(x.strip() for x in out if str(x).strip())
+                    return str(obj)
 
-                if mode == "formula":
-                    result = p2t.recognize_formula(img)
-                elif mode == "text":
-                    result = p2t.recognize_text(img)
-                elif mode == "mixed":
-                    result = p2t.recognize(img)
-                elif mode == "page":
-                    result = p2t.recognize_page(img)
-                elif mode == "table":
-                    table_ocr = getattr(p2t, "table_ocr", None)
-                    if callable(table_ocr):
-                        result = table_ocr(img)
-                    elif hasattr(table_ocr, "recognize") and callable(table_ocr.recognize):
-                        result = table_ocr.recognize(img)
-                    elif hasattr(table_ocr, "ocr") and callable(table_ocr.ocr):
-                        result = table_ocr.ocr(img)
-                    else:
+                _bootstrap_shared_torch()
+                """
+            ).strip()
+            + "\n\n"
+            + _pix2text_runtime_compat_code()
+            + "\n\n"
+            + textwrap.dedent(
+                r"""
+                img_path = sys.argv[1]
+                mode = sys.argv[2] if len(sys.argv) > 2 else "formula"
+                try:
+                    import warnings
+                    warnings.filterwarnings("ignore")
+                    dev = _pick_device()
+                    p2t = _build_p2t(dev, enable_table=(mode == "table"))
+                    img = Image.open(img_path)
+
+                    if mode == "formula":
+                        result = p2t.recognize_formula(img)
+                    elif mode == "text":
+                        result = p2t.recognize_text(img)
+                    elif mode == "mixed":
                         result = p2t.recognize(img)
-                else:
-                    result = p2t.recognize_formula(img)
+                    elif mode == "page":
+                        result = p2t.recognize_page(img)
+                    elif mode == "table":
+                        table_ocr = getattr(p2t, "table_ocr", None)
+                        if callable(table_ocr):
+                            result = table_ocr(img)
+                        elif hasattr(table_ocr, "recognize") and callable(table_ocr.recognize):
+                            result = table_ocr.recognize(img)
+                        elif hasattr(table_ocr, "ocr") and callable(table_ocr.ocr):
+                            result = table_ocr.ocr(img)
+                        else:
+                            result = p2t.recognize(img)
+                    else:
+                        result = p2t.recognize_formula(img)
 
-                print(json.dumps({"ok": True, "result": _as_text(result)}))
-            except Exception as e:
-                print(json.dumps({"ok": False, "error": str(e)}))
-            """
-        ).strip()
+                    print(json.dumps({"ok": True, "result": _as_text(result)}))
+                except Exception as e:
+                    print(json.dumps({"ok": False, "error": str(e)}))
+                """
+            ).strip()
+        )
 
     def _run_pix2text_subprocess(self, pil_img: Image.Image, mode: str = "formula") -> str:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -983,73 +1038,91 @@ class ModelWrapper(QObject):
             pass
 
         deps_python = get_pix2text_python()
-        probe_code = textwrap.dedent(
-            r"""
-            import json, os, sys
-            from importlib import metadata as _md
-            def _bootstrap_shared_torch():
-                _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
-                if not (_shared_site and os.path.isdir(_shared_site)):
-                    return
-                _added = False
+        probe_code = (
+            textwrap.dedent(
+                r"""
+                import json, os, sys
+                from importlib import metadata as _md
+                def _bootstrap_shared_torch():
+                    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
+                    if not (_shared_site and os.path.isdir(_shared_site)):
+                        return
+                    _added = False
+                    try:
+                        if _shared_site not in sys.path:
+                            sys.path.insert(0, _shared_site)
+                            _added = True
+                    except Exception:
+                        pass
+                    try:
+                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
+                        if os.path.isdir(_torch_lib):
+                            if hasattr(os, "add_dll_directory"):
+                                os.add_dll_directory(_torch_lib)
+                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
+                    except Exception:
+                        pass
+                    try:
+                        import torch, torchvision  # noqa: F401
+                    except Exception:
+                        pass
+                    finally:
+                        if _added:
+                            try:
+                                sys.path.remove(_shared_site)
+                            except Exception:
+                                pass
+                _bootstrap_shared_torch()
+                """
+            ).strip()
+            + "\n\n"
+            + _pix2text_runtime_compat_code()
+            + "\n\n"
+            + textwrap.dedent(
+                r"""
                 try:
-                    if _shared_site not in sys.path:
-                        sys.path.insert(0, _shared_site)
-                        _added = True
-                except Exception:
-                    pass
-                try:
-                    _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                    if os.path.isdir(_torch_lib):
-                        if hasattr(os, "add_dll_directory"):
-                            os.add_dll_directory(_torch_lib)
-                        os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                except Exception:
-                    pass
-                try:
-                    import torch, torchvision  # noqa: F401
-                except Exception:
-                    pass
-                finally:
-                    if _added:
-                        try:
-                            sys.path.remove(_shared_site)
-                        except Exception:
-                            pass
-            _bootstrap_shared_torch()
-            try:
+                    import pix2text
+                    from pix2text import Pix2Text
+                    try:
+                        ver = _md.version("pix2text")
+                    except Exception:
+                        ver = str(getattr(pix2text, "__version__", ""))
+                    stable_cfg = {"layout": {"model_type": "DocYoloLayoutParser"}, "text_formula": {"formula": {"model_name": "mfr", "model_backend": "onnx"}}}
+                    Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
+                    print(json.dumps({"ok": True, "ver": ver}))
+                except Exception as e:
+                    print(json.dumps({"ok": False, "error": str(e)}))
+                """
+            ).strip()
+        )
+
+        bootstrap_code = (
+            textwrap.dedent(
+                r"""
+                import json
+                from importlib import metadata as _md
+                """
+            ).strip()
+            + "\n\n"
+            + _pix2text_runtime_compat_code()
+            + "\n\n"
+            + textwrap.dedent(
+                r"""
                 import pix2text
                 from pix2text import Pix2Text
-                try:
-                    ver = _md.version("pix2text")
-                except Exception:
-                    ver = str(getattr(pix2text, "__version__", ""))
                 stable_cfg = {"layout": {"model_type": "DocYoloLayoutParser"}, "text_formula": {"formula": {"model_name": "mfr", "model_backend": "onnx"}}}
-                Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
-                print(json.dumps({"ok": True, "ver": ver}))
-            except Exception as e:
-                print(json.dumps({"ok": False, "error": str(e)}))
-            """
-        ).strip()
-
-        bootstrap_code = textwrap.dedent(
-            r"""
-            import json
-            from importlib import metadata as _md
-            import pix2text
-            from pix2text import Pix2Text
-            stable_cfg = {"layout": {"model_type": "DocYoloLayoutParser"}, "text_formula": {"formula": {"model_name": "mfr", "model_backend": "onnx"}}}
-            try:
                 try:
-                    _md.version("pix2text")
-                except Exception:
-                    str(getattr(pix2text, "__version__", ""))
-                Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
-                print(json.dumps({"ok": True}))
-            except Exception as e:
-                print(json.dumps({"ok": False, "error": str(e)}))
-            """
-        ).strip()
+                    try:
+                        _md.version("pix2text")
+                    except Exception:
+                        str(getattr(pix2text, "__version__", ""))
+                    Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
+                    print(json.dumps({"ok": True}))
+                except Exception as e:
+                    print(json.dumps({"ok": False, "error": str(e)}))
+                """
+            ).strip()
+        )
 
         try:
             ok, _, fail_detail = self._probe_and_bootstrap_pix2text(

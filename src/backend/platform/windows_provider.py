@@ -87,6 +87,15 @@ class WindowsSystemProvider:
         if not tray:
             return
         tray_menu = QMenu()
+        tray_menu.setObjectName("latexsnipperTrayMenu")
+        tray_menu.setStyleSheet(
+            "QMenu#latexsnipperTrayMenu{padding:4px;}"
+            "QMenu#latexsnipperTrayMenu::item{padding:4px 18px 4px 8px;}"
+            "QMenu#latexsnipperTrayMenu::item:selected{background-color:rgba(127,127,127,48);border-radius:4px;}"
+            "QMenu#latexsnipperTrayMenu::item:pressed{background-color:rgba(127,127,127,64);border-radius:4px;}"
+            "QMenu#latexsnipperTrayMenu::icon{width:0px;height:0px;margin:0px;padding:0px;}"
+            "QMenu#latexsnipperTrayMenu::indicator{width:0px;height:0px;margin:0px;padding:0px;}"
+        )
         tray_menu.addAction("打开主窗口", handlers.on_open)
         tray_menu.addAction(f"截图识别（{hotkey}）", handlers.on_capture)
         if callable(handlers.build_capture_submenu):
