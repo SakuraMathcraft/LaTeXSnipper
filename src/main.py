@@ -346,6 +346,7 @@ atexit.register(_release_single_instance_lock)
 
 # --------- Startup Splash ---------
 _STARTUP_SPLASH = None
+_FORCE_ENTER_STARTUP_MESSAGE = "正在强制进入主程序，跳过依赖安装..."
 
 
 class _StartupDialog(QWidget):
@@ -470,6 +471,13 @@ def _ensure_startup_splash(message: str = ""):
         return None
     if _STARTUP_SPLASH is None:
         _STARTUP_SPLASH = _create_startup_splash(app)
+    else:
+        try:
+            if not _STARTUP_SPLASH.isVisible():
+                _STARTUP_SPLASH.show()
+                app.processEvents()
+        except Exception:
+            pass
     _update_startup_splash(_STARTUP_SPLASH, message)
     return _STARTUP_SPLASH
 
@@ -520,6 +528,39 @@ def _hide_startup_splash_for_modal():
                 app.processEvents()
     except Exception:
         pass
+
+
+def _deps_force_entered(db_module=None) -> bool:
+    try:
+        db = db_module
+        if db is None:
+            import deps_bootstrap as db
+        checker = getattr(db, "was_last_ensure_deps_force_enter", None)
+        return bool(checker()) if callable(checker) else False
+    except Exception:
+        return False
+
+
+def _mark_startup_force_entered():
+    os.environ["LATEXSNIPPER_FORCE_ENTERED"] = "1"
+    app = QApplication.instance()
+    if app is not None:
+        return _take_startup_splash(app, _FORCE_ENTER_STARTUP_MESSAGE)
+    return _ensure_startup_splash(_FORCE_ENTER_STARTUP_MESSAGE)
+
+
+def _startup_force_enter_pending() -> bool:
+    return os.environ.get("LATEXSNIPPER_FORCE_ENTERED") == "1"
+
+
+def _startup_status_message(default: str) -> str:
+    return _FORCE_ENTER_STARTUP_MESSAGE if _startup_force_enter_pending() else default
+
+
+def _startup_deps_resume_message() -> str:
+    if os.environ.pop("LATEXSNIPPER_FORCE_ENTERED", "0") == "1":
+        return _FORCE_ENTER_STARTUP_MESSAGE
+    return "依赖检查完成，继续启动..."
 
 
 _ensure_startup_splash("配置 WebEngine 运行环境...")
@@ -905,6 +946,7 @@ def init_app_logging() -> Path:
     多次调用会复用已存在的处理器。
     """
     global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
+    _ensure_startup_splash(_startup_status_message("初始化日志..."))
     log_dir = Path(_app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "app.log"
@@ -1002,6 +1044,7 @@ def init_app_logging() -> Path:
         setattr(root, "_latexsnipper_session_logged", True)
     
     # 初始化 LaTeX 设置
+    _ensure_startup_splash(_startup_status_message("初始化 LaTeX 设置..."))
     try:
         config_dir = Path.home() / ".latexsnipper"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -2863,9 +2906,12 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
                 require_layers=("BASIC", "CORE"),
                 deps_dir=str(BASE_DIR),
                 before_show_ui=_hide_startup_splash_for_modal,
+                after_force_enter=_mark_startup_force_entered,
             )
             if _ok:
                 os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+                if _deps_force_entered(_db):
+                    _mark_startup_force_entered()
         except Exception as e:
             print(f"[WARN] deps wizard failed: {e}")
 
@@ -2881,9 +2927,12 @@ def ensure_deps(*args, **kwargs):
     prompt_ui = bool(kwargs.get("prompt_ui", True))
     if prompt_ui:
         kwargs.setdefault("before_show_ui", _hide_startup_splash_for_modal)
+        kwargs.setdefault("after_force_enter", _mark_startup_force_entered)
     ok = _db.ensure_deps(*args, **kwargs)
     if ok:
         os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+        if _deps_force_entered(_db):
+            _mark_startup_force_entered()
     return ok
 
 
@@ -2894,9 +2943,15 @@ def show_dependency_wizard(always_show_ui=False):
     try:
         import deps_bootstrap as _db
         # 依赖向导统一收口到 ensure_deps，一处负责校验与展示。
-        ok = _db.ensure_deps(always_show_ui=always_show_ui, before_show_ui=_hide_startup_splash_for_modal)
+        ok = _db.ensure_deps(
+            always_show_ui=always_show_ui,
+            before_show_ui=_hide_startup_splash_for_modal,
+            after_force_enter=_mark_startup_force_entered,
+        )
         if ok:
             os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+            if _deps_force_entered(_db):
+                _mark_startup_force_entered()
         return ok
     except Exception as e:
         print(f"[WARN] 依赖向导不可用: {e}")
@@ -4930,12 +4985,26 @@ class PdfResultWindow(_QMainWindow):
             pass
         return result
 
+    def _show_local_status(self, msg: str):
+        InfoBar.success(
+            title="提示",
+            content=msg,
+            parent=self,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=2500,
+        )
+
     def _emit_status(self, msg: str):
         try:
             if callable(self._status_cb):
-                self._status_cb(msg)
+                try:
+                    self._status_cb(msg, parent=self)
+                    return
+                except TypeError:
+                    pass
+            self._show_local_status(msg)
         except Exception:
-            pass
+            self._show_local_status(msg)
 
     def _do_copy(self):
         try:
@@ -10076,7 +10145,9 @@ for var in ("PYTHONHOME", "PYTHONPATH"):
         os.environ.pop(var)
 
 # 2) 先初始化日志，再打开 GUI 日志窗口，避免打包版 runtime-console.log 双写
+_ensure_startup_splash(_startup_status_message("初始化日志..."))
 init_app_logging()
+_ensure_startup_splash(_startup_status_message("检查日志窗口设置..."))
 open_debug_console(force=False, tee=True)
 
 
@@ -10140,7 +10211,7 @@ if __name__ == "__main__":
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
-        splash = _take_startup_splash(app, "初始化界面...")
+        splash = _take_startup_splash(app, _startup_status_message("初始化界面..."))
         # 3) UI 主题（可选）
         try:
             from qfluentwidgets import setThemeColor
@@ -10150,11 +10221,13 @@ if __name__ == "__main__":
             pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
-            _update_startup_splash(splash, "检查依赖中...")
+            _update_startup_splash(splash, _startup_status_message("检查依赖中..."))
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:
                 sys.exit(1)
-            splash = _take_startup_splash(app, "依赖检查完成，继续启动...")
+            splash = _take_startup_splash(app, _startup_deps_resume_message())
+        if _startup_force_enter_pending():
+            splash = _take_startup_splash(app, _startup_deps_resume_message())
         _update_startup_splash(splash, "初始化运行环境...")
         _update_startup_splash(splash, "加载主窗口...")
         win = MainWindow(startup_progress=lambda m: _update_startup_splash(splash, m))
@@ -10173,11 +10246,12 @@ if __name__ == "__main__":
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
-        splash = _take_startup_splash(app, "初始化界面...")
+        splash = _take_startup_splash(app, _startup_status_message("初始化界面..."))
         force_deps_check = '--force-deps-check' in sys.argv
         open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
         force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
-        _update_startup_splash(splash, "检查依赖中...")
+        deps_check_message = _startup_status_message("检查依赖中...")
+        _update_startup_splash(splash, deps_check_message)
         deps_ready_cached = (os.environ.get("LATEXSNIPPER_DEPS_OK") == "1")
         needs_interactive_deps_ui = bool(
             force_deps_check
@@ -10194,9 +10268,10 @@ if __name__ == "__main__":
             ok = ensure_deps(prompt_ui=True, always_show_ui=False, from_settings=False)
         if not ok:
             sys.exit(1)
-        if needs_interactive_deps_ui:
-            splash = _take_startup_splash(app, "依赖检查完成，继续启动...")
-        _update_startup_splash(splash, "依赖检查完成，继续启动...")
+        resume_message = _startup_deps_resume_message()
+        if needs_interactive_deps_ui or resume_message.startswith("正在强制进入"):
+            splash = _take_startup_splash(app, resume_message)
+        _update_startup_splash(splash, resume_message)
         try:
             from qfluentwidgets import setThemeColor
             apply_theme_mode(read_theme_mode_from_config())
