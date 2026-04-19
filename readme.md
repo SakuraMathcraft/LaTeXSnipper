@@ -124,7 +124,7 @@ For heavy expressions, the engine uses automatic fallback:
 ### Option 1: Download the executable
 
 1. Visit the [Releases page](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. Download the latest `LaTeXSnipper_setup_v2.3.2.exe`
+2. Download the latest `LaTeXSnipper Final Stable.exe`
 3. Run the installer
 4. Complete environment setup via the dependency wizard on first launch
 5. Start capturing, handwriting, or using the math workbench
