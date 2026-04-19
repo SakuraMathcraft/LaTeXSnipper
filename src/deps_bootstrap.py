@@ -5,6 +5,13 @@ import sys
 from pathlib import Path
 from utils import resource_path
 
+_LAST_ENSURE_DEPS_FORCE_ENTER = False
+
+
+def was_last_ensure_deps_force_enter():
+    return _LAST_ENSURE_DEPS_FORCE_ENTER
+
+
 try:
     from PyQt6.QtCore import QThread, pyqtSignal
     from PyQt6.QtCore import QTimer
@@ -3128,7 +3135,10 @@ def _silent_install_python311(installer: Path, target_dir: Path, timeout: int = 
 
 # --------------- 主入口 ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
-                deps_dir=None, from_settings=False, force_verify=False, before_show_ui=None):
+                deps_dir=None, from_settings=False, force_verify=False, before_show_ui=None,
+                after_force_enter=None):
+    global _LAST_ENSURE_DEPS_FORCE_ENTER
+    _LAST_ENSURE_DEPS_FORCE_ENTER = False
     from PyQt6.QtWidgets import QApplication, QFileDialog
     app = QApplication.instance()
     if app is None:
@@ -3142,6 +3152,18 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             before_show_ui()
         except Exception as e:
             print(f"[WARN] before_show_ui callback failed: {e}")
+
+    def _notify_after_force_enter():
+        if not callable(after_force_enter):
+            return
+        try:
+            after_force_enter()
+            try:
+                app.processEvents()
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[WARN] after_force_enter callback failed: {e}")
 
     # 2) 先读配置，再决定是否弹目录选择框
     cfg_path = _load_config_path()
@@ -3165,6 +3187,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     from PyQt6.QtWidgets import QMessageBox, QDialog
     need_install = False
     if force_enter:
+        _LAST_ENSURE_DEPS_FORCE_ENTER = True
+        _notify_after_force_enter()
         try:
             custom_warning_dialog("警告", "缺失依赖，程序将强制进入，部分功能可能不可用。")
         except Exception:
@@ -3349,6 +3373,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     )
                     print("[WARN] 设置入口下禁止强制进入，返回依赖向导。")
                     continue
+                _LAST_ENSURE_DEPS_FORCE_ENTER = True
+                _notify_after_force_enter()
                 print("[INFO] 用户选择强制进入，跳过依赖安装")
                 return True
             if chosen["layers"]:
