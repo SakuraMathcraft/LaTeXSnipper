@@ -530,6 +530,42 @@ def _hide_startup_splash_for_modal():
         pass
 
 
+def _suspend_startup_splash():
+    """Temporarily hide the startup splash and return restore state."""
+    splash = _STARTUP_SPLASH
+    if not splash:
+        return None
+    try:
+        was_visible = bool(splash.isVisible())
+    except Exception:
+        was_visible = False
+    if not was_visible:
+        return None
+    state = {
+        "message": str(getattr(splash, "_lsn_status", "") or ""),
+    }
+    try:
+        splash.hide()
+        app = QApplication.instance()
+        if app is not None:
+            app.processEvents()
+    except Exception:
+        return None
+    return state
+
+
+def _restore_startup_splash(state):
+    """Restore the startup splash after a temporary modal dialog."""
+    if not state:
+        return
+    try:
+        app = QApplication.instance()
+        if app is not None:
+            _take_startup_splash(app, str(state.get("message", "") or ""))
+    except Exception:
+        pass
+
+
 def _deps_force_entered(db_module=None) -> bool:
     try:
         db = db_module
@@ -1090,19 +1126,20 @@ def _read_deps_dir_from_config() -> Path | None:
 def open_deps_terminal(parent=None):
     """
     在依赖目录打开 cmd.exe，并预置:
-    - PATH: <deps>/python311 优先
+    - PATH: 依赖目录内的可用 Python 优先
     """
     deps_dir = _read_deps_dir_from_config()
     if not deps_dir or not deps_dir.exists():
         QMessageBox.warning(parent, "未找到依赖目录", "请先通过依赖向导选择或安装依赖目录。")
         return
 
-    py_dir = deps_dir / "python311"
+    pyexe = _find_install_base_python(deps_dir)
+    py_dir = pyexe.parent if pyexe is not None else None
 
     # 组装环境
     env = os.environ.copy()
-    # 无论打包模式还是开发模式，都允许注入 python311 路径到 PATH
-    if py_dir.exists():
+    # 无论打包模式还是开发模式，都允许注入依赖目录内的 Python 路径到 PATH
+    if py_dir is not None and py_dir.exists():
         env["PATH"] = f"{py_dir};{env.get('PATH','')}"
 
     # 进入目录并打开 cmd，显示简短提示
@@ -1680,21 +1717,82 @@ def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
         text = str(path).lower()
     return ("_internal" in text) and text.endswith("\\deps")
 
+
+def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
+    """Return likely python.exe candidates inside a selected dependency base directory."""
+    base_dir = Path(base_dir)
+    candidates = [
+        base_dir / "python.exe",
+        base_dir / "Scripts" / "python.exe",
+        base_dir / "python311" / "python.exe",
+        base_dir / "python311" / "Scripts" / "python.exe",
+        base_dir / "Python311" / "python.exe",
+        base_dir / "Python311" / "Scripts" / "python.exe",
+        base_dir / "python_full" / "python.exe",
+        base_dir / "venv" / "Scripts" / "python.exe",
+        base_dir / ".venv" / "Scripts" / "python.exe",
+    ]
+    try:
+        for child in base_dir.iterdir():
+            if not child.is_dir():
+                continue
+            name = child.name.lower()
+            if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
+                candidates.extend([
+                    child / "python.exe",
+                    child / "Scripts" / "python.exe",
+                ])
+    except Exception:
+        pass
+
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve()).lower()
+        except Exception:
+            key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(candidate)
+    return ordered
+
+
+def _find_install_base_python(base_dir: Path) -> Path | None:
+    """Reuse any existing python.exe inside the dependency directory."""
+    for candidate in _iter_install_base_python_candidates(base_dir):
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
 def _current_dev_install_base_dir() -> Path | None:
     if _is_packaged_mode():
         return None
     try:
         exe_path = Path(sys.executable).resolve()
-        if exe_path.parent.name.lower() == "python311" and exe_path.parent.parent.name.lower() == "deps":
-            base = exe_path.parent.parent
-            if base.exists():
-                return base
+        exe_name = exe_path.name.lower()
+        parent_name = exe_path.parent.name.lower()
+        if exe_name == "python.exe":
+            if parent_name == "deps":
+                base = exe_path.parent
+                if base.exists():
+                    return base
+            if exe_path.parent.parent.name.lower() == "deps" and (
+                parent_name.startswith("python") or parent_name in {"venv", ".venv", "python_full", "scripts"}
+            ):
+                base = exe_path.parent.parent
+                if base.exists():
+                    return base
     except Exception:
         pass
     try:
         base = (APP_DIR / "deps").resolve()
-        pyexe = base / "python311" / "python.exe"
-        if pyexe.exists() and _same_exe(str(pyexe), sys.executable):
+        pyexe = _find_install_base_python(base)
+        if pyexe is not None and _same_exe(str(pyexe), sys.executable):
             return base
     except Exception:
         pass
@@ -1717,7 +1815,7 @@ def _read_install_base_dir() -> Path | None:
 def _get_bundled_deps_dir_for_packaged() -> Path | None:
     """
     打包模式首启时自动探测内置依赖目录:
-    期望目录结构: <_internal>/deps/python311/python.exe
+    期望目录结构: <_internal>/deps/<python*>/python.exe
     """
     if not _is_packaged_mode():
         return None
@@ -1745,8 +1843,8 @@ def _get_bundled_deps_dir_for_packaged() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
-        pyexe = base / "python311" / "python.exe"
-        if pyexe.exists():
+        pyexe = _find_install_base_python(base)
+        if pyexe is not None and pyexe.exists():
             return base
     return None
 
@@ -1798,9 +1896,9 @@ def resolve_install_base_dir() -> Path:
     
     流程：
     1. 检查配置文件中的 install_base_dir
-    2. 打包模式首启时，若存在内置 `_internal/deps/python311`，自动采用并写入配置
+    2. 打包模式首启时，若存在内置 `_internal/deps` 且其中已带可用 Python，自动采用并写入配置
     3. 若仍为空，弹出目录选择对话框
-    4. 检查选定目录是否已有 python311/
+    4. 检查选定目录是否已有可复用 Python
        - 有：使用该目录，保存配置，返回
        - 无：弹出确认框"确认要部署到此处吗？"
            - 确认：执行安装器（交互式），成功后保存配置，返回
@@ -1840,16 +1938,16 @@ def resolve_install_base_dir() -> Path:
             sys.exit(7)
     
     py311_dir = p / "python311"
-    py_exe = py311_dir / "python.exe"
+    py_exe = _find_install_base_python(p)
     
     # 第3步：检查 Python 是否已存在
-    if py_exe.exists():
-        print(f"[OK] ✓ Python 3.11 已在: {py_exe}")
+    if py_exe is not None and py_exe.exists():
+        print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
         return p
     
     # 第4步：python311 不存在，需要安装
-    print(f"[INFO] 检测到依赖未安装，位置: {py311_dir}")
+    print(f"[INFO] 选定目录未检测到可复用 Python，将初始化: {py311_dir}")
     
     # 弹出确认框
     try:
@@ -1861,13 +1959,14 @@ def resolve_install_base_dir() -> Path:
         font = QFont("Microsoft YaHei UI", 9)
         font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         app.setFont(font)
+        splash_state = _suspend_startup_splash()
         
         msg_box = QMessageBox()
         msg_box.setWindowTitle("LaTeXSnipper - 部署确认")
-        msg_box.setText("检测到 Python 3.11 环境未部署")
+        msg_box.setText("检测到目录内没有可复用的 Python 环境")
         msg_box.setInformativeText(
             f"确认要部署到以下位置吗？\n\n{p}\n\n"
-            f"部署将需要几分钟时间，请保持网络连接。"
+            f"将使用本地安装器初始化 `python311`，部署将需要几分钟时间。"
         )
         msg_box.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
         msg_box.setDefaultButton(QMessageBox.StandardButton.Ok)
@@ -1879,8 +1978,11 @@ def resolve_install_base_dir() -> Path:
                 msg_box.setWindowIcon(QIcon(str(icon_path)))
         except Exception:
             pass
-        
-        result = msg_box.exec()
+
+        try:
+            result = msg_box.exec()
+        finally:
+            _restore_startup_splash(splash_state)
         
         if result != QMessageBox.StandardButton.Ok:
             print("[INFO] 用户取消了部署，清空配置并退出。")
@@ -2695,34 +2797,27 @@ def _has_ensurepip_venv(pyexe: str) -> bool:
         return False
 
 def _find_full_python(base_dir: Path) -> str | None:
-    """强制优先 base_dir/python311；不使用环境变量候选。"""
-    if getattr(sys, "frozen", False):
-        # 打包模式下只认 _internal/python311，不查找其它路径
-        pyexe = base_dir / "python311" / "python.exe"
-        installer = base_dir / "python-3.11.0-amd64.exe"
-        if pyexe.exists() and _has_ensurepip_venv(str(pyexe)):
-            return str(pyexe)
-        # 自动静默安装
-        if installer.exists():
-            if _run_python_installer(installer, base_dir / "python311"):
-                pyexe = base_dir / "python311" / "python.exe"
-                if pyexe.exists() and _has_ensurepip_venv(str(pyexe)):
-                    return str(pyexe)
-        return None
-    # 开发模式：保留原有多路径查找
-    candidates: list[Path] = [
-        base_dir / "python311" / "python.exe",
-        base_dir / "python311" / "Scripts" / "python.exe",
-        base_dir / "Python311" / "python.exe",
-        base_dir / "Python311" / "Scripts" / "python.exe",
-        base_dir / "python_full" / "python.exe",
-    ]
-    for c in candidates:
+    """优先复用安装目录内已有 Python；仅在确实缺失时再安装 python311。"""
+    candidate = _find_install_base_python(base_dir)
+    if candidate is not None:
         try:
-            if c and c.exists() and _has_ensurepip_venv(str(c)):
-                return str(c)
+            if candidate.exists() and _has_ensurepip_venv(str(candidate)):
+                return str(candidate)
         except Exception:
             pass
+        try:
+            if candidate.exists():
+                return str(candidate)
+        except Exception:
+            pass
+    if getattr(sys, "frozen", False):
+        installer = base_dir / "python-3.11.0-amd64.exe"
+        if installer.exists():
+            if _run_python_installer(installer, base_dir / "python311"):
+                candidate = _find_install_base_python(base_dir)
+                if candidate is not None and candidate.exists():
+                    return str(candidate)
+        return None
     for name in ("python3.11.exe", "python.exe", "python3.exe"):
         which = _norm_path(shutil.which(name))
         if which and os.path.exists(which) and _has_ensurepip_venv(which):
@@ -2753,13 +2848,13 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         if py:
             # 打包模式下区分 Python 来源，避免把外部私有环境误标为“内置”。
             py_norm = os.path.normcase(os.path.abspath(py))
-            bundled_norm = os.path.normcase(os.path.abspath(str(base_dir / "python311")))
+            bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
-                print(f"[INFO] (打包模式) 使用内置 Python: {py}")
+                print(f"[INFO] (打包模式) 使用依赖目录内 Python: {py}")
             else:
                 print(f"[INFO] (打包模式) 使用外部私有 Python: {py}")
             return py
-        print("[ERROR] (打包模式) 缺失 _internal/python311，且未找到安装器，无法启动。")
+        print("[ERROR] (打包模式) 依赖目录内未检测到可用 Python，且未找到安装器，无法启动。")
         sys.exit(10)
     # 开发模式：保留原有多路径查找和安装逻辑
     py = _find_full_python(base_dir)
@@ -2804,8 +2899,8 @@ INSTALL_BASE_DIR = resolve_install_base_dir()
 
 # 3) 打包模式下：检查是否需要重定向到私有解释器
 if _is_packaged_mode():
-    py311_dir = INSTALL_BASE_DIR / "python311"
-    py_exe = py311_dir / "python.exe"
+    py_exe_path = _find_install_base_python(INSTALL_BASE_DIR)
+    py_exe = py_exe_path if py_exe_path is not None else (INSTALL_BASE_DIR / "python311" / "python.exe")
 
     if py_exe.exists():
         if os.environ.get("LATEXSNIPPER_FORCE_PRIVATE_PY") == "1":

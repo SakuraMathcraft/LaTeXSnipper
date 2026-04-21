@@ -184,6 +184,14 @@ def classify_pix2text_failure(detail: str) -> dict[str, str]:
             "torch 模块缺失，pix2text 无法初始化运行时。",
         )
 
+    if "no module named" in lower and "cv2" in lower:
+        return _pack(
+            "OPENCV_MISSING",
+            "缺少 opencv-python",
+            "未安装 opencv-python 依赖，请在依赖向导中修复 CORE 层。",
+            "cv2 模块缺失，pix2text/rapidocr 的图像预处理依赖不完整。",
+        )
+
     if "onnxruntime_pybind11_state" in lower and ("拒绝访问" in raw or "access is denied" in lower):
         return _pack(
             "ORT_ACCESS_DENIED",
