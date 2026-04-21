@@ -2901,8 +2901,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         import os
         d = QFileDialog.getExistingDirectory(dlg, "选择依赖安装/加载目录", deps_dir)
         if d:
-            path_edit.setText(d)
-            state_file = os.path.join(d, ".deps_state.json")
+            normalized = str(_normalize_deps_base_dir(Path(d)))
+            path_edit.setText(normalized)
+            state_file = os.path.join(normalized, ".deps_state.json")
             installed_layers["layers"] = []
             if os.path.exists(state_file):
                 try:
@@ -2913,7 +2914,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 except Exception:
                     pass
             env_info.setText(
-                f"当前依赖环境：{d}\n已安装层：{', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
+                f"当前依赖环境：{normalized}\n已安装层：{', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
             )
             for layer, cb in checks.items():
                 if layer in installed_layers["layers"]:
@@ -3445,7 +3446,42 @@ def _find_existing_python(base_dir: Path) -> Path | None:
     return None
 
 
-def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900) -> bool:
+def _normalize_deps_base_dir(selected_dir: Path) -> Path:
+    """
+    Normalize the dependency base directory chosen by the user.
+
+    The wizard manages a base directory that may contain a nested `python311`.
+    If the user directly picks an empty leaf directory named like `python311`,
+    treat its parent as the real base directory to avoid creating `python311/python311`.
+    """
+    path = Path(selected_dir)
+    try:
+        name = path.name.lower()
+    except Exception:
+        return path
+
+    looks_like_python_leaf = (
+        name in {"venv", ".venv", "python_full"}
+        or name.startswith("python")
+    )
+    if not looks_like_python_leaf:
+        return path
+
+    existing_py = _find_existing_python(path)
+    if existing_py is not None:
+        return path
+
+    parent = path.parent
+    try:
+        if parent and str(parent) != str(path):
+            return parent
+    except Exception:
+        pass
+    return path
+
+
+def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900,
+                                   before_launch=None) -> bool:
     """
     Launch the local Python installer and wait for it to finish.
     The installer UI is shown to the user; no network download is attempted here.
@@ -3456,10 +3492,33 @@ def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: i
     print(f"[INFO] 正在启动本地 Python 安装器: {installer}")
     print(f"[INFO] 期望安装目录: {target_dir}")
     try:
+        if callable(before_launch):
+            try:
+                before_launch()
+            except Exception as e:
+                print(f"[WARN] installer pre-launch callback failed: {e}")
+        try:
+            from PyQt6.QtWidgets import QApplication as _QApplication
+            app = _QApplication.instance()
+        except Exception:
+            app = None
         proc = subprocess.Popen([str(installer)])
-        ret = proc.wait(timeout=timeout)
+        deadline = time.monotonic() + timeout
+        ret = None
+        while True:
+            ret = proc.poll()
+            if ret is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired([str(installer)], timeout)
+            if app is not None:
+                try:
+                    app.processEvents()
+                except Exception:
+                    pass
+            time.sleep(0.2)
         print(f"[INFO] Python 安装器已退出（返回码: {ret}）")
-        time.sleep(2)
+        time.sleep(1)
     except subprocess.TimeoutExpired:
         print(f"[WARN] Python 安装器超时（{timeout} 秒）")
         try:
@@ -3519,10 +3578,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if not chosen:
             # 用户取消，安全返回，避免后续对 None/省略号做路径拼接
             return False
-        deps_dir = chosen
+        deps_dir = str(_normalize_deps_base_dir(Path(chosen)))
         _write_config_install_dir(cfg_path, deps_dir)
 
-    deps_path = Path(deps_dir)
+    deps_path = _normalize_deps_base_dir(Path(deps_dir))
+    deps_dir = str(deps_path)
     deps_path.mkdir(parents=True, exist_ok=True)
 
     # 重复的目录选择与保存逻辑移除（前面已处理）
@@ -3606,7 +3666,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         return False
                     print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
                     _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root)
+                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
                     if not ok or not pyexe.exists():
                         _notify_before_show_ui()
                         _exec_close_only_message_box(
@@ -3843,7 +3903,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         continue
 
                     _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root)
+                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
                     if not ok or not os.path.exists(str(pyexe)):
                         _notify_before_show_ui()
                         _exec_close_only_message_box(
@@ -3879,8 +3939,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     pkgs.extend(LAYER_MAP[layer])
 
                 # 核心层需要 torch：若未显式选择 heavy 层，则按环境自动补层
-                # - 检测到可用 CUDA：补 HEAVY_GPU
-                # - 否则：补 HEAVY_CPU
                 if "CORE" in chosen_layers and "HEAVY_CPU" not in chosen_layers and "HEAVY_GPU" not in chosen_layers:
                     auto_heavy = "HEAVY_CPU"
                     try:
