@@ -566,6 +566,29 @@ def _restore_startup_splash(state):
         pass
 
 
+def _dismiss_startup_splash():
+    """Close and forget the startup splash before handing control to an external installer."""
+    global _STARTUP_SPLASH
+    splash = _STARTUP_SPLASH
+    _STARTUP_SPLASH = None
+    if not splash:
+        return
+    try:
+        splash.hide()
+    except Exception:
+        pass
+    try:
+        splash.close()
+    except Exception:
+        pass
+    try:
+        app = QApplication.instance()
+        if app is not None:
+            app.processEvents()
+    except Exception:
+        pass
+
+
 def _deps_force_entered(db_module=None) -> bool:
     try:
         db = db_module
@@ -1769,6 +1792,41 @@ def _find_install_base_python(base_dir: Path) -> Path | None:
             continue
     return None
 
+
+def _normalize_install_base_dir(selected_dir: Path) -> Path:
+    """
+    Normalize the dependency base directory.
+
+    The chosen path should be the base directory that contains a nested
+    `python311`, not the leaf `python311` directory itself. If the user or a
+    previous partial initialization points at an empty leaf like `.../python311`,
+    fold it back to the parent to avoid `python311/python311`.
+    """
+    path = Path(selected_dir)
+    try:
+        name = path.name.lower()
+    except Exception:
+        return path
+
+    looks_like_python_leaf = (
+        name in {"venv", ".venv", "python_full"}
+        or name.startswith("python")
+    )
+    if not looks_like_python_leaf:
+        return path
+
+    existing_py = _find_install_base_python(path)
+    if existing_py is not None:
+        return path
+
+    parent = path.parent
+    try:
+        if parent and str(parent) != str(path):
+            return parent
+    except Exception:
+        pass
+    return path
+
 def _current_dev_install_base_dir() -> Path | None:
     if _is_packaged_mode():
         return None
@@ -1803,7 +1861,7 @@ def _read_install_base_dir() -> Path | None:
     if cfg.exists():
         try:
             data = json.loads(cfg.read_text("utf-8"))
-            p = Path(data.get("install_base_dir", "")).expanduser()
+            p = _normalize_install_base_dir(Path(data.get("install_base_dir", "")).expanduser())
             if p and p.exists():
                 if (not _is_packaged_mode()) and _looks_like_packaged_deps_dir(p):
                     return None
@@ -1865,7 +1923,7 @@ def _select_install_base_dir() -> Path:
         app.setFont(font)
         d = QFileDialog.getExistingDirectory(None, "请选择依赖安装目录", os.path.expanduser("~"))
         if d:
-            p = Path(d)
+            p = _normalize_install_base_dir(Path(d))
             p.mkdir(parents=True, exist_ok=True)
             return p
         else:
@@ -1880,6 +1938,7 @@ def _select_install_base_dir() -> Path:
 def _save_install_base_dir(p: Path) -> None:
     """保存依赖目录到配置文件。"""
     try:
+        p = _normalize_install_base_dir(p)
         cfg = {}
         c = _config_path()
         if c.exists():
@@ -1936,6 +1995,7 @@ def resolve_install_base_dir() -> Path:
             print("[ERROR] 用户取消了目录选择，退出。")
             time.sleep(2)
             sys.exit(7)
+    p = _normalize_install_base_dir(p)
     
     py311_dir = p / "python311"
     py_exe = _find_install_base_python(p)
@@ -2102,12 +2162,30 @@ def resolve_install_base_dir() -> Path:
     print(f"[INFO] 安装目标: {py311_dir}")
     
     try:
-        # 交互式运行安装器
+        _dismiss_startup_splash()
+        try:
+            from PyQt6.QtWidgets import QApplication as _QApplication
+            app = _QApplication.instance()
+        except Exception:
+            app = None
+        # 交互式运行安装器；轮询等待并持续让 Qt 处理事件，避免“卡死”观感
         proc = subprocess.Popen([str(installer_exe)])
-        ret = proc.wait(timeout=900)  # 等待最多15分钟
+        deadline = time.monotonic() + 900
+        ret = None
+        while True:
+            ret = proc.poll()
+            if ret is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired([str(installer_exe)], 900)
+            if app is not None:
+                try:
+                    app.processEvents()
+                except Exception:
+                    pass
+            time.sleep(0.2)
         print(f"[INFO] 安装器进程结束（返回码: {ret}）")
-        # 给系统时间完成文件操作
-        time.sleep(2)
+        time.sleep(1)
     except subprocess.TimeoutExpired:
         print(f"[ERROR] 安装器超时（15分钟）")
         proc.kill()

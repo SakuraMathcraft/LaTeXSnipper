@@ -135,6 +135,7 @@ def _prune_bundled_python_site_packages(dist_root: Path):
     keep_names = {
         "_distutils_hack",
         "distutils-precedence.pth",
+        "packaging",
         "pip",
         "pkg_resources",
         "README.txt",
@@ -142,6 +143,7 @@ def _prune_bundled_python_site_packages(dist_root: Path):
         "wheel",
     }
     keep_prefixes = (
+        "packaging-",
         "pip-",
         "setuptools-",
         "wheel-",
