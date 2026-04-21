@@ -117,6 +117,11 @@ except Exception:
         def __init__(self, *_args, **_kwargs):
             pass
 
+try:
+    import psutil
+except Exception:
+    psutil = None
+
 subprocess_lock = threading.Lock()
 
 # 需要监控的模块列表（如果这些模块已加载，pip 安装可能会因文件占用失败）
@@ -192,6 +197,8 @@ BASE_DIR = get_base_dir()
 class InstallWorker(QThread):
     log_updated = pyqtSignal(str)
     progress_updated = pyqtSignal(int)
+    status_updated = pyqtSignal(str)
+    busy_state_changed = pyqtSignal(bool)
     done = pyqtSignal(bool)  # True=全部成功
 
     def __init__(self, pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path, chosen_layers, log_q,
@@ -215,6 +222,10 @@ class InstallWorker(QThread):
     def _emit_done_safe(self, ok: bool):
         if not self._done_emitted:
             self._done_emitted = True
+            try:
+                self.busy_state_changed.emit(False)
+            except RuntimeError:
+                pass
             try:
                 self.done.emit(ok)
             except RuntimeError:
@@ -450,7 +461,7 @@ class InstallWorker(QThread):
             fail_count = 0
             failed_pkgs = []  # 记录失败的包
             
-            for _, pkg in enumerate(pending, start=1):
+            for idx, pkg in enumerate(pending, start=1):
                 while not self.pause_event.is_set():
                     if self.stop_event.is_set():
                         self.log_updated.emit("[CANCEL] 用户取消安装。")
@@ -473,6 +484,9 @@ class InstallWorker(QThread):
                         torch_url = TORCH_CPU_INDEX_URL
 
                 try:
+                    pkg_label = re.split(r'[<>=!~ ]', pkg, 1)[0].strip()
+                    self.status_updated.emit(f"正在安装第 {idx}/{total} 个包：{pkg_label}")
+                    self.busy_state_changed.emit(True)
                     ok = _pip_install(
                         self.pyexe, pkg, self.stop_event, self.log_q,
                         use_mirror=self.mirror, flags=flags, pause_event=self.pause_event,
@@ -483,6 +497,11 @@ class InstallWorker(QThread):
                     ok = False
                     tb = traceback.format_exc()
                     self.log_updated.emit(f"[FATAL] 安装 {pkg} 时发生异常: {e}\n{tb}")
+                finally:
+                    try:
+                        self.busy_state_changed.emit(False)
+                    except RuntimeError:
+                        pass
                 done_count += 1
                 percent = int(done_count / total * 100)
                 self.progress_updated.emit(percent)
@@ -549,15 +568,37 @@ class InstallWorker(QThread):
                     runtime_stack_err = stack_err_after_fix
                     self.log_updated.emit(f"[WARN] 关键版本修复后 torch 栈仍异常: {stack_err_after_fix[:400]}")
 
-            all_ok = (fail_count == 0) and runtime_stack_ok
+            runtime_ort_ok = True
+            runtime_ort_err = ""
+            if want_gpu_torch:
+                runtime_ort_ok, runtime_ort_err = _repair_gpu_onnxruntime_runtime(
+                    self.pyexe,
+                    resolved_onnx_gpu_spec,
+                    self.stop_event,
+                    self.pause_event,
+                    self.log_q,
+                    use_mirror=self.mirror,
+                    force_reinstall=self.force_reinstall,
+                    no_cache=self.no_cache,
+                    proc_setter=lambda p: setattr(self, "proc", p),
+                )
+                if runtime_ort_ok:
+                    self.log_updated.emit("[OK] onnxruntime-gpu runtime check passed ✅")
+                else:
+                    self.log_updated.emit(f"[WARN] onnxruntime-gpu runtime still invalid: {runtime_ort_err[:400]}")
+
+            all_ok = (fail_count == 0) and runtime_stack_ok and runtime_ort_ok
             
             if all_ok:
                 self.log_updated.emit("[OK] 所有依赖安装成功 ✅")
-            elif fail_count == 0 and not runtime_stack_ok:
+            elif fail_count == 0 and (not runtime_stack_ok or not runtime_ort_ok):
                 self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但运行时验证失败 ❌")
                 self.log_updated.emit("[WARN] 失败类型：torch/torchvision 二进制加载异常")
                 if runtime_stack_err:
                     self.log_updated.emit(f"[DIAG] {runtime_stack_err[:600]}")
+                if runtime_ort_err:
+                    self.log_updated.emit("[WARN] failure type: onnxruntime-gpu runtime conflict")
+                    self.log_updated.emit(f"[DIAG] {runtime_ort_err[:600]}")
                 self.log_updated.emit("")
                 self.log_updated.emit("💡 建议操作:")
                 self.log_updated.emit("  1. 在依赖向导中仅选择 HEAVY_CPU 或 HEAVY_GPU 之一重装")
@@ -814,7 +855,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
             if cur and _version_satisfies_spec(pkg, cur, spec):
                 continue
             # 使用 --no-deps 避免触发依赖解析
-            cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall"]
+            cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall", *PIP_INSTALL_SUPPRESS_ARGS]
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             timeout_sec = 180
@@ -1122,6 +1163,69 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
         return False, str(e)
 
 
+def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict | None = None,
+                                  log_fn=None, timeout: int = 120) -> bool:
+    pkg_key = str(pkg_name or "").strip().lower()
+    if not pkg_key:
+        return False
+    current = installed_map if installed_map is not None else _current_installed(pyexe)
+    if pkg_key not in current:
+        return False
+    try:
+        subprocess.run(
+            [str(pyexe), "-m", "pip", "uninstall", pkg_key, "-y"],
+            timeout=timeout,
+            check=False,
+            creationflags=flags
+        )
+        current.pop(pkg_key, None)
+        if log_fn:
+            log_fn(f"[OK] 已卸载冲突的 {pkg_key} ✅")
+        return True
+    except Exception as e:
+        if log_fn:
+            log_fn(f"[WARN] 卸载 {pkg_key} 失败（继续后续修复）: {e}")
+        return False
+
+
+def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, pause_event, log_q,
+                                    use_mirror: bool = False, force_reinstall: bool = False,
+                                    no_cache: bool = False, proc_setter=None) -> tuple[bool, str]:
+    installed_now = _current_installed(pyexe)
+    if "onnxruntime" in installed_now:
+        log_q.put("[INFO] 检测到 onnxruntime（CPU）被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
+        log_q.put("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在！")
+        _uninstall_package_if_present(
+            pyexe,
+            "onnxruntime",
+            installed_map=installed_now,
+            log_fn=log_q.put,
+        )
+
+    ort_ok, ort_err = _verify_onnxruntime_runtime(pyexe, expect_gpu=True, timeout=45)
+    if ort_ok:
+        return True, ""
+
+    log_q.put(f"[WARN] onnxruntime-gpu 运行时异常，准备重装: {ort_err}")
+    repaired = _pip_install(
+        pyexe,
+        ort_gpu_spec,
+        stop_event,
+        log_q,
+        use_mirror=use_mirror,
+        flags=flags,
+        pause_event=pause_event,
+        force_reinstall=True,
+        no_cache=no_cache,
+        proc_setter=proc_setter,
+    )
+    if not repaired:
+        return False, ort_err
+
+    ort_ok2, ort_err2 = _verify_onnxruntime_runtime(pyexe, expect_gpu=True, timeout=45)
+    return ort_ok2, (ort_err2 or ort_err)
+
+
 def _verify_torch_metadata_runtime(pyexe: str, timeout: int = 20) -> tuple[bool, str]:
     """
     验证 torch 元数据与运行时是否一致可用。
@@ -1228,12 +1332,12 @@ def _repair_torch_stack(
 LAYER_MAP = {
     "BASIC": [
         "lxml~=4.9.3",
-        "pillow~=11.0.0", "pyperclip~=1.11.0", "packaging~=26.0",
+        "pillow~=11.0.0", "pyperclip~=1.11.0",
         "requests~=2.32.5",
-        "numpy~=1.26.4", "filelock~=3.13.1",
+        "filelock~=3.13.1",
         "argostranslate~=1.9.6",
         "pydantic~=2.9.2", "regex~=2026.4.4",
-        "safetensors~=0.6.2", "sentencepiece~=0.1.99",
+        "safetensors~=0.6.2", "sentencepiece==0.2.0",
         "certifi~=2026.2.25", "idna~=3.6", "urllib3~=2.5.0",
         "psutil~=7.1.0",
         "typing_extensions>=4.12.2",
@@ -1243,6 +1347,7 @@ LAYER_MAP = {
         "transformers==4.55.4",
         "tokenizers==0.21.4",
         "optimum-onnx>=0.0.3",
+        "opencv-python==4.13.0.92",
         "rapidocr==3.5.0",
         "cnstd==1.2.6.1",
         "cnocr==2.3.2.2",
@@ -1439,7 +1544,7 @@ def _ensure_pip(main_python: Path) -> bool:
     subprocess.check_call([str(main_python), str(gp_path)], timeout=180, creationflags=flags)
 
     # 升级三件套
-    cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir"]
+    cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=flags)
     ok = res.returncode == 0
     if ok:
@@ -1822,12 +1927,16 @@ _pat_local_tilde = re.compile(r'^([A-Za-z0-9_\-]+)~=(\d+(?:\.\d+)+)\+([A-Za-z0-9
 
 import os, time, traceback
 pip_ready_event = threading.Event()
+PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 
 def _diagnose_install_failure(output: str, returncode: int) -> str:
     """
     分析 pip 安装失败的输出，诊断具体原因
     """
     output_lower = output.lower()
+
+    if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
+        return "🧩 antlr4-python3-runtime 构建环境缺少 wheel - 可先补齐 pip/setuptools/wheel 并关闭 build isolation"
     
     # 1. 文件/进程占用（最常见的权限问题）
     if any(x in output_lower for x in [
@@ -1919,6 +2028,123 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     else:
         return f"❓ 未知错误 (code={returncode}) - 请查看上方日志获取详情"
 
+
+def _run_logged_pip_command(pyexe, pip_args, stop_event, log_q, flags=0, use_mirror=False, proc_setter=None, timeout=1200):
+    import subprocess
+    from pathlib import Path
+
+    proc = None
+    output_lines = []
+    env = os.environ.copy()
+    main_site = Path(pyexe).parent / "Lib" / "site-packages"
+    if main_site.exists():
+        env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
+    env["PYTHONUNBUFFERED"] = "1"
+
+    args = [str(pyexe), "-m", "pip", *pip_args]
+    if use_mirror:
+        args += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
+    else:
+        args += ["-i", "https://pypi.org/simple"]
+
+    log_q.put(f"[CMD] {' '.join(args)}")
+    try:
+        with subprocess_lock:
+            proc = safe_run(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                encoding="utf-8",
+                env=env,
+                creationflags=flags,
+            )
+        if proc_setter is not None:
+            try:
+                proc_setter(proc)
+            except Exception:
+                pass
+
+        for line in proc.stdout:
+            if stop_event.is_set():
+                log_q.put("[CANCEL] 用户取消安装，正在终止当前 pip 进程...")
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                return False, "\n".join(output_lines)
+            line = line.rstrip()
+            log_q.put(line)
+            output_lines.append(line)
+        proc.communicate(timeout=timeout)
+        return proc.returncode == 0, "\n".join(output_lines)
+    except subprocess.TimeoutExpired:
+        log_q.put("[WARN] pip fallback 命令执行超时")
+        try:
+            if proc is not None:
+                proc.kill()
+        except Exception:
+            pass
+        return False, "\n".join(output_lines)
+    except Exception as e:
+        log_q.put(f"[WARN] pip fallback 命令异常: {e}")
+        return False, "\n".join(output_lines)
+    finally:
+        if proc_setter is not None:
+            try:
+                proc_setter(None)
+            except Exception:
+                pass
+
+
+def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_q, use_mirror=False, flags=0, proc_setter=None) -> bool:
+    lower = str(output or "").lower()
+    pkg_lower = re.split(r'[<>=!~ ]', str(pkg or ""), 1)[0].strip().lower()
+    if pkg_lower not in {"rapidocr", "omegaconf", "antlr4-python3-runtime"}:
+        return False
+    if "antlr4-python3-runtime" not in lower:
+        return False
+    if "bdist_wheel" not in lower and "metadata-generation-failed" not in lower:
+        return False
+
+    log_q.put("[INFO] 检测到 antlr4-python3-runtime 构建失败，尝试自动修复打包工具链...")
+
+    ok_tools, _ = _run_logged_pip_command(
+        pyexe,
+        ["install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS],
+        stop_event,
+        log_q,
+        flags=flags,
+        use_mirror=use_mirror,
+        proc_setter=proc_setter,
+        timeout=900,
+    )
+    if not ok_tools:
+        log_q.put("[WARN] 自动补齐 pip/setuptools/wheel 失败，无法继续 antlr fallback。")
+        return False
+
+    ok_antlr, _ = _run_logged_pip_command(
+        pyexe,
+        ["install", "antlr4-python3-runtime==4.9.3", "--no-build-isolation", *PIP_INSTALL_SUPPRESS_ARGS],
+        stop_event,
+        log_q,
+        flags=flags,
+        use_mirror=use_mirror,
+        proc_setter=proc_setter,
+        timeout=900,
+    )
+    if not ok_antlr:
+        log_q.put("[WARN] 预装 antlr4-python3-runtime==4.9.3 失败，antlr fallback 未生效。")
+        return False
+
+    log_q.put("[OK] antlr4-python3-runtime fallback 已完成，准备重试当前包。")
+    return True
+
 #  扩展 _pip_install：为 torch 系列包支持专用 index-url（按检测 CUDA 自动选择），并支持 pause_event
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch_url=None, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
@@ -1933,6 +2159,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
     max_retries = 2
     retry = 0
     proc = None
+    antlr_fallback_applied = False
 
     def _root_name(spec: str) -> str:
         return re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
@@ -1971,7 +2198,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
         try:
             args = [
                 str(pyexe), "-m", "pip", "install",
-                pkg, "--upgrade"
+                pkg, "--upgrade", *PIP_INSTALL_SUPPRESS_ARGS
             ]
             # 安装策略优化：
             # 1. Qt 家族：禁止强制重装，避免卸载已加载的 DLL
@@ -2093,6 +2320,22 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                 
                 log_q.put(f"[WARN] {pkg} 安装失败 (returncode={proc.returncode})")
                 log_q.put(f"[DIAG] 可能原因: {failure_reason}")
+
+                if not antlr_fallback_applied:
+                    antlr_fallback_applied = _maybe_recover_antlr_wheel_failure(
+                        pyexe,
+                        pkg,
+                        full_output,
+                        stop_event,
+                        log_q,
+                        use_mirror=use_mirror,
+                        flags=flags,
+                        proc_setter=proc_setter,
+                    )
+                    if antlr_fallback_applied:
+                        log_q.put("[INFO] 已应用 antlr/wheel fallback，立即重试当前包...")
+                        time.sleep(1)
+                        continue
                 
                 retry += 1
                 if retry <= max_retries:
@@ -2155,7 +2398,8 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
     return False
 
 # --------------- UI ---------------
-def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path, from_settings=False, force_verify=False):
+def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
+                     from_settings=False, force_verify=False, skip_runtime_verify_once=False):
     import sys
     # 使用外部传入的 installed_layers；不覆盖
     from PyQt6.QtGui import QColor, QPalette
@@ -2299,9 +2543,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     failed_layers = []
     verified_layers = []
     verified_in_ui = False
-    skip_verify = (not from_settings and not force_verify and "BASIC" in claimed_layers and "CORE" in claimed_layers)
+    skip_verify = bool(skip_runtime_verify_once) or (
+        not from_settings and not force_verify and "BASIC" in claimed_layers and "CORE" in claimed_layers
+    )
     if skip_verify:
         installed_layers["layers"] = claimed_layers
+        verified_in_ui = bool(skip_runtime_verify_once)
     else:
         verified_layers = []
         failed_layers = []
@@ -2337,6 +2584,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             installed_layers["layers"] = claimed_layers
     # ====== 验证结束 ======
 
+    py_ready = bool(pyexe and os.path.exists(str(pyexe)))
+
     # 判断是否缺少关键层（BASIC 或 CORE）
     missing_layers = []
     if "BASIC" not in installed_layers["layers"]:
@@ -2348,7 +2597,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # 新增：显示当前依赖环境和已安装层（根据状态显示不同信息）
     # 如果有验证失败的层，显示警告
-    if failed_layer_names:
+    if not py_ready:
+        status_text = (
+            f"当前依赖环境：{deps_dir}\n"
+            "⚠️ 该目录尚未检测到可复用的 Python 环境。\n"
+            "如需在此目录安装依赖，请先点击【下载】并按提示初始化。"
+        )
+        status_color = theme["hint"]
+    elif failed_layer_names:
         status_text = f"当前依赖环境：{deps_dir}\n⚠️ 以下功能层安装但无法使用: {', '.join(failed_layer_names)}\n可用功能层: {', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
         status_color = theme["warn"]
     elif installed_layers["layers"]:
@@ -2371,7 +2627,80 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     failed_layer_names = list(dict.fromkeys(failed_layer_names))
 
     checks = {}
+
+    def _effective_default_select() -> set[str]:
+        defaults = {str(x) for x in (default_select or [])}
+        active_heavy = {
+            str(x) for x in (installed_layers.get("layers", []) or [])
+            if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
+        }
+        active_heavy.update(
+            str(x) for x in (failed_layer_names or [])
+            if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
+        )
+        if active_heavy:
+            defaults.discard("HEAVY_CPU")
+            defaults.discard("HEAVY_GPU")
+        return defaults
+
+    def make_del_func(layer_name):
+        def _del():
+            reply = _exec_close_only_message_box(
+                dlg,
+                "删除确认",
+                f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n确认后将打开卸载进度窗口，并在当前程序内执行卸载。",
+                icon=QMessageBox.Icon.Warning,
+                buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                default_button=QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                pkgs = [p for p in LAYER_MAP.get(layer_name, []) if not p.startswith('__stdlib__')]
+                pkg_names = []
+                for pkg in pkgs:
+                    pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0].strip()
+                    if pkg_name and pkg_name not in pkg_names:
+                        pkg_names.append(pkg_name)
+                pdlg, info2, logw2, btn_cancel2, btn_pause2, progress2 = _progress_dialog()
+                pdlg.setWindowTitle("卸载进度")
+                info2.setText(f"正在卸载层 {layer_name}，请不要关闭此窗口...")
+                btn_pause2.hide()
+                btn_cancel2.setText("关闭")
+                btn_cancel2.setEnabled(False)
+
+                worker = UninstallLayerWorker(str(pyexe), state_file, layer_name, pkg_names)
+                worker.log_updated.connect(logw2.append)
+                worker.progress_updated.connect(progress2.setValue)
+
+                def _on_done(success: bool, removed_layer: str):
+                    btn_cancel2.setEnabled(True)
+                    btn_cancel2.setText("完成")
+                    try:
+                        btn_cancel2.clicked.disconnect()
+                    except Exception:
+                        pass
+                    btn_cancel2.clicked.connect(lambda: pdlg.accept())
+                    if success:
+                        info2.setText(f"层 {removed_layer} 已卸载完成。点击完成返回依赖向导。")
+                        try:
+                            if removed_layer in installed_layers["layers"]:
+                                installed_layers["layers"].remove(removed_layer)
+                        except Exception:
+                            pass
+                        try:
+                            dlg.refresh_ui()
+                        except Exception:
+                            pass
+                    else:
+                        info2.setText(f"层 {removed_layer} 卸载过程中存在问题，请查看日志。")
+                    progress2.setValue(100)
+
+                worker.done.connect(_on_done)
+                worker.start()
+                pdlg.exec()
+        return _del
+
     # 遍历所有功能层
+    effective_default_select = _effective_default_select()
     for layer in LAYER_MAP.keys():
         row = QHBoxLayout()
         cb = QCheckBox(layer)
@@ -2381,6 +2710,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             cb.setEnabled(True)
             cb.setText(f"{layer}（需要修复）")
             _style_layer_checkbox(cb, warn_text=True)
+            del_btn = QToolButton()
+            _style_layer_delete_button(del_btn)
+            del_btn.clicked.connect(make_del_func(layer))
         elif layer in installed_layers["layers"]:
             cb.setChecked(False)
             cb.setEnabled(False)
@@ -2388,65 +2720,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             _style_installed_layer_label(cb)
             del_btn = QToolButton()
             _style_layer_delete_button(del_btn)
-            def make_del_func(layer_name):
-                def _del():
-                    reply = _exec_close_only_message_box(
-                        dlg,
-                        "删除确认",
-                        f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n确认后将打开卸载进度窗口，并在当前程序内执行卸载。",
-                        icon=QMessageBox.Icon.Warning,
-                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        default_button=QMessageBox.StandardButton.No,
-                    )
-                    if reply == QMessageBox.StandardButton.Yes:
-                        pkgs = [p for p in LAYER_MAP.get(layer_name, []) if not p.startswith('__stdlib__')]
-                        pkg_names = []
-                        for pkg in pkgs:
-                            pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0].strip()
-                            if pkg_name and pkg_name not in pkg_names:
-                                pkg_names.append(pkg_name)
-                        pdlg, info2, logw2, btn_cancel2, btn_pause2, progress2 = _progress_dialog()
-                        pdlg.setWindowTitle("卸载进度")
-                        info2.setText(f"正在卸载层 {layer_name}，请不要关闭此窗口...")
-                        btn_pause2.hide()
-                        btn_cancel2.setText("关闭")
-                        btn_cancel2.setEnabled(False)
-
-                        worker = UninstallLayerWorker(str(pyexe), state_file, layer_name, pkg_names)
-                        worker.log_updated.connect(logw2.append)
-                        worker.progress_updated.connect(progress2.setValue)
-
-                        def _on_done(success: bool, removed_layer: str):
-                            btn_cancel2.setEnabled(True)
-                            btn_cancel2.setText("完成")
-                            try:
-                                btn_cancel2.clicked.disconnect()
-                            except Exception:
-                                pass
-                            btn_cancel2.clicked.connect(lambda: pdlg.accept())
-                            if success:
-                                info2.setText(f"层 {removed_layer} 已卸载完成。点击完成返回依赖向导。")
-                                try:
-                                    if removed_layer in installed_layers["layers"]:
-                                        installed_layers["layers"].remove(removed_layer)
-                                except Exception:
-                                    pass
-                                try:
-                                    dlg.refresh_ui()
-                                except Exception:
-                                    pass
-                            else:
-                                info2.setText(f"层 {removed_layer} 卸载过程中存在问题，请查看日志。")
-                            progress2.setValue(100)
-
-                        worker.done.connect(_on_done)
-                        worker.start()
-                        pdlg.exec()
-                return _del
             del_btn.clicked.connect(make_del_func(layer))
         else:
             cb.setEnabled(True)
-            cb.setChecked(layer in default_select)
+            cb.setChecked(layer in effective_default_select)
             cb.setText(layer)
             _style_layer_checkbox(cb)
         checks[layer] = cb
@@ -2590,19 +2867,20 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "📦 层级说明：\n"
         "• BASIC：基础运行层，包含网络、图像处理和 onnxruntime 等通用依赖。\n"
         "• CORE：识别功能层，包含 pix2text 及文档导出 / PDF 相关依赖。\n"
-        "• HEAVY_CPU：PyTorch CPU 推理层，适合无 NVIDIA GPU 的环境。\n"
+        "• HEAVY_CPU：PyTorch CPU 推理层，默认推荐，稳定性更高。\n"
         "• HEAVY_GPU：PyTorch GPU 推理层，按检测到的 CUDA 版本自动匹配。\n"
         "• 识别功能实际运行需要 BASIC + CORE + 一个 HEAVY 层。\n"
-        "• 若你只安装 BASIC + CORE，向导会自动补一个 HEAVY 层：优先 HEAVY_GPU，否则 HEAVY_CPU。\n"
+        "• 默认推荐 BASIC + CORE + HEAVY_CPU；如需 GPU 推理请手动勾选 HEAVY_GPU。\n"
         "\n"
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可跳过 pix2text 依赖安装，直接在设置页配置外部模型。"
+        "• 若你只使用外部模型，可直接强制进入，在设置页配置外部模型。"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
     lay.addWidget(desc)
+
     chosen = {"layers": None, "mirror": False, "mirror_source": _current_mirror_source(), "deps_path": deps_dir, "force_enter": False,
               "verified_in_ui": verified_in_ui}
     # 动态更新按钮和警告
@@ -2792,6 +3070,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     btn_enter.setText("强制进入")
 
             # 更新复选框
+            effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 if layer in failed_layer_names:
                     cb.setChecked(True)
@@ -2805,7 +3084,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     _style_installed_layer_label(cb)
                 else:
                     cb.setEnabled(True)
-                    cb.setChecked(layer in default_select)
+                    cb.setChecked(layer in effective_default_select)
                     cb.setText(layer)
                     _style_layer_checkbox(cb)
 
@@ -3087,49 +3366,109 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
     except Exception:
         pass
 from pathlib import Path
-import urllib.request, subprocess, tempfile
+import subprocess
 
-# --- 新增：固定下载 Python 3.11.0 安装器并静默安装 ---
-def _download_python311_installer(dest_dir: Path) -> Path:
-    """
-    下载 Windows x64 的 Python 3.11.0 安装器到 dest_dir。
-    固定版本：3.11.0（用户要求的指定版本）。
-    """
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    # 优先使用根目录下的安装器
-    root_installer = Path(__file__).parent.parent / "python-3.11.0-amd64.exe"
-    if root_installer.exists():
-        print(f"[INFO] 使用本地安装器: {root_installer}")
-        return root_installer
-    # 否则下载
-    url = "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe"
-    installer = dest_dir / "python-3.11.0-amd64.exe"
-    if not installer.exists():
-        print(f"[INFO] 正在下载 Python 安装器: {url}")
-        urllib.request.urlretrieve(url, installer)
-    return installer
 
-def _silent_install_python311(installer: Path, target_dir: Path, timeout: int = 900) -> bool:
-    """
-    使用官方安装器静默安装到 target_dir（用户态，无需管理员）。
-    说明：不使用`SimpleInstall`以避免与`TargetDir`冲突。
-    """
-    target_dir.mkdir(parents=True, exist_ok=True)
-    args = [
-        str(installer),
-        "/quiet",
-        "InstallAllUsers=0",
-        f"TargetDir={str(target_dir)}",
-        "PrependPath=0",
-        "Include_pip=1",
-        "Include_test=0",
-        "Include_doc=0",
-        "Include_launcher=0",
+def _find_local_python311_installer(deps_dir: Path) -> Path | None:
+    """Locate the bundled/local Python 3.11 installer without downloading anything."""
+    candidates = [
+        deps_dir / "python-3.11.0-amd64.exe",
+        Path(__file__).resolve().parent.parent / "python-3.11.0-amd64.exe",
+        Path.cwd() / "python-3.11.0-amd64.exe",
     ]
-    print(f"[INFO] 正在静默安装 Python 3.11.0 到: {target_dir}")
-    r = subprocess.run(args, timeout=timeout, creationflags=flags)
-    if r.returncode != 0:
-        print(f"[WARN] 静默安装返回码: {r.returncode}")
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve()).lower()
+        except Exception:
+            key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _iter_python_candidates(base_dir: Path) -> list[Path]:
+    """Return likely python.exe candidates inside the selected dependency directory."""
+    base_dir = Path(base_dir)
+    candidates = [
+        base_dir / "python.exe",
+        base_dir / "Scripts" / "python.exe",
+        base_dir / "python311" / "python.exe",
+        base_dir / "python311" / "Scripts" / "python.exe",
+        base_dir / "Python311" / "python.exe",
+        base_dir / "Python311" / "Scripts" / "python.exe",
+        base_dir / "python_full" / "python.exe",
+        base_dir / "venv" / "Scripts" / "python.exe",
+        base_dir / ".venv" / "Scripts" / "python.exe",
+    ]
+    try:
+        for child in base_dir.iterdir():
+            if not child.is_dir():
+                continue
+            name = child.name.lower()
+            if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
+                candidates.extend([
+                    child / "python.exe",
+                    child / "Scripts" / "python.exe",
+                ])
+    except Exception:
+        pass
+
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve()).lower()
+        except Exception:
+            key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(candidate)
+    return ordered
+
+
+def _find_existing_python(base_dir: Path) -> Path | None:
+    """Reuse any existing python.exe inside the selected dependency directory."""
+    for candidate in _iter_python_candidates(base_dir):
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900) -> bool:
+    """
+    Launch the local Python installer and wait for it to finish.
+    The installer UI is shown to the user; no network download is attempted here.
+    """
+    import time
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] 正在启动本地 Python 安装器: {installer}")
+    print(f"[INFO] 期望安装目录: {target_dir}")
+    try:
+        proc = subprocess.Popen([str(installer)])
+        ret = proc.wait(timeout=timeout)
+        print(f"[INFO] Python 安装器已退出（返回码: {ret}）")
+        time.sleep(2)
+    except subprocess.TimeoutExpired:
+        print(f"[WARN] Python 安装器超时（{timeout} 秒）")
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        print(f"[WARN] 启动本地 Python 安装器失败: {e}")
         return False
     return (target_dir / "python.exe").exists()
 
@@ -3164,6 +3503,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 pass
         except Exception as e:
             print(f"[WARN] after_force_enter callback failed: {e}")
+
+    current_pyexe = Path(sys.executable)
+    current_site = _site_packages_root(current_pyexe)
 
     # 2) 先读配置，再决定是否弹目录选择框
     cfg_path = _load_config_path()
@@ -3200,7 +3542,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     if is_frozen:
         # Packaged: use deps python for pip if available; runtime stays bundled
         py_root = Path(deps_dir) / "python311"
-        pyexe = py_root / "python.exe"
+        existing_pyexe = _find_existing_python(Path(deps_dir))
+        pyexe = existing_pyexe or (py_root / "python.exe")
         if pyexe.exists():
             print(f"[INFO] packaged: use deps python for pip: {pyexe}")
         else:
@@ -3210,9 +3553,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     else:
         # 开发模式：支持依赖隔离和私有解释器
         py_root = Path(deps_dir) / "python311"
-        pyexe = py_root / "python.exe"
-        current_pyexe = Path(sys.executable)
-        current_site = _site_packages_root(current_pyexe)
+        existing_pyexe = _find_existing_python(Path(deps_dir))
+        pyexe = existing_pyexe or (py_root / "python.exe")
         deps_dir_resolved = str(Path(deps_dir).resolve())
         mismatch_reason = ""
         
@@ -3227,8 +3569,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             pyexe = current_pyexe
             use_bundled_python = False
         else:
-            use_bundled_python = True
-            print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将使用独立 Python: {pyexe}")
+            if existing_pyexe and existing_pyexe.exists():
+                use_bundled_python = False
+                pyexe = existing_pyexe
+                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将复用目录内已有 Python: {pyexe}")
+            else:
+                use_bundled_python = True
+                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将使用独立 Python: {pyexe}")
             print(f"[DIAG] 当前 Python 解释器: {current_pyexe}")
             print(f"[DIAG] 当前 site-packages 路径: {current_site if current_site else '(未找到)'}")
             print(f"[DIAG] 依赖目录路径: {deps_dir_resolved}")
@@ -3239,33 +3586,50 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             else:
                 mismatch_reason = "未知原因导致环境不一致。"
             print(f"[DIAG] 环境不一致原因: {mismatch_reason}")
-        # 只有开发模式下才自动安装 python311
+        # 开发模式下若缺少私有 Python，只认本地安装器，不再联网下载。
         if use_bundled_python and not pyexe.exists():
-            try:
-                print("[INFO] 未找到私有 Python，将自动下载并安装 Python 3.11.0 ...")
-                tmp_dir = Path(tempfile.mkdtemp(prefix="py311_dl_"))
-                installer = _download_python311_installer(tmp_dir)
-                ok = _silent_install_python311(installer, py_root)
-                if not ok or not pyexe.exists():
+            if from_settings or force_verify:
+                print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
+            else:
+                try:
+                    installer = _find_local_python311_installer(Path(deps_dir))
+                    if installer is None:
+                        _notify_before_show_ui()
+                        _exec_close_only_message_box(
+                            None,
+                            "安装器未找到",
+                            "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
+                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录或项目根目录后重试。",
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        return False
+                    print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
+                    _notify_before_show_ui()
+                    ok = _run_local_python311_installer(installer, py_root)
+                    if not ok or not pyexe.exists():
+                        _notify_before_show_ui()
+                        _exec_close_only_message_box(
+                            None,
+                            "安装失败",
+                            "Python 3.11.0 安装失败。\n\n"
+                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        return False
+                    print(f"[OK] 已安装私有 Python: {pyexe}")
+                except Exception as e:
+                    print(f"[ERR] 自动安装 Python 失败: {e}")
+                    _notify_before_show_ui()
                     _exec_close_only_message_box(
                         None,
                         "安装失败",
-                        "Python 3.11.0 静默安装失败，请检查网络或权限后重试。",
+                        f"调用本地 Python 安装器失败：{e}",
                         icon=QMessageBox.Icon.Critical,
                         buttons=QMessageBox.StandardButton.Ok,
                     )
                     return False
-                print(f"[OK] 已安装私有 Python: {pyexe}")
-            except Exception as e:
-                print(f"[ERR] 自动安装 Python 失败: {e}")
-                _exec_close_only_message_box(
-                    None,
-                    "安装失败",
-                    f"自动安装 Python 失败：{e}",
-                    icon=QMessageBox.Icon.Critical,
-                    buttons=QMessageBox.StandardButton.Ok,
-                )
-                return False
 
     # 初始化 pip（无 venv）
     try:
@@ -3299,6 +3663,16 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     needed = {l for l in require_layers if l in LAYER_MAP}
     missing_layers = [L for L in needed if L not in installed["layers"]]
+    skip_next_ui_runtime_verify = False
+
+    def _default_selected_layers(installed_layers_list: list[str], failed_layers_list: list[str] | None = None) -> list[str]:
+        defaults = ["BASIC", "CORE"]
+        installed_set = {str(x) for x in (installed_layers_list or [])}
+        failed_set = {str(x) for x in (failed_layers_list or [])}
+        heavy_present = any(x in {"HEAVY_CPU", "HEAVY_GPU"} for x in (installed_set | failed_set))
+        if not heavy_present:
+            defaults.append("HEAVY_CPU")
+        return defaults
 
     def _reverify_installed_layers_if_needed(reason: str = "") -> bool:
         """
@@ -3343,7 +3717,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if (missing_layers and prompt_ui) or always_show_ui:
             stop_event = threading.Event()
             # 默认选中的依赖层（首次启动时）
-            default_select = ["BASIC", "CORE"]
+            default_select = _default_selected_layers(
+                installed.get("layers", []),
+                state.get("failed_layers", []),
+            )
 
             chosen = []
             dlg, chosen = _build_layers_ui(
@@ -3354,8 +3731,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 chosen,
                 state_path,
                 from_settings=from_settings,
-                force_verify=force_verify
+                force_verify=force_verify,
+                skip_runtime_verify_once=skip_next_ui_runtime_verify
             )
+            skip_next_ui_runtime_verify = False
             _notify_before_show_ui()
             result = dlg.exec()
             if result != dlg.DialogCode.Accepted:
@@ -3402,6 +3781,23 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             print(f"[INFO] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
             deps_dir = chosen.get("deps_path", deps_dir)
             deps_path = Path(deps_dir)
+            py_root = deps_path / "python311"
+            existing_pyexe = _find_existing_python(deps_path)
+            if is_frozen:
+                _packaged_pyexe = existing_pyexe or (py_root / "python.exe")
+                pyexe = _packaged_pyexe if _packaged_pyexe.exists() else Path(sys.executable)
+                use_bundled_python = False
+            else:
+                deps_dir_resolved = str(deps_path.resolve())
+                if current_site and str(current_site).startswith(deps_dir_resolved):
+                    pyexe = current_pyexe
+                    use_bundled_python = False
+                elif existing_pyexe and existing_pyexe.exists():
+                    pyexe = existing_pyexe
+                    use_bundled_python = False
+                else:
+                    pyexe = py_root / "python.exe"
+                    use_bundled_python = True
             state_path = deps_path / STATE_FILE
             state = _sanitize_state_layers(state_path)
             installed["layers"] = state.get("installed_layers", [])
@@ -3417,6 +3813,54 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
         if need_install:
             if chosen_layers:
+                if use_bundled_python and not os.path.exists(str(pyexe)):
+                    installer = _find_local_python311_installer(deps_path)
+                    if installer is None:
+                        _notify_before_show_ui()
+                        _exec_close_only_message_box(
+                            None,
+                            "安装器未找到",
+                            "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
+                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录或项目根目录后重试。",
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        always_show_ui = True
+                        continue
+
+                    _notify_before_show_ui()
+                    confirm = _exec_close_only_message_box(
+                        None,
+                        "初始化依赖环境",
+                        "目标依赖目录未检测到可复用 Python 环境。\n\n"
+                        f"是否现在初始化以下目录后继续安装依赖？\n{py_root}",
+                        icon=QMessageBox.Icon.Question,
+                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        default_button=QMessageBox.StandardButton.Yes,
+                    )
+                    if confirm != QMessageBox.StandardButton.Yes:
+                        always_show_ui = True
+                        continue
+
+                    _notify_before_show_ui()
+                    ok = _run_local_python311_installer(installer, py_root)
+                    if not ok or not os.path.exists(str(pyexe)):
+                        _notify_before_show_ui()
+                        _exec_close_only_message_box(
+                            None,
+                            "安装失败",
+                            "Python 3.11.0 安装失败。\n\n"
+                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        always_show_ui = True
+                        continue
+                    try:
+                        _ensure_pip(pyexe)
+                    except Exception as e:
+                        print(f"[Deps] 初始化目标 Python 后确保 pip 失败: {e}")
+
                 RESULT_BACK_TO_WIZARD = 1001
                 if "HEAVY_GPU" in chosen_layers and not _gpu_available():
                     r = _exec_close_only_message_box(
@@ -3464,9 +3908,16 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 dlg, info, logw, btn_cancel, btn_pause, progress = _progress_dialog()
                 from PyQt6 import sip
                 ui_closed = {"value": False}
-                timer_holder = {"obj": None}
+                timer_holder = {"log": None, "speed": None}
                 verify_worker_holder = {"obj": None}
+                post_install_verify_passed = {"value": False}
                 paused = False
+                net_speed_state = {
+                    "busy": False,
+                    "base_text": "",
+                    "last_sample": None,
+                    "down_bps": None,
+                }
 
                 def _is_alive(obj):
                     try:
@@ -3484,9 +3935,68 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 def _set_progress(val: int):
                     if _is_alive(progress):
                         try:
-                            progress.setValue(val)
+                            progress.setValue(int(val))
                         except RuntimeError:
                             pass
+
+                def _format_speed(bytes_per_sec):
+                    try:
+                        speed = float(bytes_per_sec)
+                    except Exception:
+                        return ""
+                    if speed < 1024:
+                        return f"{speed:.0f} B/s"
+                    if speed < 1024 * 1024:
+                        return f"{speed / 1024:.1f} KB/s"
+                    if speed < 1024 * 1024 * 1024:
+                        return f"{speed / (1024 * 1024):.1f} MB/s"
+                    return f"{speed / (1024 * 1024 * 1024):.2f} GB/s"
+
+                def _render_info_text():
+                    text = net_speed_state.get("base_text", "") or ""
+                    if net_speed_state.get("busy", False):
+                        speed = net_speed_state.get("down_bps")
+                        if speed is not None:
+                            text = f"{text}  下载速度：{_format_speed(speed)}"
+                        else:
+                            text = f"{text}  下载速度：计算中..."
+                    if _is_alive(info):
+                        try:
+                            info.setText(text)
+                        except RuntimeError:
+                            pass
+
+                def _sample_network_speed():
+                    if psutil is None or not net_speed_state.get("busy", False):
+                        return
+                    try:
+                        counters = psutil.net_io_counters()
+                    except Exception:
+                        return
+                    if counters is None:
+                        return
+                    now = time.monotonic()
+                    current = (now, int(getattr(counters, "bytes_recv", 0)))
+                    last = net_speed_state.get("last_sample")
+                    net_speed_state["last_sample"] = current
+                    if last is None:
+                        net_speed_state["down_bps"] = None
+                        _render_info_text()
+                        return
+                    elapsed = max(0.001, current[0] - last[0])
+                    delta = max(0, current[1] - last[1])
+                    net_speed_state["down_bps"] = delta / elapsed
+                    _render_info_text()
+
+                def _set_info_text(text: str):
+                    net_speed_state["base_text"] = text or ""
+                    _render_info_text()
+
+                def _set_network_speed_busy(is_busy: bool):
+                    net_speed_state["busy"] = bool(is_busy)
+                    net_speed_state["last_sample"] = None
+                    net_speed_state["down_bps"] = None
+                    _render_info_text()
 
                 def toggle_pause():
                     nonlocal paused
@@ -3511,12 +4021,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 def request_cancel():
                     ui_closed["value"] = True
                     stop_event.set()
-                    t = timer_holder.get("obj")
-                    if t is not None:
-                        try:
-                            t.stop()
-                        except Exception:
-                            pass
+                    for t in timer_holder.values():
+                        if t is not None:
+                            try:
+                                t.stop()
+                            except Exception:
+                                pass
                     try:
                         if worker.isRunning():
                             worker.stop()
@@ -3532,8 +4042,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 # === 绑定信号 ===
                 worker.log_updated.connect(_append_log)
                 worker.progress_updated.connect(_set_progress)
+                worker.status_updated.connect(_set_info_text)
+                worker.busy_state_changed.connect(_set_network_speed_busy)
 
                 def _finalize_done_ui():
+                    _set_network_speed_busy(False)
                     if _is_alive(progress):
                         _set_progress(progress.maximum())
                     if _is_alive(btn_cancel):
@@ -3573,11 +4086,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                     _append_log("\n[OK] Dependencies installed ✅")
                     _append_log("[INFO] Verifying installed layers in background...")
-                    if _is_alive(info):
-                        try:
-                            info.setText("Dependencies downloaded, validating in background...")
-                        except Exception:
-                            pass
+                    _set_info_text("Dependencies downloaded, validating in background...")
 
                     verify_worker = LayerVerifyWorker(
                         pyexe, chosen_layers, state_path, strict=force_verify
@@ -3588,6 +4097,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     def on_verify_done(_ok_layers: list, fail_layers: list):
                         if ui_closed["value"] or (not _is_alive(dlg)):
                             return
+                        post_install_verify_passed["value"] = not bool(fail_layers)
                         if fail_layers:
                             _append_log(f"\n[WARN] Layers installed but verify failed: {', '.join(fail_layers)}")
                             _exec_close_only_message_box(
@@ -3614,7 +4124,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 # === UI线程日志轮询（防阻塞/防信号风暴）===
                 timer = QTimer(dlg)
-                timer_holder["obj"] = timer
+                timer_holder["log"] = timer
                 timer.setInterval(50)
 
                 def drain_log_queue():
@@ -3634,10 +4144,18 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 timer.timeout.connect(drain_log_queue)
                 timer.start()
 
+                speed_timer = QTimer(dlg)
+                timer_holder["speed"] = speed_timer
+                speed_timer.setInterval(1000)
+                speed_timer.timeout.connect(_sample_network_speed)
+                speed_timer.start()
+
                 def on_close_event(event):
                     ui_closed["value"] = True
                     try:
-                        timer.stop()
+                        for t in timer_holder.values():
+                            if t is not None:
+                                t.stop()
                         try:
                             worker.log_updated.disconnect(_append_log)
                         except Exception:
@@ -3690,6 +4208,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         missing_layers = [L for L in needed if L not in installed["layers"]]
                     except Exception:
                         pass
+                    skip_next_ui_runtime_verify = bool(post_install_verify_passed.get("value", False))
                     always_show_ui = True
                     continue
                 if result != QDialog.DialogCode.Accepted:
