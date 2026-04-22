@@ -1,9 +1,14 @@
-import threading
-import urllib.request
+﻿import threading
 import os
 import sys
 from pathlib import Path
 from utils import resource_path
+import json
+import queue
+import re
+import subprocess
+import time
+import traceback
 
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
@@ -672,7 +677,7 @@ class LayerVerifyWorker(QThread):
             elif "HEAVY_CPU" in verify_ok_layers:
                 current_layers.discard("HEAVY_GPU")
             payload = {"installed_layers": sorted(list(current_layers))}
-            payload["failed_layers"] = [l for l in verify_fail_layers if l in LAYER_MAP] if verify_fail_layers else []
+            payload["failed_layers"] = [layer for layer in verify_fail_layers if layer in LAYER_MAP] if verify_fail_layers else []
             _save_json(self.state_path, payload)
         except Exception as e:
             self.log_updated.emit(f"[WARN] 无法写入 .deps_state.json: {e}")
@@ -742,9 +747,6 @@ class UninstallLayerWorker(QThread):
 
         self.progress_updated.emit(100)
         self.done.emit(ok, self.layer_name)
-
-import os, sys, json, subprocess, threading, queue, urllib.request, re
-from pathlib import Path
 
 os.environ["PYTHONUTF8"] = "1"
 
@@ -1412,16 +1414,27 @@ def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
     if not isinstance(raw_failed, list):
         raw_failed = []
 
-    installed = [l for l in raw_installed if l in LAYER_MAP]
-    failed = [l for l in raw_failed if l in LAYER_MAP]
+    installed = [layer for layer in raw_installed if layer in LAYER_MAP]
+    failed = [layer for layer in raw_failed if layer in LAYER_MAP]
 
-    # HEAVY_CPU / HEAVY_GPU 互斥：状态文件中不允许同时存在。
-    if "HEAVY_CPU" in installed and "HEAVY_GPU" in installed:
-        # 优先保留“未失败”的一侧；若都未失败或都失败，默认保留 HEAVY_GPU。
-        if "HEAVY_GPU" in failed and "HEAVY_CPU" not in failed:
-            installed = [l for l in installed if l != "HEAVY_GPU"]
+    # HEAVY_CPU / HEAVY_GPU 全局互斥：状态文件中不允许同时存在于 installed/failed 任意组合。
+    heavy_layers = ("HEAVY_CPU", "HEAVY_GPU")
+    present_heavy = {x for x in heavy_layers if x in installed or x in failed}
+    if len(present_heavy) > 1:
+        keep_heavy = None
+        if "HEAVY_GPU" in installed and "HEAVY_CPU" not in installed:
+            keep_heavy = "HEAVY_GPU"
+        elif "HEAVY_CPU" in installed and "HEAVY_GPU" not in installed:
+            keep_heavy = "HEAVY_CPU"
+        elif "HEAVY_GPU" in failed and "HEAVY_CPU" not in failed:
+            keep_heavy = "HEAVY_GPU"
+        elif "HEAVY_CPU" in failed and "HEAVY_GPU" not in failed:
+            keep_heavy = "HEAVY_CPU"
         else:
-            installed = [l for l in installed if l != "HEAVY_CPU"]
+            keep_heavy = "HEAVY_GPU"
+        drop_heavy = "HEAVY_CPU" if keep_heavy == "HEAVY_GPU" else "HEAVY_GPU"
+        installed = [layer for layer in installed if layer != drop_heavy]
+        failed = [layer for layer in failed if layer != drop_heavy]
 
     changed = (installed != raw_installed) or (failed != raw_failed)
     payload = {"installed_layers": installed}
@@ -1435,6 +1448,28 @@ def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
             print(f"[INFO] 已忽略并移除废弃/未知层: {', '.join(dropped)}")
 
     return payload
+
+
+def _normalize_chosen_layers(layers: list[str] | None) -> list[str]:
+    """
+    Normalize selected layers and enforce HEAVY_CPU / HEAVY_GPU mutual exclusion.
+    If both appear due to stale UI state or manual state mutation, keep the later
+    HEAVY choice and drop the earlier one.
+    """
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for layer in (layers or []):
+        name = str(layer)
+        if name not in LAYER_MAP or name in seen:
+            continue
+        if name == "HEAVY_CPU" and "HEAVY_GPU" in seen:
+            continue
+        if name == "HEAVY_GPU" and "HEAVY_CPU" in seen:
+            ordered = [x for x in ordered if x != "HEAVY_CPU"]
+            seen.discard("HEAVY_CPU")
+        ordered.append(name)
+        seen.add(name)
+    return ordered
 
 def _site_packages_root(pyexe: Path):
     """
@@ -1615,10 +1650,10 @@ def _current_installed(pyexe):
             data = json.loads(raw)
         except Exception:
             # Robust parse for rare noisy stdout cases.
-            l = raw.find("[")
-            r = raw.rfind("]")
-            if l != -1 and r != -1 and r >= l:
-                data = json.loads(raw[l:r + 1])
+            left_idx = raw.find("[")
+            right_idx = raw.rfind("]")
+            if left_idx != -1 and right_idx != -1 and right_idx >= left_idx:
+                data = json.loads(raw[left_idx:right_idx + 1])
             else:
                 raise
         result = {d["name"].lower(): d["version"] for d in data}
@@ -1924,8 +1959,6 @@ def get_cuda_info() -> dict:
 
 # --------------- 规格处理与安装策略 ---------------
 _pat_local_tilde = re.compile(r'^([A-Za-z0-9_\-]+)~=(\d+(?:\.\d+)+)\+([A-Za-z0-9_.-]+)$')
-
-import os, time, traceback
 pip_ready_event = threading.Event()
 PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 
@@ -2400,12 +2433,11 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
 # --------------- UI ---------------
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
                      from_settings=False, force_verify=False, skip_runtime_verify_once=False):
-    import sys
     # 使用外部传入的 installed_layers；不覆盖
     from PyQt6.QtGui import QColor, QPalette
     from PyQt6.QtCore import QSize
     from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QCheckBox, QLabel,
-                                 QHBoxLayout, QFileDialog, QLineEdit, QMessageBox, QApplication, QToolButton)
+                                 QHBoxLayout, QLineEdit, QMessageBox, QApplication, QToolButton)
     from qfluentwidgets import PushButton, FluentIcon, ComboBox
 
     def _is_dark_ui() -> bool:
@@ -2445,18 +2477,25 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(disabled_color))
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(disabled_color))
         cb.setPalette(pal)
-        cb.setStyleSheet("")
+        cb.setStyleSheet(
+            f"QCheckBox {{ color: {text_color}; spacing: 3px; padding-left: 3px; }}"
+            f"QCheckBox:disabled {{ color: {disabled_color}; }}"
+        )
+        cb.style().unpolish(cb)
+        cb.style().polish(cb)
+        cb.update()
 
     def _style_installed_layer_label(cb):
         _style_layer_checkbox(cb)
         fill = "#3a4350" if _is_dark_ui() else "#d8dee6"
         border = "#556170" if _is_dark_ui() else "#c0c7d0"
         cb.setStyleSheet(
-            "QCheckBox { spacing: 3px; }"
+            f"QCheckBox {{ color: {theme['muted']}; spacing: 3px; padding-left: 3px; }}"
+            "QCheckBox:disabled { color: " + theme["muted"] + "; }"
             "QCheckBox::indicator {"
             " width: 14px;"
             " height: 14px;"
-            " margin: 0px 0px 0px 3px;"
+            " margin: 0px;"
             " padding: 0px;"
             f" border: 1px solid {border};"
             " border-radius: 4px;"
@@ -2472,6 +2511,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             " image: none;"
             "}"
         )
+        cb.style().unpolish(cb)
+        cb.style().polish(cb)
+        cb.update()
 
     def _style_layer_delete_button(btn):
         btn.setFixedSize(30, 30)
@@ -2570,14 +2612,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     print(f"  [FAIL] {layer} 验证失败: {err[:100]}")
             installed_layers["layers"] = verified_layers
             if failed_layers:
-                failed_layer_names = [l for l, _ in failed_layers]
+                failed_layer_names = [layer for layer, _ in failed_layers]
             try:
                 payload = {"installed_layers": verified_layers}
                 if failed_layers:
-                    payload["failed_layers"] = [l for l, _ in failed_layers]
+                    payload["failed_layers"] = [layer for layer, _ in failed_layers]
                 _save_json(state_file, payload)
                 if failed_layers:
-                    print(f"[INFO] 已更新状态文件，移除失败的层: {[l for l,_ in failed_layers]}")
+                    print(f"[INFO] 已更新状态文件，移除失败的层: {[layer for layer, _ in failed_layers]}")
             except Exception as e:
                 print(f"[WARN] 更新状态文件失败: {e}")
         else:
@@ -2593,31 +2635,46 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     if "CORE" not in installed_layers["layers"]:
         missing_layers.append("CORE")
 
-    lack_critical = bool(missing_layers)
-
-    # 新增：显示当前依赖环境和已安装层（根据状态显示不同信息）
-    # 如果有验证失败的层，显示警告
-    if not py_ready:
-        status_text = (
-            f"当前依赖环境：{deps_dir}\n"
-            "⚠️ 该目录尚未检测到可复用的 Python 环境。\n"
-            "如需在此目录安装依赖，请先点击【下载】并按提示初始化。"
+    def _build_status_text(current_deps_dir: str, current_py_ready: bool,
+                           current_installed_layers: list[str], current_failed_layers: list[str]) -> tuple[str, str]:
+        if not current_py_ready:
+            return (
+                f"当前依赖环境： {current_deps_dir}\n"
+                "⚠️ 该目录尚未检测到可复用的 Python 环境。\n"
+                "如需在此目录安装依赖，请先点击【下载】并按提示初始化。",
+                theme["hint"],
+            )
+        if current_failed_layers:
+            return (
+                f"当前依赖环境： {current_deps_dir}\n"
+                f"⚠️ 以下功能层安装但无法使用: {', '.join(current_failed_layers)}\n"
+                f"可用功能层： {', '.join(current_installed_layers) if current_installed_layers else '(无)'}",
+                theme["warn"],
+            )
+        if current_installed_layers:
+            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")):
+                return (
+                    f"检测到当前环境 {current_deps_dir} 的功能层不完整\n"
+                    f"已完整安装的功能层：{', '.join(current_installed_layers)}",
+                    theme["muted"],
+                )
+            return (
+                f"当前依赖环境： {current_deps_dir}\n"
+                f"已完整安装的功能层：{', '.join(current_installed_layers)}",
+                theme["ok"],
+            )
+        return (
+            f"当前依赖环境： {current_deps_dir}\n已安装层：(无)",
+            theme["warn"],
         )
-        status_color = theme["hint"]
-    elif failed_layer_names:
-        status_text = f"当前依赖环境：{deps_dir}\n⚠️ 以下功能层安装但无法使用: {', '.join(failed_layer_names)}\n可用功能层: {', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
-        status_color = theme["warn"]
-    elif installed_layers["layers"]:
-        if lack_critical:
-            status_text = f"检测到当前环境{deps_dir}的功能层不完整\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = theme["muted"]
-        else:
-            status_text = f"当前依赖环境：{deps_dir}\n已完整安装的功能层：{', '.join(installed_layers['layers'])}"
-            status_color = theme["ok"]
-    else:
-        status_text = f"当前依赖环境：{deps_dir}\n已安装层：(无)"
-        status_color = theme["warn"]
-    
+
+    status_text, status_color = _build_status_text(
+        deps_dir,
+        py_ready,
+        installed_layers["layers"],
+        failed_layer_names,
+    )
+
     env_info = QLabel(status_text)
     env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
     lay.addWidget(env_info)
@@ -2627,9 +2684,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     failed_layer_names = list(dict.fromkeys(failed_layer_names))
 
     checks = {}
+    delete_buttons = {}
 
     def _effective_default_select() -> set[str]:
-        defaults = {str(x) for x in (default_select or [])}
+        defaults = {"BASIC", "CORE"}
         active_heavy = {
             str(x) for x in (installed_layers.get("layers", []) or [])
             if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
@@ -2638,10 +2696,32 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             str(x) for x in (failed_layer_names or [])
             if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
         )
-        if active_heavy:
-            defaults.discard("HEAVY_CPU")
-            defaults.discard("HEAVY_GPU")
+        if not active_heavy:
+            defaults.add("HEAVY_CPU")
         return defaults
+
+    def _sync_layer_checkbox(layer: str, cb, del_btn, effective_defaults: set[str]) -> None:
+        if layer in failed_layer_names:
+            cb.setChecked(True)
+            cb.setEnabled(True)
+            cb.setText(f"{layer}（需要修复）")
+            _style_layer_checkbox(cb, warn_text=True)
+            del_btn.setVisible(True)
+            del_btn.setEnabled(True)
+        elif layer in installed_layers["layers"]:
+            cb.setChecked(False)
+            cb.setEnabled(False)
+            cb.setText(f"{layer}（已安装）")
+            _style_installed_layer_label(cb)
+            del_btn.setVisible(True)
+            del_btn.setEnabled(True)
+        else:
+            cb.setEnabled(True)
+            cb.setChecked(layer in effective_defaults)
+            cb.setText(layer)
+            _style_layer_checkbox(cb)
+            del_btn.setVisible(False)
+            del_btn.setEnabled(False)
 
     def make_del_func(layer_name):
         def _del():
@@ -2704,32 +2784,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     for layer in LAYER_MAP.keys():
         row = QHBoxLayout()
         cb = QCheckBox(layer)
-        del_btn = None
-        if layer in failed_layer_names:
-            cb.setChecked(True)
-            cb.setEnabled(True)
-            cb.setText(f"{layer}（需要修复）")
-            _style_layer_checkbox(cb, warn_text=True)
-            del_btn = QToolButton()
-            _style_layer_delete_button(del_btn)
-            del_btn.clicked.connect(make_del_func(layer))
-        elif layer in installed_layers["layers"]:
-            cb.setChecked(False)
-            cb.setEnabled(False)
-            cb.setText(f"{layer}（已安装）")
-            _style_installed_layer_label(cb)
-            del_btn = QToolButton()
-            _style_layer_delete_button(del_btn)
-            del_btn.clicked.connect(make_del_func(layer))
-        else:
-            cb.setEnabled(True)
-            cb.setChecked(layer in effective_default_select)
-            cb.setText(layer)
-            _style_layer_checkbox(cb)
+        del_btn = QToolButton()
+        _style_layer_delete_button(del_btn)
+        del_btn.clicked.connect(make_del_func(layer))
+        _sync_layer_checkbox(layer, cb, del_btn, effective_default_select)
         checks[layer] = cb
+        delete_buttons[layer] = del_btn
         row.addWidget(cb)
-        if del_btn:
-            row.addWidget(del_btn)
+        row.addWidget(del_btn)
         lay.addLayout(row)
 
     # ---------- HEAVY_CPU / HEAVY_GPU 互斥逻辑 ----------
@@ -2741,9 +2803,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if state and checks.get("HEAVY_CPU") and checks["HEAVY_CPU"].isEnabled():
             checks["HEAVY_CPU"].setChecked(False)
     
-    if "HEAVY_CPU" in checks and checks["HEAVY_CPU"].isEnabled():
+    if "HEAVY_CPU" in checks:
         checks["HEAVY_CPU"].stateChanged.connect(on_heavy_cpu_changed)
-    if "HEAVY_GPU" in checks and checks["HEAVY_GPU"].isEnabled():
+    if "HEAVY_GPU" in checks:
         checks["HEAVY_GPU"].stateChanged.connect(on_heavy_gpu_changed)
 
     # ---------- GPU 加速提示（含 CUDA 版本检测）----------
@@ -2876,22 +2938,47 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可直接强制进入，在设置页配置外部模型。"
+        "• 若你只使用外部模型，可点击强制进入通过设置页面进行配置。"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
     lay.addWidget(desc)
 
-    chosen = {"layers": None, "mirror": False, "mirror_source": _current_mirror_source(), "deps_path": deps_dir, "force_enter": False,
-              "verified_in_ui": verified_in_ui}
+    chosen = {
+        "layers": None,
+        "mirror": False,
+        "mirror_source": _current_mirror_source(),
+        "deps_path": deps_dir,
+        "force_enter": False,
+        "verified_in_ui": verified_in_ui,
+        "action": None,
+    }
+
+    def _current_deps_dir() -> str:
+        try:
+            text = path_edit.text().strip()
+            return text or deps_dir
+        except Exception:
+            return deps_dir
+
+    def _current_py_ready() -> bool:
+        try:
+            return bool(_find_existing_python(Path(_current_deps_dir())))
+        except Exception:
+            return False
+
     # 动态更新按钮和警告
     def update_ui():
         required = {"BASIC", "CORE"}
-        missing = [l for l in required if l not in installed_layers["layers"]]
+        missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
         is_lack_critical = bool(missing)
-        if is_lack_critical and (from_settings or force_verify):
-            btn_enter.setText("不可进入(先下载)")
-        else:
-            btn_enter.setText("强制进入" if is_lack_critical else "进入")
+        py_ready = _current_py_ready()
+        if not py_ready:
+            btn_enter.setText("不可进入(先初始化)")
+            btn_enter.setEnabled(False)
+            warn.setVisible(True)
+            return
+        btn_enter.setEnabled(True)
+        btn_enter.setText("强制进入" if is_lack_critical else "进入")
         warn.setVisible(is_lack_critical)
 
     update_ui()
@@ -2899,12 +2986,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def choose_path():
         nonlocal failed_layer_names
         import os
-        d = QFileDialog.getExistingDirectory(dlg, "选择依赖安装/加载目录", deps_dir)
+        d = _select_existing_directory_with_icon(dlg, "选择依赖安装/加载目录", deps_dir)
         if d:
             normalized = str(_normalize_deps_base_dir(Path(d)))
             path_edit.setText(normalized)
             state_file = os.path.join(normalized, ".deps_state.json")
             installed_layers["layers"] = []
+            failed_layer_names = []
             if os.path.exists(state_file):
                 try:
                     state = _load_json(Path(state_file), {"installed_layers": []})
@@ -2913,20 +3001,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     failed_layer_names = state.get("failed_layers", [])
                 except Exception:
                     pass
-            env_info.setText(
-                f"当前依赖环境：{normalized}\n已安装层：{', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
+            py_ready_local = bool(_find_existing_python(Path(normalized)))
+            status_text, status_color = _build_status_text(
+                normalized,
+                py_ready_local,
+                installed_layers["layers"],
+                failed_layer_names,
             )
+            env_info.setText(status_text)
+            env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
+            effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
-                if layer in installed_layers["layers"]:
-                    cb.setChecked(False)
-                    cb.setEnabled(False)
-                    cb.setText(f"{layer}（已安装）")
-                    _style_installed_layer_label(cb)
-                else:
-                    cb.setEnabled(True)
-                    cb.setChecked(layer in default_select)
-                    cb.setText(layer)
-                    _style_layer_checkbox(cb)
+                _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
             # 移除与 venv/调试相关输出，避免策略混用
             update_ui()
             # 保存新路径到配置
@@ -2938,42 +3024,11 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         cfg = json.load(f)
                 except Exception:
                     pass
-            cfg["install_base_dir"] = d
+            cfg["install_base_dir"] = normalized
             try:
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
-                # 提示用户需要重启
-                msg = f"依赖路径已更改为：\n{d}\n\n是否立即重启程序以应用新路径？\n\n选择\"是\"将关闭程序，请手动重新启动。"
-                reply = _exec_close_only_message_box(
-                    dlg,
-                    "路径已更改",
-                    msg,
-                    icon=QMessageBox.Icon.Question,
-                    buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    default_button=QMessageBox.StandardButton.No,
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    # In packaged mode, avoid auto-restart loops
-                    if getattr(sys, 'frozen', False):
-                        print("[INFO] packaged: skip auto-restart; please relaunch manually")
-                        dlg.reject()
-                        QApplication.instance().quit()
-                        sys.exit(0)
-                    # 自动重启程序并传递参数
-                    import subprocess
-                    exe = sys.executable
-                    args = sys.argv.copy()
-                    # 避免重复添加参数
-                    if '--force-deps-check' not in args:
-                        args.append('--force-deps-check')
-                    # Windows下用Popen启动新进程
-                    try:
-                        subprocess.Popen([exe] + args, close_fds=True, creationflags=flags)
-                    except Exception as e:
-                        print(f"[ERR] 自动重启失败: {e}")
-                    dlg.reject()
-                    QApplication.instance().quit()
-                    sys.exit(0)
+                print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")
             except Exception as e:
                 print(f"[ERR] 保存配置失败: {e}")
 
@@ -2981,40 +3036,44 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     def enter():
         """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许强制进入。"""
-        sel = [L for L, c in checks.items() if c.isChecked()]
+        sel = _normalize_chosen_layers([L for L, c in checks.items() if c.isChecked()])
         mirror_source = _current_mirror_source()
         chosen["layers"] = sel
         chosen["mirror"] = (mirror_source == "tuna")
         chosen["mirror_source"] = mirror_source
         chosen["deps_path"] = path_edit.text()
         _save_mirror_source(mirror_source)
+
+        if not _current_py_ready():
+            custom_warning_dialog(
+                "不可进入",
+                "当前依赖目录尚未检测到可复用的 Python 环境。\n请先点击“下载”初始化依赖环境后再进入主程序。",
+                dlg
+            )
+            return
         
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
-        missing = [l for l in required if l not in installed_layers["layers"]]
+        missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
         
         # 环境完整时直接进入
         if not missing:
+            chosen["action"] = "enter"
+            chosen["layers"] = []
             chosen["force_enter"] = False
             dlg.accept()
             return
 
-        # 缺少关键层：设置页入口不允许“强制进入主程序”。
-        if from_settings or force_verify:
-            custom_warning_dialog(
-                "不可进入",
-                "当前是设置页依赖管理入口，内置 pix2text 关键层不完整。\n若你只使用外部模型，可关闭向导后直接在设置页完成外部模型配置；若要使用 pix2text，请先下载/修复依赖。",
-                dlg
-            )
-            return
-        # 普通启动入口：允许用户在风险自担下强制进入。
+        # 缺少关键层：允许用户在风险自担下强制进入。
+        chosen["action"] = "enter"
+        chosen["layers"] = []
         chosen["force_enter"] = True
         dlg.done(1)
 
     btn_enter.clicked.connect(enter)
 
     def download():
-        sel = [L for L, c in checks.items() if c.isChecked()]
+        sel = _normalize_chosen_layers([L for L, c in checks.items() if c.isChecked()])
         if not sel:
             from qfluentwidgets import InfoBar, InfoBarPosition
             InfoBar.warning(
@@ -3031,14 +3090,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         chosen["mirror_source"] = mirror_source
         chosen["deps_path"] = path_edit.text()
         chosen["force_enter"] = False
+        chosen["action"] = "download"
         _save_mirror_source(mirror_source)
         dlg.accept()
 
     btn_download.clicked.connect(download)
 
     from PyQt6.QtCore import QTimer
-    from PyQt6.QtWidgets import QApplication, QMessageBox
-    import sys
 
     def _ask_exit_confirm() -> QMessageBox.StandardButton:
         return _exec_close_only_message_box(
@@ -3065,33 +3123,23 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 btn_enter.setText("进入")
             else:
                 warn.setVisible(True)
-                if from_settings or force_verify:
-                    btn_enter.setText("不可进入(先下载)")
-                else:
-                    btn_enter.setText("强制进入")
+                btn_enter.setText("强制进入")
 
             # 更新复选框
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
-                if layer in failed_layer_names:
-                    cb.setChecked(True)
-                    cb.setEnabled(True)
-                    cb.setText(f"{layer}（需要修复）")
-                    _style_layer_checkbox(cb, warn_text=True)
-                elif layer in installed_layers["layers"]:
-                    cb.setChecked(False)
-                    cb.setEnabled(False)
-                    cb.setText(f"{layer}（已安装）")
-                    _style_installed_layer_label(cb)
-                else:
-                    cb.setEnabled(True)
-                    cb.setChecked(layer in effective_default_select)
-                    cb.setText(layer)
-                    _style_layer_checkbox(cb)
+                _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
 
-            env_info.setText(
-                f"当前依赖环境：{deps_dir}\n已安装层：{', '.join(installed_layers['layers']) if installed_layers['layers'] else '(无)'}"
+            current_dir = _current_deps_dir()
+            py_ready_local = bool(_find_existing_python(Path(current_dir)))
+            status_text, status_color = _build_status_text(
+                current_dir,
+                py_ready_local,
+                installed_layers["layers"],
+                failed_layer_names,
             )
+            env_info.setText(status_text)
+            env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
             print("[OK] 依赖状态刷新成功 ✅")
         except Exception as e:
             print(f"[WARN] UI 刷新失败: {e}")
@@ -3100,18 +3148,41 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     dlg.refresh_ui = refresh_ui
 
     # ---------- 退出按钮逻辑：直接退出程序 ----------
+    _closing_dialog = {"active": False}
+
     def _exit_app():
         """退出按钮：先确认，然后直接退出程序"""
+        if _closing_dialog["active"]:
+            return
         reply = _ask_exit_confirm()
         if reply == QMessageBox.StandardButton.Yes:
-            dlg.reject()  # 先关闭对话框
-            QTimer.singleShot(50, lambda: QApplication.instance().quit())
-            QTimer.singleShot(500, lambda: sys.exit(0))
+            _closing_dialog["active"] = True
+            try:
+                main_mod = sys.modules.get("__main__")
+                release_lock = getattr(main_mod, "_release_single_instance_lock", None) if main_mod is not None else None
+                if callable(release_lock):
+                    release_lock()
+            except Exception as e:
+                print(f"[WARN] 退出前释放程序锁失败: {e}")
+            try:
+                dlg.done(QDialog.DialogCode.Rejected)
+            except Exception:
+                pass
+            try:
+                app = QApplication.instance()
+                if app is not None:
+                    app.exit(0)
+            except Exception:
+                pass
+            os._exit(0)
 
     btn_cancel.clicked.connect(_exit_app)
 
     # 右上角关闭事件：与退出按钮一致
     def _on_close(evt):
+        if _closing_dialog["active"]:
+            evt.accept()
+            return
         _exit_app()
         evt.ignore()  # 由 _exit_app 控制退出
     dlg.closeEvent = _on_close
@@ -3265,6 +3336,28 @@ def _sync_deps_fluent_theme() -> None:
     except Exception:
         pass
 
+
+def _apply_app_window_icon(win) -> None:
+    try:
+        from PyQt6.QtGui import QIcon
+        icon_path = resource_path("assets/icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            win.setWindowIcon(QIcon(icon_path))
+    except Exception:
+        pass
+
+
+def _select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
+    from PyQt6.QtWidgets import QFileDialog
+    dlg = QFileDialog(parent, title, initial_dir)
+    dlg.setFileMode(QFileDialog.FileMode.Directory)
+    dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
+    _apply_app_window_icon(dlg)
+    if dlg.exec() != QFileDialog.DialogCode.Accepted:
+        return ""
+    selected = dlg.selectedFiles()
+    return selected[0] if selected else ""
+
 def _exec_close_only_message_box(
     parent,
     title: str,
@@ -3275,6 +3368,7 @@ def _exec_close_only_message_box(
 ):
     from PyQt6.QtWidgets import QMessageBox
     msg = QMessageBox(parent)
+    _apply_app_window_icon(msg)
     msg.setWindowTitle(title)
     msg.setText(text)
     msg.setIcon(icon)
@@ -3335,9 +3429,6 @@ def clear_deps_state():
     except Exception as e:
         print(f"[ERR] 清除依赖状态文件失败: {e}")
 
-from pathlib import Path
-
-
 def _load_config_path():
     return _config_dir_path() / CONFIG_FILE
 
@@ -3362,21 +3453,32 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
             except Exception:
                 data = {}
         data["install_base_dir"] = deps_dir
-        from pathlib import Path
         Path(cfg_path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
-from pathlib import Path
-import subprocess
-
 
 def _find_local_python311_installer(deps_dir: Path) -> Path | None:
     """Locate the bundled/local Python 3.11 installer without downloading anything."""
-    candidates = [
-        deps_dir / "python-3.11.0-amd64.exe",
+    candidates: list[Path] = []
+    try:
+        candidates.append(deps_dir / "python-3.11.0-amd64.exe")
+    except Exception:
+        pass
+    try:
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "python-3.11.0-amd64.exe")
+    except Exception:
+        pass
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / "_internal" / "python-3.11.0-amd64.exe")
+        candidates.append(exe_dir / "python-3.11.0-amd64.exe")
+    except Exception:
+        pass
+    candidates.extend([
         Path(__file__).resolve().parent.parent / "python-3.11.0-amd64.exe",
         Path.cwd() / "python-3.11.0-amd64.exe",
-    ]
+    ])
     seen: set[str] = set()
     for candidate in candidates:
         try:
@@ -3537,7 +3639,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 after_force_enter=None):
     global _LAST_ENSURE_DEPS_FORCE_ENTER
     _LAST_ENSURE_DEPS_FORCE_ENTER = False
-    from PyQt6.QtWidgets import QApplication, QFileDialog
+    from PyQt6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is None:
         print("[WARN] ensure_deps 需要 GUI，但当前未创建 QApplication。请在主程序创建 QApplication 后再调用。")
@@ -3574,7 +3676,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     if not deps_dir:
         parent = app.activeWindow()  # 没有也可为 None
         _notify_before_show_ui()
-        chosen = QFileDialog.getExistingDirectory(parent, "选择依赖安装/加载目录", str(Path.home()))
+        chosen = _select_existing_directory_with_icon(parent, "选择依赖安装/加载目录", str(Path.home()))
         if not chosen:
             # 用户取消，安全返回，避免后续对 None/省略号做路径拼接
             return False
@@ -3589,6 +3691,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     from PyQt6.QtWidgets import QMessageBox, QDialog
     need_install = False
     if force_enter:
+        if not _find_existing_python(Path(deps_dir)):
+            try:
+                custom_warning_dialog("不可进入", "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。")
+            except Exception:
+                print("[WARN] 缺少可复用 Python 环境，禁止强制进入。")
+            return False
         _LAST_ENSURE_DEPS_FORCE_ENTER = True
         _notify_after_force_enter()
         try:
@@ -3600,16 +3708,18 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     is_frozen = getattr(sys, 'frozen', False)
     if is_frozen:
-        # Packaged: use deps python for pip if available; runtime stays bundled
+        # Packaged: runtime stays bundled, but dependency wizard should only treat
+        # a python inside deps_dir as reusable. Missing deps python must remain
+        # visible to the UI so the user can initialize it from the wizard.
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / "python.exe")
-        if pyexe.exists():
+        if existing_pyexe and existing_pyexe.exists():
             print(f"[INFO] packaged: use deps python for pip: {pyexe}")
+            use_bundled_python = False
         else:
-            print(f"[WARN] packaged: deps python missing, pip may be unavailable: {pyexe}")
-            pyexe = Path(sys.executable)
-        use_bundled_python = False
+            print(f"[INFO] packaged: no reusable deps python yet, wizard will initialize: {pyexe}")
+            use_bundled_python = True
     else:
         # 开发模式：支持依赖隔离和私有解释器
         py_root = Path(deps_dir) / "python311"
@@ -3659,7 +3769,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             None,
                             "安装器未找到",
                             "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录或项目根目录后重试。",
+                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
                             icon=QMessageBox.Icon.Critical,
                             buttons=QMessageBox.StandardButton.Ok,
                         )
@@ -3708,12 +3818,23 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     print("当前平台:", platform.platform())
     print("当前 sys.path:", sys.path)
 
-    sp = _site_packages_root(pyexe)
-    # 只有在非 BOOTSTRAPPED 模式下才注入私有路径，避免混合不同 Python 版本的包
-    if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
-        _inject_private_python_paths(pyexe)
-    os.environ["LATEX_SNIPPER_SITE"] = str(sp or "")
-    os.environ["LATEXSNIPPER_PYEXE"] = str(pyexe)
+    def _apply_runtime_context(active_pyexe: Path) -> None:
+        sp_local = _site_packages_root(active_pyexe)
+        # 只有在非 BOOTSTRAPPED 模式下才注入私有路径，避免混合不同 Python 版本的包
+        if (
+            os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1"
+            and active_pyexe is not None
+            and active_pyexe.exists()
+        ):
+            _inject_private_python_paths(active_pyexe)
+        os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
+        if active_pyexe is not None and active_pyexe.exists():
+            os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
+            os.environ["PIX2TEXT_PYEXE"] = str(active_pyexe)
+        else:
+            os.environ.pop("PIX2TEXT_PYEXE", None)
+
+    _apply_runtime_context(pyexe)
 
     state_path = deps_path / STATE_FILE
     state = _sanitize_state_layers(state_path)
@@ -3721,7 +3842,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     state_path = deps_path / STATE_FILE
 
-    needed = {l for l in require_layers if l in LAYER_MAP}
+    needed = {required_layer for required_layer in require_layers if required_layer in LAYER_MAP}
     missing_layers = [L for L in needed if L not in installed["layers"]]
     skip_next_ui_runtime_verify = False
 
@@ -3746,7 +3867,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if not pyexe or not os.path.exists(pyexe):
             return needed.issubset(installed["layers"])
 
-        claimed = [l for l in installed.get("layers", []) if l in LAYER_MAP]
+        claimed = [layer for layer in installed.get("layers", []) if layer in LAYER_MAP]
         if not claimed:
             missing_layers = [L for L in needed if L not in installed["layers"]]
             return needed.issubset(installed["layers"])
@@ -3760,7 +3881,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             log_fn=lambda m: print(m),
             strict=force_verify
         )
-        failed = [l for l in claimed if l not in verified]
+        failed = [layer for layer in claimed if layer not in verified]
         payload = {"installed_layers": verified}
         if failed:
             payload["failed_layers"] = failed
@@ -3772,6 +3893,33 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if failed:
             print(f"[WARN] 复验失败层: {', '.join(failed)}")
         return needed.issubset(installed["layers"])
+
+    def _switch_deps_context(target_deps_dir: str) -> tuple[list[str], bool]:
+        nonlocal deps_dir, deps_path, state_path, state, installed, missing_layers, pyexe
+        deps_dir = str(_normalize_deps_base_dir(Path(target_deps_dir or deps_dir)))
+        deps_path = Path(deps_dir)
+        py_root = deps_path / "python311"
+        existing_pyexe = _find_existing_python(deps_path)
+        if is_frozen:
+            pyexe = existing_pyexe or (py_root / "python.exe")
+            use_bundled = not (existing_pyexe and existing_pyexe.exists())
+        else:
+            deps_dir_resolved = str(deps_path.resolve())
+            if current_site and str(current_site).startswith(deps_dir_resolved):
+                pyexe = current_pyexe
+                use_bundled = False
+            elif existing_pyexe and existing_pyexe.exists():
+                pyexe = existing_pyexe
+                use_bundled = False
+            else:
+                pyexe = py_root / "python.exe"
+                use_bundled = True
+        _apply_runtime_context(pyexe)
+        state_path = deps_path / STATE_FILE
+        state = _sanitize_state_layers(state_path)
+        installed["layers"] = state.get("installed_layers", [])
+        missing_layers = [L for L in needed if L not in installed["layers"]]
+        return missing_layers, use_bundled
 
     while True:
         if (missing_layers and prompt_ui) or always_show_ui:
@@ -3801,29 +3949,32 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 # 用户在依赖选择窗口点“退出程序”
                 return False
 
+            chosen_layers = _normalize_chosen_layers(chosen.get("layers", []))
+            mirror_source = str(chosen.get("mirror_source", "")).strip().lower()
+            if mirror_source in ("off", "tuna"):
+                use_mirror = (mirror_source == "tuna")
+            else:
+                use_mirror = bool(chosen.get("mirror", False))
+                mirror_source = "tuna" if use_mirror else "off"
+            missing_layers, use_bundled_python = _switch_deps_context(chosen.get("deps_path", deps_dir))
+
             # 检查是否强制进入（缺少关键层但用户选择直接进入）
             if chosen.get("force_enter", False):
-                # 从设置入口触发的依赖管理，不允许跳过校验直接进主程序
-                if from_settings or force_verify:
-                    custom_warning_dialog(
-                        "不能强制进入",
-                        "当前入口为设置页依赖管理，检测到关键层不完整。\n请先下载/修复依赖后再进入主程序。",
-                        None
-                    )
-                    print("[WARN] 设置入口下禁止强制进入，返回依赖向导。")
-                    continue
                 _LAST_ENSURE_DEPS_FORCE_ENTER = True
                 _notify_after_force_enter()
                 print("[INFO] 用户选择强制进入，跳过依赖安装")
+                return True
+            if chosen.get("action") == "enter":
+                print("[INFO] 用户选择直接进入主程序。")
                 return True
             if chosen["layers"]:
                 failed_claims = {
                     str(x) for x in (state.get("failed_layers", []) if isinstance(state, dict) else [])
                 }
                 already_have = all(
-                    l in state.get("installed_layers", []) for l in chosen["layers"]
+                    layer in state.get("installed_layers", []) for layer in chosen["layers"]
                 )
-                has_failed_choice = any(l in failed_claims for l in chosen["layers"])
+                has_failed_choice = any(layer in failed_claims for layer in chosen["layers"])
                 if already_have and not has_failed_choice:
                     if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
                         print("[WARN] 复验后关键层不完整，返回向导。")
@@ -3831,44 +3982,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     print("[INFO] 所选层已存在，跳过下载。")
                     return True
 
-            chosen_layers = chosen.get("layers", [])
-            mirror_source = str(chosen.get("mirror_source", "")).strip().lower()
-            if mirror_source in ("off", "tuna"):
-                use_mirror = (mirror_source == "tuna")
-            else:
-                use_mirror = bool(chosen.get("mirror", False))
-                mirror_source = "tuna" if use_mirror else "off"
             print(f"[INFO] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
-            deps_dir = chosen.get("deps_path", deps_dir)
-            deps_path = Path(deps_dir)
             py_root = deps_path / "python311"
-            existing_pyexe = _find_existing_python(deps_path)
-            if is_frozen:
-                _packaged_pyexe = existing_pyexe or (py_root / "python.exe")
-                pyexe = _packaged_pyexe if _packaged_pyexe.exists() else Path(sys.executable)
-                use_bundled_python = False
-            else:
-                deps_dir_resolved = str(deps_path.resolve())
-                if current_site and str(current_site).startswith(deps_dir_resolved):
-                    pyexe = current_pyexe
-                    use_bundled_python = False
-                elif existing_pyexe and existing_pyexe.exists():
-                    pyexe = existing_pyexe
-                    use_bundled_python = False
-                else:
-                    pyexe = py_root / "python.exe"
-                    use_bundled_python = True
-            state_path = deps_path / STATE_FILE
-            state = _sanitize_state_layers(state_path)
-            installed["layers"] = state.get("installed_layers", [])
-            # 安装后复核关键层，必要时再次弹向导
-            missing_layers = [L for L in needed if L not in installed["layers"]]
             need_install = bool(chosen_layers) and bool(missing_layers)
-            if not chosen_layers and needed.issubset(installed["layers"]):
-                if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("enter_without_install"):
-                    print("[WARN] 复验后关键层不完整，返回向导。")
-                    continue
-                return True
             need_install = bool(chosen_layers)
 
         if need_install:
@@ -3881,7 +3997,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             None,
                             "安装器未找到",
                             "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录或项目根目录后重试。",
+                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
                             icon=QMessageBox.Icon.Critical,
                             buttons=QMessageBox.StandardButton.Ok,
                         )

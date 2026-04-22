@@ -1,6 +1,9 @@
-﻿import os, sys, subprocess, shutil
-from pathlib import Path
+import os
+import shutil
+import subprocess
+import sys
 import time
+from pathlib import Path
 import pyperclip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
@@ -23,6 +26,35 @@ from backend.external_model import (
     load_config_from_mapping,
 )
 from core.restart_contract import build_restart_with_wizard_launch
+
+
+def _resource_path(relative_path: str) -> str:
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
+def _apply_app_window_icon(win) -> None:
+    try:
+        from PyQt6.QtGui import QIcon
+        icon_path = _resource_path("assets/icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            win.setWindowIcon(QIcon(icon_path))
+    except Exception:
+        pass
+
+
+def _select_open_file_with_icon(parent, title: str, initial_path: str, filter_: str):
+    from PyQt6.QtWidgets import QFileDialog
+    dlg = QFileDialog(parent, title, initial_path, filter_)
+    dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+    dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
+    _apply_app_window_icon(dlg)
+    if dlg.exec() != QFileDialog.DialogCode.Accepted:
+        return "", ""
+    selected = dlg.selectedFiles()
+    chosen_filter = dlg.selectedNameFilter()
+    return (selected[0] if selected else ""), chosen_filter
 
 
 def _subprocess_creationflags() -> int:
@@ -466,7 +498,7 @@ class SettingsWindow(QDialog):
         deps_row_layout.addWidget(self.btn_deps_wizard, 1)
         self.btn_open_pix2text_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
         self.btn_open_pix2text_cache.setFixedHeight(36)
-        self.btn_open_pix2text_cache.setToolTip("打开 pix2text 模型缓存目录（默认位于 APPDATA/pix2text）")
+        self.btn_open_pix2text_cache.setToolTip("打开 pix2text 模型缓存目录（默认位于AppData\\Roaming\\pix2text）")
         deps_row_layout.addWidget(self.btn_open_pix2text_cache, 1)
         lay.addWidget(deps_row)
         # 弹性空间
@@ -1106,6 +1138,7 @@ class SettingsWindow(QDialog):
             "提示：弹窗仅显示预览，完整命令会复制到剪贴板。"
         )
         dlg = MessageBox("安装 PyTorch", msg, self)
+        _apply_app_window_icon(dlg)
         dlg.yesButton.setText("复制命令并打开终端")
         dlg.cancelButton.setText("仅复制命令")
         def _do_copy(open_terminal: bool):
@@ -1150,6 +1183,7 @@ class SettingsWindow(QDialog):
         dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         dlg.setFixedSize(dlg.sizeHint())
+        _apply_app_window_icon(dlg)
         if dlg.exec() != int(QDialog.DialogCode.Accepted):
             return
         choice = dlg.textValue()
@@ -1198,8 +1232,14 @@ class SettingsWindow(QDialog):
         self._update_pix2text_visibility()
     def _init_pix2text_pyexe(self):
         pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+        if pyexe and getattr(sys, "frozen", False):
+            try:
+                if os.path.normcase(os.path.abspath(pyexe)) == os.path.normcase(os.path.abspath(sys.executable)):
+                    pyexe = ""
+            except Exception:
+                pass
         if not pyexe or not os.path.exists(pyexe):
-            pyexe = sys.executable
+            pyexe = ""
         self.pix2text_pyexe_input.setText(pyexe)
         if self.parent() and hasattr(self.parent(), "cfg"):
             self.parent().cfg.set("pix2text_pyexe", pyexe)
@@ -1355,8 +1395,7 @@ class SettingsWindow(QDialog):
         self.btn_test_latex.setEnabled(True)
     def _browse_latex_path(self):
         """浏览 LaTeX 路径"""
-        from PyQt6.QtWidgets import QFileDialog
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path, _ = _select_open_file_with_icon(
             self,
             "选择 pdflatex 或 xelatex 可执行文件",
             "",
@@ -1652,6 +1691,7 @@ class SettingsWindow(QDialog):
             "- ESC：取消",
             self
         )
+        _apply_app_window_icon(msg)
         msg.yesButton.setText("管理员")
         msg.cancelButton.setText("普通")
         esc_pressed = [False]
@@ -1834,6 +1874,7 @@ class SettingsWindow(QDialog):
             "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC取消操作",
             self
         )
+        _apply_app_window_icon(msg)
         msg.yesButton.setText("重启并打开")
         msg.cancelButton.setText("取消")
 
@@ -1856,10 +1897,9 @@ class SettingsWindow(QDialog):
         self._restart_with_wizard()
     def _restart_with_wizard(self):
         """重启程序并打开依赖向导"""
-        import subprocess
         import sys
         from PyQt6.QtWidgets import QApplication
-        from PyQt6.QtCore import QCoreApplication, QProcess, QProcessEnvironment
+        from PyQt6.QtCore import QCoreApplication
         import os
 
         argv0 = ""
@@ -1889,30 +1929,12 @@ class SettingsWindow(QDialog):
                     app.processEvents()
             except Exception:
                 pass
-            started = False
-            try:
-                program = str(spawn_argv[0])
-                arguments = [str(x) for x in spawn_argv[1:]]
-                workdir = os.path.dirname(os.path.abspath(arguments[0])) if arguments else os.getcwd()
-            except Exception:
-                program = ""
-                arguments = []
-                workdir = os.getcwd()
-            try:
-                proc_env = QProcessEnvironment.systemEnvironment()
-                for k, v in env.items():
-                    proc_env.insert(str(k), str(v))
-                started = QProcess.startDetached(program, arguments, workdir)
-            except Exception:
-                started = False
-            if not started:
-                base_flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-                spawn_flags = base_flags | int(_subprocess_creationflags())
-                subprocess.Popen(
-                    spawn_argv,
-                    env=env,
-                    creationflags=spawn_flags
-                )
+            spawn_flags = int(_subprocess_creationflags()) if getattr(sys, "frozen", False) else 0
+            subprocess.Popen(
+                [str(x) for x in spawn_argv],
+                env=env,
+                creationflags=spawn_flags,
+            )
             # 关闭当前程序
             QApplication.instance().quit()
         except Exception as e:
@@ -2256,5 +2278,4 @@ class SettingsWindow(QDialog):
         finally:
             self._model_selection_syncing = False
 # ---------------- 主窗口 ----------------
-from PyQt6.QtCore import Qt
 

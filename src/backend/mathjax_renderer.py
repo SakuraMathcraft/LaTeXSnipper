@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 MathJax 渲染模块 - 解决打包后的沙箱问题
@@ -360,7 +360,7 @@ class SafeMathJaxView:
 </body></html>"""
             try:
                 self.web_view.setHtml(error_html)
-            except:
+            except Exception:
                 pass
 
 print("[MathJax] 模块加载完成")
