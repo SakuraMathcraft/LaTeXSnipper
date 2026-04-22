@@ -1,5 +1,6 @@
 # runtime_hook_env.py
-import os, sys
+import os
+import sys
 
 def _needs_webengine():
     # 轻量探测：只在已导入或后续很可能需要时设置; 不做重量级导入

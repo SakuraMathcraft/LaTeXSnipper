@@ -1,9 +1,19 @@
-﻿
-import os, sys, json, time, threading, re, base64, requests, subprocess, hashlib, tempfile
-from pathlib import Path
+import base64
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 from datetime import datetime, timezone
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, List, Tuple, Dict
+
+import requests
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QUrl
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QTextBrowser,
@@ -33,6 +43,22 @@ MIRROR_URLS = [
 CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
 DEBUG_LOG = True
+
+
+def _resource_path(relative_path: str) -> str:
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
+def _apply_app_window_icon(win) -> None:
+    try:
+        from PyQt6.QtGui import QIcon
+        icon_path = _resource_path("assets/icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            win.setWindowIcon(QIcon(icon_path))
+    except Exception:
+        pass
 
 def _is_dark_ui() -> bool:
     app = QApplication.instance()
@@ -674,6 +700,7 @@ def check_update_dialog(parent=None):
         default: QMessageBox.StandardButton = QMessageBox.StandardButton.No,
     ) -> QMessageBox.StandardButton:
         msg = QMessageBox(dlg)
+        _apply_app_window_icon(msg)
         msg.setIcon(QMessageBox.Icon.Question)
         msg.setWindowTitle(title)
         msg.setText(text)

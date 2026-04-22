@@ -1,7 +1,22 @@
 ﻿# --- Crash guard & runtime sanity, put this at the VERY TOP of 'src/main.py' ---
-import os, sys, pathlib, datetime, faulthandler, json, subprocess, builtins, atexit
-# --- 早期 GUI 依赖检测与自动修复 ---
-import sys, os, subprocess, importlib
+import atexit
+import builtins
+import ctypes
+import datetime
+import faulthandler
+import importlib
+import io
+import json
+import logging
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+from io import BytesIO
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 STABLE_GUI_PIP_SPECS = [
     "PyQt6==6.10.0",
@@ -254,11 +269,112 @@ def _configure_runtime_defaults_for_classic_main():
 
 _configure_runtime_defaults_for_classic_main()
 
-# 5) 确保先创建 QApplication 再调用依赖修复/向导逻辑
-from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QCoreApplication, QTimer
-from PyQt6.QtGui import QTextCursor, QIcon
-from pathlib import Path
+def _load_qt_symbols():
+    from PyQt6.QtCore import (
+        QBuffer,
+        QCoreApplication,
+        QEvent,
+        QIODevice,
+        QObject,
+        QSize,
+        Qt,
+        QThread,
+        QTimer,
+        pyqtSignal,
+    )
+    from PyQt6.QtGui import QIcon, QTextCursor
+    from PyQt6.QtWidgets import (
+        QApplication,
+        QDialog,
+        QDialogButtonBox,
+        QHBoxLayout,
+        QInputDialog,
+        QLabel,
+        QListWidget,
+        QListWidgetItem,
+        QMainWindow,
+        QMenu,
+        QMessageBox,
+        QPlainTextEdit,
+        QProgressDialog,
+        QPushButton,
+        QScrollArea,
+        QSizePolicy,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+        QWidgetAction,
+    )
+    return (
+        QApplication,
+        QBuffer,
+        QCoreApplication,
+        QDialog,
+        QDialogButtonBox,
+        QEvent,
+        QHBoxLayout,
+        QIcon,
+        QInputDialog,
+        QIODevice,
+        QLabel,
+        QListWidget,
+        QListWidgetItem,
+        QMainWindow,
+        QMenu,
+        QMessageBox,
+        QObject,
+        QPlainTextEdit,
+        QProgressDialog,
+        QPushButton,
+        QScrollArea,
+        QSize,
+        QSizePolicy,
+        QTextCursor,
+        QTextEdit,
+        QThread,
+        QTimer,
+        QVBoxLayout,
+        QWidget,
+        QWidgetAction,
+        Qt,
+        pyqtSignal,
+    )
+
+
+(
+    QApplication,
+    QBuffer,
+    QCoreApplication,
+    QDialog,
+    QDialogButtonBox,
+    QEvent,
+    QHBoxLayout,
+    QIcon,
+    QInputDialog,
+    QIODevice,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QObject,
+    QPlainTextEdit,
+    QProgressDialog,
+    QPushButton,
+    QScrollArea,
+    QSize,
+    QSizePolicy,
+    QTextCursor,
+    QTextEdit,
+    QThread,
+    QTimer,
+    QVBoxLayout,
+    QWidget,
+    QWidgetAction,
+    Qt,
+    pyqtSignal,
+) = _load_qt_symbols()
 
 # 必须在创建 QApplication 之前设置此属性（满足 QtWebEngine 的上下文共享要求）
 try:
@@ -529,64 +645,6 @@ def _hide_startup_splash_for_modal():
     except Exception:
         pass
 
-
-def _suspend_startup_splash():
-    """Temporarily hide the startup splash and return restore state."""
-    splash = _STARTUP_SPLASH
-    if not splash:
-        return None
-    try:
-        was_visible = bool(splash.isVisible())
-    except Exception:
-        was_visible = False
-    if not was_visible:
-        return None
-    state = {
-        "message": str(getattr(splash, "_lsn_status", "") or ""),
-    }
-    try:
-        splash.hide()
-        app = QApplication.instance()
-        if app is not None:
-            app.processEvents()
-    except Exception:
-        return None
-    return state
-
-
-def _restore_startup_splash(state):
-    """Restore the startup splash after a temporary modal dialog."""
-    if not state:
-        return
-    try:
-        app = QApplication.instance()
-        if app is not None:
-            _take_startup_splash(app, str(state.get("message", "") or ""))
-    except Exception:
-        pass
-
-
-def _dismiss_startup_splash():
-    """Close and forget the startup splash before handing control to an external installer."""
-    global _STARTUP_SPLASH
-    splash = _STARTUP_SPLASH
-    _STARTUP_SPLASH = None
-    if not splash:
-        return
-    try:
-        splash.hide()
-    except Exception:
-        pass
-    try:
-        splash.close()
-    except Exception:
-        pass
-    try:
-        app = QApplication.instance()
-        if app is not None:
-            app.processEvents()
-    except Exception:
-        pass
 
 
 def _deps_force_entered(db_module=None) -> bool:
@@ -984,10 +1042,6 @@ class RuntimeLogDialog(QDialog):
         except Exception:
             pass
 
-import logging
-from logging.handlers import RotatingFileHandler
-from PyQt6.QtWidgets import QMessageBox
-
 # 移除重复的 CONFIG_FILENAME（已在文件顶部定义）
 APP_LOG_FILE: Path | None = None
 _ORIGINAL_PRINT = None
@@ -1314,7 +1368,6 @@ def _install_border_radius_shim() -> None:
 _install_border_radius_shim()
 
 
-import sys, os
 base_path = os.path.dirname(os.path.abspath(__file__))
 # 确保全局仅一个 QApplication 实例
 def ensure_qapp():
@@ -1373,8 +1426,6 @@ def read_theme_mode_from_config() -> str:
     except Exception:
         return "auto"
 
-import os, sys, io, json
-from pathlib import Path
 def _get_app_root() -> Path:
     """获取应用程序根目录
     
@@ -1914,14 +1965,14 @@ def _select_install_base_dir() -> Path:
     """
     from pathlib import Path
     try:
-        from PyQt6.QtWidgets import QApplication, QFileDialog
+        from PyQt6.QtWidgets import QApplication
         from PyQt6.QtGui import QFont
         app = QApplication.instance() or QApplication([])
         apply_theme_mode(read_theme_mode_from_config())
         font = QFont("Microsoft YaHei UI", 9)
         font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         app.setFont(font)
-        d = QFileDialog.getExistingDirectory(None, "请选择依赖安装目录", os.path.expanduser("~"))
+        d = _select_existing_directory_with_icon(None, "请选择依赖安装目录", os.path.expanduser("~"))
         if d:
             p = _normalize_install_base_dir(Path(d))
             p.mkdir(parents=True, exist_ok=True)
@@ -1934,6 +1985,54 @@ def _select_install_base_dir() -> Path:
     except Exception as e:
         print(f"[ERROR] 目录选择失败: {e}")
         raise RuntimeError("user canceled")
+
+
+def _apply_app_window_icon(win) -> None:
+    try:
+        from PyQt6.QtGui import QIcon
+        icon_path = resource_path("assets/icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            win.setWindowIcon(QIcon(icon_path))
+    except Exception:
+        pass
+
+
+def _select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
+    from PyQt6.QtWidgets import QFileDialog
+    dlg = QFileDialog(parent, title, initial_dir)
+    dlg.setFileMode(QFileDialog.FileMode.Directory)
+    dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
+    _apply_app_window_icon(dlg)
+    if dlg.exec() != QFileDialog.DialogCode.Accepted:
+        return ""
+    selected = dlg.selectedFiles()
+    return selected[0] if selected else ""
+
+
+def _select_save_file_with_icon(parent, title: str, initial_path: str, filter_: str):
+    from PyQt6.QtWidgets import QFileDialog
+    dlg = QFileDialog(parent, title, initial_path, filter_)
+    dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+    dlg.setFileMode(QFileDialog.FileMode.AnyFile)
+    _apply_app_window_icon(dlg)
+    if dlg.exec() != QFileDialog.DialogCode.Accepted:
+        return "", ""
+    selected = dlg.selectedFiles()
+    chosen_filter = dlg.selectedNameFilter()
+    return (selected[0] if selected else ""), chosen_filter
+
+
+def _select_open_file_with_icon(parent, title: str, initial_path: str, filter_: str):
+    from PyQt6.QtWidgets import QFileDialog
+    dlg = QFileDialog(parent, title, initial_path, filter_)
+    dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+    dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
+    _apply_app_window_icon(dlg)
+    if dlg.exec() != QFileDialog.DialogCode.Accepted:
+        return "", ""
+    selected = dlg.selectedFiles()
+    chosen_filter = dlg.selectedNameFilter()
+    return (selected[0] if selected else ""), chosen_filter
 
 def _save_install_base_dir(p: Path) -> None:
     """保存依赖目录到配置文件。"""
@@ -1959,12 +2058,9 @@ def resolve_install_base_dir() -> Path:
     3. 若仍为空，弹出目录选择对话框
     4. 检查选定目录是否已有可复用 Python
        - 有：使用该目录，保存配置，返回
-       - 无：弹出确认框"确认要部署到此处吗？"
-           - 确认：执行安装器（交互式），成功后保存配置，返回
-           - 取消：清空配置文件，直接退出
+       - 无：仅保存目录并返回；是否初始化 python311 交给依赖向导内部处理
     """
     import time
-    import subprocess
 
     if not _is_packaged_mode():
         current_dev_base = _current_dev_install_base_dir()
@@ -1997,7 +2093,6 @@ def resolve_install_base_dir() -> Path:
             sys.exit(7)
     p = _normalize_install_base_dir(p)
     
-    py311_dir = p / "python311"
     py_exe = _find_install_base_python(p)
     
     # 第3步：检查 Python 是否已存在
@@ -2005,237 +2100,9 @@ def resolve_install_base_dir() -> Path:
         print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
         return p
-    
-    # 第4步：python311 不存在，需要安装
-    print(f"[INFO] 选定目录未检测到可复用 Python，将初始化: {py311_dir}")
-    
-    # 弹出确认框
-    try:
-        from PyQt6.QtWidgets import QApplication, QMessageBox
-        from PyQt6.QtGui import QFont, QIcon
-        
-        app = QApplication.instance() or QApplication([])
-        apply_theme_mode(read_theme_mode_from_config())
-        font = QFont("Microsoft YaHei UI", 9)
-        font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
-        app.setFont(font)
-        splash_state = _suspend_startup_splash()
-        
-        msg_box = QMessageBox()
-        msg_box.setWindowTitle("LaTeXSnipper - 部署确认")
-        msg_box.setText("检测到目录内没有可复用的 Python 环境")
-        msg_box.setInformativeText(
-            f"确认要部署到以下位置吗？\n\n{p}\n\n"
-            f"将使用本地安装器初始化 `python311`，部署将需要几分钟时间。"
-        )
-        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-        msg_box.setDefaultButton(QMessageBox.StandardButton.Ok)
-        
-        # 窗口左上角设置软件图标
-        try:
-            icon_path = APP_DIR / "assets" / "icon.ico"
-            if icon_path.exists():
-                msg_box.setWindowIcon(QIcon(str(icon_path)))
-        except Exception:
-            pass
 
-        try:
-            result = msg_box.exec()
-        finally:
-            _restore_startup_splash(splash_state)
-        
-        if result != QMessageBox.StandardButton.Ok:
-            print("[INFO] 用户取消了部署，清空配置并退出。")
-            # 清空配置文件
-            try:
-                cfg_path = _config_path()
-                if cfg_path.exists():
-                    cfg_path.unlink()
-                    print(f"[INFO] 已清空配置: {cfg_path}")
-            except Exception as e:
-                print(f"[WARN] 清空配置失败: {e}")
-            time.sleep(2)
-            sys.exit(7)
-    except Exception as e:
-        print(f"[WARN] 无法弹出确认框: {e}，继续部署...")
-    
-    # 第4步：执行安装器
-    # 优先在 _MEIPASS（打包模式）查找，再在选定目录查找，再在项目根目录查找
-    installer_exe = None
-    
-    # 1. 打包模式：从 _internal 目录查找
-    if getattr(sys, '_MEIPASS', None):
-        meipass_installer = Path(sys._MEIPASS) / "python-3.11.0-amd64.exe"
-        if meipass_installer.exists():
-            installer_exe = meipass_installer
-            print(f"[INFO] 在 _internal 找到安装器: {installer_exe}")
-    
-    # 2. 如果还没找到，尝试在选定目录查找
-    if not installer_exe or not installer_exe.exists():
-        fallback_installer = p / "python-3.11.0-amd64.exe"
-        if fallback_installer.exists():
-            installer_exe = fallback_installer
-            print(f"[INFO] 在依赖目录找到安装器: {installer_exe}")
-    
-    # 3. 开发模式下：尝试在项目根目录查找
-    if not installer_exe or not installer_exe.exists():
-        if not _is_packaged_mode():
-            root_installer = Path(__file__).parent.parent / "python-3.11.0-amd64.exe"
-            if root_installer.exists():
-                installer_exe = root_installer
-                print(f"[INFO] 在项目根目录找到安装器: {installer_exe}")
-    
-    if not installer_exe or not installer_exe.exists():
-        msg = f"安装器未找到"
-        print(f"[ERROR] {msg}")
-        
-        # 开发模式下允许重新选择
-        if not _is_packaged_mode():
-            print(f"[INFO] 开发模式：允许重新选择依赖目录")
-            try:
-                from PyQt6.QtWidgets import QApplication, QMessageBox
-                app = QApplication.instance() or QApplication([])
-                
-                msgbox = QMessageBox()
-                msgbox.setWindowTitle("重新选择依赖目录")
-                msgbox.setText("未在选定目录找到安装器或 Python 3.11 环境")
-                msgbox.setInformativeText(
-                    "请重新选择依赖目录。\n\n"
-                    "提示：如果已在源码目录部署过（如 src/deps），可以选择该目录。"
-                )
-                msgbox.setStandardButtons(QMessageBox.StandardButton.Retry | QMessageBox.StandardButton.Cancel)
-                result = msgbox.exec()
-                
-                if result == QMessageBox.StandardButton.Retry:
-                    print(f"[INFO] 用户选择重新选择目录")
-                    # 清空配置并重新选择
-                    try:
-                        cfg_path = _config_path()
-                        if cfg_path.exists():
-                            cfg_path.unlink()
-                    except Exception:
-                        pass
-                    # 递归调用自身以重新选择
-                    return resolve_install_base_dir()
-                else:
-                    print(f"[INFO] 用户取消，退出")
-                    try:
-                        cfg_path = _config_path()
-                        if cfg_path.exists():
-                            cfg_path.unlink()
-                    except Exception:
-                        pass
-                    time.sleep(2)
-                    sys.exit(7)
-            except Exception as e:
-                print(f"[ERROR] 对话框异常: {e}")
-                try:
-                    cfg_path = _config_path()
-                    if cfg_path.exists():
-                        cfg_path.unlink()
-                except Exception:
-                    pass
-                time.sleep(2)
-                sys.exit(8)
-        else:
-            # 打包模式下找不到安装器是真的错误
-            msg = f"安装器未找到\n\n期望位置：{Path(sys._MEIPASS) if getattr(sys, '_MEIPASS', None) else '?'}/python-3.11.0-amd64.exe\n\n无法继续部署。"
-            print(f"[ERROR] {msg}")
-            # 清空配置文件
-            try:
-                cfg_path = _config_path()
-                if cfg_path.exists():
-                    cfg_path.unlink()
-            except Exception:
-                pass
-            try:
-                from PyQt6.QtWidgets import QApplication, QMessageBox
-                app = QApplication.instance() or QApplication([])
-                QMessageBox.critical(None, "错误", msg)
-            except Exception:
-                pass
-            time.sleep(2)
-            sys.exit(8)
-    
-    print(f"[INFO] 即将启动安装器...")
-    print(f"[INFO] 安装器: {installer_exe}")
-    print(f"[INFO] 安装目标: {py311_dir}")
-    
-    try:
-        _dismiss_startup_splash()
-        try:
-            from PyQt6.QtWidgets import QApplication as _QApplication
-            app = _QApplication.instance()
-        except Exception:
-            app = None
-        # 交互式运行安装器；轮询等待并持续让 Qt 处理事件，避免“卡死”观感
-        proc = subprocess.Popen([str(installer_exe)])
-        deadline = time.monotonic() + 900
-        ret = None
-        while True:
-            ret = proc.poll()
-            if ret is not None:
-                break
-            if time.monotonic() >= deadline:
-                raise subprocess.TimeoutExpired([str(installer_exe)], 900)
-            if app is not None:
-                try:
-                    app.processEvents()
-                except Exception:
-                    pass
-            time.sleep(0.2)
-        print(f"[INFO] 安装器进程结束（返回码: {ret}）")
-        time.sleep(1)
-    except subprocess.TimeoutExpired:
-        print(f"[ERROR] 安装器超时（15分钟）")
-        proc.kill()
-        # 清空配置文件
-        try:
-            cfg_path = _config_path()
-            if cfg_path.exists():
-                cfg_path.unlink()
-        except Exception:
-            pass
-        time.sleep(2)
-        sys.exit(8)
-    except Exception as e:
-        print(f"[ERROR] 运行安装器失败: {e}")
-        # 清空配置文件
-        try:
-            cfg_path = _config_path()
-            if cfg_path.exists():
-                cfg_path.unlink()
-        except Exception:
-            pass
-        time.sleep(2)
-        sys.exit(8)
-    
-    # 第5步：检查安装是否成功
-    if py_exe.exists():
-        print(f"[OK] ✓ Python 3.11 安装成功！")
-        _save_install_base_dir(p)
-        return p
-    else:
-        msg = f"Python 3.11 部署失败\n\n期望位置: {py_exe}\n\n请检查安装器是否正确运行。"
-        print(f"[ERROR] {msg}")
-        # 清空配置文件
-        try:
-            cfg_path = _config_path()
-            if cfg_path.exists():
-                cfg_path.unlink()
-        except Exception:
-            pass
-        try:
-            from PyQt6.QtWidgets import QApplication, QMessageBox
-            app = QApplication.instance() or QApplication([])
-            QMessageBox.critical(None, "部署失败", msg)
-        except Exception:
-            pass
-        time.sleep(2)
-        sys.exit(8)
-
-    (p / "models").mkdir(parents=True, exist_ok=True)
-    (p / "deps").mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] 选定目录未检测到可复用 Python，将由依赖向导按需初始化: {p / 'python311'}")
+    _save_install_base_dir(p)
     return p
 
 def _current_runtime_roots() -> list[str]:
@@ -2325,11 +2192,6 @@ def _in_ide() -> bool:
     """检测是否在 IDE 中运行（PyCharm/调试主控台等）。"""
     e = os.environ
     return any(k in e for k in ("PYCHARM_HOSTED", "PYCHARM_DISPLAY_PORT", "PYDEV_CONSOLE_ENCODING"))
-
-# 导入清理：以下导入已在文件顶部完成，这里不再重复
-import re
-import ctypes
-import importlib
 
 def _python_base_from_exe(pyexe: str) -> Path:
     p = Path(pyexe)
@@ -2839,10 +2701,6 @@ def enforce_private_runtime(base_dir: Path):
     finally:
         os._exit(0)
 
-# --- 放在最前面的辅助 ---
-import os, sys
-from pathlib import Path
-
 def _norm_path(s: str | None) -> str | None:
     if not s:
         return None
@@ -2861,9 +2719,6 @@ def _clean_bad_env():
     p = _norm_path(val)
     if not p or not os.path.exists(p):
         os.environ.pop("LATEXSNIPPER_PYEXE", None)
-
-# --- _find_full_python：仅认安装目录与 PATH，不再读取环境变量 ---
-import shutil
 
 def _has_ensurepip_venv(pyexe: str) -> bool:
     try:
@@ -2932,8 +2787,8 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             else:
                 print(f"[INFO] (打包模式) 使用外部私有 Python: {py}")
             return py
-        print("[ERROR] (打包模式) 依赖目录内未检测到可用 Python，且未找到安装器，无法启动。")
-        sys.exit(10)
+        print("[INFO] (打包模式) 依赖目录内未检测到可用 Python，先使用内置运行时启动依赖向导。")
+        return sys.executable
     # 开发模式：保留原有多路径查找和安装逻辑
     py = _find_full_python(base_dir)
     if py:
@@ -2966,12 +2821,19 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
 # 注意：_same_exe、_in_ide、_relaunch_with、_run_python_installer 已在上方定义，此处移除重复
 
 _ensure_startup_splash("加载依赖向导模块...")
-from deps_bootstrap import custom_warning_dialog, clear_deps_state
 _ensure_startup_splash("加载设置模块...")
-from settings_window import SettingsWindow
+
+
+def _load_startup_modules():
+    from deps_bootstrap import clear_deps_state, custom_warning_dialog
+    from settings_window import SettingsWindow
+
+    return custom_warning_dialog, clear_deps_state, SettingsWindow
+
+
+custom_warning_dialog, clear_deps_state, SettingsWindow = _load_startup_modules()
 
 # 1) 解析/选择安装目录
-from pathlib import Path
 _ensure_startup_splash("定位依赖目录...")
 INSTALL_BASE_DIR = resolve_install_base_dir()
 
@@ -3011,7 +2873,7 @@ if _is_packaged_mode():
                 # 统一优先 pythonw.exe，由 open_debug_console 决定是否分配日志终端。
                 # 这样可避免 python.exe 自带控制台在启动瞬间闪窗。
                 run_py = py_exe
-                pyw = py311_dir / "pythonw.exe"
+                pyw = py_exe.parent / "pythonw.exe"
                 if pyw.exists():
                     run_py = pyw
                 argv = [str(run_py), os.path.abspath(__file__), *sys.argv[1:]]
@@ -3129,29 +2991,100 @@ def show_dependency_wizard(always_show_ui=False):
     except Exception as e:
         print(f"[WARN] 依赖向导不可用: {e}")
         return False
-from PyQt6.QtWidgets import QApplication, QFileDialog, QSizePolicy
-from qfluentwidgets import MessageBox, BodyLabel
-import re
-import pyperclip
-from pathlib import Path
-import sys, os
-import json
 # 修正路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
-from backend.model import ModelWrapper, classify_pix2text_failure
-from backend.model_factory import create_model_wrapper
-from backend.external_model import ExternalModelPdfWorker, ExternalModelWorker, load_config_from_mapping
-from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
-from backend.latex_renderer import init_latex_settings, get_latex_renderer
-from editor.workbench_window import WorkbenchWindow
-import importlib
-from qfluentwidgets import (
+
+
+def _load_runtime_modules():
+    import pyperclip as _pyperclip
+    from PIL import Image as _Image
+    from backend.external_model import (
+        ExternalModelPdfWorker,
+        ExternalModelWorker,
+        load_config_from_mapping,
+    )
+    from backend.latex_renderer import get_latex_renderer, init_latex_settings
+    from backend.model import ModelWrapper, classify_pix2text_failure
+    from backend.model_factory import create_model_wrapper
+    from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
+    from editor.workbench_window import WorkbenchWindow
+    from handwriting import HandwritingWindow
+    from handwriting.bilingual_pdf_window import BilingualPdfWindow
+    from qfluentwidgets import (
+        Action,
+        BodyLabel,
+        FluentIcon,
+        InfoBar,
+        InfoBarPosition,
+        MessageBox,
+        PrimaryPushButton,
+        PrimaryToolButton,
+        PushButton,
+        RoundMenu,
+    )
+
+    return (
+        Action,
+        BilingualPdfWindow,
+        BodyLabel,
+        ExternalModelPdfWorker,
+        ExternalModelWorker,
+        FluentIcon,
+        HandwritingWindow,
+        _Image,
+        InfoBar,
+        InfoBarPosition,
+        MessageBox,
+        ModelWrapper,
+        PlatformCapabilityRegistry,
+        PrimaryPushButton,
+        PrimaryToolButton,
+        PushButton,
+        RoundMenu,
+        ScreenshotConfig,
+        TrayMenuHandlers,
+        WorkbenchWindow,
+        classify_pix2text_failure,
+        create_model_wrapper,
+        get_latex_renderer,
+        init_latex_settings,
+        load_config_from_mapping,
+        _pyperclip,
+    )
+
+
+(
+    Action,
+    BilingualPdfWindow,
+    BodyLabel,
+    ExternalModelPdfWorker,
+    ExternalModelWorker,
     FluentIcon,
-    InfoBar, InfoBarPosition, MessageBox, PrimaryPushButton
-)
-from pathlib import Path
+    HandwritingWindow,
+    Image,
+    InfoBar,
+    InfoBarPosition,
+    MessageBox,
+    ModelWrapper,
+    PlatformCapabilityRegistry,
+    PrimaryPushButton,
+    PrimaryToolButton,
+    PushButton,
+    RoundMenu,
+    ScreenshotConfig,
+    TrayMenuHandlers,
+    WorkbenchWindow,
+    classify_pix2text_failure,
+    create_model_wrapper,
+    get_latex_renderer,
+    init_latex_settings,
+    load_config_from_mapping,
+    pyperclip,
+) = _load_runtime_modules()
+
+
 def get_app_dir():
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         return Path(sys._MEIPASS)
@@ -3186,9 +3119,6 @@ def parse_requirements(req_path):
     return reqs
 
 # 统一把 FluentWindow 弹窗改为 QDialog，移除重复 dlg 赋值
-
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidgetItem
-from qfluentwidgets import BodyLabel, PrimaryPushButton, MessageBox
 
 def _apply_close_only_window_flags(win):
     """提示/工具窗口统一为仅保留右上角关闭按钮。"""
@@ -3261,6 +3191,7 @@ def _show_formula_rename_dialog(parent, current_name: str = "", title: str = "�
 
     dlg.adjustSize()
     dlg.setFixedSize(max(340, dlg.width()), dlg.height())
+    _apply_app_window_icon(dlg)
     QTimer.singleShot(0, edit.setFocus)
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return "", False
@@ -3276,6 +3207,7 @@ def _exec_close_only_message_box(
     informative_text: str | None = None,
 ):
     msg = QMessageBox(parent)
+    _apply_app_window_icon(msg)
     msg.setWindowTitle(title)
     msg.setText(text)
     msg.setIcon(icon)
@@ -3416,9 +3348,10 @@ def get_install_base_dir():
     font = QFont("Microsoft YaHei UI", 9)
     font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(font)
-    dir_ = QFileDialog.getExistingDirectory(None, "请选择主安装目录下的_internal", os.path.expanduser("~"))
+    dir_ = _select_existing_directory_with_icon(None, "请选择主安装目录下的_internal", os.path.expanduser("~"))
     if not dir_:
-        msg = MessageBox("错误", "未选择安装目录_internal，程序将退出。", None).exec()
+        msg = MessageBox("错误", "未选择安装目录_internal，程序将退出。", None)
+        _apply_app_window_icon(msg)
         msg.exec()
         sys.exit(1)
     # 保存到配置
@@ -3436,7 +3369,6 @@ def get_install_base_dir():
 # 在 main.py 最前面调用
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
-import os, sys, subprocess, importlib
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
 os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
@@ -3524,7 +3456,6 @@ def _ensure_std_streams():
 
 # 在程序启动早期调用一次
 _ensure_std_streams()
-from PyQt6.QtWidgets import QWidgetAction
 try:
     from PyQt6 import sip  # PyQt6 bundled sip, preferred for type resolution
 except Exception:
@@ -3532,28 +3463,6 @@ except Exception:
         import sip  # pyright: ignore[reportMissingImports]  # fallback for top-level sip package
     except Exception:
         sip = None
-
-import sys
-import json
-from io import BytesIO
-from PyQt6.QtCore import QEvent
-from PyQt6.QtWidgets import QVBoxLayout, QListWidget, QMenu, QInputDialog, QProgressDialog
-# ========== Fluent UI 样式 ==========
-from qfluentwidgets import (
-    PrimaryPushButton, PrimaryToolButton, PushButton,
-    InfoBar, InfoBarPosition, MessageBox
-)
-
-from PyQt6.QtCore import Qt, QObject, QThread, QCoreApplication, QSize
-from PyQt6.QtGui import QIcon
-import pyperclip
-from PIL import Image
-
-from PyQt6.QtWidgets import (QApplication, QWidget, QLabel,
-                             QDialog, QTextEdit, QHBoxLayout, QScrollArea)
-from PyQt6.QtCore import QBuffer, QIODevice, pyqtSignal
-
-from backend.model import ModelWrapper
 def _action_btn_style() -> str:
     if _is_dark_ui():
         return (
@@ -4317,11 +4226,6 @@ def ensure_webengine_loaded() -> bool:
         _log_webengine_diagnostics("import-failed", e)
         return False
 
-from utils import resource_path
-from handwriting import HandwritingWindow
-from handwriting.bilingual_pdf_window import BilingualPdfWindow
-from qfluentwidgets import RoundMenu, Action
-
 class CenterMenu(RoundMenu):
     def __init__(self, title: str = "", parent=None):
         super().__init__(title=title, parent=parent)
@@ -4376,8 +4280,7 @@ def normalize_content_type(content_type: str | None) -> str:
     allowed = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
     return t if t in allowed else "pix2text"
 
-from PyQt6.QtWidgets import QMainWindow as _QMainWindow
-class FavoritesWindow(_QMainWindow):
+class FavoritesWindow(QMainWindow):
     """收藏夹窗口 - 简化版，只保留列表功能"""
     def __init__(self, cfg: ConfigManager, parent=None):
         super().__init__(parent)
@@ -4955,9 +4858,12 @@ class FavoritesWindow(_QMainWindow):
         self.list_widget.setStyleSheet(self._favorites_list_qss())
 
     def select_file(self):
-        path, _ = QFileDialog.getSaveFileName(self, "选择收藏夹保存路径",
-                                             os.path.dirname(self.file_path),
-                                             "JSON Files (*.json)")
+        path, _ = _select_save_file_with_icon(
+            self,
+            "选择收藏夹保存路径",
+            os.path.dirname(self.file_path),
+            "JSON Files (*.json)",
+        )
         if path:
             self.file_path = path
             self.cfg.set("favorites_path", path)
@@ -5083,7 +4989,7 @@ class FavoritesWindow(_QMainWindow):
         self.show(); self.raise_(); self.activateWindow()
         self._set_status("已加入收藏")
 
-class PdfResultWindow(_QMainWindow):
+class PdfResultWindow(QMainWindow):
     """PDF 识别结果独立窗口（非模态，避免阻塞主窗口）。"""
     def __init__(self, status_cb=None, window_icon: QIcon | None = None):
         super().__init__(None)
@@ -5189,7 +5095,12 @@ class PdfResultWindow(_QMainWindow):
     def _do_save(self):
         suffix = "md" if self._fmt_key == "markdown" else "tex"
         filter_ = "Markdown (*.md)" if self._fmt_key == "markdown" else "LaTeX (*.tex)"
-        path, _ = QFileDialog.getSaveFileName(self, "保存识别结果", f"识别结果.{suffix}", filter_)
+        path, _ = _select_save_file_with_icon(
+            self,
+            "保存识别结果",
+            f"识别结果.{suffix}",
+            filter_,
+        )
         if not path:
             return
         try:
@@ -5341,7 +5252,7 @@ class PreviewLatexRenderWorker(QObject):
             svg = None
         self.finished.emit(str(cache_key or ""), svg)
 
-class MainWindow(_QMainWindow):
+class MainWindow(QMainWindow):
     """主窗口 - 使用 QMainWindow 以正确支持 setCentralWidget"""
     _model_warmup_result_signal = pyqtSignal()
     _preview_latex_render_request = pyqtSignal(str, str)
@@ -5491,6 +5402,7 @@ class MainWindow(_QMainWindow):
                     f"模型初始化失败：{e}\n程序将进入依赖修复界面。",
                     self
                 )
+                _apply_app_window_icon(msg)
                 msg.exec()
                 try:
                     ok = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
@@ -8120,11 +8032,11 @@ th {{
         """上传图片并识别公式/文本。"""
         patterns = self._get_supported_image_patterns()
         filter_ = f"图片文件 ({' '.join(patterns)})"
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path, _ = _select_open_file_with_icon(
             self,
             "选择图片",
             "",
-            f"{filter_};;所有文件 (*.*)"
+            f"{filter_};;所有文件 (*.*)",
         )
         if not file_path:
             return
@@ -8187,6 +8099,7 @@ th {{
             dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
             dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
             dlg.setFixedSize(dlg.sizeHint())
+            _apply_app_window_icon(dlg)
             if dlg.exec() != int(QDialog.DialogCode.Accepted):
                 return None
             return dlg.textValue()
@@ -8229,6 +8142,7 @@ th {{
         dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
         dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        _apply_app_window_icon(dlg)
 
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("请选择 PDF 渲染分辨率（DPI）："))
@@ -8279,11 +8193,11 @@ th {{
 
     def _upload_pdf_recognition(self):
         """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path, _ = _select_open_file_with_icon(
             self,
             "选择 PDF 文件",
             "",
-            "PDF 文件 (*.pdf);;所有文件 (*.*)"
+            "PDF 文件 (*.pdf);;所有文件 (*.*)",
         )
         if not file_path:
             return
@@ -8322,6 +8236,7 @@ th {{
                 "PDF 识别建议使用 pix2text_mixed（混合识别）。\n是否切换并继续？",
                 self
             )
+            _apply_app_window_icon(tip)
             tip.yesButton.setText("切换并继续")
             tip.cancelButton.setText("取消")
             if tip.exec():
@@ -8369,6 +8284,7 @@ th {{
         page_dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         page_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         page_dlg.setFixedSize(page_dlg.sizeHint())
+        _apply_app_window_icon(page_dlg)
         if page_dlg.exec() != int(QDialog.DialogCode.Accepted):
             return
         pages = page_dlg.intValue()
@@ -10166,9 +10082,6 @@ class PdfPredictWorker(QObject):
         _set_elapsed()
         self.finished.emit(content.strip())
 # ---------------- 编辑对话框 ----------------
-from PyQt6.QtCore import Qt
-# 替换原 EditFormulaDialog：使用 QDialog，支持 exec/accept/reject
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
 
 class EditFormulaDialog(QDialog):
     def __init__(self, latex: str, parent=None):
@@ -10385,6 +10298,7 @@ if __name__ == "__main__":
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
         splash = _take_startup_splash(app, _startup_status_message("初始化界面..."))
+        open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
         # 3) UI 主题（可选）
         try:
             from qfluentwidgets import setThemeColor
@@ -10394,6 +10308,12 @@ if __name__ == "__main__":
             pass
         # 检查是否需要强制依赖检验
         if force_deps_check or force_verify_env:
+            _update_startup_splash(splash, _startup_status_message("检查依赖中..."))
+            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
+            if not ok:
+                sys.exit(1)
+            splash = _take_startup_splash(app, _startup_deps_resume_message())
+        elif open_wizard_on_start:
             _update_startup_splash(splash, _startup_status_message("检查依赖中..."))
             ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
             if not ok:

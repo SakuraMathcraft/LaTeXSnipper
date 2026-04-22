@@ -20,7 +20,14 @@
 # If you're wondering how this is created, it is generated using
 # `scripts/generate.py` in https://github.com/pypa/get-pip.
 
+import argparse
+import importlib
+import os.path
+import pkgutil
+import shutil
 import sys
+import tempfile
+from base64 import b85decode
 
 this_python = sys.version_info[:2]
 min_version = (3, 9)
@@ -32,17 +39,6 @@ if this_python < min_version:
     ]
     print("ERROR: " + " ".join(message_parts))
     sys.exit(1)
-
-
-import os.path
-import pkgutil
-import shutil
-import tempfile
-import argparse
-import importlib
-from base64 import b85decode
-
-
 def include_setuptools(args):
     """
     Install setuptools only if absent, not excluded and when using Python <3.12.
