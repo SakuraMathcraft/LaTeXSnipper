@@ -7,10 +7,10 @@ import os
 import subprocess
 import sys
 
-from PyQt6.QtCore import QProcess, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QProcess, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QSplitter, QVBoxLayout, QWidget
-from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton
+from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton, isDarkTheme
 
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
@@ -95,11 +95,25 @@ class _ArgosModelInstallWorker(QThread):
 
 
 class _ArgosStatusProbeWorker(QThread):
-    completed = pyqtSignal(dict)
+    completed = pyqtSignal(str, dict)
 
     def __init__(self, pyexe: str, parent=None):
         super().__init__(parent)
         self._pyexe = str(pyexe or "").strip()
+        self._proc = None
+
+    def stop(self) -> None:
+        proc = self._proc
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+            proc.wait(timeout=2)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
     def run(self) -> None:
         pyexe = self._pyexe
@@ -110,7 +124,7 @@ class _ArgosStatusProbeWorker(QThread):
         }
         if not pyexe or (not os.path.exists(pyexe)):
             result["error"] = "python_missing"
-            self.completed.emit(result)
+            self.completed.emit(pyexe, result)
             return
         script = (
             "import json\n"
@@ -133,17 +147,24 @@ class _ArgosStatusProbeWorker(QThread):
             "print(json.dumps(result, ensure_ascii=False))\n"
         )
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 [pyexe, "-c", script],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=20,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
             )
-            raw = (proc.stdout or "").strip()
+            self._proc = proc
+            try:
+                stdout, stderr = proc.communicate(timeout=20)
+            except subprocess.TimeoutExpired:
+                self.stop()
+                stdout, stderr = "", "Argos 状态检测超时。"
+            finally:
+                self._proc = None
+            raw = (stdout or "").strip()
             if proc.returncode == 0 and raw:
                 try:
                     payload = json.loads(raw.splitlines()[-1])
@@ -152,10 +173,10 @@ class _ArgosStatusProbeWorker(QThread):
                 except Exception:
                     result["error"] = raw
             else:
-                result["error"] = (proc.stderr or raw or "").strip()
+                result["error"] = (stderr or raw or "").strip()
         except Exception as exc:
             result["error"] = str(exc)
-        self.completed.emit(result)
+        self.completed.emit(pyexe, result)
 
 
 _ENGINE_ITEMS = [
@@ -190,8 +211,17 @@ class BilingualPdfWindow(QDialog):
         self._argos_install_worker = None
         self._argos_probe_worker = None
         self._argos_probe_cache: dict[str, dict[str, object]] = {}
+        self._theme_is_dark_cached = None
         self.setWindowTitle("双语阅读")
         self.resize(980, 620)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+        )
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         try:
             icon_path = resource_path("assets/icon.ico")
@@ -351,11 +381,32 @@ class BilingualPdfWindow(QDialog):
             pass
 
     def _apply_theme(self) -> None:
+        dark = bool(isDarkTheme())
+        if self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        muted = "#9aa4b2" if dark else "#6b7280"
         self.title_label.setStyleSheet("font-size: 24px; font-weight: 600;")
-        self.title_hint_label.setStyleSheet("font-size: 12px; color: #7a8698;")
-        self.page_label.setStyleSheet("font-size: 12px; color: #7a8698;")
-        self.pdf_backend_status_label.setStyleSheet("font-size: 12px; color: #7a8698;")
-        self.argos_status_label.setStyleSheet("font-size: 12px; color: #7a8698;")
+        self.title_hint_label.setStyleSheet(f"font-size: 12px; color: {muted};")
+        self.page_label.setStyleSheet(f"font-size: 12px; color: {muted};")
+        self.pdf_backend_status_label.setStyleSheet(f"font-size: 12px; color: {muted};")
+        self.argos_status_label.setStyleSheet(f"font-size: 12px; color: {muted};")
+        self.argos_progress_text.setStyleSheet(f"font-size: 12px; color: {muted};")
+        self.translate_progress_text.setStyleSheet(f"font-size: 12px; color: {muted};")
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        theme_change = getattr(QEvent.Type, "ThemeChange", None)
+        refresh_events = {
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.StyleChange,
+        }
+        if theme_change is not None:
+            refresh_events.add(theme_change)
+        if event.type() in refresh_events:
+            self._theme_is_dark_cached = None
+            self._apply_theme()
 
     def _current_engine(self) -> str:
         return str(self.engine_combo.currentData() or "source_only").strip()
@@ -582,7 +633,7 @@ class BilingualPdfWindow(QDialog):
         }
         worker = _ArgosStatusProbeWorker(pyexe, self)
         self._argos_probe_worker = worker
-        worker.completed.connect(lambda payload, exe=pyexe: self._on_argos_probe_completed(exe, payload))
+        worker.completed.connect(self._on_argos_probe_completed)
         worker.finished.connect(self._on_argos_probe_finished)
         worker.start()
 
@@ -1255,6 +1306,24 @@ class BilingualPdfWindow(QDialog):
             event.ignore()
             InfoBar.warning(title="安装进行中", content="Argos 英中模型仍在安装，请等待完成后再关闭窗口。", parent=self, position=InfoBarPosition.TOP, duration=2600)
             return
+        probe_worker = self._argos_probe_worker
+        if probe_worker is not None and probe_worker.isRunning():
+            try:
+                probe_worker.finished.disconnect(self._on_argos_probe_finished)
+            except Exception:
+                pass
+            try:
+                probe_worker.completed.disconnect(self._on_argos_probe_completed)
+            except Exception:
+                pass
+            probe_worker.setParent(None)
+            probe_worker.finished.connect(probe_worker.deleteLater)
+            try:
+                probe_worker.stop()
+                probe_worker.wait(500)
+            except Exception:
+                pass
+            self._argos_probe_worker = None
         self._closing = True
         self._pending_translate_page = None
         self._prefetch_queue.clear()
