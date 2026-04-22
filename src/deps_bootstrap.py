@@ -4090,6 +4090,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     "base_text": "",
                     "last_sample": None,
                     "down_bps": None,
+                    "pip_speed_text": "",
+                    "pip_eta_text": "",
+                    "pip_progress_text": "",
                 }
 
                 def _is_alive(obj):
@@ -4128,16 +4131,53 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 def _render_info_text():
                     text = net_speed_state.get("base_text", "") or ""
                     if net_speed_state.get("busy", False):
-                        speed = net_speed_state.get("down_bps")
-                        if speed is not None:
-                            text = f"{text}  下载速度：{_format_speed(speed)}"
+                        pip_speed = (net_speed_state.get("pip_speed_text") or "").strip()
+                        pip_eta = (net_speed_state.get("pip_eta_text") or "").strip()
+                        pip_progress = (net_speed_state.get("pip_progress_text") or "").strip()
+                        if pip_speed:
+                            text = f"{text}  下载速度：{pip_speed}"
+                            if pip_eta:
+                                text = f"{text}  剩余：{pip_eta}"
+                            if pip_progress:
+                                text = f"{text}  {pip_progress}"
                         else:
-                            text = f"{text}  下载速度：计算中..."
+                            speed = net_speed_state.get("down_bps")
+                            if speed is not None:
+                                text = f"{text}  下载速度：{_format_speed(speed)}"
+                            else:
+                                text = f"{text}  下载速度：计算中..."
                     if _is_alive(info):
                         try:
                             info.setText(text)
                         except RuntimeError:
                             pass
+
+                def _parse_pip_transfer_status(line: str):
+                    if not line:
+                        return None
+                    text = line.strip().replace("\r", " ")
+                    if not text:
+                        return None
+                    speed_match = re.search(r"(\d+(?:\.\d+)?)\s*([kmg]?i?B/s)", text, re.IGNORECASE)
+                    if not speed_match:
+                        return None
+                    speed_text = f"{speed_match.group(1)} {speed_match.group(2)}"
+                    eta_match = re.search(r"(\d+:\d{2}:\d{2}|\d+:\d{2})", text)
+                    progress_match = re.search(
+                        r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*([kmg]?i?B)",
+                        text,
+                        re.IGNORECASE,
+                    )
+                    progress_text = ""
+                    if progress_match:
+                        progress_text = (
+                            f"{progress_match.group(1)}/{progress_match.group(2)} {progress_match.group(3)}"
+                        )
+                    return {
+                        "speed_text": speed_text,
+                        "eta_text": eta_match.group(1) if eta_match else "",
+                        "progress_text": progress_text,
+                    }
 
                 def _sample_network_speed():
                     if psutil is None or not net_speed_state.get("busy", False):
@@ -4169,6 +4209,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     net_speed_state["busy"] = bool(is_busy)
                     net_speed_state["last_sample"] = None
                     net_speed_state["down_bps"] = None
+                    net_speed_state["pip_speed_text"] = ""
+                    net_speed_state["pip_eta_text"] = ""
+                    net_speed_state["pip_progress_text"] = ""
                     _render_info_text()
 
                 def toggle_pause():
@@ -4312,6 +4355,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             lines_to_emit.append(line)
                             drained += 1
                     if lines_to_emit:
+                        for line in lines_to_emit:
+                            parsed_transfer = _parse_pip_transfer_status(line)
+                            if parsed_transfer:
+                                net_speed_state["pip_speed_text"] = parsed_transfer["speed_text"]
+                                net_speed_state["pip_eta_text"] = parsed_transfer["eta_text"]
+                                net_speed_state["pip_progress_text"] = parsed_transfer["progress_text"]
+                                _render_info_text()
                         _append_log("\n".join(lines_to_emit))
 
                 timer.timeout.connect(drain_log_queue)
