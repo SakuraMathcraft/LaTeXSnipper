@@ -45,11 +45,8 @@ import sys
 import tempfile
 import textwrap
 import threading
-from pathlib import Path
 
 from PIL import Image
-
-from backend.torch_runtime import infer_main_python, inject_shared_torch_env, python_site_packages
 
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
@@ -295,60 +292,12 @@ class ModelWrapper(QObject):
         except Exception:
             pass
 
-    def _discover_shared_torch_site(self) -> str:
-        for cand in (
-            os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", ""),
-            os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", ""),
-        ):
-            site = (cand or "").strip()
-            if site and os.path.isdir(site):
-                return site
-
-        try:
-            main_site = python_site_packages(infer_main_python())
-            if main_site and (main_site / "torch").exists():
-                return str(main_site)
-        except Exception:
-            pass
-
-        try:
-            deps_site = python_site_packages(get_deps_python())
-            if deps_site and (deps_site / "torch").exists():
-                return str(deps_site)
-        except Exception:
-            pass
-
-        try:
-            base = (os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "") or "").strip()
-            if base:
-                c = Path(base) / "python311" / "Lib" / "site-packages"
-                if c.exists() and (c / "torch").exists():
-                    return str(c)
-        except Exception:
-            pass
-
-        try:
-            app_dir = Path(__file__).resolve().parent.parent
-            c = app_dir / "deps" / "python311" / "Lib" / "site-packages"
-            if c.exists() and (c / "torch").exists():
-                return str(c)
-        except Exception:
-            pass
-
-        return ""
-
     def _build_subprocess_env(self) -> dict:
         env = os.environ.copy()
         for k in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
             env.pop(k, None)
         env["PYTHONNOUSERSITE"] = "1"
-
-        shared_site = self._discover_shared_torch_site()
-        env = inject_shared_torch_env(env, shared_site)
-        if shared_site:
-            env["PIX2TEXT_SHARED_TORCH_SITE"] = shared_site
-        else:
-            env.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
+        env.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
         env.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
         return env
 
@@ -472,51 +421,6 @@ class ModelWrapper(QObject):
                 import sys
                 from PIL import Image
 
-                def _bootstrap_shared_torch():
-                    _shared_site = (
-                        os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
-                        or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
-                        or ""
-                    ).strip()
-                    if not (_shared_site and os.path.isdir(_shared_site)):
-                        return
-                    _added = False
-                    try:
-                        if _shared_site not in sys.path:
-                            sys.path.insert(0, _shared_site)
-                            _added = True
-                    except Exception:
-                        pass
-                    try:
-                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                        if os.path.isdir(_torch_lib):
-                            if hasattr(os, "add_dll_directory"):
-                                os.add_dll_directory(_torch_lib)
-                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                    except Exception:
-                        pass
-                    try:
-                        try:
-                            import torch  # noqa: F401
-                        except Exception:
-                            pass
-                        try:
-                            import torchvision  # noqa: F401
-                        except Exception:
-                            pass
-                        try:
-                            import torchaudio  # noqa: F401
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                    finally:
-                        if _added:
-                            try:
-                                sys.path.remove(_shared_site)
-                            except Exception:
-                                pass
-
                 def _pick_device():
                     try:
                         import torch
@@ -582,7 +486,6 @@ class ModelWrapper(QObject):
                         return _as_text(m.recognize(img))
                     return _as_text(model_main.recognize_formula(img))
 
-                _bootstrap_shared_torch()
                 """
             ).strip()
             + "\n\n"
@@ -718,51 +621,6 @@ class ModelWrapper(QObject):
                 import sys
                 from PIL import Image
 
-                def _bootstrap_shared_torch():
-                    _shared_site = (
-                        os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "")
-                        or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
-                        or ""
-                    ).strip()
-                    if not (_shared_site and os.path.isdir(_shared_site)):
-                        return
-                    _added = False
-                    try:
-                        if _shared_site not in sys.path:
-                            sys.path.insert(0, _shared_site)
-                            _added = True
-                    except Exception:
-                        pass
-                    try:
-                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                        if os.path.isdir(_torch_lib):
-                            if hasattr(os, "add_dll_directory"):
-                                os.add_dll_directory(_torch_lib)
-                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                    except Exception:
-                        pass
-                    try:
-                        try:
-                            import torch  # noqa: F401
-                        except Exception:
-                            pass
-                        try:
-                            import torchvision  # noqa: F401
-                        except Exception:
-                            pass
-                        try:
-                            import torchaudio  # noqa: F401
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                    finally:
-                        if _added:
-                            try:
-                                sys.path.remove(_shared_site)
-                            except Exception:
-                                pass
-
                 def _pick_device():
                     try:
                         import torch
@@ -807,7 +665,6 @@ class ModelWrapper(QObject):
                         return " ".join(x.strip() for x in out if str(x).strip())
                     return str(obj)
 
-                _bootstrap_shared_torch()
                 """
             ).strip()
             + "\n\n"
@@ -1034,53 +891,12 @@ class ModelWrapper(QObject):
         if self._pix2text_subprocess_ready or self._pix2text_import_failed:
             return self._pix2text_subprocess_ready
 
-        try:
-            dbg_env = self._build_subprocess_env()
-            dbg_site = (
-                dbg_env.get("PIX2TEXT_SHARED_TORCH_SITE", "")
-                or dbg_env.get("LATEXSNIPPER_SHARED_TORCH_SITE", "")
-                or ""
-            ).strip()
-            self._emit(f"[DEBUG] pix2text shared torch site: {dbg_site or '<empty>'}")
-        except Exception:
-            pass
-
         deps_python = get_pix2text_python()
         probe_code = (
             textwrap.dedent(
                 r"""
                 import json, os, sys
                 from importlib import metadata as _md
-                def _bootstrap_shared_torch():
-                    _shared_site = (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or os.environ.get("LATEXSNIPPER_SHARED_TORCH_SITE", "") or "").strip()
-                    if not (_shared_site and os.path.isdir(_shared_site)):
-                        return
-                    _added = False
-                    try:
-                        if _shared_site not in sys.path:
-                            sys.path.insert(0, _shared_site)
-                            _added = True
-                    except Exception:
-                        pass
-                    try:
-                        _torch_lib = os.path.join(_shared_site, "torch", "lib")
-                        if os.path.isdir(_torch_lib):
-                            if hasattr(os, "add_dll_directory"):
-                                os.add_dll_directory(_torch_lib)
-                            os.environ["PATH"] = _torch_lib + os.pathsep + os.environ.get("PATH", "")
-                    except Exception:
-                        pass
-                    try:
-                        import torch, torchvision  # noqa: F401
-                    except Exception:
-                        pass
-                    finally:
-                        if _added:
-                            try:
-                                sys.path.remove(_shared_site)
-                            except Exception:
-                                pass
-                _bootstrap_shared_torch()
                 """
             ).strip()
             + "\n\n"

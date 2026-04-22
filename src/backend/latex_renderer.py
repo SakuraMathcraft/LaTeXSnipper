@@ -1,4 +1,4 @@
-"""
+﻿"""
 LaTeX 公式渲染器 - 支持 pdflatex/xelatex 或 MathJax 备选
 
 用户可以在设置中指定 LaTeX 环境路径：
