@@ -1,4 +1,5 @@
-﻿import os
+﻿import json
+import os
 import shutil
 import subprocess
 import sys
@@ -146,7 +147,7 @@ class ExternalModelHelpWindow(QDialog):
 class SettingsWindow(QDialog):
     """设置窗口 - 使用 QDialog 作为基类"""
     model_changed = pyqtSignal(str)
-    env_torch_probe_done = pyqtSignal(str, object, str)
+    compute_mode_probe_done = pyqtSignal(object, str)
     pix2text_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)
     latex_auto_detect_done = pyqtSignal(bool, str, str)
@@ -177,9 +178,9 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # 默认宽度加大，避免 InfoBar 文案被截断
-        self.resize(600, 700)
+        self.resize(600, 670)
         self.setMinimumWidth(600)
-        self.setMinimumHeight(700)
+        self.setMinimumHeight(670)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
@@ -195,7 +196,6 @@ class SettingsWindow(QDialog):
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
         self._pix2text_pkg_ready = False
-        self._torch_probe_seq = {"pix2text": 0}
         # 缓存慢探测结果，避免频繁点击时阻塞 UI
         self._probe_cache_ttl_sec = 45.0
         self._cached_gpu_plan = None
@@ -204,6 +204,11 @@ class SettingsWindow(QDialog):
         self._cached_main_torch_info = None
         self._cached_main_torch_py = ""
         self._cached_main_torch_ts = 0.0
+        self._compute_mode_probe_py = ""
+        self._compute_mode_probe_ts = 0.0
+        self._compute_mode_probe_info = None
+        self._compute_mode_probe_running = False
+        self._device_name_cache = {"gpu": "", "cpu": "", "ts": 0.0}
         self._theme_mode_values = ["light", "dark", "auto"]
         # 模型选择区域
         lay.addWidget(QLabel("选择识别模型:"))
@@ -239,11 +244,6 @@ class SettingsWindow(QDialog):
         self.pix2text_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.pix2text_env_hint.setWordWrap(True)
         lay.addWidget(self.pix2text_env_hint)
-        # pix2text 推理设备检测
-        self.pix2text_torch_status = QLabel("pix2text 设备: 未检测")
-        self.pix2text_torch_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.pix2text_torch_status.setWordWrap(True)
-        lay.addWidget(self.pix2text_torch_status)
         # 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
         self.pix2text_torch_btn_row = None
         self.pix2text_torch_install_gpu = None
@@ -504,8 +504,9 @@ class SettingsWindow(QDialog):
         lay.addStretch()
         # 连接信号
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
-        self.env_torch_probe_done.connect(self._set_env_torch_ui)
+        self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
         self.pix2text_pkg_probe_done.connect(self._set_pix2text_pkg_ready)
+        self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.terminal_env_combo.currentIndexChanged.connect(self._on_terminal_env_changed)
@@ -640,8 +641,6 @@ class SettingsWindow(QDialog):
             self.lbl_model_desc.setStyleSheet(f"color: {t['muted']}; font-size: 11px; padding: 4px;")
         if hasattr(self, "pix2text_env_hint") and self.pix2text_env_hint is not None:
             self.pix2text_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
-        if hasattr(self, "pix2text_torch_status") and self.pix2text_torch_status is not None:
-            self.pix2text_torch_status.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
         if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
             self.lbl_latex_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 4px;")
         if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
@@ -776,12 +775,41 @@ class SettingsWindow(QDialog):
                     "present": True,
                     "cuda_version": f"cu{cuda_ver}" if cuda_ver else "",
                     "cuda_available": True if cuda_ver else False,
+                    "gpu_name": "",
+                    "cpu_name": "",
                 }
             if (site / "torch").exists():
-                return {"present": True, "cuda_version": "", "cuda_available": False}
+                return {"present": True, "cuda_version": "", "cuda_available": False, "gpu_name": "", "cpu_name": ""}
         except Exception:
             return {}
         return {}
+
+    def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
+        try:
+            env_root = self._python_env_root(pyexe)
+            site = env_root / "Lib" / "site-packages"
+            if not site.exists():
+                return {}
+            names = {d.name.lower() for d in site.iterdir()}
+            has_ort = any(name.startswith("onnxruntime-") for name in names) or (site / "onnxruntime").exists()
+            if not has_ort:
+                return {}
+            has_gpu_runtime = any(name.startswith("onnxruntime_gpu-") or name.startswith("onnxruntime-gpu-") for name in names)
+            info = {
+                "present": True,
+                "providers": [],
+                "gpu_name": "",
+                "cpu_name": "",
+                "gpu_available": False,
+            }
+            if has_gpu_runtime:
+                info["providers"] = ["CUDAExecutionProvider"]
+                info["gpu_available"] = True
+            else:
+                info["providers"] = ["CPUExecutionProvider"]
+            return info
+        except Exception:
+            return {}
 
     def _probe_torch_info(self, pyexe: str, env_key: str = "") -> dict:
         if not pyexe or not os.path.exists(pyexe):
@@ -797,45 +825,112 @@ class SettingsWindow(QDialog):
         except Exception as e:
             return {"present": False, "error": str(e)}
 
-    def _set_env_torch_ui(self, env_key: str, info: dict, pyexe: str):
-        env_key = "pix2text"
-        label = self.pix2text_torch_status
-        if info.get("error") == "timeout":
-            label.setText(f"{env_key} 设备: 获取超时")
-            return
+    def _probe_compute_mode_info(self, pyexe: str) -> dict:
         if not pyexe or not os.path.exists(pyexe):
-            label.setText(f"{env_key} 设备: 环境未配置")
-            return
-        if not info.get("present"):
-            label.setText(f"{env_key} 设备: 未安装 PyTorch（默认将为 CPU 版）")
-            return
-        cuda_ver = info.get("cuda_version")
-        cuda_ok = info.get("cuda_available")
-        if cuda_ver:
-            suffix = "（CUDA 不可用）" if cuda_ok is False else ""
-            label.setText(f"{env_key} 设备: GPU 版已安装{suffix}")
-        else:
-            label.setText(f"{env_key} 设备: CPU 版已安装")
+            return {"present": False, "error": "python.exe not found"}
+        code = (
+            "import json\n"
+            "out={'present': False, 'providers': [], 'gpu_available': False, 'gpu_name': '', 'cpu_name': ''}\n"
+            "try:\n"
+            " import onnxruntime as ort\n"
+            " providers = list(ort.get_available_providers() or [])\n"
+            " out['present'] = True\n"
+            " out['providers'] = providers\n"
+            " out['gpu_available'] = any(p in providers for p in ('CUDAExecutionProvider', 'TensorrtExecutionProvider', 'DmlExecutionProvider'))\n"
+            "except Exception as e:\n"
+            " out['error'] = f'{e.__class__.__name__}: {e}'\n"
+            "print(json.dumps(out, ensure_ascii=False))\n"
+        )
+        try:
+            res = subprocess.run(
+                [pyexe, "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=6,
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = (res.stdout or "").strip()
+            if raw:
+                try:
+                    info = json.loads(raw.splitlines()[-1])
+                    if isinstance(info, dict):
+                        gpu_name, cpu_name = self._probe_local_device_names()
+                        if gpu_name and not info.get("gpu_name"):
+                            info["gpu_name"] = gpu_name
+                        if cpu_name and not info.get("cpu_name"):
+                            info["cpu_name"] = cpu_name
+                        return info
+                except Exception:
+                    pass
+            fallback = self._infer_compute_mode_from_env(pyexe)
+            if fallback:
+                gpu_name, cpu_name = self._probe_local_device_names()
+                if gpu_name and not fallback.get("gpu_name"):
+                    fallback["gpu_name"] = gpu_name
+                if cpu_name and not fallback.get("cpu_name"):
+                    fallback["cpu_name"] = cpu_name
+                return fallback
+            return {"present": False, "error": (res.stderr or raw or "probe failed").strip()}
+        except Exception as e:
+            fallback = self._infer_compute_mode_from_env(pyexe)
+            if fallback:
+                gpu_name, cpu_name = self._probe_local_device_names()
+                if gpu_name and not fallback.get("gpu_name"):
+                    fallback["gpu_name"] = gpu_name
+                if cpu_name and not fallback.get("cpu_name"):
+                    fallback["cpu_name"] = cpu_name
+                return fallback
+            return {"present": False, "error": str(e)}
 
-    def _schedule_env_torch_probe(self, env_key: str):
-        if env_key != "pix2text":
-            return
-        pyexe = self.pix2text_pyexe_input.text().strip()
-        label = self.pix2text_torch_status
-        label.setText(f"{env_key} 设备: 检测中...")
-        def worker():
-            info = self._probe_torch_info(pyexe, env_key=env_key)
+    def _probe_local_device_names(self) -> tuple[str, str]:
+        now = time.monotonic()
+        cached = getattr(self, "_device_name_cache", {}) or {}
+        ttl = 300.0
+        if (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl:
+            return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
+
+        def _run_ps(cmd: str) -> str:
             try:
-                self.env_torch_probe_done.emit(env_key, info, pyexe)
+                res = subprocess.run(
+                    ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    creationflags=_subprocess_creationflags(),
+                )
+                lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
+                return lines[0] if lines else ""
             except Exception:
-                pass
-        import threading
-        threading.Thread(target=worker, daemon=True).start()
+                return ""
+
+        gpu_name = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
+        if not gpu_name:
+            gpu_name = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
+        if not gpu_name:
+            try:
+                res = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    creationflags=_subprocess_creationflags(),
+                )
+                names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
+                gpu_name = names[0] if names else ""
+            except Exception:
+                gpu_name = ""
+
+        cpu_name = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
+        if not cpu_name:
+            cpu_name = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
+
+        self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
+        return gpu_name, cpu_name
 
     def _refresh_env_status(self, env_key: str):
         if env_key != "pix2text":
             return
-        self._schedule_env_torch_probe(env_key)
+        self._schedule_compute_mode_probe(force=True)
         self._schedule_pix2text_pkg_probe()
     def _torch_cuda_matrix(self) -> list[dict]:
         # 统一复用 backend.torch_runtime 里的单一版本矩阵，避免多处硬编码漂移。
@@ -1101,7 +1196,6 @@ class SettingsWindow(QDialog):
         dlg.yesButton.clicked.connect(lambda: _do_copy(True))
         dlg.cancelButton.clicked.connect(lambda: _do_copy(False))
         dlg.exec()
-        self._schedule_env_torch_probe(env_key)
     def _reinstall_env_torch(self, env_key: str):
         items = ["CPU", "GPU"]
         dlg = QInputDialog(self)
@@ -1153,7 +1247,6 @@ class SettingsWindow(QDialog):
                 break
         self._init_pix2text_pyexe()
         self._schedule_pix2text_pkg_probe()
-        self._schedule_env_torch_probe("pix2text")
         self._init_pix2text_mode()
         self._init_external_model_config()
         self._update_pix2text_visibility()
@@ -1332,7 +1425,6 @@ class SettingsWindow(QDialog):
         try:
             self.pix2text_env_widget.setVisible(visible)
             self.pix2text_env_hint.setVisible(visible)
-            self.pix2text_torch_status.setVisible(visible)
             if self.pix2text_torch_btn_row is not None:
                 self.pix2text_torch_btn_row.setVisible(visible)
             if self.pix2text_dl_widget is not None:
@@ -1691,7 +1783,7 @@ class SettingsWindow(QDialog):
         except Exception:
             _dbg_idx = -1
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
-        cfg = self._settings_cfg()
+        
         pyexe = self._resolve_dynamic_main_pyexe()
         print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
@@ -1743,9 +1835,6 @@ class SettingsWindow(QDialog):
         torch_info_for_terminal = {}
         torch_note_for_terminal = "unknown"
         try:
-            mode_pref = "auto"
-            if cfg:
-                mode_pref = (cfg.get("pix2text_torch_mode", "auto") or "auto").strip().lower()
             torch_info_for_terminal = self._infer_torch_info_from_env(pyexe)
             if not torch_info_for_terminal:
                 torch_info_for_terminal = self._probe_torch_info(pyexe)
@@ -2271,22 +2360,110 @@ class SettingsWindow(QDialog):
         # 只发射信号，由信号连接的 on_model_changed 处理
         self.model_changed.emit(model_name)
         self._update_compute_mode_label()
-    def _update_compute_mode_label(self):
-        """更新计算模式状态标签"""
-        try:
-            import torch
-            cuda_available = torch.cuda.is_available()
-            if cuda_available:
-                gpu_name = torch.cuda.get_device_name(0)
-                self.lbl_compute_mode.setText(f"🟢 GPU 可用: {gpu_name}")
-                self._compute_mode_state = "gpu"
-            else:
-                self.lbl_compute_mode.setText("🟡 仅 CPU 模式 (未检测到 GPU层依赖)")
-                self._compute_mode_state = "cpu"
-        except Exception:
-            self.lbl_compute_mode.setText("⚪ 计算模式未知")
-            self._compute_mode_state = "unknown"
+
+    def _set_compute_mode_text(self, text: str, state: str) -> None:
+        self.lbl_compute_mode.setText(text)
+        self._compute_mode_state = state
         self.apply_theme_styles(force=True)
+
+    def _set_compute_mode_detecting(self, info: dict, pyexe: str) -> None:
+        if not pyexe or not os.path.exists(pyexe):
+            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+            return
+        providers = [str(p or "").strip() for p in (info.get("providers") or [])]
+        gpu_available = any(
+            p in ("CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider")
+            for p in providers
+        )
+        if gpu_available:
+            self._set_compute_mode_text("🟢 GPU 模式（检测中...）", "gpu")
+        elif info.get("present"):
+            self._set_compute_mode_text("🟡 CPU 模式（检测中...）", "cpu")
+        else:
+            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+
+    def _apply_compute_mode_from_info(self, info: dict, pyexe: str) -> bool:
+        if not pyexe or not os.path.exists(pyexe):
+            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            return True
+        if not isinstance(info, dict) or not info:
+            return False
+        if not info.get("present"):
+            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            return True
+        providers = [str(p or "").strip() for p in (info.get("providers") or [])]
+        gpu_available = any(
+            p in ("CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider")
+            for p in providers
+        )
+        gpu_name = str(info.get("gpu_name") or "").strip()
+        cpu_name = str(info.get("cpu_name") or "").strip()
+        if gpu_available:
+            if gpu_name:
+                self._set_compute_mode_text(f"🟢 GPU 可用: {gpu_name}", "gpu")
+            else:
+                self._set_compute_mode_text("🟢 GPU 模式", "gpu")
+            return True
+        if cpu_name:
+            self._set_compute_mode_text(f"🟡 CPU 模式: {cpu_name}", "cpu")
+        else:
+            self._set_compute_mode_text("🟡 CPU 模式", "cpu")
+        return True
+
+    def _on_compute_mode_probe_done(self, info: object, pyexe: str) -> None:
+        self._compute_mode_probe_running = False
+        self._compute_mode_probe_py = str(pyexe or "")
+        self._compute_mode_probe_ts = time.monotonic()
+        self._compute_mode_probe_info = dict(info) if isinstance(info, dict) else {}
+        self._apply_compute_mode_from_info(self._compute_mode_probe_info or {}, self._compute_mode_probe_py)
+
+    def _schedule_compute_mode_probe(self, force: bool = False) -> None:
+        pyexe = self._resolve_dynamic_main_pyexe()
+        if not pyexe or not os.path.exists(pyexe):
+            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            return
+
+        now = time.monotonic()
+        ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
+        cached_info = getattr(self, "_compute_mode_probe_info", None)
+        cached_py = str(getattr(self, "_compute_mode_probe_py", "") or "")
+        cached_ts = float(getattr(self, "_compute_mode_probe_ts", 0.0) or 0.0)
+        if (not force) and cached_py == pyexe and isinstance(cached_info, dict) and (now - cached_ts) <= ttl:
+            self._apply_compute_mode_from_info(cached_info, pyexe)
+            return
+
+        inferred = self._infer_compute_mode_from_env(pyexe)
+        if self._apply_compute_mode_from_info(inferred, pyexe):
+            if isinstance(inferred, dict) and inferred.get("present"):
+                self._compute_mode_probe_py = pyexe
+                self._compute_mode_probe_ts = now
+                self._compute_mode_probe_info = dict(inferred)
+        else:
+            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+
+        if self._compute_mode_probe_running and not force:
+            return
+
+        if isinstance(inferred, dict) and inferred.get("present"):
+            self._set_compute_mode_detecting(inferred, pyexe)
+        else:
+            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+
+        self._compute_mode_probe_running = True
+
+        def worker():
+            info = self._probe_compute_mode_info(pyexe)
+            try:
+                self.compute_mode_probe_done.emit(info, pyexe)
+            except Exception:
+                pass
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_compute_mode_label(self):
+        """更新计算模式状态标签（缓存优先，后台探测）"""
+        self._schedule_compute_mode_probe()
     def update_model_selection(self):
         # sync model combo selection state
         if getattr(self, "_model_selection_syncing", False):
@@ -2315,4 +2492,3 @@ class SettingsWindow(QDialog):
         finally:
             self._model_selection_syncing = False
 # ---------------- 主窗口 ----------------
-

@@ -191,6 +191,8 @@ def detect_torch_info(pyexe: str, timeout_sec: int = 8, run_env: dict | None = N
         "mode": "",
         "cuda_available": False,
         "cuda_version": "",
+        "gpu_name": "",
+        "cpu_name": "",
         "torch_version": "",
         "error": "",
     }
@@ -242,11 +244,23 @@ def detect_torch_info(pyexe: str, timeout_sec: int = 8, run_env: dict | None = N
         "                pass\n"
         "_bootstrap_shared_torch()\n"
         "try:\n"
+        " import platform\n"
         " import torch\n"
         " import torchvision\n"
         " cv = getattr(getattr(torch, 'version', None), 'cuda', '') or ''\n"
         " gpu = bool(torch.cuda.is_available())\n"
-        " print(json.dumps({'present': True, 'cuda_available': gpu, 'cuda_version': cv, 'torch_version': getattr(torch, '__version__', '')}))\n"
+        " gpu_name = ''\n"
+        " if gpu:\n"
+        "  try:\n"
+        "   gpu_name = str(torch.cuda.get_device_name(0) or '')\n"
+        "  except Exception:\n"
+        "   gpu_name = ''\n"
+        " cpu_name = ''\n"
+        " try:\n"
+        "  cpu_name = str(platform.processor() or os.environ.get('PROCESSOR_IDENTIFIER', '') or '')\n"
+        " except Exception:\n"
+        "  cpu_name = str(os.environ.get('PROCESSOR_IDENTIFIER', '') or '')\n"
+        " print(json.dumps({'present': True, 'cuda_available': gpu, 'cuda_version': cv, 'gpu_name': gpu_name, 'cpu_name': cpu_name, 'torch_version': getattr(torch, '__version__', '')}))\n"
         "except Exception as e:\n"
         " print(json.dumps({'present': False, 'error': str(e)}))\n"
     )

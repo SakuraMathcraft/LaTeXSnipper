@@ -10206,49 +10206,12 @@ open_debug_console(force=False, tee=True)
 
 
 def _schedule_torch_runtime_probe() -> None:
-    """后台探测 torch 运行时，避免阻塞主线程启动。"""
-    import threading
-
-    def _torch_runtime_probe_hint(exc: BaseException) -> str:
-        msg = str(exc or "")
-        lower = msg.lower()
-        mod_name = getattr(exc, "name", "") if isinstance(exc, ModuleNotFoundError) else ""
-
-        if mod_name == "torch" or ("no module named" in lower and "torch" in lower):
-            return "未安装 torch；如需使用内置 pix2text，请在依赖管理向导中安装/修复 CORE 或 HEAVY 层。"
-
-        if mod_name in {"torchvision", "torchaudio"} or (
-            "no module named" in lower and ("torchvision" in lower or "torchaudio" in lower)
-        ):
-            return "torch 相关组件不完整；请在依赖管理向导中修复 HEAVY_CPU/HEAVY_GPU 层。"
-
-        dll_markers = (
-            "dll load failed",
-            "error loading",
-            "winerror 126",
-            "winerror 127",
-            "winerror 193",
-            "winerror 1114",
-            "vcruntime",
-            "msvcp",
-            "\\torch\\lib\\",
-            "/torch/lib/",
-            "c10.dll",
-        )
-        if any(x in lower for x in dll_markers):
-            return "torch 二进制依赖加载失败；请检查 torch 安装是否损坏、CPU/GPU 轮子是否混装，必要时再检查 Microsoft Visual C++ 2015-2022 x64 运行库。"
-
-        return "torch 运行时探测失败；请查看上一行异常，并通过依赖管理向导重新校验或修复 HEAVY 层。"
-
-    def _worker():
-        try:
-            import torch  # noqa: F401
-            _ = torch
-        except Exception as e:
-            print("[WARN] torch 初始化失败：", e)
-            print("[HINT]", _torch_runtime_probe_hint(e))
-
-    threading.Thread(target=_worker, daemon=True).start()
+    """
+    历史上这里会在主进程直接 import torch，开发模式切换外部依赖目录时容易
+    触发 DLL 误报。当前 pix2text 已走子进程 + ONNX 优先，因此这里不再做主进程
+    torch 探测，避免日志与实际运行链脱节。
+    """
+    return
 
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
@@ -10351,6 +10314,3 @@ if __name__ == "__main__":
         _finish_startup_splash(splash, win)
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
-
-
-

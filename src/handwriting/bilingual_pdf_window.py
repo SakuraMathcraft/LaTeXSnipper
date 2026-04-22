@@ -1,9 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 import json
 import os
+import subprocess
 import sys
 
 from PyQt6.QtCore import QProcess, Qt, QThread, QTimer, pyqtSignal
@@ -20,17 +21,6 @@ try:
 except Exception:  # pragma: no cover
     fitz = None
 
-try:
-    import argostranslate.translate as argos_translate
-except Exception:  # pragma: no cover
-    argos_translate = None
-
-try:
-    import argostranslate.package as argos_package
-except Exception:  # pragma: no cover
-    argos_package = None
-
-
 @dataclass(frozen=True)
 class _PagePayload:
     page_no: int
@@ -43,42 +33,129 @@ class _ArgosModelInstallWorker(QThread):
     progress = pyqtSignal(str)
     completed = pyqtSignal(bool, str)
 
+    def __init__(self, pyexe: str, parent=None):
+        super().__init__(parent)
+        self._pyexe = str(pyexe or "").strip()
+
     def run(self) -> None:
-        if argos_package is None:
-            self.completed.emit(False, "Argos Translate Python 包未安装。")
+        pyexe = self._pyexe
+        if not pyexe or (not os.path.exists(pyexe)):
+            self.completed.emit(False, "Argos Translate 目标解释器不存在。")
             return
-        download_path = ""
         try:
-            self.progress.emit("正在刷新 Argos 模型索引...")
-            argos_package.update_package_index()
-            self.progress.emit("正在查找英译中模型包...")
-            packages = list(argos_package.get_available_packages() or [])
-            pkg = next(
-                (
-                    item for item in packages
-                    if getattr(item, "from_code", "") == "en" and getattr(item, "to_code", "") == "zh"
-                ),
-                None,
+            self.progress.emit("正在安装 Argos 英译中模型...")
+            script = (
+                "import json, os\n"
+                "download_path = ''\n"
+                "try:\n"
+                "    import argostranslate.package as p\n"
+                "except Exception as exc:\n"
+                "    raise RuntimeError(f'Argos Translate Python 包未安装: {exc}')\n"
+                "p.update_package_index()\n"
+                "packages = list(p.get_available_packages() or [])\n"
+                "pkg = next((item for item in packages if getattr(item, 'from_code', '') == 'en' and getattr(item, 'to_code', '') == 'zh'), None)\n"
+                "if pkg is None:\n"
+                "    raise RuntimeError('未找到官方英译中模型包。')\n"
+                "download_path = str(pkg.download() or '')\n"
+                "if not download_path:\n"
+                "    raise RuntimeError('模型包下载失败。')\n"
+                "p.install_from_path(download_path)\n"
+                "print(json.dumps({'ok': True, 'message': '英译中模型包安装完成。'}, ensure_ascii=False))\n"
+                "if download_path:\n"
+                "    try:\n"
+                "        os.remove(download_path)\n"
+                "    except Exception:\n"
+                "        pass\n"
             )
-            if pkg is None:
-                self.completed.emit(False, "未找到官方英译中模型包。")
+            result = subprocess.run(
+                [pyexe, "-c", script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=1200,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            )
+            if result.returncode != 0:
+                err = (result.stderr or result.stdout or "").strip() or "Argos 模型安装失败。"
+                self.completed.emit(False, err)
                 return
-            self.progress.emit("正在下载英译中模型包...")
-            download_path = str(pkg.download() or "")
-            if not download_path:
-                self.completed.emit(False, "模型包下载失败。")
-                return
-            self.progress.emit("正在安装英译中模型包...")
-            argos_package.install_from_path(download_path)
-            self.completed.emit(True, "英译中模型包安装完成。")
-        except Exception as exc:
-            self.completed.emit(False, str(exc))
-        finally:
-            if download_path:
+            message = "英译中模型包安装完成。"
+            raw = (result.stdout or "").strip()
+            if raw:
                 try:
-                    os.remove(download_path)
+                    payload = json.loads(raw.splitlines()[-1])
+                    message = str(payload.get("message", "") or message)
                 except Exception:
                     pass
+            self.completed.emit(True, message)
+        except Exception as exc:
+            self.completed.emit(False, str(exc))
+
+
+class _ArgosStatusProbeWorker(QThread):
+    completed = pyqtSignal(dict)
+
+    def __init__(self, pyexe: str, parent=None):
+        super().__init__(parent)
+        self._pyexe = str(pyexe or "").strip()
+
+    def run(self) -> None:
+        pyexe = self._pyexe
+        result: dict[str, object] = {
+            "runtime_installed": False,
+            "model_ready": False,
+            "error": "",
+        }
+        if not pyexe or (not os.path.exists(pyexe)):
+            result["error"] = "python_missing"
+            self.completed.emit(result)
+            return
+        script = (
+            "import json\n"
+            "result = {'runtime_installed': False, 'model_ready': False, 'error': ''}\n"
+            "try:\n"
+            "    import argostranslate.translate as t\n"
+            "    import argostranslate.package as p\n"
+            "    result['runtime_installed'] = True\n"
+            "    installed = list(t.get_installed_languages() or [])\n"
+            "    src = next((lang for lang in installed if getattr(lang, 'code', '') == 'en'), None)\n"
+            "    dst = next((lang for lang in installed if getattr(lang, 'code', '') == 'zh'), None)\n"
+            "    if src is not None and dst is not None:\n"
+            "        try:\n"
+            "            src.get_translation(dst)\n"
+            "            result['model_ready'] = True\n"
+            "        except Exception:\n"
+            "            pass\n"
+            "except Exception as exc:\n"
+            "    result['error'] = str(exc)\n"
+            "print(json.dumps(result, ensure_ascii=False))\n"
+        )
+        try:
+            proc = subprocess.run(
+                [pyexe, "-c", script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            )
+            raw = (proc.stdout or "").strip()
+            if proc.returncode == 0 and raw:
+                try:
+                    payload = json.loads(raw.splitlines()[-1])
+                    if isinstance(payload, dict):
+                        result.update(payload)
+                except Exception:
+                    result["error"] = raw
+            else:
+                result["error"] = (proc.stderr or raw or "").strip()
+        except Exception as exc:
+            result["error"] = str(exc)
+        self.completed.emit(result)
 
 
 _ENGINE_ITEMS = [
@@ -111,6 +188,8 @@ class BilingualPdfWindow(QDialog):
         self._translation_cache: dict[tuple[str, int], _PagePayload] = {}
         self._prefetch_queue: list[int] = []
         self._argos_install_worker = None
+        self._argos_probe_worker = None
+        self._argos_probe_cache: dict[str, dict[str, object]] = {}
         self.setWindowTitle("双语阅读")
         self.resize(980, 620)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -448,38 +527,96 @@ class BilingualPdfWindow(QDialog):
         dialog.exec()
 
     def _argos_language_pair_ready(self) -> bool:
-        if argos_translate is None:
-            return False
-        try:
-            installed = list(argos_translate.get_installed_languages() or [])
-            src_lang = next((lang for lang in installed if getattr(lang, "code", "") == "en"), None)
-            dst_lang = next((lang for lang in installed if getattr(lang, "code", "") == "zh"), None)
-            if src_lang is None or dst_lang is None:
-                return False
-            src_lang.get_translation(dst_lang)
-            return True
-        except Exception:
-            return False
+        status = self._probe_argos_status()
+        return bool(status.get("model_ready"))
 
     def _argos_status_message(self) -> str:
-        if argos_translate is None or argos_package is None:
+        status = self._probe_argos_status()
+        if status.get("pending"):
+            return "正在检测 Argos 环境..."
+        if not status.get("runtime_installed"):
             return "Argos 运行库未安装"
-        if self._argos_language_pair_ready():
+        if status.get("model_ready"):
             return "英译中模型已就绪"
         return "未安装英译中模型"
+
+    def _invalidate_argos_probe_cache(self) -> None:
+        self._argos_probe_cache.clear()
+
+    def _probe_argos_status(self, force: bool = False) -> dict[str, object]:
+        pyexe = self._resolve_translation_python()
+        cache_key = str(pyexe or "").strip()
+        if (not force) and cache_key in self._argos_probe_cache:
+            return dict(self._argos_probe_cache[cache_key])
+        result: dict[str, object] = {
+            "runtime_installed": False,
+            "model_ready": False,
+            "error": "",
+            "pending": True,
+        }
+        if not cache_key or (not os.path.exists(cache_key)):
+            result["pending"] = False
+            result["error"] = "python_missing"
+            self._argos_probe_cache[cache_key] = dict(result)
+            return result
+        self._schedule_argos_probe(cache_key, force=force)
+        return result
+
+    def _schedule_argos_probe(self, pyexe: str, force: bool = False) -> None:
+        pyexe = str(pyexe or "").strip()
+        if not pyexe:
+            return
+        worker = self._argos_probe_worker
+        if worker is not None and worker.isRunning():
+            if not force:
+                return
+            return
+        cached = self._argos_probe_cache.get(pyexe)
+        if cached and (not force) and (not cached.get("pending", False)):
+            return
+        self._argos_probe_cache[pyexe] = {
+            "runtime_installed": False,
+            "model_ready": False,
+            "error": "",
+            "pending": True,
+        }
+        worker = _ArgosStatusProbeWorker(pyexe, self)
+        self._argos_probe_worker = worker
+        worker.completed.connect(lambda payload, exe=pyexe: self._on_argos_probe_completed(exe, payload))
+        worker.finished.connect(self._on_argos_probe_finished)
+        worker.start()
+
+    def _on_argos_probe_completed(self, pyexe: str, payload: dict) -> None:
+        result = {
+            "runtime_installed": bool((payload or {}).get("runtime_installed")),
+            "model_ready": bool((payload or {}).get("model_ready")),
+            "error": str((payload or {}).get("error", "") or ""),
+            "pending": False,
+        }
+        self._argos_probe_cache[str(pyexe or "").strip()] = result
+        self._refresh_engine_ui_state()
+
+    def _on_argos_probe_finished(self) -> None:
+        self._argos_probe_worker = None
 
     def _refresh_engine_ui_state(self) -> None:
         engine = self._current_engine()
         status = self._engine_status_message(engine)
         self.argos_status_label.setText(status)
         installing = self._argos_install_worker is not None and self._argos_install_worker.isRunning()
+        argos_status = self._probe_argos_status()
         translating = self._translate_process is not None and self._translate_process.state() != QProcess.ProcessState.NotRunning
         busy_foreground = translating and not self._translate_process_silent
         show_install_button = engine == "argos" and (installing or self._argos_status_message() != "英译中模型已就绪")
         self.install_argos_btn.setVisible(show_install_button)
         self.config_engine_btn.setVisible(self._engine_needs_remote_config(engine))
         self.argos_status_label.setVisible(engine != "source_only")
-        can_install = self._argos_status_message() not in {"英译中模型已就绪", "Argos 运行库未安装"} and (not installing)
+        can_install = (
+            (not argos_status.get("pending"))
+            and bool(argos_status.get("runtime_installed"))
+            and (not bool(argos_status.get("model_ready")))
+            and (not installing)
+        )
         self.install_argos_btn.setEnabled(can_install)
         self.argos_install_progress.setVisible(engine == "argos" and installing)
         self.argos_progress_text.setVisible(engine == "argos" and installing)
@@ -495,14 +632,25 @@ class BilingualPdfWindow(QDialog):
 
     def _ensure_argos_ready_for_translation(self) -> bool:
         self._refresh_engine_ui_state()
-        if self._argos_language_pair_ready():
+        status = self._probe_argos_status()
+        if status.get("pending"):
+            self.translated_text.setPlainText("正在检测 Argos 运行环境，请稍候再试。")
+            return False
+        if bool(status.get("model_ready")):
             return True
         self.translated_text.setPlainText("未安装 Argos 英译中模型，请先点击“安装英中模型”。")
         return False
 
     def _install_argos_model(self) -> None:
         self._refresh_engine_ui_state()
-        if self._argos_language_pair_ready():
+        status = self._probe_argos_status()
+        if status.get("pending"):
+            InfoBar.info(title="正在检测", content="正在检测当前依赖环境中的 Argos 状态，请稍后重试。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            return
+        if not status.get("runtime_installed"):
+            InfoBar.warning(title="运行库未安装", content="当前依赖环境未安装 Argos Translate 运行库。", parent=self, position=InfoBarPosition.TOP, duration=2600)
+            return
+        if bool(status.get("model_ready")):
             InfoBar.success(title="模型已就绪", content="当前环境已安装 Argos 英译中模型。", parent=self, position=InfoBarPosition.TOP, duration=2200)
             return
         if self._argos_install_worker is not None and self._argos_install_worker.isRunning():
@@ -511,7 +659,8 @@ class BilingualPdfWindow(QDialog):
         self.argos_status_label.setText("正在安装英译中模型...")
         self.argos_install_progress.show()
         self.argos_progress_text.setText("准备安装...")
-        worker = _ArgosModelInstallWorker(self)
+        self._invalidate_argos_probe_cache()
+        worker = _ArgosModelInstallWorker(self._resolve_translation_python(), self)
         self._argos_install_worker = worker
         worker.progress.connect(self._on_argos_install_progress)
         worker.completed.connect(self._on_argos_install_finished)
@@ -524,6 +673,7 @@ class BilingualPdfWindow(QDialog):
         self.argos_progress_text.setText(text)
 
     def _on_argos_install_finished(self, ok: bool, message: str) -> None:
+        self._invalidate_argos_probe_cache()
         self._refresh_engine_ui_state()
         if ok:
             self.argos_status_label.setText("英译中模型已就绪")
