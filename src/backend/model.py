@@ -276,7 +276,7 @@ class ModelWrapper(QObject):
         if self._is_frozen:
             self._emit("[INFO] packaged mode: pix2text runs in subprocess")
         else:
-            self._init_torch()
+            self._emit("[INFO] dev mode: pix2text runs in subprocess")
 
         self._probe_onnxruntime()
         if auto_warmup:
@@ -321,23 +321,6 @@ class ModelWrapper(QObject):
         if self._pix2text_subprocess_ready:
             return f"model ready (device={self.device})"
         return "model not loaded"
-
-    def _init_torch(self) -> None:
-        try:
-            import torch
-
-            self.torch = torch
-            if torch.cuda.is_available():
-                self.device = "cuda"
-                self._emit("[INFO] device: cuda")
-            else:
-                self.device = "cpu"
-                self._emit("[INFO] device: cpu")
-        except Exception as e:
-            self.device = "cpu"
-            info = classify_pix2text_failure(str(e))
-            self._emit(f"[WARN] torch import failed [{info['code']}], fallback cpu: {e}")
-            self._emit(f"[DIAG] {info['log_message']}")
 
     def _set_pix2text_error(self, detail: str) -> dict[str, str]:
         info = classify_pix2text_failure(detail)
@@ -395,6 +378,8 @@ class ModelWrapper(QObject):
 
         providers = info.get("providers", [])
         self._ort_gpu_available = "CUDAExecutionProvider" in providers
+        self.device = "cuda" if self._ort_gpu_available else "cpu"
+        self._emit(f"[INFO] device: {self.device}")
         self._emit(f"[INFO] onnxruntime providers detected: {providers}")
 
     def _stop_pix2text_worker(self):
