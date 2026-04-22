@@ -1,4 +1,4 @@
-# 文件：`src/compat_messagebox.py`（或直接放到 `src/main.py` 最前面）
+﻿# 文件：`src/compat_messagebox.py`（或直接放到 `src/main.py` 最前面）
 from PyQt6.QtWidgets import QMessageBox as _QM
 
 def _install_messagebox_shim():

@@ -7945,37 +7945,6 @@ th {{
         except Exception:
             return {}, ""
 
-    def _resolve_shared_torch_site_for_mode(self, mode: str, allow_block: bool = True) -> str:
-        try:
-            from backend.torch_runtime import mode_satisfies, python_site_packages
-            main_info, main_py = self._get_main_torch_info_cached(allow_block=allow_block)
-            if not mode_satisfies(main_info, mode):
-                return ""
-            site = python_site_packages(main_py)
-            if site and (site / "torch").exists():
-                return str(site)
-        except Exception:
-            pass
-        return ""
-
-    def _apply_shared_torch_for_pix2text(self, env_pyexe: str, allow_block: bool = True):
-        """为 pix2text 注入共享 torch 路径。"""
-        mode = self._get_isolated_torch_mode("pix2text")
-        os.environ["PIX2TEXT_TORCH_MODE"] = mode
-
-        shared_site = ""
-        try:
-            from backend.torch_runtime import ensure_shared_torch_link
-            # 始终优先下发共享 torch 路径；本地环境差异不再影响共享策略。
-            shared_site = self._resolve_shared_torch_site_for_mode(mode, allow_block=allow_block)
-            ensure_shared_torch_link(env_pyexe, shared_site if shared_site else None)
-        except Exception:
-            pass
-        if shared_site:
-            os.environ["PIX2TEXT_SHARED_TORCH_SITE"] = shared_site
-        else:
-            os.environ.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
-
     def _apply_pix2text_env(self):
         env_pyexe = ""
         try:
@@ -7989,21 +7958,20 @@ th {{
         except Exception:
             pass
         try:
-            # 启动首次可阻塞探测；后续切换不阻塞，走缓存结果。
-            allow_block = getattr(self, "_pix2text_env_state", None) is None
-            self._apply_shared_torch_for_pix2text(env_pyexe, allow_block=allow_block)
+            os.environ["PIX2TEXT_TORCH_MODE"] = self._get_isolated_torch_mode("pix2text")
+            os.environ.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
+            os.environ.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
         except Exception:
             pass
         try:
             new_state = (
                 (env_pyexe or os.environ.get("PIX2TEXT_PYEXE", "") or "").strip(),
-                (os.environ.get("PIX2TEXT_SHARED_TORCH_SITE", "") or "").strip(),
                 (os.environ.get("PIX2TEXT_TORCH_MODE", "auto") or "auto").strip(),
             )
             old_state = getattr(self, "_pix2text_env_state", None)
             self._pix2text_env_state = new_state
-            old_key = (old_state[0], old_state[2]) if isinstance(old_state, tuple) and len(old_state) >= 3 else old_state
-            new_key = (new_state[0], new_state[2])
+            old_key = old_state
+            new_key = new_state
             if old_state is not None and old_key != new_key:
                 self._restart_pix2text_worker("环境切换")
         except Exception:

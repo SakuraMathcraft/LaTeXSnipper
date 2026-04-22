@@ -1,4 +1,4 @@
-import os
+﻿import os
 import shutil
 import subprocess
 import sys
@@ -17,7 +17,6 @@ from backend.torch_runtime import (
     pick_torch_cuda_plan,
     detect_torch_gpu_plan,
     detect_torch_info,
-    inject_shared_torch_env,
 )
 from backend.external_model import (
     ExternalModelConnectionWorker,
@@ -762,9 +761,7 @@ class SettingsWindow(QDialog):
         self._update_pix2text_visibility()
     def _infer_torch_info_from_env(self, pyexe: str) -> dict:
         try:
-            from pathlib import Path
-            p = Path(pyexe)
-            env_root = p.parent.parent if p.name.lower() == "python.exe" else p.parent
+            env_root = self._python_env_root(pyexe)
             site = env_root / "Lib" / "site-packages"
             if not site.exists():
                 return {}
@@ -789,15 +786,8 @@ class SettingsWindow(QDialog):
     def _probe_torch_info(self, pyexe: str, env_key: str = "") -> dict:
         if not pyexe or not os.path.exists(pyexe):
             return {"present": False, "error": "python.exe not found"}
-        run_env = os.environ.copy()
         try:
-            key = "PIX2TEXT_SHARED_TORCH_SITE"
-            shared_site = os.environ.get(key, "")
-            run_env = inject_shared_torch_env(run_env, shared_site)
-        except Exception:
-            pass
-        try:
-            info = detect_torch_info(pyexe, timeout_sec=5, run_env=run_env)
+            info = detect_torch_info(pyexe, timeout_sec=5)
             if info.get("present"):
                 return info
             fallback = self._infer_torch_info_from_env(pyexe)
@@ -914,31 +904,6 @@ class SettingsWindow(QDialog):
         plan = self._detect_torch_gpu_plan()
         return plan["tag"] if plan else None
 
-    def _resolve_shared_torch_site_for_mode(self, mode: str, allow_block: bool = True) -> str:
-        """获取可复用的主环境 torch site-packages 路径。"""
-        if allow_block:
-            try:
-                p = self.parent()
-                if p and hasattr(p, "_resolve_shared_torch_site_for_mode"):
-                    s = p._resolve_shared_torch_site_for_mode(mode)
-                    if s and os.path.isdir(s):
-                        return s
-            except Exception:
-                pass
-        try:
-            from backend.torch_runtime import mode_satisfies, python_site_packages
-            main_info, main_py = self._get_main_torch_info_cached(allow_block=allow_block)
-            if not main_info.get("present"):
-                return ""
-            if not mode_satisfies(main_info, mode):
-                return ""
-            site = python_site_packages(main_py)
-            if site and (site / "torch").exists():
-                return str(site)
-        except Exception:
-            pass
-        return ""
-
     def _pix2text_install_steps(
         self,
         pyexe: str,
@@ -980,27 +945,12 @@ class SettingsWindow(QDialog):
         steps.append(f"\"{pyexe}\" -c \"{verify_code}\"")
         return steps
 
-    def _shared_torch_verify_cmd(self, pyexe: str, env_key: str, mode: str) -> str:
-        """构造可复用主环境 torch 的校验命令（含 DLL/路径注入）。"""
-        shared_site_hint = ""
-        if env_key == "pix2text":
-            try:
-                shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
-            except Exception:
-                shared_site_hint = ""
-        shared_lit = (shared_site_hint or "").replace("\\", "\\\\").replace("'", "\\'")
+    def _torch_verify_cmd(self, pyexe: str) -> str:
         verify_code = (
-            "import os,sys; import os as _o; import importlib.util as _iu; "
-            f"s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or r'{shared_lit}').strip(); "
-            "added=(bool(s) and _o.path.isdir(s) and s not in sys.path); "
-            "(sys.path.insert(0,s) if added else None); "
-            "tl=(_o.path.join(s,'torch','lib') if s else ''); "
-            "(_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); "
-            "_o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); "
+            "import importlib.util as _iu; "
             "import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
             "print('torch', getattr(torch,'__version__','')); "
             "print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda','')); "
-            "(sys.path.remove(s) if (added and s in sys.path) else None)"
         )
         return f"\"{pyexe}\" -c \"{verify_code}\""
 
@@ -1083,20 +1033,14 @@ class SettingsWindow(QDialog):
             return
 
         model_cmd = ""
-        shared_site_hint = ""
-        if not torch_cmd:
-            try:
-                shared_site_hint = self._resolve_shared_torch_site_for_mode(mode)
-            except Exception:
-                shared_site_hint = ""
-        model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, shared_site_hint, selected_gpu_tag))
+        model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, "", selected_gpu_tag))
 
         cmd_parts = []
         if torch_cmd:
             cmd_parts.append(torch_cmd)
         if include_model and model_cmd:
             cmd_parts.append(model_cmd)
-        full_cmd = "\n".join(cmd_parts) if cmd_parts else self._shared_torch_verify_cmd(pyexe, env_key, mode)
+        full_cmd = "\n".join(cmd_parts) if cmd_parts else self._torch_verify_cmd(pyexe)
 
         if mode == "gpu" and getattr(self, "_cuda_detect_note", "") and not detect_note:
             detect_note = self._cuda_detect_note
@@ -1231,18 +1175,11 @@ class SettingsWindow(QDialog):
         self._update_model_desc()
         self._update_pix2text_visibility()
     def _init_pix2text_pyexe(self):
-        pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-        if pyexe and getattr(sys, "frozen", False):
-            try:
-                if os.path.normcase(os.path.abspath(pyexe)) == os.path.normcase(os.path.abspath(sys.executable)):
-                    pyexe = ""
-            except Exception:
-                pass
-        if not pyexe or not os.path.exists(pyexe):
-            pyexe = ""
+        pyexe = self._resolve_dynamic_main_pyexe()
         self.pix2text_pyexe_input.setText(pyexe)
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("pix2text_pyexe", pyexe)
+        cfg = self._settings_cfg()
+        if cfg:
+            cfg.set("pix2text_pyexe", pyexe)
     def _init_pix2text_mode(self):
         mode = "formula"
         if self.parent() and hasattr(self.parent(), "cfg"):
@@ -1269,6 +1206,92 @@ class SettingsWindow(QDialog):
             if key:
                 return key
         return "formula"
+    def _settings_cfg(self):
+        if self.parent() and hasattr(self.parent(), "cfg"):
+            return self.parent().cfg
+        return None
+    @staticmethod
+    def _normalize_install_base_dir(selected_dir: Path) -> Path:
+        path = Path(selected_dir).expanduser()
+        try:
+            path = path.resolve()
+        except Exception:
+            path = path.absolute()
+        if not path.exists() or not path.is_dir():
+            return path
+        leaf = path.name.lower()
+        if not (leaf.startswith("python") or leaf in {"venv", ".venv", "scripts", "python_full"}):
+            return path
+        existing_py = SettingsWindow._find_install_base_python(path)
+        if existing_py is not None:
+            return path
+        return path.parent if path.parent != path else path
+    @staticmethod
+    def _find_install_base_python(base_dir: Path) -> Path | None:
+        base_dir = Path(base_dir)
+        candidates = [
+            base_dir / "python.exe",
+            base_dir / "Scripts" / "python.exe",
+            base_dir / "python311" / "python.exe",
+            base_dir / "python311" / "Scripts" / "python.exe",
+            base_dir / "Python311" / "python.exe",
+            base_dir / "Python311" / "Scripts" / "python.exe",
+            base_dir / "venv" / "Scripts" / "python.exe",
+            base_dir / ".venv" / "Scripts" / "python.exe",
+            base_dir / "python_full" / "python.exe",
+        ]
+        try:
+            for child in sorted(base_dir.glob("python*")):
+                if child.is_dir():
+                    candidates.append(child / "python.exe")
+                    candidates.append(child / "Scripts" / "python.exe")
+        except Exception:
+            pass
+        for candidate in candidates:
+            try:
+                if candidate.exists() and candidate.is_file():
+                    return candidate
+            except Exception:
+                continue
+        return None
+    @staticmethod
+    def _python_env_root(pyexe: str | Path) -> Path:
+        p = Path(pyexe)
+        return p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
+    def _current_install_base_dir(self) -> Path | None:
+        cfg = self._settings_cfg()
+        raw = ""
+        try:
+            if cfg:
+                raw = cfg.get("install_base_dir", "") or ""
+        except Exception:
+            raw = ""
+        if not raw:
+            raw = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "") or ""
+        raw = str(raw).strip()
+        if not raw:
+            return None
+        try:
+            return self._normalize_install_base_dir(Path(raw))
+        except Exception:
+            return None
+    def _resolve_dynamic_main_pyexe(self) -> str:
+        base_dir = self._current_install_base_dir()
+        if base_dir is not None:
+            candidate = self._find_install_base_python(base_dir)
+            if candidate is not None:
+                return str(candidate)
+            return ""
+        fallback = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+        if fallback and os.path.exists(fallback):
+            if getattr(sys, "frozen", False):
+                try:
+                    if os.path.normcase(os.path.abspath(fallback)) == os.path.normcase(os.path.abspath(sys.executable)):
+                        return ""
+                except Exception:
+                    pass
+            return fallback
+        return ""
     def _is_pix2text_selected(self) -> bool:
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
@@ -1668,18 +1691,25 @@ class SettingsWindow(QDialog):
         except Exception:
             _dbg_idx = -1
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
-        cfg = self.parent().cfg if (self.parent() and hasattr(self.parent(), "cfg")) else None
-        def _get_pyexe(key: str) -> str:
-            return os.environ.get("LATEXSNIPPER_PYEXE", sys.executable)
-        pyexe = _get_pyexe(env_key)
+        cfg = self._settings_cfg()
+        pyexe = self._resolve_dynamic_main_pyexe()
         print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
-            pyexe = _get_pyexe("main")
-            if not pyexe or not os.path.exists(pyexe):
-                pyexe = sys.executable
-        pyexe_dir = os.path.dirname(pyexe)
+            msg = MessageBox(
+                "环境未就绪",
+                "当前依赖目录尚未初始化 Python 环境。\n\n请先在【依赖管理向导】中初始化依赖环境，再打开环境终端。",
+                self,
+            )
+            _apply_app_window_icon(msg)
+            msg.yesButton.setText("OK")
+            msg.cancelButton.hide()
+            msg.exec()
+            return
+        env_root = self._python_env_root(pyexe)
+        pyexe_dir = str(env_root)
         scripts_dir = os.path.join(pyexe_dir, "Scripts")
-        venv_dir = pyexe_dir
+        base_dir = self._current_install_base_dir()
+        venv_dir = str(base_dir or env_root)
         env_name = {
             "main": "主环境",
         }.get(env_key, "主环境")
@@ -1710,15 +1740,22 @@ class SettingsWindow(QDialog):
             return
         as_admin = result
         env_desc = "主环境（程序 / pix2text / 核心依赖）"
-        shared_site_for_terminal = ""
+        torch_info_for_terminal = {}
+        torch_note_for_terminal = "unknown"
         try:
             mode_pref = "auto"
             if cfg:
                 mode_pref = (cfg.get("pix2text_torch_mode", "auto") or "auto").strip().lower()
-            # 终端入口使用缓存，避免首次打开卡在 CUDA/torch 探测。
-            shared_site_for_terminal = self._resolve_shared_torch_site_for_mode(mode_pref, allow_block=False)
+            torch_info_for_terminal = self._infer_torch_info_from_env(pyexe)
+            if not torch_info_for_terminal:
+                torch_info_for_terminal = self._probe_torch_info(pyexe)
+            if torch_info_for_terminal.get("present"):
+                torch_note_for_terminal = "provided by current env"
+            else:
+                torch_note_for_terminal = "not installed in current env"
         except Exception:
-            shared_site_for_terminal = ""
+            torch_info_for_terminal = {}
+            torch_note_for_terminal = "unknown"
         gpu_plan = self._detect_torch_gpu_plan(allow_block=False)
         cpu_plan = self._torch_cpu_plan()
         gpu_cmd = ""
@@ -1740,16 +1777,16 @@ class SettingsWindow(QDialog):
             "echo ================================================================================",
             "echo.",
             f"echo [*] Env: {env_desc}",
-            f"echo [*] Python: {pyexe_dir}",
-            "echo [*] pip/python will use this env",
+            f"echo [*] Python env root: {pyexe_dir}",
+            "echo [*] python/pip are bound to this env for this terminal session",
             "echo.",
             "echo [Model Policy]",
             "echo   - built-in dependency wizard manages the pix2text path",
             "echo   - external_model uses independently deployed local/online services",
-            "echo   - use unified main dependency env",
+            "echo   - terminal commands target the current main dependency env",
             "echo   - pix2text formula warmup uses CPU/ONNX first; torch failure does not always mean pix2text is unusable",
             "echo   - HEAVY_CPU/HEAVY_GPU health is checked separately through torch + onnxruntime",
-            f"echo   - shared torch site: {shared_site_for_terminal or 'not injected'}",
+            f"echo   - terminal torch runtime: {torch_note_for_terminal}",
             "echo.",
             "echo [Version Fix]",
             "echo   pip install \"protobuf>=3.20,<5\"",
@@ -1778,7 +1815,7 @@ class SettingsWindow(QDialog):
             "echo   python -c \"import warnings; warnings.filterwarnings('ignore'); from pix2text import Pix2Text; stable_cfg={'layout': {'model_type': 'DocYoloLayoutParser'}, 'text_formula': {'formula': {'model_name': 'mfr', 'model_backend': 'onnx'}}}; Pix2Text.from_config(total_configs=stable_cfg, device='cpu', enable_table=False); import latex2mathml.converter; import matplotlib.mathtext; import fitz; print('pix2text cpu/onnx ok')\"",
             "echo.",
             "echo [Torch / HEAVY Check]",
-            "echo   python -c \"import os,sys; import os as _o; import importlib.util as _iu; s=(os.environ.get('PIX2TEXT_SHARED_TORCH_SITE','') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE','') or '').strip(); added=(bool(s) and _o.path.isdir(s) and s not in sys.path); (sys.path.insert(0,s) if added else None); tl=(_o.path.join(s,'torch','lib') if s else ''); (_o.add_dll_directory(tl) if (tl and _o.path.isdir(tl) and hasattr(_o,'add_dll_directory')) else None); _o.environ['PATH']=((tl+_o.pathsep+_o.environ.get('PATH','')) if (tl and _o.path.isdir(tl)) else _o.environ.get('PATH','')); import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); (sys.path.remove(s) if (added and s in sys.path) else None); print('torch', getattr(torch,'__version__','')); print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda',''))\"",
+            "echo   python -c \"import importlib.util as _iu; import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); print('torch', getattr(torch,'__version__','')); print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda',''))\"",
             "echo.",
         ]
         help_lines += [
@@ -1796,24 +1833,24 @@ class SettingsWindow(QDialog):
             "echo.",
         ]
         help_text = "\n".join(help_lines) + "\n"
-        shared_env_lines = ""
-        if shared_site_for_terminal:
-            shared_env_lines = (
-                f'set "PIX2TEXT_SHARED_TORCH_SITE={shared_site_for_terminal}"\n'
-                'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
-            )
-        else:
-            shared_env_lines = (
-                'set "PIX2TEXT_SHARED_TORCH_SITE="\n'
-                'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
-            )
+        python_bind_lines = (
+            f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
+            'set "PIX2TEXT_SHARED_TORCH_SITE="\n'
+            'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
+            f'doskey python="{pyexe}" $*\n'
+            f'doskey py="{pyexe}" $*\n'
+            f'doskey pip="{pyexe}" -m pip $*\n'
+            "echo [*] python macro : %LATEXSNIPPER_PYEXE%\n"
+            "echo [*] pip macro    : %LATEXSNIPPER_PYEXE% -m pip\n"
+            "echo.\n"
+        )
         try:
             if as_admin:
                 import tempfile
                 batch_content = "@echo off\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + shared_env_lines \
+                    + python_bind_lines \
                     + help_text
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content)
@@ -1828,7 +1865,7 @@ class SettingsWindow(QDialog):
                 batch_content_normal = "@echo off\n" \
                     + f'cd /d "{venv_dir}"\n' \
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + shared_env_lines \
+                    + python_bind_lines \
                     + help_text
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content_normal)

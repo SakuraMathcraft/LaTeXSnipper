@@ -1342,7 +1342,6 @@ LAYER_MAP = {
         "safetensors~=0.6.2", "sentencepiece==0.2.0",
         "certifi~=2026.2.25", "idna~=3.6", "urllib3~=2.5.0",
         "psutil~=7.1.0",
-        "typing_extensions>=4.12.2",
     ],
     # ❗ CORE 只保留应用直接使用的依赖（pix2text + 文档导出链路）
     "CORE": [
