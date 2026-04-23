@@ -1,4 +1,4 @@
-﻿import threading
+import threading
 import os
 import sys
 from pathlib import Path
@@ -133,8 +133,8 @@ subprocess_lock = threading.Lock()
 CONFLICT_MODULES = {
     # torch 系列
     "torch", "torchvision", "torchaudio",
-    # pix2text 系列
-    "pix2text",
+    # MathCraft / ONNX OCR 系列
+    "mathcraft_ocr",
     # onnxruntime
     "onnxruntime", "onnxruntime_gpu",
     # 其他常见冲突模块
@@ -450,8 +450,8 @@ class InstallWorker(QThread):
             if skipped:
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
 
-            # 固定 pix2text 依赖安装顺序，降低 resolver 回溯概率。
-            pending = _reorder_pix2text_install_specs(pending, gpu_runtime_first=want_gpu_torch)
+            # 固定 MathCraft / ONNX 依赖安装顺序，降低 resolver 回溯概率。
+            pending = _reorder_mathcraft_install_specs(pending, gpu_runtime_first=want_gpu_torch)
 
             if not pending:
                 self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
@@ -556,7 +556,7 @@ class InstallWorker(QThread):
                             self.log_updated.emit(f"[ERR] torch 栈仍异常: {stack_err2[:400]}")
 
             # 无论成功与否，都尝试修复关键版本
-            # 这是必要的，用于避免 pix2text 依赖回溯和版本漂移
+            # 这是必要的，用于避免 OCR / ONNX 依赖回溯和版本漂移
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
             # 关键版本修复后再做一次 torch 栈复核：
@@ -833,9 +833,6 @@ def _onnxruntime_gpu_spec_for_torch_url(torch_url: str | None, prefer_gpu: bool 
 
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
-    "pix2text": "pix2text==1.1.6",
-    "cnocr": "cnocr==2.3.2.2",
-    "cnstd": "cnstd==1.2.6.1",
     "rapidocr": "rapidocr==3.5.0",
     "protobuf": "protobuf>=3.20,<5",
 }
@@ -881,72 +878,23 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
 # 各功能层的运行时验证测试代码
 # CORE 默认只做轻量导入验证；真实模型初始化仅在 strict 模式执行。
 _CORE_LIGHT_VERIFY_CODE = """
-import importlib.metadata
 import importlib.util
 
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
+for mod in ("transformers", "rapidocr", "cv2", "PIL", "latex2mathml.converter", "matplotlib", "fitz"):
+    if importlib.util.find_spec(mod) is None:
+        raise RuntimeError(f"{mod} not installed")
 
-print("pix2text version:", importlib.metadata.version("pix2text"))
-
-# 仅验证核心依赖和 Pix2Text 本体可导入，不在普通安装后验证中触发模型下载/初始化。
-from pix2text import Pix2Text
-import latex2mathml.converter
-import matplotlib
-import matplotlib.mathtext
-import fitz
 print("CORE OK")
 """
 
-# strict 模式下触发真实模型初始化，用于设置页/强制验证路径。
-_CORE_PIX2TEXT_VERIFY_CODE = """
-import importlib.metadata
+# strict 模式下只验证运行时依赖可导入；MathCraft 权重 warmup 由模型层显式执行。
+_CORE_MATHCRAFT_VERIFY_CODE = """
 import importlib.util
-import warnings
-from pathlib import Path
 
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
+for mod in ("transformers", "rapidocr", "cv2", "PIL", "latex2mathml.converter", "matplotlib", "fitz"):
+    if importlib.util.find_spec(mod) is None:
+        raise RuntimeError(f"{mod} not installed")
 
-print("pix2text version:", importlib.metadata.version("pix2text"))
-
-try:
-    from rapidocr.inference_engine.onnxruntime import main as _rapidocr_ort_main
-    _orig_init = _rapidocr_ort_main.OrtInferSession.__init__
-    if not getattr(_orig_init, "_latexsnipper_model_root_dir_patch", False):
-        def _patched_init(self, cfg):
-            try:
-                if cfg.get("model_root_dir") is None:
-                    model_path = cfg.get("model_path")
-                    if model_path:
-                        cfg["model_root_dir"] = str(Path(model_path).expanduser().resolve().parent)
-            except Exception:
-                try:
-                    model_path = cfg.get("model_path")
-                    if model_path:
-                        cfg["model_root_dir"] = str(Path(model_path).parent)
-                except Exception:
-                    pass
-            return _orig_init(self, cfg)
-
-        _patched_init._latexsnipper_model_root_dir_patch = True
-        _rapidocr_ort_main.OrtInferSession.__init__ = _patched_init
-except Exception:
-    pass
-
-warnings.filterwarnings("ignore")
-from pix2text import Pix2Text
-stable_cfg = {
-    "layout": {"model_type": "DocYoloLayoutParser"},
-    "text_formula": {
-        "formula": {"model_name": "mfr", "model_backend": "onnx"}
-    },
-}
-Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
-import latex2mathml.converter
-import matplotlib
-import matplotlib.mathtext
-import fitz
 print("CORE OK")
 """
 
@@ -983,7 +931,7 @@ print("HEAVY_GPU OK")
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
 LAYER_VERIFY_CODE_STRICT = {
-    "CORE": _CORE_PIX2TEXT_VERIFY_CODE,
+    "CORE": _CORE_MATHCRAFT_VERIFY_CODE,
 }
 
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: bool = False) -> tuple:
@@ -1335,16 +1283,13 @@ LAYER_MAP = {
         "certifi~=2026.2.25", "idna~=3.6", "urllib3~=2.5.0",
         "psutil~=7.1.0",
     ],
-    # ❗ CORE 只保留应用直接使用的依赖（pix2text + 文档导出链路）
+    # ❗ CORE 只保留应用直接使用的依赖（MathCraft ONNX OCR + 文档导出链路）
     "CORE": [
         "transformers==4.55.4",
         "tokenizers==0.21.4",
         "optimum-onnx>=0.0.3",
         "opencv-python==4.13.0.92",
         "rapidocr==3.5.0",
-        "cnstd==1.2.6.1",
-        "cnocr==2.3.2.2",
-        "pix2text==1.1.6",
         "protobuf>=3.20,<5",  # wandb 需要旧版 protobuf，6.x 会导致 Result 属性缺失
         "latex2mathml>=3.81.0",  # LaTeX 转 MathML 的支持
         "matplotlib~=3.10.8",  # LaTeX 公式转 SVG 的支持
@@ -1722,14 +1667,12 @@ def _filter_packages(pkgs):
             continue
         seen.add(name)
         res.append(spec)
-    return _reorder_pix2text_install_specs(res)
+    return _reorder_mathcraft_install_specs(res)
 
 
-def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
+def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
     """
-    Keep pix2text dependency chain in a stable order to reduce pip backtracking.
-    When installing the GPU layer, install the GPU runtime before pix2text so
-    pip does not temporarily settle on CPU torch/onnxruntime from pix2text deps.
+    Keep MathCraft / ONNX dependency chain in a stable order to reduce pip backtracking.
     """
     if not pkgs:
         return []
@@ -1747,9 +1690,7 @@ def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
             "tokenizers",
             "optimum-onnx",
             "rapidocr",
-            "cnstd",
-            "cnocr",
-            "pix2text",
+            "opencv-python",
             "pymupdf",
         )
     else:
@@ -1758,9 +1699,7 @@ def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
             "tokenizers",
             "optimum-onnx",
             "rapidocr",
-            "cnstd",
-            "cnocr",
-            "pix2text",
+            "opencv-python",
             "pymupdf",
         )
     grouped = {k: [] for k in priority}
@@ -2379,9 +2318,9 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                     log_q.put(f"  {manual_cmd}")
                     log_q.put("")
                     log_q.put("如遇权限问题，可尝试：")
-                    log_q.put(f'  1. 关闭程序后以管理员身份运行终端')
-                    log_q.put(f'  2. 或使用 --user 选项安装到用户目录')
-                    log_q.put(f'  3. 或在设置中点击"打开环境终端"执行上述命令')
+                    log_q.put('  1. 关闭程序后以管理员身份运行终端')
+                    log_q.put('  2. 或使用 --user 选项安装到用户目录')
+                    log_q.put('  3. 或在设置中点击"打开环境终端"执行上述命令')
                     log_q.put("=" * 60)
                     log_q.put("")
                     return False
@@ -2919,7 +2858,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     desc = QLabel(
         "📦 层级说明：\n"
         "• BASIC：基础运行层，包含网络、图像处理和 onnxruntime 等通用依赖。\n"
-        "• CORE：识别功能层，包含 pix2text 及文档导出 / PDF 相关依赖。\n"
+        "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
         "• HEAVY_CPU：PyTorch CPU 推理层，默认推荐，稳定性更高。\n"
         "• HEAVY_GPU：PyTorch GPU 推理层，按检测到的 CUDA 版本自动匹配。\n"
         "• 识别功能实际运行需要 BASIC + CORE + 一个 HEAVY 层。\n"
@@ -2928,7 +2867,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "⚠️ 重要提示：\n"
         "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-        "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
+        "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
         "• 若你只使用外部模型，可点击强制进入通过设置页面进行配置。"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
@@ -3823,9 +3762,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
         if active_pyexe is not None and active_pyexe.exists():
             os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
-            os.environ["PIX2TEXT_PYEXE"] = str(active_pyexe)
-        else:
-            os.environ.pop("PIX2TEXT_PYEXE", None)
 
     _apply_runtime_context(pyexe)
 
@@ -4433,5 +4369,3 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     continue
         break
     return True
-
-

@@ -203,7 +203,7 @@ def detect_torch_info(pyexe: str, timeout_sec: int = 8, run_env: dict | None = N
     code = (
         "import json, os, sys\n"
         "def _bootstrap_shared_torch():\n"
-        "    _shared_site = (os.environ.get('PIX2TEXT_SHARED_TORCH_SITE', '') or os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE', '') or '').strip()\n"
+        "    _shared_site = (os.environ.get('LATEXSNIPPER_SHARED_TORCH_SITE', '') or '').strip()\n"
         "    if not (_shared_site and os.path.isdir(_shared_site)):\n"
         "        return\n"
         "    _added = False\n"
@@ -330,11 +330,9 @@ def inject_shared_torch_env(env: dict, shared_site: str | None) -> dict:
     out = dict(env or {})
     site = (shared_site or "").strip()
     if not site or not os.path.isdir(site):
-        out.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
         out.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
         return out
-    out["PIX2TEXT_SHARED_TORCH_SITE"] = site
-    out.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
+    out["LATEXSNIPPER_SHARED_TORCH_SITE"] = site
     torch_lib = os.path.join(site, "torch", "lib")
     if os.path.isdir(torch_lib):
         cur = out.get("PATH", "")
@@ -350,7 +348,7 @@ def ensure_shared_torch_link(env_pyexe: str, shared_site: str | None) -> tuple[b
     pth_path = env_site / _SHARED_PTH_NAME
     site = (shared_site or "").strip()
 
-    # Always remove legacy full-site .pth path to avoid leaking non-torch deps
+    # Always remove stale full-site .pth path to avoid leaking non-torch deps
     # (e.g. transformers/optimum) into isolated env resolution.
     try:
         if pth_path.exists():

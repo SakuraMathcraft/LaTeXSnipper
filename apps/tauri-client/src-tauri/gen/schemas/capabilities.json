@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Default capability for local RPC commands","local":true,"windows":["main","capture-overlay"],"permissions":["core:default"]}}

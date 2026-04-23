@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "models": {
+    "mathcraft-formula-det": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "mathcraft-mfd-1.5.onnx",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    },
+    "mathcraft-formula-rec": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": ""
+        },
+        {
+          "path": "encoder_model.onnx",
+          "sha256": ""
+        },
+        {
+          "path": "decoder_model.onnx",
+          "sha256": ""
+        },
+        {
+          "path": "generation_config.json",
+          "sha256": ""
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": ""
+        },
+        {
+          "path": "special_tokens_map.json",
+          "sha256": ""
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": ""
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    },
+    "mathcraft-text-det": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ch_PP-OCRv5_det_server_infer.onnx",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    },
+    "mathcraft-text-rec": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ch_PP-OCRv5_server_rec_infer.onnx",
+          "sha256": ""
+        },
+        {
+          "path": "ppocr_keys_v1.txt",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    },
+    "mathcraft-text-det-lite-en": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ppocr/en_PP-OCRv3_det_infer.onnx",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    },
+    "mathcraft-text-rec-lite-en": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ppocr/en_PP-OCRv3_rec_infer.onnx",
+          "sha256": ""
+        },
+        {
+          "path": "en_dict.txt",
+          "sha256": ""
+        }
+      ],
+      "sources": []
+    }
+  }
+}

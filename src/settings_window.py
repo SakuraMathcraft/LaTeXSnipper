@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import shutil
 import subprocess
@@ -148,7 +148,7 @@ class SettingsWindow(QDialog):
     """设置窗口 - 使用 QDialog 作为基类"""
     model_changed = pyqtSignal(str)
     compute_mode_probe_done = pyqtSignal(object, str)
-    pix2text_pkg_probe_done = pyqtSignal(bool)
+    mathcraft_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)
     latex_auto_detect_done = pyqtSignal(bool, str, str)
 
@@ -195,7 +195,7 @@ class SettingsWindow(QDialog):
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
-        self._pix2text_pkg_ready = False
+        self._mathcraft_pkg_ready = False
         # 缓存慢探测结果，避免频繁点击时阻塞 UI
         self._probe_cache_ttl_sec = 45.0
         self._cached_gpu_plan = None
@@ -217,7 +217,7 @@ class SettingsWindow(QDialog):
         self.model_combo.setFixedHeight(36)
         # 添加识别模型选项
         self._model_options = [
-            ("pix2text", "内置模型"),
+            ("mathcraft", "内置模型"),
             ("external_model", "外部模型"),
         ]
         for key, label in self._model_options:
@@ -228,46 +228,45 @@ class SettingsWindow(QDialog):
         self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         self.lbl_model_desc.setWordWrap(True)
         lay.addWidget(self.lbl_model_desc)
-        # pix2text 环境选择
-        self.pix2text_env_widget = QWidget()
-        pix2text_env_layout = QHBoxLayout(self.pix2text_env_widget)
-        pix2text_env_layout.setContentsMargins(0, 0, 0, 0)
-        pix2text_env_layout.setSpacing(6)
-        pix2text_env_layout.addWidget(QLabel("pix2text 运行环境:"))
-        self.pix2text_pyexe_input = QLineEdit()
-        self.pix2text_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
-        self.pix2text_pyexe_input.setFixedHeight(30)
-        self.pix2text_pyexe_input.setReadOnly(True)
-        pix2text_env_layout.addWidget(self.pix2text_pyexe_input)
-        lay.addWidget(self.pix2text_env_widget)
-        self.pix2text_env_hint = QLabel("提示：pix2text 统一使用主依赖环境。")
-        self.pix2text_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.pix2text_env_hint.setWordWrap(True)
-        lay.addWidget(self.pix2text_env_hint)
+        # MathCraft 环境选择
+        self.mathcraft_env_widget = QWidget()
+        mathcraft_env_layout = QHBoxLayout(self.mathcraft_env_widget)
+        mathcraft_env_layout.setContentsMargins(0, 0, 0, 0)
+        mathcraft_env_layout.setSpacing(6)
+        mathcraft_env_layout.addWidget(QLabel("MathCraft 运行环境:"))
+        self.mathcraft_pyexe_input = QLineEdit()
+        self.mathcraft_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
+        self.mathcraft_pyexe_input.setFixedHeight(30)
+        self.mathcraft_pyexe_input.setReadOnly(True)
+        mathcraft_env_layout.addWidget(self.mathcraft_pyexe_input)
+        lay.addWidget(self.mathcraft_env_widget)
+        self.mathcraft_env_hint = QLabel("提示：MathCraft 统一使用主依赖环境。")
+        self.mathcraft_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+        self.mathcraft_env_hint.setWordWrap(True)
+        lay.addWidget(self.mathcraft_env_hint)
         # 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
-        self.pix2text_torch_btn_row = None
-        self.pix2text_torch_install_gpu = None
-        self.pix2text_torch_reinstall = None
-        self.pix2text_torch_refresh = None
-        self.pix2text_dl_widget = None
-        self.pix2text_download_btn = None
-        self.pix2text_open_btn = None
-        # pix2text 识别类型（仅在 pix2text 可用时显示）
-        self.pix2text_mode_widget = QWidget()
-        pix2text_mode_layout = QHBoxLayout(self.pix2text_mode_widget)
-        pix2text_mode_layout.setContentsMargins(0, 0, 0, 0)
-        pix2text_mode_layout.setSpacing(6)
-        pix2text_mode_layout.addWidget(QLabel("pix2text 识别类型:"))
-        self.pix2text_mode_combo = ComboBox()
-        self.pix2text_mode_combo.setFixedHeight(30)
-        self.pix2text_mode_combo.addItem("公式", userData="formula")
-        self.pix2text_mode_combo.addItem("混合(文字+公式)", userData="mixed")
-        self.pix2text_mode_combo.addItem("纯文字", userData="text")
-        self.pix2text_mode_combo.addItem("整页/版面", userData="page")
-        self.pix2text_mode_combo.addItem("表格", userData="table")
-        self.pix2text_mode_combo.currentIndexChanged.connect(self._on_pix2text_mode_changed)
-        pix2text_mode_layout.addWidget(self.pix2text_mode_combo)
-        lay.addWidget(self.pix2text_mode_widget)
+        self.mathcraft_torch_btn_row = None
+        self.mathcraft_torch_install_gpu = None
+        self.mathcraft_torch_reinstall = None
+        self.mathcraft_torch_refresh = None
+        self.mathcraft_dl_widget = None
+        self.mathcraft_download_btn = None
+        self.mathcraft_open_btn = None
+        # MathCraft 识别类型（仅在内置模型可用时显示）
+        self.mathcraft_mode_widget = QWidget()
+        mathcraft_mode_layout = QHBoxLayout(self.mathcraft_mode_widget)
+        mathcraft_mode_layout.setContentsMargins(0, 0, 0, 0)
+        mathcraft_mode_layout.setSpacing(6)
+        mathcraft_mode_layout.addWidget(QLabel("MathCraft 识别类型:"))
+        self.mathcraft_mode_combo = ComboBox()
+        self.mathcraft_mode_combo.setFixedHeight(30)
+        self.mathcraft_mode_combo.addItem("公式", userData="formula")
+        self.mathcraft_mode_combo.addItem("混合(文字+公式)", userData="mixed")
+        self.mathcraft_mode_combo.addItem("纯文字", userData="text")
+        self.mathcraft_mode_combo.addItem("整页/版面", userData="page")
+        self.mathcraft_mode_combo.currentIndexChanged.connect(self._on_mathcraft_mode_changed)
+        mathcraft_mode_layout.addWidget(self.mathcraft_mode_combo)
+        lay.addWidget(self.mathcraft_mode_widget)
         self.external_model_widget = QWidget()
         external_layout = QVBoxLayout(self.external_model_widget)
         external_layout.setContentsMargins(0, 6, 0, 0)
@@ -381,7 +380,7 @@ class SettingsWindow(QDialog):
         external_btn_row.addWidget(self.external_help_btn)
         external_layout.addLayout(external_btn_row)
         lay.addWidget(self.external_model_widget)
-        # 已移除 UniMERNet UI，当前由 pix2text 与 external_model 两条链路并存。
+        # 已移除 UniMERNet UI，当前由 mathcraft 与 external_model 两条链路并存。
         self.unimernet_widget = None
         self.unimernet_env_widget = None
         self.unimernet_env_hint = None
@@ -479,7 +478,7 @@ class SettingsWindow(QDialog):
         terminal_layout.setSpacing(6)
         self.terminal_env_combo = ComboBox()
         self.terminal_env_combo.setFixedHeight(36)
-        self.terminal_env_combo.addItem("主环境（程序 / pix2text）", userData="main")
+        self.terminal_env_combo.addItem("主环境（程序 / MathCraft）", userData="main")
         terminal_layout.addWidget(self.terminal_env_combo)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
@@ -495,23 +494,23 @@ class SettingsWindow(QDialog):
         self.btn_deps_wizard.setFixedHeight(36)
         self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/升级 GPU 加速层、模型依赖等。\n从设置页进入会执行真实依赖校验。")
         deps_row_layout.addWidget(self.btn_deps_wizard, 1)
-        self.btn_open_pix2text_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
-        self.btn_open_pix2text_cache.setFixedHeight(36)
-        self.btn_open_pix2text_cache.setToolTip("打开 pix2text 模型缓存目录（默认位于AppData\\Roaming\\pix2text）")
-        deps_row_layout.addWidget(self.btn_open_pix2text_cache, 1)
+        self.btn_open_mathcraft_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
+        self.btn_open_mathcraft_cache.setFixedHeight(36)
+        self.btn_open_mathcraft_cache.setToolTip("打开 MathCraft 模型缓存目录（默认位于AppData\\Roaming\\MathCraft\\models）")
+        deps_row_layout.addWidget(self.btn_open_mathcraft_cache, 1)
         lay.addWidget(deps_row)
         # 弹性空间
         lay.addStretch()
         # 连接信号
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
-        self.pix2text_pkg_probe_done.connect(self._set_pix2text_pkg_ready)
+        self.mathcraft_pkg_probe_done.connect(self._set_mathcraft_pkg_ready)
         self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.terminal_env_combo.currentIndexChanged.connect(self._on_terminal_env_changed)
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
-        self.btn_open_pix2text_cache.clicked.connect(self._open_pix2text_cache_dir)
+        self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # 渲染引擎相关信号
@@ -639,8 +638,8 @@ class SettingsWindow(QDialog):
         t = self._theme_tokens()
         if hasattr(self, "lbl_model_desc") and self.lbl_model_desc is not None:
             self.lbl_model_desc.setStyleSheet(f"color: {t['muted']}; font-size: 11px; padding: 4px;")
-        if hasattr(self, "pix2text_env_hint") and self.pix2text_env_hint is not None:
-            self.pix2text_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
+        if hasattr(self, "mathcraft_env_hint") and self.mathcraft_env_hint is not None:
+            self.mathcraft_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
         if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
             self.lbl_latex_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 4px;")
         if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
@@ -726,7 +725,12 @@ class SettingsWindow(QDialog):
         import subprocess
         if not pyexe or not os.path.exists(pyexe):
             return False
-        code = f"import importlib.util, sys; sys.exit(0 if importlib.util.find_spec(\"{module}\") else 1)"
+        repo_root = str(Path(__file__).resolve().parents[1])
+        code = (
+            "import importlib.util, sys; "
+            f"sys.path.insert(0, {repo_root!r}); "
+            f"sys.exit(0 if importlib.util.find_spec({module!r}) else 1)"
+        )
         try:
             try:
                 res = subprocess.run(
@@ -741,23 +745,23 @@ class SettingsWindow(QDialog):
             return res.returncode == 0
         except Exception:
             return False
-    def _schedule_pix2text_pkg_probe(self):
-        pyexe = self.pix2text_pyexe_input.text().strip()
+    def _schedule_mathcraft_pkg_probe(self):
+        pyexe = self.mathcraft_pyexe_input.text().strip()
         if not pyexe or not os.path.exists(pyexe):
-            self._pix2text_pkg_ready = False
-            self._update_pix2text_visibility()
+            self._mathcraft_pkg_ready = False
+            self._update_mathcraft_visibility()
             return
         def worker():
-            ok = self._probe_module_installed(pyexe, "pix2text")
+            ok = self._probe_module_installed(pyexe, "mathcraft_ocr")
             try:
-                self.pix2text_pkg_probe_done.emit(bool(ok))
+                self.mathcraft_pkg_probe_done.emit(bool(ok))
             except Exception:
                 pass
         import threading
         threading.Thread(target=worker, daemon=True).start()
-    def _set_pix2text_pkg_ready(self, ready: bool):
-        self._pix2text_pkg_ready = bool(ready)
-        self._update_pix2text_visibility()
+    def _set_mathcraft_pkg_ready(self, ready: bool):
+        self._mathcraft_pkg_ready = bool(ready)
+        self._update_mathcraft_visibility()
     def _infer_torch_info_from_env(self, pyexe: str) -> dict:
         try:
             env_root = self._python_env_root(pyexe)
@@ -928,10 +932,10 @@ class SettingsWindow(QDialog):
         return gpu_name, cpu_name
 
     def _refresh_env_status(self, env_key: str):
-        if env_key != "pix2text":
+        if env_key != "mathcraft":
             return
         self._schedule_compute_mode_probe(force=True)
-        self._schedule_pix2text_pkg_probe()
+        self._schedule_mathcraft_pkg_probe()
     def _torch_cuda_matrix(self) -> list[dict]:
         # 统一复用 backend.torch_runtime 里的单一版本矩阵，避免多处硬编码漂移。
         return [dict(p) for p in TORCH_CUDA_MATRIX]
@@ -999,7 +1003,7 @@ class SettingsWindow(QDialog):
         plan = self._detect_torch_gpu_plan()
         return plan["tag"] if plan else None
 
-    def _pix2text_install_steps(
+    def _mathcraft_install_steps(
         self,
         pyexe: str,
         mode: str,
@@ -1008,27 +1012,27 @@ class SettingsWindow(QDialog):
     ) -> list[str]:
         """
         可控分步安装，避免 pip 长时间回溯。
-        仅共享 torch；不固定 numpy，不额外约束其它包。
+        MathCraft 只需要 ONNX 运行链，不安装 mathcraft。
         """
         common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
+        repo_root = str(Path(__file__).resolve().parents[1])
         verify_code = (
-            "import warnings; "
-            "warnings.filterwarnings('ignore'); "
-            "from pix2text import Pix2Text; "
-            "stable_cfg={'layout': {'model_type': 'DocYoloLayoutParser'}, 'text_formula': {'formula': {'model_name': 'mfr', 'model_backend': 'onnx'}}}; "
-            "Pix2Text.from_config(total_configs=stable_cfg, device='cpu', enable_table=False); "
-            "import latex2mathml.converter; import matplotlib.mathtext; import fitz; "
-            "print('pix2text cpu/onnx ok')"
+            "import sys; "
+            f"sys.path.insert(0, {repo_root!r}); "
+            "from mathcraft_ocr import MathCraftRuntime; "
+            "rt=MathCraftRuntime(provider_preference='cpu'); "
+            "print(rt.doctor().provider_info.active_provider); "
+            "print('mathcraft cpu/onnx ok')"
         )
         steps = [
             f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
             f"\"{pyexe}\" -m pip uninstall -y optimum optimum-onnx optimum-intel",
             f"\"{pyexe}\" -m pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" {common_flags}",
             f"\"{pyexe}\" -m pip install -U \"optimum-onnx>=0.0.3\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"pix2text==1.1.6\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"rapidocr\" \"opencv-python\" \"pillow\" \"numpy\" {common_flags}",
+            f"\"{pyexe}\" -m pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" \"latex2mathml\" \"matplotlib\" {common_flags}",
         ]
-        # pix2text 依赖链可能回拉 onnxruntime，末尾强制修正 CPU/GPU 最终状态（互斥）。
+        # 末尾强制修正 CPU/GPU ONNX Runtime 最终状态（互斥）。
         if (mode or "").strip().lower() == "gpu":
             onnx_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
         else:
@@ -1050,8 +1054,8 @@ class SettingsWindow(QDialog):
         return f"\"{pyexe}\" -c \"{verify_code}\""
 
     def _install_env_torch(self, env_key: str, mode: str, include_model: bool = True):
-        env_key = "pix2text"
-        pyexe = self.pix2text_pyexe_input.text().strip()
+        env_key = "mathcraft"
+        pyexe = self.mathcraft_pyexe_input.text().strip()
         if not pyexe or not os.path.exists(pyexe):
             self._show_info("环境未配置", "请先完成依赖向导初始化主依赖环境。", "warning")
             return
@@ -1128,7 +1132,7 @@ class SettingsWindow(QDialog):
             return
 
         model_cmd = ""
-        model_cmd = "\n".join(self._pix2text_install_steps(pyexe, mode, "", selected_gpu_tag))
+        model_cmd = "\n".join(self._mathcraft_install_steps(pyexe, mode, "", selected_gpu_tag))
 
         cmd_parts = []
         if torch_cmd:
@@ -1230,26 +1234,26 @@ class SettingsWindow(QDialog):
 
     def _init_model_combo(self):
         # 初始化模型下拉框的选择状态
-        current = "pix2text"
+        current = "mathcraft"
         if self.parent() and hasattr(self.parent(), "desired_model"):
             current = self.parent().desired_model
         elif self.parent() and hasattr(self.parent(), "cfg"):
             current = self.parent().cfg.get("desired_model", current)
         if not current and self.parent() and hasattr(self.parent(), "current_model"):
             current = self.parent().current_model
-        if current and str(current).startswith("pix2text"):
-            current_key = "pix2text"
+        if current and str(current).startswith("mathcraft"):
+            current_key = "mathcraft"
         else:
             current_key = current
         for i, (key, _) in enumerate(self._model_options):
             if key == current_key:
                 self.model_combo.setCurrentIndex(i)
                 break
-        self._init_pix2text_pyexe()
-        self._schedule_pix2text_pkg_probe()
-        self._init_pix2text_mode()
+        self._init_mathcraft_pyexe()
+        self._schedule_mathcraft_pkg_probe()
+        self._init_mathcraft_mode()
         self._init_external_model_config()
-        self._update_pix2text_visibility()
+        self._update_mathcraft_visibility()
     def _on_model_combo_changed(self, index: int):
         # 模型下拉框选择变化
         if getattr(self, "_model_selection_syncing", False):
@@ -1259,43 +1263,42 @@ class SettingsWindow(QDialog):
         key, _ = self._model_options[index]
         if key == "external_model":
             self.select_model("external_model")
-        elif self._is_pix2text_ready():
-            mode_key = self._get_pix2text_mode_key()
-            self.select_model(self._pix2text_mode_to_model(mode_key))
+        elif self._is_mathcraft_ready():
+            mode_key = self._get_mathcraft_mode_key()
+            self.select_model(self._mathcraft_mode_to_model(mode_key))
         else:
-            # 触发加载/提示，但保持 UI 选择在 pix2text
-            self.select_model("pix2text")
+            # 触发加载/提示，但保持 UI 选择在 mathcraft
+            self.select_model("mathcraft")
         self._update_model_desc()
-        self._update_pix2text_visibility()
-    def _init_pix2text_pyexe(self):
+        self._update_mathcraft_visibility()
+    def _init_mathcraft_pyexe(self):
         pyexe = self._resolve_dynamic_main_pyexe()
-        self.pix2text_pyexe_input.setText(pyexe)
+        self.mathcraft_pyexe_input.setText(pyexe)
         cfg = self._settings_cfg()
         if cfg:
-            cfg.set("pix2text_pyexe", pyexe)
-    def _init_pix2text_mode(self):
+            cfg.set("mathcraft_pyexe", pyexe)
+    def _init_mathcraft_mode(self):
         mode = "formula"
         if self.parent() and hasattr(self.parent(), "cfg"):
-            mode = self.parent().cfg.get("pix2text_mode", "formula")
-        for i in range(self.pix2text_mode_combo.count()):
-            if self.pix2text_mode_combo.itemData(i) == mode:
-                prev = self.pix2text_mode_combo.blockSignals(True)
-                self.pix2text_mode_combo.setCurrentIndex(i)
-                self.pix2text_mode_combo.blockSignals(prev)
+            mode = self.parent().cfg.get("mathcraft_mode", "formula")
+        for i in range(self.mathcraft_mode_combo.count()):
+            if self.mathcraft_mode_combo.itemData(i) == mode:
+                prev = self.mathcraft_mode_combo.blockSignals(True)
+                self.mathcraft_mode_combo.setCurrentIndex(i)
+                self.mathcraft_mode_combo.blockSignals(prev)
                 break
-    def _pix2text_mode_to_model(self, mode_key: str) -> str:
+    def _mathcraft_mode_to_model(self, mode_key: str) -> str:
         mapping = {
-            "formula": "pix2text",
-            "mixed": "pix2text_mixed",
-            "text": "pix2text_text",
-            "page": "pix2text_page",
-            "table": "pix2text_table",
+            "formula": "mathcraft",
+            "mixed": "mathcraft_mixed",
+            "text": "mathcraft_text",
+            "page": "mathcraft_page",
         }
-        return mapping.get(mode_key, "pix2text")
-    def _get_pix2text_mode_key(self) -> str:
-        idx = self.pix2text_mode_combo.currentIndex()
+        return mapping.get(mode_key, "mathcraft")
+    def _get_mathcraft_mode_key(self) -> str:
+        idx = self.mathcraft_mode_combo.currentIndex()
         if idx >= 0:
-            key = self.pix2text_mode_combo.itemData(idx)
+            key = self.mathcraft_mode_combo.itemData(idx)
             if key:
                 return key
         return "formula"
@@ -1385,11 +1388,11 @@ class SettingsWindow(QDialog):
                     pass
             return fallback
         return ""
-    def _is_pix2text_selected(self) -> bool:
+    def _is_mathcraft_selected(self) -> bool:
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
             key, _ = self._model_options[idx]
-            return key == "pix2text"
+            return key == "mathcraft"
         return False
     def _is_external_model_selected(self) -> bool:
         idx = self.model_combo.currentIndex()
@@ -1397,48 +1400,48 @@ class SettingsWindow(QDialog):
             key, _ = self._model_options[idx]
             return key == "external_model"
         return False
-    def _is_pix2text_ready(self) -> bool:
-        # only mark ready after pix2text package is installed
-        if getattr(self, "_pix2text_pkg_ready", False):
+    def _is_mathcraft_ready(self) -> bool:
+        # only mark ready after MathCraft package is available
+        if getattr(self, "_mathcraft_pkg_ready", False):
             return True
         return False
-    def _on_pix2text_mode_changed(self, index: int):
+    def _on_mathcraft_mode_changed(self, index: int):
         if index < 0:
             return
-        mode_key = self.pix2text_mode_combo.itemData(index)
+        mode_key = self.mathcraft_mode_combo.itemData(index)
         if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("pix2text_mode", mode_key)
-        if not self._is_pix2text_selected():
+            self.parent().cfg.set("mathcraft_mode", mode_key)
+        if not self._is_mathcraft_selected():
             return
-        if self._is_pix2text_ready():
-            self.select_model(self._pix2text_mode_to_model(mode_key))
-    def _update_pix2text_visibility(self):
+        if self._is_mathcraft_ready():
+            self.select_model(self._mathcraft_mode_to_model(mode_key))
+    def _update_mathcraft_visibility(self):
         key = None
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
             key, _ = self._model_options[idx]
-        visible = (key == "pix2text")
+        visible = (key == "mathcraft")
         external_visible = (key == "external_model")
-        ready = self._is_pix2text_ready()
-        pyexe = self.pix2text_pyexe_input.text().strip()
+        ready = self._is_mathcraft_ready()
+        pyexe = self.mathcraft_pyexe_input.text().strip()
         pyexe_exists = bool(pyexe and Path(pyexe).exists())
         try:
-            self.pix2text_env_widget.setVisible(visible)
-            self.pix2text_env_hint.setVisible(visible)
-            if self.pix2text_torch_btn_row is not None:
-                self.pix2text_torch_btn_row.setVisible(visible)
-            if self.pix2text_dl_widget is not None:
-                self.pix2text_dl_widget.setVisible(visible)
+            self.mathcraft_env_widget.setVisible(visible)
+            self.mathcraft_env_hint.setVisible(visible)
+            if self.mathcraft_torch_btn_row is not None:
+                self.mathcraft_torch_btn_row.setVisible(visible)
+            if self.mathcraft_dl_widget is not None:
+                self.mathcraft_dl_widget.setVisible(visible)
             # 识别类型始终可见（便于用户预先选择）
-            self.pix2text_mode_widget.setVisible(visible)
+            self.mathcraft_mode_widget.setVisible(visible)
             self.external_model_widget.setVisible(external_visible)
             if visible:
                 if not pyexe_exists:
-                    self.pix2text_env_hint.setText("⚠️ 主依赖环境未就绪，请先运行依赖向导。")
+                    self.mathcraft_env_hint.setText("⚠️ 主依赖环境未就绪，请先运行依赖向导。")
                 elif not ready:
-                    self.pix2text_env_hint.setText("⚠️ pix2text 未部署：请先打开【依赖管理向导】安装依赖。")
+                    self.mathcraft_env_hint.setText("⚠️ MathCraft 未部署：请检查程序文件或依赖环境。")
                 else:
-                    self.pix2text_env_hint.setText("💡 pix2text 已部署，可选择识别类型。")
+                    self.mathcraft_env_hint.setText("💡 MathCraft 已就绪，可选择识别类型。")
             if external_visible:
                 self._update_external_model_status()
         except Exception:
@@ -1755,12 +1758,12 @@ class SettingsWindow(QDialog):
             return
         key, _ = self._model_options[index]
         descriptions = {
-            "pix2text": "内置识别模型，支持公式/混合/文字/整页/表格与 PDF 识别。",
+            "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与整页识别。",
             "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL、Ollama 等本地服务。",
         }
         desc = descriptions.get(key, "")
-        if key == "pix2text":
-            desc += "\n提示：pix2text 依赖由主环境统一管理。"
+        if key == "mathcraft":
+            desc += "\n提示：MathCraft 依赖由主环境统一管理，权重位于 MathCraft 标准缓存目录。"
         elif key == "external_model":
             desc += "\n提示：支持本地和部分线上接口。必填：协议、Base URL、模型名；选填：API Key、超时、提示词。"
         self.lbl_model_desc.setText(desc)
@@ -1831,7 +1834,7 @@ class SettingsWindow(QDialog):
         if esc_pressed[0]:
             return
         as_admin = result
-        env_desc = "主环境（程序 / pix2text / 核心依赖）"
+        env_desc = "主环境（程序 / MathCraft / 核心依赖）"
         torch_info_for_terminal = {}
         torch_note_for_terminal = "unknown"
         try:
@@ -1870,10 +1873,10 @@ class SettingsWindow(QDialog):
             "echo [*] python/pip are bound to this env for this terminal session",
             "echo.",
             "echo [Model Policy]",
-            "echo   - built-in dependency wizard manages the pix2text path",
+            "echo   - built-in OCR uses MathCraft model cache",
             "echo   - external_model uses independently deployed local/online services",
             "echo   - terminal commands target the current main dependency env",
-            "echo   - pix2text formula warmup uses CPU/ONNX first; torch failure does not always mean pix2text is unusable",
+            "echo   - MathCraft uses ONNX Runtime providers; torch is not used by the internal OCR path",
             "echo   - HEAVY_CPU/HEAVY_GPU health is checked separately through torch + onnxruntime",
             f"echo   - terminal torch runtime: {torch_note_for_terminal}",
             "echo.",
@@ -1897,11 +1900,11 @@ class SettingsWindow(QDialog):
             "echo   pip uninstall -y optimum optimum-onnx optimum-intel",
             "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   pip install -U \"optimum-onnx>=0.0.3\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   pip install -U \"pix2text==1.1.6\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            "echo   # MathCraft is shipped with LaTeXSnipper source/package; verify it from the project root.",
             "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo.",
-            "echo [Pix2Text CPU/ONNX Check]",
-            "echo   python -c \"import warnings; warnings.filterwarnings('ignore'); from pix2text import Pix2Text; stable_cfg={'layout': {'model_type': 'DocYoloLayoutParser'}, 'text_formula': {'formula': {'model_name': 'mfr', 'model_backend': 'onnx'}}}; Pix2Text.from_config(total_configs=stable_cfg, device='cpu', enable_table=False); import latex2mathml.converter; import matplotlib.mathtext; import fitz; print('pix2text cpu/onnx ok')\"",
+            "echo [MathCraft CPU/ONNX Check]",
+            "echo   python -c \"import sys; sys.path.insert(0, r'%CD%'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
             "echo.",
             "echo [Torch / HEAVY Check]",
             "echo   python -c \"import importlib.util as _iu; import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); print('torch', getattr(torch,'__version__','')); print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda',''))\"",
@@ -1924,7 +1927,6 @@ class SettingsWindow(QDialog):
         help_text = "\n".join(help_lines) + "\n"
         python_bind_lines = (
             f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
-            'set "PIX2TEXT_SHARED_TORCH_SITE="\n'
             'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
             f'doskey python="{pyexe}" $*\n'
             f'doskey py="{pyexe}" $*\n'
@@ -1968,18 +1970,18 @@ class SettingsWindow(QDialog):
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 
-    def _resolve_pix2text_cache_dir(self) -> str:
+    def _resolve_mathcraft_cache_dir(self) -> str:
         # 快速路径：避免每次点击都拉起 python 子进程，防止 UI 卡顿。
-        env_home = (os.environ.get("PIX2TEXT_HOME", "") or "").strip()
+        env_home = (os.environ.get("MATHCRAFT_HOME", "") or "").strip()
         if env_home:
-            return os.path.normpath(env_home)
+            return os.path.normpath(os.path.join(env_home, "models"))
         appdata = (os.environ.get("APPDATA", "") or "").strip()
         if appdata:
-            return os.path.normpath(os.path.join(appdata, "pix2text"))
-        return os.path.normpath(os.path.expanduser("~/.pix2text"))
+            return os.path.normpath(os.path.join(appdata, "MathCraft", "models"))
+        return os.path.normpath(os.path.expanduser("~/.MathCraft/models"))
 
-    def _open_pix2text_cache_dir(self):
-        path = self._resolve_pix2text_cache_dir()
+    def _open_mathcraft_cache_dir(self):
+        path = self._resolve_mathcraft_cache_dir()
         try:
             os.makedirs(path, exist_ok=True)
             if os.name == "nt":
@@ -1988,7 +1990,7 @@ class SettingsWindow(QDialog):
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
-            self._show_info("已打开", f"pix2text 缓存目录: {path}", "success")
+            self._show_info("已打开", f"MathCraft 缓存目录: {path}", "success")
         except Exception as e:
             self._show_info("打开失败", f"无法打开缓存目录: {e}", "error")
 
@@ -2468,15 +2470,15 @@ class SettingsWindow(QDialog):
         # sync model combo selection state
         if getattr(self, "_model_selection_syncing", False):
             return
-        current = "pix2text"
+        current = "mathcraft"
         try:
             if self.parent() and hasattr(self.parent(), "desired_model"):
-                current = str(self.parent().desired_model or "pix2text")
+                current = str(self.parent().desired_model or "mathcraft")
             elif self.parent() and hasattr(self.parent(), "cfg"):
                 current = str(self.parent().cfg.get("desired_model", current) or current)
         except Exception:
-            current = "pix2text"
-        target = "external_model" if current == "external_model" else "pix2text"
+            current = "mathcraft"
+        target = "external_model" if current == "external_model" else "mathcraft"
         self._model_selection_syncing = True
         try:
             for i, (key, _) in enumerate(self._model_options):
@@ -2485,10 +2487,10 @@ class SettingsWindow(QDialog):
                     self.model_combo.setCurrentIndex(i)
                     self.model_combo.blockSignals(False)
                     break
-            self._init_pix2text_mode()
+            self._init_mathcraft_mode()
             self._init_external_model_config()
             self._update_model_desc()
-            self._update_pix2text_visibility()
+            self._update_mathcraft_visibility()
         finally:
             self._model_selection_syncing = False
 # ---------------- 主窗口 ----------------

@@ -1,4 +1,4 @@
-﻿# --- Crash guard & runtime sanity, put this at the VERY TOP of 'src/main.py' ---
+# --- Crash guard & runtime sanity, put this at the VERY TOP of 'src/main.py' ---
 import atexit
 import builtins
 import ctypes
@@ -259,15 +259,6 @@ def _pre_bootstrap_runtime():
 
 _pre_bootstrap_runtime()
 
-
-def _configure_runtime_defaults_for_classic_main():
-    """Keep classic main.py behavior stable unless explicitly overridden."""
-    # Allow explicit override from launcher/tauri env.
-    if not (os.environ.get("LATEXSNIPPER_USE_DAEMON", "") or "").strip():
-        os.environ["LATEXSNIPPER_USE_DAEMON"] = "0"
-
-
-_configure_runtime_defaults_for_classic_main()
 
 def _load_qt_symbols():
     from PyQt6.QtCore import (
@@ -1221,9 +1212,9 @@ def open_deps_terminal(parent=None):
 
     # 进入目录并打开 cmd，显示简短提示
     banner = (
-        f'echo LaTeXSnipper 依赖终端 && '
-        f'where python && python --version && pip --version && '
-        f'echo.'
+        'echo LaTeXSnipper 依赖终端 && '
+        'where python && python --version && pip --version && '
+        'echo.'
     )
     try:
         subprocess.Popen(
@@ -2908,7 +2899,7 @@ if not _in_ide() and not _is_packaged_mode():
     if not _same_exe(sys.executable, TARGET_PY):
         _relaunch_with(TARGET_PY)
 elif _in_ide():
-    print(f"[INFO] IDE 中运行，保持当前解释器，但使用私有依赖路径")
+    print("[INFO] IDE 中运行，保持当前解释器，但使用私有依赖路径")
 
 # 只有在非 BOOTSTRAPPED 模式下才修改 sys.path
 if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
@@ -3006,7 +2997,7 @@ def _load_runtime_modules():
         load_config_from_mapping,
     )
     from backend.latex_renderer import get_latex_renderer, init_latex_settings
-    from backend.model import ModelWrapper, classify_pix2text_failure
+    from backend.model import ModelWrapper, classify_mathcraft_failure
     from backend.model_factory import create_model_wrapper
     from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
     from editor.workbench_window import WorkbenchWindow
@@ -3046,7 +3037,7 @@ def _load_runtime_modules():
         ScreenshotConfig,
         TrayMenuHandlers,
         WorkbenchWindow,
-        classify_pix2text_failure,
+        classify_mathcraft_failure,
         create_model_wrapper,
         get_latex_renderer,
         init_latex_settings,
@@ -3076,7 +3067,7 @@ def _load_runtime_modules():
     ScreenshotConfig,
     TrayMenuHandlers,
     WorkbenchWindow,
-    classify_pix2text_failure,
+    classify_mathcraft_failure,
     create_model_wrapper,
     get_latex_renderer,
     init_latex_settings,
@@ -4275,10 +4266,10 @@ class ConfigManager:
 
 
 def normalize_content_type(content_type: str | None) -> str:
-    """将内容类型限制为当前支持的 pix2text 类型。"""
+    """将内容类型限制为当前支持的内置 MathCraft 类型。"""
     t = (content_type or "").strip().lower()
-    allowed = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table"}
-    return t if t in allowed else "pix2text"
+    allowed = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page"}
+    return t if t in allowed else "mathcraft"
 
 class FavoritesWindow(QMainWindow):
     """收藏夹窗口 - 简化版，只保留列表功能"""
@@ -4449,7 +4440,7 @@ class FavoritesWindow(QMainWindow):
                 p.latex_editor.setPlainText(latex)
             
             # 确保父窗口有这个内容的类型信息
-            content_type = normalize_content_type(self._favorite_types.get(latex, "pix2text"))
+            content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
             if hasattr(p, '_formula_types'):
                 p._formula_types[latex] = content_type
             
@@ -4552,7 +4543,7 @@ class FavoritesWindow(QMainWindow):
             return
         
         # 获取收藏的类型
-        content_type = normalize_content_type(self._favorite_types.get(latex, "pix2text"))
+        content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
         # 继承名称（先写入历史名称映射，确保新插入行立即显示标签）
         name = self._favorite_names.get(latex, "")
         if name and hasattr(p, '_formula_names'):
@@ -4817,11 +4808,10 @@ class FavoritesWindow(QMainWindow):
 
         # 类型显示名称
         type_names = {
-            "pix2text": "公式",
-            "pix2text_text": "文字",
-            "pix2text_mixed": "混合",
-            "pix2text_page": "整页",
-            "pix2text_table": "表格",
+            "mathcraft": "公式",
+            "mathcraft_text": "文字",
+            "mathcraft_mixed": "混合",
+            "mathcraft_page": "整页",
         }
 
         for idx, formula in enumerate(self.favorites, start=1):
@@ -4835,7 +4825,7 @@ class FavoritesWindow(QMainWindow):
                 p = self.parent()
                 if p and hasattr(p, "_formula_names"):
                     name = p._formula_names.get(formula, "")
-            content_type = normalize_content_type(self._favorite_types.get(formula, "pix2text"))
+            content_type = normalize_content_type(self._favorite_types.get(formula, "mathcraft"))
             type_display = type_names.get(content_type, "")
 
             # 构建显示文本
@@ -4947,7 +4937,7 @@ class FavoritesWindow(QMainWindow):
 
         Args:
             text: 内容文本
-            content_type: 内容类型 (pix2text, pix2text_mixed 等)
+            content_type: 内容类型 (mathcraft, mathcraft_mixed 等)
             name: 自定义名称
         """
         t = (text or "").strip()
@@ -4973,7 +4963,7 @@ class FavoritesWindow(QMainWindow):
                 if not content_type and hasattr(p, "current_model"):
                     content_type = p.current_model
             if not content_type:
-                content_type = "pix2text"
+                content_type = "mathcraft"
         self._favorite_types[t] = normalize_content_type(content_type)
 
         # 存储名称（如果没指定，从父窗口获取）
@@ -5296,7 +5286,7 @@ class MainWindow(QMainWindow):
         self._predict_result_dialog = None
         self._restore_predict_result_dialog_after_capture = None
         self._hidden_unpinned_predict_result_dialog_for_capture = None
-        self._pix2text_env_state = None
+        self._mathcraft_env_state = None
         self._main_torch_cache_ttl_sec = 45.0
         self._main_torch_cache_ts = 0.0
         self._main_torch_cache_info = None
@@ -5324,10 +5314,10 @@ class MainWindow(QMainWindow):
         self._sanitize_model_config()
         self._theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
         self.apply_app_theme_mode(self._theme_mode, refresh_preview=False)
-        self.current_model = self.cfg.get("default_model", "pix2text")
-        self.desired_model = self.cfg.get("desired_model", "pix2text")
+        self.current_model = self.cfg.get("default_model", "mathcraft")
+        self.desired_model = self.cfg.get("desired_model", "mathcraft")
         try:
-            if self.desired_model == "pix2text":
+            if self.desired_model == "mathcraft":
                 preferred = self._get_preferred_model_for_predict()
                 if preferred:
                     self.current_model = preferred
@@ -5344,20 +5334,10 @@ class MainWindow(QMainWindow):
         self._report_startup_progress("正在加载主窗口组件...")
         try:
             self._report_startup_progress("正在初始化识别运行时...")
-            # 在 ModelWrapper 初始化前先注入 pix2text 运行环境变量
-            self._apply_pix2text_env()
+            # 在 ModelWrapper 初始化前先注入 MathCraft 运行环境变量
+            self._apply_mathcraft_env()
             self.model = create_model_wrapper(self.current_model, auto_warmup=False)
             self.model.status_signal.connect(self.show_status_message)
-            if hasattr(self.model, "daemon_event_signal"):
-                try:
-                    self.model.daemon_event_signal.connect(self._on_daemon_event)
-                except Exception:
-                    pass
-            if hasattr(self.model, "daemon_error_signal"):
-                try:
-                    self.model.daemon_error_signal.connect(self._on_daemon_error)
-                except Exception:
-                    pass
             print("[DEBUG] ModelWrapper 初始化完成")
 
             # 根据当前偏好模型和其真实状态设置状态文本
@@ -6021,7 +6001,7 @@ class MainWindow(QMainWindow):
         return current
 
     def _sync_current_model_status_from_preference(self) -> None:
-        preferred = str(self._get_preferred_model_for_predict() or getattr(self, "current_model", "pix2text") or "pix2text").strip()
+        preferred = str(self._get_preferred_model_for_predict() or getattr(self, "current_model", "mathcraft") or "mathcraft").strip()
         self.current_model = preferred
         try:
             self.cfg.set("default_model", preferred)
@@ -6035,7 +6015,7 @@ class MainWindow(QMainWindow):
             return
         if self.model.is_model_ready(preferred):
             self.set_model_status("已加载")
-        elif preferred.startswith("pix2text") and getattr(self.model, "_pix2text_import_failed", False):
+        elif preferred.startswith("mathcraft") and getattr(self.model, "_import_failed", False):
             self.set_model_status(f"加载失败 ({preferred})")
         else:
             self.set_model_status(f"待识别时加载 ({preferred})")
@@ -6182,39 +6162,6 @@ class MainWindow(QMainWindow):
             return
         self.set_model_status(text)
 
-    def _on_daemon_event(self, payload: dict):
-        verbose = str(os.environ.get("LATEXSNIPPER_VERBOSE_RUNTIME", "") or "").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-            "on",
-        )
-        if verbose:
-            try:
-                print(f"[DAEMON_EVT_HOST] {payload}", flush=True)
-            except Exception:
-                pass
-        try:
-            event = str((payload or {}).get("event", "") or "")
-            if event in ("daemon_started", "warmup_ok"):
-                self._report_startup_progress("模型服务就绪")
-            elif event == "adapter_init":
-                self._report_startup_progress("正在拉起模型服务...")
-        except Exception:
-            pass
-
-    def _on_daemon_error(self, payload: dict):
-        try:
-            print(f"[DAEMON_ERR_HOST] {payload}", flush=True)
-        except Exception:
-            pass
-        try:
-            err = str((payload or {}).get("error", "") or "").strip()
-            if err:
-                self._report_startup_progress(f"模型服务异常: {err[:80]}")
-        except Exception:
-            pass
-
     # ---------- 实时渲染相关 ----------
     def _on_editor_text_changed(self):
         """编辑器文本变化时触发，使用防抖延迟渲染"""
@@ -6335,7 +6282,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 content_type = None
         if not content_type:
-            content_type = getattr(self, "current_model", "pix2text")
+            content_type = getattr(self, "current_model", "mathcraft")
         self._ensure_favorites_window().add_favorite(text, content_type=content_type)
 
     def _show_export_menu(self):
@@ -6574,7 +6521,7 @@ class MainWindow(QMainWindow):
             return
         # 如果没有记录类型，使用当前模式作为默认类型
         if hasattr(self, "_formula_types") and latex not in self._formula_types:
-            self._formula_types[latex] = getattr(self, "current_model", "pix2text")
+            self._formula_types[latex] = getattr(self, "current_model", "mathcraft")
         # 获取公式名称
         if label is None:
             label = self._formula_names.get(latex, "")
@@ -6600,12 +6547,12 @@ class MainWindow(QMainWindow):
         existing_formulas = [f for f, _ in self._rendered_formulas]
         if editor_text and editor_text not in existing_formulas:
             # 编辑中的内容使用当前模式
-            current_mode = getattr(self, "current_model", "pix2text")
+            current_mode = getattr(self, "current_model", "mathcraft")
             all_items.append((editor_text, "编辑中", current_mode))
         
         # 已渲染的公式列表 - 使用各自存储的类型
         for formula, label in self._rendered_formulas:
-            content_type = self._formula_types.get(formula, "pix2text")  # 默认公式模式
+            content_type = self._formula_types.get(formula, "mathcraft")  # 默认公式模式
             all_items.append((formula, label, content_type))
         
         try:
@@ -6827,7 +6774,7 @@ th {{
                 label = str(label)
             
             if content_type is None:
-                content_type = "pix2text"
+                content_type = "mathcraft"
             else:
                 content_type = str(content_type)
             
@@ -6837,11 +6784,10 @@ th {{
             # 类型显示名称和样式
             content_type = normalize_content_type(content_type)
             type_info = {
-                "pix2text": ("公式", ""),
-                "pix2text_text": ("文字", "text"),
-                "pix2text_mixed": ("混合", "mixed"),
-                "pix2text_page": ("整页", "text"),
-                "pix2text_table": ("表格", "table"),
+                "mathcraft": ("公式", ""),
+                "mathcraft_text": ("文字", "text"),
+                "mathcraft_mixed": ("混合", "mixed"),
+                "mathcraft_page": ("整页", "text"),
             }
             
             type_name, type_class = type_info.get(content_type, ("内容", ""))
@@ -6849,7 +6795,7 @@ th {{
             badge_class = f"type-badge {type_class}" if type_class else "type-badge"
             
             # 根据类型渲染内容
-            if content_type == "pix2text":
+            if content_type == "mathcraft":
                 # 公式模式：根据当前选择的渲染引擎来渲染
                 try:
                     from backend.latex_renderer import _latex_settings
@@ -6877,12 +6823,9 @@ th {{
                 except Exception:
                     # 异常处理，使用 MathJax
                     rendered_content = f'<div class="formula-content">$${content}$$</div>'
-            elif content_type == "pix2text_mixed":
+            elif content_type == "mathcraft_mixed":
                 # 混合模式：文字和公式混合，由 MathJax 处理
                 rendered_content = self._render_mixed_content(content)
-            elif content_type == "pix2text_table":
-                # 表格模式
-                rendered_content = self._render_table_content(content)
             else:
                 # 文字模式
                 escaped = html_module.escape(content)
@@ -6976,10 +6919,10 @@ th {{
             if formula and formula not in self.history:
                 # 添加到历史
                 self.history.insert(0, formula)
-                # 继承或补充类型（避免默认成 pix2text）
+                # 继承或补充类型（避免默认成 mathcraft）
                 if hasattr(self, "_formula_types"):
                     if formula not in self._formula_types:
-                        self._formula_types[formula] = getattr(self, "current_model", "pix2text")
+                        self._formula_types[formula] = getattr(self, "current_model", "mathcraft")
                 # 继承标签（提取名称部分）
                 if label:
                     # 标签格式可能是 "#1 名称" 或纯名称
@@ -7093,7 +7036,7 @@ th {{
             except Exception:
                 content_type = None
         if not content_type:
-            content_type = getattr(self, "current_model", "pix2text")
+            content_type = getattr(self, "current_model", "mathcraft")
         self._ensure_favorites_window().add_favorite(txt, content_type=content_type)
 
     def _do_delete_row(self, row):
@@ -7212,7 +7155,7 @@ th {{
             return
         # 确定内容类型（如果没指定，使用当前模型）
         if content_type is None:
-            content_type = getattr(self, "current_model", "pix2text")
+            content_type = getattr(self, "current_model", "mathcraft")
         self._formula_types[t] = normalize_content_type(content_type)
         # 允许重复；如需“去重并上浮”可替换为： if t in self.history: self.history.remove(t)
         self.history.append(t)
@@ -7342,19 +7285,19 @@ th {{
     def _sanitize_model_config(self):
         """校验并收敛当前仍支持的模型配置。"""
         try:
-            valid_models = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model"}
+            valid_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page", "external_model"}
             default_model = (self.cfg.get("default_model", "") or "").lower()
             desired_model = (self.cfg.get("desired_model", "") or "").lower()
             changed = False
             if default_model not in valid_models:
-                self.cfg.set("default_model", "pix2text")
+                self.cfg.set("default_model", "mathcraft")
                 changed = True
             if desired_model not in valid_models:
-                self.cfg.set("desired_model", "pix2text")
+                self.cfg.set("desired_model", "mathcraft")
                 changed = True
-            mode = (self.cfg.get("pix2text_mode", "formula") or "formula").lower()
-            if mode not in ("formula", "mixed", "text", "page", "table"):
-                self.cfg.set("pix2text_mode", "formula")
+            mode = (self.cfg.get("mathcraft_mode", "formula") or "formula").lower()
+            if mode not in ("formula", "mixed", "text", "page"):
+                self.cfg.set("mathcraft_mode", "formula")
                 changed = True
             theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
             if self.cfg.get("theme_mode", "auto") != theme_mode:
@@ -7372,18 +7315,17 @@ th {{
             print(f"[WARN] 模型配置校验失败: {e}")
 
     def _get_preferred_model_for_predict(self) -> str:
-        desired = (self.cfg.get("desired_model", "pix2text") or "pix2text").lower()
+        desired = (self.cfg.get("desired_model", "mathcraft") or "mathcraft").lower()
         if desired == "external_model":
             return "external_model"
-        mode = (self.cfg.get("pix2text_mode", "formula") or "formula").lower()
+        mode = (self.cfg.get("mathcraft_mode", "formula") or "formula").lower()
         mode_map = {
-            "formula": "pix2text",
-            "mixed": "pix2text_mixed",
-            "text": "pix2text_text",
-            "page": "pix2text_page",
-            "table": "pix2text_table",
+            "formula": "mathcraft",
+            "mixed": "mathcraft_mixed",
+            "text": "mathcraft_text",
+            "page": "mathcraft_page",
         }
-        return mode_map.get(mode, "pix2text")
+        return mode_map.get(mode, "mathcraft")
 
     def _get_external_model_config(self):
         return load_config_from_mapping(self.cfg)
@@ -7443,13 +7385,13 @@ th {{
             return
         if preferred == "external_model":
             self.set_model_status(self._get_external_model_status_text())
-            self._report_startup_progress("外部模型模式已启用，跳过 pix2text 预热")
+            self._report_startup_progress("外部模型模式已启用，跳过 MathCraft 预热")
             return
         self._report_startup_progress("正在后台预热识别模型与 worker...")
         self._ensure_model_warmup_async(
             preferred_model=preferred,
             announce_success=True,
-            success_message="pix2text 预热完成，可直接识别",
+            success_message="MathCraft OCR 预热完成，可直接识别",
         )
 
     def _ensure_model_warmup_async(
@@ -7462,7 +7404,7 @@ th {{
     ):
         if not self.model:
             return
-        preferred = (preferred_model or self._get_preferred_model_for_predict() or "pix2text").lower()
+        preferred = (preferred_model or self._get_preferred_model_for_predict() or "mathcraft").lower()
         if self.model.is_model_ready(preferred):
             self.current_model = preferred
             self.cfg.set("default_model", preferred)
@@ -7482,8 +7424,8 @@ th {{
         self._model_warmup_in_progress = True
         self.current_model = preferred
         self.cfg.set("default_model", preferred)
-        self.desired_model = "pix2text"
-        self.cfg.set("desired_model", "pix2text")
+        self.desired_model = "mathcraft"
+        self.cfg.set("desired_model", "mathcraft")
         self.set_model_status(f"预热中 ({preferred})")
         self._report_startup_progress("正在预热识别模型与 worker...")
 
@@ -7491,8 +7433,8 @@ th {{
             ok = False
             err = ""
             try:
-                self._apply_pix2text_env()
-                ok = bool(self.model._lazy_load_pix2text())
+                self._apply_mathcraft_env()
+                ok = bool(self.model._lazy_load_mathcraft())
                 if (not ok) and not err:
                     getter = getattr(self.model, "get_error", None)
                     if callable(getter):
@@ -7542,7 +7484,7 @@ th {{
             if announce_success:
                 InfoBar.success(
                         title="模型预热完成",
-                        content=success_message or "pix2text 与识别 worker 已就绪",
+                        content=success_message or "MathCraft OCR 与识别 worker 已就绪",
                     parent=self._get_infobar_parent(),
                     duration=2500,
                     position=InfoBarPosition.TOP
@@ -7562,16 +7504,16 @@ th {{
 
         self._report_startup_progress("模型预热未完成，首次识别时重试")
         self.set_model_status(f"未就绪 ({preferred})")
-        fail_info = classify_pix2text_failure(err)
+        fail_info = classify_mathcraft_failure(err)
         if announce_success:
             InfoBar.warning(
                 title=fail_info["title"] or "模型预热未完成",
-                content=fail_info["user_message"] or "pix2text 预热失败，将在首次识别时重试",
+                content=fail_info["user_message"] or "MathCraft OCR 预热失败，将在首次识别时重试",
                 parent=self._get_infobar_parent(),
                 duration=4200,
                 position=InfoBarPosition.TOP
             )
-        fail_msg = fail_info["user_message"] or err or "pix2text 模型未部署或加载失败。"
+        fail_msg = fail_info["user_message"] or err or "MathCraft OCR 模型未部署或加载失败。"
         for _, cb_fail in callbacks:
             if callable(cb_fail):
                 try:
@@ -7588,9 +7530,9 @@ th {{
         from qfluentwidgets import InfoBar, InfoBarPosition
         info_parent = self._get_infobar_parent()
         m = (model_name or "").lower()
-        valid_modes = ("pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model")
+        valid_modes = ("mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page", "external_model")
         if m not in valid_modes:
-            m = "pix2text"
+            m = "mathcraft"
         prev_model = str(getattr(self, "current_model", "") or "")
         prev_desired = str(getattr(self, "desired_model", "") or "")
 
@@ -7599,7 +7541,7 @@ th {{
             if m == "external_model" and prev_desired == "external_model":
                 self.set_model_status(self._get_external_model_status_text())
                 return
-            if m.startswith("pix2text") and prev_desired == "pix2text":
+            if m.startswith("mathcraft") and prev_desired == "mathcraft":
                 if self.model and self.model.is_model_ready(m):
                     self.set_model_status("已加载")
                 else:
@@ -7607,11 +7549,10 @@ th {{
                 return
 
         mode_names = {
-            "pix2text": "pix2text 公式识别",
-            "pix2text_text": "pix2text 纯文字识别",
-            "pix2text_mixed": "pix2text 混合识别",
-            "pix2text_page": "pix2text 整页识别",
-            "pix2text_table": "pix2text 表格识别",
+            "mathcraft": "MathCraft 公式识别",
+            "mathcraft_text": "MathCraft 纯文字识别",
+            "mathcraft_mixed": "MathCraft 混合识别",
+            "mathcraft_page": "MathCraft 整页识别",
             "external_model": "外部模型",
         }
         mode_display = mode_names.get(m, m)
@@ -7625,17 +7566,16 @@ th {{
 
         self.current_model = m
         self.cfg.set("default_model", m)
-        self.desired_model = "external_model" if m == "external_model" else "pix2text"
+        self.desired_model = "external_model" if m == "external_model" else "mathcraft"
         self.cfg.set("desired_model", self.desired_model)
-        if m.startswith("pix2text"):
+        if m.startswith("mathcraft"):
             mode_map = {
-                "pix2text": "formula",
-                "pix2text_mixed": "mixed",
-                "pix2text_text": "text",
-                "pix2text_page": "page",
-                "pix2text_table": "table",
+                "mathcraft": "formula",
+                "mathcraft_mixed": "mixed",
+                "mathcraft_text": "text",
+                "mathcraft_page": "page",
             }
-            self.cfg.set("pix2text_mode", mode_map.get(m, "formula"))
+            self.cfg.set("mathcraft_mode", mode_map.get(m, "formula"))
 
         if m == "external_model":
             self.set_model_status(self._get_external_model_status_text())
@@ -7664,9 +7604,9 @@ th {{
         if self.settings_window:
             self.settings_window.update_model_selection()
 
-        # pix2text 模式切换统一延后到首次识别时加载，
+        # mathcraft 模式切换统一延后到首次识别时加载，
         # 避免在设置页频繁切换识别类型触发预热线程并造成不稳定。
-        if m.startswith("pix2text"):
+        if m.startswith("mathcraft"):
             if self.model and self.model.is_model_ready(m):
                 self.set_model_status("已加载")
             else:
@@ -7945,54 +7885,50 @@ th {{
         except Exception:
             return {}, ""
 
-    def _apply_pix2text_env(self):
+    def _apply_mathcraft_env(self):
         env_pyexe = ""
         try:
-            # pix2text 与主依赖环境统一。
+            # MathCraft 与主依赖环境统一。
             pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
             if not pyexe or not os.path.exists(pyexe):
                 pyexe = sys.executable
             if pyexe and os.path.exists(pyexe):
-                os.environ["PIX2TEXT_PYEXE"] = pyexe
                 env_pyexe = pyexe
         except Exception:
             pass
         try:
-            os.environ["PIX2TEXT_TORCH_MODE"] = self._get_isolated_torch_mode("pix2text")
-            os.environ.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
             os.environ.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
         except Exception:
             pass
         try:
             new_state = (
-                (env_pyexe or os.environ.get("PIX2TEXT_PYEXE", "") or "").strip(),
-                (os.environ.get("PIX2TEXT_TORCH_MODE", "auto") or "auto").strip(),
+                (env_pyexe or os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip(),
             )
-            old_state = getattr(self, "_pix2text_env_state", None)
-            self._pix2text_env_state = new_state
+            old_state = getattr(self, "_mathcraft_env_state", None)
+            self._mathcraft_env_state = new_state
             old_key = old_state
             new_key = new_state
             if old_state is not None and old_key != new_key:
-                self._restart_pix2text_worker("环境切换")
+                self._restart_mathcraft_worker("环境切换")
         except Exception:
             pass
 
-    def _restart_pix2text_worker(self, reason: str = "环境更新"):
+    def _restart_mathcraft_worker(self, reason: str = "环境更新"):
         m = getattr(self, "model", None)
         if not m:
             return
         try:
-            if hasattr(m, "_stop_pix2text_worker"):
-                m._stop_pix2text_worker()
+            if hasattr(m, "_stop_mathcraft_worker"):
+                m._stop_mathcraft_worker()
         except Exception:
             pass
         try:
-            m._pix2text_subprocess_ready = False
-            m._pix2text_import_failed = False
+            m._ready = False
+            m._import_failed = False
         except Exception:
             pass
         try:
-            print(f"[INFO] pix2text worker 已重启: {reason}")
+            print(f"[INFO] MathCraft worker 已重启: {reason}")
         except Exception:
             pass
 
@@ -8038,7 +7974,7 @@ th {{
 
     def _model_supports_pdf(self, model_name: str) -> bool:
         m = (model_name or "").lower()
-        return m.startswith("pix2text") or m == "external_model"
+        return m.startswith("mathcraft") or m == "external_model"
 
     def _prompt_pdf_output_options(self):
         """选择 PDF 识别的导出格式与 DPI。"""
@@ -8197,18 +8133,18 @@ th {{
         if self.current_model == "external_model" and not self._is_external_model_configured():
             custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
             return
-        if self.current_model.startswith("pix2text") and self.current_model != "pix2text_mixed":
+        if self.current_model.startswith("mathcraft") and self.current_model != "mathcraft_mixed":
             from qfluentwidgets import MessageBox
             tip = MessageBox(
                 "推荐模式",
-                "PDF 识别建议使用 pix2text_mixed（混合识别）。\n是否切换并继续？",
+                "PDF 识别建议使用 mathcraft_mixed（混合识别）。\n是否切换并继续？",
                 self
             )
             _apply_app_window_icon(tip)
             tip.yesButton.setText("切换并继续")
             tip.cancelButton.setText("取消")
             if tip.exec():
-                self.on_model_changed("pix2text_mixed")
+                self.on_model_changed("mathcraft_mixed")
                 if not self._model_supports_pdf(self.current_model):
                     custom_warning_dialog("提示", "当前模型仍不支持 PDF 识别。", self)
                     return
@@ -8420,7 +8356,7 @@ th {{
         except Exception:
             used = None
         if not used:
-            used = getattr(self, "current_model", "pix2text")
+            used = getattr(self, "current_model", "mathcraft")
         self.set_model_status("完成")
         self.set_action_status("PDF 识别完成", auto_clear_ms=3500)
         self._release_pdf_progress()
@@ -8428,7 +8364,7 @@ th {{
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
-                used = getattr(self, "current_model", "pix2text")
+                used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "pdf_predict_worker", None), "elapsed", None)
             if elapsed is not None:
                 print(f"[INFO] PDF 识别完成 model={used} time={elapsed:.2f}s")
@@ -8464,7 +8400,7 @@ th {{
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
-                used = getattr(self, "current_model", "pix2text")
+                used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "pdf_predict_worker", None), "elapsed", None)
             if elapsed is not None:
                 print(f"[INFO] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
@@ -8669,11 +8605,10 @@ th {{
 
     def _predict_result_mode_title(self, current_mode: str) -> str:
         mode_titles = {
-            "pix2text": "确认或修改 LaTeX：",
-            "pix2text_text": "识别的文字内容：",
-            "pix2text_mixed": "识别结果（文字+公式）：",
-            "pix2text_page": "整页识别结果：",
-            "pix2text_table": "表格识别结果：",
+            "mathcraft": "确认或修改 LaTeX：",
+            "mathcraft_text": "识别的文字内容：",
+            "mathcraft_mixed": "识别结果（文字+公式）：",
+            "mathcraft_page": "整页识别结果：",
         }
         return mode_titles.get(current_mode, "确认或修改内容：")
 
@@ -8895,14 +8830,14 @@ th {{
         except Exception:
             used = None
         if not used:
-            used = getattr(self, "current_model", "pix2text")
+            used = getattr(self, "current_model", "mathcraft")
         self.set_model_status("完成")
         self.set_action_status("识别完成", auto_clear_ms=3000)
         try:
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
-                used = getattr(self, "current_model", "pix2text")
+                used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "predict_worker", None), "elapsed", None)
             if elapsed is not None:
                 print(f"[INFO] 识别完成 model={used} time={elapsed:.2f}s")
@@ -8952,7 +8887,7 @@ th {{
         except Exception:
             current_mode = None
         if not current_mode:
-            current_mode = getattr(self, "current_model", "pix2text")
+            current_mode = getattr(self, "current_model", "mathcraft")
 
         # 识别结果窗口保持单实例：固定小窗时直接刷新内容，避免销毁重建。
         old_dialog = getattr(self, "_predict_result_dialog", None)
@@ -9001,7 +8936,7 @@ th {{
         preview_view = None
         
         # 公式模式：使用 MathJax 渲染
-        if normalize_content_type(current_mode) == "pix2text":
+        if normalize_content_type(current_mode) == "mathcraft":
             preview_label = BodyLabel("公式预览：")
             lay.addWidget(preview_label)
             
@@ -9029,7 +8964,7 @@ th {{
                 lay.addWidget(fallback)
 
         # 混合模式：渲染文字和公式
-        elif current_mode == "pix2text_mixed":
+        elif current_mode == "mathcraft_mixed":
             preview_label = BodyLabel("混合内容预览：")
             lay.addWidget(preview_label)
             
@@ -9051,32 +8986,9 @@ th {{
                 
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
-        
-        # 表格模式：渲染 HTML 表格
-        elif current_mode == "pix2text_table":
-            preview_label = BodyLabel("表格预览：")
-            lay.addWidget(preview_label)
-            
-            if ensure_webengine_loaded():
-                from PyQt6.QtWebEngineWidgets import QWebEngineView
-                preview_view = QWebEngineView()
-                preview_view.setMinimumHeight(150)
-                preview_view.setHtml(self._build_table_html(code), _get_mathjax_base_url())
-                lay.addWidget(preview_view, 1)
-                
-                render_timer = QTimer(dlg)
-                render_timer.setSingleShot(True)
-                
-                def do_render_table():
-                    content = te.toPlainText().strip()
-                    if content and preview_view:
-                        preview_view.setHtml(self._build_table_html(content), _get_mathjax_base_url())
-                
-                render_timer.timeout.connect(do_render_table)
-                te.textChanged.connect(lambda: render_timer.start(300))
-        
+
         # 纯文字/整页模式：简单文本预览
-        elif current_mode in ("pix2text_text", "pix2text_page"):
+        elif current_mode in ("mathcraft_text", "mathcraft_page"):
             preview_label = BodyLabel("文本预览：")
             lay.addWidget(preview_label)
             
@@ -9375,7 +9287,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             if not used:
                 used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
             if not used:
-                used = getattr(self, "current_model", "pix2text")
+                used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "predict_worker", None), "elapsed", None)
             if elapsed is not None:
                 print(f"[INFO] 识别失败 model={used} time={elapsed:.2f}s err={msg}")
@@ -9419,7 +9331,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
             except Exception:
                 content_type = None
             if not content_type:
-                content_type = getattr(self, "current_model", "pix2text")
+                content_type = getattr(self, "current_model", "mathcraft")
             self.add_history_record(t, content_type=content_type)
         except Exception as e:
             custom_warning_dialog("错误", f"写入历史失败: {e}", self)
@@ -9705,7 +9617,7 @@ QLineEdit:focus {{
         try:
             ctype = self._get_preferred_model_for_predict()
             if not ctype:
-                ctype = getattr(self, "current_model", "pix2text")
+                ctype = getattr(self, "current_model", "mathcraft")
             self._formula_types[text] = ctype
         except Exception:
             pass
@@ -9734,7 +9646,7 @@ QLineEdit:focus {{
         if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
             self.handwriting_window.raise_()
             self.handwriting_window.activateWindow()
-            if preferred.startswith("pix2text"):
+            if preferred.startswith("mathcraft"):
                 self._ensure_model_warmup_async(preferred_model=preferred)
             return
         self.handwriting_window = HandwritingWindow(self.model, owner=self, parent=None)
@@ -9743,7 +9655,7 @@ QLineEdit:focus {{
         self.handwriting_window.show()
         self.handwriting_window.raise_()
         self.handwriting_window.activateWindow()
-        if preferred.startswith("pix2text"):
+        if preferred.startswith("mathcraft"):
             self._ensure_model_warmup_async(preferred_model=preferred)
 
     def open_workbench(self):
@@ -9821,7 +9733,7 @@ QLineEdit:focus {{
         try:
             m = getattr(self, "model", None)
             if m:
-                fn = getattr(m, "_stop_pix2text_worker", None)
+                fn = getattr(m, "_stop_mathcraft_worker", None)
                 if callable(fn):
                     try:
                         fn()
@@ -10204,15 +10116,6 @@ init_app_logging()
 _ensure_startup_splash(_startup_status_message("检查日志窗口设置..."))
 open_debug_console(force=False, tee=True)
 
-
-def _schedule_torch_runtime_probe() -> None:
-    """
-    历史上这里会在主进程直接 import torch，开发模式切换外部依赖目录时容易
-    触发 DLL 误报。当前 pix2text 已走子进程 + ONNX 优先，因此这里不再做主进程
-    torch 探测，避免日志与实际运行链脱节。
-    """
-    return
-
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
     import multiprocessing
@@ -10260,7 +10163,6 @@ if __name__ == "__main__":
         win.show()
         win.start_post_show_tasks()
         QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
-        _schedule_torch_runtime_probe()
         _finish_startup_splash(splash, win)
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
@@ -10310,7 +10212,6 @@ if __name__ == "__main__":
         win.show()
         win.start_post_show_tasks()
         QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
-        _schedule_torch_runtime_probe()
         _finish_startup_splash(splash, win)
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
