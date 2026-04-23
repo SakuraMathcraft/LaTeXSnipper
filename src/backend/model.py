@@ -231,6 +231,14 @@ def classify_pix2text_failure(detail: str) -> dict[str, str]:
             "pix2text ONNX 缓存缺少 encoder/decoder 文件，属于不完整模型缓存。",
         )
 
+    if "can not find available file in" in lower and "pix2text" in lower:
+        return _pack(
+            "BROKEN_MODEL_CACHE",
+            "模型缓存不完整",
+            "检测到 pix2text 模型目录不完整，请重新下载模型或清理损坏缓存后重试。",
+            "pix2text 模型目录存在但缺少可用权重文件，通常由首次下载中断导致。",
+        )
+
     if "timeout" in lower:
         return _pack(
             "WARMUP_TIMEOUT",
@@ -759,6 +767,75 @@ class ModelWrapper(QObject):
             return False
         return ("encoder" in s) or ("decoder" in s)
 
+    def _is_incomplete_pix2text_cache_error(self, msg: str) -> bool:
+        s = (msg or "").strip().lower()
+        if not s:
+            return False
+        if self._is_missing_onnx_pair_error(s):
+            return True
+        return "can not find available file in" in s
+
+    def _inspect_pix2text_model_cache(self, deps_python: str) -> dict[str, object]:
+        inspect_code = textwrap.dedent(
+            r"""
+            import json
+            from pathlib import Path
+            out = {"ok": False, "root": "", "ready": False, "incomplete": False}
+            try:
+                from pix2text.utils import data_dir
+                from pix2text.consts import MODEL_VERSION
+                root = Path(data_dir()) / str(MODEL_VERSION)
+                out["root"] = str(root)
+                if not root.exists():
+                    out["ok"] = True
+                    print(json.dumps(out, ensure_ascii=False))
+                    raise SystemExit
+
+                mfr_dir = next((d for d in root.iterdir() if d.is_dir() and "mfr" in d.name.lower() and "onnx" in d.name.lower()), None)
+                mfd_dir = next((d for d in root.iterdir() if d.is_dir() and "mfd" in d.name.lower() and "onnx" in d.name.lower()), None)
+                layout_dir = next((d for d in root.iterdir() if d.is_dir() and "layout-docyolo" in d.name.lower()), None)
+
+                mfr_ready = bool(
+                    mfr_dir
+                    and (mfr_dir / "encoder_model.onnx").exists()
+                    and (mfr_dir / "decoder_model.onnx").exists()
+                )
+                mfd_ready = bool(mfd_dir and any((not p.is_dir()) and p.suffix.lower() == ".onnx" for p in mfd_dir.rglob("*")))
+                layout_ready = bool(layout_dir and any((not p.is_dir()) and p.suffix.lower() == ".pt" for p in layout_dir.rglob("*")))
+
+                dirs_present = bool(mfr_dir or mfd_dir or layout_dir)
+                out["ready"] = bool(mfr_ready and mfd_ready and layout_ready)
+                out["incomplete"] = bool(dirs_present and not out["ready"])
+                out["ok"] = True
+            except SystemExit:
+                raise
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", inspect_code],
+                capture_output=True,
+                timeout=60,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            if not obj:
+                return {"ok": False, "root": "", "ready": False, "incomplete": False, "error": raw[:260]}
+            obj.setdefault("root", "")
+            obj.setdefault("ready", False)
+            obj.setdefault("incomplete", False)
+            return obj
+        except Exception as e:
+            return {"ok": False, "root": "", "ready": False, "incomplete": False, "error": str(e)}
+
     def _cleanup_broken_pix2text_onnx_cache(self, deps_python: str) -> tuple[bool, str, int, str]:
         cleanup_code = textwrap.dedent(
             r"""
@@ -776,11 +853,16 @@ class ModelWrapper(QObject):
                         if not d.is_dir():
                             continue
                         name = d.name.lower()
-                        if ("mfr" not in name) or ("onnx" not in name):
-                            continue
-                        enc = d / "encoder_model.onnx"
-                        dec = d / "decoder_model.onnx"
-                        if enc.exists() ^ dec.exists():
+                        remove = False
+                        if ("mfr" in name) and ("onnx" in name):
+                            enc = d / "encoder_model.onnx"
+                            dec = d / "decoder_model.onnx"
+                            remove = not (enc.exists() and dec.exists())
+                        elif ("mfd" in name) and ("onnx" in name):
+                            remove = not any((not p.is_dir()) and p.suffix.lower() == ".onnx" for p in d.rglob("*"))
+                        elif "layout-docyolo" in name:
+                            remove = not any((not p.is_dir()) and p.suffix.lower() == ".pt" for p in d.rglob("*"))
+                        if remove:
                             shutil.rmtree(d, ignore_errors=True)
                             out["removed"].append(str(d))
                 out["ok"] = True
@@ -813,30 +895,41 @@ class ModelWrapper(QObject):
             return False, "", 0, str(e)
 
     def _probe_and_bootstrap_pix2text(
-        self, deps_python: str, probe_code: str, bootstrap_code: str
+        self,
+        deps_python: str,
+        probe_code: str,
+        bootstrap_code: str,
+        *,
+        run_probe: bool = True,
+        probe_timeout: int | None = 120,
+        bootstrap_timeout: int | None = 900,
     ) -> tuple[bool, str, str]:
         probe_result = None
         probe_output = ""
-        try:
-            proc = subprocess.run(
-                [deps_python, "-c", probe_code],
-                capture_output=True,
-                timeout=120,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=self._build_subprocess_env(),
-                creationflags=_subprocess_creationflags(),
-            )
-            probe_output = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
-            probe_result = _extract_json(probe_output)
-        except subprocess.TimeoutExpired:
-            self._emit("[WARN] pix2text probe timeout (>120s), fallback to bootstrap")
+        if run_probe:
+            try:
+                proc = subprocess.run(
+                    [deps_python, "-c", probe_code],
+                    capture_output=True,
+                    timeout=probe_timeout,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=self._build_subprocess_env(),
+                    creationflags=_subprocess_creationflags(),
+                )
+                probe_output = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+                probe_result = _extract_json(probe_output)
+            except subprocess.TimeoutExpired:
+                if probe_timeout:
+                    self._emit(f"[WARN] pix2text probe timeout (>{probe_timeout}s), fallback to bootstrap")
+                else:
+                    self._emit("[WARN] pix2text probe timeout, fallback to bootstrap")
 
-        if probe_result and probe_result.get("ok"):
-            ver = (probe_result or {}).get("ver", "") or "unknown"
-            self._emit(f"[INFO] pix2text probe ok (ver={ver})")
-            return True, str(ver), ""
+            if probe_result and probe_result.get("ok"):
+                ver = (probe_result or {}).get("ver", "") or "unknown"
+                self._emit(f"[INFO] pix2text probe ok (ver={ver})")
+                return True, str(ver), ""
 
         probe_err = ""
         if isinstance(probe_result, dict):
@@ -847,12 +940,15 @@ class ModelWrapper(QObject):
             diag = classify_pix2text_failure(probe_err)
             self._emit(f"[WARN] pix2text probe failed detail [{diag['code']}]: {probe_err}")
             self._emit(f"[DIAG] {diag['log_message']}")
-        self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
+        if run_probe:
+            self._emit("[WARN] pix2text probe failed, trying bootstrap init...")
+        else:
+            self._emit("[INFO] pix2text first-time warmup: running bootstrap init without short probe timeout...")
 
         proc = subprocess.run(
             [deps_python, "-c", bootstrap_code],
             capture_output=True,
-            timeout=900,
+            timeout=bootstrap_timeout,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -934,13 +1030,52 @@ class ModelWrapper(QObject):
         )
 
         try:
-            ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
-                deps_python, probe_code, bootstrap_code
-            )
+            cache_state = self._inspect_pix2text_model_cache(deps_python)
+            cache_ready = bool(cache_state.get("ready"))
+            cache_incomplete = bool(cache_state.get("incomplete"))
+            cache_root = str(cache_state.get("root", "") or "")
 
-            if (not ok) and self._is_missing_onnx_pair_error(fail_detail):
+            if cache_incomplete:
                 self._emit(
-                    "[WARN] pix2text ONNX cache looks broken (missing encoder/decoder), "
+                    "[WARN] pix2text cache looks incomplete before first warmup, "
+                    "cleaning broken cache and retrying full bootstrap..."
+                )
+                c_ok, c_root, c_removed, c_err = self._cleanup_broken_pix2text_onnx_cache(deps_python)
+                if c_ok and c_removed > 0:
+                    self._emit(
+                        f"[INFO] pix2text cache cleanup removed {c_removed} broken dir(s)"
+                        f"{f' under {c_root}' if c_root else ''}"
+                    )
+                elif not c_ok:
+                    self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")
+
+            if cache_ready:
+                ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
+                    deps_python,
+                    probe_code,
+                    bootstrap_code,
+                    run_probe=True,
+                    probe_timeout=120,
+                    bootstrap_timeout=900,
+                )
+            else:
+                self._emit(
+                    "[INFO] pix2text models are not fully cached yet"
+                    f"{f' under {cache_root}' if cache_root else ''}, "
+                    "skipping short probe timeout for first warmup."
+                )
+                ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
+                    deps_python,
+                    probe_code,
+                    bootstrap_code,
+                    run_probe=False,
+                    probe_timeout=None,
+                    bootstrap_timeout=None,
+                )
+
+            if (not ok) and self._is_incomplete_pix2text_cache_error(fail_detail):
+                self._emit(
+                    "[WARN] pix2text cache looks broken or incomplete, "
                     "auto-clean and retry once..."
                 )
                 c_ok, c_root, c_removed, c_err = self._cleanup_broken_pix2text_onnx_cache(deps_python)
@@ -955,8 +1090,15 @@ class ModelWrapper(QObject):
                             f"[WARN] pix2text cache cleanup finished but no broken dir found"
                             f"{f' under {c_root}' if c_root else ''}"
                         )
+                    retry_cache_state = self._inspect_pix2text_model_cache(deps_python)
+                    retry_cache_ready = bool(retry_cache_state.get("ready"))
                     ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
-                        deps_python, probe_code, bootstrap_code
+                        deps_python,
+                        probe_code,
+                        bootstrap_code,
+                        run_probe=retry_cache_ready,
+                        probe_timeout=120 if retry_cache_ready else None,
+                        bootstrap_timeout=900 if retry_cache_ready else None,
                     )
                 else:
                     self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")

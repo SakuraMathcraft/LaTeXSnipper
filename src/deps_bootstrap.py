@@ -3813,9 +3813,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     import platform
     print("【依赖目录选择后环境信息】")
-    print("当前 Python 解释器:", pyexe)
-    print("当前平台:", platform.platform())
-    print("当前 sys.path:", sys.path)
+    print("主进程解释器:", current_pyexe)
+    print("主进程平台:", platform.platform())
+    print("主进程 sys.path:", sys.path)
+    print("目标依赖解释器:", pyexe)
+    print("目标依赖目录:", deps_dir)
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
         sp_local = _site_packages_root(active_pyexe)
