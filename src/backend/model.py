@@ -101,6 +101,41 @@ def _extract_json(text: str) -> dict | None:
 def _pix2text_runtime_compat_code() -> str:
     return textwrap.dedent(
         r"""
+        def _patch_onnxruntime_cpu_only():
+            import os
+            if os.environ.get("LATEXSNIPPER_FORCE_ORT_CPU", "") != "1":
+                return
+            try:
+                import onnxruntime as _ort
+            except Exception:
+                return
+            try:
+                _orig_gap = _ort.get_available_providers
+                if not getattr(_orig_gap, "_latexsnipper_force_cpu_patch", False):
+                    def _cpu_only_providers():
+                        try:
+                            providers = list(_orig_gap() or [])
+                        except Exception:
+                            providers = []
+                        if "CPUExecutionProvider" in providers:
+                            return ["CPUExecutionProvider"]
+                        return providers or ["CPUExecutionProvider"]
+
+                    _cpu_only_providers._latexsnipper_force_cpu_patch = True
+                    _ort.get_available_providers = _cpu_only_providers
+            except Exception:
+                pass
+            try:
+                _orig_gd = _ort.get_device
+                if not getattr(_orig_gd, "_latexsnipper_force_cpu_patch", False):
+                    def _cpu_only_device():
+                        return "CPU"
+
+                    _cpu_only_device._latexsnipper_force_cpu_patch = True
+                    _ort.get_device = _cpu_only_device
+            except Exception:
+                pass
+
         def _patch_rapidocr_model_root_dir():
             try:
                 from pathlib import Path
@@ -132,6 +167,7 @@ def _pix2text_runtime_compat_code() -> str:
             _patched_init._latexsnipper_model_root_dir_patch = True
             _rapidocr_ort_main.OrtInferSession.__init__ = _patched_init
 
+        _patch_onnxruntime_cpu_only()
         _patch_rapidocr_model_root_dir()
         """
     ).strip()
@@ -312,6 +348,7 @@ class ModelWrapper(QObject):
         self.last_used_model = None
         self._last_pix2text_error = ""
         self._last_pix2text_error_code = ""
+        self._force_ort_cpu_only = False
 
         if self._is_frozen:
             self._emit("[INFO] packaged mode: pix2text runs in subprocess")
@@ -339,6 +376,10 @@ class ModelWrapper(QObject):
         env["PYTHONNOUSERSITE"] = "1"
         env.pop("PIX2TEXT_SHARED_TORCH_SITE", None)
         env.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
+        if self._force_ort_cpu_only:
+            env["LATEXSNIPPER_FORCE_ORT_CPU"] = "1"
+        else:
+            env.pop("LATEXSNIPPER_FORCE_ORT_CPU", None)
         return env
 
     def is_ready(self) -> bool:
@@ -813,6 +854,10 @@ class ModelWrapper(QObject):
     def _is_incomplete_ocr_model_cache_error(self, msg: str) -> bool:
         info = classify_pix2text_failure(msg)
         return info.get("code") == "BROKEN_OCR_MODEL_CACHE"
+
+    def _is_cuda_runtime_broken_error(self, msg: str) -> bool:
+        info = classify_pix2text_failure(msg)
+        return info.get("code") == "CUDA_RUNTIME_BROKEN"
 
     def _inspect_pix2text_model_cache(self, deps_python: str) -> dict[str, object]:
         inspect_code = textwrap.dedent(
@@ -1340,6 +1385,36 @@ class ModelWrapper(QObject):
         self._emit(f"[INFO] pix2text bootstrap success (ver={ver})")
         return True, str(ver), str(probe_err or "")
 
+    def _retry_pix2text_with_cpu_ort(
+        self,
+        deps_python: str,
+        probe_code: str,
+        bootstrap_code: str,
+        fail_detail: str,
+    ) -> tuple[bool, str]:
+        if self._force_ort_cpu_only or (not self._is_cuda_runtime_broken_error(fail_detail)):
+            return False, fail_detail
+        self._emit(
+            "[WARN] CUDAExecutionProvider runtime looks broken, "
+            "retrying pix2text warmup with CPUExecutionProvider only..."
+        )
+        self._force_ort_cpu_only = True
+        self._ort_gpu_available = False
+        self.device = "cpu"
+        ok, _, retry_fail = self._probe_and_bootstrap_pix2text(
+            deps_python,
+            probe_code,
+            bootstrap_code,
+            run_probe=False,
+            probe_timeout=None,
+            bootstrap_timeout=900,
+        )
+        if ok:
+            self._emit("[INFO] pix2text warmup fallback success with CPUExecutionProvider only")
+            return True, ""
+        self._emit("[WARN] pix2text CPUExecutionProvider-only fallback failed")
+        return False, (retry_fail or fail_detail)
+
     def _lazy_load_pix2text(self):
         if self._pix2text_subprocess_ready or self._pix2text_import_failed:
             return self._pix2text_subprocess_ready
@@ -1511,6 +1586,16 @@ class ModelWrapper(QObject):
                     )
                 else:
                     self._emit(f"[WARN] OCR cache cleanup failed: {c_err or 'unknown'}")
+
+            if not ok:
+                cpu_ok, fail_detail = self._retry_pix2text_with_cpu_ort(
+                    deps_python,
+                    probe_code,
+                    bootstrap_code,
+                    fail_detail,
+                )
+                if cpu_ok:
+                    ok = True
 
             if not ok:
                 info = self._set_pix2text_error(fail_detail or "pix2text 模型未部署或加载失败。")

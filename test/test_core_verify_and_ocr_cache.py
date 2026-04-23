@@ -68,6 +68,17 @@ class CoreVerifyAndOcrCacheTests(unittest.TestCase):
         info = classify_pix2text_failure(detail)
         self.assertEqual(info["code"], "BROKEN_TABLE_MODEL_CACHE")
 
+    def test_force_cpu_ort_flag_is_injected_only_when_enabled(self):
+        ModelWrapper, _ = _model_symbols()
+        dummy = ModelWrapper.__new__(ModelWrapper)
+        dummy._force_ort_cpu_only = False
+        env = ModelWrapper._build_subprocess_env(dummy)
+        self.assertNotIn("LATEXSNIPPER_FORCE_ORT_CPU", env)
+
+        dummy._force_ort_cpu_only = True
+        env = ModelWrapper._build_subprocess_env(dummy)
+        self.assertEqual(env.get("LATEXSNIPPER_FORCE_ORT_CPU"), "1")
+
 
 if __name__ == "__main__":
     unittest.main()
