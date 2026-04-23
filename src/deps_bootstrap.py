@@ -879,7 +879,26 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
         log_fn("[INFO] 关键版本修复完成")
 
 # 各功能层的运行时验证测试代码
-# 每个层需要验证的核心导入，确保包不仅安装了，还能真正工作
+# CORE 默认只做轻量导入验证；真实模型初始化仅在 strict 模式执行。
+_CORE_LIGHT_VERIFY_CODE = """
+import importlib.metadata
+import importlib.util
+
+if importlib.util.find_spec("pix2text") is None:
+    raise RuntimeError("pix2text not installed")
+
+print("pix2text version:", importlib.metadata.version("pix2text"))
+
+# 仅验证核心依赖和 Pix2Text 本体可导入，不在普通安装后验证中触发模型下载/初始化。
+from pix2text import Pix2Text
+import latex2mathml.converter
+import matplotlib
+import matplotlib.mathtext
+import fitz
+print("CORE OK")
+"""
+
+# strict 模式下触发真实模型初始化，用于设置页/强制验证路径。
 _CORE_PIX2TEXT_VERIFY_CODE = """
 import importlib.metadata
 import importlib.util
@@ -942,20 +961,7 @@ import onnxruntime as onnxruntime
 import argostranslate
 print("BASIC OK")
 """,
-    "CORE": """
-import importlib.util
-import importlib.metadata
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
-print("pix2text version:", importlib.metadata.version("pix2text"))
-# 必须能成功导入 Pix2Text 本体，才能保证运行时可用（可捕获 optimum/transformers 兼容问题）。
-from pix2text import Pix2Text
-import latex2mathml.converter
-import matplotlib
-import matplotlib.mathtext
-import fitz
-print("CORE OK")
-""",
+    "CORE": _CORE_LIGHT_VERIFY_CODE,
     "HEAVY_CPU": """
 import torch
 print("torch version:", torch.__version__)
@@ -977,22 +983,8 @@ print("HEAVY_GPU OK")
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
 LAYER_VERIFY_CODE_STRICT = {
-    "CORE": """
-import importlib.util
-import importlib.metadata
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
-print("pix2text version:", importlib.metadata.version("pix2text"))
-from pix2text import Pix2Text
-import latex2mathml.converter
-import matplotlib.mathtext
-import fitz
-print("CORE STRICT OK")
-""",
+    "CORE": _CORE_PIX2TEXT_VERIFY_CODE,
 }
-
-LAYER_VERIFY_CODE["CORE"] = _CORE_PIX2TEXT_VERIFY_CODE
-LAYER_VERIFY_CODE_STRICT["CORE"] = _CORE_PIX2TEXT_VERIFY_CODE
 
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: bool = False) -> tuple:
     """
@@ -1003,7 +995,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: boo
     import subprocess
     
     if layer == "CORE":
-        timeout = max(timeout, 360 if strict else 240)
+        timeout = max(timeout, 360 if strict else 120)
 
     if strict and layer in LAYER_VERIFY_CODE_STRICT:
         code = LAYER_VERIFY_CODE_STRICT[layer]
