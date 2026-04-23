@@ -239,6 +239,38 @@ def classify_pix2text_failure(detail: str) -> dict[str, str]:
             "pix2text 模型目录存在但缺少可用权重文件，通常由首次下载中断导致。",
         )
 
+    if (
+        ("does not exists" in lower or "can not find model file" in lower)
+        and any(token in lower for token in ("rapidocr", "cnocr", "cnstd", "pp-ocr", "densenet_lite_136-gru"))
+    ) or (
+        "appdata" in lower
+        and any(token in lower for token in ("\\cnocr\\", "\\cnstd\\", "/cnocr/", "/cnstd/"))
+    ):
+        return _pack(
+            "BROKEN_OCR_MODEL_CACHE",
+            "OCR 模型缓存不完整",
+            "检测到 cnocr/cnstd/rapidocr 的模型目录不完整，请清理损坏缓存后重试。",
+            "cnocr/cnstd/rapidocr 模型目录存在但缺少可用 ONNX 权重，通常由首次下载中断或文件被隔离导致。",
+        )
+
+    if ("table-rec" in lower or "pix2text-table-rec" in lower) and any(
+        token in lower
+        for token in (
+            "config.json",
+            "preprocessor_config.json",
+            "model.safetensors",
+            "pytorch_model.bin",
+            "does not exist",
+            "does not appear to have",
+        )
+    ):
+        return _pack(
+            "BROKEN_TABLE_MODEL_CACHE",
+            "表格模型缓存不完整",
+            "检测到表格识别模型目录不完整，请清理损坏缓存后重试。",
+            "table-rec 模型目录存在但缺少可用配置或权重文件，通常由首次下载中断导致。",
+        )
+
     if "timeout" in lower:
         return _pack(
             "WARMUP_TIMEOUT",
@@ -728,6 +760,9 @@ class ModelWrapper(QObject):
 
         try:
             deps_python = get_pix2text_python()
+            if mode == "table":
+                if not self._ensure_table_mode_runtime(deps_python):
+                    raise RuntimeError("pix2text table model not ready")
             timeout = 300 if mode in ("page", "table") else 120
             proc = subprocess.run(
                 [deps_python, "-c", self._pix2text_oneshot_code(), tmp_path, mode],
@@ -774,6 +809,10 @@ class ModelWrapper(QObject):
         if self._is_missing_onnx_pair_error(s):
             return True
         return "can not find available file in" in s
+
+    def _is_incomplete_ocr_model_cache_error(self, msg: str) -> bool:
+        info = classify_pix2text_failure(msg)
+        return info.get("code") == "BROKEN_OCR_MODEL_CACHE"
 
     def _inspect_pix2text_model_cache(self, deps_python: str) -> dict[str, object]:
         inspect_code = textwrap.dedent(
@@ -893,6 +932,339 @@ class ModelWrapper(QObject):
             return ok, root, removed, err
         except Exception as e:
             return False, "", 0, str(e)
+
+    def _inspect_ocr_model_cache(self, deps_python: str) -> dict[str, object]:
+        inspect_code = textwrap.dedent(
+            r"""
+            import json
+            from pathlib import Path
+            out = {"ok": False, "ready": True, "incomplete": False, "targets": []}
+            try:
+                from cnstd.utils import data_dir as cnstd_data_dir
+                from cnstd.consts import MODEL_VERSION as CNSTD_MODEL_VERSION
+                from cnocr.utils import data_dir as cnocr_data_dir
+                from cnocr.consts import MODEL_VERSION as CNOCR_MODEL_VERSION
+
+                targets = [
+                    {
+                        "name": "cnstd-det",
+                        "root": str(Path(cnstd_data_dir()) / str(CNSTD_MODEL_VERSION) / "ppocr" / "ch_PP-OCRv5_det"),
+                    },
+                    {
+                        "name": "cnocr-rec",
+                        "root": str(Path(cnocr_data_dir()) / str(CNOCR_MODEL_VERSION) / "densenet_lite_136-gru"),
+                    },
+                ]
+
+                def _has_onnx(root: Path) -> bool:
+                    return any((not p.is_dir()) and p.suffix.lower() == ".onnx" for p in root.rglob("*"))
+
+                results = []
+                ready = True
+                incomplete = False
+                for item in targets:
+                    root = Path(item["root"])
+                    exists = root.exists()
+                    has_onnx = _has_onnx(root) if exists else False
+                    item["exists"] = exists
+                    item["has_onnx"] = has_onnx
+                    item["incomplete"] = bool(exists and not has_onnx)
+                    results.append(item)
+                    if item["incomplete"]:
+                        incomplete = True
+                        ready = False
+                out["targets"] = results
+                out["ready"] = ready
+                out["incomplete"] = incomplete
+                out["ok"] = True
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", inspect_code],
+                capture_output=True,
+                timeout=60,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            if not obj:
+                return {"ok": False, "ready": False, "incomplete": False, "targets": [], "error": raw[:260]}
+            obj.setdefault("ready", False)
+            obj.setdefault("incomplete", False)
+            obj.setdefault("targets", [])
+            return obj
+        except Exception as e:
+            return {"ok": False, "ready": False, "incomplete": False, "targets": [], "error": str(e)}
+
+    def _cleanup_broken_ocr_model_cache(self, deps_python: str) -> tuple[bool, int, str]:
+        cleanup_code = textwrap.dedent(
+            r"""
+            import json
+            import shutil
+            from pathlib import Path
+            out = {"ok": False, "removed": []}
+            try:
+                from cnstd.utils import data_dir as cnstd_data_dir
+                from cnstd.consts import MODEL_VERSION as CNSTD_MODEL_VERSION
+                from cnocr.utils import data_dir as cnocr_data_dir
+                from cnocr.consts import MODEL_VERSION as CNOCR_MODEL_VERSION
+
+                targets = [
+                    Path(cnstd_data_dir()) / str(CNSTD_MODEL_VERSION) / "ppocr" / "ch_PP-OCRv5_det",
+                    Path(cnocr_data_dir()) / str(CNOCR_MODEL_VERSION) / "densenet_lite_136-gru",
+                ]
+
+                for root in targets:
+                    if not root.exists():
+                        continue
+                    has_onnx = any((not p.is_dir()) and p.suffix.lower() == ".onnx" for p in root.rglob("*"))
+                    if not has_onnx:
+                        shutil.rmtree(root, ignore_errors=True)
+                        out["removed"].append(str(root))
+                out["ok"] = True
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", cleanup_code],
+                capture_output=True,
+                timeout=120,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            ok = bool(obj.get("ok"))
+            removed = int(len(obj.get("removed") or []))
+            err = str(obj.get("error", "") or "").strip()
+            if not ok and not err and raw:
+                err = raw[:260]
+            return ok, removed, err
+        except Exception as e:
+            return False, 0, str(e)
+
+    def _inspect_table_model_cache(self, deps_python: str) -> dict[str, object]:
+        inspect_code = textwrap.dedent(
+            r"""
+            import json
+            from pathlib import Path
+            out = {"ok": False, "root": "", "ready": False, "incomplete": False}
+            try:
+                from pix2text.utils import data_dir
+                from pix2text.consts import MODEL_VERSION
+                root = Path(data_dir()) / str(MODEL_VERSION) / "table-rec"
+                out["root"] = str(root)
+                if not root.exists():
+                    out["ok"] = True
+                    print(json.dumps(out, ensure_ascii=False))
+                    raise SystemExit
+
+                has_config = (root / "config.json").exists()
+                has_preprocessor = (root / "preprocessor_config.json").exists()
+                has_weights = any(
+                    (not p.is_dir()) and p.name.lower() in {"model.safetensors", "pytorch_model.bin"}
+                    for p in root.rglob("*")
+                ) or any((not p.is_dir()) and p.suffix.lower() in {".safetensors", ".bin"} for p in root.rglob("*"))
+                out["ready"] = bool(has_config and has_preprocessor and has_weights)
+                out["incomplete"] = bool(root.exists() and not out["ready"])
+                out["ok"] = True
+            except SystemExit:
+                raise
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", inspect_code],
+                capture_output=True,
+                timeout=60,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            if not obj:
+                return {"ok": False, "root": "", "ready": False, "incomplete": False, "error": raw[:260]}
+            obj.setdefault("root", "")
+            obj.setdefault("ready", False)
+            obj.setdefault("incomplete", False)
+            return obj
+        except Exception as e:
+            return {"ok": False, "root": "", "ready": False, "incomplete": False, "error": str(e)}
+
+    def _cleanup_broken_table_model_cache(self, deps_python: str) -> tuple[bool, str, int, str]:
+        cleanup_code = textwrap.dedent(
+            r"""
+            import json
+            import shutil
+            from pathlib import Path
+            out = {"ok": False, "root": "", "removed": []}
+            try:
+                from pix2text.utils import data_dir
+                from pix2text.consts import MODEL_VERSION
+                root = Path(data_dir()) / str(MODEL_VERSION) / "table-rec"
+                out["root"] = str(root)
+                if root.exists():
+                    has_config = (root / "config.json").exists()
+                    has_preprocessor = (root / "preprocessor_config.json").exists()
+                    has_weights = any(
+                        (not p.is_dir()) and p.name.lower() in {"model.safetensors", "pytorch_model.bin"}
+                        for p in root.rglob("*")
+                    ) or any((not p.is_dir()) and p.suffix.lower() in {".safetensors", ".bin"} for p in root.rglob("*"))
+                    if not (has_config and has_preprocessor and has_weights):
+                        shutil.rmtree(root, ignore_errors=True)
+                        out["removed"].append(str(root))
+                out["ok"] = True
+            except Exception as e:
+                out["error"] = str(e)
+            print(json.dumps(out, ensure_ascii=False))
+            """
+        ).strip()
+        try:
+            proc = subprocess.run(
+                [deps_python, "-c", cleanup_code],
+                capture_output=True,
+                timeout=120,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._build_subprocess_env(),
+                creationflags=_subprocess_creationflags(),
+            )
+            raw = "\n".join([(proc.stdout or ""), (proc.stderr or "")]).strip()
+            obj = _extract_json(raw) or {}
+            ok = bool(obj.get("ok"))
+            root = str(obj.get("root", "") or "")
+            removed = int(len(obj.get("removed") or []))
+            err = str(obj.get("error", "") or "").strip()
+            if not ok and not err and raw:
+                err = raw[:260]
+            return ok, root, removed, err
+        except Exception as e:
+            return False, "", 0, str(e)
+
+    def _ensure_table_mode_runtime(self, deps_python: str) -> bool:
+        table_code = (
+            textwrap.dedent(
+                r"""
+                import json
+                from importlib import metadata as _md
+                """
+            ).strip()
+            + "\n\n"
+            + _pix2text_runtime_compat_code()
+            + "\n\n"
+            + textwrap.dedent(
+                r"""
+                import pix2text
+                from pix2text import Pix2Text
+                stable_cfg = {"layout": {"model_type": "DocYoloLayoutParser"}, "text_formula": {"formula": {"model_name": "mfr", "model_backend": "onnx"}}}
+                try:
+                    try:
+                        _md.version("pix2text")
+                    except Exception:
+                        str(getattr(pix2text, "__version__", ""))
+                    Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=True)
+                    print(json.dumps({"ok": True}))
+                except Exception as e:
+                    print(json.dumps({"ok": False, "error": str(e)}))
+                """
+            ).strip()
+        )
+
+        table_cache = self._inspect_table_model_cache(deps_python)
+        table_ready = bool(table_cache.get("ready"))
+        table_incomplete = bool(table_cache.get("incomplete"))
+        table_root = str(table_cache.get("root", "") or "")
+
+        if table_incomplete:
+            self._emit(
+                "[WARN] table-rec cache looks incomplete before first table warmup, "
+                "cleaning broken cache and retrying full bootstrap..."
+            )
+            c_ok, c_root, c_removed, c_err = self._cleanup_broken_table_model_cache(deps_python)
+            if c_ok and c_removed > 0:
+                self._emit(
+                    f"[INFO] table-rec cache cleanup removed {c_removed} broken dir(s)"
+                    f"{f' under {c_root}' if c_root else ''}"
+                )
+            elif not c_ok:
+                self._emit(f"[WARN] table-rec cache cleanup failed: {c_err or 'unknown'}")
+
+        if table_ready:
+            return True
+
+        self._emit(
+            "[INFO] table-rec model is not fully cached yet"
+            f"{f' under {table_root}' if table_root else ''}, "
+            "running first table warmup without short timeout."
+        )
+        ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
+            deps_python,
+            table_code,
+            table_code,
+            run_probe=False,
+            probe_timeout=None,
+            bootstrap_timeout=None,
+        )
+        if ok:
+            return True
+
+        retry_cache = self._inspect_table_model_cache(deps_python)
+        retry_incomplete = bool(retry_cache.get("incomplete")) or classify_pix2text_failure(fail_detail).get("code") == "BROKEN_TABLE_MODEL_CACHE"
+        if retry_incomplete:
+            self._emit(
+                "[WARN] table-rec cache looks broken or incomplete, "
+                "auto-clean and retry once..."
+            )
+            c_ok, c_root, c_removed, c_err = self._cleanup_broken_table_model_cache(deps_python)
+            if c_ok:
+                if c_removed > 0:
+                    self._emit(
+                        f"[INFO] table-rec cache cleanup removed {c_removed} broken dir(s)"
+                        f"{f' under {c_root}' if c_root else ''}"
+                    )
+                else:
+                    self._emit(
+                        f"[WARN] table-rec cache cleanup finished but no broken dir found"
+                        f"{f' under {c_root}' if c_root else ''}"
+                    )
+                ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
+                    deps_python,
+                    table_code,
+                    table_code,
+                    run_probe=False,
+                    probe_timeout=None,
+                    bootstrap_timeout=None,
+                )
+                if ok:
+                    return True
+            else:
+                self._emit(f"[WARN] table-rec cache cleanup failed: {c_err or 'unknown'}")
+
+        info = self._set_pix2text_error(fail_detail or "table-rec 模型未部署或加载失败。")
+        self._emit(f"[WARN] table-rec warmup classified as [{info['code']}]")
+        self._emit(f"[DIAG] {info['log_message']}")
+        return False
 
     def _probe_and_bootstrap_pix2text(
         self,
@@ -1034,6 +1406,8 @@ class ModelWrapper(QObject):
             cache_ready = bool(cache_state.get("ready"))
             cache_incomplete = bool(cache_state.get("incomplete"))
             cache_root = str(cache_state.get("root", "") or "")
+            ocr_cache_state = self._inspect_ocr_model_cache(deps_python)
+            ocr_cache_incomplete = bool(ocr_cache_state.get("incomplete"))
 
             if cache_incomplete:
                 self._emit(
@@ -1048,6 +1422,17 @@ class ModelWrapper(QObject):
                     )
                 elif not c_ok:
                     self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")
+
+            if ocr_cache_incomplete:
+                self._emit(
+                    "[WARN] OCR model cache looks incomplete before first warmup, "
+                    "cleaning broken cnocr/cnstd cache and retrying full bootstrap..."
+                )
+                c_ok, c_removed, c_err = self._cleanup_broken_ocr_model_cache(deps_python)
+                if c_ok and c_removed > 0:
+                    self._emit(f"[INFO] OCR cache cleanup removed {c_removed} broken dir(s)")
+                elif not c_ok:
+                    self._emit(f"[WARN] OCR cache cleanup failed: {c_err or 'unknown'}")
 
             if cache_ready:
                 ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
@@ -1102,6 +1487,30 @@ class ModelWrapper(QObject):
                     )
                 else:
                     self._emit(f"[WARN] pix2text cache cleanup failed: {c_err or 'unknown'}")
+
+            if (not ok) and self._is_incomplete_ocr_model_cache_error(fail_detail):
+                self._emit(
+                    "[WARN] OCR model cache looks broken or incomplete, "
+                    "auto-clean and retry once..."
+                )
+                c_ok, c_removed, c_err = self._cleanup_broken_ocr_model_cache(deps_python)
+                if c_ok:
+                    if c_removed > 0:
+                        self._emit(f"[INFO] OCR cache cleanup removed {c_removed} broken dir(s)")
+                    else:
+                        self._emit("[WARN] OCR cache cleanup finished but no broken dir found")
+                    retry_cache_state = self._inspect_pix2text_model_cache(deps_python)
+                    retry_cache_ready = bool(retry_cache_state.get("ready"))
+                    ok, _, fail_detail = self._probe_and_bootstrap_pix2text(
+                        deps_python,
+                        probe_code,
+                        bootstrap_code,
+                        run_probe=retry_cache_ready,
+                        probe_timeout=120 if retry_cache_ready else None,
+                        bootstrap_timeout=900 if retry_cache_ready else None,
+                    )
+                else:
+                    self._emit(f"[WARN] OCR cache cleanup failed: {c_err or 'unknown'}")
 
             if not ok:
                 info = self._set_pix2text_error(fail_detail or "pix2text 模型未部署或加载失败。")
