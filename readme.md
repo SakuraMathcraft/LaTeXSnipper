@@ -73,7 +73,7 @@ The `v2.1` handwriting window supports the following flow:
 
 1. Open "Handwriting Recognition" from the main window
 2. Write formulas directly on an isolated canvas
-3. Trigger `pix2text` recognition automatically after pen-up
+3. Trigger MathCraft OCR automatically after pen-up
 4. See live `LaTeX output` and rendered preview on the right
 5. Copy LaTeX directly or insert it back into the main editor
 
@@ -83,7 +83,7 @@ The `v2.1` handwriting window supports the following flow:
 
 | Feature | Description |
 |------|------|
-| 📸 Formula recognition | Screenshot-based recognition for formulas, text, and mixed content |
+| 📸 Formula recognition | MathCraft OCR for formulas, text, and mixed content |
 | ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
 | 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
 | ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
@@ -148,15 +148,13 @@ python src/main.py
 
 ```text
 LaTeXSnipper/
-├── apps/
-│   ├── android-client/
-│   │   ├── src/
-│   │   └── android/
-│   └── tauri-client/
-│       └── src-tauri/
-├── contracts/
-│   ├── daemon_rpc_contract.v1.json
-│   └── events.v1.json
+├── mathcraft_ocr/
+│   ├── api.py
+│   ├── cli.py
+│   ├── manifest.py
+│   ├── runtime.py
+│   ├── worker.py
+│   └── adapters/
 ├── src/
 │   ├── main.py
 │   ├── deps_bootstrap.py
@@ -165,6 +163,7 @@ LaTeXSnipper/
 │   ├── backend/
 │   │   ├── capture_overlay.py
 │   │   ├── model.py
+│   │   ├── model_factory.py
 │   │   ├── torch_runtime.py
 │   │   └── platform/
 │   ├── editor/
@@ -234,7 +233,6 @@ This project is open-sourced under the [MIT License](LICENSE).
 Special thanks to:
 
 - [pix2tex](https://github.com/lukas-blecher/LaTeX-OCR)
-- [pix2text](https://github.com/breezedeus/pix2text)
 - [MathLive](https://github.com/arnog/mathlive)
 - [MathLive Compute Engine](https://mathlive.io/compute-engine/)
 - [SymPy](https://www.sympy.org/)
