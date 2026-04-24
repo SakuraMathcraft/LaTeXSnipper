@@ -5,20 +5,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-import pyperclip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QInputDialog, QCheckBox, QScrollArea, QPlainTextEdit)
+from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
 from updater import check_update_dialog
-from backend.torch_runtime import (
-    TORCH_CUDA_MATRIX,
-    TORCH_CPU_PLAN,
-    parse_cuda_ver_from_text,
-    pick_torch_cuda_plan,
-    detect_torch_gpu_plan,
-    detect_torch_info,
-)
 from backend.external_model import (
     ExternalModelConnectionWorker,
     PRESET_ITEMS,
@@ -178,9 +169,9 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # 默认宽度加大，避免 InfoBar 文案被截断
-        self.resize(600, 670)
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(670)
+        self.resize(500, 665)
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(665)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
@@ -198,12 +189,6 @@ class SettingsWindow(QDialog):
         self._mathcraft_pkg_ready = False
         # 缓存慢探测结果，避免频繁点击时阻塞 UI
         self._probe_cache_ttl_sec = 45.0
-        self._cached_gpu_plan = None
-        self._cached_gpu_note = ""
-        self._cached_gpu_ts = 0.0
-        self._cached_main_torch_info = None
-        self._cached_main_torch_py = ""
-        self._cached_main_torch_ts = 0.0
         self._compute_mode_probe_py = ""
         self._compute_mode_probe_ts = 0.0
         self._compute_mode_probe_info = None
@@ -245,10 +230,6 @@ class SettingsWindow(QDialog):
         self.mathcraft_env_hint.setWordWrap(True)
         lay.addWidget(self.mathcraft_env_hint)
         # 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
-        self.mathcraft_torch_btn_row = None
-        self.mathcraft_torch_install_gpu = None
-        self.mathcraft_torch_reinstall = None
-        self.mathcraft_torch_refresh = None
         self.mathcraft_dl_widget = None
         self.mathcraft_download_btn = None
         self.mathcraft_open_btn = None
@@ -263,7 +244,6 @@ class SettingsWindow(QDialog):
         self.mathcraft_mode_combo.addItem("公式", userData="formula")
         self.mathcraft_mode_combo.addItem("混合(文字+公式)", userData="mixed")
         self.mathcraft_mode_combo.addItem("纯文字", userData="text")
-        self.mathcraft_mode_combo.addItem("整页/版面", userData="page")
         self.mathcraft_mode_combo.currentIndexChanged.connect(self._on_mathcraft_mode_changed)
         mathcraft_mode_layout.addWidget(self.mathcraft_mode_combo)
         lay.addWidget(self.mathcraft_mode_widget)
@@ -380,12 +360,6 @@ class SettingsWindow(QDialog):
         external_btn_row.addWidget(self.external_help_btn)
         external_layout.addLayout(external_btn_row)
         lay.addWidget(self.external_model_widget)
-        # 已移除 UniMERNet UI，当前由 mathcraft 与 external_model 两条链路并存。
-        self.unimernet_widget = None
-        self.unimernet_env_widget = None
-        self.unimernet_env_hint = None
-        self.unimernet_torch_status = None
-        self.unimernet_torch_btn_row = None
         self.lbl_compute_mode = QLabel()
         self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         lay.addWidget(self.lbl_compute_mode)
@@ -664,12 +638,9 @@ class SettingsWindow(QDialog):
 
     def _warm_probe_cache_async(self):
         def worker():
+            # MathCraft v1 uses ONNX Runtime providers; keep this probe lightweight.
             try:
-                self._detect_torch_gpu_plan(allow_block=True)
-            except Exception:
-                pass
-            try:
-                self._get_main_torch_info_cached(allow_block=True)
+                self._schedule_compute_mode_probe(force=True)
             except Exception:
                 pass
         import threading
@@ -762,31 +733,6 @@ class SettingsWindow(QDialog):
     def _set_mathcraft_pkg_ready(self, ready: bool):
         self._mathcraft_pkg_ready = bool(ready)
         self._update_mathcraft_visibility()
-    def _infer_torch_info_from_env(self, pyexe: str) -> dict:
-        try:
-            env_root = self._python_env_root(pyexe)
-            site = env_root / "Lib" / "site-packages"
-            if not site.exists():
-                return {}
-            dist_infos = [d.name.lower() for d in site.glob("torch-*.dist-info")]
-            if dist_infos:
-                cuda_ver = ""
-                for name in dist_infos:
-                    if "+cu" in name:
-                        cuda_ver = name.split("+cu", 1)[1].split("-", 1)[0]
-                        break
-                return {
-                    "present": True,
-                    "cuda_version": f"cu{cuda_ver}" if cuda_ver else "",
-                    "cuda_available": True if cuda_ver else False,
-                    "gpu_name": "",
-                    "cpu_name": "",
-                }
-            if (site / "torch").exists():
-                return {"present": True, "cuda_version": "", "cuda_available": False, "gpu_name": "", "cpu_name": ""}
-        except Exception:
-            return {}
-        return {}
 
     def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
         try:
@@ -814,20 +760,6 @@ class SettingsWindow(QDialog):
             return info
         except Exception:
             return {}
-
-    def _probe_torch_info(self, pyexe: str, env_key: str = "") -> dict:
-        if not pyexe or not os.path.exists(pyexe):
-            return {"present": False, "error": "python.exe not found"}
-        try:
-            info = detect_torch_info(pyexe, timeout_sec=5)
-            if info.get("present"):
-                return info
-            fallback = self._infer_torch_info_from_env(pyexe)
-            if fallback:
-                return fallback
-            return info
-        except Exception as e:
-            return {"present": False, "error": str(e)}
 
     def _probe_compute_mode_info(self, pyexe: str) -> dict:
         if not pyexe or not os.path.exists(pyexe):
@@ -936,301 +868,12 @@ class SettingsWindow(QDialog):
             return
         self._schedule_compute_mode_probe(force=True)
         self._schedule_mathcraft_pkg_probe()
-    def _torch_cuda_matrix(self) -> list[dict]:
-        # 统一复用 backend.torch_runtime 里的单一版本矩阵，避免多处硬编码漂移。
-        return [dict(p) for p in TORCH_CUDA_MATRIX]
 
-    def _torch_cpu_plan(self) -> dict:
-        return dict(TORCH_CPU_PLAN)
-
-    def _onnxruntime_gpu_spec_for_tag(self, tag: str | None) -> str:
-        if (tag or "").lower() == "cu118":
-            return "onnxruntime-gpu~=1.18.1"
+    def _onnxruntime_gpu_spec(self) -> str:
         return "onnxruntime-gpu~=1.19.2"
 
     def _onnxruntime_cpu_spec(self) -> str:
         return "onnxruntime~=1.19.2"
-
-    def _parse_cuda_ver_from_text(self, text: str) -> tuple[int, int] | None:
-        return parse_cuda_ver_from_text(text)
-
-    def _pick_torch_cuda_plan(self, major: int, minor: int) -> dict | None:
-        plan, note = pick_torch_cuda_plan(major, minor)
-        self._cuda_detect_note = note
-        return dict(plan) if plan else None
-
-    def _detect_torch_gpu_plan(self, allow_block: bool = True) -> dict | None:
-        now = time.monotonic()
-        ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
-        cached_plan = getattr(self, "_cached_gpu_plan", None)
-        cached_note = getattr(self, "_cached_gpu_note", "")
-        cached_ts = float(getattr(self, "_cached_gpu_ts", 0.0) or 0.0)
-        if (now - cached_ts) <= ttl and (cached_plan is not None or cached_note):
-            self._cuda_detect_note = cached_note
-            return dict(cached_plan) if isinstance(cached_plan, dict) else None
-        if not allow_block:
-            self._cuda_detect_note = cached_note
-            return dict(cached_plan) if isinstance(cached_plan, dict) else None
-        plan, note = detect_torch_gpu_plan(timeout_sec=5)
-        self._cached_gpu_plan = dict(plan) if plan else None
-        self._cached_gpu_note = note or ""
-        self._cached_gpu_ts = now
-        self._cuda_detect_note = note
-        return dict(plan) if plan else None
-
-    def _get_main_torch_info_cached(self, allow_block: bool = True) -> tuple[dict, str]:
-        now = time.monotonic()
-        ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
-        cached_info = getattr(self, "_cached_main_torch_info", None)
-        cached_py = getattr(self, "_cached_main_torch_py", "")
-        cached_ts = float(getattr(self, "_cached_main_torch_ts", 0.0) or 0.0)
-        if (now - cached_ts) <= ttl and isinstance(cached_info, dict) and cached_py:
-            return dict(cached_info), str(cached_py)
-        if not allow_block:
-            return (dict(cached_info) if isinstance(cached_info, dict) else {}), str(cached_py or "")
-        try:
-            from backend.torch_runtime import infer_main_python, detect_torch_info
-            main_py = infer_main_python()
-            main_info = detect_torch_info(main_py, timeout_sec=6)
-        except Exception:
-            return {}, ""
-        self._cached_main_torch_info = dict(main_info) if isinstance(main_info, dict) else {}
-        self._cached_main_torch_py = str(main_py or "")
-        self._cached_main_torch_ts = now
-        return dict(self._cached_main_torch_info), self._cached_main_torch_py
-
-    def _detect_cuda_tag(self) -> str | None:
-        plan = self._detect_torch_gpu_plan()
-        return plan["tag"] if plan else None
-
-    def _mathcraft_install_steps(
-        self,
-        pyexe: str,
-        mode: str,
-        _shared_site_hint: str = "",
-        gpu_tag: str = "",
-    ) -> list[str]:
-        """
-        可控分步安装，避免 pip 长时间回溯。
-        MathCraft 只需要 ONNX 运行链，不安装 mathcraft。
-        """
-        common_flags = "--default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple"
-        repo_root = str(Path(__file__).resolve().parents[1])
-        verify_code = (
-            "import sys; "
-            f"sys.path.insert(0, {repo_root!r}); "
-            "from mathcraft_ocr import MathCraftRuntime; "
-            "rt=MathCraftRuntime(provider_preference='cpu'); "
-            "print(rt.doctor().provider_info.active_provider); "
-            "print('mathcraft cpu/onnx ok')"
-        )
-        steps = [
-            f"\"{pyexe}\" -m pip install -U pip setuptools wheel {common_flags}",
-            f"\"{pyexe}\" -m pip uninstall -y optimum optimum-onnx optimum-intel",
-            f"\"{pyexe}\" -m pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"optimum-onnx>=0.0.3\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"rapidocr\" \"opencv-python\" \"pillow\" \"numpy\" {common_flags}",
-            f"\"{pyexe}\" -m pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" \"latex2mathml\" \"matplotlib\" {common_flags}",
-        ]
-        # 末尾强制修正 CPU/GPU ONNX Runtime 最终状态（互斥）。
-        if (mode or "").strip().lower() == "gpu":
-            onnx_spec = self._onnxruntime_gpu_spec_for_tag(gpu_tag)
-        else:
-            onnx_spec = self._onnxruntime_cpu_spec()
-        steps += [
-            f"\"{pyexe}\" -m pip uninstall -y onnxruntime onnxruntime-gpu",
-            f"\"{pyexe}\" -m pip install -U \"{onnx_spec}\" {common_flags}",
-        ]
-        steps.append(f"\"{pyexe}\" -c \"{verify_code}\"")
-        return steps
-
-    def _torch_verify_cmd(self, pyexe: str) -> str:
-        verify_code = (
-            "import importlib.util as _iu; "
-            "import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); "
-            "print('torch', getattr(torch,'__version__','')); "
-            "print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda','')); "
-        )
-        return f"\"{pyexe}\" -c \"{verify_code}\""
-
-    def _install_env_torch(self, env_key: str, mode: str, include_model: bool = True):
-        env_key = "mathcraft"
-        pyexe = self.mathcraft_pyexe_input.text().strip()
-        if not pyexe or not os.path.exists(pyexe):
-            self._show_info("环境未配置", "请先完成依赖向导初始化主依赖环境。", "warning")
-            return
-        mode = (mode or "auto").strip().lower()
-        if mode not in ("cpu", "gpu"):
-            mode = "cpu"
-        # Persist per-env torch preference for runtime shared-layer routing.
-        try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set(f"{env_key}_torch_mode", mode)
-        except Exception:
-            pass
-        try:
-            if self.parent() and hasattr(self.parent(), f"_apply_{env_key}_env"):
-                getattr(self.parent(), f"_apply_{env_key}_env")()
-        except Exception:
-            pass
-
-        reuse_note = ""
-        torch_cmd = ""
-        detect_note = ""
-        selected_gpu_tag = ""
-        main_info = {}
-        mode_satisfies = None
-        try:
-            from backend.torch_runtime import mode_satisfies
-            main_info, _main_py = self._get_main_torch_info_cached(allow_block=True)
-        except Exception:
-            main_info = {}
-
-        if callable(mode_satisfies) and main_info and mode_satisfies(main_info, mode):
-            main_mode = (main_info.get("mode") or mode).upper()
-            main_ver = main_info.get("torch_version", "") or "unknown"
-            reuse_note = f"已复用主依赖环境 PyTorch（{main_mode}, ver={main_ver}），无需重复安装 torch。"
-            if mode == "gpu":
-                cv = str(main_info.get("cuda_version") or "").strip().lower()
-                if cv.startswith("cu"):
-                    selected_gpu_tag = cv
-        else:
-            extra_index = " --extra-index-url https://pypi.org/simple"
-            if mode == "gpu":
-                gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
-                detect_note = getattr(self, "_cuda_detect_note", "")
-                if gpu_plan:
-                    selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
-                    torch_cmd = (
-                        f"\"{pyexe}\" -m pip install "
-                        f"torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} torchaudio=={gpu_plan['audio']} "
-                        f"--index-url https://download.pytorch.org/whl/{gpu_plan['tag']}{extra_index}"
-                    )
-                else:
-                    torch_cmd = ""
-            else:
-                cpu_plan = self._torch_cpu_plan()
-                torch_cmd = (
-                    f"\"{pyexe}\" -m pip install "
-                    f"torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} torchaudio=={cpu_plan['audio']} "
-                    f"--index-url https://download.pytorch.org/whl/cpu{extra_index}"
-                )
-                detect_note = "使用 CPU 版本"
-
-        if mode == "gpu" and not selected_gpu_tag:
-            try:
-                gpu_plan = self._detect_torch_gpu_plan(allow_block=True)
-                if gpu_plan:
-                    selected_gpu_tag = str(gpu_plan.get("tag", "") or "")
-            except Exception:
-                pass
-
-        if mode == "gpu" and not reuse_note and not torch_cmd:
-            note = detect_note or getattr(self, "_cuda_detect_note", "") or "未检测到可适配 GPU 版本"
-            title = "CUDA 版本不支持" if "低于 11.8" in note else "CUDA 未检测到"
-            self._show_info(title, f"{note}。请先安装 CUDA Toolkit，或改装 CPU 版本。", "warning")
-            return
-
-        model_cmd = ""
-        model_cmd = "\n".join(self._mathcraft_install_steps(pyexe, mode, "", selected_gpu_tag))
-
-        cmd_parts = []
-        if torch_cmd:
-            cmd_parts.append(torch_cmd)
-        if include_model and model_cmd:
-            cmd_parts.append(model_cmd)
-        full_cmd = "\n".join(cmd_parts) if cmd_parts else self._torch_verify_cmd(pyexe)
-
-        if mode == "gpu" and getattr(self, "_cuda_detect_note", "") and not detect_note:
-            detect_note = self._cuda_detect_note
-        detect_prefix = f"CUDA 检测: {detect_note}\n\n" if detect_note else ""
-        reuse_prefix = (reuse_note + "\n\n") if reuse_note else ""
-        def _short(line: str, n: int = 92) -> str:
-            line = (line or "").strip()
-            return (line[: n - 3] + "...") if len(line) > n else line
-        def _preview_cmd() -> str:
-            model_lines = [ln for ln in (model_cmd or "").splitlines() if ln.strip()]
-            out = []
-            if torch_cmd:
-                out.append("1) PyTorch 安装/切换")
-                out.append(f"   {_short(torch_cmd)}")
-            if include_model and model_lines:
-                idx = 2 if torch_cmd else 1
-                out.append(f"{idx}) {env_key} 模型安装与校验（共 {len(model_lines)} 步）")
-                head = min(2, len(model_lines))
-                for i in range(head):
-                    out.append(f"   - {_short(model_lines[i])}")
-                if len(model_lines) > head:
-                    out.append(f"   - ... 其余 {len(model_lines) - head} 步已省略（复制后可见完整命令）")
-            if not out:
-                out.append(_short(full_cmd))
-            return "\n".join(out)
-        preview_cmd = _preview_cmd()
-        if torch_cmd:
-            lead_msg = f"将在主依赖环境安装 {mode.upper()} 版 PyTorch：\n\n"
-        elif include_model and model_cmd:
-            lead_msg = "当前无需安装 torch，仅需执行模型安装/校验：\n\n"
-        else:
-            lead_msg = "当前无需安装 torch，仅需执行共享 torch 校验：\n\n"
-        msg = (
-            f"{reuse_prefix}{detect_prefix}"
-            + lead_msg
-            +
-            f"{preview_cmd}\n\n"
-            "安装完成后请重新检测。\n"
-            "提示：弹窗仅显示预览，完整命令会复制到剪贴板。"
-        )
-        dlg = MessageBox("安装 PyTorch", msg, self)
-        _apply_app_window_icon(dlg)
-        dlg.yesButton.setText("复制命令并打开终端")
-        dlg.cancelButton.setText("仅复制命令")
-        def _do_copy(open_terminal: bool):
-            try:
-                # Ensure CRLF for Windows cmd paste (Win10 console is sensitive to LF-only).
-                cmd_clip = full_cmd.replace("\r\n", "\n").replace("\n", "\r\n")
-                pyperclip.copy(cmd_clip)
-            except Exception:
-                pass
-            if open_terminal:
-                self._open_terminal(env_key=env_key)
-            try:
-                dlg.close()
-            except Exception:
-                pass
-        dlg.yesButton.clicked.connect(lambda: _do_copy(True))
-        dlg.cancelButton.clicked.connect(lambda: _do_copy(False))
-        dlg.exec()
-    def _reinstall_env_torch(self, env_key: str):
-        items = ["CPU", "GPU"]
-        dlg = QInputDialog(self)
-        dlg.setWindowTitle("重装 PyTorch")
-        dlg.setLabelText("选择要重装的版本:")
-        dlg.setComboBoxItems(items)
-        dlg.setComboBoxEditable(False)
-        dlg.setTextValue(items[0])
-        dlg.setWindowFlags(
-            (
-                dlg.windowFlags()
-                | Qt.WindowType.CustomizeWindowHint
-                | Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowCloseButtonHint
-                | Qt.WindowType.WindowSystemMenuHint
-            )
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-            & ~Qt.WindowType.WindowMinMaxButtonsHint
-            & ~Qt.WindowType.WindowContextHelpButtonHint
-        )
-        dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
-        dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
-        dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-        dlg.setFixedSize(dlg.sizeHint())
-        _apply_app_window_icon(dlg)
-        if dlg.exec() != int(QDialog.DialogCode.Accepted):
-            return
-        choice = dlg.textValue()
-        mode = "gpu" if choice == "GPU" else "cpu"
-        self._install_env_torch(env_key, mode, include_model=False)
 
     def _init_model_combo(self):
         # 初始化模型下拉框的选择状态
@@ -1281,18 +924,20 @@ class SettingsWindow(QDialog):
         mode = "formula"
         if self.parent() and hasattr(self.parent(), "cfg"):
             mode = self.parent().cfg.get("mathcraft_mode", "formula")
+        if mode not in {"formula", "mixed", "text"}:
+            mode = "formula"
         for i in range(self.mathcraft_mode_combo.count()):
             if self.mathcraft_mode_combo.itemData(i) == mode:
                 prev = self.mathcraft_mode_combo.blockSignals(True)
                 self.mathcraft_mode_combo.setCurrentIndex(i)
                 self.mathcraft_mode_combo.blockSignals(prev)
                 break
+
     def _mathcraft_mode_to_model(self, mode_key: str) -> str:
         mapping = {
             "formula": "mathcraft",
             "mixed": "mathcraft_mixed",
             "text": "mathcraft_text",
-            "page": "mathcraft_page",
         }
         return mapping.get(mode_key, "mathcraft")
     def _get_mathcraft_mode_key(self) -> str:
@@ -1302,6 +947,7 @@ class SettingsWindow(QDialog):
             if key:
                 return key
         return "formula"
+
     def _settings_cfg(self):
         if self.parent() and hasattr(self.parent(), "cfg"):
             return self.parent().cfg
@@ -1415,6 +1061,7 @@ class SettingsWindow(QDialog):
             return
         if self._is_mathcraft_ready():
             self.select_model(self._mathcraft_mode_to_model(mode_key))
+
     def _update_mathcraft_visibility(self):
         key = None
         idx = self.model_combo.currentIndex()
@@ -1428,8 +1075,6 @@ class SettingsWindow(QDialog):
         try:
             self.mathcraft_env_widget.setVisible(visible)
             self.mathcraft_env_hint.setVisible(visible)
-            if self.mathcraft_torch_btn_row is not None:
-                self.mathcraft_torch_btn_row.setVisible(visible)
             if self.mathcraft_dl_widget is not None:
                 self.mathcraft_dl_widget.setVisible(visible)
             # 识别类型始终可见（便于用户预先选择）
@@ -1758,7 +1403,7 @@ class SettingsWindow(QDialog):
             return
         key, _ = self._model_options[index]
         descriptions = {
-            "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与整页识别。",
+            "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。",
             "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL、Ollama 等本地服务。",
         }
         desc = descriptions.get(key, "")
@@ -1772,7 +1417,6 @@ class SettingsWindow(QDialog):
             env_key = None
         import subprocess
         import os
-        from qfluentwidgets import MessageBox
         if env_key is None:
             env_key = self._get_terminal_env_key()
         # 统一只打开主环境终端。
@@ -1835,33 +1479,8 @@ class SettingsWindow(QDialog):
             return
         as_admin = result
         env_desc = "主环境（程序 / MathCraft / 核心依赖）"
-        torch_info_for_terminal = {}
-        torch_note_for_terminal = "unknown"
-        try:
-            torch_info_for_terminal = self._infer_torch_info_from_env(pyexe)
-            if not torch_info_for_terminal:
-                torch_info_for_terminal = self._probe_torch_info(pyexe)
-            if torch_info_for_terminal.get("present"):
-                torch_note_for_terminal = "provided by current env"
-            else:
-                torch_note_for_terminal = "not installed in current env"
-        except Exception:
-            torch_info_for_terminal = {}
-            torch_note_for_terminal = "unknown"
-        gpu_plan = self._detect_torch_gpu_plan(allow_block=False)
-        cpu_plan = self._torch_cpu_plan()
-        gpu_cmd = ""
-        if gpu_plan:
-            gpu_cmd = (
-                f"pip install torch=={gpu_plan['torch']} torchvision=={gpu_plan['vision']} "
-                f"torchaudio=={gpu_plan['audio']} --index-url https://download.pytorch.org/whl/{gpu_plan['tag']}"
-            )
-        gpu_onnx_cmd = f"pip install {self._onnxruntime_gpu_spec_for_tag(gpu_plan['tag'] if gpu_plan else None)}"
+        gpu_onnx_cmd = f"pip install {self._onnxruntime_gpu_spec()}"
         cpu_onnx_cmd = f"pip install {self._onnxruntime_cpu_spec()}"
-        cpu_cmd = (
-            f"pip install torch=={cpu_plan['torch']} torchvision=={cpu_plan['vision']} "
-            f"torchaudio=={cpu_plan['audio']} --index-url https://download.pytorch.org/whl/cpu"
-        )
         help_lines = [
             "echo.",
             "echo ================================================================================",
@@ -1876,19 +1495,11 @@ class SettingsWindow(QDialog):
             "echo   - built-in OCR uses MathCraft model cache",
             "echo   - external_model uses independently deployed local/online services",
             "echo   - terminal commands target the current main dependency env",
-            "echo   - MathCraft uses ONNX Runtime providers; torch is not used by the internal OCR path",
-            "echo   - HEAVY_CPU/HEAVY_GPU health is checked separately through torch + onnxruntime",
-            f"echo   - terminal torch runtime: {torch_note_for_terminal}",
+            "echo   - MathCraft uses ONNX Runtime providers for the internal OCR path",
+            "echo   - MATHCRAFT_CPU/MATHCRAFT_GPU select CPU/GPU ONNX Runtime backends",
             "echo.",
             "echo [Version Fix]",
             "echo   pip install \"protobuf>=3.20,<5\"",
-            "echo.",
-            "echo [PyTorch GPU]",
-            "echo   nvcc --version",
-            f"echo   {gpu_cmd if gpu_cmd else 'CUDA < 11.8 or not detected; GPU command unavailable'}",
-            "echo.",
-            "echo [PyTorch CPU]",
-            f"echo   {cpu_cmd}",
             "echo.",
             "echo [ONNX Runtime]",
             f"echo   {gpu_onnx_cmd}",
@@ -1897,24 +1508,19 @@ class SettingsWindow(QDialog):
             "echo [Model]",
             "echo   # Step-by-step install (stable order)",
             "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   pip uninstall -y optimum optimum-onnx optimum-intel",
             "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   pip install -U \"optimum-onnx>=0.0.3\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   # MathCraft is shipped with LaTeXSnipper source/package; verify it from the project root.",
             "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo.",
             "echo [MathCraft CPU/ONNX Check]",
             "echo   python -c \"import sys; sys.path.insert(0, r'%CD%'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
             "echo.",
-            "echo [Torch / HEAVY Check]",
-            "echo   python -c \"import importlib.util as _iu; import torch; import torchvision; (__import__('torchaudio') if _iu.find_spec('torchaudio') else None); print('torch', getattr(torch,'__version__','')); print('cuda', bool(torch.cuda.is_available()), getattr(getattr(torch,'version',None),'cuda',''))\"",
-            "echo.",
         ]
         help_lines += [
             "echo [Diagnostics]",
             "echo   pip list",
             "echo   pip check",
-            "echo   python -c \"import torch; print('CUDA:', torch.cuda.is_available(), 'Ver:', torch.version.cuda)\"",
+            "echo   python -c \"import onnxruntime as ort; print(ort.__version__, ort.get_available_providers())\"",
             "echo   nvidia-smi",
             "echo   nvcc --version",
             "echo.",
@@ -1927,7 +1533,6 @@ class SettingsWindow(QDialog):
         help_text = "\n".join(help_lines) + "\n"
         python_bind_lines = (
             f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
-            'set "LATEXSNIPPER_SHARED_TORCH_SITE="\n'
             f'doskey python="{pyexe}" $*\n'
             f'doskey py="{pyexe}" $*\n'
             f'doskey pip="{pyexe}" -m pip $*\n'
@@ -1996,7 +1601,6 @@ class SettingsWindow(QDialog):
 
     def _open_deps_wizard(self):
         """打开依赖管理向导"""
-        from qfluentwidgets import MessageBox
         msg = MessageBox(
             "打开依赖向导",
             "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC取消操作",

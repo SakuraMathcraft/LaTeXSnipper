@@ -10,12 +10,33 @@ def box_to_json(box: Box4P) -> list[list[float]]:
 
 
 def block_to_json(block: MathCraftBlock) -> dict:
-    return {
+    payload = {
         "kind": block.kind,
         "box": box_to_json(block.box),
         "text": block.text,
         "score": block.score,
     }
+    if block.source:
+        payload["source"] = block.source
+    if block.page_index is not None:
+        payload["page_index"] = block.page_index
+    if block.image_size is not None:
+        payload["image_size"] = [int(block.image_size[0]), int(block.image_size[1])]
+    if block.line_id is not None:
+        payload["line_id"] = block.line_id
+    if block.reading_order is not None:
+        payload["reading_order"] = block.reading_order
+    if block.is_display is not None:
+        payload["is_display"] = bool(block.is_display)
+    if block.role:
+        payload["role"] = block.role
+    if block.column is not None:
+        payload["column"] = block.column
+    if block.paragraph_id is not None:
+        payload["paragraph_id"] = block.paragraph_id
+    if block.confidence_flags:
+        payload["confidence_flags"] = list(block.confidence_flags)
+    return payload
 
 
 def region_to_json(region: OCRRegion) -> dict:
@@ -87,6 +108,7 @@ def doctor_report_to_json(report) -> dict:
     return {
         "python_executable": report.python_executable,
         "cache_dir": str(report.cache_dir),
+        "model_roots": [str(root) for root in report.model_roots],
         "manifest_version": report.manifest_version,
         "supported_runtimes": report.supported_runtimes,
         "provider_info": provider_info_to_json(report.provider_info),

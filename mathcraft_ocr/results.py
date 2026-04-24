@@ -33,6 +33,16 @@ class MathCraftBlock:
     box: Box4P
     text: str
     score: float
+    source: str = ""
+    page_index: int | None = None
+    image_size: tuple[int, int] | None = None
+    line_id: int | None = None
+    reading_order: int | None = None
+    is_display: bool | None = None
+    role: str = ""
+    column: int | None = None
+    paragraph_id: int | None = None
+    confidence_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

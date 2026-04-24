@@ -49,15 +49,22 @@ class MathCraftWorker:
             return formula_result_to_json(
                 self.runtime.recognize_formula(image, max_new_tokens=max_new_tokens)
             )
+        if action == "recognize_text":
+            image = _require_image(request)
+            min_text_score = float(request.get("min_text_score", 0.45))
+            return mixed_result_to_json(
+                self.runtime.recognize_text(
+                    image,
+                    min_text_score=min_text_score,
+                )
+            )
         if action == "recognize_mixed":
             image = _require_image(request)
             min_text_score = float(request.get("min_text_score", 0.45))
-            ocr_profile = str(request.get("ocr_profile", "auto"))
             return mixed_result_to_json(
                 self.runtime.recognize_mixed(
                     image,
                     min_text_score=min_text_score,
-                    ocr_profile=ocr_profile,
                 )
             )
         if action == "shutdown":

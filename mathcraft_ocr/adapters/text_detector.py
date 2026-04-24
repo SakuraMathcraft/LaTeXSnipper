@@ -24,11 +24,7 @@ def warmup_text_detector(model_dir: str | Path, provider_info) -> None:
 
 def _limit_side_len(image: np.ndarray) -> int:
     max_wh = max(image.shape[0], image.shape[1])
-    if max_wh < 960:
-        return 960
-    if max_wh < 1500:
-        return 1500
-    return 2000
+    return min(max_wh, 960)
 
 
 def detect_text_boxes(
@@ -41,7 +37,7 @@ def detect_text_boxes(
     session = create_session(model_path, provider_info)
     pre = DetPreProcess(
         limit_side_len=_limit_side_len(image_bgr),
-        limit_type="min",
+        limit_type="max",
         mean=[0.5, 0.5, 0.5],
         std=[0.5, 0.5, 0.5],
     )

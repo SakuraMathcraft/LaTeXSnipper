@@ -74,13 +74,30 @@ def recognize_formula_image(
     *,
     max_new_tokens: int = 256,
 ) -> tuple[str, float]:
+    return recognize_formula_images(
+        [image],
+        model_dir,
+        provider_info,
+        max_new_tokens=max_new_tokens,
+    )[0]
+
+
+def recognize_formula_images(
+    images: list[Image.Image | np.ndarray],
+    model_dir: str | Path,
+    provider_info,
+    *,
+    max_new_tokens: int = 256,
+) -> list[tuple[str, float]]:
+    if not images:
+        return []
     root = Path(model_dir)
     processor = _load_processor(str(root))
     encoder_session = create_session(root / "encoder_model.onnx", provider_info)
     decoder_session = create_session(root / "decoder_model.onnx", provider_info)
 
-    pil_image = image if isinstance(image, Image.Image) else Image.fromarray(image)
-    features = processor(images=pil_image, return_tensors="np")
+    pil_images = [image if isinstance(image, Image.Image) else Image.fromarray(image) for image in images]
+    features = processor(images=pil_images, return_tensors="np")
     pixel_values = np.asarray(features["pixel_values"], dtype=np.float32)
 
     encoder_input_name = encoder_session.get_inputs()[0].name
@@ -91,9 +108,12 @@ def recognize_formula_image(
 
     tokenizer = processor.tokenizer
     decoder_start_id, eos_id = _load_generation_ids(root, tokenizer)
-    input_ids = np.asarray([[decoder_start_id]], dtype=np.int64)
-    token_ids: list[int] = []
-    token_scores: list[float] = []
+    batch_size = len(pil_images)
+    input_ids = np.full((batch_size, 1), decoder_start_id, dtype=np.int64)
+    token_ids: list[list[int]] = [[] for _ in range(batch_size)]
+    token_scores: list[list[float]] = [[] for _ in range(batch_size)]
+    finished = np.zeros((batch_size,), dtype=bool)
+    pad_after_finish_id = eos_id if eos_id is not None else decoder_start_id
 
     for _ in range(max_new_tokens):
         decoder_inputs = {
@@ -103,17 +123,29 @@ def recognize_formula_image(
         logits = decoder_session.run(None, decoder_inputs)[0]
         step_logits = logits[:, -1, :]
         step_probs = _softmax(step_logits)
-        next_token = int(np.argmax(step_probs[0]))
-        next_prob = float(step_probs[0, next_token])
-        if eos_id is not None and next_token == eos_id:
+        next_tokens = np.argmax(step_probs, axis=1).astype(np.int64)
+        next_column = next_tokens.copy()
+        for row, next_token in enumerate(next_tokens.tolist()):
+            if finished[row]:
+                next_column[row] = pad_after_finish_id
+                continue
+            next_prob = float(step_probs[row, next_token])
+            if eos_id is not None and next_token == eos_id:
+                finished[row] = True
+                next_column[row] = pad_after_finish_id
+                continue
+            token_ids[row].append(int(next_token))
+            token_scores[row].append(next_prob)
+        if bool(np.all(finished)):
             break
-        token_ids.append(next_token)
-        token_scores.append(next_prob)
         input_ids = np.concatenate(
-            [input_ids, np.asarray([[next_token]], dtype=np.int64)],
+            [input_ids, next_column.reshape(batch_size, 1)],
             axis=1,
         )
 
-    text = tokenizer.decode(token_ids, skip_special_tokens=True).strip()
-    score = float(sum(token_scores) / len(token_scores)) if token_scores else 0.0
-    return text, score
+    results: list[tuple[str, float]] = []
+    for ids, scores in zip(token_ids, token_scores):
+        text = tokenizer.decode(ids, skip_special_tokens=True).strip()
+        score = float(sum(scores) / len(scores)) if scores else 0.0
+        results.append((text, score))
+    return results

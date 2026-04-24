@@ -1,13 +1,18 @@
 # pyright: reportMissingImports=false
 
 import inspect
+import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
@@ -33,6 +38,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         wrapper = ModelWrapper(auto_warmup=False)
         env = wrapper._build_subprocess_env()
+
         self.assertEqual(Path(env["PYTHONPATH"]), ROOT)
         self.assertEqual(env["PYTHONNOUSERSITE"], "1")
 
@@ -41,6 +47,110 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         wrapper = ModelWrapper(auto_warmup=False)
         self.assertEqual(wrapper._mode_for_model("unknown_mode"), "formula")
+
+    def test_mathcraft_provider_prefers_installed_gpu_layer(self):
+        from backend.model import _infer_provider_preference_from_deps_state
+        from mathcraft_ocr.providers import GPU_PROVIDER_NAMES
+
+        self.assertEqual(GPU_PROVIDER_NAMES[0], "CUDAExecutionProvider")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            pyexe = root / "python311" / "python.exe"
+            pyexe.parent.mkdir()
+            pyexe.write_text("", encoding="utf-8")
+            (root / ".deps_state.json").write_text(
+                json.dumps({"installed_layers": ["BASIC", "CORE", "MATHCRAFT_GPU"]}),
+                encoding="utf-8",
+            )
+            self.assertEqual(_infer_provider_preference_from_deps_state(str(pyexe)), "gpu")
+
+    def test_explicit_mathcraft_provider_env_wins(self):
+        from backend.model import resolve_mathcraft_provider_preference
+
+        old = os.environ.get("MATHCRAFT_PROVIDER")
+        os.environ["MATHCRAFT_PROVIDER"] = "cpu"
+        try:
+            self.assertEqual(resolve_mathcraft_provider_preference(), "cpu")
+        finally:
+            if old is None:
+                os.environ.pop("MATHCRAFT_PROVIDER", None)
+            else:
+                os.environ["MATHCRAFT_PROVIDER"] = old
+
+
+class DependencyBootstrapMathCraftTests(unittest.TestCase):
+    def test_dependency_layers_are_mathcraft_onnx_only(self):
+        import deps_bootstrap
+
+        self.assertIn("MATHCRAFT_CPU", deps_bootstrap.LAYER_MAP)
+        self.assertIn("MATHCRAFT_GPU", deps_bootstrap.LAYER_MAP)
+
+        all_specs = "\n".join(
+            spec for specs in deps_bootstrap.LAYER_MAP.values() for spec in specs
+        ).lower()
+        self.assertIn("onnxruntime", all_specs)
+        self.assertIn("numpy", all_specs)
+        self.assertIn("protobuf", all_specs)
+
+    def test_layer_verify_code_uses_single_core_path(self):
+        import deps_bootstrap
+
+        verify_code = "\n".join(str(v) for v in deps_bootstrap.LAYER_VERIFY_CODE.values()).lower()
+        self.assertIn("cudaexecutionprovider", verify_code)
+
+    def test_mathcraft_backend_selection_is_mutually_exclusive(self):
+        import deps_bootstrap
+
+        chosen = deps_bootstrap._normalize_chosen_layers(
+            ["BASIC", "MATHCRAFT_CPU", "MATHCRAFT_GPU"]
+        )
+        self.assertEqual(chosen, ["BASIC", "MATHCRAFT_GPU"])
+
+    def test_onnxruntime_install_path_does_not_force_dependency_reinstall(self):
+        source = (SRC / "deps_bootstrap.py").read_text(encoding="utf-8").lower()
+        force_block = source.split("force_reinstall_pkgs = {", 1)[1].split("}", 1)[0]
+
+        self.assertNotIn("onnxruntime", force_block)
+        self.assertIn('if name in {"onnxruntime", "onnxruntime-gpu"}:', source)
+        self.assertIn('args.append("--no-deps")', source)
+
+    def test_critical_repair_covers_onnxruntime_dependency_chain(self):
+        import deps_bootstrap
+
+        for pkg in ("numpy", "sympy", "flatbuffers", "packaging", "coloredlogs", "protobuf"):
+            self.assertIn(pkg, deps_bootstrap.CRITICAL_VERSIONS)
+
+        source = inspect.getsource(deps_bootstrap._repair_gpu_onnxruntime_runtime)
+        self.assertIn("_fix_critical_versions", source)
+        self.assertIn("force_reinstall=False", source)
+        self.assertNotIn("force_reinstall=True", source)
+
+    def test_pip_interrupted_leftovers_are_cleaned_from_target_site(self):
+        import deps_bootstrap
+
+        with tempfile.TemporaryDirectory() as d:
+            site = Path(d) / "site-packages"
+            site.mkdir()
+            leftover_dir = site / "~umpy"
+            leftover_dist = site / "~ympy-1.14.0.dist-info"
+            normal_dir = site / "numpy"
+            leftover_dir.mkdir()
+            leftover_dist.mkdir()
+            normal_dir.mkdir()
+
+            original = deps_bootstrap._site_packages_root
+            deps_bootstrap._site_packages_root = lambda _pyexe: site
+            try:
+                removed = deps_bootstrap._cleanup_pip_interrupted_leftovers(
+                    Path(d) / "python.exe"
+                )
+            finally:
+                deps_bootstrap._site_packages_root = original
+
+            self.assertEqual(removed, 2)
+            self.assertFalse(leftover_dir.exists())
+            self.assertFalse(leftover_dist.exists())
+            self.assertTrue(normal_dir.exists())
 
 
 if __name__ == "__main__":

@@ -10,8 +10,8 @@ from .errors import ProviderError
 
 
 GPU_PROVIDER_NAMES = (
-    "TensorrtExecutionProvider",
     "CUDAExecutionProvider",
+    "TensorrtExecutionProvider",
     "DmlExecutionProvider",
 )
 

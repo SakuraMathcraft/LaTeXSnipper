@@ -453,7 +453,7 @@ atexit.register(_release_single_instance_lock)
 
 # --------- Startup Splash ---------
 _STARTUP_SPLASH = None
-_FORCE_ENTER_STARTUP_MESSAGE = "正在强制进入主程序，跳过依赖安装..."
+_FORCE_ENTER_STARTUP_MESSAGE = "正在跳过依赖安装并进入主程序..."
 
 
 class _StartupDialog(QWidget):
@@ -671,83 +671,17 @@ def _startup_deps_resume_message() -> str:
     return "依赖检查完成，继续启动..."
 
 
-_ensure_startup_splash("配置 WebEngine 运行环境...")
-
-
-# ============ QWebEngine 运行环境预配置 ============
-# 仅设置环境变量，不导入 WebEngine 模块
-def _apply_webengine_env_overrides():
-    """
-    预先配置 WebEngine 相关环境变量，避免打包模式下进程/沙箱问题。
-    通过环境变量开关，不强行改变默认行为。
-    """
-    # 用户可通过环境变量显式关闭沙箱
-    if os.environ.get("LATEXSNIPPER_WEBENGINE_NO_SANDBOX") == "1":
-        os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
-        flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
-        if "--no-sandbox" not in flags:
-            os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (flags + " --no-sandbox").strip()
-        print("[WebEngine] 已根据环境变量禁用沙箱 (QTWEBENGINE_DISABLE_SANDBOX=1)")
-
-    # 尝试设置 QtWebEngineProcess.exe 的路径（如已设置则不覆盖）
-    exe_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
-    candidates = []
-    try:
-        if hasattr(sys, "_MEIPASS"):
-            mp = pathlib.Path(sys._MEIPASS)
-            candidates.extend([
-                mp / "Qt6" / "bin" / exe_name,
-                mp / "PyQt6" / "Qt6" / "bin" / exe_name,
-            ])
-        exe_dir = pathlib.Path(sys.executable).parent
-        candidates.extend([
-            exe_dir / "Qt6" / "bin" / exe_name,
-            exe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
-            exe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
-        ])
-        # Optional: if running with explicitly selected private python, include its site-packages.
-        pyexe_env = os.environ.get("LATEXSNIPPER_PYEXE", "")
-        if pyexe_env:
-            pyexe_dir = pathlib.Path(pyexe_env).parent
-            candidates.extend([
-                pyexe_dir / "Qt6" / "bin" / exe_name,
-                pyexe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
-                pyexe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
-            ])
-    except Exception:
-        candidates = []
-
-    cur = os.environ.get("QTWEBENGINEPROCESS_PATH")
-    needs_fix = False
-    if cur:
-        try:
-            p = pathlib.Path(cur)
-            if p.is_dir() or not p.exists() or p.name.lower() != exe_name.lower():
-                needs_fix = True
-        except Exception:
-            needs_fix = True
-
-    if not cur or needs_fix:
-        for p in candidates:
-            if p and p.exists():
-                os.environ["QTWEBENGINEPROCESS_PATH"] = str(p)
-                print(f"[WebEngine] QTWEBENGINEPROCESS_PATH 已设置: {p}")
-                break
-
-_apply_webengine_env_overrides()
 _ensure_startup_splash("配置 MathJax 与 WebEngine...")
 
-# ============ QWebEngine 沙箱配置 ============
-# 在使用 QWebEngineView 之前配置，以确保 MathJax 资源可以被正确加载
+# ============ QWebEngine profile 配置 ============
+# 只保留 MathJax 本地资源访问所需设置，WebEngineProcess 路径由完整打包负责。
 try:
     from PyQt6.QtWebEngineCore import QWebEngineProfile
     
     profile = QWebEngineProfile.defaultProfile()
     
-    # 1. 禁用 HTTP 缓存以避免缓存问题
     profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.NoCache)
     
-    # 2. 获取 profile 的设置对象，并配置允许本地文件访问
     settings = profile.settings()
     from PyQt6.QtWebEngineCore import QWebEngineSettings
     settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
@@ -2783,7 +2717,7 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     # 开发模式：保留原有多路径查找和安装逻辑
     py = _find_full_python(base_dir)
     if py:
-        print(f"[INFO] 使用已下载的 Python: {py}")
+        print(f"[INFO] 使用依赖目录 Python: {py}")
         return py
 
     # 安装器兜底
@@ -2914,13 +2848,11 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
 
     # 5) Startup deps check: show wizard only when required layers are missing.
     # Pass BASE_DIR to avoid repeated path prompts.
-    # 若当前进程是“重启后打开依赖向导/强制校验”场景，则跳过这里的预检查，
+    # 若当前进程是“重启后打开依赖向导”场景，则跳过这里的预检查，
     # 由 __main__ 分支统一执行一次交互式校验，避免重复日志与重复验证。
-    _force_deps_cli = "--force-deps-check" in sys.argv
     _open_wizard_env = (os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1")
-    _force_verify_env = (os.environ.get("LATEXSNIPPER_FORCE_VERIFY", "") == "1")
-    if _force_deps_cli or _open_wizard_env or _force_verify_env:
-        print("[INFO] startup deps precheck skipped (wizard/force-verify mode)")
+    if _open_wizard_env:
+        print("[INFO] 依赖向导模式：跳过启动预检查，由向导统一验证。")
     else:
         import importlib as _imp
         _ensure_startup_splash("检查已安装功能层...")
@@ -2943,10 +2875,9 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
 
 def ensure_deps(*args, **kwargs):
     # 已就绪则直接返回 True，避免再次尝试 venv/构建 UI
-    # 但从设置页进入（from_settings/force_verify）时必须执行真实校验，不能被短路
+    # 但从设置页进入时必须执行校验，不能被短路
     from_settings = bool(kwargs.get("from_settings", False))
-    force_verify = bool(kwargs.get("force_verify", False))
-    if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not (from_settings or force_verify):
+    if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not from_settings:
         return True
     # 真需要时再按需引入并调用（通常用不到）
     import deps_bootstrap as _db
@@ -3090,14 +3021,6 @@ def lazy_import(module_name: str):
         print(f"[WARN] 模块 {module_name} 未安装。")
         return None
 
-def try_load_torch():
-    try:
-        import torch
-        return torch
-    except ModuleNotFoundError:
-        print("[WARN] 未安装 torch（HEAVY_GPU 层），跳过 GPU 模块初始化。")
-        return None
-
 def parse_requirements(req_path):
     reqs = {}
     if os.path.exists(req_path):
@@ -3210,89 +3133,6 @@ def _exec_close_only_message_box(
     _apply_close_only_window_flags(msg)
     return QMessageBox.StandardButton(msg.exec())
 
-def show_gpu_install_tip(parent=None):
-    import re
-    import subprocess
-
-    matrix = [
-        ((11, 8), ("cu118", "2.7.1", "0.22.1", "2.7.1")),
-        ((12, 1), ("cu121", "2.5.1", "0.20.1", "2.5.1")),
-        ((12, 4), ("cu124", "2.5.1", "0.20.1", "2.5.1")),
-        ((12, 6), ("cu126", "2.7.1", "0.22.1", "2.7.1")),
-        ((12, 8), ("cu128", "2.7.1", "0.22.1", "2.7.1")),
-        ((12, 9), ("cu129", "2.8.0", "0.23.0", "2.8.0")),
-        ((13, 0), ("cu130", "2.9.0", "0.24.0", "2.9.0")),
-    ]
-    cpu_cmd = r'.\.venv\Scripts\python.exe -m pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cpu'
-
-    def _parse_cuda_ver(text: str):
-        t = (text or "").lower()
-        m = re.search(r"release\s*(\d+)\.(\d+)", t) or re.search(r"\bv(\d+)\.(\d+)", t) or re.search(r"cuda version:\s*(\d+)\.(\d+)", t)
-        if not m:
-            return None
-        return int(m.group(1)), int(m.group(2))
-
-    def _pick_plan(ver):
-        if not ver:
-            return None
-        major, minor = ver
-        if (major, minor) < (11, 8):
-            return None
-        best = None
-        for v, p in matrix:
-            if v <= (major, minor):
-                best = p
-        return best or matrix[-1][1]
-
-    cuda_ver = None
-    source = ""
-    try:
-        r = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5, creationflags=_win_subprocess_flags())
-        cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
-        if cuda_ver:
-            source = "nvcc"
-    except Exception:
-        pass
-    if not cuda_ver:
-        try:
-            r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5, creationflags=_win_subprocess_flags())
-            cuda_ver = _parse_cuda_ver((r.stdout or "") + "\n" + (r.stderr or ""))
-            if cuda_ver:
-                source = "nvidia-smi"
-        except Exception:
-            pass
-
-    plan = _pick_plan(cuda_ver)
-    if plan:
-        tag, t_ver, tv_ver, ta_ver = plan
-        cmd = (
-            f'.\\.venv\\Scripts\\python.exe -m pip install '
-            f'torch=={t_ver} torchvision=={tv_ver} torchaudio=={ta_ver} '
-            f'--index-url https://download.pytorch.org/whl/{tag}'
-        )
-        note = f"已根据 {source} 自动匹配到 CUDA {cuda_ver[0]}.{cuda_ver[1]} -> {tag}"
-    else:
-        cmd = cpu_cmd
-        if cuda_ver:
-            note = f"检测到 CUDA {cuda_ver[0]}.{cuda_ver[1]}（低于 11.8），改用 CPU 版命令"
-        else:
-            note = "未检测到 CUDA，改用 CPU 版命令"
-    pyperclip.copy(cmd)
-
-    dlg = QDialog(parent)
-    _apply_close_only_window_flags(dlg)
-    dlg.setWindowTitle("安装 GPU 依赖")
-    lay = QVBoxLayout(dlg)
-    lay.addWidget(BodyLabel("如需 GPU 加速，请在终端运行以下命令安装 CUDA 版本："))
-    lay.addWidget(BodyLabel(note))
-    lay.addWidget(BodyLabel(cmd))
-    lay.addWidget(BodyLabel("命令已复制到剪贴板。"))
-    btn = PushButton(FluentIcon.CLOSE, "关闭")
-    btn.setFixedHeight(32)
-    btn.clicked.connect(dlg.accept)
-    lay.addWidget(btn)
-    dlg.exec()
-
 def show_missing_deps_dialog(missing_pkgs, parent=None):
     dlg = QDialog(parent)
     _apply_close_only_window_flags(dlg)
@@ -3360,13 +3200,12 @@ def get_install_base_dir():
 # 在 main.py 最前面调用
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
-os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
 os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
 def _ensure_typing_ext():
-    """确保 typing_extensions 至少为 4.9.0，但不强制降级，避免与 pydantic 等冲突。"""
+    """确保 typing_extensions 至少为 4.9.0，但不强制降级。"""
     from importlib import metadata as md
     try:
         from packaging.version import Version
@@ -4112,11 +3951,6 @@ def _log_webengine_diagnostics(stage: str, err: Exception | None = None) -> None
     log_info(f"[WebEngine] executable={sys.executable}")
     log_info(f"[WebEngine] APP_DIR={APP_DIR if 'APP_DIR' in globals() else '<unset>'}")
 
-    # 关键环境变量
-    log_info(f"[WebEngine] QTWEBENGINE_DISABLE_SANDBOX={os.environ.get('QTWEBENGINE_DISABLE_SANDBOX')}")
-    log_info(f"[WebEngine] QTWEBENGINE_CHROMIUM_FLAGS={os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS')}")
-    log_info(f"[WebEngine] QTWEBENGINEPROCESS_PATH={os.environ.get('QTWEBENGINEPROCESS_PATH')}")
-
     # QtWebEngineProcess.exe 检查
     exe_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = []
@@ -4268,7 +4102,7 @@ class ConfigManager:
 def normalize_content_type(content_type: str | None) -> str:
     """将内容类型限制为当前支持的内置 MathCraft 类型。"""
     t = (content_type or "").strip().lower()
-    allowed = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page"}
+    allowed = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
     return t if t in allowed else "mathcraft"
 
 class FavoritesWindow(QMainWindow):
@@ -4811,7 +4645,6 @@ class FavoritesWindow(QMainWindow):
             "mathcraft": "公式",
             "mathcraft_text": "文字",
             "mathcraft_mixed": "混合",
-            "mathcraft_page": "整页",
         }
 
         for idx, formula in enumerate(self.favorites, start=1):
@@ -5287,10 +5120,6 @@ class MainWindow(QMainWindow):
         self._restore_predict_result_dialog_after_capture = None
         self._hidden_unpinned_predict_result_dialog_for_capture = None
         self._mathcraft_env_state = None
-        self._main_torch_cache_ttl_sec = 45.0
-        self._main_torch_cache_ts = 0.0
-        self._main_torch_cache_info = None
-        self._main_torch_cache_py = ""
         self._last_capture_toast_ts = 0.0
         self.settings_window = None
         self.shortcut_window = None
@@ -5555,7 +5384,7 @@ class MainWindow(QMainWindow):
         if ensure_webengine_loaded():
             self.preview_view = QWebEngineView()
             
-            # 禁用 WebEngine 沙箱，允许本地文件中的脚本执行
+            # 允许本地 MathJax 资源访问
             try:
                 from PyQt6.QtWebEngineCore import QWebEngineSettings
                 settings = self.preview_view.settings()
@@ -6787,7 +6616,6 @@ th {{
                 "mathcraft": ("公式", ""),
                 "mathcraft_text": ("文字", "text"),
                 "mathcraft_mixed": ("混合", "mixed"),
-                "mathcraft_page": ("整页", "text"),
             }
             
             type_name, type_class = type_info.get(content_type, ("内容", ""))
@@ -7285,7 +7113,7 @@ th {{
     def _sanitize_model_config(self):
         """校验并收敛当前仍支持的模型配置。"""
         try:
-            valid_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page", "external_model"}
+            valid_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
             default_model = (self.cfg.get("default_model", "") or "").lower()
             desired_model = (self.cfg.get("desired_model", "") or "").lower()
             changed = False
@@ -7296,7 +7124,7 @@ th {{
                 self.cfg.set("desired_model", "mathcraft")
                 changed = True
             mode = (self.cfg.get("mathcraft_mode", "formula") or "formula").lower()
-            if mode not in ("formula", "mixed", "text", "page"):
+            if mode not in ("formula", "mixed", "text"):
                 self.cfg.set("mathcraft_mode", "formula")
                 changed = True
             theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
@@ -7323,7 +7151,6 @@ th {{
             "formula": "mathcraft",
             "mixed": "mathcraft_mixed",
             "text": "mathcraft_text",
-            "page": "mathcraft_page",
         }
         return mode_map.get(mode, "mathcraft")
 
@@ -7387,7 +7214,7 @@ th {{
             self.set_model_status(self._get_external_model_status_text())
             self._report_startup_progress("外部模型模式已启用，跳过 MathCraft 预热")
             return
-        self._report_startup_progress("正在后台预热识别模型与 worker...")
+        self._report_startup_progress("正在后台预热 MathCraft OCR...")
         self._ensure_model_warmup_async(
             preferred_model=preferred,
             announce_success=True,
@@ -7418,7 +7245,7 @@ th {{
 
         if self._model_warmup_in_progress:
             self.set_model_status(f"预热中 ({preferred})")
-            self._report_startup_progress("正在预热识别模型与 worker...")
+            self._report_startup_progress("正在预热 MathCraft OCR...")
             return
 
         self._model_warmup_in_progress = True
@@ -7426,8 +7253,13 @@ th {{
         self.cfg.set("default_model", preferred)
         self.desired_model = "mathcraft"
         self.cfg.set("desired_model", "mathcraft")
+        try:
+            if hasattr(self.model, "set_default_model"):
+                self.model.set_default_model(preferred)
+        except Exception:
+            pass
         self.set_model_status(f"预热中 ({preferred})")
-        self._report_startup_progress("正在预热识别模型与 worker...")
+        self._report_startup_progress("正在预热 MathCraft OCR...")
 
         def worker():
             ok = False
@@ -7477,14 +7309,14 @@ th {{
         self._model_warmup_callbacks.clear()
 
         if ok:
-            self._report_startup_progress("识别模型与 worker 预热完成")
+            self._report_startup_progress("MathCraft OCR 预热完成")
             self.set_model_status("已加载")
             if self.settings_window:
                 self.settings_window.update_model_selection()
             if announce_success:
                 InfoBar.success(
                         title="模型预热完成",
-                        content=success_message or "MathCraft OCR 与识别 worker 已就绪",
+                        content=success_message or "MathCraft OCR 已就绪",
                     parent=self._get_infobar_parent(),
                     duration=2500,
                     position=InfoBarPosition.TOP
@@ -7530,11 +7362,13 @@ th {{
         from qfluentwidgets import InfoBar, InfoBarPosition
         info_parent = self._get_infobar_parent()
         m = (model_name or "").lower()
-        valid_modes = ("mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page", "external_model")
+        valid_modes = ("mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model")
         if m not in valid_modes:
             m = "mathcraft"
         prev_model = str(getattr(self, "current_model", "") or "")
         prev_desired = str(getattr(self, "desired_model", "") or "")
+        if m != prev_model and self.is_recognition_busy(source="mode_switch"):
+            self._cancel_active_recognition_for_mode_switch()
 
         # 同一目标模式重复触发时直接刷新状态，避免重复切换导致潜在竞态。
         if m == prev_model:
@@ -7552,7 +7386,6 @@ th {{
             "mathcraft": "MathCraft 公式识别",
             "mathcraft_text": "MathCraft 纯文字识别",
             "mathcraft_mixed": "MathCraft 混合识别",
-            "mathcraft_page": "MathCraft 整页识别",
             "external_model": "外部模型",
         }
         mode_display = mode_names.get(m, m)
@@ -7573,7 +7406,6 @@ th {{
                 "mathcraft": "formula",
                 "mathcraft_mixed": "mixed",
                 "mathcraft_text": "text",
-                "mathcraft_page": "page",
             }
             self.cfg.set("mathcraft_mode", mode_map.get(m, "formula"))
 
@@ -7751,6 +7583,73 @@ th {{
                 pass
         return False
 
+    def _cancel_active_recognition_for_mode_switch(self) -> None:
+        cancelled = False
+        self._recognition_cancel_requested = True
+        worker = getattr(self, "predict_worker", None)
+        if worker and hasattr(worker, "cancel"):
+            try:
+                worker.cancel()
+                cancelled = True
+            except Exception:
+                pass
+        pdf_worker = getattr(self, "pdf_predict_worker", None)
+        if pdf_worker and hasattr(pdf_worker, "cancel"):
+            try:
+                pdf_worker.cancel()
+                cancelled = True
+            except Exception:
+                pass
+        model = getattr(self, "model", None)
+        if model and hasattr(model, "_stop_mathcraft_worker"):
+            try:
+                model._stop_mathcraft_worker()
+                cancelled = True
+            except Exception:
+                pass
+        for thread_name in ("predict_thread", "pdf_predict_thread"):
+            thread = getattr(self, thread_name, None)
+            if thread:
+                try:
+                    thread.requestInterruption()
+                except Exception:
+                    pass
+                try:
+                    thread.quit()
+                except Exception:
+                    pass
+        if cancelled:
+            self._predict_busy = False
+            self.set_model_status("识别已中断")
+            self.set_action_status("已中断当前识别", auto_clear_ms=2200)
+
+    def _is_user_cancelled_recognition_error(self, msg: str) -> bool:
+        text = str(msg or "").strip().lower()
+        if bool(getattr(self, "_recognition_cancel_requested", False)):
+            return True
+        return (
+            "cancel" in text
+            or "cancelled" in text
+            or "canceled" in text
+            or "已取消" in text
+            or "已中断" in text
+        )
+
+    def _show_recognition_cancelled_infobar(self) -> None:
+        self._recognition_cancel_requested = False
+        self.set_model_status("已中断")
+        self.set_action_status("已中断当前识别", auto_clear_ms=3000)
+        try:
+            InfoBar.info(
+                title="识别已中断",
+                content="已停止当前识别任务，可重新截图或切换识别类型后再试。",
+                parent=self,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            pass
+
     def _start_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.is_recognition_busy(source="main"):
             self._restore_hidden_unpinned_predict_result_dialog()
@@ -7780,6 +7679,7 @@ th {{
             )
             return
         active_model = self.current_model
+        self._recognition_cancel_requested = False
         self._predict_busy = True
         self.set_model_status("识别中...")
 
@@ -7823,6 +7723,7 @@ th {{
         self.current_model = "external_model"
         self.cfg.set("default_model", "external_model")
         self.cfg.set("desired_model", "external_model")
+        self._recognition_cancel_requested = False
         self._predict_busy = True
         self.set_model_status("外部模型识别中...")
         self.predict_thread = QThread()
@@ -7853,37 +7754,6 @@ th {{
             self.settings_window._open_terminal(env_key=env_key)
         except Exception as e:
             custom_warning_dialog("错误", f"打开终端失败: {e}", self)
-
-    def _get_isolated_torch_mode(self, env_key: str) -> str:
-        try:
-            mode = (self.cfg.get(f"{env_key}_torch_mode", "auto") or "auto").strip().lower()
-        except Exception:
-            mode = "auto"
-        return mode if mode in ("auto", "cpu", "gpu") else "auto"
-
-    def _get_main_torch_info_cached(self, allow_block: bool = True) -> tuple[dict, str]:
-        try:
-            now = datetime.datetime.now().timestamp()
-            ttl = float(getattr(self, "_main_torch_cache_ttl_sec", 45.0) or 45.0)
-            cache_ts = float(getattr(self, "_main_torch_cache_ts", 0.0) or 0.0)
-            cache_info = getattr(self, "_main_torch_cache_info", None)
-            cache_py = getattr(self, "_main_torch_cache_py", "") or ""
-            if (now - cache_ts) <= ttl and isinstance(cache_info, dict) and cache_py:
-                return dict(cache_info), str(cache_py)
-            if not allow_block:
-                return (dict(cache_info) if isinstance(cache_info, dict) else {}), str(cache_py)
-        except Exception:
-            pass
-        try:
-            from backend.torch_runtime import infer_main_python, detect_torch_info
-            main_py = infer_main_python()
-            main_info = detect_torch_info(main_py, timeout_sec=6)
-            self._main_torch_cache_ts = datetime.datetime.now().timestamp()
-            self._main_torch_cache_info = dict(main_info) if isinstance(main_info, dict) else {}
-            self._main_torch_cache_py = str(main_py or "")
-            return dict(self._main_torch_cache_info), self._main_torch_cache_py
-        except Exception:
-            return {}, ""
 
     def _apply_mathcraft_env(self):
         env_pyexe = ""
@@ -7928,7 +7798,7 @@ th {{
         except Exception:
             pass
         try:
-            print(f"[INFO] MathCraft worker 已重启: {reason}")
+            print(f"[INFO] MathCraft OCR 运行进程已重启: {reason}")
         except Exception:
             pass
 
@@ -7974,7 +7844,7 @@ th {{
 
     def _model_supports_pdf(self, model_name: str) -> bool:
         m = (model_name or "").lower()
-        return m.startswith("mathcraft") or m == "external_model"
+        return m == "mathcraft_mixed" or m == "external_model"
 
     def _prompt_pdf_output_options(self):
         """选择 PDF 识别的导出格式与 DPI。"""
@@ -8065,7 +7935,7 @@ th {{
         slider.setValue(default_dpi)
         layout.addWidget(slider)
 
-        tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能导致部分模型整页识别退化。")
+        tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能降低识别稳定性。")
         tip.setWordWrap(True)
         tip.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; font-size: 11px;")
         layout.addWidget(tip)
@@ -8127,9 +7997,6 @@ th {{
         except Exception:
             if preferred != self.current_model:
                 self.on_model_changed(preferred)
-        if not self._model_supports_pdf(self.current_model):
-            custom_warning_dialog("提示", "当前模型不支持 PDF 识别。", self)
-            return
         if self.current_model == "external_model" and not self._is_external_model_configured():
             custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
             return
@@ -8137,7 +8004,7 @@ th {{
             from qfluentwidgets import MessageBox
             tip = MessageBox(
                 "推荐模式",
-                "PDF 识别建议使用 mathcraft_mixed（混合识别）。\n是否切换并继续？",
+                "PDF 识别会使用 MathCraft 混合识别并进行文档整理。\n是否切换并继续？",
                 self
             )
             _apply_app_window_icon(tip)
@@ -8150,6 +8017,9 @@ th {{
                     return
             else:
                 return
+        if not self._model_supports_pdf(self.current_model):
+            custom_warning_dialog("提示", "当前模型不支持 PDF 识别。", self)
+            return
         try:
             import fitz  # PyMuPDF
         except Exception as e:
@@ -8206,6 +8076,7 @@ th {{
             self._show_recognition_busy_info()
             return
 
+        self._recognition_cancel_requested = False
         self._predict_busy = True
         self.set_model_status("识别中...")
 
@@ -8226,7 +8097,7 @@ th {{
             self.pdf_predict_worker = PdfPredictWorker(self.model, str(path), pages, self.current_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
-        progress_text = "正在解析 PDF 文档结构（取消将在当前页结束后生效）..." if doc_mode == "parse" else "正在识别 PDF（取消将在当前页结束后生效）..."
+        progress_text = "正在解析 PDF 文档结构..." if doc_mode == "parse" else "正在识别 PDF..."
         self.pdf_progress = QProgressDialog(progress_text, "取消", 0, pages, self)
         # 进度框改为非模态，避免父窗口被锁死后无法恢复交互
         self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
@@ -8313,14 +8184,21 @@ th {{
                 pass
 
     def _on_pdf_cancel_requested(self):
+        self._recognition_cancel_requested = True
         if self.pdf_predict_worker:
             try:
                 self.pdf_predict_worker.cancel()
             except Exception:
                 pass
+        model = getattr(self, "model", None)
+        if model and hasattr(model, "_stop_mathcraft_worker"):
+            try:
+                model._stop_mathcraft_worker()
+            except Exception:
+                pass
         if self.pdf_progress:
             try:
-                self.pdf_progress.setLabelText("正在取消（等待当前页结束）...")
+                self.pdf_progress.setLabelText("正在取消识别...")
             except Exception:
                 pass
         if self.pdf_predict_thread:
@@ -8345,6 +8223,7 @@ th {{
         self._pdf_result_window.activateWindow()
 
     def _on_pdf_predict_ok(self, content: str):
+        self._recognition_cancel_requested = False
         used = None
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -8385,8 +8264,12 @@ th {{
 
     def _on_pdf_predict_fail(self, msg: str):
         self._release_pdf_progress()
-        if msg == "已取消":
-            self.set_action_status("已取消", auto_clear_ms=3000)
+        if msg == "已取消" or self._is_user_cancelled_recognition_error(msg):
+            try:
+                print(f"[INFO] PDF 识别已中断: {msg}")
+            except Exception:
+                pass
+            self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
         self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
@@ -8409,7 +8292,19 @@ th {{
         except Exception:
             pass
 
-        custom_warning_dialog("错误", msg, self)
+        info = classify_mathcraft_failure(msg)
+        content = info.get("user_message") or str(msg)
+        self.set_action_status(content, auto_clear_ms=4500)
+        try:
+            InfoBar.error(
+                title="识别失败",
+                content=content,
+                parent=self,
+                duration=4500,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            custom_warning_dialog("错误", content, self)
 
     def start_capture(self):
         self._last_capture_screen_index = None
@@ -8608,7 +8503,6 @@ th {{
             "mathcraft": "确认或修改 LaTeX：",
             "mathcraft_text": "识别的文字内容：",
             "mathcraft_mixed": "识别结果（文字+公式）：",
-            "mathcraft_page": "整页识别结果：",
         }
         return mode_titles.get(current_mode, "确认或修改内容：")
 
@@ -8817,6 +8711,7 @@ th {{
             self._hidden_unpinned_predict_result_dialog_for_capture = None
 
     def on_predict_ok(self, latex: str):
+        self._recognition_cancel_requested = False
         used = None
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -8987,8 +8882,8 @@ th {{
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
 
-        # 纯文字/整页模式：简单文本预览
-        elif current_mode in ("mathcraft_text", "mathcraft_page"):
+        # 纯文字模式：简单文本预览
+        elif current_mode == "mathcraft_text":
             preview_label = BodyLabel("文本预览：")
             lay.addWidget(preview_label)
             
@@ -9274,6 +9169,13 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
     def on_predict_fail(self, msg: str):
         self._next_predict_result_screen_index = None
         self._restore_hidden_unpinned_predict_result_dialog()
+        if self._is_user_cancelled_recognition_error(msg):
+            try:
+                print(f"[INFO] 识别已中断: {msg}")
+            except Exception:
+                pass
+            self._show_recognition_cancelled_infobar()
+            return
         self.set_model_status("失败")
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -9307,7 +9209,19 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
                 )
             except Exception:
                 pass
-        custom_warning_dialog("错误", msg, self)
+        info = classify_mathcraft_failure(msg)
+        content = info.get("user_message") or str(msg)
+        self.set_action_status(content, auto_clear_ms=4500)
+        try:
+            InfoBar.error(
+                title="识别失败",
+                content=content,
+                parent=self,
+                duration=4500,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            custom_warning_dialog("错误", content, self)
 
     def accept_latex(self, dialog, te: QTextEdit):
         t = te.toPlainText().strip()
@@ -9842,19 +9756,33 @@ class PredictionWorker(QObject):
         self.image = image
         self.model_name = model_name
         self.elapsed = None
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         import time
         t0 = time.perf_counter()
         try:
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.elapsed = time.perf_counter() - t0
+                self.failed.emit("已取消")
+                return
             res = self.model_wrapper.predict(self.image, model_name=self.model_name)
             self.elapsed = time.perf_counter() - t0
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.failed.emit("已取消")
+                return
             if not res or not res.strip():
                 self.failed.emit("识别结果为空")
             else:
                 self.finished.emit(res.strip())
         except Exception as e:
             self.elapsed = time.perf_counter() - t0
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.failed.emit("已取消")
+                return
             self.failed.emit(str(e))
 
 class PdfPredictWorker(QObject):
@@ -9877,44 +9805,12 @@ class PdfPredictWorker(QObject):
         self._cancelled = True
 
     def run(self):
+        import queue
+        import threading
         import time
         t0 = time.perf_counter()
         def _set_elapsed():
             self.elapsed = time.perf_counter() - t0
-
-        daemon_pdf_fn = getattr(self.model_wrapper, "predict_pdf", None)
-        if callable(daemon_pdf_fn):
-            try:
-                def _cancelled() -> bool:
-                    return bool(self._cancelled or QThread.currentThread().isInterruptionRequested())
-
-                def _progress(cur: int, total: int):
-                    self.progress.emit(int(cur), int(total))
-
-                content = daemon_pdf_fn(
-                    pdf_path=self.pdf_path,
-                    max_pages=int(max(self.max_pages, 1)),
-                    model_name=self.model_name,
-                    output_format=self.output_format,
-                    dpi=int(max(self.dpi, 72)),
-                    progress_cb=_progress,
-                    cancel_cb=_cancelled,
-                )
-                if _cancelled():
-                    _set_elapsed()
-                    self.failed.emit("已取消")
-                    return
-                if not (content or "").strip():
-                    _set_elapsed()
-                    self.failed.emit("识别结果为空")
-                    return
-                _set_elapsed()
-                self.finished.emit(content.strip())
-                return
-            except Exception as e:
-                _set_elapsed()
-                self.failed.emit(str(e))
-                return
 
         try:
             import fitz  # PyMuPDF
@@ -9930,31 +9826,97 @@ class PdfPredictWorker(QObject):
             return
 
         total = min(max(self.max_pages, 1), doc.page_count or 1)
-        results = []
         try:
-            for i in range(total):
-                if self._cancelled or QThread.currentThread().isInterruptionRequested():
-                    _set_elapsed()
-                    self.failed.emit("已取消")
-                    return
-                page = doc.load_page(i)
-                pix = page.get_pixmap(dpi=self.dpi, alpha=False)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                res = self.model_wrapper.predict(img, model_name=self.model_name)
-                if self._cancelled or QThread.currentThread().isInterruptionRequested():
-                    _set_elapsed()
-                    self.failed.emit("已取消")
-                    return
-                results.append((res or "").strip())
-                self.progress.emit(i + 1, total)
-        finally:
-            try:
-                doc.close()
-            except Exception:
-                pass
+            doc.close()
+        except Exception:
+            pass
 
-        sep = "\n\n---\n\n" if self.output_format == "markdown" else "\n\n% --- Page ---\n\n"
-        content = sep.join([r for r in results if r])
+        render_queue = queue.Queue(maxsize=1)
+
+        def _cancel_requested():
+            return self._cancelled or QThread.currentThread().isInterruptionRequested()
+
+        def _put_render_item(item):
+            while not self._cancelled:
+                try:
+                    render_queue.put(item, timeout=0.1)
+                    return True
+                except queue.Full:
+                    continue
+            return False
+
+        def _render_pages():
+            render_doc = None
+            try:
+                render_doc = fitz.open(self.pdf_path)
+                for page_index in range(total):
+                    if self._cancelled:
+                        break
+                    page = render_doc.load_page(page_index)
+                    pix = page.get_pixmap(dpi=self.dpi, alpha=False)
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    if not _put_render_item((page_index, img, [pix.width, pix.height])):
+                        return
+                _put_render_item(None)
+            except Exception as exc:
+                _put_render_item(exc)
+            finally:
+                try:
+                    if render_doc is not None:
+                        render_doc.close()
+                except Exception:
+                    pass
+
+        render_thread = threading.Thread(
+            target=_render_pages,
+            name="MathCraftPdfRenderPrefetch",
+            daemon=True,
+        )
+        render_thread.start()
+        page_results = []
+        try:
+            while True:
+                if _cancel_requested():
+                    _set_elapsed()
+                    self.failed.emit("已取消")
+                    return
+                try:
+                    item = render_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                i, img, image_size = item
+                if hasattr(self.model_wrapper, "predict_result"):
+                    result = self.model_wrapper.predict_result(img, model_name=self.model_name)
+                else:
+                    result = {"text": self.model_wrapper.predict(img, model_name=self.model_name)}
+                if _cancel_requested():
+                    _set_elapsed()
+                    self.failed.emit("已取消")
+                    return
+                if isinstance(result, dict):
+                    result["page_index"] = i + 1
+                    result.setdefault("image_size", image_size)
+                    page_results.append(result)
+                self.progress.emit(i + 1, total)
+        except Exception as e:
+            _set_elapsed()
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.failed.emit("已取消")
+                return
+            self.failed.emit(str(e))
+            return
+        clean_results = [
+            page
+            for page in page_results
+            if isinstance(page, dict) and (str(page.get("text") or "").strip() or page.get("blocks"))
+        ]
+        from core.mathcraft_document_engine import compose_mathcraft_markdown_pages
+
+        content = compose_mathcraft_markdown_pages(clean_results)
         if not content.strip():
             _set_elapsed()
             self.failed.emit("识别结果为空")
@@ -10121,8 +10083,6 @@ if __name__ == "__main__":
     import multiprocessing
     import os, sys
     multiprocessing.freeze_support()
-    force_deps_check = '--force-deps-check' in sys.argv
-    force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
     # 判断是否为 PyInstaller 打包环境
     if getattr(sys, 'frozen', False):
         # 打包环境，直接运行主程序，不再重启到私有解释器
@@ -10140,16 +10100,9 @@ if __name__ == "__main__":
             setThemeColor("#0078D4")
         except Exception:
             pass
-        # 检查是否需要强制依赖检验
-        if force_deps_check or force_verify_env:
+        if open_wizard_on_start:
             _update_startup_splash(splash, _startup_status_message("检查依赖中..."))
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
-            if not ok:
-                sys.exit(1)
-            splash = _take_startup_splash(app, _startup_deps_resume_message())
-        elif open_wizard_on_start:
-            _update_startup_splash(splash, _startup_status_message("检查依赖中..."))
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
+            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
             if not ok:
                 sys.exit(1)
             splash = _take_startup_splash(app, _startup_deps_resume_message())
@@ -10173,29 +10126,21 @@ if __name__ == "__main__":
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
         splash = _take_startup_splash(app, _startup_status_message("初始化界面..."))
-        force_deps_check = '--force-deps-check' in sys.argv
         open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
-        force_verify_env = os.environ.pop("LATEXSNIPPER_FORCE_VERIFY", None) == "1"
         deps_check_message = _startup_status_message("检查依赖中...")
         _update_startup_splash(splash, deps_check_message)
         deps_ready_cached = (os.environ.get("LATEXSNIPPER_DEPS_OK") == "1")
         needs_interactive_deps_ui = bool(
-            force_deps_check
-            or force_verify_env
-            or open_wizard_on_start
-            or (not deps_ready_cached)
+            open_wizard_on_start or (not deps_ready_cached)
         )
-        # 检查是否需要强制依赖检验
-        if force_deps_check or force_verify_env:
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
-        elif open_wizard_on_start:
-            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True, force_verify=True)
+        if open_wizard_on_start:
+            ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
         else:
             ok = ensure_deps(prompt_ui=True, always_show_ui=False, from_settings=False)
         if not ok:
             sys.exit(1)
         resume_message = _startup_deps_resume_message()
-        if needs_interactive_deps_ui or resume_message.startswith("正在强制进入"):
+        if needs_interactive_deps_ui or resume_message == _FORCE_ENTER_STARTUP_MESSAGE:
             splash = _take_startup_splash(app, resume_message)
         _update_startup_splash(splash, resume_message)
         try:

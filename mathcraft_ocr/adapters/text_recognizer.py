@@ -39,11 +39,14 @@ def recognize_pp_text_lines(
     images_bgr: list[np.ndarray],
     model_dir: str | Path,
     provider_info,
+    *,
+    rec_batch_num: int | None = None,
 ) -> list[tuple[str, float]]:
     if not images_bgr:
         return []
     recognizer = _create_pp_text_recognizer(Path(model_dir), provider_info)
-    recognizer.rec_batch_num = min(max(len(images_bgr), 1), 6)
+    max_batch = max(1, int(rec_batch_num or 6))
+    recognizer.rec_batch_num = min(max(len(images_bgr), 1), max_batch)
     rec_input = TextRecInput(img=images_bgr, return_word_box=False)
     output = recognizer(rec_input)
     return [(str(text), float(score)) for text, score in zip(output.txts, output.scores)]
@@ -114,8 +117,5 @@ def clear_text_recognizer_cache() -> None:
 
 
 def _find_pp_vocab(model_dir: Path) -> Path | None:
-    for name in ("en_dict.txt", "ppocr_keys_v1.txt"):
-        candidate = model_dir / name
-        if candidate.is_file():
-            return candidate
-    return None
+    candidate = model_dir / "ppocrv5_keys.txt"
+    return candidate if candidate.is_file() else None

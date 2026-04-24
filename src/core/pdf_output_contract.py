@@ -16,7 +16,9 @@ def wrap_document_output(content: str, fmt_key: str, style_key: str) -> str:
     if "\\documentclass" in text and "\\begin{document}" in text:
         return text
 
-    return _wrap_latex_document(text)
+    from core.mathcraft_tex_exporter import markdown_to_latex_document
+
+    return markdown_to_latex_document(text)
 
 
 def _wrap_markdown_document(text: str, style_key: str = "document") -> str:
@@ -64,26 +66,4 @@ def _normalize_markdown_image_placeholders(text: str, normalize_image_syntax: bo
             label = f"{label}: {desc}"
         normalized_lines.append(f"[IMAGE_PLACEHOLDER: {label}]")
     return "\n".join(normalized_lines)
-
-
-def _wrap_latex_document(text: str) -> str:
-    docclass = "\\documentclass[11pt,a4paper]{ctexart}"
-    preamble = (
-        f"{docclass}\n"
-        "\\usepackage[margin=1in]{geometry}\n"
-        "\\usepackage{amsmath,amssymb,amsthm,mathtools,bm}\n"
-        "\\usepackage{graphicx}\n"
-        "\\usepackage{booktabs,longtable,array,multirow}\n"
-        "\\usepackage{caption}\n"
-        "\\usepackage{float}\n"
-        "\\usepackage{tikz}\n"
-        "\\usepackage{tikz-cd}\n"
-        "\\usetikzlibrary{arrows.meta,calc,cd,decorations.pathmorphing,matrix,positioning,shapes.geometric}\n"
-        "\\usepackage{hyperref}\n"
-        "\\hypersetup{hidelinks}\n"
-        "\\setlength{\\parindent}{2em}\n"
-        "\\setlength{\\parskip}{0.35em}\n"
-        "\\begin{document}\n"
-    )
-    return preamble + text.rstrip() + "\n\\end{document}\n"
 

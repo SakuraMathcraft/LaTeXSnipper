@@ -60,14 +60,21 @@ os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 MODEL_MODES = {
     "mathcraft": "formula",
     "mathcraft_formula": "formula",
-    "mathcraft_text": "mixed",
+    "mathcraft_text": "text",
     "mathcraft_mixed": "mixed",
-    "mathcraft_page": "mixed",
 }
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _worker_pythonpath() -> str:
+    roots = [_repo_root()]
+    internal_root = roots[0] / "_internal"
+    if internal_root.is_dir():
+        roots.append(internal_root)
+    return os.pathsep.join(str(root) for root in roots)
 
 
 def _subprocess_creationflags() -> int:
@@ -83,6 +90,43 @@ def get_deps_python() -> str:
     if getattr(sys, "frozen", False):
         print("[WARN] packaged mode: deps python not configured, fallback to current runtime")
     return sys.executable
+
+
+def _infer_provider_preference_from_deps_state(pyexe: str) -> str:
+    candidates: list[Path] = []
+    try:
+        py_path = Path(pyexe).resolve()
+        candidates.append(py_path.parent.parent / ".deps_state.json")
+        candidates.append(py_path.parent / ".deps_state.json")
+    except Exception:
+        pass
+    for raw in (os.environ.get("LATEXSNIPPER_DEPS_DIR", ""),):
+        if raw:
+            try:
+                candidates.append(Path(raw).resolve() / ".deps_state.json")
+            except Exception:
+                pass
+
+    for state_path in candidates:
+        try:
+            if not state_path.is_file():
+                continue
+            data = json.loads(state_path.read_text(encoding="utf-8-sig"))
+            layers = {str(item) for item in data.get("installed_layers", [])}
+            if "MATHCRAFT_GPU" in layers:
+                return "gpu"
+            if "MATHCRAFT_CPU" in layers:
+                return "cpu"
+        except Exception:
+            continue
+    return "auto"
+
+
+def resolve_mathcraft_provider_preference() -> str:
+    explicit = (os.environ.get("MATHCRAFT_PROVIDER", "") or "").strip().lower()
+    if explicit in {"auto", "cpu", "gpu"}:
+        return explicit
+    return _infer_provider_preference_from_deps_state(get_deps_python())
 
 
 def classify_mathcraft_failure(detail: str) -> dict[str, str]:
@@ -125,6 +169,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "MathCraft OCR 模型缓存不完整，请补齐模型权重后重试。",
             f"MathCraft 模型缓存不完整: {raw[:300]}",
         )
+    if "list index out of range" in lower or ("indexerror" in lower and "rapidocr" in lower):
+        return _pack(
+            "OCR_VOCAB_MISMATCH",
+            "OCR 字典与模型不匹配",
+            "MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。",
+            f"RapidOCR 解码越界，通常是 PP-OCR 识别模型与字典文件不匹配: {raw[:300]}",
+        )
     if "cuda" in lower and (
         "createexecutionproviderinstance" in lower
         or "cuda_path is set" in lower
@@ -147,8 +198,8 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "WORKER_TIMEOUT",
             "识别进程超时",
-            "MathCraft OCR worker 响应超时，请稍后重试或检查模型运行环境。",
-            "MathCraft worker 超时，需要检查模型初始化耗时、图片大小和运行环境。",
+            "MathCraft OCR 运行进程响应超时，请稍后重试或检查模型运行环境。",
+            "MathCraft OCR 运行进程超时，需要检查模型初始化耗时、图片大小和运行环境。",
         )
     return _pack(
         "UNKNOWN",
@@ -166,7 +217,6 @@ class ModelWrapper(QObject):
     def __init__(self, default_model: str | None = None, auto_warmup: bool = True):
         super().__init__()
         self.device = "cpu"
-        self.torch = None
         self.last_used_model = None
         self._default_model = self._normalize_model_name(default_model or "mathcraft")
         self._worker: subprocess.Popen | None = None
@@ -177,9 +227,10 @@ class ModelWrapper(QObject):
         self._import_failed = False
         self._last_error = ""
         self._last_error_code = ""
-        self._provider = "auto"
+        self._provider = resolve_mathcraft_provider_preference()
+        self._ready_modes: set[str] = set()
 
-        self._emit("[INFO] internal OCR runtime: MathCraft worker")
+        self._emit(f"[INFO] MathCraft OCR 后端偏好: {self._provider}")
         if auto_warmup:
             self._lazy_load_mathcraft()
 
@@ -198,7 +249,8 @@ class ModelWrapper(QObject):
         for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
             env.pop(key, None)
         env["PYTHONNOUSERSITE"] = "1"
-        env["PYTHONPATH"] = str(_repo_root())
+        env["PYTHONPATH"] = _worker_pythonpath()
+        env["ORT_DISABLE_AZURE"] = "1"
         return env
 
     def _normalize_model_name(self, model_name: str | None) -> str:
@@ -210,6 +262,9 @@ class ModelWrapper(QObject):
     def _mode_for_model(self, model_name: str | None) -> str:
         model = self._normalize_model_name(model_name)
         return MODEL_MODES.get(model, "formula")
+
+    def set_default_model(self, model_name: str | None) -> None:
+        self._default_model = self._normalize_model_name(model_name or "mathcraft")
 
     def _next_request_id(self) -> str:
         self._request_seq += 1
@@ -248,16 +303,16 @@ class ModelWrapper(QObject):
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
-                self._emit(f"[ERROR] MathCraft worker start failed: {exc}")
+                self._emit(f"[ERROR] MathCraft OCR 运行进程启动失败: {exc}")
                 self._worker = None
                 return False
 
     def _send_worker_request(self, payload: dict[str, Any], timeout_sec: float = 300.0) -> dict[str, Any]:
         if not self._ensure_worker():
-            raise RuntimeError(self._last_error or "MathCraft worker start failed")
+            raise RuntimeError(self._last_error or "MathCraft OCR 运行进程启动失败")
         proc = self._worker
         if proc is None or proc.stdin is None or proc.stdout is None:
-            raise RuntimeError("MathCraft worker pipe is not available")
+            raise RuntimeError("MathCraft OCR 运行进程管道不可用")
 
         request = dict(payload)
         request["id"] = request.get("id") or self._next_request_id()
@@ -267,7 +322,7 @@ class ModelWrapper(QObject):
                 proc.stdin.flush()
             except Exception as exc:
                 self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft worker request failed: {exc}") from exc
+                raise RuntimeError(f"MathCraft OCR 请求发送失败: {exc}") from exc
             lines: queue.Queue[str | BaseException] = queue.Queue(maxsize=1)
 
             def _readline() -> None:
@@ -282,23 +337,23 @@ class ModelWrapper(QObject):
                 line_or_exc = lines.get(timeout=max(float(timeout_sec), 1.0))
             except queue.Empty as exc:
                 self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft worker timeout after {timeout_sec:.0f}s") from exc
+                raise RuntimeError(f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）") from exc
             if isinstance(line_or_exc, BaseException):
                 self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft worker response failed: {line_or_exc}") from line_or_exc
+                raise RuntimeError(f"MathCraft OCR 响应读取失败: {line_or_exc}") from line_or_exc
             line = line_or_exc
 
         if not line:
             self._stop_mathcraft_worker()
-            raise RuntimeError("MathCraft worker exited without response")
+            raise RuntimeError("MathCraft OCR 运行进程已退出且没有返回结果")
         try:
             response = json.loads(line)
         except Exception as exc:
-            raise RuntimeError(f"MathCraft worker returned invalid JSON: {line[:300]}") from exc
+            raise RuntimeError(f"MathCraft OCR 返回了无效 JSON: {line[:300]}") from exc
         if not response.get("ok"):
             err = response.get("error", {})
             message = err.get("message") if isinstance(err, dict) else str(err)
-            raise RuntimeError(str(message or "MathCraft worker error"))
+            raise RuntimeError(str(message or "MathCraft OCR 运行错误"))
         result = response.get("result")
         return result if isinstance(result, dict) else {}
 
@@ -332,13 +387,23 @@ class ModelWrapper(QObject):
         except Exception:
             pass
         self._ready = False
+        self._ready_modes.clear()
 
-    def _lazy_load_mathcraft(self) -> bool:
-        if self._ready:
+    def _lazy_load_mathcraft(self, model_name: str | None = None) -> bool:
+        model = self._normalize_model_name(model_name or self._default_model)
+        mode = self._mode_for_model(model)
+        self._default_model = model
+        if mode in self._ready_modes:
+            self._ready = True
             return True
         try:
-            mode = self._mode_for_model(self._default_model)
-            result = self._send_worker_request({"action": "warmup", "profile": mode}, timeout_sec=300.0)
+            result = self._send_worker_request(
+                {
+                    "action": "warmup",
+                    "profile": mode,
+                },
+                timeout_sec=300.0,
+            )
             ready = bool(result.get("ready"))
             if not ready:
                 missing = result.get("missing_models", [])
@@ -353,10 +418,11 @@ class ModelWrapper(QObject):
             else:
                 active_provider = ""
             self._ready = True
+            self._ready_modes.add(mode)
             self._clear_error()
             self._emit(
-                "[INFO] MathCraft OCR worker ready"
-                f"{f' ({active_provider})' if active_provider else ''}"
+                "[INFO] MathCraft OCR 已就绪"
+                f"{f'（实际后端: {active_provider}）' if active_provider else ''}"
             )
             return True
         except Exception as exc:
@@ -370,10 +436,10 @@ class ModelWrapper(QObject):
 
     def is_model_ready(self, model_name: str) -> bool:
         try:
-            self._mode_for_model(model_name)
+            mode = self._mode_for_model(model_name)
         except Exception:
             return False
-        return self._ready
+        return mode in self._ready_modes
 
     def get_error(self) -> str | None:
         return self._last_error if self._import_failed else None
@@ -385,41 +451,55 @@ class ModelWrapper(QObject):
             return f"model ready (MathCraft, device={self.device})"
         return "model not loaded"
 
-    def predict(self, pil_img: Image.Image, model_name: str = "mathcraft") -> str:
+    def predict_result(self, pil_img: Image.Image, model_name: str = "mathcraft") -> dict[str, Any]:
         model = self._normalize_model_name(model_name)
         mode = self._mode_for_model(model)
-        if not self._ready and not self._lazy_load_mathcraft():
+        if mode not in self._ready_modes and not self._lazy_load_mathcraft(model):
             raise RuntimeError(self._last_error or "MathCraft OCR not ready")
 
         tmp_path = ""
         try:
+            image_rgb = pil_img.convert("RGB")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 tmp_path = tmp.name
-                pil_img.convert("RGB").save(tmp, format="PNG")
+                image_rgb.save(tmp, format="PNG")
             if mode == "formula":
                 result = self._send_worker_request(
                     {"action": "recognize_formula", "image": tmp_path},
                     timeout_sec=300.0,
                 )
-                text = str(result.get("text", "") or "")
+            elif mode == "text":
+                result = self._send_worker_request(
+                    {
+                        "action": "recognize_text",
+                        "image": tmp_path,
+                    },
+                    timeout_sec=600.0,
+                )
             else:
                 result = self._send_worker_request(
                     {
                         "action": "recognize_mixed",
                         "image": tmp_path,
-                        "ocr_profile": "auto",
                     },
                     timeout_sec=600.0,
                 )
-                text = str(result.get("text", "") or "")
             self.last_used_model = model
-            return text.strip()
+            result["model"] = model
+            result["mode"] = mode
+            result["image_size"] = [int(image_rgb.width), int(image_rgb.height)]
+            result["text"] = str(result.get("text", "") or "").strip()
+            return result
         finally:
             if tmp_path:
                 try:
                     os.unlink(tmp_path)
                 except Exception:
                     pass
+
+    def predict(self, pil_img: Image.Image, model_name: str = "mathcraft") -> str:
+        result = self.predict_result(pil_img, model_name=model_name)
+        return str(result.get("text", "") or "").strip()
 
     def __del__(self):
         try:

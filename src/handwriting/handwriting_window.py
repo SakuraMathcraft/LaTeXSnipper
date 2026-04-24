@@ -605,7 +605,7 @@ class HandwritingWindow(QDialog):
                 model_key = str(getattr(self.model, "_default_model") or "").strip().lower()
             except Exception:
                 model_key = ""
-        valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "mathcraft_page", "external_model"}
+        valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
         return model_key if model_key in valid else "mathcraft"
 
     def _get_active_model_label(self) -> str:
@@ -613,7 +613,6 @@ class HandwritingWindow(QDialog):
             "mathcraft": "公式",
             "mathcraft_text": "文字",
             "mathcraft_mixed": "混合",
-            "mathcraft_page": "整页",
         }
         model_key = self._get_active_model_key()
         if model_key == "external_model":

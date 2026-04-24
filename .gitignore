@@ -12,6 +12,8 @@ env/
 build/
 dist/
 *.spec
+!LaTeXSnipper.spec
+!LaTeXSnipper.offline.spec
 
 # Large binary files
 *.exe
@@ -34,6 +36,18 @@ tauri_stderr.log
 
 # Logs
 *.log
+.coverage
+
+# Local OCR/PDF regression outputs
+test_pdf/outputs/**
+!test_pdf/outputs/
+!test_pdf/outputs/README.md
+test_pdf/tex_compile_outputs*/
+test_pdf/*.pdf
+test_samples/
+理论论文/
+pix2text/
+release_assets/
 
 # Release notes (local docs, do not version)
 RELEASE_NOTES*.md

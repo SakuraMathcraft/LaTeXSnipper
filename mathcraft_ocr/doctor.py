@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .cache import inspect_manifest_cache, resolve_cache_dir
+from .cache import inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
 from .manifest import Manifest, load_manifest
 from .providers import ProviderInfo, detect_providers
 
@@ -15,6 +15,7 @@ from .providers import ProviderInfo, detect_providers
 class DoctorReport:
     python_executable: str
     cache_dir: Path
+    model_roots: tuple[Path, ...]
     manifest_version: int
     provider_info: ProviderInfo
     cache_states: dict[str, object]
@@ -24,19 +25,22 @@ class DoctorReport:
 def run_doctor(
     *,
     cache_dir: str | Path | None = None,
+    bundled_models_dir: str | Path | None = None,
     manifest: Manifest | None = None,
     provider_preference: str = "auto",
     include_optional: bool = True,
 ) -> DoctorReport:
     manifest_obj = manifest or load_manifest()
-    cache_root = resolve_cache_dir(cache_dir)
-    states = inspect_manifest_cache(
-        cache_root, manifest_obj, include_optional=include_optional
+    cache_root = resolve_user_models_dir(cache_dir)
+    model_roots = resolve_model_roots(cache_dir, bundled_models_dir)
+    states = inspect_manifest_roots(
+        model_roots, manifest_obj, include_optional=include_optional
     )
     provider_info = detect_providers(prefer=provider_preference)
     return DoctorReport(
         python_executable=sys.executable,
         cache_dir=cache_root,
+        model_roots=model_roots,
         manifest_version=manifest_obj.version,
         provider_info=provider_info,
         cache_states=states,

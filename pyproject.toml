@@ -3,7 +3,6 @@ paths = ["src"]
 exclude = [
   "build/",
   "python311/",
-  "apps/",
   "src/deps/python311/",
   "src/get-pip.py"
 ]

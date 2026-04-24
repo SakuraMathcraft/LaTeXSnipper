@@ -26,7 +26,14 @@ def session_providers(provider_info: ProviderInfo) -> list[str]:
 def create_session(model_path: str | Path, provider_info: ProviderInfo):
     model_path = str(Path(model_path).resolve())
     providers = tuple(session_providers(provider_info))
-    return _create_session_cached(model_path, providers)
+    session = _create_session_cached(model_path, providers)
+    actual = list(session.get_providers() or [])
+    active = provider_info.active_provider
+    if active and active in GPU_PROVIDER_NAMES and active not in actual:
+        raise RuntimeError(
+            f"requested ONNX GPU provider {active}, but session providers are {actual}"
+        )
+    return session
 
 
 @lru_cache(maxsize=16)

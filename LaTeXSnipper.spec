@@ -4,6 +4,7 @@ LaTeXSnipper PyInstaller spec.
 
 Build command:
     pyinstaller LaTeXSnipper.spec
+    pyinstaller LaTeXSnipper.offline.spec
 
 This spec bundles required resources/dependencies so the app can run on target machines.
 """
@@ -22,6 +23,8 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 # Project roots
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
+APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
+BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
@@ -71,6 +74,8 @@ def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
     for p in src_root.rglob("*"):
         if not p.is_file():
             continue
+        if p.suffix.lower() in {".pyc", ".pyo"} or "__pycache__" in p.parts:
+            continue
         rel_parent = p.relative_to(src_root).parent
         if str(rel_parent) == ".":
             dest_dir = dest_prefix
@@ -78,6 +83,44 @@ def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
             dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
         out.append((str(p), dest_dir))
     return out
+
+
+MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
+if MATHCRAFT_OCR_SRC.exists():
+    extra_datas += _collect_tree_as_datas(MATHCRAFT_OCR_SRC, "mathcraft_ocr")
+    print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
+else:
+    print(f"[SPEC] MathCraft OCR package not found, skip: {MATHCRAFT_OCR_SRC}")
+
+
+def _resolve_mathcraft_models_root() -> Path | None:
+    """Locate local MathCraft model files for the offline build variant."""
+    env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
+    candidates = []
+    if env_root:
+        candidates.append(Path(env_root))
+    candidates.append(ROOT / "MathCraft" / "models")
+    appdata = os.environ.get("APPDATA", "").strip()
+    if appdata:
+        candidates.append(Path(appdata) / "MathCraft" / "models")
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+if BUNDLE_MATHCRAFT_MODELS:
+    mathcraft_models_root = _resolve_mathcraft_models_root()
+    if mathcraft_models_root is None:
+        raise SystemExit(
+            "[SPEC] MathCraft offline build requested, but no model root was found. "
+            "Set MATHCRAFT_MODELS_ROOT or place models under MathCraft/models."
+        )
+    else:
+        extra_datas += _collect_tree_as_datas(mathcraft_models_root, "MathCraft/models")
+        print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
+else:
+    print("[SPEC] MathCraft models are not bundled in this build.")
 
 
 def _prune_collect_tree(dist_root: Path):
@@ -198,7 +241,7 @@ else:
 
 a = Analysis(
     [str(SRC / "main.py")],
-    pathex=[str(SRC)],
+    pathex=[str(SRC), str(ROOT)],
     binaries=[] + extra_binaries,
     datas=[
         # Resource folders
@@ -260,8 +303,6 @@ a = Analysis(
         "PyQt6.QtWebEngineWidgets",
         "PyQt6.QtWebEngineCore",
 
-        # Shared torch runtime module
-        "backend.torch_runtime",
         "editor",
         "editor.workbench_bridge",
         "editor.workbench_window",
@@ -276,19 +317,9 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[str(SRC / "runtime_hook_env.py")] if (SRC / "runtime_hook_env.py").exists() else [],
+    runtime_hooks=[],
     excludes=[
-        # Large deps (installed via dependency wizard)
-        "torch",
-        "torchvision",
-        "torchaudio",
-        "pix2text",
-        "pix2tex",
-        "unimernet",
-        "timm",
-        "wandb",
-        "polars",
-        "pyarrow",
+        # Runtime deps are managed by the MathCraft dependency environment.
         "_polars_runtime_32",
         "_polars_runtime_64",
         "_polars_runtime_compat",
@@ -348,7 +379,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="LaTeXSnipper",
+    name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -370,7 +401,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="LaTeXSnipper",
+    name=APP_NAME,
 )
 
-_prune_collect_tree(Path(DISTPATH) / "LaTeXSnipper" / "_internal")
+_prune_collect_tree(Path(DISTPATH) / APP_NAME / "_internal")
