@@ -2464,6 +2464,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             try:
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
+                os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
+                os.environ["LATEXSNIPPER_DEPS_DIR"] = normalized
                 print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")
             except Exception as e:
                 print(f"[ERR] 保存配置失败: {e}")
@@ -3274,6 +3276,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
         if active_pyexe is not None and active_pyexe.exists():
             os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
+        os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(deps_path)
+        os.environ["LATEXSNIPPER_DEPS_DIR"] = str(deps_path)
 
     _apply_runtime_context(pyexe)
 

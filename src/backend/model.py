@@ -83,10 +83,109 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def _read_process_stderr_tail(proc: subprocess.Popen | None, limit: int = 4000) -> str:
+    if proc is None or proc.poll() is None:
+        return ""
+    stderr = getattr(proc, "stderr", None)
+    if stderr is None:
+        return ""
+    try:
+        text = stderr.read()
+    except Exception:
+        return ""
+    return str(text or "").strip()[-limit:]
+
+
+def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
+    if not left or not right:
+        return False
+    try:
+        return os.path.normcase(os.path.abspath(str(left))) == os.path.normcase(os.path.abspath(str(right)))
+    except Exception:
+        return str(left) == str(right)
+
+
+def _find_install_base_python(base_dir: str | Path | None) -> Path | None:
+    if not base_dir:
+        return None
+    base = Path(base_dir)
+    candidates = [
+        base / "python.exe",
+        base / "Scripts" / "python.exe",
+        base / "python311" / "python.exe",
+        base / "python311" / "Scripts" / "python.exe",
+        base / "Python311" / "python.exe",
+        base / "Python311" / "Scripts" / "python.exe",
+        base / "venv" / "Scripts" / "python.exe",
+        base / ".venv" / "Scripts" / "python.exe",
+        base / "python_full" / "python.exe",
+    ]
+    try:
+        for child in sorted(base.glob("python*")):
+            if child.is_dir():
+                candidates.append(child / "python.exe")
+                candidates.append(child / "Scripts" / "python.exe")
+    except Exception:
+        pass
+    for candidate in candidates:
+        try:
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _configured_install_base_python() -> Path | None:
+    raw_values: list[str] = []
+    for key in ("LATEXSNIPPER_DEPS_DIR", "LATEXSNIPPER_INSTALL_BASE_DIR"):
+        raw = (os.environ.get(key, "") or "").strip()
+        if raw:
+            raw_values.append(raw)
+    try:
+        cfg = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+        if cfg.exists():
+            data = json.loads(cfg.read_text(encoding="utf-8"))
+            raw = str(data.get("install_base_dir", "") or "").strip() if isinstance(data, dict) else ""
+            if raw:
+                raw_values.append(raw)
+    except Exception:
+        pass
+    seen: set[str] = set()
+    for raw in raw_values:
+        try:
+            key = os.path.normcase(os.path.abspath(raw))
+        except Exception:
+            key = raw
+        if key in seen:
+            continue
+        seen.add(key)
+        pyexe = _find_install_base_python(raw)
+        if pyexe is not None:
+            return pyexe
+    return None
+
+
+def _looks_like_packaged_template_python(pyexe: str | Path | None) -> bool:
+    if not pyexe:
+        return False
+    try:
+        normalized = os.path.normcase(os.path.abspath(str(pyexe)))
+    except Exception:
+        normalized = str(pyexe).lower()
+    return f"{os.sep}_internal{os.sep}deps{os.sep}" in normalized and normalized.endswith("python.exe")
+
+
 def get_deps_python() -> str:
     pyexe = os.environ.get("LATEXSNIPPER_PYEXE", "")
+    configured_py = _configured_install_base_python()
+    if configured_py is not None and pyexe and os.path.exists(pyexe):
+        if _looks_like_packaged_template_python(pyexe) and not _same_path(pyexe, configured_py):
+            return str(configured_py)
     if pyexe and os.path.exists(pyexe):
         return pyexe
+    if configured_py is not None:
+        return str(configured_py)
     if getattr(sys, "frozen", False):
         print("[WARN] packaged mode: deps python not configured, fallback to current runtime")
     return sys.executable
@@ -162,6 +261,23 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
+    mathcraft_runtime_modules = (
+        "rapidocr",
+        "cv2",
+        "opencv",
+        "numpy",
+        "pil",
+        "pillow",
+        "transformers",
+        "tokenizers",
+    )
+    if "no module named" in lower and any(module in lower for module in mathcraft_runtime_modules):
+        return _pack(
+            "MATHCRAFT_DEP_MISSING",
+            "MathCraft 依赖不完整",
+            "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖向导安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。",
+            f"MathCraft worker 缺少运行依赖，通常是打包模板 Python 尚未部署完整依赖: {raw[:300]}",
+        )
     if "not ready" in lower and "missing" in lower:
         return _pack(
             "MODEL_CACHE_INCOMPLETE",
@@ -231,6 +347,7 @@ class ModelWrapper(QObject):
         self._ready_modes: set[str] = set()
 
         self._emit(f"[INFO] MathCraft OCR 后端偏好: {self._provider}")
+        self._emit(f"[INFO] MathCraft OCR 依赖解释器: {get_deps_python()}")
         if auto_warmup:
             self._lazy_load_mathcraft()
 
@@ -293,7 +410,7 @@ class ModelWrapper(QObject):
                     self._worker_argv(),
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
@@ -344,7 +461,10 @@ class ModelWrapper(QObject):
             line = line_or_exc
 
         if not line:
+            detail = _read_process_stderr_tail(proc)
             self._stop_mathcraft_worker()
+            if detail:
+                raise RuntimeError(f"MathCraft OCR 运行进程已退出且没有返回结果: {detail}")
             raise RuntimeError("MathCraft OCR 运行进程已退出且没有返回结果")
         try:
             response = json.loads(line)

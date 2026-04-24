@@ -2823,7 +2823,8 @@ if not TARGET_PY:
 
 # 固定环境，禁止外部干扰
 os.environ["LATEXSNIPPER_PYEXE"] = TARGET_PY
-os.environ.setdefault("LATEXSNIPPER_INSTALL_BASE_DIR", str(BASE_DIR))
+os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(BASE_DIR)
+os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
 os.environ.setdefault("PYTHONNOUSERSITE", "1")
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
