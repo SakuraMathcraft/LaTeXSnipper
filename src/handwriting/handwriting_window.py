@@ -605,16 +605,14 @@ class HandwritingWindow(QDialog):
                 model_key = str(getattr(self.model, "_default_model") or "").strip().lower()
             except Exception:
                 model_key = ""
-        valid = {"pix2text", "pix2text_text", "pix2text_mixed", "pix2text_page", "pix2text_table", "external_model"}
-        return model_key if model_key in valid else "pix2text"
+        valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
+        return model_key if model_key in valid else "mathcraft"
 
     def _get_active_model_label(self) -> str:
         labels = {
-            "pix2text": "公式",
-            "pix2text_text": "文字",
-            "pix2text_mixed": "混合",
-            "pix2text_page": "整页",
-            "pix2text_table": "表格",
+            "mathcraft": "公式",
+            "mathcraft_text": "文字",
+            "mathcraft_mixed": "混合",
         }
         model_key = self._get_active_model_key()
         if model_key == "external_model":

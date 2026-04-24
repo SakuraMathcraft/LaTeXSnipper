@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "models": {
+    "mathcraft-formula-det": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "mathcraft-mfd.onnx",
+          "sha256": "40d4fc852d99bcbf25a9478897d2f49fbbb8f7fdd6569c088cd1c31386293bd7"
+        }
+      ],
+      "sources": [
+        "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-det.zip"
+      ]
+    },
+    "mathcraft-formula-rec": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "9f3812441d397c871b9b2a74e8d956b939aec5f4f45745bba9214e968d56449d"
+        },
+        {
+          "path": "encoder_model.onnx",
+          "sha256": "bd8d5c322792e9ec45793af5569e9748f82a3d728a9e00213dbfc56c1486f37d"
+        },
+        {
+          "path": "decoder_model.onnx",
+          "sha256": "fd0f92d7a012f3dae41e1ac79421aea0ea888b5a66cb3f9a004e424f82f3daed"
+        },
+        {
+          "path": "generation_config.json",
+          "sha256": "cbea88288d5576a9655ad04e2456768544be22273a1c5ca160e0d16384639b4f"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "36a945a7cc645688b9ef64dabae16979cf5f7c1c448569cc306694edc0598b9b"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "3e2ab757277d22639bec28c9d7972e352d3d1dba223051fa674002dc5ab64df3"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "7ffff31747c73b1a462b766abfc128e03f669e5b8452fe6e175b1430a078ac8d"
+        }
+      ],
+      "sources": [
+        "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-rec.zip"
+      ]
+    },
+    "mathcraft-text-det": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ppocrv5_mobile_det.onnx",
+          "sha256": "1eb7b4f7ab657ebd1c66d5f79bca7497f29768a2e3c15e52daecbba1a8e4a039"
+        }
+      ],
+      "sources": [
+        "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-det.zip"
+      ]
+    },
+    "mathcraft-text-rec": {
+      "version": "1",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "ppocrv5_mobile_rec.onnx",
+          "sha256": "243a0f06d826761323e9045e9b113ab2c191c3aa50565585e628300b8eda0224"
+        },
+        {
+          "path": "ppocrv5_keys.txt",
+          "sha256": "1ea29636956177e400af712d9782e7693f3fb25f98617bed10479d2965a836fd"
+        }
+      ],
+      "sources": [
+        "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-rec.zip"
+      ]
+    }
+  }
+}

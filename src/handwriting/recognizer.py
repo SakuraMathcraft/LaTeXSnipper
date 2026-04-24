@@ -31,7 +31,7 @@ class HandwritingRecognitionWorker(QObject):
         self,
         model_wrapper,
         image: QImage,
-        model_name: str = "pix2text",
+        model_name: str = "mathcraft",
         external_config: ExternalModelConfig | None = None,
     ):
         super().__init__()
@@ -43,7 +43,7 @@ class HandwritingRecognitionWorker(QObject):
     def run(self) -> None:
         try:
             pil_img = qimage_to_pil(self.image)
-            model_name = str(self.model_name or "pix2text").strip().lower()
+            model_name = str(self.model_name or "mathcraft").strip().lower()
             if model_name == "external_model":
                 if self.external_config is None:
                     self.failed.emit("外部模型未配置")

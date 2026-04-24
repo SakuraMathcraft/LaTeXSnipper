@@ -1,4 +1,4 @@
-﻿import threading
+import threading
 import os
 import sys
 from pathlib import Path
@@ -6,6 +6,7 @@ from utils import resource_path
 import json
 import queue
 import re
+import shutil
 import subprocess
 import time
 import traceback
@@ -131,14 +132,12 @@ subprocess_lock = threading.Lock()
 
 # 需要监控的模块列表（如果这些模块已加载，pip 安装可能会因文件占用失败）
 CONFLICT_MODULES = {
-    # torch 系列
-    "torch", "torchvision", "torchaudio",
-    # pix2text 系列
-    "pix2text",
+    # MathCraft / ONNX OCR 系列
+    "mathcraft_ocr",
     # onnxruntime
     "onnxruntime", "onnxruntime_gpu",
     # 其他常见冲突模块
-    "transformers", "timm", "cv2", "numpy", "scipy",
+    "transformers", "cv2", "numpy",
 }
 
 def get_loaded_conflict_modules() -> list[str]:
@@ -247,11 +246,13 @@ class InstallWorker(QThread):
             finally:
                 self.proc = None
 
+
     def run(self):
-        """依赖安装线程主函数（稳定版）"""
+        """依赖安装线程主函数：MathCraft v1 只管理 ONNX Runtime 后端。"""
         try:
             self.log_updated.emit(f"[INFO] 开始检查 {len(self.pkgs)} 个包...")
             self.log_updated.emit(f"[DEBUG] 使用 Python: {self.pyexe}")
+            _cleanup_pip_interrupted_leftovers(self.pyexe, self.log_updated.emit)
             installed_before = _current_installed(self.pyexe)
             self.log_updated.emit(f"[INFO] 当前已安装 {len(installed_before)} 个包")
             if self.no_cache:
@@ -259,176 +260,49 @@ class InstallWorker(QThread):
             else:
                 self.log_updated.emit("[INFO] pip 缓存策略: 使用本地缓存（默认）")
 
-            # 需要 GPU 版 PyTorch 的层列表
-            GPU_LAYERS = ["HEAVY_GPU"]
-            chosen_layers = self.chosen_layers or []
-            needs_gpu = any(layer in chosen_layers for layer in GPU_LAYERS)
-            
-            # ⚠️ 若安装任何 GPU 层，检查并处理 CPU/GPU 版本冲突
-            if needs_gpu:
-                # 1. 卸载冲突的 onnxruntime（CPU 版）—— 即使 onnxruntime-gpu 已安装也要卸载
-                #    因为两者同时存在时，CPU 版会覆盖 GPU 版的 providers
-                if "onnxruntime" in installed_before:
-                    self.log_updated.emit("[INFO] 检测到 onnxruntime（CPU），将先卸载以避免与 onnxruntime-gpu 冲突...")
-                    self.log_updated.emit("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在！")
-                    try:
-                        uninstall_cmd = [str(self.pyexe), "-m", "pip", "uninstall", "onnxruntime", "-y"]
-                        subprocess.run(uninstall_cmd, timeout=120, creationflags=flags)
-                        self.log_updated.emit("[OK] 已卸载冲突的 onnxruntime ✅")
-                        installed_before.pop("onnxruntime", None)
-                    except Exception as e:
-                        self.log_updated.emit(f"[WARN] 卸载 onnxruntime 失败（继续安装）: {e}")
-                
-                # 2. 检查 PyTorch 是否是 CPU 版本（会导致 DLL 冲突）
-                torch_version = installed_before.get("torch", "")
-                torchvision_version = installed_before.get("torchvision", "")
-                torchaudio_version = installed_before.get("torchaudio", "")
-                # CPU 版本特征：带 +cpu 后缀，或者没有 +cu 后缀（从 PyPI 安装的默认是 CPU 版）
-                is_cpu_torch = (
-                    "+cpu" in torch_version or 
-                    "+cpu" in torchvision_version or
-                    "+cpu" in torchaudio_version or
-                    (torch_version and "+cu" not in torch_version and "torch" in installed_before) or
-                    (torchvision_version and "+cu" not in torchvision_version and "torchvision" in installed_before) or
-                    (torchaudio_version and "+cu" not in torchaudio_version and "torchaudio" in installed_before)
+            chosen_layers = _normalize_chosen_layers(self.chosen_layers or [])
+            want_gpu_runtime = "MATHCRAFT_GPU" in chosen_layers
+            want_cpu_runtime = "MATHCRAFT_CPU" in chosen_layers and not want_gpu_runtime
+
+            if want_gpu_runtime and "onnxruntime" in installed_before:
+                self.log_updated.emit("[INFO] 检测到 onnxruntime（CPU），将先卸载以避免与 onnxruntime-gpu 冲突...")
+                self.log_updated.emit("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在。")
+                _uninstall_package_if_present(
+                    self.pyexe,
+                    "onnxruntime",
+                    installed_map=installed_before,
+                    log_fn=self.log_updated.emit,
                 )
-                if is_cpu_torch:
-                    self.log_updated.emit(f"[WARN] 检测到 CPU 版本 PyTorch ({torch_version})")
-                    self.log_updated.emit("[INFO] CPU 与 CUDA 版本混装会导致 DLL 初始化失败，正在卸载...")
-                    try:
-                        for pkg in ["torch", "torchvision", "torchaudio"]:
-                            if pkg in installed_before:
-                                uninstall_cmd = [str(self.pyexe), "-m", "pip", "uninstall", pkg, "-y"]
-                                subprocess.run(uninstall_cmd, timeout=120, creationflags=flags)
-                                installed_before.pop(pkg, None)
-                        self.log_updated.emit("[OK] 已卸载 CPU 版本 PyTorch，将重新安装 CUDA 版本 ✅")
-                    except Exception as e:
-                        self.log_updated.emit(f"[WARN] 卸载 PyTorch 失败: {e}")
-
-            # ⚠️ 反向检测：若安装 HEAVY_CPU，检查是否存在 CUDA 版本 PyTorch
-            if "HEAVY_CPU" in chosen_layers and "HEAVY_GPU" not in chosen_layers:
-                torch_version = installed_before.get("torch", "")
-                torchvision_version = installed_before.get("torchvision", "")
-                torchaudio_version = installed_before.get("torchaudio", "")
-                # CUDA 版本特征：带 +cu 后缀
-                is_cuda_torch = (
-                    "+cu" in torch_version
-                    or "+cu" in torchvision_version
-                    or "+cu" in torchaudio_version
+            elif want_cpu_runtime and "onnxruntime-gpu" in installed_before:
+                self.log_updated.emit("[INFO] 检测到 onnxruntime-gpu，将先卸载以切换到 MathCraft CPU 后端...")
+                self.log_updated.emit("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在。")
+                _uninstall_package_if_present(
+                    self.pyexe,
+                    "onnxruntime-gpu",
+                    installed_map=installed_before,
+                    log_fn=self.log_updated.emit,
                 )
-                if is_cuda_torch:
-                    self.log_updated.emit(f"[WARN] 检测到 CUDA 版本 PyTorch ({torch_version})")
-                    self.log_updated.emit("[INFO] 将卸载 CUDA 版本，安装 CPU 版本以节省空间...")
-                    try:
-                        for pkg in ["torch", "torchvision", "torchaudio"]:
-                            if pkg in installed_before:
-                                uninstall_cmd = [str(self.pyexe), "-m", "pip", "uninstall", pkg, "-y"]
-                                subprocess.run(uninstall_cmd, timeout=120, creationflags=flags)
-                                installed_before.pop(pkg, None)
-                        self.log_updated.emit("[OK] 已卸载 CUDA 版本 PyTorch ✅")
-                    except Exception as e:
-                        self.log_updated.emit(f"[WARN] 卸载 PyTorch 失败: {e}")
-
-            # 判断 torch 安装源策略
-            # - 选择 HEAVY_GPU：自动检测 CUDA 版本，使用对应的 CUDA 源
-            # - 选择 HEAVY_CPU 或自动补充：使用 CPU 源
-            want_gpu_torch = "HEAVY_GPU" in (self.chosen_layers or [])
-            want_cpu_torch = not want_gpu_torch and ("CORE" in (self.chosen_layers or []) or "HEAVY_CPU" in (self.chosen_layers or []))
-
-            # 获取 CUDA 信息（自动检测）
-            cuda_info = get_cuda_info()
-            detected_torch_url = cuda_info.get("torch_url")  # 基于检测到的 CUDA 版本
-            if want_gpu_torch and detected_torch_url:
-                torch_url_for_ort = detected_torch_url
-            elif want_gpu_torch:
-                torch_url_for_ort = TORCH_GPU_FALLBACK_INDEX_URL
-            else:
-                torch_url_for_ort = TORCH_CPU_INDEX_URL
-            expected_torch_tag = ""
-            if want_gpu_torch:
-                try:
-                    _m_tag = re.search(r"/whl/([^/]+)$", (torch_url_for_ort or "").strip())
-                    expected_torch_tag = (_m_tag.group(1).strip().lower() if _m_tag else "")
-                except Exception:
-                    expected_torch_tag = ""
-            resolved_onnx_gpu_spec = _onnxruntime_gpu_spec_for_torch_url(
-                torch_url_for_ort,
-                prefer_gpu=want_gpu_torch
-            )
-
-            if want_gpu_torch:
-                if detected_torch_url:
-                    self.log_updated.emit(f"[INFO] 检测到 CUDA {cuda_info.get('version')}，将使用 {cuda_info.get('torch_tag')} 版本 PyTorch")
-                else:
-                    self.log_updated.emit("[WARN] 未检测到可适配的 CUDA（或 CUDA<11.8），HEAVY_GPU 将回退使用 cu118 版 PyTorch")
-                self.log_updated.emit(f"[INFO] ONNX Runtime GPU 将使用: {resolved_onnx_gpu_spec}")
 
             def _resolve_layer_pkg_spec(pkg_spec: str) -> str:
                 root_name = re.split(r'[<>=!~ ]', pkg_spec, 1)[0].strip().lower()
-                if root_name in TORCH_NAMES:
-                    if want_gpu_torch and detected_torch_url:
-                        torch_url_for_spec = detected_torch_url
-                    elif want_gpu_torch:
-                        torch_url_for_spec = TORCH_GPU_FALLBACK_INDEX_URL
-                    elif want_cpu_torch:
-                        torch_url_for_spec = TORCH_CPU_INDEX_URL
-                    else:
-                        torch_url_for_spec = TORCH_CPU_INDEX_URL
-                    spec_map = _torch_specs_for_index_url(torch_url_for_spec, prefer_gpu=want_gpu_torch)
-                    return spec_map.get(root_name, pkg_spec)
-                if root_name == "onnxruntime-gpu" and want_gpu_torch:
-                    return resolved_onnx_gpu_spec
-                if root_name == "onnxruntime-gpu" and not want_gpu_torch:
+                if root_name == "onnxruntime-gpu":
                     return ORT_GPU_DEFAULT_SPEC
-                if root_name not in TORCH_NAMES:
-                    return pkg_spec
                 return pkg_spec
 
-            # 检查哪些包需要安装
             pending = []
             skipped = []
             if self.force_reinstall:
                 pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
                 self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
             else:
-                torch_meta_checked = False
-                torch_meta_ok = True
-                torch_meta_err = ""
                 for p in self.pkgs:
                     effective_p = _resolve_layer_pkg_spec(p)
                     pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
                     if pkg_name in installed_before:
                         cur_ver = installed_before[pkg_name]
-                        if pkg_name in TORCH_NAMES and want_gpu_torch:
-                            if _needs_torch_reinstall_for_gpu(cur_ver, ""):
-                                pending.append(effective_p)
-                                self.log_updated.emit(
-                                    f"[INFO] 检测到 {pkg_name} 为非 CUDA 轮子 ({cur_ver})，强制重装 GPU 版本"
-                                )
-                                continue
-                            if _needs_torch_reinstall_for_gpu(cur_ver, expected_torch_tag):
-                                pending.append(effective_p)
-                                self.log_updated.emit(
-                                    f"[INFO] 检测到 {pkg_name} CUDA tag 不匹配 ({cur_ver})，目标 {expected_torch_tag}，强制重装"
-                                )
-                                continue
                         if _version_satisfies_spec(pkg_name, cur_ver, effective_p):
-                            # torch 版本满足不代表 metadata 健康；metadata 缺失会让 transformers 误判无 torch。
-                            if pkg_name in TORCH_NAMES:
-                                if not torch_meta_checked:
-                                    torch_meta_checked = True
-                                    torch_meta_ok, torch_meta_err = _verify_torch_metadata_runtime(
-                                        self.pyexe, timeout=20
-                                    )
-                                if not torch_meta_ok:
-                                    pending.append(effective_p)
-                                    self.log_updated.emit(
-                                        f"[INFO] {pkg_name} 元数据异常，准备重装: {torch_meta_err[:180]}"
-                                    )
-                                    continue
-                            # onnxruntime 版本满足不代表运行时健康（可能出现 namespace 空包或 provider 丢失）。
                             if pkg_name in ("onnxruntime", "onnxruntime-gpu"):
-                                expect_gpu_ort = (pkg_name == "onnxruntime-gpu")
+                                expect_gpu_ort = pkg_name == "onnxruntime-gpu"
                                 ort_ok, ort_err = _verify_onnxruntime_runtime(
                                     self.pyexe, expect_gpu=expect_gpu_ort, timeout=20
                                 )
@@ -446,26 +320,25 @@ class InstallWorker(QThread):
                             )
                     else:
                         pending.append(effective_p)
-            
+
             if skipped:
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
 
-            # 固定 pix2text 依赖安装顺序，降低 resolver 回溯概率。
-            pending = _reorder_pix2text_install_specs(pending, gpu_runtime_first=want_gpu_torch)
+            pending = _reorder_mathcraft_install_specs(pending, gpu_runtime_first=want_gpu_runtime)
 
             if not pending:
                 self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
                 self.progress_updated.emit(100)
                 self._emit_done_safe(True)
                 return
-            
+
             self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
 
             total = len(pending)
             done_count = 0
             fail_count = 0
-            failed_pkgs = []  # 记录失败的包
-            
+            failed_pkgs = []
+
             for idx, pkg in enumerate(pending, start=1):
                 while not self.pause_event.is_set():
                     if self.stop_event.is_set():
@@ -476,27 +349,21 @@ class InstallWorker(QThread):
                     self.log_updated.emit("[CANCEL] 用户取消安装。")
                     break
 
-                torch_url = None
-                root = re.split(r'[<>=!~ ]', pkg, 1)[0].strip().lower()
-                if root in TORCH_NAMES:
-                    if want_gpu_torch and detected_torch_url:
-                        # 使用自动检测的 CUDA 对应 URL
-                        torch_url = detected_torch_url
-                    elif want_gpu_torch:
-                        # 有 GPU 但未检测到 CUDA，使用保守兜底源
-                        torch_url = TORCH_GPU_FALLBACK_INDEX_URL
-                    elif want_cpu_torch:
-                        torch_url = TORCH_CPU_INDEX_URL
-
                 try:
                     pkg_label = re.split(r'[<>=!~ ]', pkg, 1)[0].strip()
                     self.status_updated.emit(f"正在安装第 {idx}/{total} 个包：{pkg_label}")
                     self.busy_state_changed.emit(True)
                     ok = _pip_install(
-                        self.pyexe, pkg, self.stop_event, self.log_q,
-                        use_mirror=self.mirror, flags=flags, pause_event=self.pause_event,
-                        torch_url=torch_url, force_reinstall=self.force_reinstall, no_cache=self.no_cache,
-                        proc_setter=lambda p: setattr(self, "proc", p)
+                        self.pyexe,
+                        pkg,
+                        self.stop_event,
+                        self.log_q,
+                        use_mirror=self.mirror,
+                        flags=flags,
+                        pause_event=self.pause_event,
+                        force_reinstall=self.force_reinstall,
+                        no_cache=self.no_cache,
+                        proc_setter=lambda p: setattr(self, "proc", p),
                     )
                 except Exception as e:
                     ok = False
@@ -522,63 +389,14 @@ class InstallWorker(QThread):
                 self._emit_done_safe(False)
                 return
 
-            runtime_stack_ok = True
-            runtime_stack_err = ""
-            # CORE/HEAVY 相关场景下，额外检查 torch/torchvision 二进制一致性。
-            if any(x in (self.chosen_layers or []) for x in ("CORE", "HEAVY_CPU", "HEAVY_GPU")):
-                stack_ok, stack_err = _verify_torch_stack_runtime(self.pyexe, timeout=45)
-                if not stack_ok:
-                    runtime_stack_ok = False
-                    runtime_stack_err = stack_err
-                    self.log_updated.emit("[WARN] 检测到 torch/torchvision 二进制不兼容，尝试自动修复...")
-                    self.log_updated.emit(f"[DIAG] {stack_err[:400]}")
-                    repair_torch_url = None
-                    if want_gpu_torch:
-                        repair_torch_url = detected_torch_url or TORCH_GPU_FALLBACK_INDEX_URL
-                    elif want_cpu_torch:
-                        repair_torch_url = TORCH_CPU_INDEX_URL
-                    repaired = _repair_torch_stack(
-                        self.pyexe,
-                        self.stop_event,
-                        self.pause_event,
-                        self.log_q,
-                        mirror=self.mirror,
-                        torch_url=repair_torch_url,
-                        proc_setter=lambda p: setattr(self, "proc", p),
-                    )
-                    if repaired:
-                        stack_ok2, stack_err2 = _verify_torch_stack_runtime(self.pyexe, timeout=60)
-                        runtime_stack_ok = stack_ok2
-                        if stack_ok2:
-                            self.log_updated.emit("[OK] torch/torchvision 自动修复成功 ✅")
-                        else:
-                            runtime_stack_err = stack_err2
-                            self.log_updated.emit(f"[ERR] torch 栈仍异常: {stack_err2[:400]}")
-
-            # 无论成功与否，都尝试修复关键版本
-            # 这是必要的，用于避免 pix2text 依赖回溯和版本漂移
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
-
-            # 关键版本修复后再做一次 torch 栈复核：
-            # torch 索引源可能把 numpy 升到 2.x，修复后需要重新确认 _C 可正常加载。
-            if any(x in (self.chosen_layers or []) for x in ("CORE", "HEAVY_CPU", "HEAVY_GPU")):
-                stack_ok_after_fix, stack_err_after_fix = _verify_torch_stack_runtime(self.pyexe, timeout=60)
-                if stack_ok_after_fix:
-                    if not runtime_stack_ok:
-                        self.log_updated.emit("[OK] 关键版本修复后 torch/torchvision 验证通过 ✅")
-                    runtime_stack_ok = True
-                    runtime_stack_err = ""
-                else:
-                    runtime_stack_ok = False
-                    runtime_stack_err = stack_err_after_fix
-                    self.log_updated.emit(f"[WARN] 关键版本修复后 torch 栈仍异常: {stack_err_after_fix[:400]}")
 
             runtime_ort_ok = True
             runtime_ort_err = ""
-            if want_gpu_torch:
+            if want_gpu_runtime:
                 runtime_ort_ok, runtime_ort_err = _repair_gpu_onnxruntime_runtime(
                     self.pyexe,
-                    resolved_onnx_gpu_spec,
+                    ORT_GPU_DEFAULT_SPEC,
                     self.stop_event,
                     self.pause_event,
                     self.log_q,
@@ -591,23 +409,27 @@ class InstallWorker(QThread):
                     self.log_updated.emit("[OK] onnxruntime-gpu runtime check passed ✅")
                 else:
                     self.log_updated.emit(f"[WARN] onnxruntime-gpu runtime still invalid: {runtime_ort_err[:400]}")
+            elif want_cpu_runtime:
+                runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_runtime(
+                    self.pyexe, expect_gpu=False, timeout=45
+                )
+                if runtime_ort_ok:
+                    self.log_updated.emit("[OK] onnxruntime CPU runtime check passed ✅")
+                else:
+                    self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
-            all_ok = (fail_count == 0) and runtime_stack_ok and runtime_ort_ok
-            
+            all_ok = (fail_count == 0) and runtime_ort_ok
+
             if all_ok:
                 self.log_updated.emit("[OK] 所有依赖安装成功 ✅")
-            elif fail_count == 0 and (not runtime_stack_ok or not runtime_ort_ok):
-                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但运行时验证失败 ❌")
-                self.log_updated.emit("[WARN] 失败类型：torch/torchvision 二进制加载异常")
-                if runtime_stack_err:
-                    self.log_updated.emit(f"[DIAG] {runtime_stack_err[:600]}")
+            elif fail_count == 0 and not runtime_ort_ok:
+                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败 ❌")
                 if runtime_ort_err:
-                    self.log_updated.emit("[WARN] failure type: onnxruntime-gpu runtime conflict")
                     self.log_updated.emit(f"[DIAG] {runtime_ort_err[:600]}")
                 self.log_updated.emit("")
                 self.log_updated.emit("💡 建议操作:")
-                self.log_updated.emit("  1. 在依赖向导中仅选择 HEAVY_CPU 或 HEAVY_GPU 之一重装")
-                self.log_updated.emit("  2. 如仍失败，先卸载 torch/torchvision/torchaudio 后再安装匹配版本")
+                self.log_updated.emit("  1. 在依赖向导中仅选择 MATHCRAFT_CPU 或 MATHCRAFT_GPU 之一重装")
+                self.log_updated.emit("  2. 如仍失败，先卸载 onnxruntime / onnxruntime-gpu 后再重装对应后端")
                 self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
             else:
                 self.log_updated.emit(f"[WARN] 部分安装失败，共 {fail_count}/{total} 个 ❌")
@@ -641,25 +463,22 @@ class InstallWorker(QThread):
             self.log_updated.emit(f"[FATAL] 安装线程未捕获异常: {e}\n{tb}")
             self._emit_done_safe(False)
 
+
 class LayerVerifyWorker(QThread):
     log_updated = pyqtSignal(str)
     done = pyqtSignal(list, list)  # (ok_layers, fail_layers)
 
-    def __init__(self, pyexe: str, chosen_layers: list, state_path, strict: bool = False):
+    def __init__(self, pyexe: str, chosen_layers: list, state_path):
         super().__init__()
         self.pyexe = pyexe
         self.chosen_layers = list(chosen_layers or [])
         self.state_path = state_path
-        self.strict = bool(strict)
 
     def run(self):
         verify_ok_layers = []
         verify_fail_layers = []
         for lyr in self.chosen_layers:
-            timeout = 120 if self.strict else 60
-            v_ok, v_err = _verify_layer_runtime(
-                self.pyexe, lyr, timeout=timeout, strict=self.strict
-            )
+            v_ok, v_err = _verify_layer_runtime(self.pyexe, lyr, timeout=60)
             if v_ok:
                 verify_ok_layers.append(lyr)
                 self.log_updated.emit(f"  [OK] {lyr} 验证通过")
@@ -671,11 +490,11 @@ class LayerVerifyWorker(QThread):
             state = _load_json(self.state_path, {"installed_layers": []})
             current_layers = set(state.get("installed_layers", []))
             current_layers.update(verify_ok_layers)
-            # HEAVY 层互斥：成功写回时只保留一个。
-            if "HEAVY_GPU" in verify_ok_layers:
-                current_layers.discard("HEAVY_CPU")
-            elif "HEAVY_CPU" in verify_ok_layers:
-                current_layers.discard("HEAVY_GPU")
+            # MathCraft ONNX 后端互斥：成功写回时只保留一个。
+            if "MATHCRAFT_GPU" in verify_ok_layers:
+                current_layers.discard("MATHCRAFT_CPU")
+            elif "MATHCRAFT_CPU" in verify_ok_layers:
+                current_layers.discard("MATHCRAFT_GPU")
             payload = {"installed_layers": sorted(list(current_layers))}
             payload["failed_layers"] = [layer for layer in verify_fail_layers if layer in LAYER_MAP] if verify_fail_layers else []
             _save_json(self.state_path, payload)
@@ -767,80 +586,172 @@ def _config_dir_path() -> Path:
     return p
 
 # 需要特殊处理的包
-TORCH_NAMES = {"torch", "torchvision", "torchaudio"}
 QT_PKGS = {"pyqt6", "pyqt6-qt6", "pyqt6-webengine", "pyqt6-webengine-qt6"}
-TORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
-# GPU 回退源必须仍是 GPU 源，避免 HEAVY_GPU 误装成 CPU 轮子
-TORCH_GPU_FALLBACK_INDEX_URL = "https://download.pytorch.org/whl/cu118"
-TORCH_BUILD_MATRIX = {
-    "cu118": ("2.7.1", "0.22.1", "2.7.1"),
-    "cu121": ("2.5.1", "0.20.1", "2.5.1"),
-    "cu124": ("2.5.1", "0.20.1", "2.5.1"),
-    "cu126": ("2.7.1", "0.22.1", "2.7.1"),
-    "cu128": ("2.7.1", "0.22.1", "2.7.1"),
-    "cu129": ("2.8.0", "0.23.0", "2.8.0"),
-    "cu130": ("2.9.0", "0.24.0", "2.9.0"),
-}
-TORCH_CPU_BUILD = ("2.9.0", "0.24.0", "2.9.0")
-ORT_GPU_BY_TAG = {
-    # CUDA 11.8 使用 1.18.x；CUDA 12+ 使用 1.19.x
-    "cu118": "onnxruntime-gpu~=1.18.1",
-}
+ORT_CPU_SPEC = "onnxruntime~=1.19.2"
 ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu~=1.19.2"
-
-def _torch_specs_for_index_url(torch_url: str | None, prefer_gpu: bool = False) -> dict:
-    """
-    根据 index-url 返回 torch 三件套版本规格：
-    {'torch': 'torch==x', 'torchvision': 'torchvision==y', 'torchaudio': 'torchaudio==z'}
-    """
-    tag = "cpu"
-    if torch_url:
-        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
-        if m:
-            tag = m.group(1).lower()
-    if tag == "cpu":
-        t, tv, ta = TORCH_CPU_BUILD
-    else:
-        if tag not in TORCH_BUILD_MATRIX:
-            # 非预期标签时，GPU 场景回退最高可用，CPU 场景回退 CPU
-            if prefer_gpu:
-                t, tv, ta = TORCH_BUILD_MATRIX["cu130"]
-            else:
-                t, tv, ta = TORCH_CPU_BUILD
-        else:
-            t, tv, ta = TORCH_BUILD_MATRIX[tag]
-    return {
-        "torch": f"torch=={t}",
-        "torchvision": f"torchvision=={tv}",
-        "torchaudio": f"torchaudio=={ta}",
-    }
-
-def _onnxruntime_gpu_spec_for_torch_url(torch_url: str | None, prefer_gpu: bool = False) -> str:
-    """
-    根据 torch index-url 推断 onnxruntime-gpu 规格。
-    规则：
-    - cu118 -> onnxruntime-gpu~=1.18.1
-    - 其他已知/未知 CUDA 标签 -> onnxruntime-gpu~=1.19.2
-    """
-    if not prefer_gpu:
-        return ORT_GPU_DEFAULT_SPEC
-    tag = "cpu"
-    if torch_url:
-        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
-        if m:
-            tag = m.group(1).lower()
-    return ORT_GPU_BY_TAG.get(tag, ORT_GPU_DEFAULT_SPEC)
-
+pip_ready_event = threading.Event()
+PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 # 关键版本约束（防止 pip 自动升级导致兼容性问题）
 CRITICAL_VERSIONS = {
-    "pix2text": "pix2text==1.1.6",
-    "cnocr": "cnocr==2.3.2.2",
-    "cnstd": "cnstd==1.2.6.1",
+    "numpy": "numpy>=1.26,<3",
+    "sympy": "sympy>=1.13,<1.15",
+    "flatbuffers": "flatbuffers>=24.3.25",
+    "packaging": "packaging>=23",
+    "coloredlogs": "coloredlogs>=15.0.1",
     "rapidocr": "rapidocr==3.5.0",
     "protobuf": "protobuf>=3.20,<5",
 }
 
-def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
+RUNTIME_IMPORT_CHECKS = {
+    "numpy": "numpy",
+    "sympy": "sympy",
+    "flatbuffers": "flatbuffers",
+    "packaging": "packaging",
+    "coloredlogs": "coloredlogs",
+    "protobuf": "google.protobuf",
+}
+
+
+def _cleanup_pip_interrupted_leftovers(pyexe: str | Path, log_fn=None) -> int:
+    """Remove pip's half-uninstalled '~pkg' leftovers from the target site-packages."""
+    try:
+        site_packages = _site_packages_root(Path(pyexe))
+    except Exception:
+        site_packages = None
+    if not site_packages or not site_packages.exists():
+        return 0
+
+    removed: list[str] = []
+    for item in site_packages.iterdir():
+        if not item.name.startswith("~"):
+            continue
+        try:
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+            removed.append(item.name)
+        except Exception as e:
+            if log_fn:
+                log_fn(f"  [WARN] 清理 pip 残留失败 {item.name}: {e}")
+
+    if removed and log_fn:
+        shown = ", ".join(removed[:8])
+        suffix = "..." if len(removed) > 8 else ""
+        log_fn(f"[INFO] 已清理 pip 中断残留: {shown}{suffix}")
+    return len(removed)
+
+
+def _verify_runtime_support_imports(pyexe: str, timeout: int = 30) -> tuple[bool, str]:
+    """Verify core imports that ONNX Runtime relies on after pip repair."""
+    code = (
+        "import importlib, json, traceback\n"
+        f"mods = {json.dumps(RUNTIME_IMPORT_CHECKS, ensure_ascii=False)}\n"
+        "bad = []\n"
+        "for pkg, mod in mods.items():\n"
+        " try:\n"
+        "  importlib.import_module(mod)\n"
+        " except BaseException as e:\n"
+        "  bad.append({'pkg': pkg, 'module': mod, 'err': f'{type(e).__name__}: {e}', 'traceback': traceback.format_exc()[-1200:]})\n"
+        "print(json.dumps({'ok': not bad, 'bad': bad}, ensure_ascii=False))\n"
+    )
+    try:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        result = subprocess.run(
+            [str(pyexe), "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        raw = "\n".join([(result.stdout or ""), (result.stderr or "")]).strip()
+        payload = None
+        for line in reversed(raw.splitlines()):
+            s = line.strip()
+            if s.startswith("{") and s.endswith("}"):
+                try:
+                    payload = json.loads(s)
+                    break
+                except Exception:
+                    pass
+        if not isinstance(payload, dict):
+            return False, f"runtime dependency check no json output: {raw[:400]}"
+        if payload.get("ok"):
+            return True, ""
+        bad = payload.get("bad") or []
+        if bad:
+            first = bad[0]
+            return False, f"{first.get('pkg')}: {first.get('err') or 'unknown'}"
+        return False, "runtime dependency check failed: unknown"
+    except subprocess.TimeoutExpired:
+        return False, "runtime dependency check timeout"
+    except Exception as e:
+        return False, str(e)
+
+
+def _force_repair_broken_runtime_imports(
+    pyexe: str,
+    log_fn=None,
+    use_mirror: bool = False,
+    max_rounds: int = 4,
+) -> tuple[bool, str]:
+    """Force-reinstall only the runtime support package whose import is actually broken."""
+    last_err = ""
+    for _ in range(max_rounds):
+        ok, err = _verify_runtime_support_imports(pyexe)
+        if ok:
+            return True, ""
+        last_err = err
+        pkg = (err.split(":", 1)[0] if err else "").strip().lower()
+        spec = CRITICAL_VERSIONS.get(pkg)
+        if not spec:
+            return False, err
+
+        if log_fn:
+            log_fn(f"  [WARN] {pkg} 导入失败，定点强制修复: {err[:240]}")
+        cmd = [
+            str(pyexe),
+            "-m",
+            "pip",
+            "install",
+            spec,
+            "--upgrade",
+            "--force-reinstall",
+            "--no-deps",
+            *PIP_INSTALL_SUPPRESS_ARGS,
+        ]
+        if use_mirror:
+            cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=240,
+                creationflags=flags,
+            )
+            if result.returncode != 0:
+                raw = (result.stderr or result.stdout or "").strip().replace("\r", "")
+                if log_fn:
+                    log_fn(f"  [WARN] 强制修复 {pkg} 失败: {raw[:400]}")
+                return False, raw[:400] or err
+            if log_fn:
+                log_fn(f"  [OK] 已强制修复 {pkg}")
+        except subprocess.TimeoutExpired:
+            return False, f"{pkg} force repair timeout"
+        except Exception as e:
+            return False, str(e)
+
+    ok, err = _verify_runtime_support_imports(pyexe)
+    return ok, err or last_err
+
+
+def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
     """
     安装完成后强制修复关键依赖版本。
     """
@@ -848,6 +759,8 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
     
     if log_fn:
         log_fn("[INFO] 正在修复关键依赖版本...")
+
+    _cleanup_pip_interrupted_leftovers(pyexe, log_fn)
     
     installed_before = _current_installed(pyexe)
 
@@ -857,7 +770,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
             if cur and _version_satisfies_spec(pkg, cur, spec):
                 continue
             # 使用 --no-deps 避免触发依赖解析
-            cmd = [str(pyexe), "-m", "pip", "install", spec, "--no-deps", "--force-reinstall", *PIP_INSTALL_SUPPRESS_ARGS]
+            cmd = [str(pyexe), "-m", "pip", "install", spec, "--upgrade", "--no-deps", *PIP_INSTALL_SUPPRESS_ARGS]
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             timeout_sec = 180
@@ -878,115 +791,60 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False):
     if log_fn:
         log_fn("[INFO] 关键版本修复完成")
 
+    ok, err = _verify_runtime_support_imports(pyexe)
+    if not ok:
+        ok, err = _force_repair_broken_runtime_imports(
+            pyexe,
+            log_fn=log_fn,
+            use_mirror=use_mirror,
+        )
+    if log_fn:
+        if ok:
+            log_fn("[OK] ONNX Runtime 关键依赖导入检查通过")
+        else:
+            log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
+    return ok
+
 # 各功能层的运行时验证测试代码
-# CORE 默认只做轻量导入验证；真实模型初始化仅在 strict 模式执行。
-_CORE_LIGHT_VERIFY_CODE = """
-import importlib.metadata
+_CORE_VERIFY_CODE = """
 import importlib.util
 
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
+for mod in ("transformers", "rapidocr", "cv2", "PIL", "latex2mathml.converter", "matplotlib", "fitz"):
+    if importlib.util.find_spec(mod) is None:
+        raise RuntimeError(f"{mod} not installed")
 
-print("pix2text version:", importlib.metadata.version("pix2text"))
-
-# 仅验证核心依赖和 Pix2Text 本体可导入，不在普通安装后验证中触发模型下载/初始化。
-from pix2text import Pix2Text
-import latex2mathml.converter
-import matplotlib
-import matplotlib.mathtext
-import fitz
-print("CORE OK")
-"""
-
-# strict 模式下触发真实模型初始化，用于设置页/强制验证路径。
-_CORE_PIX2TEXT_VERIFY_CODE = """
-import importlib.metadata
-import importlib.util
-import warnings
-from pathlib import Path
-
-if importlib.util.find_spec("pix2text") is None:
-    raise RuntimeError("pix2text not installed")
-
-print("pix2text version:", importlib.metadata.version("pix2text"))
-
-try:
-    from rapidocr.inference_engine.onnxruntime import main as _rapidocr_ort_main
-    _orig_init = _rapidocr_ort_main.OrtInferSession.__init__
-    if not getattr(_orig_init, "_latexsnipper_model_root_dir_patch", False):
-        def _patched_init(self, cfg):
-            try:
-                if cfg.get("model_root_dir") is None:
-                    model_path = cfg.get("model_path")
-                    if model_path:
-                        cfg["model_root_dir"] = str(Path(model_path).expanduser().resolve().parent)
-            except Exception:
-                try:
-                    model_path = cfg.get("model_path")
-                    if model_path:
-                        cfg["model_root_dir"] = str(Path(model_path).parent)
-                except Exception:
-                    pass
-            return _orig_init(self, cfg)
-
-        _patched_init._latexsnipper_model_root_dir_patch = True
-        _rapidocr_ort_main.OrtInferSession.__init__ = _patched_init
-except Exception:
-    pass
-
-warnings.filterwarnings("ignore")
-from pix2text import Pix2Text
-stable_cfg = {
-    "layout": {"model_type": "DocYoloLayoutParser"},
-    "text_formula": {
-        "formula": {"model_name": "mfr", "model_backend": "onnx"}
-    },
-}
-Pix2Text.from_config(total_configs=stable_cfg, device="cpu", enable_table=False)
-import latex2mathml.converter
-import matplotlib
-import matplotlib.mathtext
-import fitz
 print("CORE OK")
 """
 
 LAYER_VERIFY_CODE = {
     "BASIC": """
-import numpy as np
 import PIL
 import requests
 import lxml
-# BASIC 仅验证非 GUI 运行依赖
-import onnxruntime as onnxruntime
 import argostranslate
 print("BASIC OK")
 """,
-    "CORE": _CORE_LIGHT_VERIFY_CODE,
-    "HEAVY_CPU": """
-import torch
-print("torch version:", torch.__version__)
-print("HEAVY_CPU OK")
+    "CORE": _CORE_VERIFY_CODE,
+    "MATHCRAFT_CPU": """
+import onnxruntime as ort
+providers = ort.get_available_providers()
+if "CPUExecutionProvider" not in providers:
+    raise RuntimeError(f"CPUExecutionProvider unavailable: {providers}")
+print("ONNX providers:", providers)
+print("MATHCRAFT_CPU OK")
 """,
-    "HEAVY_GPU": """
-import torch
-if not torch.cuda.is_available():
-    raise RuntimeError("CUDA not available")
+    "MATHCRAFT_GPU": """
 import onnxruntime as ort
 providers = ort.get_available_providers()
 if "CUDAExecutionProvider" not in providers:
-    raise RuntimeError(f"onnxruntime CUDAExecutionProvider unavailable: {providers}")
-print("CUDA device:", torch.cuda.get_device_name(0))
+    raise RuntimeError(f"CUDAExecutionProvider unavailable: {providers}")
 print("ONNX providers:", providers)
-print("HEAVY_GPU OK")
+print("MATHCRAFT_GPU OK")
 """,
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
-LAYER_VERIFY_CODE_STRICT = {
-    "CORE": _CORE_PIX2TEXT_VERIFY_CODE,
-}
-
-def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: bool = False) -> tuple:
+def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     """
     验证某个功能层是否能在运行时正常工作。
     
@@ -995,12 +853,9 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: boo
     import subprocess
     
     if layer == "CORE":
-        timeout = max(timeout, 360 if strict else 120)
+        timeout = max(timeout, 120)
 
-    if strict and layer in LAYER_VERIFY_CODE_STRICT:
-        code = LAYER_VERIFY_CODE_STRICT[layer]
-        timeout = max(timeout, 180)
-    elif layer in LAYER_VERIFY_CODE:
+    if layer in LAYER_VERIFY_CODE:
         code = LAYER_VERIFY_CODE[layer]
     else:
         # 没有验证代码的层，默认通过
@@ -1032,7 +887,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60, strict: boo
     except Exception as e:
         return False, str(e)
 
-def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None, strict: bool = False) -> list:
+def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
     """
     验证声称已安装的层是否真正可用。
     
@@ -1040,7 +895,7 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None, stri
     """
     verified = []
     for layer in claimed_layers:
-        ok, err = _verify_layer_runtime(pyexe, layer, strict=strict)
+        ok, err = _verify_layer_runtime(pyexe, layer)
         if ok:
             verified.append(layer)
             if log_fn:
@@ -1050,47 +905,6 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None, stri
                 log_fn(f"[WARN] {layer} 层验证失败: {err[:200]}")
     return verified
 
-def _verify_torch_stack_runtime(pyexe: str, timeout: int = 45) -> tuple[bool, str]:
-    """
-    验证 torch/torchvision 二进制是否匹配。
-    注意：不直接 `from torchvision import _C`，该导入在部分版本会误报 SystemError，
-    即使 torchvision ops 后端已经正常加载。
-    """
-    code = (
-        "import torch\n"
-        "import torchvision\n"
-        "from torchvision import extension as _tv_ext\n"
-        "from torchvision import ops as _tv_ops\n"
-        "if not getattr(_tv_ext, '_HAS_OPS', False):\n"
-        "    raise RuntimeError('torchvision ops backend not loaded')\n"
-        "boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0]], dtype=torch.float32)\n"
-        "scores = torch.tensor([0.9], dtype=torch.float32)\n"
-        "_ = _tv_ops.nms(boxes, scores, 0.5)\n"
-        "print('torch', torch.__version__)\n"
-        "print('torchvision', torchvision.__version__)\n"
-    )
-    try:
-        env = os.environ.copy()
-        env["PYTHONUTF8"] = "1"
-        env["PYTHONIOENCODING"] = "utf-8"
-        result = subprocess.run(
-            [str(pyexe), "-c", code],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        if result.returncode == 0:
-            return True, ""
-        err = (result.stderr or result.stdout or "").strip()
-        return False, "\n".join(err.splitlines()[-12:])
-    except subprocess.TimeoutExpired:
-        return False, "torch 栈验证超时"
-    except Exception as e:
-        return False, str(e)
 
 
 def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: int = 30) -> tuple[bool, str]:
@@ -1100,7 +914,7 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
     - GPU 场景必须包含 CUDAExecutionProvider
     """
     code = (
-        "import json\n"
+        "import json, traceback\n"
         "out = {'ok': False, 'file': '', 'has_func': False, 'providers': [], 'err': ''}\n"
         "try:\n"
         " import onnxruntime as ort\n"
@@ -1109,8 +923,9 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
         " if out['has_func']:\n"
         "  out['providers'] = list(ort.get_available_providers() or [])\n"
         " out['ok'] = True\n"
-        "except Exception as e:\n"
-        " out['err'] = str(e)\n"
+        "except BaseException as e:\n"
+        " out['err'] = f'{type(e).__name__}: {e}'\n"
+        " out['traceback'] = traceback.format_exc()[-1600:]\n"
         "print(json.dumps(out, ensure_ascii=False))\n"
     )
     try:
@@ -1142,7 +957,8 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
         if not isinstance(payload, dict):
             return False, f"onnxruntime check no json output: {raw[:240]}"
         if not payload.get("ok"):
-            return False, f"onnxruntime import failed: {(payload.get('err') or 'unknown')[:240]}"
+            detail = payload.get("err") or payload.get("traceback") or "unknown"
+            return False, f"onnxruntime import failed: {str(detail)[:400]}"
         if not payload.get("has_func"):
             return False, "onnxruntime missing get_available_providers (broken namespace package)"
         providers = payload.get("providers") or []
@@ -1200,7 +1016,16 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
     if ort_ok:
         return True, ""
 
-    log_q.put(f"[WARN] onnxruntime-gpu 运行时异常，准备重装: {ort_err}")
+    log_q.put(f"[WARN] onnxruntime-gpu 运行时异常，先修复 ONNX 关键依赖链: {ort_err}")
+    _fix_critical_versions(pyexe, log_q.put, use_mirror=use_mirror)
+
+    ort_ok_after_deps, ort_err_after_deps = _verify_onnxruntime_runtime(
+        pyexe, expect_gpu=True, timeout=45
+    )
+    if ort_ok_after_deps:
+        return True, ""
+
+    log_q.put(f"[WARN] ONNX 关键依赖修复后仍异常，刷新 onnxruntime-gpu 本体: {ort_err_after_deps}")
     repaired = _pip_install(
         pyexe,
         ort_gpu_spec,
@@ -1209,162 +1034,52 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
         use_mirror=use_mirror,
         flags=flags,
         pause_event=pause_event,
-        force_reinstall=True,
+        force_reinstall=False,
         no_cache=no_cache,
         proc_setter=proc_setter,
     )
     if not repaired:
-        return False, ort_err
+        return False, ort_err_after_deps or ort_err
 
     ort_ok2, ort_err2 = _verify_onnxruntime_runtime(pyexe, expect_gpu=True, timeout=45)
-    return ort_ok2, (ort_err2 or ort_err)
+    return ort_ok2, (ort_err2 or ort_err_after_deps or ort_err)
 
 
-def _verify_torch_metadata_runtime(pyexe: str, timeout: int = 20) -> tuple[bool, str]:
-    """
-    验证 torch 元数据与运行时是否一致可用。
-    目标：避免 `import torch` 可用但 `importlib.metadata.version('torch')` 缺失，
-    导致 transformers 误判“no torch”.
-    """
-    code = (
-        "import json\n"
-        "out = {'ok': False, 'meta_ok': False, 'import_ok': False, 'ver': '', 'err': ''}\n"
-        "try:\n"
-        " import importlib.metadata as _m\n"
-        " out['ver'] = _m.version('torch')\n"
-        " out['meta_ok'] = True\n"
-        "except Exception as e:\n"
-        " out['err'] = f'metadata: {e}'\n"
-        "try:\n"
-        " import torch\n"
-        " _ = torch.__version__\n"
-        " out['import_ok'] = True\n"
-        "except Exception as e:\n"
-        " out['err'] = (out.get('err','') + '; import: ' + str(e)).strip('; ')\n"
-        "out['ok'] = bool(out['meta_ok'] and out['import_ok'])\n"
-        "print(json.dumps(out, ensure_ascii=False))\n"
-    )
-    try:
-        env = os.environ.copy()
-        env["PYTHONUTF8"] = "1"
-        env["PYTHONIOENCODING"] = "utf-8"
-        result = subprocess.run(
-            [str(pyexe), "-c", code],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        raw = "\n".join([(result.stdout or ""), (result.stderr or "")]).strip()
-        payload = None
-        for line in reversed(raw.splitlines()):
-            s = line.strip()
-            if s.startswith("{") and s.endswith("}"):
-                try:
-                    payload = json.loads(s)
-                    break
-                except Exception:
-                    pass
-        if not isinstance(payload, dict):
-            return False, f"torch metadata check no json output: {raw[:200]}"
-        if payload.get("ok"):
-            return True, ""
-        return False, payload.get("err", "torch metadata/runtime not healthy")
-    except subprocess.TimeoutExpired:
-        return False, "torch metadata check timeout"
-    except Exception as e:
-        return False, str(e)
-
-def _repair_torch_stack(
-    pyexe: str,
-    stop_event,
-    pause_event,
-    log_q,
-    mirror: bool = False,
-    torch_url: str | None = None,
-    proc_setter=None,
-) -> bool:
-    """
-    卸载并重装 torch 三件套，修复 torchvision._C 等二进制入口点错误。
-    """
-    if stop_event.is_set():
-        return False
-    try:
-        log_q.put("[INFO] 正在卸载旧的 torch/torchvision/torchaudio ...")
-        subprocess.run([str(pyexe), "-m", "pip", "uninstall", "-y", "torch", "torchvision", "torchaudio"],
-                       timeout=240, creationflags=flags)
-    except Exception as e:
-        log_q.put(f"[WARN] 卸载 torch 三件套异常: {e}")
-
-    spec_map = _torch_specs_for_index_url(torch_url, prefer_gpu=bool(torch_url and torch_url != TORCH_CPU_INDEX_URL))
-    pkgs = [spec_map["torch"], spec_map["torchvision"], spec_map["torchaudio"]]
-    for spec in pkgs:
-        if stop_event.is_set():
-            return False
-        ok = _pip_install(
-            pyexe,
-            spec,
-            stop_event,
-            log_q,
-            use_mirror=mirror,
-            flags=flags,
-            torch_url=torch_url,
-            pause_event=pause_event,
-            force_reinstall=True,
-            # torch 轮子体积很大；修复重试时保留缓存，避免每次都重新下载数 GB
-            no_cache=False,
-            proc_setter=proc_setter,
-        )
-        if not ok:
-            return False
-    return True
-
-# 分层依赖（保持原始规格；含 +cu 与 ~= 的组合后续会自动规范化）
+# MathCraft v1 分层依赖：识别运行时只区分 ONNX CPU/GPU 后端。
 LAYER_MAP = {
     "BASIC": [
         "lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0",
         "requests~=2.32.5",
-        "filelock~=3.13.1",
         "argostranslate~=1.9.6",
-        "pydantic~=2.9.2", "regex~=2026.4.4",
-        "safetensors~=0.6.2", "sentencepiece==0.2.0",
-        "certifi~=2026.2.25", "idna~=3.6", "urllib3~=2.5.0",
+        "certifi~=2026.2.25",
         "psutil~=7.1.0",
     ],
-    # ❗ CORE 只保留应用直接使用的依赖（pix2text + 文档导出链路）
     "CORE": [
         "transformers==4.55.4",
         "tokenizers==0.21.4",
-        "optimum-onnx>=0.0.3",
+        "sentencepiece==0.2.0",
         "opencv-python==4.13.0.92",
         "rapidocr==3.5.0",
-        "cnstd==1.2.6.1",
-        "cnocr==2.3.2.2",
-        "pix2text==1.1.6",
-        "protobuf>=3.20,<5",  # wandb 需要旧版 protobuf，6.x 会导致 Result 属性缺失
-        "latex2mathml>=3.81.0",  # LaTeX 转 MathML 的支持
-        "matplotlib~=3.10.8",  # LaTeX 公式转 SVG 的支持
-        "pymupdf~=1.27.2.2",  # PDF 识别依赖
+        "numpy>=1.26,<3",
+        "packaging>=23",
+        "flatbuffers>=24.3.25",
+        "coloredlogs>=15.0.1",
+        "sympy>=1.13,<1.15",
+        "protobuf>=3.20,<5",
+        "latex2mathml>=3.81.0",
+        "matplotlib~=3.10.8",
+        "pymupdf~=1.27.2.2",
     ],
-    # HEAVY_CPU: PyTorch CPU 版层（torch 三件套版本会在安装时按策略动态改写）
-    "HEAVY_CPU": [
-        "torch==2.7.1",
-        "torchvision==0.22.1",
-        "torchaudio==2.7.1",
-        "onnxruntime~=1.19.2",
+    "MATHCRAFT_CPU": [
+        ORT_CPU_SPEC,
     ],
-    # HEAVY_GPU: PyTorch GPU 版层（torch 与 onnxruntime-gpu 版本会在安装时按 CUDA 动态改写）
-    "HEAVY_GPU": [
-        "torch==2.7.1",
-        "torchvision==0.22.1",
-        "torchaudio==2.7.1",
-        "onnxruntime-gpu~=1.19.2",
+    "MATHCRAFT_GPU": [
+        ORT_GPU_DEFAULT_SPEC,
     ],
 }
+
+MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
 
 SKIP_PREFIX = {"pip","setuptools","wheel","python","openssl","zlib","ninja"}
 
@@ -1388,12 +1103,7 @@ def _save_json(p: Path, data, log_q=None):
             log_q.put(msg)
 
 def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
-    """
-    规范化层状态：
-    - 移除已废弃层
-    - 移除未知层
-    - 将清洗后的内容回写到状态文件
-    """
+    """规范化层状态：移除未知层，并保证 MathCraft CPU/GPU 后端互斥。"""
     if state is None:
         state = _load_json(state_path, {"installed_layers": []})
 
@@ -1408,24 +1118,20 @@ def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
     installed = [layer for layer in raw_installed if layer in LAYER_MAP]
     failed = [layer for layer in raw_failed if layer in LAYER_MAP]
 
-    # HEAVY_CPU / HEAVY_GPU 全局互斥：状态文件中不允许同时存在于 installed/failed 任意组合。
-    heavy_layers = ("HEAVY_CPU", "HEAVY_GPU")
-    present_heavy = {x for x in heavy_layers if x in installed or x in failed}
-    if len(present_heavy) > 1:
-        keep_heavy = None
-        if "HEAVY_GPU" in installed and "HEAVY_CPU" not in installed:
-            keep_heavy = "HEAVY_GPU"
-        elif "HEAVY_CPU" in installed and "HEAVY_GPU" not in installed:
-            keep_heavy = "HEAVY_CPU"
-        elif "HEAVY_GPU" in failed and "HEAVY_CPU" not in failed:
-            keep_heavy = "HEAVY_GPU"
-        elif "HEAVY_CPU" in failed and "HEAVY_GPU" not in failed:
-            keep_heavy = "HEAVY_CPU"
+    present_runtime = {x for x in MATHCRAFT_RUNTIME_LAYERS if x in installed or x in failed}
+    if len(present_runtime) > 1:
+        if "MATHCRAFT_GPU" in installed and "MATHCRAFT_CPU" not in installed:
+            keep_runtime = "MATHCRAFT_GPU"
+        elif "MATHCRAFT_CPU" in installed and "MATHCRAFT_GPU" not in installed:
+            keep_runtime = "MATHCRAFT_CPU"
+        elif "MATHCRAFT_GPU" in failed and "MATHCRAFT_CPU" not in failed:
+            keep_runtime = "MATHCRAFT_GPU"
+        elif "MATHCRAFT_CPU" in failed and "MATHCRAFT_GPU" not in failed:
+            keep_runtime = "MATHCRAFT_CPU"
         else:
-            keep_heavy = "HEAVY_GPU"
-        drop_heavy = "HEAVY_CPU" if keep_heavy == "HEAVY_GPU" else "HEAVY_GPU"
-        installed = [layer for layer in installed if layer != drop_heavy]
-        failed = [layer for layer in failed if layer != drop_heavy]
+            keep_runtime = "MATHCRAFT_GPU"
+        installed = [layer for layer in installed if layer not in MATHCRAFT_RUNTIME_LAYERS or layer == keep_runtime]
+        failed = [layer for layer in failed if layer not in MATHCRAFT_RUNTIME_LAYERS or layer == keep_runtime]
 
     changed = (installed != raw_installed) or (failed != raw_failed)
     payload = {"installed_layers": installed}
@@ -1442,22 +1148,18 @@ def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
 
 
 def _normalize_chosen_layers(layers: list[str] | None) -> list[str]:
-    """
-    Normalize selected layers and enforce HEAVY_CPU / HEAVY_GPU mutual exclusion.
-    If both appear due to stale UI state or manual state mutation, keep the later
-    HEAVY choice and drop the earlier one.
-    """
+    """Normalize selected layers and enforce MathCraft CPU/GPU backend mutual exclusion."""
     ordered: list[str] = []
     seen: set[str] = set()
     for layer in (layers or []):
         name = str(layer)
         if name not in LAYER_MAP or name in seen:
             continue
-        if name == "HEAVY_CPU" and "HEAVY_GPU" in seen:
+        if name == "MATHCRAFT_CPU" and "MATHCRAFT_GPU" in seen:
             continue
-        if name == "HEAVY_GPU" and "HEAVY_CPU" in seen:
-            ordered = [x for x in ordered if x != "HEAVY_CPU"]
-            seen.discard("HEAVY_CPU")
+        if name == "MATHCRAFT_GPU" and "MATHCRAFT_CPU" in seen:
+            ordered = [x for x in ordered if x != "MATHCRAFT_CPU"]
+            seen.discard("MATHCRAFT_CPU")
         ordered.append(name)
         seen.add(name)
     return ordered
@@ -1508,16 +1210,11 @@ def _inject_private_python_paths(pyexe: Path):
     if str(sp) not in sys.path:
         sys.path.insert(0, str(sp))
 
-    # 3) Windows: 显式加入 DLL 搜索目录，优先保证 torch 能找到其依赖
+    # 3) Windows: 显式加入私有解释器 DLL 目录，避免运行时误用系统路径。
     if os.name == "nt":
         try:
             import os as _os
-            from ctypes import windll as _windll
-            _ = _windll  # 触发 ctypes 的 Windows 加载路径机制
-            torch_lib = sp / "torch" / "lib"
             dlls_dir = pyexe.parent / "DLLs"
-            if torch_lib.exists():
-                _os.add_dll_directory(str(torch_lib))
             if dlls_dir.exists():
                 _os.add_dll_directory(str(dlls_dir))
         except Exception:
@@ -1666,33 +1363,8 @@ def _split_spec_name(spec: str) -> tuple[str, str]:
         return "", ""
     return m.group(1).lower(), (m.group(2) or "").strip()
 
-def _normalize_torch_version(ver: str) -> str:
-    """Normalize local-tag torch versions like 2.7.1+cpu -> 2.7.1 for spec check."""
-    v = (ver or "").strip()
-    if "+" in v:
-        v = v.split("+", 1)[0]
-    return v
-
-
-def _needs_torch_reinstall_for_gpu(installed_ver: str, expected_torch_tag: str = "") -> bool:
-    """
-    Decide whether a torch-family package must be reinstalled in HEAVY_GPU mode.
-    - CPU wheel or non-CUDA wheel => must reinstall
-    - CUDA tag mismatch (expected provided) => must reinstall
-    """
-    cur_ver_l = (installed_ver or "").strip().lower()
-    if ("+cpu" in cur_ver_l) or ("+cu" not in cur_ver_l):
-        return True
-    tag = (expected_torch_tag or "").strip().lower()
-    if tag and (f"+{tag}" not in cur_ver_l):
-        return True
-    return False
-
 def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> bool:
-    """
-    Check whether installed version satisfies requirement spec.
-    Uses PEP440 SpecifierSet; torch family ignores local tag suffix (+cpu/+cu118).
-    """
+    """Check whether installed version satisfies requirement spec."""
     name, constraint = _split_spec_name(spec)
     if not name:
         return True
@@ -1703,12 +1375,8 @@ def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> boo
     try:
         from packaging.specifiers import SpecifierSet
         from packaging.version import Version
-        check_ver = installed_ver or ""
-        if name in TORCH_NAMES:
-            check_ver = _normalize_torch_version(check_ver)
-        return Version(check_ver) in SpecifierSet(constraint)
+        return Version(installed_ver or "") in SpecifierSet(constraint)
     except Exception:
-        # Fallback: if parsing failed, do not block installation flow.
         return True
 
 def _filter_packages(pkgs):
@@ -1722,15 +1390,11 @@ def _filter_packages(pkgs):
             continue
         seen.add(name)
         res.append(spec)
-    return _reorder_pix2text_install_specs(res)
+    return _reorder_mathcraft_install_specs(res)
 
 
-def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
-    """
-    Keep pix2text dependency chain in a stable order to reduce pip backtracking.
-    When installing the GPU layer, install the GPU runtime before pix2text so
-    pip does not temporarily settle on CPU torch/onnxruntime from pix2text deps.
-    """
+def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
+    """Keep MathCraft / ONNX dependency chain in a stable order to reduce pip backtracking."""
     if not pkgs:
         return []
     names = {
@@ -1739,28 +1403,20 @@ def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
     }
     if gpu_runtime_first or "onnxruntime-gpu" in names:
         priority = (
-            "torch",
-            "torchvision",
-            "torchaudio",
             "onnxruntime-gpu",
             "transformers",
             "tokenizers",
-            "optimum-onnx",
             "rapidocr",
-            "cnstd",
-            "cnocr",
-            "pix2text",
+            "opencv-python",
             "pymupdf",
         )
     else:
         priority = (
+            "onnxruntime",
             "transformers",
             "tokenizers",
-            "optimum-onnx",
             "rapidocr",
-            "cnstd",
-            "cnocr",
-            "pix2text",
+            "opencv-python",
             "pymupdf",
         )
     grouped = {k: [] for k in priority}
@@ -1777,181 +1433,13 @@ def _reorder_pix2text_install_specs(pkgs, gpu_runtime_first=False):
     out.extend(tail)
     return out
 
+
 def _gpu_available():
     try:
         r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2, creationflags=flags)
         return r.returncode == 0
     except Exception:
         return False
-
-def _detect_cuda_version() -> tuple:
-    """
-    检测系统安装的 CUDA Toolkit 版本。
-    
-    返回: (major, minor, full_version_str) 或 (None, None, None) 如果未检测到
-    
-    检测顺序（重要：优先检测实际安装的 CUDA Toolkit，而非驱动支持版本）：
-    1. nvcc --version（CUDA Toolkit 实际安装版本 - 最重要）
-    2. 环境变量 CUDA_PATH（从安装路径提取版本）
-    3. nvidia-smi 输出（驱动支持的最高版本 - 作为回退）
-    
-    注意：nvidia-smi 显示的是驱动支持的最高 CUDA 版本，不是实际安装的版本！
-    PyTorch 需要匹配实际安装的 CUDA Toolkit 版本。
-    """
-    import re
-    
-    # 方法1: 通过 nvcc 检测（CUDA Toolkit 实际版本 - 最可靠）
-    try:
-        r = subprocess.run(
-            ["nvcc", "--version"], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
-            timeout=5, 
-            creationflags=flags,
-            text=True
-        )
-        if r.returncode == 0:
-            # 匹配 "release 11.8" 或 "V11.8.89"
-            match = re.search(r'release\s*(\d+)\.(\d+)|V(\d+)\.(\d+)', r.stdout)
-            if match:
-                if match.group(1):
-                    major, minor = int(match.group(1)), int(match.group(2))
-                else:
-                    major, minor = int(match.group(3)), int(match.group(4))
-                print(f"[INFO] 通过 nvcc 检测到 CUDA Toolkit {major}.{minor}")
-                return (major, minor, f"{major}.{minor}")
-    except Exception:
-        pass
-    
-    # 方法2: 通过环境变量检测
-    cuda_path = os.environ.get("CUDA_PATH", "")
-    if cuda_path:
-        # 从路径中提取版本，如 "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
-        match = re.search(r'v?(\d+)\.(\d+)', cuda_path)
-        if match:
-            major, minor = int(match.group(1)), int(match.group(2))
-            print(f"[INFO] 通过 CUDA_PATH 检测到 CUDA {major}.{minor}")
-            return (major, minor, f"{major}.{minor}")
-    
-    # 方法3: 通过 nvidia-smi 检测（驱动支持的最高版本 - 回退方案）
-    # 注意：这不是实际安装的 CUDA Toolkit 版本，但可用于选择兼容 wheel
-    try:
-        r = subprocess.run(
-            ["nvidia-smi"], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
-            timeout=5, 
-            creationflags=flags,
-            text=True
-        )
-        if r.returncode == 0:
-            # 匹配 "CUDA Version: 13.1" 或类似格式
-            match = re.search(r'CUDA Version:\s*(\d+)\.(\d+)', r.stdout)
-            if match:
-                major, minor = int(match.group(1)), int(match.group(2))
-                print(f"[WARN] 未找到 nvcc，使用驱动支持版本 CUDA {major}.{minor}（可能不准确）")
-                return (major, minor, f"{major}.{minor} (推断)")
-    except Exception:
-        pass
-    
-    return (None, None, None)
-
-def _get_torch_index_url(cuda_version: tuple) -> str:
-    """
-    根据 CUDA 版本返回对应的 PyTorch 下载 URL。
-    
-    PyTorch 官方 previous-versions 常见 CUDA 标签：
-    - cu118 / cu121 / cu124 / cu126 / cu128 / cu129 / cu130
-
-    注意：CUDA 向后兼容，所以 CUDA 13.x 驱动可以运行 CUDA 12.x 编译的程序。
-
-    返回: index-url 字符串，如果没有 CUDA 则返回 None（使用 CPU 版本）
-    """
-    major, minor, _ = cuda_version
-    
-    if major is None:
-        return None  # 无 CUDA，使用 CPU 版本
-    
-    # PyTorch CUDA 轮子标签映射（按 CUDA 版本阈值递增）
-    cuda_urls = [
-        ((11, 8), ("cu118", "https://download.pytorch.org/whl/cu118")),
-        ((12, 1), ("cu121", "https://download.pytorch.org/whl/cu121")),
-        ((12, 4), ("cu124", "https://download.pytorch.org/whl/cu124")),
-        ((12, 6), ("cu126", "https://download.pytorch.org/whl/cu126")),
-        ((12, 8), ("cu128", "https://download.pytorch.org/whl/cu128")),
-        ((12, 9), ("cu129", "https://download.pytorch.org/whl/cu129")),
-        ((13, 0), ("cu130", "https://download.pytorch.org/whl/cu130")),
-    ]
-
-    # 低于 11.8 时不适配 GPU 轮子
-    if (major, minor) < (11, 8):
-        print(f"[WARN] CUDA {major}.{minor} 低于 11.8，跳过 GPU 版 PyTorch 自动适配")
-        return None
-
-    # 找到最高的兼容版本（不超过用户版本）
-    best_match = None
-    best_ver = (0, 0)
-    for (cmaj, cmin), (tag, url) in cuda_urls:
-        if (cmaj, cmin) <= (major, minor) and (cmaj, cmin) >= best_ver:
-            best_ver = (cmaj, cmin)
-            best_match = (tag, url)
-
-    # 如果用户 CUDA 高于当前表上限，回退到最高可用标签
-    if best_match is None and (major, minor) > (0, 0):
-        best_match = cuda_urls[-1][1]
-        print(f"[INFO] CUDA {major}.{minor} 高于当前映射上限，将使用 {best_match[0]}")
-
-    if best_match:
-        return best_match[1]
-
-    return None
-
-# 全局缓存检测到的 CUDA 信息
-_cached_cuda_info = None
-
-def get_cuda_info() -> dict:
-    """
-    获取 CUDA 环境信息（带缓存）。
-    
-    返回: {
-        "available": bool,
-        "version": str or None,  # 如 "12.4"
-        "major": int or None,
-        "minor": int or None,
-        "torch_url": str or None,  # PyTorch 下载 URL
-        "torch_tag": str,  # 如 "cu124" 或 "cpu"
-    }
-    """
-    global _cached_cuda_info
-    if _cached_cuda_info is not None:
-        return _cached_cuda_info
-    
-    major, minor, version_str = _detect_cuda_version()
-    torch_url = _get_torch_index_url((major, minor, version_str)) if major else None
-    
-    # 确定 torch tag（通用提取，支持 cu128/cu129/cu130 等）
-    if torch_url:
-        m = re.search(r"/whl/([^/]+)$", torch_url.strip())
-        torch_tag = m.group(1) if m else "cuda"
-    else:
-        torch_tag = "cpu"
-    
-    _cached_cuda_info = {
-        "available": major is not None,
-        "version": version_str,
-        "major": major,
-        "minor": minor,
-        "torch_url": torch_url,
-        "torch_tag": torch_tag,
-    }
-    
-    print(f"[INFO] CUDA 检测结果: {_cached_cuda_info}")
-    return _cached_cuda_info
-
-# --------------- 规格处理与安装策略 ---------------
-_pat_local_tilde = re.compile(r'^([A-Za-z0-9_\-]+)~=(\d+(?:\.\d+)+)\+([A-Za-z0-9_.-]+)$')
-pip_ready_event = threading.Event()
-PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 
 def _diagnose_install_failure(output: str, returncode: int) -> str:
     """
@@ -2169,14 +1657,10 @@ def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_
     log_q.put("[OK] antlr4-python3-runtime fallback 已完成，准备重试当前包。")
     return True
 
-#  扩展 _pip_install：为 torch 系列包支持专用 index-url（按检测 CUDA 自动选择），并支持 pause_event
-def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch_url=None, pause_event=None,
+# 扩展 _pip_install：支持 pause_event、实时日志和镜像切换
+def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
-    """
-    安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。
-    新增: 当 pkg 属于 TORCH_NAMES 且 torch_url 非空时，使用 --index-url= torch_url，
-         并忽略 -i 镜像参数，保证拉取到 CUDA 轮子。
-    """
+    """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
     import subprocess, os, time, traceback, re
     from pathlib import Path
 
@@ -2202,7 +1686,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
     env["PYTHONUNBUFFERED"] = "1"
     name = _root_name(pkg)
-    is_torch_pkg = (name in TORCH_NAMES)
     mirror_index = "https://pypi.tuna.tsinghua.edu.cn/simple"
     official_index = "https://pypi.org/simple"
 
@@ -2224,16 +1707,11 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                 str(pyexe), "-m", "pip", "install",
                 pkg, "--upgrade", *PIP_INSTALL_SUPPRESS_ARGS
             ]
-            # 安装策略优化：
-            # 1. Qt 家族：禁止强制重装，避免卸载已加载的 DLL
-            # 2. Torch 家族：不用 force-reinstall，因为 index-url 已指定正确源
-            # 3. 其他大型包：不用 force-reinstall，避免重装所有依赖（太慢）
-            # 4. 只对关键版本修复包使用 force-reinstall
+            # 安装策略优化：Qt / ONNX Runtime 不重装依赖，避免运行中的 GUI 锁住 numpy 等二进制文件。
             
             # 需要强制重装的包（版本冲突敏感）
             force_reinstall_pkgs = {
-                "protobuf", "pydantic", "pydantic-core",
-                "onnxruntime", "onnxruntime-gpu",
+                "protobuf",
             }
             
             if force_reinstall and name not in QT_PKGS:
@@ -2245,9 +1723,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
             elif name in QT_PKGS:
                 # Qt 包：禁止重装
                 pass
-            elif name in TORCH_NAMES:
-                # Torch 包：不强制重装，依赖 index-url 选择正确版本
-                pass
             else:
                 # 其他包：普通升级即可，不强制重装依赖
                 pass
@@ -2255,35 +1730,17 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
             # Qt 顶层包禁依赖以防触发 PyQt6-Qt6 重装
             if name in {"pyqt6", "pyqt6-webengine"}:
                 args.append("--no-deps")
+            if name in {"onnxruntime", "onnxruntime-gpu"}:
+                args.append("--no-deps")
 
-            # 索引源策略：
-            # - torch: 首次按用户源(清华/官方)尝试，失败后回退 PyTorch 官方 whl 源
-            # - 其它: 一直按用户源(清华/官方)
-            if is_torch_pkg:
-                forced_torch_index = (torch_url or "").strip()
-                if forced_torch_index:
-                    args += ["--index-url", forced_torch_index]
-                    args += ["--extra-index-url", (mirror_index if use_mirror else official_index)]
-                    if retry == 0:
-                        log_q.put(f"[Source] Torch forced index: {forced_torch_index}")
-                else:
-                    preferred_index = mirror_index if use_mirror else official_index
-                    args += ["-i", preferred_index]
-                    if retry == 0:
-                        log_q.put("[WARN] Torch URL missing, fallback to normal index (may install CPU wheel)")
-                        if use_mirror:
-                            log_q.put("[Source] Torch first try: TUNA mirror")
-                        else:
-                            log_q.put("[Source] Torch first try: official PyPI")
+            if use_mirror:
+                args += ["-i", mirror_index]
+                if retry == 0:
+                    log_q.put("[Source] 使用清华源 📦")
             else:
-                if use_mirror:
-                    args += ["-i", mirror_index]
-                    if retry == 0:
-                        log_q.put("[Source] 使用清华源 📦")
-                else:
-                    args += ["-i", official_index]
-                    if retry == 0:
-                        log_q.put("[Source] 使用官方源 🌐")
+                args += ["-i", official_index]
+                if retry == 0:
+                    log_q.put("[Source] 使用官方源 🌐")
 
             log_q.put(f"[CMD] {' '.join(args)}")
             with subprocess_lock:
@@ -2372,16 +1829,13 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
                     log_q.put("=" * 60)
                     log_q.put("💡 手动安装提示（请在终端中执行以下命令）：")
                     log_q.put("")
-                    if is_torch_pkg and torch_url:
-                        manual_cmd = f'"{pyexe}" -m pip install {pkg} --upgrade --index-url {torch_url}'
-                    else:
-                        manual_cmd = f'"{pyexe}" -m pip install {pkg} --upgrade --user'
+                    manual_cmd = f'"{pyexe}" -m pip install {pkg} --upgrade --user'
                     log_q.put(f"  {manual_cmd}")
                     log_q.put("")
                     log_q.put("如遇权限问题，可尝试：")
-                    log_q.put(f'  1. 关闭程序后以管理员身份运行终端')
-                    log_q.put(f'  2. 或使用 --user 选项安装到用户目录')
-                    log_q.put(f'  3. 或在设置中点击"打开环境终端"执行上述命令')
+                    log_q.put('  1. 关闭程序后以管理员身份运行终端')
+                    log_q.put('  2. 或使用 --user 选项安装到用户目录')
+                    log_q.put('  3. 或在设置中点击"打开环境终端"执行上述命令')
                     log_q.put("=" * 60)
                     log_q.put("")
                     return False
@@ -2423,7 +1877,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, torch
 
 # --------------- UI ---------------
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
-                     from_settings=False, force_verify=False, skip_runtime_verify_once=False):
+                     from_settings=False, skip_runtime_verify_once=False):
     # 使用外部传入的 installed_layers；不覆盖
     from PyQt6.QtGui import QColor, QPalette
     from PyQt6.QtCore import QSize
@@ -2577,7 +2031,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     verified_layers = []
     verified_in_ui = False
     skip_verify = bool(skip_runtime_verify_once) or (
-        not from_settings and not force_verify and "BASIC" in claimed_layers and "CORE" in claimed_layers
+        not from_settings and "BASIC" in claimed_layers and "CORE" in claimed_layers
     )
     if skip_verify:
         installed_layers["layers"] = claimed_layers
@@ -2589,12 +2043,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             verified_in_ui = True
             print("[INFO] 正在验证已安装的功能层...")
             for layer in claimed_layers:
-                ok, err = _verify_layer_runtime(
-                    pyexe,
-                    layer,
-                    timeout=120 if force_verify else 30,
-                    strict=force_verify
-                )
+                ok, err = _verify_layer_runtime(pyexe, layer, timeout=30)
                 if ok:
                     verified_layers.append(layer)
                     print(f"  [OK] {layer} 验证通过")
@@ -2619,12 +2068,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     py_ready = bool(pyexe and os.path.exists(str(pyexe)))
 
-    # 判断是否缺少关键层（BASIC 或 CORE）
+    # 判断是否缺少关键层（BASIC / CORE / MathCraft ONNX 后端）
     missing_layers = []
     if "BASIC" not in installed_layers["layers"]:
         missing_layers.append("BASIC")
     if "CORE" not in installed_layers["layers"]:
         missing_layers.append("CORE")
+    if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+        missing_layers.append("MATHCRAFT_CPU")
 
     def _build_status_text(current_deps_dir: str, current_py_ready: bool,
                            current_installed_layers: list[str], current_failed_layers: list[str]) -> tuple[str, str]:
@@ -2643,7 +2094,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 theme["warn"],
             )
         if current_installed_layers:
-            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")):
+            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")) or not any(layer in current_installed_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
                 return (
                     f"检测到当前环境 {current_deps_dir} 的功能层不完整\n"
                     f"已完整安装的功能层：{', '.join(current_installed_layers)}",
@@ -2679,16 +2130,16 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     def _effective_default_select() -> set[str]:
         defaults = {"BASIC", "CORE"}
-        active_heavy = {
+        active_runtime = {
             str(x) for x in (installed_layers.get("layers", []) or [])
-            if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
+            if str(x) in MATHCRAFT_RUNTIME_LAYERS
         }
-        active_heavy.update(
+        active_runtime.update(
             str(x) for x in (failed_layer_names or [])
-            if str(x) in ("HEAVY_CPU", "HEAVY_GPU")
+            if str(x) in MATHCRAFT_RUNTIME_LAYERS
         )
-        if not active_heavy:
-            defaults.add("HEAVY_CPU")
+        if not active_runtime:
+            defaults.add("MATHCRAFT_CPU")
         return defaults
 
     def _sync_layer_checkbox(layer: str, cb, del_btn, effective_defaults: set[str]) -> None:
@@ -2785,35 +2236,27 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         row.addWidget(del_btn)
         lay.addLayout(row)
 
-    # ---------- HEAVY_CPU / HEAVY_GPU 互斥逻辑 ----------
-    def on_heavy_cpu_changed(state):
-        if state and checks.get("HEAVY_GPU") and checks["HEAVY_GPU"].isEnabled():
-            checks["HEAVY_GPU"].setChecked(False)
-    
-    def on_heavy_gpu_changed(state):
-        if state and checks.get("HEAVY_CPU") and checks["HEAVY_CPU"].isEnabled():
-            checks["HEAVY_CPU"].setChecked(False)
-    
-    if "HEAVY_CPU" in checks:
-        checks["HEAVY_CPU"].stateChanged.connect(on_heavy_cpu_changed)
-    if "HEAVY_GPU" in checks:
-        checks["HEAVY_GPU"].stateChanged.connect(on_heavy_gpu_changed)
+    # ---------- MathCraft CPU / GPU 后端互斥逻辑 ----------
+    def on_mathcraft_cpu_changed(state):
+        if state and checks.get("MATHCRAFT_GPU") and checks["MATHCRAFT_GPU"].isEnabled():
+            checks["MATHCRAFT_GPU"].setChecked(False)
 
-    # ---------- GPU 加速提示（含 CUDA 版本检测）----------
+    def on_mathcraft_gpu_changed(state):
+        if state and checks.get("MATHCRAFT_CPU") and checks["MATHCRAFT_CPU"].isEnabled():
+            checks["MATHCRAFT_CPU"].setChecked(False)
+
+    if "MATHCRAFT_CPU" in checks:
+        checks["MATHCRAFT_CPU"].stateChanged.connect(on_mathcraft_cpu_changed)
+    if "MATHCRAFT_GPU" in checks:
+        checks["MATHCRAFT_GPU"].stateChanged.connect(on_mathcraft_gpu_changed)
+
+    # ---------- GPU 加速提示 ----------
     gpu_info_label = QLabel()
-    has_gpu = _gpu_available()
-    cuda_info = get_cuda_info()
-    
-    if has_gpu and cuda_info.get("available"):
-        cuda_ver = cuda_info.get("version", "未知")
-        torch_tag = cuda_info.get("torch_tag", "cuda")
-        gpu_info_label.setText(f"✅ 检测到 NVIDIA GPU (CUDA {cuda_ver})，将使用 {torch_tag} 版本 PyTorch")
+    if _gpu_available():
+        gpu_info_label.setText("✅ 检测到 NVIDIA GPU；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端")
         gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
-    elif has_gpu:
-        gpu_info_label.setText("⚠️ 检测到 GPU 但未找到 CUDA，将尝试使用默认 GPU 轮子源")
-        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     else:
-        gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议安装 HEAVY_CPU 层")
+        gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端")
         gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     lay.addWidget(gpu_info_label)
     # 路径显示与更改
@@ -2918,18 +2361,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 说明 label
     desc = QLabel(
         "📦 层级说明：\n"
-        "• BASIC：基础运行层，包含网络、图像处理和 onnxruntime 等通用依赖。\n"
-        "• CORE：识别功能层，包含 pix2text 及文档导出 / PDF 相关依赖。\n"
-        "• HEAVY_CPU：PyTorch CPU 推理层，默认推荐，稳定性更高。\n"
-        "• HEAVY_GPU：PyTorch GPU 推理层，按检测到的 CUDA 版本自动匹配。\n"
-        "• 识别功能实际运行需要 BASIC + CORE + 一个 HEAVY 层。\n"
-        "• 默认推荐 BASIC + CORE + HEAVY_CPU；如需 GPU 推理请手动勾选 HEAVY_GPU。\n"
+        "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
+        "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
+        "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
+        "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
+        "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
+        "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
         "\n"
         "⚠️ 重要提示：\n"
-        "• HEAVY_CPU 和 HEAVY_GPU 互斥；切换时会自动清理冲突的 torch / onnxruntime 组件。\n"
+        "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-        "• 本向导只管理内置 pix2text 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可点击强制进入通过设置页面进行配置。"
+        "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
+        "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
     )
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
     lay.addWidget(desc)
@@ -2961,6 +2404,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def update_ui():
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
+        if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+            missing.append("MATHCRAFT_CPU")
         is_lack_critical = bool(missing)
         py_ready = _current_py_ready()
         if not py_ready:
@@ -2969,7 +2414,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             warn.setVisible(True)
             return
         btn_enter.setEnabled(True)
-        btn_enter.setText("强制进入" if is_lack_critical else "进入")
+        btn_enter.setText("跳过安装并进入" if is_lack_critical else "进入")
         warn.setVisible(is_lack_critical)
 
     update_ui()
@@ -3019,6 +2464,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             try:
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
+                os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
+                os.environ["LATEXSNIPPER_DEPS_DIR"] = normalized
                 print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")
             except Exception as e:
                 print(f"[ERR] 保存配置失败: {e}")
@@ -3026,7 +2473,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_path.clicked.connect(choose_path)
 
     def enter():
-        """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许强制进入。"""
+        """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许跳过安装。"""
         sel = _normalize_chosen_layers([L for L, c in checks.items() if c.isChecked()])
         mirror_source = _current_mirror_source()
         chosen["layers"] = sel
@@ -3046,7 +2493,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
-        
+        if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+            missing.append("MATHCRAFT_CPU")
+
         # 环境完整时直接进入
         if not missing:
             chosen["action"] = "enter"
@@ -3055,7 +2504,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             dlg.accept()
             return
 
-        # 缺少关键层：允许用户在风险自担下强制进入。
+        # 缺少关键层：允许用户在风险自担下跳过安装并进入。
         chosen["action"] = "enter"
         chosen["layers"] = []
         chosen["force_enter"] = True
@@ -3109,12 +2558,16 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             failed_layer_names = new_state.get("failed_layers", [])
 
             # 更新警告与按钮文本
-            if "BASIC" in installed_layers["layers"] and "CORE" in installed_layers["layers"]:
+            if (
+                "BASIC" in installed_layers["layers"]
+                and "CORE" in installed_layers["layers"]
+                and any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS)
+            ):
                 warn.setVisible(False)
                 btn_enter.setText("进入")
             else:
                 warn.setVisible(True)
-                btn_enter.setText("强制进入")
+                btn_enter.setText("跳过安装并进入")
 
             # 更新复选框
             effective_default_select = _effective_default_select()
@@ -3626,7 +3079,7 @@ def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: i
 
 # --------------- 主入口 ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
-                deps_dir=None, from_settings=False, force_verify=False, before_show_ui=None,
+                deps_dir=None, from_settings=False, before_show_ui=None,
                 after_force_enter=None):
     global _LAST_ENSURE_DEPS_FORCE_ENTER
     _LAST_ENSURE_DEPS_FORCE_ENTER = False
@@ -3686,15 +3139,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             try:
                 custom_warning_dialog("不可进入", "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。")
             except Exception:
-                print("[WARN] 缺少可复用 Python 环境，禁止强制进入。")
+                print("[WARN] 缺少可复用 Python 环境，不能跳过安装直接进入。")
             return False
         _LAST_ENSURE_DEPS_FORCE_ENTER = True
         _notify_after_force_enter()
         try:
-            custom_warning_dialog("警告", "缺失依赖，程序将强制进入，部分功能可能不可用。")
+            custom_warning_dialog("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         except Exception:
-            print("[WARN] 缺失依赖，程序将强制进入，部分功能可能不可用。")
-        print("[Deps] 强制进入主程序，跳过依赖检查")
+            print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
+        print("[Deps] 用户选择跳过依赖安装并进入主程序")
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
@@ -3749,7 +3202,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             print(f"[DIAG] 环境不一致原因: {mismatch_reason}")
         # 开发模式下若缺少私有 Python，只认本地安装器，不再联网下载。
         if use_bundled_python and not pyexe.exists():
-            if from_settings or force_verify:
+            if from_settings:
                 print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
             else:
                 try:
@@ -3823,9 +3276,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
         if active_pyexe is not None and active_pyexe.exists():
             os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
-            os.environ["PIX2TEXT_PYEXE"] = str(active_pyexe)
-        else:
-            os.environ.pop("PIX2TEXT_PYEXE", None)
+        os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(deps_path)
+        os.environ["LATEXSNIPPER_DEPS_DIR"] = str(deps_path)
 
     _apply_runtime_context(pyexe)
 
@@ -3836,34 +3288,44 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     state_path = deps_path / STATE_FILE
 
     needed = {required_layer for required_layer in require_layers if required_layer in LAYER_MAP}
-    missing_layers = [L for L in needed if L not in installed["layers"]]
+
+    def _missing_required_layers(layer_list: list[str]) -> list[str]:
+        missing = [layer for layer in needed if layer not in layer_list]
+        if not any(layer in layer_list for layer in MATHCRAFT_RUNTIME_LAYERS):
+            missing.append("MATHCRAFT_CPU")
+        return missing
+
+    def _deps_ready(layer_list: list[str]) -> bool:
+        return not _missing_required_layers(layer_list)
+
+    missing_layers = _missing_required_layers(installed["layers"])
     skip_next_ui_runtime_verify = False
 
     def _default_selected_layers(installed_layers_list: list[str], failed_layers_list: list[str] | None = None) -> list[str]:
         defaults = ["BASIC", "CORE"]
         installed_set = {str(x) for x in (installed_layers_list or [])}
         failed_set = {str(x) for x in (failed_layers_list or [])}
-        heavy_present = any(x in {"HEAVY_CPU", "HEAVY_GPU"} for x in (installed_set | failed_set))
-        if not heavy_present:
-            defaults.append("HEAVY_CPU")
+        runtime_present = any(x in set(MATHCRAFT_RUNTIME_LAYERS) for x in (installed_set | failed_set))
+        if not runtime_present:
+            defaults.append("MATHCRAFT_CPU")
         return defaults
 
     def _reverify_installed_layers_if_needed(reason: str = "") -> bool:
         """
-        从设置页进入或显式强制校验时，
+        从设置页进入依赖向导时，
         在“直接进入/跳过下载”前复验已安装层。
         返回是否满足 required layers。
         """
         nonlocal state, installed, missing_layers
-        if not (from_settings or force_verify):
-            return needed.issubset(installed["layers"])
+        if not from_settings:
+            return _deps_ready(installed["layers"])
         if not pyexe or not os.path.exists(pyexe):
-            return needed.issubset(installed["layers"])
+            return _deps_ready(installed["layers"])
 
         claimed = [layer for layer in installed.get("layers", []) if layer in LAYER_MAP]
         if not claimed:
-            missing_layers = [L for L in needed if L not in installed["layers"]]
-            return needed.issubset(installed["layers"])
+            missing_layers = _missing_required_layers(installed["layers"])
+            return _deps_ready(installed["layers"])
 
         if reason:
             print(f"[INFO] 触发已安装层复验: {reason}")
@@ -3872,7 +3334,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             str(pyexe),
             claimed,
             log_fn=lambda m: print(m),
-            strict=force_verify
         )
         failed = [layer for layer in claimed if layer not in verified]
         payload = {"installed_layers": verified}
@@ -3882,10 +3343,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
         state = payload
         installed["layers"] = verified
-        missing_layers = [L for L in needed if L not in installed["layers"]]
+        missing_layers = _missing_required_layers(installed["layers"])
         if failed:
             print(f"[WARN] 复验失败层: {', '.join(failed)}")
-        return needed.issubset(installed["layers"])
+        return _deps_ready(installed["layers"])
 
     def _switch_deps_context(target_deps_dir: str) -> tuple[list[str], bool]:
         nonlocal deps_dir, deps_path, state_path, state, installed, missing_layers, pyexe
@@ -3911,7 +3372,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         state_path = deps_path / STATE_FILE
         state = _sanitize_state_layers(state_path)
         installed["layers"] = state.get("installed_layers", [])
-        missing_layers = [L for L in needed if L not in installed["layers"]]
+        missing_layers = _missing_required_layers(installed["layers"])
         return missing_layers, use_bundled
 
     while True:
@@ -3932,7 +3393,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 chosen,
                 state_path,
                 from_settings=from_settings,
-                force_verify=force_verify,
                 skip_runtime_verify_once=skip_next_ui_runtime_verify
             )
             skip_next_ui_runtime_verify = False
@@ -3951,11 +3411,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 mirror_source = "tuna" if use_mirror else "off"
             missing_layers, use_bundled_python = _switch_deps_context(chosen.get("deps_path", deps_dir))
 
-            # 检查是否强制进入（缺少关键层但用户选择直接进入）
+            # 检查是否跳过安装并进入（缺少关键层但用户选择直接进入）
             if chosen.get("force_enter", False):
                 _LAST_ENSURE_DEPS_FORCE_ENTER = True
                 _notify_after_force_enter()
-                print("[INFO] 用户选择强制进入，跳过依赖安装")
+                print("[INFO] 用户选择跳过依赖安装并进入主程序")
                 return True
             if chosen.get("action") == "enter":
                 print("[INFO] 用户选择直接进入主程序。")
@@ -4031,40 +3491,30 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         print(f"[Deps] 初始化目标 Python 后确保 pip 失败: {e}")
 
                 RESULT_BACK_TO_WIZARD = 1001
-                if "HEAVY_GPU" in chosen_layers and not _gpu_available():
+                if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():
                     r = _exec_close_only_message_box(
                         None,
                         "GPU 未检测",
-                        "未检测到 NVIDIA GPU，继续安装 CUDA 轮子可能失败，是否继续？",
+                        "未检测到 NVIDIA GPU，继续安装 onnxruntime-gpu 可能无法启用 CUDAExecutionProvider，是否继续？",
                         icon=QMessageBox.Icon.Question,
                         buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if r != QMessageBox.StandardButton.Yes:
-                        chosen_layers = [c for c in chosen_layers if c != "HEAVY_GPU"]
+                        chosen_layers = [c for c in chosen_layers if c != "MATHCRAFT_GPU"]
+
+                if "CORE" in chosen_layers and not any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
+                    chosen_layers = list(chosen_layers) + ["MATHCRAFT_CPU"]
+                    print("[INFO] CORE 未指定 MathCraft 后端，已自动补充 MATHCRAFT_CPU")
 
                 pkgs = []
                 for layer in chosen_layers:
                     pkgs.extend(LAYER_MAP[layer])
 
-                # 核心层需要 torch：若未显式选择 heavy 层，则按环境自动补层
-                if "CORE" in chosen_layers and "HEAVY_CPU" not in chosen_layers and "HEAVY_GPU" not in chosen_layers:
-                    auto_heavy = "HEAVY_CPU"
-                    try:
-                        if _gpu_available():
-                            ci = get_cuda_info()
-                            if ci.get("torch_url"):
-                                auto_heavy = "HEAVY_GPU"
-                    except Exception:
-                        auto_heavy = "HEAVY_CPU"
-                    chosen_layers = list(chosen_layers) + [auto_heavy]
-                    pkgs.extend(LAYER_MAP.get(auto_heavy, []))
-                    print(f"[INFO] CORE 未指定 heavy 层，已自动补充 {auto_heavy}")
-
-                # ⚠️ 选择 HEAVY_GPU 时，确保 CPU 版 onnxruntime 不进入安装集合（避免与 onnxruntime-gpu 冲突）
-                if "HEAVY_GPU" in chosen_layers:
-                    # 移除 CPU 版 onnxruntime，保留 onnxruntime-gpu
+                if "MATHCRAFT_GPU" in chosen_layers:
                     pkgs = [p for p in pkgs if not (p.lower().startswith("onnxruntime") and "gpu" not in p.lower())]
+                elif "MATHCRAFT_CPU" in chosen_layers:
+                    pkgs = [p for p in pkgs if not p.lower().startswith("onnxruntime-gpu")]
 
                 pkgs = _filter_packages(pkgs)
                 log_q = queue.Queue()
@@ -4298,9 +3748,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     _append_log("[INFO] Verifying installed layers in background...")
                     _set_info_text("Dependencies downloaded, validating in background...")
 
-                    verify_worker = LayerVerifyWorker(
-                        pyexe, chosen_layers, state_path, strict=force_verify
-                    )
+                    verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
                     verify_worker_holder["obj"] = verify_worker
                     verify_worker.log_updated.connect(_append_log)
 
@@ -4422,7 +3870,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     try:
                         state = _sanitize_state_layers(state_path)
                         installed["layers"] = state.get("installed_layers", [])
-                        missing_layers = [L for L in needed if L not in installed["layers"]]
+                        missing_layers = _missing_required_layers(installed["layers"])
                     except Exception:
                         pass
                     skip_next_ui_runtime_verify = bool(post_install_verify_passed.get("value", False))
@@ -4433,5 +3881,3 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     continue
         break
     return True
-
-

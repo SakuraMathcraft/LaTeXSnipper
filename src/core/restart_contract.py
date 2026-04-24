@@ -13,14 +13,13 @@ def build_restart_with_wizard_launch(
 ) -> tuple[list[str], dict]:
     env = dict(base_env or os.environ.copy())
     env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
-    env["LATEXSNIPPER_FORCE_VERIFY"] = "1"
     env["LATEXSNIPPER_RESTART"] = "1"
     env.pop("LATEXSNIPPER_DEPS_OK", None)
 
     script_path = os.path.abspath(argv0)
     if script_path.lower().endswith(".py"):
-        cmd = [python_exe, script_path, "--force-deps-check"]
+        cmd = [python_exe, script_path]
     else:
-        cmd = [script_path, "--force-deps-check"]
+        cmd = [script_path]
     return cmd, env
 

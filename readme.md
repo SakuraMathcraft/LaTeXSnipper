@@ -164,7 +164,6 @@ LaTeXSnipper/
 │   │   ├── capture_overlay.py
 │   │   ├── model.py
 │   │   ├── model_factory.py
-│   │   ├── torch_runtime.py
 │   │   └── platform/
 │   ├── editor/
 │   │   ├── workbench_window.py

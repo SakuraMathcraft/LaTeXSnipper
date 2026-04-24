@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
-"""对话框组件"""
+"""Reusable dialog components."""
+
+from __future__ import annotations
 
 import os
 from pathlib import Path
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPlainTextEdit, QPushButton, QTextEdit, QDialogButtonBox,
-    QMessageBox
-)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 from qfluentwidgets import PrimaryPushButton
 
 
 class LogViewerDialog(QDialog):
-    """实时日志查看对话框"""
-    
+    """Live log viewer dialog."""
+
     def __init__(self, log_file: Path, parent=None):
         super().__init__(parent)
         self.setWindowTitle("实时日志")
@@ -53,23 +61,24 @@ class LogViewerDialog(QDialog):
         self.timer.start()
         self._poll_file(_initial=True)
 
-    def _ensure_file(self):
+    def _ensure_file(self) -> None:
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
         if not self._log_file.exists():
             self._log_file.write_text("", encoding="utf-8")
         self._pos = 0
 
-    def _open_dir(self):
+    def _open_dir(self) -> None:
         try:
             if os.name == "nt":
                 os.startfile(self._log_file.parent)
             else:
                 import subprocess
+
                 subprocess.Popen(["xdg-open", str(self._log_file.parent)])
         except Exception:
             pass
 
-    def _clear_log(self):
+    def _clear_log(self) -> None:
         try:
             self._log_file.write_text("", encoding="utf-8")
             self._pos = 0
@@ -77,7 +86,7 @@ class LogViewerDialog(QDialog):
         except Exception:
             pass
 
-    def _poll_file(self, _initial: bool = False):
+    def _poll_file(self, _initial: bool = False) -> None:
         try:
             with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
                 f.seek(self._pos)
@@ -100,8 +109,8 @@ class LogViewerDialog(QDialog):
 
 
 class EditFormulaDialog(QDialog):
-    """公式编辑对话框"""
-    
+    """Formula editor dialog."""
+
     def __init__(self, latex: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("编辑")
@@ -133,7 +142,7 @@ class EditFormulaDialog(QDialog):
 
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
-            parent=self
+            parent=self,
         )
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
@@ -144,59 +153,48 @@ class EditFormulaDialog(QDialog):
 
 
 class SettingsWindow(QDialog):
-    """设置窗口"""
+    """Small fallback settings dialog."""
+
     model_changed = pyqtSignal(str)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("设置")
-        self.resize(300, 180)
-        
+        self.resize(300, 160)
+
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("选择公式识别模型:"))
-        
-        self.btn_pix2tex = PrimaryPushButton("pix2tex(CPU)")
-        self.btn_pix2text = PrimaryPushButton("pix2text(GPU)")
-        lay.addWidget(self.btn_pix2tex)
-        lay.addWidget(self.btn_pix2text)
-        
-        lay.addWidget(QLabel("检查更新:"))
+
+        self.btn_mathcraft = PrimaryPushButton("MathCraft")
+        lay.addWidget(self.btn_mathcraft)
+
+        lay.addWidget(QLabel("检查更新"))
         self.btn_update = PrimaryPushButton("检查更新")
         lay.addWidget(self.btn_update)
-        
-        self.btn_pix2tex.clicked.connect(lambda: self.select_model("pix2tex"))
-        self.btn_pix2text.clicked.connect(lambda: self.select_model("pix2text"))
-        # 更新检查需要从外部注入
+
+        self.btn_mathcraft.clicked.connect(lambda: self.select_model("mathcraft"))
         self.update_model_buttons()
 
-    def set_update_handler(self, handler):
-        """设置更新检查处理函数"""
+    def set_update_handler(self, handler) -> None:
         self.btn_update.clicked.connect(handler)
 
-    def select_model(self, model_name: str):
+    def select_model(self, model_name: str) -> None:
         if self.parent():
             self.parent().on_model_changed(model_name)
         self.model_changed.emit(model_name)
         QMessageBox.information(self, "提示", f"已选择模型: {model_name}")
         self.update_model_buttons()
 
-    def update_model_buttons(self):
-        """更新模型按钮状态"""
+    def update_model_buttons(self) -> None:
         current = None
         if self.parent() and hasattr(self.parent(), "current_model"):
             current = self.parent().current_model
-        
-        if current == "pix2tex":
-            self.btn_pix2tex.setStyleSheet("background-color: #4CAF50; color: white;")
-            self.btn_pix2text.setStyleSheet("")
-        elif current == "pix2text":
-            self.btn_pix2tex.setStyleSheet("")
-            self.btn_pix2text.setStyleSheet("background-color: #4CAF50; color: white;")
+
+        if current == "mathcraft":
+            self.btn_mathcraft.setStyleSheet("background-color: #4CAF50; color: white;")
         else:
-            self.btn_pix2tex.setStyleSheet("")
-            self.btn_pix2text.setStyleSheet("")
+            self.btn_mathcraft.setStyleSheet("")
 
 
-def custom_warning_dialog(title: str, message: str, parent=None):
-    """显示警告对话框"""
+def custom_warning_dialog(title: str, message: str, parent=None) -> None:
     QMessageBox.warning(parent, title, message)
