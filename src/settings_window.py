@@ -54,6 +54,35 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def _mathcraft_code_roots() -> list[str]:
+    roots: list[Path] = []
+
+    def add(path: str | Path | None) -> None:
+        if not path:
+            return
+        try:
+            p = Path(path).resolve()
+        except Exception:
+            return
+        if p.exists() and p not in roots:
+            roots.append(p)
+
+    current = Path(__file__).resolve()
+    add(current.parent)
+    for parent in current.parents:
+        add(parent)
+        add(parent / "_internal")
+        if (parent / "mathcraft_ocr").is_dir() or (parent / "_internal" / "mathcraft_ocr").is_dir():
+            break
+    meipass = getattr(sys, "_MEIPASS", None)
+    add(meipass)
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        add(exe_dir)
+        add(exe_dir / "_internal")
+    return [str(path) for path in roots]
+
+
 class ExternalModelHelpWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -696,10 +725,10 @@ class SettingsWindow(QDialog):
         import subprocess
         if not pyexe or not os.path.exists(pyexe):
             return False
-        repo_root = str(Path(__file__).resolve().parents[1])
+        roots = _mathcraft_code_roots()
         code = (
             "import importlib.util, sys; "
-            f"sys.path.insert(0, {repo_root!r}); "
+            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]; "
             f"sys.exit(0 if importlib.util.find_spec({module!r}) else 1)"
         )
         try:

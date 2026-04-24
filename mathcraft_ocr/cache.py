@@ -86,7 +86,8 @@ def inspect_model_cache(root: str | Path, spec: ModelSpec) -> ModelCacheState:
     missing: list[str] = []
     if exists:
         for file_spec in spec.files:
-            if not (target / file_spec.path).is_file():
+            file_path = target / file_spec.path
+            if not file_path.is_file():
                 missing.append(file_spec.path)
     else:
         missing = [item.path for item in spec.files]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 
 from rapidocr.utils.process_img import get_rotate_crop_image
 
@@ -18,7 +19,7 @@ from .adapters.text_recognizer import (
     recognize_pp_text_lines,
     warmup_pp_text_recognizer,
 )
-from .cache import inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
+from .cache import ModelCacheState, inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
 from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
 from .errors import ModelCacheError
@@ -35,25 +36,15 @@ from .layout import (
     split_text_box_around_formulas,
 )
 from .manifest import Manifest, load_manifest
+from .profiles import (
+    FORMULA_DETECTOR_ID,
+    FORMULA_RECOGNIZER_ID,
+    PROFILE_MODEL_IDS,
+    TEXT_DETECTOR_ID,
+    TEXT_RECOGNIZER_ID,
+)
 from .providers import ProviderInfo
 from .results import Box4P, FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
-
-
-FORMULA_DETECTOR_ID = "mathcraft-formula-det"
-FORMULA_RECOGNIZER_ID = "mathcraft-formula-rec"
-TEXT_DETECTOR_ID = "mathcraft-text-det"
-TEXT_RECOGNIZER_ID = "mathcraft-text-rec"
-
-PROFILE_MODEL_IDS = {
-    "formula": (FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
-    "text": (TEXT_DETECTOR_ID, TEXT_RECOGNIZER_ID),
-    "mixed": (
-        FORMULA_DETECTOR_ID,
-        FORMULA_RECOGNIZER_ID,
-        TEXT_DETECTOR_ID,
-        TEXT_RECOGNIZER_ID,
-    ),
-}
 
 
 @dataclass(frozen=True)
@@ -72,6 +63,7 @@ class WarmupPlan:
     component_statuses: tuple[WarmupComponentStatus, ...]
     provider_info: ProviderInfo
     ready: bool
+    cache_events: tuple[str, ...] = ()
 
 
 ONNX_WARMUP_HANDLERS = {
@@ -90,14 +82,21 @@ class MathCraftRuntime:
         provider_preference: str = "auto",
         manifest: Manifest | None = None,
         bundled_models_dir: str | Path | None = None,
+        auto_download: bool = True,
     ) -> None:
         self.cache_dir = resolve_user_models_dir(cache_dir)
         self.bundled_models_dir = Path(bundled_models_dir) if bundled_models_dir else None
         self.model_roots = resolve_model_roots(cache_dir, bundled_models_dir)
         self.provider_preference = provider_preference
         self.manifest = manifest or load_manifest()
+        self.auto_download = auto_download
         self._warmup_cache: dict[str, WarmupPlan] = {}
         self._rec_batch_cache: dict[str, int] = {}
+        self._cache_events: list[str] = []
+
+    def _record_cache_event(self, message: str) -> None:
+        self._cache_events.append(message)
+        print(f"[MATHCRAFT_CACHE] {message}", file=sys.stderr, flush=True)
 
     def check_models(self, include_optional: bool = True):
         return inspect_manifest_roots(
@@ -124,7 +123,7 @@ class MathCraftRuntime:
         *,
         model_ids: list[str] | tuple[str, ...] | None = None,
         source_overrides: dict[str, list[str] | tuple[str, ...]] | None = None,
-        timeout: int = 60,
+        timeout: int = 120,
     ) -> list[Path]:
         selected = tuple(model_ids) if model_ids else tuple(self.manifest.models.keys())
         downloaded: list[Path] = []
@@ -140,6 +139,65 @@ class MathCraftRuntime:
             )
         self.clear_warmup_cache()
         return downloaded
+
+    def _ensure_selected_models(
+        self,
+        model_ids: tuple[str, ...],
+    ) -> dict[str, ModelCacheState]:
+        states = self.check_models()
+        broken_or_missing = [
+            model_id
+            for model_id in model_ids
+            if model_id in self.manifest.models and not states[model_id].complete
+        ]
+        if not broken_or_missing or not self.auto_download:
+            return states
+
+        for model_id in broken_or_missing:
+            spec = self.manifest.models[model_id]
+            state = states[model_id]
+            missing_files = ", ".join(state.missing_files) if state.missing_files else "unknown files"
+            self._record_cache_event(
+                f"model {model_id} incomplete under {state.model_dir}; missing: {missing_files}; downloading"
+            )
+            download_model_archive(
+                spec,
+                target_root=self.cache_dir,
+                timeout=120,
+            )
+            self._record_cache_event(f"model {model_id} downloaded to {self.cache_dir / model_id}")
+        self.clear_warmup_cache()
+        return self.check_models()
+
+    def _repair_model_cache(self, model_id: str):
+        if not self.auto_download:
+            return self.check_models()[model_id]
+        spec = self.manifest.models[model_id]
+        self._record_cache_event(f"model {model_id} failed warmup, redownloading")
+        download_model_archive(
+            spec,
+            target_root=self.cache_dir,
+            timeout=120,
+        )
+        self._record_cache_event(f"model {model_id} repaired to {self.cache_dir / model_id}")
+        self.clear_warmup_cache()
+        return self.check_models()[model_id]
+
+    @staticmethod
+    def _looks_like_broken_model_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        needles = (
+            "missing",
+            "not found",
+            "no such file",
+            "does not exist",
+            "invalid protobuf",
+            "failed to load model",
+            "load model",
+            "onnx",
+            "model",
+        )
+        return any(item in text for item in needles)
 
     def clear_warmup_cache(self) -> None:
         self._warmup_cache.clear()
@@ -372,12 +430,14 @@ class MathCraftRuntime:
         if cached and cached.ready and cached.required_models == model_ids:
             return cached
 
+        self._cache_events = []
+        states = self._ensure_selected_models(model_ids)
         report = self.get_runtime_info()
         missing: list[str] = []
         unsupported: list[str] = []
         component_statuses: list[WarmupComponentStatus] = []
         for model_id in model_ids:
-            state = report.cache_states[model_id]
+            state = states[model_id]
             spec = self.manifest.models[model_id]
             if not state.complete:
                 missing.append(model_id)
@@ -409,9 +469,21 @@ class MathCraftRuntime:
                     WarmupComponentStatus(model_id=model_id, ready=True, detail="ok")
                 )
             except Exception as exc:
-                component_statuses.append(
-                    WarmupComponentStatus(model_id=model_id, ready=False, detail=str(exc))
-                )
+                if self._looks_like_broken_model_error(exc):
+                    try:
+                        repaired_state = self._repair_model_cache(model_id)
+                        handler(repaired_state.model_dir, report.provider_info)
+                        component_statuses.append(
+                            WarmupComponentStatus(
+                                model_id=model_id,
+                                ready=True,
+                                detail="repaired",
+                            )
+                        )
+                        continue
+                    except Exception as repair_exc:
+                        exc = repair_exc
+                component_statuses.append(WarmupComponentStatus(model_id=model_id, ready=False, detail=str(exc)))
         plan = WarmupPlan(
             profile=profile,
             required_models=model_ids,
@@ -422,6 +494,7 @@ class MathCraftRuntime:
             ready=not missing
             and not unsupported
             and all(item.ready for item in component_statuses),
+            cache_events=tuple(self._cache_events),
         )
         if plan.ready:
             self._warmup_cache[profile] = plan

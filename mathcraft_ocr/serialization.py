@@ -99,6 +99,7 @@ def warmup_plan_to_json(plan) -> dict:
             }
             for item in plan.component_statuses
         ],
+        "cache_events": list(getattr(plan, "cache_events", ())),
         "ready": plan.ready,
         "provider_info": provider_info_to_json(plan.provider_info),
     }
