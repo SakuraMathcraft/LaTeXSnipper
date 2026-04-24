@@ -39,7 +39,8 @@ class InternalModelMathCraftTests(unittest.TestCase):
         wrapper = ModelWrapper(auto_warmup=False)
         env = wrapper._build_subprocess_env()
 
-        self.assertEqual(Path(env["PYTHONPATH"]), ROOT)
+        pythonpath_roots = {Path(item) for item in env["PYTHONPATH"].split(os.pathsep) if item}
+        self.assertIn(ROOT, pythonpath_roots)
         self.assertEqual(env["PYTHONNOUSERSITE"], "1")
 
     def test_unknown_modes_fall_back_to_formula(self):
@@ -77,6 +78,13 @@ class InternalModelMathCraftTests(unittest.TestCase):
             else:
                 os.environ["MATHCRAFT_PROVIDER"] = old
 
+    def test_settings_probe_covers_packaged_internal_root(self):
+        source = (SRC / "settings_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("def _mathcraft_code_roots", source)
+        self.assertIn('parent / "_internal"', source)
+        self.assertIn("sys._MEIPASS", source)
+
 
 class DependencyBootstrapMathCraftTests(unittest.TestCase):
     def test_dependency_layers_are_mathcraft_onnx_only(self):
@@ -91,6 +99,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("onnxruntime", all_specs)
         self.assertIn("numpy", all_specs)
         self.assertIn("protobuf", all_specs)
+        self.assertNotIn("argostranslate", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):
         import deps_bootstrap

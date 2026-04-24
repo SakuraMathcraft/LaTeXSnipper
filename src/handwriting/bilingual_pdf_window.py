@@ -29,21 +29,103 @@ class _PagePayload:
     engine_name: str
 
 
+def _translation_env_python(env_dir: str | Path) -> Path:
+    root = Path(env_dir)
+    if os.name == "nt":
+        return root / "Scripts" / "python.exe"
+    return root / "bin" / "python"
+
+
 class _ArgosModelInstallWorker(QThread):
     progress = pyqtSignal(str)
     completed = pyqtSignal(bool, str)
 
-    def __init__(self, pyexe: str, parent=None):
+    def __init__(self, bootstrap_pyexe: str, env_dir: str | Path, parent=None):
         super().__init__(parent)
-        self._pyexe = str(pyexe or "").strip()
+        self._bootstrap_pyexe = str(bootstrap_pyexe or "").strip()
+        self._env_dir = Path(env_dir)
+
+    def _run_step(self, args: list[str], *, timeout: int = 1800) -> subprocess.CompletedProcess:
+        env = os.environ.copy()
+        env.pop("PYTHONHOME", None)
+        env.pop("PYTHONPATH", None)
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        return subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env=env,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+        )
+
+    def _require_ok(self, result: subprocess.CompletedProcess, fallback: str) -> None:
+        if result.returncode == 0:
+            return
+        err = (result.stderr or result.stdout or "").strip() or fallback
+        raise RuntimeError(err)
 
     def run(self) -> None:
-        pyexe = self._pyexe
-        if not pyexe or (not os.path.exists(pyexe)):
-            self.completed.emit(False, "Argos Translate 目标解释器不存在。")
+        bootstrap_pyexe = self._bootstrap_pyexe
+        if not bootstrap_pyexe or (not os.path.exists(bootstrap_pyexe)):
+            self.completed.emit(False, "当前私有依赖解释器不存在，无法创建 Argos 翻译环境。")
             return
         try:
-            self.progress.emit("正在安装 Argos 英译中模型...")
+            env_py = _translation_env_python(self._env_dir)
+            if not env_py.exists():
+                self.progress.emit("正在创建 Argos 独立翻译环境...")
+                self._env_dir.mkdir(parents=True, exist_ok=True)
+                result = self._run_step([bootstrap_pyexe, "-m", "venv", str(self._env_dir)], timeout=900)
+                self._require_ok(result, "Argos 独立翻译环境创建失败。")
+
+            if not env_py.exists():
+                raise RuntimeError(f"Argos 翻译环境解释器不存在: {env_py}")
+
+            self.progress.emit("正在准备 Argos 翻译环境基础工具...")
+            result = self._run_step(
+                [
+                    str(env_py),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-U",
+                    "pip",
+                    "setuptools",
+                    "wheel",
+                    "--disable-pip-version-check",
+                    "--default-timeout",
+                    "180",
+                    "--retries",
+                    "10",
+                ],
+                timeout=1800,
+            )
+            self._require_ok(result, "Argos 翻译环境基础工具安装失败。")
+
+            self.progress.emit("正在安装 Argos Translate 运行库（可选组件）...")
+            result = self._run_step(
+                [
+                    str(env_py),
+                    "-m",
+                    "pip",
+                    "install",
+                    "argostranslate~=1.9.6",
+                    "--prefer-binary",
+                    "--disable-pip-version-check",
+                    "--default-timeout",
+                    "180",
+                    "--retries",
+                    "10",
+                ],
+                timeout=3600,
+            )
+            self._require_ok(result, "Argos Translate 运行库安装失败。")
+
+            self.progress.emit("正在下载并安装 Argos 英译中模型...")
             script = (
                 "import json, os\n"
                 "download_path = ''\n"
@@ -67,20 +149,8 @@ class _ArgosModelInstallWorker(QThread):
                 "    except Exception:\n"
                 "        pass\n"
             )
-            result = subprocess.run(
-                [pyexe, "-c", script],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=1200,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
-            )
-            if result.returncode != 0:
-                err = (result.stderr or result.stdout or "").strip() or "Argos 模型安装失败。"
-                self.completed.emit(False, err)
-                return
+            result = self._run_step([str(env_py), "-c", script], timeout=3600)
+            self._require_ok(result, "Argos 模型安装失败。")
             message = "英译中模型包安装完成。"
             raw = (result.stdout or "").strip()
             if raw:
@@ -89,7 +159,7 @@ class _ArgosModelInstallWorker(QThread):
                     message = str(payload.get("message", "") or message)
                 except Exception:
                     pass
-            self.completed.emit(True, message)
+            self.completed.emit(True, f"{message}\n翻译环境: {env_py}")
         except Exception as exc:
             self.completed.emit(False, str(exc))
 
@@ -259,7 +329,7 @@ class BilingualPdfWindow(QDialog):
             self.engine_combo.addItem(label, userData=key)
         self.config_engine_btn = PushButton(FluentIcon.SETTING, "接口配置", self)
         self.config_engine_btn.setFixedHeight(34)
-        self.install_argos_btn = PushButton(FluentIcon.DOWNLOAD, "安装英中模型", self)
+        self.install_argos_btn = PushButton(FluentIcon.DOWNLOAD, "部署 Argos 本地翻译", self)
         self.install_argos_btn.setFixedHeight(34)
         self.argos_status_label = QLabel("", self)
         self.argos_install_progress = QProgressBar(self)
@@ -584,18 +654,37 @@ class BilingualPdfWindow(QDialog):
     def _argos_status_message(self) -> str:
         status = self._probe_argos_status()
         if status.get("pending"):
-            return "正在检测 Argos 环境..."
+            return "正在检测 Argos 本地翻译..."
         if not status.get("runtime_installed"):
-            return "Argos 运行库未安装"
+            error = str(status.get("error", "") or "").strip()
+            if error in {"translation_env_missing", "python_missing"}:
+                return "Argos 本地翻译未部署"
+            if error:
+                if "No module named" in error or "ModuleNotFoundError" in error:
+                    return "Argos 本地翻译环境不完整"
+                return "Argos 本地翻译异常"
+            return "Argos 本地翻译未部署"
         if status.get("model_ready"):
             return "英译中模型已就绪"
-        return "未安装英译中模型"
+        return "Argos 本地翻译未部署完整"
+
+    def _argos_runtime_error_message(self, status: dict[str, object]) -> str:
+        error = str((status or {}).get("error", "") or "").strip()
+        if not error or error in {"translation_env_missing", "python_missing"}:
+            return "Argos 本地翻译是可选组件，不影响依赖完整性。需要本地翻译时，请先部署独立 Argos 翻译环境。"
+        if "No module named 'torch'" in error or 'No module named "torch"' in error:
+            return "Argos 翻译环境不完整：Argos Translate 的运行链依赖 torch。请重新部署独立 Argos 翻译环境。"
+        if "No module named 'stanza'" in error or 'No module named "stanza"' in error:
+            return "Argos 翻译环境不完整：缺少 stanza 运行依赖。请重新部署独立 Argos 翻译环境。"
+        if "No module named" in error or "ModuleNotFoundError" in error:
+            return f"Argos 翻译环境不完整：{error}"
+        return f"Argos 本地翻译异常：{error}"
 
     def _invalidate_argos_probe_cache(self) -> None:
         self._argos_probe_cache.clear()
 
     def _probe_argos_status(self, force: bool = False) -> dict[str, object]:
-        pyexe = self._resolve_translation_python()
+        pyexe = self._resolve_argos_python()
         cache_key = str(pyexe or "").strip()
         if (not force) and cache_key in self._argos_probe_cache:
             return dict(self._argos_probe_cache[cache_key])
@@ -664,7 +753,6 @@ class BilingualPdfWindow(QDialog):
         self.argos_status_label.setVisible(engine != "source_only")
         can_install = (
             (not argos_status.get("pending"))
-            and bool(argos_status.get("runtime_installed"))
             and (not bool(argos_status.get("model_ready")))
             and (not installing)
         )
@@ -685,33 +773,37 @@ class BilingualPdfWindow(QDialog):
         self._refresh_engine_ui_state()
         status = self._probe_argos_status()
         if status.get("pending"):
-            self.translated_text.setPlainText("正在检测 Argos 运行环境，请稍候再试。")
+            self.translated_text.setPlainText("正在检测 Argos 独立翻译环境，请稍候再试。")
             return False
         if bool(status.get("model_ready")):
             return True
-        self.translated_text.setPlainText("未安装 Argos 英译中模型，请先点击“安装英中模型”。")
+        if not status.get("runtime_installed"):
+            self.translated_text.setPlainText(self._argos_runtime_error_message(status))
+            return False
+        self.translated_text.setPlainText("Argos 本地翻译尚未部署完整，请先点击“部署 Argos 本地翻译”。")
         return False
 
     def _install_argos_model(self) -> None:
         self._refresh_engine_ui_state()
         status = self._probe_argos_status()
         if status.get("pending"):
-            InfoBar.info(title="正在检测", content="正在检测当前依赖环境中的 Argos 状态，请稍后重试。", parent=self, position=InfoBarPosition.TOP, duration=2200)
-            return
-        if not status.get("runtime_installed"):
-            InfoBar.warning(title="运行库未安装", content="当前依赖环境未安装 Argos Translate 运行库。", parent=self, position=InfoBarPosition.TOP, duration=2600)
+            InfoBar.info(title="正在检测", content="正在检测 Argos 独立翻译环境，请稍后重试。", parent=self, position=InfoBarPosition.TOP, duration=2200)
             return
         if bool(status.get("model_ready")):
-            InfoBar.success(title="模型已就绪", content="当前环境已安装 Argos 英译中模型。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            InfoBar.success(title="模型已就绪", content="Argos 独立翻译环境已部署。", parent=self, position=InfoBarPosition.TOP, duration=2200)
             return
         if self._argos_install_worker is not None and self._argos_install_worker.isRunning():
             return
         self.install_argos_btn.setEnabled(False)
-        self.argos_status_label.setText("正在安装英译中模型...")
+        self.argos_status_label.setText("正在部署 Argos 本地翻译...")
         self.argos_install_progress.show()
-        self.argos_progress_text.setText("准备安装...")
+        self.argos_progress_text.setText("准备创建独立翻译环境...")
         self._invalidate_argos_probe_cache()
-        worker = _ArgosModelInstallWorker(self._resolve_translation_python(), self)
+        worker = _ArgosModelInstallWorker(
+            self._resolve_dependency_python(),
+            self._resolve_argos_env_dir(),
+            self,
+        )
         self._argos_install_worker = worker
         worker.progress.connect(self._on_argos_install_progress)
         worker.completed.connect(self._on_argos_install_finished)
@@ -728,15 +820,15 @@ class BilingualPdfWindow(QDialog):
         self._refresh_engine_ui_state()
         if ok:
             self.argos_status_label.setText("英译中模型已就绪")
-            self.argos_progress_text.setText("安装完成")
-            InfoBar.success(title="安装完成", content=str(message or "Argos 英译中模型已安装。"), parent=self, position=InfoBarPosition.TOP, duration=2600)
+            self.argos_progress_text.setText("部署完成")
+            InfoBar.success(title="部署完成", content=str(message or "Argos 本地翻译已部署。"), parent=self, position=InfoBarPosition.TOP, duration=3600)
             if self._current_engine() == "argos" and self._pdf_path:
                 self._translate_current_page()
             return
-        self.argos_status_label.setText("未安装英译中模型")
-        self.argos_progress_text.setText("安装失败")
-        self.translated_text.setPlainText(f"Argos 模型安装失败：{str(message or '').strip()}")
-        InfoBar.error(title="安装失败", content=str(message or "Argos 英译中模型安装失败。"), parent=self, position=InfoBarPosition.TOP, duration=3600)
+        self.argos_status_label.setText("Argos 本地翻译未部署")
+        self.argos_progress_text.setText("部署失败")
+        self.translated_text.setPlainText(f"Argos 本地翻译部署失败：{str(message or '').strip()}")
+        InfoBar.error(title="部署失败", content=str(message or "Argos 本地翻译部署失败。"), parent=self, position=InfoBarPosition.TOP, duration=4200)
 
     def _on_argos_install_thread_finished(self) -> None:
         self._argos_install_worker = None
@@ -1037,7 +1129,11 @@ class BilingualPdfWindow(QDialog):
         self._translate_process_silent = bool(silent)
         process.finished.connect(self._on_translate_process_finished)
         process.errorOccurred.connect(self._on_translate_process_error)
-        pyexe = self._resolve_translation_python()
+        pyexe = self._resolve_translation_python(engine)
+        if not pyexe or not os.path.exists(pyexe):
+            self._teardown_translate_process()
+            self.translated_text.setPlainText(self._argos_runtime_error_message({"error": "translation_env_missing"}) if engine == "argos" else "翻译解释器不存在。")
+            return
         script = (
             "import json,sys\n"
             "import html\n"
@@ -1184,11 +1280,36 @@ class BilingualPdfWindow(QDialog):
         if show_feedback:
             InfoBar.success(title="开始翻译", content="已重新翻译当前页。", parent=self, position=InfoBarPosition.TOP, duration=1600)
 
-    def _resolve_translation_python(self) -> str:
+    def _resolve_dependency_python(self) -> str:
         candidate = str(os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
         if candidate and os.path.exists(candidate):
             return candidate
         return sys.executable
+
+    def _resolve_argos_env_dir(self) -> Path:
+        try:
+            raw = str(self.cfg.get("argos_translation_env_dir", "") or "").strip() if self.cfg else ""
+        except Exception:
+            raw = ""
+        if raw:
+            return Path(raw).expanduser()
+
+        pyexe = Path(self._resolve_dependency_python()).resolve()
+        base = pyexe.parent
+        if base.name.lower() in {"scripts", "bin"}:
+            base = base.parent.parent
+        elif base.name.lower().startswith("python"):
+            base = base.parent
+        return base / "translation_env"
+
+    def _resolve_argos_python(self) -> str:
+        env_py = _translation_env_python(self._resolve_argos_env_dir())
+        return str(env_py) if env_py.exists() else ""
+
+    def _resolve_translation_python(self, engine: str | None = None) -> str:
+        if str(engine or "").strip().lower() == "argos":
+            return self._resolve_argos_python()
+        return self._resolve_dependency_python()
 
     def _teardown_translate_process(self) -> None:
         process = self._translate_process
@@ -1304,7 +1425,7 @@ class BilingualPdfWindow(QDialog):
         install_worker = self._argos_install_worker
         if install_worker is not None and install_worker.isRunning():
             event.ignore()
-            InfoBar.warning(title="安装进行中", content="Argos 英中模型仍在安装，请等待完成后再关闭窗口。", parent=self, position=InfoBarPosition.TOP, duration=2600)
+            InfoBar.warning(title="部署进行中", content="Argos 独立翻译环境仍在部署，请等待完成后再关闭窗口。", parent=self, position=InfoBarPosition.TOP, duration=2600)
             return
         probe_worker = self._argos_probe_worker
         if probe_worker is not None and probe_worker.isRunning():

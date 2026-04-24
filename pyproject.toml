@@ -1,3 +1,82 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathcraft-ocr"
+version = "0.1.1"
+description = "ONNX-only OCR runtime for mathematical documents"
+readme = "README_MATHCRAFT_OCR.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "SakuraMathcraft" }
+]
+keywords = [
+  "ocr",
+  "latex",
+  "math",
+  "onnx",
+  "document-ocr",
+  "formula-recognition"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Image Recognition",
+  "Topic :: Text Processing"
+]
+dependencies = [
+  "numpy>=1.26,<3",
+  "pillow>=10,<12",
+  "opencv-python>=4.10,<5",
+  "rapidocr==3.5.0",
+  "transformers==4.55.4",
+  "tokenizers==0.21.4",
+  "requests>=2.31,<3",
+  "packaging>=23",
+]
+
+[project.optional-dependencies]
+cpu = [
+  "onnxruntime~=1.19.2; python_version < '3.13'",
+  "onnxruntime>=1.20,<1.26; python_version >= '3.13'",
+]
+gpu = [
+  "onnxruntime-gpu~=1.19.2; python_version < '3.13'",
+  "onnxruntime-gpu>=1.20,<1.26; python_version >= '3.13'",
+]
+dev = [
+  "ruff>=0.8",
+  "build>=1.2",
+  "twine>=5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/SakuraMathcraft/LaTeXSnipper"
+Models = "https://github.com/SakuraMathcraft/MathCraft-Models"
+Issues = "https://github.com/SakuraMathcraft/LaTeXSnipper/issues"
+
+[project.scripts]
+mathcraft = "mathcraft_ocr.cli:main"
+mathcraft-ocr = "mathcraft_ocr.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mathcraft_ocr*"]
+exclude = ["src*", "test*", "scripts*", "docs*", "release_assets*", "build*", "dist*"]
+
+[tool.setuptools.package-data]
+mathcraft_ocr = ["manifests/*.json"]
+
 [tool.vulture]
 paths = ["src"]
 exclude = [

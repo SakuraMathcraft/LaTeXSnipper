@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -69,31 +70,50 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _worker_code_roots() -> list[Path]:
+    candidates: list[Path] = []
+
+    def add(path: str | Path | None) -> None:
+        if not path:
+            return
+        try:
+            p = Path(path).resolve()
+        except Exception:
+            return
+        if p not in candidates:
+            candidates.append(p)
+
+    add(_repo_root())
+    add(_repo_root() / "_internal")
+    try:
+        add(getattr(sys, "_MEIPASS", None))
+    except Exception:
+        pass
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        add(exe_dir)
+        add(exe_dir / "_internal")
+    except Exception:
+        pass
+    try:
+        current = Path(__file__).resolve()
+        for parent in current.parents:
+            if (parent / "mathcraft_ocr").is_dir() or (parent / "_internal" / "mathcraft_ocr").is_dir():
+                add(parent)
+                add(parent / "_internal")
+    except Exception:
+        pass
+    return [root for root in candidates if root.is_dir()]
+
+
 def _worker_pythonpath() -> str:
-    roots = [_repo_root()]
-    internal_root = roots[0] / "_internal"
-    if internal_root.is_dir():
-        roots.append(internal_root)
-    return os.pathsep.join(str(root) for root in roots)
+    return os.pathsep.join(str(root) for root in _worker_code_roots())
 
 
 def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _read_process_stderr_tail(proc: subprocess.Popen | None, limit: int = 4000) -> str:
-    if proc is None or proc.poll() is None:
-        return ""
-    stderr = getattr(proc, "stderr", None)
-    if stderr is None:
-        return ""
-    try:
-        text = stderr.read()
-    except Exception:
-        return ""
-    return str(text or "").strip()[-limit:]
 
 
 def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
@@ -285,6 +305,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "MathCraft OCR 模型缓存不完整，请补齐模型权重后重试。",
             f"MathCraft 模型缓存不完整: {raw[:300]}",
         )
+    if "failed to download model" in lower or "no usable download source" in lower:
+        return _pack(
+            "MODEL_DOWNLOAD_FAILED",
+            "模型权重下载失败",
+            "MathCraft OCR 模型权重下载失败，请检查网络连接或稍后重试。",
+            f"MathCraft 模型权重下载失败: {raw[:300]}",
+        )
     if "list index out of range" in lower or ("indexerror" in lower and "rapidocr" in lower):
         return _pack(
             "OCR_VOCAB_MISMATCH",
@@ -345,6 +372,9 @@ class ModelWrapper(QObject):
         self._last_error_code = ""
         self._provider = resolve_mathcraft_provider_preference()
         self._ready_modes: set[str] = set()
+        self._stderr_lock = threading.Lock()
+        self._worker_stderr_tail: deque[str] = deque(maxlen=80)
+        self._cache_events_seen: set[str] = set()
 
         self._emit(f"[INFO] MathCraft OCR 后端偏好: {self._provider}")
         self._emit(f"[INFO] MathCraft OCR 依赖解释器: {get_deps_python()}")
@@ -388,14 +418,52 @@ class ModelWrapper(QObject):
         return f"mathcraft-{self._request_seq}"
 
     def _worker_argv(self) -> list[str]:
-        repo = str(_repo_root())
+        roots = [str(root) for root in _worker_code_roots()]
         code = (
             "import sys; "
-            f"sys.path.insert(0, {repo!r}); "
+            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]; "
             "from mathcraft_ocr.cli import main; "
             f"raise SystemExit(main(['worker', '--provider', {self._provider!r}]))"
         )
         return [get_deps_python(), "-u", "-c", code]
+
+    def _remember_worker_stderr(self, text: str) -> None:
+        if not text:
+            return
+        with self._stderr_lock:
+            self._worker_stderr_tail.append(text)
+
+    def _worker_stderr_text(self, limit: int = 4000) -> str:
+        with self._stderr_lock:
+            text = "\n".join(self._worker_stderr_tail)
+        return text.strip()[-limit:]
+
+    def _emit_cache_event_once(self, event: str) -> None:
+        event = str(event or "").strip()
+        if not event or event in self._cache_events_seen:
+            return
+        self._cache_events_seen.add(event)
+        self._emit(f"[INFO] MathCraft model cache: {event}")
+
+    def _start_worker_stderr_pump(self, proc: subprocess.Popen) -> None:
+        stderr = proc.stderr
+        if stderr is None:
+            return
+
+        def _pump() -> None:
+            try:
+                for raw_line in stderr:
+                    line = str(raw_line or "").strip()
+                    if not line:
+                        continue
+                    self._remember_worker_stderr(line)
+                    prefix = "[MATHCRAFT_CACHE]"
+                    if line.startswith(prefix):
+                        self._emit_cache_event_once(line[len(prefix):].strip())
+            except Exception:
+                return
+
+        threading.Thread(target=_pump, daemon=True).start()
 
     def _ensure_worker(self) -> bool:
         proc = self._worker
@@ -406,7 +474,10 @@ class ModelWrapper(QObject):
             if proc is not None and proc.poll() is None:
                 return True
             try:
-                self._worker = subprocess.Popen(
+                self._cache_events_seen.clear()
+                with self._stderr_lock:
+                    self._worker_stderr_tail.clear()
+                proc = subprocess.Popen(
                     self._worker_argv(),
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -417,6 +488,8 @@ class ModelWrapper(QObject):
                     env=self._build_subprocess_env(),
                     creationflags=_subprocess_creationflags(),
                 )
+                self._worker = proc
+                self._start_worker_stderr_pump(proc)
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
@@ -424,7 +497,7 @@ class ModelWrapper(QObject):
                 self._worker = None
                 return False
 
-    def _send_worker_request(self, payload: dict[str, Any], timeout_sec: float = 300.0) -> dict[str, Any]:
+    def _send_worker_request(self, payload: dict[str, Any], timeout_sec: float | None = 300.0) -> dict[str, Any]:
         if not self._ensure_worker():
             raise RuntimeError(self._last_error or "MathCraft OCR 运行进程启动失败")
         proc = self._worker
@@ -451,7 +524,11 @@ class ModelWrapper(QObject):
             reader = threading.Thread(target=_readline, daemon=True)
             reader.start()
             try:
-                line_or_exc = lines.get(timeout=max(float(timeout_sec), 1.0))
+                line_or_exc = (
+                    lines.get()
+                    if timeout_sec is None
+                    else lines.get(timeout=max(float(timeout_sec), 1.0))
+                )
             except queue.Empty as exc:
                 self._stop_mathcraft_worker()
                 raise RuntimeError(f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）") from exc
@@ -461,7 +538,7 @@ class ModelWrapper(QObject):
             line = line_or_exc
 
         if not line:
-            detail = _read_process_stderr_tail(proc)
+            detail = self._worker_stderr_text()
             self._stop_mathcraft_worker()
             if detail:
                 raise RuntimeError(f"MathCraft OCR 运行进程已退出且没有返回结果: {detail}")
@@ -522,7 +599,7 @@ class ModelWrapper(QObject):
                     "action": "warmup",
                     "profile": mode,
                 },
-                timeout_sec=300.0,
+                timeout_sec=None,
             )
             ready = bool(result.get("ready"))
             if not ready:
@@ -537,6 +614,11 @@ class ModelWrapper(QObject):
                 active_provider = str(provider.get("active_provider") or "")
             else:
                 active_provider = ""
+            cache_events = result.get("cache_events", [])
+            if isinstance(cache_events, list):
+                for event in cache_events:
+                    if event:
+                        self._emit_cache_event_once(str(event))
             self._ready = True
             self._ready_modes.add(mode)
             self._clear_error()

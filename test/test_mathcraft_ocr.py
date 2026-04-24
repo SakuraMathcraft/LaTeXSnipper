@@ -80,6 +80,7 @@ def test_formula_warmup_plan_reports_missing_models() -> None:
             cache_dir=root,
             manifest=manifest,
             provider_preference="cpu",
+            auto_download=False,
         )
         plan = runtime.warmup("formula")
         assert plan.profile == "formula"
@@ -89,10 +90,44 @@ def test_formula_warmup_plan_reports_missing_models() -> None:
         assert plan.unsupported_models == ()
 
 
+def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
+    manifest = load_manifest()
+    old_download = runtime_mod.download_model_archive
+    old_handlers = dict(runtime_mod.ONNX_WARMUP_HANDLERS)
+    downloaded = []
+    warmed = []
+
+    def _fake_download(spec, *, target_root, timeout=120, source_overrides=None):
+        downloaded.append((spec.model_id, timeout))
+        _touch_model(Path(target_root), manifest, spec.model_id)
+        return Path(target_root) / spec.model_id
+
+    try:
+        runtime_mod.download_model_archive = _fake_download
+        runtime_mod.ONNX_WARMUP_HANDLERS = {
+            FORMULA_DETECTOR_ID: lambda model_dir, provider_info: warmed.append(Path(model_dir).name),
+            FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: warmed.append(Path(model_dir).name),
+            TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
+            TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            plan = runtime.warmup("formula")
+            assert plan.ready is True
+            assert downloaded == [(FORMULA_DETECTOR_ID, 120), (FORMULA_RECOGNIZER_ID, 120)]
+            assert warmed == [FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID]
+            assert len(plan.cache_events) == 4
+            assert FORMULA_RECOGNIZER_ID in plan.cache_events[2]
+            assert "missing:" in plan.cache_events[2]
+    finally:
+        runtime_mod.download_model_archive = old_download
+        runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
+
+
 def test_mixed_profile_declares_real_required_models() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu", auto_download=False)
         plan = runtime.warmup("mixed")
         assert plan.required_models == (
             FORMULA_DETECTOR_ID,
@@ -105,7 +140,7 @@ def test_mixed_profile_declares_real_required_models() -> None:
 def test_text_profile_declares_text_models_only() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu", auto_download=False)
         plan = runtime.warmup("text")
         assert plan.required_models == (
             TEXT_DETECTOR_ID,
@@ -118,7 +153,7 @@ def test_text_profile_declares_text_models_only() -> None:
 def test_table_profile_reports_removed_runtime() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest)
+        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, auto_download=False)
         try:
             runtime.warmup("table")
         except ModelCacheError:
@@ -807,6 +842,7 @@ def main() -> None:
         test_manifest_loads_expected_models,
         test_cache_inspection_marks_incomplete_model,
         test_formula_warmup_plan_reports_missing_models,
+        test_warmup_auto_downloads_missing_models_before_handlers,
         test_mixed_profile_declares_real_required_models,
         test_text_profile_declares_text_models_only,
         test_table_profile_reports_removed_runtime,

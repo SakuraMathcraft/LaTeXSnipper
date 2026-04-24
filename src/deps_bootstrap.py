@@ -821,7 +821,6 @@ LAYER_VERIFY_CODE = {
 import PIL
 import requests
 import lxml
-import argostranslate
 print("BASIC OK")
 """,
     "CORE": _CORE_VERIFY_CODE,
@@ -1051,7 +1050,6 @@ LAYER_MAP = {
         "lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0",
         "requests~=2.32.5",
-        "argostranslate~=1.9.6",
         "certifi~=2026.2.25",
         "psutil~=7.1.0",
     ],

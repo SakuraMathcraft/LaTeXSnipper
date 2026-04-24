@@ -5133,6 +5133,8 @@ class MainWindow(QMainWindow):
         self._auto_theme_refresh_timer.setInterval(160)
         self._auto_theme_refresh_timer.timeout.connect(self._on_auto_theme_refresh_timeout)
         self._model_warmup_in_progress = False
+        self._model_warmup_notice_shown = False
+        self._model_cache_repair_notice_shown = False
         self._preview_svg_cache = {}
         self._preview_svg_pending = set()
         self._preview_render_thread = None
@@ -5987,10 +5989,78 @@ class MainWindow(QMainWindow):
         text = str(msg or "").strip()
         if not text:
             return
+        if text.startswith("[INFO] MathCraft model cache:"):
+            self._show_mathcraft_cache_repair_infobar(text.split(":", 1)[-1].strip())
+            return
         # 技术日志保留在运行日志，不污染底部状态文案。
         if text.startswith("["):
             return
         self.set_model_status(text)
+
+    def _mathcraft_profile_for_model(self, model_name: str | None) -> str:
+        model = str(model_name or "mathcraft").strip().lower()
+        if model == "mathcraft_text":
+            return "text"
+        if model == "mathcraft_mixed":
+            return "mixed"
+        return "formula"
+
+    def _mathcraft_required_models_incomplete(self, model_name: str | None) -> bool:
+        try:
+            from mathcraft_ocr.cache import inspect_model_roots, resolve_model_roots
+            from mathcraft_ocr.manifest import load_manifest
+            from mathcraft_ocr.profiles import PROFILE_MODEL_IDS
+
+            profile = self._mathcraft_profile_for_model(model_name)
+            manifest = load_manifest()
+            roots = resolve_model_roots()
+            for model_id in PROFILE_MODEL_IDS.get(profile, ()):
+                spec = manifest.models.get(model_id)
+                if spec is None:
+                    return True
+                if not inspect_model_roots(roots, spec).complete:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def _should_show_mathcraft_warmup_started_infobar(self, model_name: str | None) -> bool:
+        if self._mathcraft_required_models_incomplete(model_name):
+            return True
+        return not bool(self.cfg.get("mathcraft_warmup_notice_done", False))
+
+    def _show_mathcraft_warmup_started_infobar(self) -> None:
+        if self._model_warmup_notice_shown:
+            return
+        self._model_warmup_notice_shown = True
+        try:
+            InfoBar.info(
+                title="MathCraft OCR 正在预热",
+                content="首次预热可能需要下载或初始化模型权重，网速较慢时耗时会更长，请稍候。",
+                parent=self._get_infobar_parent(),
+                duration=5200,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            pass
+
+    def _show_mathcraft_cache_repair_infobar(self, detail: str = "") -> None:
+        if self._model_cache_repair_notice_shown:
+            return
+        self._model_cache_repair_notice_shown = True
+        content = "检测到 MathCraft 模型权重缺失或不完整，正在自动补全。"
+        if detail:
+            content = f"{content}\n{detail[:180]}"
+        try:
+            InfoBar.warning(
+                title="正在修复模型缓存",
+                content=content,
+                parent=self._get_infobar_parent(),
+                duration=6500,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception:
+            pass
 
     # ---------- 实时渲染相关 ----------
     def _on_editor_text_changed(self):
@@ -7250,6 +7320,8 @@ th {{
             return
 
         self._model_warmup_in_progress = True
+        self._model_warmup_notice_shown = False
+        self._model_cache_repair_notice_shown = False
         self.current_model = preferred
         self.cfg.set("default_model", preferred)
         self.desired_model = "mathcraft"
@@ -7261,6 +7333,8 @@ th {{
             pass
         self.set_model_status(f"预热中 ({preferred})")
         self._report_startup_progress("正在预热 MathCraft OCR...")
+        if self._should_show_mathcraft_warmup_started_infobar(preferred):
+            self._show_mathcraft_warmup_started_infobar()
 
         def worker():
             ok = False
@@ -7312,6 +7386,8 @@ th {{
         if ok:
             self._report_startup_progress("MathCraft OCR 预热完成")
             self.set_model_status("已加载")
+            if not bool(self.cfg.get("mathcraft_warmup_notice_done", False)):
+                self.cfg.set("mathcraft_warmup_notice_done", True)
             if self.settings_window:
                 self.settings_window.update_model_selection()
             if announce_success:
