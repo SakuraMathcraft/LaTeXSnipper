@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import os
 import tempfile
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from mathcraft_ocr.layout import (
 from mathcraft_ocr.providers import ProviderInfo
 from mathcraft_ocr.results import FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult
 from mathcraft_ocr.serialization import block_to_json
+from mathcraft_ocr.cache import resolve_model_roots
 from mathcraft_ocr.runtime import (
     FORMULA_DETECTOR_ID,
     FORMULA_RECOGNIZER_ID,
@@ -270,6 +272,23 @@ def test_runtime_prefers_complete_bundled_models_over_empty_user_cache() -> None
         assert state.complete is True
         assert state.model_dir == bundled_root / FORMULA_DETECTOR_ID
         assert not (user_root / FORMULA_DETECTOR_ID).exists()
+
+
+def test_env_bundled_models_root_precedes_user_cache() -> None:
+    with tempfile.TemporaryDirectory() as bundled_tmp, tempfile.TemporaryDirectory() as user_tmp:
+        bundled_root = Path(bundled_tmp)
+        user_root = Path(user_tmp)
+        old_value = os.environ.get("MATHCRAFT_BUNDLED_MODELS_DIR")
+        os.environ["MATHCRAFT_BUNDLED_MODELS_DIR"] = str(bundled_root)
+        try:
+            roots = resolve_model_roots(cache_dir=user_root)
+        finally:
+            if old_value is None:
+                os.environ.pop("MATHCRAFT_BUNDLED_MODELS_DIR", None)
+            else:
+                os.environ["MATHCRAFT_BUNDLED_MODELS_DIR"] = old_value
+        assert roots[0] == bundled_root
+        assert roots[1] == user_root
 
 
 def test_recognize_formula_uses_formula_adapter() -> None:
