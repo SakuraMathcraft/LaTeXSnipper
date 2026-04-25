@@ -14,6 +14,7 @@ dist/
 *.spec
 !LaTeXSnipper.spec
 !LaTeXSnipper.offline.spec
+*.egg-info/
 
 # Large binary files
 *.exe
@@ -24,6 +25,7 @@ dist/
 
 # Embedded runtime (do not version)
 src/deps/python311/
+src/deps/translation_env/
 src/models/
 
 # Local runtime components (do not version)
