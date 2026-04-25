@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .serialization import (
@@ -13,6 +14,26 @@ from .serialization import (
     mixed_result_to_json,
     warmup_plan_to_json,
 )
+
+
+def _resolve_ocr_output_path(args: argparse.Namespace) -> Path | None:
+    output = str(getattr(args, "output", "") or "").strip()
+    output_dir = str(getattr(args, "output_dir", "") or "").strip()
+    if output and output_dir:
+        raise ValueError("--output and --output-dir cannot be used together")
+    if output:
+        return Path(output)
+    if not output_dir:
+        return None
+    suffix = ".json" if bool(getattr(args, "as_json", False)) else ".md"
+    image_stem = Path(str(args.image)).stem or "mathcraft_result"
+    return Path(output_dir) / f"{image_stem}{suffix}"
+
+
+def _write_ocr_output(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"[MATHCRAFT_OUTPUT] written to {path.resolve()}", file=sys.stderr, flush=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     ocr.add_argument("--profile", choices=("formula", "text", "mixed"), default="mixed")
     ocr.add_argument("--provider", default="auto")
     ocr.add_argument("--output", "-o", default="")
+    ocr.add_argument("--output-dir", default="")
     ocr.add_argument("--json", action="store_true", dest="as_json")
 
     worker = sub.add_parser("worker")
@@ -92,13 +114,12 @@ def main(argv: list[str] | None = None) -> int:
             result = runtime.recognize_mixed(args.image)
             data = mixed_result_to_json(result)
             text = result.text
-        if args.output:
-            Path(args.output).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2) if args.as_json else text,
-                encoding="utf-8",
-            )
+        payload = json.dumps(data, ensure_ascii=False, indent=2) if args.as_json else text
+        output_path = _resolve_ocr_output_path(args)
+        if output_path:
+            _write_ocr_output(output_path, payload)
         else:
-            print(json.dumps(data, ensure_ascii=False, indent=2) if args.as_json else text)
+            print(payload)
         return 0
 
     if args.command == "worker":

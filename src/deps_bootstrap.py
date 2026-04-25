@@ -22,10 +22,7 @@ try:
     from PyQt6.QtCore import QThread, pyqtSignal
     from PyQt6.QtCore import QTimer
     from PyQt6.QtGui import QIcon
-    HAS_PYQT6 = True
 except Exception:
-    HAS_PYQT6 = False
-
     class _Signal:
         def __init__(self):
             self._handlers = []
@@ -130,36 +127,6 @@ except Exception:
 
 subprocess_lock = threading.Lock()
 
-# 需要监控的模块列表（如果这些模块已加载，pip 安装可能会因文件占用失败）
-CONFLICT_MODULES = {
-    # MathCraft / ONNX OCR 系列
-    "mathcraft_ocr",
-    # onnxruntime
-    "onnxruntime", "onnxruntime_gpu",
-    # 其他常见冲突模块
-    "transformers", "cv2", "numpy",
-}
-
-def get_loaded_conflict_modules() -> list[str]:
-    """
-    检测当前进程中已加载的可能导致安装冲突的模块
-    返回已加载的冲突模块名列表
-    """
-    loaded = []
-    for mod_name in CONFLICT_MODULES:
-        if mod_name in sys.modules:
-            loaded.append(mod_name)
-    return loaded
-
-def needs_restart_for_install() -> tuple[bool, list[str]]:
-    """
-    检查是否需要重启程序才能安全安装依赖
-    返回 (need_restart, loaded_modules)
-    """
-    loaded = get_loaded_conflict_modules()
-    return (len(loaded) > 0, loaded)
-
-
 def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """
     启动子进程并返回 Popen 对象，不预先读取/关闭 stdout。
@@ -182,21 +149,6 @@ def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
         **popen_kwargs
     )
     return proc
-
-def get_base_dir():
-    """
-    获取程序运行的基础目录（兼容 PyInstaller 打包）
-    - 开发模式：返回源代码目录
-    - 打包模式：返回 _MEIPASS 临时解压目录
-    """
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        # 打包后的运行环境
-        return Path(sys._MEIPASS)
-    else:
-        # 源代码运行环境
-        return Path(__file__).parent
-
-BASE_DIR = get_base_dir()
 
 class InstallWorker(QThread):
     log_updated = pyqtSignal(str)
@@ -585,13 +537,11 @@ def _config_dir_path() -> Path:
         pass
     return p
 
-# 需要特殊处理的包
-QT_PKGS = {"pyqt6", "pyqt6-qt6", "pyqt6-webengine", "pyqt6-webengine-qt6"}
 ORT_CPU_SPEC = "onnxruntime~=1.19.2"
 ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu~=1.19.2"
 pip_ready_event = threading.Event()
 PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
-# 关键版本约束（防止 pip 自动升级导致兼容性问题）
+# ONNX Runtime 支撑包版本约束，避免 pip 解析带入不可用组合。
 CRITICAL_VERSIONS = {
     "numpy": "numpy>=1.26,<3",
     "sympy": "sympy>=1.13,<1.15",
@@ -1060,7 +1010,6 @@ LAYER_MAP = {
         "opencv-python==4.13.0.92",
         "rapidocr==3.5.0",
         "numpy>=1.26,<3",
-        "packaging>=23",
         "flatbuffers>=24.3.25",
         "coloredlogs>=15.0.1",
         "sympy>=1.13,<1.15",
@@ -1078,8 +1027,6 @@ LAYER_MAP = {
 }
 
 MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
-
-SKIP_PREFIX = {"pip","setuptools","wheel","python","openssl","zlib","ninja"}
 
 # ---------------- 基础工具 ----------------
 def _load_json(p: Path, default):
@@ -1172,8 +1119,8 @@ def _site_packages_root(pyexe: Path):
     # 支持 .venv/Scripts/python.exe 结构，向上查找 Lib/site-packages
     candidates = [
         py_dir / "Lib" / "site-packages",
-        py_dir.parent / "Lib" / "site-packages",  # 兼容 .venv/Scripts/python.exe
-        py_dir.parent.parent / "Lib" / "site-packages"  # 兼容更深层嵌套
+        py_dir.parent / "Lib" / "site-packages",
+        py_dir.parent.parent / "Lib" / "site-packages",
     ]
     for sp in candidates:
         if sp.exists():
@@ -1345,9 +1292,9 @@ def _current_installed(pyexe):
         result = {d["name"].lower(): d["version"] for d in data}
         if not result:
             print("[WARN] pip list 返回 0 个包，使用元数据回退二次确认。")
-            fallback = _installed_via_metadata()
-            if fallback:
-                return fallback
+            metadata_installed = _installed_via_metadata()
+            if metadata_installed:
+                return metadata_installed
         print(f"[DEBUG] 已安装包数量: {len(result)}")
         return result
     except Exception as e:
@@ -1382,8 +1329,6 @@ def _filter_packages(pkgs):
     seen = set()
     for spec in pkgs:
         name = re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
-        if any(name.startswith(p) for p in SKIP_PREFIX):
-            continue
         if name in seen:
             continue
         seen.add(name)
@@ -1594,7 +1539,7 @@ def _run_logged_pip_command(pyexe, pip_args, stop_event, log_q, flags=0, use_mir
         proc.communicate(timeout=timeout)
         return proc.returncode == 0, "\n".join(output_lines)
     except subprocess.TimeoutExpired:
-        log_q.put("[WARN] pip fallback 命令执行超时")
+        log_q.put("[WARN] pip 恢复命令执行超时")
         try:
             if proc is not None:
                 proc.kill()
@@ -1602,7 +1547,7 @@ def _run_logged_pip_command(pyexe, pip_args, stop_event, log_q, flags=0, use_mir
             pass
         return False, "\n".join(output_lines)
     except Exception as e:
-        log_q.put(f"[WARN] pip fallback 命令异常: {e}")
+        log_q.put(f"[WARN] pip 恢复命令异常: {e}")
         return False, "\n".join(output_lines)
     finally:
         if proc_setter is not None:
@@ -1635,7 +1580,7 @@ def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_
         timeout=900,
     )
     if not ok_tools:
-        log_q.put("[WARN] 自动补齐 pip/setuptools/wheel 失败，无法继续 antlr fallback。")
+        log_q.put("[WARN] 自动补齐 pip/setuptools/wheel 失败，无法继续 antlr 构建恢复。")
         return False
 
     ok_antlr, _ = _run_logged_pip_command(
@@ -1649,13 +1594,13 @@ def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_
         timeout=900,
     )
     if not ok_antlr:
-        log_q.put("[WARN] 预装 antlr4-python3-runtime==4.9.3 失败，antlr fallback 未生效。")
+        log_q.put("[WARN] 预装 antlr4-python3-runtime==4.9.3 失败，antlr 构建恢复未生效。")
         return False
 
-    log_q.put("[OK] antlr4-python3-runtime fallback 已完成，准备重试当前包。")
+    log_q.put("[OK] antlr4-python3-runtime 恢复已完成，准备重试当前包。")
     return True
 
-# 扩展 _pip_install：支持 pause_event、实时日志和镜像切换
+# pip 安装入口：支持 pause_event、实时日志和镜像切换
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
     """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
@@ -1665,7 +1610,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
     max_retries = 2
     retry = 0
     proc = None
-    antlr_fallback_applied = False
+    antlr_recovery_applied = False
 
     def _root_name(spec: str) -> str:
         return re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
@@ -1705,22 +1650,17 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                 str(pyexe), "-m", "pip", "install",
                 pkg, "--upgrade", *PIP_INSTALL_SUPPRESS_ARGS
             ]
-            # 安装策略优化：Qt / ONNX Runtime 不重装依赖，避免运行中的 GUI 锁住 numpy 等二进制文件。
-            
             # 需要强制重装的包（版本冲突敏感）
             force_reinstall_pkgs = {
                 "protobuf",
             }
             
-            if force_reinstall and name not in QT_PKGS:
+            if force_reinstall:
                 args.append("--force-reinstall")
                 if no_cache:
                     args.append("--no-cache-dir")
             elif name in force_reinstall_pkgs:
                 args.append("--force-reinstall")
-            elif name in QT_PKGS:
-                # Qt 包：禁止重装
-                pass
             else:
                 # 其他包：普通升级即可，不强制重装依赖
                 pass
@@ -1800,8 +1740,8 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                 log_q.put(f"[WARN] {pkg} 安装失败 (returncode={proc.returncode})")
                 log_q.put(f"[DIAG] 可能原因: {failure_reason}")
 
-                if not antlr_fallback_applied:
-                    antlr_fallback_applied = _maybe_recover_antlr_wheel_failure(
+                if not antlr_recovery_applied:
+                    antlr_recovery_applied = _maybe_recover_antlr_wheel_failure(
                         pyexe,
                         pkg,
                         full_output,
@@ -1811,8 +1751,8 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                         flags=flags,
                         proc_setter=proc_setter,
                     )
-                    if antlr_fallback_applied:
-                        log_q.put("[INFO] 已应用 antlr/wheel fallback，立即重试当前包...")
+                    if antlr_recovery_applied:
+                        log_q.put("[INFO] 已应用 antlr/wheel 恢复，立即重试当前包...")
                         time.sleep(1)
                         continue
                 
@@ -2174,7 +2114,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 default_button=QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
-                pkgs = [p for p in LAYER_MAP.get(layer_name, []) if not p.startswith('__stdlib__')]
+                pkgs = list(LAYER_MAP.get(layer_name, []))
                 pkg_names = []
                 for pkg in pkgs:
                     pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0].strip()
@@ -2857,11 +2797,11 @@ def clear_deps_state():
             print(f"[ERR] 无法找到依赖目录：{deps_dir}")
             return
 
-        # 删除旧状态文件
+        # 删除状态文件
         state_path = Path(deps_dir) / ".deps_state.json"
         if state_path.exists():
             state_path.unlink()
-            print(f"[OK] 已删除旧状态文件：{state_path}")
+            print(f"[OK] 已删除状态文件：{state_path}")
 
         # 重建空状态文件
         with open(state_path, "w", encoding="utf-8") as f:

@@ -123,7 +123,7 @@ class MathCraftRuntime:
         *,
         model_ids: list[str] | tuple[str, ...] | None = None,
         source_overrides: dict[str, list[str] | tuple[str, ...]] | None = None,
-        timeout: int = 120,
+        timeout: float | None = None,
     ) -> list[Path]:
         selected = tuple(model_ids) if model_ids else tuple(self.manifest.models.keys())
         downloaded: list[Path] = []
@@ -135,6 +135,7 @@ class MathCraftRuntime:
                     target_root=self.cache_dir,
                     timeout=timeout,
                     source_overrides=source_overrides,
+                    progress_callback=self._record_cache_event,
                 )
             )
         self.clear_warmup_cache()
@@ -163,7 +164,8 @@ class MathCraftRuntime:
             download_model_archive(
                 spec,
                 target_root=self.cache_dir,
-                timeout=120,
+                timeout=None,
+                progress_callback=self._record_cache_event,
             )
             self._record_cache_event(f"model {model_id} downloaded to {self.cache_dir / model_id}")
         self.clear_warmup_cache()
@@ -177,7 +179,8 @@ class MathCraftRuntime:
         download_model_archive(
             spec,
             target_root=self.cache_dir,
-            timeout=120,
+            timeout=None,
+            progress_callback=self._record_cache_event,
         )
         self._record_cache_event(f"model {model_id} repaired to {self.cache_dir / model_id}")
         self.clear_warmup_cache()

@@ -12,6 +12,7 @@ The package is developed for LaTeXSnipper but is usable as a standalone Python l
 - Mixed OCR: formula detection, text masking, batched recognition, and layout merge.
 - Manifest-driven model cache with SHA-256 file checks.
 - Automatic repair for missing or incomplete model directories.
+- Resumable model downloads for interrupted first-run cache repair.
 - CPU/GPU provider selection through ONNX Runtime.
 - JSONL worker mode for GUI or service integration.
 
@@ -19,13 +20,13 @@ The package is developed for LaTeXSnipper but is usable as a standalone Python l
 
 CPU backend:
 
-```bash
+```powershell
 pip install "mathcraft-ocr[cpu]"
 ```
 
 GPU backend:
 
-```bash
+```powershell
 pip install "mathcraft-ocr[gpu]"
 ```
 
@@ -60,32 +61,33 @@ print(formula.text)
 
 Check model cache:
 
-```bash
+```powershell
 mathcraft models check
 ```
 
 Inspect runtime:
 
-```bash
+```powershell
 mathcraft doctor --provider auto
 ```
 
 Warm up models:
 
-```bash
+```powershell
 mathcraft warmup --profile mixed --provider auto
 ```
 
 Recognize an image:
 
-```bash
-mathcraft ocr page.png --profile mixed --provider auto --output result.md
-mathcraft ocr formula.png --profile formula --json
+```powershell
+mathcraft ocr "C:\path\to\page.png" --profile mixed --provider auto --output result.md
+mathcraft ocr "C:\path\to\page.png" --profile mixed --provider auto --output-dir "D:\MathCraft\outputs"
+mathcraft ocr "C:\path\to\formula.png" --profile formula --provider auto --json
 ```
 
 Run JSONL worker mode:
 
-```bash
+```powershell
 mathcraft worker --provider auto
 ```
 
@@ -99,8 +101,29 @@ MathCraft reads models from:
 
 or from a custom root:
 
-```bash
-set MATHCRAFT_HOME=D:\MathCraft\models
+```powershell
+$env:MATHCRAFT_HOME="D:\MathCraft\models"
+mathcraft doctor --provider auto
+```
+
+Persist the custom root for future PowerShell sessions:
+
+```powershell
+setx MATHCRAFT_HOME "D:\MathCraft\models"
+```
+
+Restore the default user cache root:
+
+```powershell
+[Environment]::SetEnvironmentVariable("MATHCRAFT_HOME", $null, "User")
+Remove-Item Env:\MATHCRAFT_HOME -ErrorAction SilentlyContinue
+mathcraft doctor --provider auto
+```
+
+Open a new PowerShell window after removing the persistent variable. The default root is:
+
+```text
+%APPDATA%\MathCraft\models
 ```
 
 Model artifacts are downloaded from the MathCraft-Models release assets declared in `mathcraft_ocr/manifests/models.v1.json`.
@@ -127,16 +150,17 @@ The actual provider is available on results through the `provider` field.
 
 Run tests from the repository root:
 
-```bash
-python test/test_mathcraft_ocr.py
-python test/test_mathcraft_document_engine.py
+```powershell
+cd E:\LaTexSnipper
+python .\test\test_mathcraft_ocr.py
+python .\test\test_mathcraft_document_engine.py
 ```
 
 Build package artifacts:
 
-```bash
-python -m pip wheel . --no-deps -w release_assets/mathcraft-ocr-package/dist
-python -m build --outdir release_assets/mathcraft-ocr-package/dist
+```powershell
+cd E:\LaTexSnipper
+python -m build --no-isolation --outdir .\release_assets\mathcraft-ocr-package\dist .
 ```
 
 ## License

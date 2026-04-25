@@ -4,6 +4,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from .asset_store import PdfAssetStore
 from .document_pipeline import ExternalDocumentPipeline
+from .mineru_client import MineruClient
 from .schemas import ExternalModelConfig
 
 
@@ -41,6 +42,32 @@ class ExternalModelPdfWorker(QObject):
 
         def _set_elapsed():
             self.elapsed = time.perf_counter() - t0
+
+        if self.config.normalized_provider() == "mineru":
+            try:
+                total = max(int(self.max_pages or 1), 1)
+                asset_store = PdfAssetStore(task_id="latest", overwrite_existing=True)
+                pipeline = ExternalDocumentPipeline(self.config, self.output_format, "parse", asset_store=asset_store)
+                self.progress.emit(0, total)
+                result = MineruClient(self.config).parse_pdf(self.pdf_path, total)
+                page_result = pipeline.process_result(result, 1, "ocr_document_parse_v1")
+                content = pipeline.compose_document([page_result] if page_result else [])
+                self.structured_result = pipeline.build_structured_result()
+                if not content.strip():
+                    asset_store.cleanup()
+                    _set_elapsed()
+                    self.failed.emit("识别结果为空")
+                    return
+                self.progress.emit(total, total)
+                _set_elapsed()
+                self.finished.emit(content.strip())
+                return
+            except Exception as e:
+                if asset_store is not None:
+                    asset_store.cleanup()
+                _set_elapsed()
+                self.failed.emit(str(e))
+                return
 
         try:
             import fitz  # PyMuPDF

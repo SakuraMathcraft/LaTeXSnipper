@@ -393,7 +393,7 @@ class ModelWrapper(QObject):
 
     def _build_subprocess_env(self) -> dict:
         env = os.environ.copy()
-        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
         env["PYTHONNOUSERSITE"] = "1"
         env["PYTHONPATH"] = _worker_pythonpath()

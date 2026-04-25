@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,6 +11,21 @@ import numpy as np
 from PIL import Image
 
 from .common import create_session
+
+
+def _disable_transformers_framework_imports() -> None:
+    os.environ["USE_TORCH"] = "0"
+    os.environ["USE_TF"] = "0"
+    os.environ["USE_FLAX"] = "0"
+    os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
+
+def _disable_transformers_torchvision_probe() -> None:
+    import transformers.utils.import_utils as import_utils
+
+    import_utils._torchvision_available = False
+    import_utils._torchvision_version = "0.0"
 
 
 def _softmax(logits: np.ndarray) -> np.ndarray:
@@ -20,6 +36,8 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _load_processor(model_dir: str):
+    _disable_transformers_framework_imports()
+    _disable_transformers_torchvision_probe()
     from transformers import AutoTokenizer, TrOCRProcessor, ViTImageProcessor
 
     image_processor = ViTImageProcessor.from_pretrained(model_dir, use_fast=False)
