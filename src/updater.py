@@ -738,6 +738,13 @@ def check_update_dialog(parent=None):
         except RuntimeError:
             pass
 
+    def safe_emit_signal(obj, signal_name: str, *args):
+        try:
+            signal = getattr(obj, signal_name)
+        except RuntimeError:
+            return
+        safe_emit(signal, *args)
+
     def watchdog_timeout():
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
@@ -1206,18 +1213,18 @@ a{{color:{theme['accent']};}}
                                 continue
                             f.write(chunk)
                             cur += len(chunk)
-                            safe_emit(emitter.download_progress, cur, total, dest)
+                            safe_emit_signal(emitter, "download_progress", cur, total, dest)
                 if os.path.exists(dest):
                     try:
                         os.remove(dest)
                     except Exception:
                         pass
                 os.replace(tmp_path, dest)
-                safe_emit(emitter.download_done, dest, None)
+                safe_emit_signal(emitter, "download_done", dest, None)
             except _PauseDownload:
-                safe_emit(emitter.download_done, dest, "__paused__")
+                safe_emit_signal(emitter, "download_done", dest, "__paused__")
             except Exception as e:
-                safe_emit(emitter.download_done, dest, str(e))
+                safe_emit_signal(emitter, "download_done", dest, str(e))
 
         threading.Thread(target=worker_download, daemon=True).start()
 

@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -4773,6 +4774,7 @@ class MainWindow(QMainWindow):
         self.model_status = "未加载"
         self.action_status = ""
         self._predict_busy = False
+        self._last_recognition_cancel_notice_at = 0.0
         self.setAcceptDrops(True)
         self.overlay = None
         self._last_capture_screen_index = None
@@ -7364,7 +7366,7 @@ th {{
         if cancelled:
             self._predict_busy = False
             self.set_model_status("识别已中断")
-            self.set_action_status("已中断当前识别", auto_clear_ms=2200)
+            self._show_recognition_cancelled_infobar(reset_cancel_flag=False)
 
     def _is_user_cancelled_recognition_error(self, msg: str) -> bool:
         text = str(msg or "").strip().lower()
@@ -7378,10 +7380,14 @@ th {{
             or "已中断" in text
         )
 
-    def _show_recognition_cancelled_infobar(self) -> None:
-        self._recognition_cancel_requested = False
+    def _show_recognition_cancelled_infobar(self, *, reset_cancel_flag: bool = True) -> None:
+        if reset_cancel_flag:
+            self._recognition_cancel_requested = False
         self.set_model_status("已中断")
-        self.set_action_status("已中断当前识别", auto_clear_ms=3000)
+        now = time.monotonic()
+        if now - float(getattr(self, "_last_recognition_cancel_notice_at", 0.0) or 0.0) < 2.5:
+            return
+        self._last_recognition_cancel_notice_at = now
         try:
             InfoBar.info(
                 title="识别已中断",
