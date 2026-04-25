@@ -110,6 +110,34 @@ def _worker_pythonpath() -> str:
     return os.pathsep.join(str(root) for root in _worker_code_roots())
 
 
+def _bundled_mathcraft_models_dir() -> Path | None:
+    candidates: list[Path] = []
+    try:
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(Path(meipass) / "MathCraft" / "models")
+    except Exception:
+        pass
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / "_internal" / "MathCraft" / "models")
+        candidates.append(exe_dir / "MathCraft" / "models")
+    except Exception:
+        pass
+    try:
+        for root in _worker_code_roots():
+            candidates.append(root / "MathCraft" / "models")
+    except Exception:
+        pass
+    for candidate in candidates:
+        try:
+            if candidate.is_dir():
+                return candidate.resolve()
+        except Exception:
+            continue
+    return None
+
+
 def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
@@ -393,11 +421,16 @@ class ModelWrapper(QObject):
 
     def _build_subprocess_env(self) -> dict:
         env = os.environ.copy()
-        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
         env["PYTHONNOUSERSITE"] = "1"
         env["PYTHONPATH"] = _worker_pythonpath()
         env["ORT_DISABLE_AZURE"] = "1"
+        bundled_models = _bundled_mathcraft_models_dir()
+        if bundled_models is not None:
+            env["MATHCRAFT_BUNDLED_MODELS_DIR"] = str(bundled_models)
+        else:
+            env.pop("MATHCRAFT_BUNDLED_MODELS_DIR", None)
         return env
 
     def _normalize_model_name(self, model_name: str | None) -> str:

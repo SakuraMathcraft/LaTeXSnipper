@@ -967,16 +967,11 @@ class RuntimeLogDialog(QDialog):
         except Exception:
             pass
 
-# 移除重复的 CONFIG_FILENAME（已在文件顶部定义）
 APP_LOG_FILE: Path | None = None
 _ORIGINAL_PRINT = None
 _PRINT_BRIDGE_INSTALLED = False
 _RUNTIME_SESSION_HANDLER = None
 _APP_LOGGING_INITIALIZED = False
-
-# 注意：init_app_logging、open_realtime_log_window、_read_deps_dir_from_config、
-# open_deps_terminal 的定义见下方，此处移除了重复版本
-
 
 def init_app_logging() -> Path:
     """
@@ -1160,147 +1155,7 @@ def open_deps_terminal(parent=None):
     except Exception as e:
         QMessageBox.critical(parent, "打开失败", f"无法打开依赖终端: {e}")
 
-def _qfw_set_titlebar_color(win, color: str = "transparent") -> bool:
-    """
-    兼容设置 FluentWindow 标题栏颜色：
-    - 若有原生 setTitleBarColor 则直接调用
-    - 否则尝试 titleBar() 对象的若干候选 API
-    - 最后兜底用样式表或透明背景
-    返回：是否设置成功
-    """
-    # 1) 直接调用窗口方法
-    fn = getattr(win, "setTitleBarColor", None)
-    if callable(fn):
-        try:
-            fn(color)
-            return True
-        except Exception:
-            pass
-
-    # 2) 访问 titleBar 对象
-    bar = None
-    tb_attr = getattr(win, "titleBar", None)
-    if callable(tb_attr):
-        try:
-            bar = tb_attr()
-        except Exception:
-            bar = None
-    elif tb_attr is not None:
-        bar = tb_attr
-
-    if bar is not None:
-        # 尝试若干常见命名
-        for name in ("setTitleBarColor", "setColor", "setBackgroundColor", "setBgColor", "setMaskColor"):
-            m = getattr(bar, name, None)
-            if callable(m):
-                try:
-                    m(color)
-                    return True
-                except Exception:
-                    pass
-        # 兜底样式
-        try:
-            if color in ("transparent", "rgba(0,0,0,0)"):
-                bar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-                bar.setStyleSheet("background: transparent;")
-            else:
-                bar.setStyleSheet(f"background: {color};")
-            return True
-        except Exception:
-            pass
-    return False
-
-# 安装类级别猴子补丁：让 win.setTitleBarColor(...) 依旧可用（无需改调用处）
-def _install_titlebar_color_shim():
-    try:
-        from qfluentwidgets import FluentWindow as _FW
-    except Exception:
-        return
-    if hasattr(_FW, "setTitleBarColor"):
-        return
-    def _shim(self, color: str = "transparent"):
-        _qfw_set_titlebar_color(self, color)
-    try:
-        setattr(_FW, "setTitleBarColor", _shim)
-    except Exception:
-        pass
-
-_install_titlebar_color_shim()
-
 # AA_ShareOpenGLContexts 已在文件顶部 QApplication 创建前设置
-
-def _qfw_set_border_radius(obj, radius: int = 12) -> bool:
-    """
-    兼容 qfluentwidgets 新旧版:
-    - 新版: 直接调用 setBorderRadius
-    - 旧版: 无该方法则忽略（可选为内容容器加圆角样式）
-    返回: 是否成功调用到原生 API
-    """
-    fn = getattr(obj, "setBorderRadius", None)
-    if callable(fn):
-        try:
-            fn(int(radius))
-            return True
-        except Exception:
-            pass
-    # 兜底：尽量给中心容器/自身加样式
-    try:
-        target = None
-        cw = getattr(obj, "centralWidget", None)
-        if callable(cw):
-            target = cw()
-        if target is None:
-            container = getattr(obj, "container", None)
-            target = container() if callable(container) else container
-        if target is None:
-            target = obj
-        # 开启透明背景以便圆角生效（若支持）
-        try:
-            target.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        except Exception:
-            pass
-
-        old_qss = ""
-        try:
-            old_qss = target.styleSheet() or ""
-        except Exception:
-            pass
-
-        sep = ";" if old_qss and not old_qss.strip().endswith(";") else ""
-        target.setStyleSheet(f"{old_qss}{sep}border-radius:{int(radius)}px;")
-        return True
-    except Exception:
-        return False
-
-def _install_border_radius_shim() -> None:
-    """
-    给 qfluentwidgets.FluentWindow 动态添加 setBorderRadius，避免旧版本缺失导致崩溃。
-    """
-    try:
-        from qfluentwidgets import FluentWindow as _FW
-    except Exception:
-        return
-    if hasattr(_FW, "setBorderRadius"):
-        return
-
-    def _shim(self, r: int = 12):
-        _qfw_set_border_radius(self, r)
-
-    try:
-        setattr(_FW, "setBorderRadius", _shim)
-    except Exception:
-        pass
-_install_border_radius_shim()
-
-
-base_path = os.path.dirname(os.path.abspath(__file__))
-# 确保全局仅一个 QApplication 实例
-def ensure_qapp():
-    """创建或获取唯一 QApplication 实例。"""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    return app
 
 def apply_theme(mode: str = "AUTO") -> bool:
     """安全设置 QFluentWidgets 主题，避免 QConfig 已被销毁导致的 RuntimeError。"""
@@ -2577,55 +2432,6 @@ def _ensure_gui_deps_or_prompt(pyexe: str | None):
     else:
         print("[ERROR] 安装后仍无法导入，请检查 Qt DLL 路径或重启。")
 
-def enforce_private_runtime(base_dir: Path):
-    if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") == "1":
-        return
-
-    # 指定安装根目录，并清理干扰变量
-    os.environ.setdefault("LATEXSNIPPER_INSTALL_BASE_DIR", str(base_dir))
-    for var in ("PYTHONHOME", "PYTHONPATH"):
-        os.environ.pop(var, None)
-    os.environ.setdefault("PYTHONNOUSERSITE", "1")
-
-    # 准备私有解释器
-    pyexe = None
-    try:
-        import importlib
-        db = importlib.import_module("deps_bootstrap")
-        db.ensure_deps(prompt_ui=False, always_show_ui=False, require_layers=("BASIC", "CORE"))
-        pyexe = os.environ.get("LATEXSNIPPER_PYEXE")
-        if not pyexe:
-            for c in (base_dir / "venv" / "Scripts" / "python.exe",
-                      base_dir / "python_full" / "python.exe"):
-                if c.exists():
-                    pyexe = str(c); break
-    except Exception as e:
-        print(f"[WARN] ensure_deps 失败，将尝试继续: {e}")
-
-    need_switch = bool(pyexe and os.path.exists(pyexe) and not _same_exe(sys.executable, pyexe))
-    if not need_switch:
-        _sanitize_sys_path(pyexe, base_dir)
-        _ensure_gui_deps_or_prompt(pyexe)
-        return
-
-    # 在 IDE 中：跳过重启，但先注入路径并确保 GUI 依赖
-    if _in_ide() or os.environ.get("LATEXSNIPPER_DEV_NO_RESTART") == "1":
-        print(f"[INFO] IDE/开发模式，跳过重启，继续使用当前进程，但改用私有依赖路径。目标解释器: {pyexe}")
-        _sanitize_sys_path(pyexe, base_dir)
-        _ensure_gui_deps_or_prompt(pyexe)
-        return
-
-    # 非 IDE：后台启动私有解释器，然后立即退出当前进程
-    try:
-        env = os.environ.copy()
-        env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
-        env["PYTHONNOUSERSITE"] = "1"
-        argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
-        print(f"[INFO] 切换到私有解释器（后台）: {pyexe}")
-        subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
-    finally:
-        os._exit(0)
-
 def _norm_path(s: str | None) -> str | None:
     if not s:
         return None
@@ -2742,9 +2548,6 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     print("[ERROR] 未找到可用的 Python 3.11；请将安装器放入安装目录_internal下或手动安装后重试。")
     return None
 
-# --- 启动顺序修正：先确定 TARGET_PY，再决定是否重启 ---
-# 注意：_same_exe、_in_ide、_relaunch_with、_run_python_installer 已在上方定义，此处移除重复
-
 _ensure_startup_splash("加载依赖向导模块...")
 _ensure_startup_splash("加载设置模块...")
 
@@ -2828,6 +2631,7 @@ os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
 os.environ.setdefault("PYTHONNOUSERSITE", "1")
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
+os.environ.pop("MATHCRAFT_HOME", None)
 
 # 5) IDE 模式下的路径注入（非打包模式）
 if not _in_ide() and not _is_packaged_mode():
@@ -3015,26 +2819,6 @@ def get_app_dir():
 
 APP_DIR = get_app_dir()
 
-def lazy_import(module_name: str):
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError:
-        print(f"[WARN] 模块 {module_name} 未安装。")
-        return None
-
-def parse_requirements(req_path):
-    reqs = {}
-    if os.path.exists(req_path):
-        with open(req_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    name = re.split(r'[<>=!~ ]', line, 1)[0].strip().lower()
-                    reqs[name] = line
-    return reqs
-
-# 统一把 FluentWindow 弹窗改为 QDialog，移除重复 dlg 赋值
-
 def _apply_close_only_window_flags(win):
     """提示/工具窗口统一为仅保留右上角关闭按钮。"""
     flags = (
@@ -3134,111 +2918,11 @@ def _exec_close_only_message_box(
     _apply_close_only_window_flags(msg)
     return QMessageBox.StandardButton(msg.exec())
 
-def show_missing_deps_dialog(missing_pkgs, parent=None):
-    dlg = QDialog(parent)
-    _apply_close_only_window_flags(dlg)
-    dlg.setWindowTitle("缺失依赖")
-    dlg.setModal(True)
-
-    lay = QVBoxLayout(dlg)
-    lay.addWidget(QLabel("检测到缺失依赖，请下载安装："))
-    for pkg in missing_pkgs:
-        lay.addWidget(QLabel(f"- {pkg}"))
-    lay.addWidget(QLabel("下载后需重启应用。"))
-
-    btn_row = QHBoxLayout()
-    btn_download = PushButton(FluentIcon.DOWNLOAD, "下载")
-    btn_cancel = PushButton(FluentIcon.CLOSE, "取消")
-    btn_download.setFixedHeight(32)
-    btn_cancel.setFixedHeight(32)
-    btn_row.addWidget(btn_download)
-    btn_row.addWidget(btn_cancel)
-    lay.addLayout(btn_row)
-
-    result = {"download": False}
-    btn_download.clicked.connect(lambda: (result.update({"download": True}), dlg.accept()))
-    btn_cancel.clicked.connect(dlg.reject)
-
-    return dlg.exec() == QDialog.DialogCode.Accepted and result["download"]
-
-# 注意：show_confirm_dialog 方法已移至 MainWindow 类中
-
-def get_install_base_dir():
-    config_path = _config_path()
-    if config_path.exists():
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-            if "install_base_dir" in cfg and os.path.isdir(cfg["install_base_dir"]):
-                return cfg["install_base_dir"]
-        except Exception:
-            pass
-    # 未设置，弹窗选择
-    app = QApplication.instance() or QApplication([])
-    apply_theme_mode(read_theme_mode_from_config())
-    from PyQt6.QtGui import QFont
-    font = QFont("Microsoft YaHei UI", 9)
-    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
-    app.setFont(font)
-    dir_ = _select_existing_directory_with_icon(None, "请选择主安装目录下的_internal", os.path.expanduser("~"))
-    if not dir_:
-        msg = MessageBox("错误", "未选择安装目录_internal，程序将退出。", None)
-        _apply_app_window_icon(msg)
-        msg.exec()
-        sys.exit(1)
-    # 保存到配置
-    cfg = {}
-    if config_path.exists():
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        except Exception:
-            pass
-    cfg["install_base_dir"] = dir_
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-    return dir_
-# 在 main.py 最前面调用
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
 os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
-
-def _ensure_typing_ext():
-    """确保 typing_extensions 至少为 4.9.0，但不强制降级。"""
-    from importlib import metadata as md
-    try:
-        from packaging.version import Version
-        cur = md.version("typing_extensions")
-        if Version(cur) >= Version("4.9.0"):
-            return
-    except Exception:
-        pass
-    try:
-        subprocess.check_call(
-            [TARGET_PY, "-m", "pip", "install", "--upgrade", "typing_extensions>=4.9.0"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=_win_subprocess_flags(),
-        )
-        print("[INFO] typing_extensions 已修复到 >=4.9.0")
-    except Exception as e:
-        print(f"[WARN] typing_extensions 安装/升级失败: {e}")
-
-def _ensure_hf_hub():
-    try:
-        import huggingface_hub
-        from packaging.version import Version
-        if Version(huggingface_hub.__version__) < Version("0.34.0"):
-            subprocess.check_call([
-                sys.executable, "-m", "pip", "install",
-                "--no-cache-dir", "huggingface-hub>=0.34.0,<1.0"
-            ], creationflags=_win_subprocess_flags())
-    except Exception as e:
-        print("[Boot] huggingface-hub check skipped:", e)
-_ensure_typing_ext()
-_ensure_hf_hub()
 
 def _ensure_std_streams():
     """防御式恢复 stdout/stderr：仅在缺失/不可写/已关闭时兜底，不覆盖正常对象。"""
@@ -3310,12 +2994,6 @@ def _action_btn_style() -> str:
         "PrimaryPushButton:pressed{background:#319fd9;}"
         "PrimaryPushButton:disabled{background:#eef2f6;color:#8a94a3;border:1px solid #d0d7de;}"
     )
-# ---------------- 获取 PyInstaller 打包路径 ----------------
-if getattr(sys, 'frozen', False):
-    base_path = sys._MEIPASS
-else:
-    base_path = os.path.dirname(__file__)
-
 # 样式常量
 HOVER_STYLE_BASE = "QWidget{background:#fefefe;border:1px solid #cfcfcf;border-radius:5px;padding:6px;}"
 HOVER_STYLE_ACTIVE = "QWidget{background:#ffffff;border:1px solid #999;border-radius:5px;padding:6px;}"
@@ -4298,11 +3976,9 @@ class FavoritesWindow(QMainWindow):
         if not item:
             return
         
-        # 从 UserRole 获取原始公式（如果没有则使用文本）
         latex = item.data(Qt.ItemDataRole.UserRole)
         if not latex:
-            # 兼容旧版本：直接使用文本
-            latex = item.text()
+            return
         
         menu = QMenu(self)
         a_copy = menu.addAction("复制")
@@ -4714,9 +4390,6 @@ class FavoritesWindow(QMainWindow):
                             str(k): normalize_content_type(str(v))
                             for k, v in types.items()
                         }
-                elif isinstance(data, list):
-                    print("[Favorites] 已忽略旧版纯列表收藏格式。")
-                    self.favorites = []
             except Exception as e:
                 print("[Favorites] 加载失败:", e)
         self.refresh_list()
@@ -5095,9 +4768,6 @@ class MainWindow(QMainWindow):
         self.resize(1280, 760)
         self.setMinimumSize(1280, 760)
 
-        # 在模型初始化前
-        req_path = os.path.join(os.path.dirname(__file__), "requirements.txt")
-        parse_requirements(req_path)
         self._force_exit = False
         # 状态字段
         self.model_status = "未加载"
@@ -7072,7 +6742,6 @@ th {{
             with open(self.history_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                # 新格式：包含历史记录和公式名称
                 history_list = data.get("history", [])
                 self.history = [str(x) for x in history_list if isinstance(x, (str, int, float))]
                 # 加载公式名称
@@ -7086,9 +6755,6 @@ th {{
                         str(k): normalize_content_type(str(v))
                         for k, v in formula_types.items()
                     }
-            elif isinstance(data, list):
-                print("已忽略旧版纯列表历史格式。")
-                self.history = []
         except Exception as e:
             print("加载历史失败:", e)
             self.history = []
@@ -7263,10 +6929,10 @@ th {{
     def _get_external_model_status_text(self) -> str:
         config = self._get_external_model_config()
         if self._is_external_model_configured():
+            model_name = "" if config.normalized_provider() == "mineru" else config.normalized_model_name()
             sig = (
                 f"{config.normalized_provider()}|{config.normalized_base_url()}|"
-                f"{config.normalized_model_name()}|{config.normalized_mineru_endpoint()}|"
-                f"{config.normalized_mineru_mode()}"
+                f"{model_name}|{config.normalized_mineru_endpoint()}"
             )
             tested_sig = str(self.cfg.get("external_model_last_test_signature", "") or "")
             tested_ok = bool(self.cfg.get("external_model_last_test_ok", False))
@@ -10144,7 +9810,7 @@ class EditFormulaDialog(QDialog):
 # 🧩 环境隔离保护（非常关键）
 # 防止 PyInstaller 或旧虚拟环境污染
 # ==============================
-for var in ("PYTHONHOME", "PYTHONPATH"):
+for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
     if var in os.environ:
         print(f"[DEBUG] 清除环境变量 {var}")
         os.environ.pop(var)

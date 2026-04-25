@@ -36,6 +36,9 @@ def resolve_cache_dir(cache_dir: str | Path | None = None) -> Path:
 
 def bundled_models_dir() -> Path | None:
     candidates: list[Path] = []
+    env_root = os.environ.get("MATHCRAFT_BUNDLED_MODELS_DIR", "").strip()
+    if env_root:
+        candidates.append(Path(env_root))
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         candidates.append(Path(meipass) / "MathCraft" / "models")

@@ -14,7 +14,6 @@ DEFAULT_CONFIG = {
     "external_model_preset": "",
     "external_model_mineru_endpoint": "/file_parse",
     "external_model_mineru_test_endpoint": "/health",
-    "external_model_mineru_mode": "auto",
 }
 
 
@@ -38,7 +37,6 @@ class ExternalModelConfig:
     preset: str = ""
     mineru_endpoint: str = "/file_parse"
     mineru_test_endpoint: str = "/health"
-    mineru_mode: str = "auto"
 
     def normalized_provider(self) -> str:
         value = str(self.provider or "openai_compatible").strip().lower()
@@ -80,10 +78,6 @@ class ExternalModelConfig:
             value = f"/{value}"
         return value
 
-    def normalized_mineru_mode(self) -> str:
-        value = str(self.mineru_mode or "auto").strip().lower()
-        return value if value in ("auto", "document", "page") else "auto"
-
     def to_mapping(self) -> dict:
         return {
             "external_model_provider": self.normalized_provider(),
@@ -97,7 +91,6 @@ class ExternalModelConfig:
             "external_model_preset": str(self.preset or "").strip(),
             "external_model_mineru_endpoint": self.normalized_mineru_endpoint(),
             "external_model_mineru_test_endpoint": self.normalized_mineru_test_endpoint(),
-            "external_model_mineru_mode": self.normalized_mineru_mode(),
         }
 
 
@@ -180,5 +173,4 @@ def load_config_from_mapping(mapping) -> ExternalModelConfig:
         preset=str(get_config_value(mapping, "external_model_preset") or ""),
         mineru_endpoint=str(get_config_value(mapping, "external_model_mineru_endpoint") or "/file_parse"),
         mineru_test_endpoint=str(get_config_value(mapping, "external_model_mineru_test_endpoint") or "/health"),
-        mineru_mode=str(get_config_value(mapping, "external_model_mineru_mode") or "auto"),
     )

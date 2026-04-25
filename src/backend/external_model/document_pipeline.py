@@ -59,6 +59,10 @@ class ExternalDocumentPipeline:
         runtime_cfg = self._build_runtime_config(prompt_template)
         client = ExternalModelClient(runtime_cfg)
         result = client.predict(image)
+        return self.process_result(result, int(page_index), runtime_cfg.prompt_template)
+
+    def process_result(self, result, page_index: int, prompt_template: str | None = None) -> DocumentPageResult | None:
+        runtime_cfg = self._build_runtime_config(prompt_template)
         if self.document_mode == "parse":
             self._collect_inline_images(result)
             return self._process_page_parse(result, int(page_index))

@@ -115,7 +115,7 @@ class ExternalModelHelpWindow(QDialog):
         editor.setPlainText(
             "适用范围\n"
             "1. 本地接口：推荐，适合 Ollama、本地 OpenAI-compatible 服务。\n"
-            "2. 线上接口：兼容部分 OpenAI-compatible / Ollama 在线接口，但需要你自己确认鉴权、模型名和额度。\n\n"
+            "2. 线上接口：支持 OpenAI-compatible / Ollama 在线接口，但需要你自己确认鉴权、模型名和额度。\n\n"
             "字段说明\n"
             "1. 协议：必填。决定请求格式。\n"
             "2. Base URL：必填。本地示例 http://127.0.0.1:11434 ，线上示例 https://example.com 。\n"
@@ -198,8 +198,8 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # 默认宽度加大，避免 InfoBar 文案被截断
-        self.resize(500, 665)
-        self.setMinimumWidth(500)
+        self.resize(550, 665)
+        self.setMinimumWidth(550)
         self.setMinimumHeight(665)
         root = QVBoxLayout(self)
         root.setSpacing(0)
@@ -325,19 +325,6 @@ class SettingsWindow(QDialog):
         self.external_mineru_test_endpoint_input.setPlaceholderText("MinerU 健康检查路径（例如 /health）")
         self.external_mineru_test_endpoint_input.setFixedHeight(32)
         external_layout.addWidget(self.external_mineru_test_endpoint_input)
-        mineru_mode_row = QHBoxLayout()
-        mineru_mode_row.setContentsMargins(0, 0, 0, 0)
-        mineru_mode_row.setSpacing(6)
-        mineru_mode_row.addWidget(QLabel("MinerU 解析模式:"))
-        self.external_mineru_mode_combo = ComboBox()
-        self.external_mineru_mode_combo.setFixedHeight(30)
-        self.external_mineru_mode_combo.addItem("自动", userData="auto")
-        self.external_mineru_mode_combo.addItem("文档", userData="document")
-        self.external_mineru_mode_combo.addItem("页面", userData="page")
-        mineru_mode_row.addWidget(self.external_mineru_mode_combo, 1)
-        self.external_mineru_mode_row = QWidget()
-        self.external_mineru_mode_row.setLayout(mineru_mode_row)
-        external_layout.addWidget(self.external_mineru_mode_row)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
         output_row.setSpacing(6)
@@ -531,7 +518,6 @@ class SettingsWindow(QDialog):
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
-        self.external_mineru_mode_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
         self.external_model_name_input.textChanged.connect(self._on_external_config_changed)
@@ -827,24 +813,24 @@ class SettingsWindow(QDialog):
                         return info
                 except Exception:
                     pass
-            fallback = self._infer_compute_mode_from_env(pyexe)
-            if fallback:
+            env_info = self._infer_compute_mode_from_env(pyexe)
+            if env_info:
                 gpu_name, cpu_name = self._probe_local_device_names()
-                if gpu_name and not fallback.get("gpu_name"):
-                    fallback["gpu_name"] = gpu_name
-                if cpu_name and not fallback.get("cpu_name"):
-                    fallback["cpu_name"] = cpu_name
-                return fallback
+                if gpu_name and not env_info.get("gpu_name"):
+                    env_info["gpu_name"] = gpu_name
+                if cpu_name and not env_info.get("cpu_name"):
+                    env_info["cpu_name"] = cpu_name
+                return env_info
             return {"present": False, "error": (res.stderr or raw or "probe failed").strip()}
         except Exception as e:
-            fallback = self._infer_compute_mode_from_env(pyexe)
-            if fallback:
+            env_info = self._infer_compute_mode_from_env(pyexe)
+            if env_info:
                 gpu_name, cpu_name = self._probe_local_device_names()
-                if gpu_name and not fallback.get("gpu_name"):
-                    fallback["gpu_name"] = gpu_name
-                if cpu_name and not fallback.get("cpu_name"):
-                    fallback["cpu_name"] = cpu_name
-                return fallback
+                if gpu_name and not env_info.get("gpu_name"):
+                    env_info["gpu_name"] = gpu_name
+                if cpu_name and not env_info.get("cpu_name"):
+                    env_info["cpu_name"] = cpu_name
+                return env_info
             return {"present": False, "error": str(e)}
 
     def _probe_local_device_names(self) -> tuple[str, str]:
@@ -1053,15 +1039,15 @@ class SettingsWindow(QDialog):
             if candidate is not None:
                 return str(candidate)
             return ""
-        fallback = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-        if fallback and os.path.exists(fallback):
+        env_pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+        if env_pyexe and os.path.exists(env_pyexe):
             if getattr(sys, "frozen", False):
                 try:
-                    if os.path.normcase(os.path.abspath(fallback)) == os.path.normcase(os.path.abspath(sys.executable)):
+                    if os.path.normcase(os.path.abspath(env_pyexe)) == os.path.normcase(os.path.abspath(sys.executable)):
                         return ""
                 except Exception:
                     pass
-            return fallback
+            return env_pyexe
         return ""
     def _is_mathcraft_selected(self) -> bool:
         idx = self.model_combo.currentIndex()
@@ -1433,13 +1419,13 @@ class SettingsWindow(QDialog):
         key, _ = self._model_options[index]
         descriptions = {
             "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。",
-            "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL、Ollama 等本地服务。",
+            "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL 等本地服务。",
         }
         desc = descriptions.get(key, "")
         if key == "mathcraft":
             desc += "\n提示：MathCraft 依赖由主环境统一管理，权重位于 MathCraft 标准缓存目录。"
         elif key == "external_model":
-            desc += "\n提示：支持本地和部分线上接口。必填：协议、Base URL、模型名；选填：API Key、超时、提示词。"
+            desc += "\n提示：支持本地和部分线上接口。必填：协议、Base URL、模型名；选填：API Key、提示词。"
         self.lbl_model_desc.setText(desc)
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
@@ -1605,10 +1591,6 @@ class SettingsWindow(QDialog):
             self._show_info("终端打开失败", str(e), "error")
 
     def _resolve_mathcraft_cache_dir(self) -> str:
-        # 快速路径：避免每次点击都拉起 python 子进程，防止 UI 卡顿。
-        env_home = (os.environ.get("MATHCRAFT_HOME", "") or "").strip()
-        if env_home:
-            return os.path.normpath(os.path.join(env_home, "models"))
         appdata = (os.environ.get("APPDATA", "") or "").strip()
         if appdata:
             return os.path.normpath(os.path.join(appdata, "MathCraft", "models"))
@@ -1758,7 +1740,6 @@ class SettingsWindow(QDialog):
         self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
         self._set_lineedit_value(self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"])
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, data["external_model_mineru_test_endpoint"])
-        self._set_combo_value(self.external_mineru_mode_combo, data["external_model_mineru_mode"])
         self._on_external_preset_changed()
         self._update_external_provider_visibility()
         self._update_external_model_status()
@@ -1774,7 +1755,6 @@ class SettingsWindow(QDialog):
         config.preset = self._get_external_combo_value(self.external_preset_combo, "")
         config.mineru_endpoint = self.external_mineru_endpoint_input.text().strip()
         config.mineru_test_endpoint = self.external_mineru_test_endpoint_input.text().strip()
-        config.mineru_mode = self._get_external_combo_value(self.external_mineru_mode_combo, "auto")
         try:
             config.timeout_sec = int((self.external_timeout_input.text() or "60").strip())
         except Exception:
@@ -1786,8 +1766,7 @@ class SettingsWindow(QDialog):
         base_url = config.normalized_base_url()
         model_name = config.normalized_model_name()
         mineru_endpoint = config.normalized_mineru_endpoint()
-        mineru_mode = config.normalized_mineru_mode()
-        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}|{mineru_mode}"
+        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}"
 
     def _is_external_required_fields_ready(self, config) -> bool:
         provider = config.normalized_provider()
@@ -1802,7 +1781,6 @@ class SettingsWindow(QDialog):
         is_mineru = config.normalized_provider() == "mineru"
         self.external_mineru_endpoint_input.setVisible(is_mineru)
         self.external_mineru_test_endpoint_input.setVisible(is_mineru)
-        self.external_mineru_mode_row.setVisible(is_mineru)
         if is_mineru:
             self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU 原生接口通常可留空）")
         else:
@@ -1866,7 +1844,6 @@ class SettingsWindow(QDialog):
         self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
         self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/file_parse"))
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
-        self._set_combo_value(self.external_mineru_mode_combo, str(preset.get("mineru_mode") or "auto"))
         self.external_hint.setText(str(preset.get("hint") or ""))
         self._save_external_model_config()
         self._show_info("预设已应用", "已填入推荐配置，请按你的本地服务实际情况检查模型名。", "success")
@@ -1982,7 +1959,7 @@ class SettingsWindow(QDialog):
             if provider == "mineru":
                 status = (
                     f"状态：{state_text}。协议 {provider_label}，路径 {config.normalized_mineru_endpoint()}，"
-                    f"模式 {config.normalized_mineru_mode()}"
+                    "原生解析"
                 )
             else:
                 status = f"状态：{state_text}。协议 {provider_label}，模型 {model_name}"
