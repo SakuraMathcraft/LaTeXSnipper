@@ -329,6 +329,15 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             return any(marker in lower for marker in markers)
         return looks_like_onnxruntime_install_error(raw)
 
+    def _cuda_runtime_diagnostics() -> tuple[str, str]:
+        try:
+            from .cuda_diagnostics import diagnose_cuda_dll_paths
+
+            report = diagnose_cuda_dll_paths()
+            return report.format_for_user(), report.format_for_log()
+        except Exception:
+            return "", ""
+
     if not raw:
         return _pack(
             "UNKNOWN",
@@ -396,11 +405,18 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             f"RapidOCR 解码越界，通常是 PP-OCR 识别模型与字典文件不匹配: {raw[:300]}",
         )
     if _looks_like_cuda_runtime_error():
+        user_hint, log_hint = _cuda_runtime_diagnostics()
+        user_message = "CUDA 环境异常，GPU 推理不可用。"
+        if user_hint:
+            user_message = f"{user_message}{user_hint}"
+        log_message = "CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 PATH 配置错误。"
+        if log_hint:
+            log_message = f"{log_message} {log_hint}"
         return _pack(
             "CUDA_RUNTIME_BROKEN",
             "CUDA 环境异常",
-            "检测到 CUDA 环境异常，当前 GPU 推理不可用，请修复 CUDA 环境或改用 CPU。",
-            "CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 PATH 配置错误。",
+            user_message,
+            log_message,
         )
     if "unsupported worker action" in lower or "unsupported warmup profile" in lower:
         return _pack(
