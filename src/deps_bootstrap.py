@@ -357,23 +357,19 @@ class InstallWorker(QThread):
                     no_cache=self.no_cache,
                     proc_setter=lambda p: setattr(self, "proc", p),
                 )
-                if runtime_ort_ok:
-                    self.log_updated.emit("[OK] onnxruntime-gpu runtime check passed ✅")
-                else:
+                if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime-gpu runtime still invalid: {runtime_ort_err[:400]}")
             elif want_cpu_runtime:
                 runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_runtime(
                     self.pyexe, expect_gpu=False, timeout=45
                 )
-                if runtime_ort_ok:
-                    self.log_updated.emit("[OK] onnxruntime CPU runtime check passed ✅")
-                else:
+                if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
             all_ok = (fail_count == 0) and runtime_ort_ok
 
             if all_ok:
-                self.log_updated.emit("[OK] 所有依赖安装成功 ✅")
+                self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
             elif fail_count == 0 and not runtime_ort_ok:
                 self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败 ❌")
                 if runtime_ort_err:
@@ -798,7 +794,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         )
     if log_fn:
         if ok:
-            log_fn("[OK] ONNX Runtime 关键依赖导入检查通过")
+            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过（numpy/protobuf 等）")
         else:
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
@@ -3784,9 +3780,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _finalize_done_ui()
                         return
 
-                    _append_log("\n[OK] Dependencies installed ✅")
-                    _append_log("[INFO] Verifying installed layers in background...")
-                    _set_info_text("Dependencies downloaded, validating in background...")
+                    _append_log("\n[INFO] 正在后台验证已安装功能层...")
+                    _set_info_text("依赖下载完成，正在后台验证功能层...")
 
                     verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
                     verify_worker_holder["obj"] = verify_worker

@@ -3,6 +3,7 @@
 import inspect
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -252,6 +253,27 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             self.assertFalse(leftover_dir.exists())
             self.assertFalse(leftover_dist.exists())
             self.assertTrue(normal_dir.exists())
+
+    def test_pyinstaller_spec_keeps_psutil_for_packaged_speed_meter(self):
+        spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+        hiddenimports = re.search(r"hiddenimports=\[(.*?)\],", spec, re.S)
+        excludes = re.search(r"excludes=\[(.*?)\],", spec, re.S)
+        prune_prefixes = re.search(r"remove_prefixes = \((.*?)\)", spec, re.S)
+
+        self.assertIsNotNone(hiddenimports)
+        self.assertIsNotNone(excludes)
+        self.assertIsNotNone(prune_prefixes)
+        self.assertIn('"psutil"', hiddenimports.group(1))
+        self.assertNotIn('"psutil"', excludes.group(1))
+        self.assertNotIn('"psutil"', prune_prefixes.group(1))
+
+    def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
+        source = (SRC / "deps_bootstrap.py").read_text(encoding="utf-8")
+
+        self.assertIn("ONNX Runtime 支撑依赖导入检查通过", source)
+        self.assertNotIn("onnxruntime-gpu runtime check passed", source)
+        self.assertNotIn("onnxruntime CPU runtime check passed", source)
+        self.assertNotIn("Dependencies installed ✅", source)
 
 
 if __name__ == "__main__":
