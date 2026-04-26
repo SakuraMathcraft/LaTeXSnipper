@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -190,16 +191,37 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         assert match is not None
         self.assertEqual(match.group(1), mathcraft_ocr.__version__)
 
-    def test_mathcraft_package_metadata_covers_runtime_support_deps(self):
-        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
+    def test_mathcraft_package_metadata_keeps_direct_library_deps_only(self):
+        data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        dep_names = {
+            re.split(r"[<>=!~; ]", dep, 1)[0].strip().lower()
+            for dep in data["project"]["dependencies"]
+        }
+
+        for dep in (
+            "numpy",
+            "opencv-python",
+            "pillow",
+            "rapidocr",
+            "tokenizers",
+            "transformers",
+        ):
+            self.assertIn(dep, dep_names)
 
         for dep in (
             "coloredlogs",
             "flatbuffers",
+            "latex2mathml",
+            "lxml",
+            "matplotlib",
+            "packaging",
             "protobuf",
+            "pymupdf",
+            "requests",
             "sentencepiece",
+            "sympy",
         ):
-            self.assertIn(dep, pyproject)
+            self.assertNotIn(dep, dep_names)
 
     def test_dependency_layers_are_mathcraft_onnx_only(self):
         import deps_bootstrap

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mathcraft-ocr"
-version = "0.1.6"
+version = "0.1.7"
 description = "ONNX-only OCR runtime for mathematical documents"
 readme = "README_MATHCRAFT_OCR.md"
 requires-python = ">=3.10"
@@ -42,12 +42,6 @@ dependencies = [
   "rapidocr==3.5.0",
   "transformers==4.55.4",
   "tokenizers==0.21.4",
-  "sentencepiece==0.2.0",
-  "flatbuffers>=24.3.25",
-  "coloredlogs>=15.0.1",
-  "protobuf>=3.20,<5",
-  "requests>=2.31,<3",
-  "packaging>=23",
 ]
 
 [project.optional-dependencies]
