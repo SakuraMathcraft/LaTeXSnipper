@@ -42,7 +42,12 @@ MIRROR_URLS = [
 
 CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
-DEBUG_LOG = True
+DEBUG_LOG = os.environ.get("LATEXSNIPPER_UPDATE_DEBUG", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
 def _resource_path(relative_path: str) -> str:
@@ -793,8 +798,8 @@ a{{color:{theme['accent']};}}
             txt.start_new_html(f"<pre>{esc}</pre>")
 
     def on_result(info, err, diag):
-        if DEBUG_LOG:
-            print(f"DEBUG: diag = {diag}")
+        if DEBUG_LOG and diag:
+            print(f"[Updater] release diagnostics: {diag}")
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True

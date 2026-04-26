@@ -17,10 +17,28 @@ CUDA_RUNTIME_ERROR_MARKERS = (
     "cufft",
 )
 
+ONNXRUNTIME_INSTALL_ERROR_MARKERS = (
+    "failed to import onnxruntime",
+    "failed to query onnx providers",
+    "onnxruntime missing get_available_providers",
+    "module 'onnxruntime' has no attribute 'get_available_providers'",
+    "onnxruntime dependency is incomplete",
+)
+
 
 def looks_like_cuda_runtime_error(detail: object) -> bool:
     text = str(detail or "").lower()
     return any(marker in text for marker in CUDA_RUNTIME_ERROR_MARKERS)
 
 
-__all__ = ["CUDA_RUNTIME_ERROR_MARKERS", "looks_like_cuda_runtime_error"]
+def looks_like_onnxruntime_install_error(detail: object) -> bool:
+    text = str(detail or "").lower()
+    return any(marker in text for marker in ONNXRUNTIME_INSTALL_ERROR_MARKERS)
+
+
+__all__ = [
+    "CUDA_RUNTIME_ERROR_MARKERS",
+    "ONNXRUNTIME_INSTALL_ERROR_MARKERS",
+    "looks_like_cuda_runtime_error",
+    "looks_like_onnxruntime_install_error",
+]

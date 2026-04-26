@@ -314,6 +314,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             return False
         return looks_like_cuda_runtime_error(raw)
 
+    def _looks_like_onnxruntime_install_error() -> bool:
+        try:
+            from mathcraft_ocr.error_patterns import looks_like_onnxruntime_install_error
+        except Exception:
+            return False
+        return looks_like_onnxruntime_install_error(raw)
+
     if not raw:
         return _pack(
             "UNKNOWN",
@@ -334,6 +341,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "缺少 onnxruntime",
             "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
+        )
+    if _looks_like_onnxruntime_install_error():
+        return _pack(
+            "ONNXRUNTIME_BROKEN",
+            "onnxruntime 依赖异常",
+            "onnxruntime 依赖未正确安装或被残留包污染，请通过依赖向导重装 MATHCRAFT_CPU 或 MATHCRAFT_GPU 后端。",
+            f"onnxruntime 可导入但运行时接口不完整或 provider 查询失败: {raw[:300]}",
         )
     mathcraft_runtime_modules = (
         "rapidocr",

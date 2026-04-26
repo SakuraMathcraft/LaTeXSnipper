@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -43,6 +44,15 @@ class InternalModelMathCraftTests(unittest.TestCase):
         )
         self.assertEqual(info["code"], "CUDA_RUNTIME_BROKEN")
 
+    def test_mathcraft_failure_classifier_reports_broken_onnxruntime(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "failed to query ONNX providers: module 'onnxruntime' has no attribute "
+            "'get_available_providers'"
+        )
+        self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
+
     def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):
         from backend.model import classify_mathcraft_failure
 
@@ -65,6 +75,19 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
         self.assertIn("CUDA", message)
+
+    def test_provider_reports_incomplete_onnxruntime_namespace(self):
+        from mathcraft_ocr.errors import ProviderError
+        from mathcraft_ocr.providers import detect_providers
+
+        with mock.patch(
+            "mathcraft_ocr.providers.importlib.import_module",
+            return_value=object(),
+        ):
+            with self.assertRaises(ProviderError) as ctx:
+                detect_providers()
+
+        self.assertIn("missing get_available_providers", str(ctx.exception))
 
     def test_subprocess_env_points_worker_at_repo_root(self):
         from backend.model import ModelWrapper
