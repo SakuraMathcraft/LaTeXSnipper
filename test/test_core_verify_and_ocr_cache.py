@@ -107,6 +107,24 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         self.assertIn("missing get_available_providers", str(ctx.exception))
 
+    def test_cleanup_removes_orphan_onnxruntime_namespace(self):
+        import deps_bootstrap
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            pyexe = root / "python311" / "python.exe"
+            site_packages = root / "python311" / "Lib" / "site-packages"
+            orphan = site_packages / "onnxruntime"
+            orphan.mkdir(parents=True)
+            pyexe.parent.mkdir(parents=True, exist_ok=True)
+            pyexe.write_text("", encoding="utf-8")
+
+            with mock.patch("deps_bootstrap._current_installed", return_value={}):
+                removed = deps_bootstrap._cleanup_orphan_onnxruntime_namespace(pyexe)
+
+            self.assertEqual(removed, 1)
+            self.assertFalse(orphan.exists())
+
     def test_subprocess_env_points_worker_at_repo_root(self):
         from backend.model import ModelWrapper
 

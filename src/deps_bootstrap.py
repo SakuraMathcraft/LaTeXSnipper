@@ -497,6 +497,9 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit(f"[ERR] {pkg_name} 卸载失败: {e}")
             self.progress_updated.emit(5 + int(75 * idx / total))
 
+        if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
+            _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
+
         try:
             data = {"installed_layers": []}
             if self.state_path.exists():
@@ -590,6 +593,51 @@ def _cleanup_pip_interrupted_leftovers(pyexe: str | Path, log_fn=None) -> int:
         suffix = "..." if len(removed) > 8 else ""
         log_fn(f"[INFO] 已清理 pip 中断残留: {shown}{suffix}")
     return len(removed)
+
+
+def _cleanup_orphan_onnxruntime_namespace(
+    pyexe: str | Path,
+    installed_map: dict | None = None,
+    log_fn=None,
+) -> int:
+    """
+    Remove an onnxruntime package directory left behind without pip metadata.
+
+    pip cannot uninstall this state because no onnxruntime*.dist-info exists,
+    but Python still imports the namespace and then misses get_available_providers.
+    """
+    current = installed_map if installed_map is not None else _current_installed(pyexe)
+    if "onnxruntime" in current or "onnxruntime-gpu" in current:
+        return 0
+    try:
+        site_packages = _site_packages_root(Path(pyexe))
+    except Exception:
+        site_packages = None
+    if not site_packages or not site_packages.exists():
+        return 0
+
+    target = site_packages / "onnxruntime"
+    if not target.exists():
+        return 0
+    try:
+        if not target.resolve().is_relative_to(site_packages.resolve()):
+            return 0
+    except Exception:
+        return 0
+
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except Exception as e:
+        if log_fn:
+            log_fn(f"[WARN] 清理 onnxruntime 孤儿目录失败: {e}")
+        return 0
+
+    if log_fn:
+        log_fn(f"[INFO] 已清理未被 pip 管理的 onnxruntime 残留目录: {target}")
+    return 1
 
 
 def _verify_runtime_support_imports(pyexe: str, timeout: int = 30) -> tuple[bool, str]:
@@ -929,6 +977,12 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
         return False
     current = installed_map if installed_map is not None else _current_installed(pyexe)
     if pkg_key not in current:
+        if pkg_key in {"onnxruntime", "onnxruntime-gpu"}:
+            return _cleanup_orphan_onnxruntime_namespace(
+                pyexe,
+                installed_map=current,
+                log_fn=log_fn,
+            ) > 0
         return False
     try:
         subprocess.run(
@@ -938,6 +992,12 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
             creationflags=flags
         )
         current.pop(pkg_key, None)
+        if pkg_key in {"onnxruntime", "onnxruntime-gpu"}:
+            _cleanup_orphan_onnxruntime_namespace(
+                pyexe,
+                installed_map=current,
+                log_fn=log_fn,
+            )
         if log_fn:
             log_fn(f"[OK] 已卸载冲突的 {pkg_key} ✅")
         return True
@@ -1653,6 +1713,8 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
     env["PYTHONUNBUFFERED"] = "1"
     name = _root_name(pkg)
+    if name in {"onnxruntime", "onnxruntime-gpu"}:
+        _cleanup_orphan_onnxruntime_namespace(pyexe, log_fn=log_q.put)
     mirror_index = "https://pypi.tuna.tsinghua.edu.cn/simple"
     official_index = "https://pypi.org/simple"
 
