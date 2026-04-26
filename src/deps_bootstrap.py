@@ -433,6 +433,8 @@ class LayerVerifyWorker(QThread):
             else:
                 verify_fail_layers.append(lyr)
                 self.log_updated.emit(f"  [FAIL] {lyr} 验证失败:\n{(v_err or '')[:1000]}")
+                for diag_line in _layer_verify_failure_diagnostics(lyr):
+                    self.log_updated.emit(f"  [DIAG] {diag_line}")
 
         try:
             state = _load_json(self.state_path, {"installed_layers": []})
@@ -810,6 +812,82 @@ for mod in ("transformers", "rapidocr", "cv2", "PIL", "latex2mathml.converter", 
 print("CORE OK")
 """
 
+
+def _onnxruntime_session_verify_code(*, expect_gpu: bool) -> str:
+    expected_provider = "CUDAExecutionProvider" if expect_gpu else "CPUExecutionProvider"
+    requested_providers = (
+        "['CUDAExecutionProvider', 'CPUExecutionProvider']"
+        if expect_gpu
+        else "['CPUExecutionProvider']"
+    )
+    layer_name = "MATHCRAFT_GPU" if expect_gpu else "MATHCRAFT_CPU"
+    return f"""
+import onnxruntime as ort
+
+
+def _varint(value):
+    out = []
+    value = int(value)
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(byte | 0x80)
+        else:
+            out.append(byte)
+            break
+    return bytes(out)
+
+
+def _key(field, wire_type):
+    return _varint((int(field) << 3) | int(wire_type))
+
+
+def _int_field(field, value):
+    return _key(field, 0) + _varint(value)
+
+
+def _str_field(field, value):
+    raw = str(value).encode("utf-8")
+    return _key(field, 2) + _varint(len(raw)) + raw
+
+
+def _msg_field(field, payload):
+    return _key(field, 2) + _varint(len(payload)) + payload
+
+
+def _minimal_identity_onnx():
+    dim = _int_field(1, 1)
+    shape = _msg_field(1, dim)
+    tensor_type = _int_field(1, 1) + _msg_field(2, shape)
+    type_proto = _msg_field(1, tensor_type)
+    value_x = _str_field(1, "x") + _msg_field(2, type_proto)
+    value_y = _str_field(1, "y") + _msg_field(2, type_proto)
+    node = _str_field(1, "x") + _str_field(2, "y") + _str_field(4, "Identity")
+    graph = _msg_field(1, node) + _str_field(2, "g") + _msg_field(11, value_x) + _msg_field(12, value_y)
+    opset = _int_field(2, 13)
+    return _int_field(1, 8) + _str_field(2, "latexsnipper-check") + _msg_field(7, graph) + _msg_field(8, opset)
+
+
+providers = list(ort.get_available_providers() or [])
+expected = "{expected_provider}"
+if expected not in providers:
+    raise RuntimeError(f"{{expected}} unavailable: {{providers}}")
+
+session = ort.InferenceSession(_minimal_identity_onnx(), providers={requested_providers})
+actual = list(session.get_providers() or [])
+if expected not in actual:
+    raise RuntimeError(
+        f"{{expected}} listed but failed to initialize an ONNX session; "
+        f"available={{providers}}, session={{actual}}"
+    )
+
+print("ONNX providers:", providers)
+print("ONNX session providers:", actual)
+print("{layer_name} OK")
+"""
+
+
 LAYER_VERIFY_CODE = {
     "BASIC": """
 import PIL
@@ -818,22 +896,8 @@ import lxml
 print("BASIC OK")
 """,
     "CORE": _CORE_VERIFY_CODE,
-    "MATHCRAFT_CPU": """
-import onnxruntime as ort
-providers = ort.get_available_providers()
-if "CPUExecutionProvider" not in providers:
-    raise RuntimeError(f"CPUExecutionProvider unavailable: {providers}")
-print("ONNX providers:", providers)
-print("MATHCRAFT_CPU OK")
-""",
-    "MATHCRAFT_GPU": """
-import onnxruntime as ort
-providers = ort.get_available_providers()
-if "CUDAExecutionProvider" not in providers:
-    raise RuntimeError(f"CUDAExecutionProvider unavailable: {providers}")
-print("ONNX providers:", providers)
-print("MATHCRAFT_GPU OK")
-""",
+    "MATHCRAFT_CPU": _onnxruntime_session_verify_code(expect_gpu=False),
+    "MATHCRAFT_GPU": _onnxruntime_session_verify_code(expect_gpu=True),
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
@@ -880,6 +944,19 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     except Exception as e:
         return False, str(e)
 
+
+def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
+    if layer != "MATHCRAFT_GPU":
+        return []
+    try:
+        from backend.cuda_diagnostics import diagnose_cuda_dll_paths
+
+        report = diagnose_cuda_dll_paths()
+        return [report.format_for_user(), report.format_for_log()]
+    except Exception as e:
+        return [f"CUDA/cuDNN DLL 诊断失败: {e}"]
+
+
 def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
     """
     验证声称已安装的层是否真正可用。
@@ -896,6 +973,8 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
         else:
             if log_fn:
                 log_fn(f"[WARN] {layer} 层验证失败: {err[:200]}")
+                for diag_line in _layer_verify_failure_diagnostics(layer):
+                    log_fn(f"[DIAG] {diag_line}")
     return verified
 
 
@@ -2032,7 +2111,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         _force_quit()
 
     # 新增：读取已安装层
-    state_file = os.path.join(deps_dir, ".deps_state.json")
+    state_path = Path(state_path)
+    state_file = str(state_path)
     claimed_layers = []
     failed_layer_names = []
     if os.path.exists(state_file):
@@ -2272,21 +2352,31 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # ---------- GPU 加速提示 ----------
     gpu_info_label = QLabel()
-    has_nvidia_gpu = _gpu_available()
-    has_cuda_toolkit = _cuda_toolkit_available()
-    if has_nvidia_gpu and has_cuda_toolkit:
-        gpu_info_label.setText(
-            "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端"
-        )
-        gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
-    elif has_nvidia_gpu:
-        gpu_info_label.setText(
-            "⚠️ 检测到 NVIDIA GPU，但未检测到 nvcc/CUDA Toolkit；仍可手动选择 MATHCRAFT_GPU"
-        )
-        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
-    else:
-        gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端")
-        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
+
+    def _refresh_gpu_info_label() -> None:
+        current_installed_layers = {
+            str(layer) for layer in (installed_layers.get("layers", []) or [])
+        }
+        current_failed_layers = {str(layer) for layer in (failed_layer_names or [])}
+        if "MATHCRAFT_GPU" in current_installed_layers:
+            text = "✅ MATHCRAFT_GPU 已安装，GPU 加速可用"
+            color = theme["ok"]
+        elif "MATHCRAFT_GPU" in current_failed_layers:
+            text = "⚠️ MATHCRAFT_GPU 验证失败，请使用MATHCRAFT_CPU后端"
+            color = theme["warn"]
+        elif _gpu_available() and _cuda_toolkit_available():
+            text = "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可尝试 MATHCRAFT_GPU"
+            color = theme["ok"]
+        elif _gpu_available():
+            text = "⚠️ 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU后端"
+            color = theme["hint"]
+        else:
+            text = "⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端"
+            color = theme["hint"]
+        gpu_info_label.setText(text)
+        gpu_info_label.setStyleSheet(f"color:{color};font-size:12px;margin:4px 0;")
+
+    _refresh_gpu_info_label()
     lay.addWidget(gpu_info_label)
     # 路径显示与更改
     path_row = QHBoxLayout()
@@ -2294,7 +2384,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_edit.setReadOnly(True)
     btn_path = PushButton(FluentIcon.FOLDER, "更改依赖安装/加载路径")
     btn_path.setFixedHeight(36)
-    btn_path.setToolTip("更改后需要重启程序才能生效")
+    btn_path.setToolTip("更改后会立即刷新当前依赖环境状态")
     path_row.addWidget(QLabel("依赖安装/加载路径:"))
     path_row.addWidget(path_edit, 1)
     path_row.addWidget(btn_path)
@@ -2449,13 +2539,19 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     update_ui()
 
     def choose_path():
-        nonlocal failed_layer_names
+        nonlocal failed_layer_names, state_file, state_path, pyexe
         import os
         d = _select_existing_directory_with_icon(dlg, "选择依赖安装/加载目录", deps_dir)
         if d:
             normalized = str(_normalize_deps_base_dir(Path(d)))
             path_edit.setText(normalized)
-            state_file = os.path.join(normalized, ".deps_state.json")
+            normalized_path = Path(normalized)
+            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / "python.exe")
+            pyexe = active_pyexe
+            state_path = normalized_path / STATE_FILE
+            state_file = str(state_path)
+            chosen["deps_path"] = normalized
+            chosen["verified_in_ui"] = False
             installed_layers["layers"] = []
             failed_layer_names = []
             if os.path.exists(state_file):
@@ -2466,7 +2562,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     failed_layer_names = state.get("failed_layers", [])
                 except Exception:
                     pass
-            py_ready_local = bool(_find_existing_python(Path(normalized)))
+            py_ready_local = bool(active_pyexe and Path(active_pyexe).exists())
             status_text, status_color = _build_status_text(
                 normalized,
                 py_ready_local,
@@ -2478,6 +2574,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
+            _refresh_gpu_info_label()
             # 移除与 venv/调试相关输出，避免策略混用
             update_ui()
             # 保存新路径到配置
@@ -2495,6 +2592,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
                 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
                 os.environ["LATEXSNIPPER_DEPS_DIR"] = normalized
+                if active_pyexe and Path(active_pyexe).exists():
+                    os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
                 print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")
             except Exception as e:
                 print(f"[ERR] 保存配置失败: {e}")
@@ -2602,6 +2701,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
+            _refresh_gpu_info_label()
 
             current_dir = _current_deps_dir()
             py_ready_local = bool(_find_existing_python(Path(current_dir)))
