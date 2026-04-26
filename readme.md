@@ -148,55 +148,67 @@ python src/main.py
 
 ```text
 LaTeXSnipper/
-├── mathcraft_ocr/
-│   ├── api.py
-│   ├── cli.py
-│   ├── manifest.py
-│   ├── runtime.py
-│   ├── worker.py
-│   └── adapters/
-├── src/
-│   ├── main.py
-│   ├── deps_bootstrap.py
-│   ├── settings_window.py
-│   ├── updater.py
-│   ├── backend/
-│   │   ├── capture_overlay.py
-│   │   ├── model.py
-│   │   ├── model_factory.py
-│   │   └── platform/
-│   ├── editor/
-│   │   ├── workbench_window.py
-│   │   ├── workbench_bridge.py
-│   │   └── advanced_cas.py
-│   ├── handwriting/
-│   │   ├── handwriting_window.py
-│   │   ├── document_preview_window.py
-│   │   ├── tex_document_utils.py
-│   │   ├── pdf_view_poppler.py
-│   │   ├── pdf_view_fitz.py
-│   │   ├── ink_canvas.py
-│   │   ├── stroke_store.py
-│   │   ├── recognizer.py
-│   │   ├── tools.py
-│   │   └── types.py
-│   ├── assets/
-│   │   ├── MathJax-3.2.2/
-│   │   └── mathlive/
-│   │       ├── index.html
-│   │       ├── app.css
-│   │       ├── app.js
-│   │       ├── bridge_panel.html
-│   │       └── bridge_panel.js
-│   ├── core/
-│   ├── models/
-│   └── ui/
-├── build/
-├── LaTeXSnipper.spec
-├── requirements.txt
-├── requirements-build.txt
-├── version_info.txt
-└── readme.md
+|-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
+|   |-- api.py
+|   |-- cli.py
+|   |-- runtime.py
+|   |-- worker.py
+|   |-- downloader.py
+|   |-- doctor.py
+|   |-- error_patterns.py
+|   |-- manifests/
+|   `-- adapters/
+|-- src/
+|   |-- main.py                    # Main desktop application
+|   |-- deps_bootstrap.py          # Dependency wizard and runtime layer verification
+|   |-- settings_window.py
+|   |-- updater.py
+|   |-- utils.py
+|   |-- backend/
+|   |   |-- model.py               # Built-in OCR backend wrapper
+|   |   |-- model_factory.py
+|   |   |-- capture_overlay.py
+|   |   |-- cuda_diagnostics.py    # CUDA/cuDNN PATH diagnostics
+|   |   |-- latex_renderer.py
+|   |   |-- recognition_errors.py
+|   |   |-- external_model/        # OpenAI-compatible, Ollama, and MinerU clients
+|   |   |-- platform/
+|   |   `-- qhotkey/
+|   |-- core/
+|   |   |-- mathcraft_document_engine.py
+|   |   |-- mathcraft_tex_exporter.py
+|   |   |-- pdf_output_contract.py
+|   |   `-- restart_contract.py
+|   |-- editor/
+|   |   |-- workbench_window.py
+|   |   |-- workbench_bridge.py
+|   |   |-- latex_snippet_panel.py
+|   |   `-- advanced_cas.py
+|   |-- handwriting/
+|   |   |-- handwriting_window.py
+|   |   |-- document_preview_window.py
+|   |   |-- bilingual_pdf_window.py
+|   |   |-- tex_document_utils.py
+|   |   |-- pdf_view_poppler.py
+|   |   |-- pdf_view_fitz.py
+|   |   |-- ink_canvas.py
+|   |   |-- stroke_store.py
+|   |   |-- recognizer.py
+|   |   |-- tools.py
+|   |   `-- types.py
+|   |-- assets/
+|   |   |-- icon.ico
+|   |   |-- MathJax-3.2.2/es5/
+|   |   `-- mathlive/
+|   `-- deps/                      # Local dependency environment, not application source
+|-- docs/
+|   `-- MathCraft_OCR_Design.md
+|-- LaTeXSnipper.spec
+|-- LaTeXSnipper.offline.spec
+|-- requirements.txt
+|-- requirements-build.txt
+|-- version_info.txt
+`-- readme.md
 ```
 
 ---
