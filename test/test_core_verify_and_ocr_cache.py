@@ -180,6 +180,27 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
 
 class DependencyBootstrapMathCraftTests(unittest.TestCase):
+    def test_mathcraft_package_version_matches_public_init(self):
+        import mathcraft_ocr
+
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        match = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
+
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual(match.group(1), mathcraft_ocr.__version__)
+
+    def test_mathcraft_package_metadata_covers_runtime_support_deps(self):
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
+
+        for dep in (
+            "coloredlogs",
+            "flatbuffers",
+            "protobuf",
+            "sentencepiece",
+        ):
+            self.assertIn(dep, pyproject)
+
     def test_dependency_layers_are_mathcraft_onnx_only(self):
         import deps_bootstrap
 
