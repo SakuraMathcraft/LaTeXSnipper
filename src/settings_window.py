@@ -16,6 +16,7 @@ from backend.external_model import (
     get_preset,
     load_config_from_mapping,
 )
+from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
 from core.restart_contract import build_restart_with_wizard_launch
 
 
@@ -884,11 +885,17 @@ class SettingsWindow(QDialog):
         self._schedule_compute_mode_probe(force=True)
         self._schedule_mathcraft_pkg_probe()
 
-    def _onnxruntime_gpu_spec(self) -> str:
-        return "onnxruntime-gpu~=1.19.2"
-
     def _onnxruntime_cpu_spec(self) -> str:
-        return "onnxruntime~=1.19.2"
+        return onnxruntime_cpu_spec(self._current_mathcraft_pyexe())
+
+    def _onnxruntime_gpu_command(self) -> str:
+        return onnxruntime_gpu_policy(self._current_mathcraft_pyexe()).pip_command() + " --no-deps"
+
+    def _current_mathcraft_pyexe(self) -> str:
+        try:
+            return self.mathcraft_pyexe_input.text().strip()
+        except Exception:
+            return ""
 
     def _init_model_combo(self):
         # 初始化模型下拉框的选择状态
@@ -1494,8 +1501,8 @@ class SettingsWindow(QDialog):
             return
         as_admin = result
         env_desc = "主环境（程序 / MathCraft / 核心依赖）"
-        gpu_onnx_cmd = f"pip install {self._onnxruntime_gpu_spec()}"
-        cpu_onnx_cmd = f"pip install {self._onnxruntime_cpu_spec()}"
+        gpu_onnx_cmd = self._onnxruntime_gpu_command()
+        cpu_onnx_cmd = f'pip install "{self._onnxruntime_cpu_spec()}"'
         help_lines = [
             "echo.",
             "echo ================================================================================",

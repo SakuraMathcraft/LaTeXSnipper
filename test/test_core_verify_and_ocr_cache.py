@@ -4,6 +4,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import tomllib
@@ -269,6 +270,84 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("_fix_critical_versions", source)
         self.assertIn("force_reinstall=False", source)
         self.assertNotIn("force_reinstall=True", source)
+
+    def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
+        from backend.cuda_runtime_policy import (
+            CUDA11_ORT_INDEX_URL,
+            CUDA13_ORT_NIGHTLY_INDEX_URL,
+            CudaRuntimeInfo,
+            onnxruntime_gpu_policy,
+        )
+
+        cuda11 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(major=11, minor=8, source="test"),
+            python_version=(3, 11),
+        )
+        self.assertEqual(cuda11.requirement, "onnxruntime-gpu>=1.19.2,<1.21")
+        self.assertEqual(cuda11.index_url, CUDA11_ORT_INDEX_URL)
+        self.assertEqual(cuda11.expected_cudnn_major, 8)
+
+        cuda12 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(major=12, minor=4, source="test"),
+            python_version=(3, 11),
+        )
+        self.assertEqual(cuda12.requirement, "onnxruntime-gpu>=1.19.2,<1.26")
+        self.assertEqual(cuda12.index_url, "")
+        self.assertEqual(cuda12.expected_cudnn_major, 9)
+
+        cuda13 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(major=13, minor=0, source="test"),
+            python_version=(3, 11),
+        )
+        self.assertTrue(cuda13.pre)
+        self.assertEqual(cuda13.index_url, CUDA13_ORT_NIGHTLY_INDEX_URL)
+
+    def test_cuda_runtime_detects_cudart_suffix_from_path(self):
+        from backend.cuda_runtime_policy import detect_cuda_runtime
+
+        root = ROOT / ".tmp_test_cuda_detect" / "bin"
+        if root.parent.exists():
+            shutil.rmtree(root.parent)
+        self.addCleanup(lambda: shutil.rmtree(ROOT / ".tmp_test_cuda_detect", ignore_errors=True))
+        root.mkdir(parents=True)
+        (root / "cudart64_110.dll").write_text("", encoding="utf-8")
+
+        with mock.patch.dict(os.environ, {"PATH": str(root)}, clear=True):
+            info = detect_cuda_runtime(use_nvcc=False)
+
+        self.assertEqual(info.major, 11)
+        self.assertEqual(info.source, "PATH:cudart")
+
+    def test_cuda_diagnostics_uses_cuda11_dll_suffixes(self):
+        from backend.cuda_diagnostics import diagnose_cuda_dll_paths
+        from backend.cuda_runtime_policy import CudaRuntimeInfo
+
+        root = ROOT / ".tmp_test_cuda_diag" / "CUDA" / "v11.8"
+        if root.parent.parent.exists():
+            shutil.rmtree(root.parent.parent)
+        self.addCleanup(lambda: shutil.rmtree(ROOT / ".tmp_test_cuda_diag", ignore_errors=True))
+        bin_dir = root / "bin"
+        bin_dir.mkdir(parents=True)
+        for name in (
+            "cudnn64_8.dll",
+            "cudart64_110.dll",
+            "cublas64_11.dll",
+            "cublasLt64_11.dll",
+            "cufft64_10.dll",
+            "curand64_10.dll",
+        ):
+            (bin_dir / name).write_text("", encoding="utf-8")
+
+        with mock.patch.dict(os.environ, {"CUDA_PATH": str(root), "PATH": str(bin_dir)}, clear=False):
+            report = diagnose_cuda_dll_paths(CudaRuntimeInfo(major=11, minor=8, source="test"))
+
+        dll_names = [dll.name for dll in report.dlls]
+        missing = [dll.name for dll in report.dlls if dll.missing_from_path]
+
+        self.assertEqual(missing, [])
+        self.assertIn("cudart64_110.dll", dll_names)
+        self.assertIn("cudnn64_8.dll", dll_names)
+        self.assertNotIn("cudart64_12.dll", dll_names)
 
     def test_pip_interrupted_leftovers_are_cleaned_from_target_site(self):
         import deps_bootstrap

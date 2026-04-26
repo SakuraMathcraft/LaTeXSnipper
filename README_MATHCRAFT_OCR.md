@@ -32,7 +32,7 @@ pip install "mathcraft-ocr[gpu]"
 
 Install only one backend extra in a clean environment. `onnxruntime` and `onnxruntime-gpu` should not be mixed in the same environment.
 
-Python 3.10-3.12 use the LaTeXSnipper-tested ONNX Runtime 1.19 line. Python 3.13 uses newer ONNX Runtime wheels because 1.19.x is not published for Python 3.13.
+LaTeXSnipper's dependency wizard selects the ONNX Runtime GPU wheel line from the detected CUDA toolkit. CUDA 11.x uses the ONNX Runtime CUDA 11 package feed, CUDA 12.x uses the stable PyPI GPU wheels, and CUDA 13.x uses the ONNX Runtime CUDA 13 nightly feed. Static `mathcraft-ocr[gpu]` package metadata cannot inspect the local CUDA toolkit, so it keeps a broad stable PyPI range; CUDA 11.x users installing manually should use the CUDA 11 feed shown by the wizard.
 
 ## Quick Start
 

@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import fnmatch
 import os
 from pathlib import Path
-import shutil
 import sys
 
-
-_CUDA_DLLS = (
-    "cudart64_12.dll",
-    "cublas64_12.dll",
-    "cublasLt64_12.dll",
-    "cufft64_11.dll",
-    "curand64_10.dll",
+from .cuda_runtime_policy import (
+    CudaRuntimeInfo,
+    DllRequirement,
+    cuda_dll_requirements,
+    detect_cuda_runtime,
 )
-_CUDNN_DLLS = ("cudnn64_9.dll",)
 
 
 @dataclass(frozen=True)
@@ -24,6 +21,7 @@ class DllPathStatus:
     name: str
     on_path: tuple[Path, ...]
     candidates: tuple[Path, ...]
+    family: str = ""
 
     @property
     def missing_from_path(self) -> bool:
@@ -47,6 +45,7 @@ class DllPathStatus:
 @dataclass(frozen=True)
 class CudaDllDiagnostics:
     dlls: tuple[DllPathStatus, ...]
+    cuda: CudaRuntimeInfo = field(default_factory=CudaRuntimeInfo)
 
     def recommended_path_dirs(self) -> tuple[Path, ...]:
         dirs: list[Path] = []
@@ -65,14 +64,15 @@ class CudaDllDiagnostics:
     def format_for_user(self) -> str:
         dirs = self.recommended_path_dirs()
         missing = tuple(dll.name for dll in self.dlls if dll.missing_from_path)
+        cuda_text = self.cuda.version_text
         if dirs:
-            return "CUDA/cuDNN DLL 目录未加入 PATH，请查看日志。"
+            return f"CUDA/cuDNN DLL 目录未加入 PATH（检测到 CUDA {cuda_text}），请查看日志。"
         if missing:
-            return "缺少关键 CUDA/cuDNN DLL，请查看日志。"
-        return "CUDA/cuDNN PATH 正常，请检查版本或驱动。"
+            return f"缺少关键 CUDA/cuDNN DLL（检测到 CUDA {cuda_text}），请查看日志。"
+        return f"CUDA/cuDNN PATH 正常（检测到 CUDA {cuda_text}），请检查版本或驱动。"
 
     def format_for_log(self) -> str:
-        parts: list[str] = []
+        parts: list[str] = [f"detected-cuda={self.cuda.version_text}({self.cuda.source})"]
         for dll in self.dlls:
             if dll.on_path:
                 parts.append(f"{dll.name}=PATH:{dll.on_path[0]}")
@@ -85,41 +85,39 @@ class CudaDllDiagnostics:
         return "CUDA/cuDNN DLL 检查: " + " | ".join(parts)
 
 
-def diagnose_cuda_dll_paths() -> CudaDllDiagnostics:
-    dlls = tuple(_probe_dll(name) for name in (*_CUDNN_DLLS, *_CUDA_DLLS))
-    return CudaDllDiagnostics(dlls=dlls)
+def diagnose_cuda_dll_paths(cuda_info: CudaRuntimeInfo | None = None) -> CudaDllDiagnostics:
+    info = cuda_info or detect_cuda_runtime()
+    dlls = tuple(_probe_dll(req) for req in cuda_dll_requirements(info))
+    return CudaDllDiagnostics(dlls=dlls, cuda=info)
 
 
-def _probe_dll(name: str) -> DllPathStatus:
-    on_path = _which_all(name)
-    candidates = _find_candidates(name)
-    return DllPathStatus(name=name, on_path=on_path, candidates=candidates)
+def _probe_dll(req: DllRequirement) -> DllPathStatus:
+    on_path = _which_all(req)
+    candidates = _find_candidates(req)
+    return DllPathStatus(name=req.display_name, on_path=on_path, candidates=candidates, family=req.family)
 
 
-def _which_all(name: str) -> tuple[Path, ...]:
+def _which_all(req: DllRequirement) -> tuple[Path, ...]:
     matches: list[Path] = []
     seen: set[str] = set()
-    first = shutil.which(name)
-    if first:
-        _append_unique(matches, seen, Path(first))
     for raw_dir in os.environ.get("PATH", "").split(os.pathsep):
         if not raw_dir.strip():
             continue
-        path = Path(raw_dir.strip().strip('"')) / name
-        if path.is_file():
+        directory = Path(raw_dir.strip().strip('"'))
+        for path in _direct_matches(directory, req):
             _append_unique(matches, seen, path)
     return tuple(matches)
 
 
-def _find_candidates(name: str) -> tuple[Path, ...]:
+def _find_candidates(req: DllRequirement) -> tuple[Path, ...]:
     matches: list[Path] = []
     seen: set[str] = set()
-    for root in _candidate_roots(name):
-        _scan_candidate_root(root, name, matches, seen)
+    for root in _candidate_roots(req):
+        _scan_candidate_root(root, req, matches, seen)
     return tuple(matches)
 
 
-def _candidate_roots(name: str) -> tuple[Path, ...]:
+def _candidate_roots(req: DllRequirement) -> tuple[Path, ...]:
     roots: list[Path] = []
     for env_key in ("CUDA_PATH", "CUDA_HOME"):
         raw = os.environ.get(env_key, "")
@@ -142,26 +140,67 @@ def _candidate_roots(name: str) -> tuple[Path, ...]:
     for base in program_files:
         roots.append(base / "NVIDIA GPU Computing Toolkit" / "CUDA")
         roots.append(base / "NVIDIA" / "CUDNN")
-    if name in _CUDNN_DLLS:
-        for site in _site_package_roots():
-            roots.append(site / "nvidia" / "cudnn" / "bin")
+
+    for site in _site_package_roots():
+        roots.append(site / "torch" / "lib")
+        roots.extend(_nvidia_site_package_roots(site, req.family))
     return _dedupe_existing_roots(roots)
 
 
-def _scan_candidate_root(root: Path, name: str, matches: list[Path], seen: set[str]) -> None:
-    direct = root / name
-    if direct.is_file():
-        _append_unique(matches, seen, direct)
+def _nvidia_site_package_roots(site: Path, family: str) -> tuple[Path, ...]:
+    package_dirs = {
+        "cuda-runtime": ("cuda_runtime",),
+        "cublas": ("cublas",),
+        "cublaslt": ("cublas",),
+        "cufft": ("cufft",),
+        "curand": ("curand",),
+        "cudnn": ("cudnn",),
+    }.get(family, ())
+    return tuple(site / "nvidia" / package / "bin" for package in package_dirs)
+
+
+def _scan_candidate_root(root: Path, req: DllRequirement, matches: list[Path], seen: set[str]) -> None:
+    for path in _direct_matches(root, req):
+        _append_unique(matches, seen, path)
     if not root.is_dir():
         return
     try:
-        for path in root.rglob(name):
-            if len(matches) >= 12:
-                return
-            if path.is_file():
-                _append_unique(matches, seen, path)
+        for pattern in req.patterns:
+            for path in root.rglob(pattern):
+                if len(matches) >= 12:
+                    return
+                if path.is_file() and _matches_requirement(path.name, req):
+                    _append_unique(matches, seen, path)
     except Exception:
         return
+
+
+def _direct_matches(directory: Path, req: DllRequirement) -> tuple[Path, ...]:
+    if not directory.is_dir():
+        return ()
+    matches: list[Path] = []
+    expected = req.expected_names
+    if expected:
+        for name in expected:
+            path = directory / name
+            if path.is_file():
+                matches.append(path)
+        return tuple(matches)
+    try:
+        for pattern in req.patterns:
+            for path in directory.glob(pattern):
+                if path.is_file() and _matches_requirement(path.name, req):
+                    matches.append(path)
+    except Exception:
+        return ()
+    return tuple(matches)
+
+
+def _matches_requirement(filename: str, req: DllRequirement) -> bool:
+    name = filename.casefold()
+    if req.expected_names:
+        return name in {item.casefold() for item in req.expected_names}
+    return any(fnmatch.fnmatchcase(name, pattern.casefold()) for pattern in req.patterns)
 
 
 def _site_package_roots() -> tuple[Path, ...]:
