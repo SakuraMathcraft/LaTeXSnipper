@@ -33,6 +33,24 @@ class InternalModelMathCraftTests(unittest.TestCase):
         )
         self.assertEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
 
+    def test_mathcraft_failure_classifier_reports_cuda_runtime(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "Failed to create CUDAExecutionProvider. Require cuDNN 9.* and CUDA 12.*. "
+            "LoadLibrary failed with error 126 when trying to load "
+            "onnxruntime_providers_cuda.dll"
+        )
+        self.assertEqual(info["code"], "CUDA_RUNTIME_BROKEN")
+
+    def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "MathCraft runtime is not ready: missing=[], unsupported=[]"
+        )
+        self.assertNotEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
+
     def test_subprocess_env_points_worker_at_repo_root(self):
         from backend.model import ModelWrapper
 

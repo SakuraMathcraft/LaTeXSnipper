@@ -22,6 +22,7 @@ from .adapters.text_recognizer import (
 from .cache import ModelCacheState, inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
 from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
+from .error_patterns import looks_like_cuda_runtime_error
 from .errors import ModelCacheError
 from .hardware import choose_rec_batch_num, detect_hardware_info
 from .image import load_image_rgb, rgb_to_bgr
@@ -189,6 +190,8 @@ class MathCraftRuntime:
     @staticmethod
     def _looks_like_broken_model_error(exc: Exception) -> bool:
         text = str(exc).lower()
+        if looks_like_cuda_runtime_error(text):
+            return False
         needles = (
             "missing",
             "not found",
@@ -197,8 +200,6 @@ class MathCraftRuntime:
             "invalid protobuf",
             "failed to load model",
             "load model",
-            "onnx",
-            "model",
         )
         return any(item in text for item in needles)
 

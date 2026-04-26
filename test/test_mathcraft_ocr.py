@@ -99,7 +99,14 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
     downloaded = []
     warmed = []
 
-    def _fake_download(spec, *, target_root, timeout=120, source_overrides=None):
+    def _fake_download(
+        spec,
+        *,
+        target_root,
+        timeout=None,
+        source_overrides=None,
+        progress_callback=None,
+    ):
         downloaded.append((spec.model_id, timeout))
         _touch_model(Path(target_root), manifest, spec.model_id)
         return Path(target_root) / spec.model_id
@@ -116,7 +123,7 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
             runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
             plan = runtime.warmup("formula")
             assert plan.ready is True
-            assert downloaded == [(FORMULA_DETECTOR_ID, 120), (FORMULA_RECOGNIZER_ID, 120)]
+            assert downloaded == [(FORMULA_DETECTOR_ID, None), (FORMULA_RECOGNIZER_ID, None)]
             assert warmed == [FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID]
             assert len(plan.cache_events) == 4
             assert FORMULA_RECOGNIZER_ID in plan.cache_events[2]
@@ -254,6 +261,49 @@ def test_failed_warmup_plan_is_not_cached() -> None:
             assert calls == [FORMULA_DETECTOR_ID, FORMULA_DETECTOR_ID]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
+
+
+def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
+    manifest = load_manifest()
+    old_handlers = dict(runtime_mod.ONNX_WARMUP_HANDLERS)
+    old_download = runtime_mod.download_model_archive
+    download_calls = []
+    cuda_detail = (
+        "Failed to create CUDAExecutionProvider. Require cuDNN 9.* and CUDA 12.*. "
+        "LoadLibrary failed with error 126 when trying to load "
+        "onnxruntime_providers_cuda.dll"
+    )
+
+    def _fail_with_cuda_runtime_error(model_dir, provider_info):
+        raise RuntimeError(cuda_detail)
+
+    def _ok(model_dir, provider_info):
+        return None
+
+    def _download(*args, **kwargs):
+        download_calls.append((args, kwargs))
+        raise AssertionError("CUDA runtime errors must not repair model cache")
+
+    runtime_mod.ONNX_WARMUP_HANDLERS = {
+        FORMULA_DETECTOR_ID: _fail_with_cuda_runtime_error,
+        FORMULA_RECOGNIZER_ID: _ok,
+        TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
+        TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
+    }
+    runtime_mod.download_model_archive = _download
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _touch_model(root, manifest, FORMULA_DETECTOR_ID)
+            _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
+            runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+            plan = runtime.warmup("formula")
+            assert plan.ready is False
+            assert download_calls == []
+            assert plan.component_statuses[0].detail == cuda_detail
+    finally:
+        runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
+        runtime_mod.download_model_archive = old_download
 
 
 def test_runtime_prefers_complete_bundled_models_over_empty_user_cache() -> None:
@@ -868,6 +918,7 @@ def main() -> None:
         test_formula_warmup_succeeds_with_stubbed_onnx_handlers,
         test_successful_warmup_plan_is_cached_per_profile,
         test_failed_warmup_plan_is_not_cached,
+        test_cuda_warmup_failure_does_not_repair_model_cache,
         test_runtime_prefers_complete_bundled_models_over_empty_user_cache,
         test_recognize_formula_uses_formula_adapter,
         test_recognize_mixed_uses_text_pipeline,

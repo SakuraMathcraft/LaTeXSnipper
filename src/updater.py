@@ -656,25 +656,33 @@ def check_update_dialog(parent=None):
     title_font.setBold(True)
     title.setFont(title_font)
     lay.addWidget(title)
-    lbl_current = QLabel(f"当前版本: {__version__}"); lay.addWidget(lbl_current)
+    lbl_current = QLabel(f"当前版本: {__version__}")
+    lay.addWidget(lbl_current)
     lbl_status = QLabel("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
     lay.addWidget(lbl_status)
-    bar = QProgressBar(); bar.setRange(0, 0); lay.addWidget(bar)
+    bar = QProgressBar()
+    bar.setRange(0, 0)
+    lay.addWidget(bar)
 
     txt = RemoteImageBrowser()
     txt.setOpenExternalLinks(True)
     txt.setPlaceholderText("变更日志 / 诊断输出...")
     lay.addWidget(txt, 1)
 
-    btn_row = QHBoxLayout(); btn_row.addStretch()
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
     btn_download = PushButton(FluentIcon.DOWNLOAD, "下载更新")
     btn_open = PushButton(FluentIcon.LINK, "打开链接")
     btn_copy = PushButton(FluentIcon.COPY, "复制链接")
     btn_retry = PushButton(FluentIcon.SYNC, "重新检查")
     btn_close = PushButton(FluentIcon.CLOSE, "关闭")
     for b in (btn_download, btn_open, btn_copy, btn_retry, btn_close):
-        b.setFixedHeight(32); btn_row.addWidget(b)
-    btn_download.setEnabled(False); btn_open.setEnabled(False); btn_copy.setEnabled(False); btn_retry.setEnabled(False)
+        b.setFixedHeight(32)
+        btn_row.addWidget(b)
+    btn_download.setEnabled(False)
+    btn_open.setEnabled(False)
+    btn_copy.setEnabled(False)
+    btn_retry.setEnabled(False)
     lay.addLayout(btn_row)
 
     state = {
@@ -685,7 +693,8 @@ def check_update_dialog(parent=None):
         "pause_requested": False,
         "closing": False,
     }
-    watchdog = QTimer(dlg); watchdog.setSingleShot(True)
+    watchdog = QTimer(dlg)
+    watchdog.setSingleShot(True)
 
     class _ResultEmitter(QObject):
         done = pyqtSignal(object, object, object)

@@ -63,7 +63,10 @@ def _install_stable_gui_deps(pyexe: str, reason: str):
 
 
 def _early_ensure_pyqt6_and_pywin32():
-    import os, sys, subprocess, importlib
+    import importlib
+    import os
+    import subprocess
+    import sys
     pyexe = sys.executable
     exe_name = os.path.basename(pyexe).lower()
     # 仅在源码解释器模式启用早期 pip 自修复；打包 exe 不支持 `-m pip` 语义
@@ -704,15 +707,21 @@ class LogViewerDialog(QDialog):
         lay = QVBoxLayout(self)
         self.lbl = QLabel(str(self._log_file))
         self.lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.txt = QPlainTextEdit(); self.txt.setReadOnly(True)
+        self.txt = QPlainTextEdit()
+        self.txt.setReadOnly(True)
 
         btn_row = QHBoxLayout()
         self.btn_open = QPushButton("打开目录")
         self.btn_clear = QPushButton("清空日志")
         self.btn_close = QPushButton("关闭")
-        btn_row.addWidget(self.btn_open); btn_row.addWidget(self.btn_clear); btn_row.addStretch(); btn_row.addWidget(self.btn_close)
+        btn_row.addWidget(self.btn_open)
+        btn_row.addWidget(self.btn_clear)
+        btn_row.addStretch()
+        btn_row.addWidget(self.btn_close)
 
-        lay.addWidget(self.lbl); lay.addWidget(self.txt, 1); lay.addLayout(btn_row)
+        lay.addWidget(self.lbl)
+        lay.addWidget(self.txt, 1)
+        lay.addLayout(btn_row)
 
         self.btn_open.clicked.connect(self._open_dir)
         self.btn_clear.clicked.connect(self._clear_log)
@@ -2347,7 +2356,8 @@ def _run_pip_install(pyexe: str, pkgs: list[str]) -> bool:
     使用指定解释器安装依赖；自动尝试多个索引源。
     注意：这里传入的是 pip 包名（例如 PyQt6-Fluent-Widgets），不是导入名。
     """
-    import subprocess, os
+    import os
+    import subprocess
     if not pyexe or not os.path.exists(pyexe):
         print("[ERROR] 未找到私有解释器，无法安装依赖。")
         return False
@@ -4484,7 +4494,9 @@ class FavoritesWindow(QMainWindow):
 
         self.refresh_list()
         self.save_favorites()
-        self.show(); self.raise_(); self.activateWindow()
+        self.show()
+        self.raise_()
+        self.activateWindow()
         self._set_status("已加入收藏")
 
 class PdfResultWindow(QMainWindow):
@@ -9830,7 +9842,8 @@ open_debug_console(force=False, tee=True)
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
     import multiprocessing
-    import os, sys
+    import os
+    import sys
     multiprocessing.freeze_support()
     # 判断是否为 PyInstaller 打包环境
     if getattr(sys, 'frozen', False):

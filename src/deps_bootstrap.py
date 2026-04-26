@@ -1132,7 +1132,8 @@ def _inject_private_python_paths(pyexe: Path):
     仅在开发模式下注入私有 site-packages 路径。
     打包后的程序：AI 模型在子进程中运行，无需注入。
     """
-    import sys, os
+    import os
+    import sys
     
     # 打包模式下不注入，避免与内置包冲突
     is_frozen = getattr(sys, 'frozen', False)
@@ -1170,7 +1171,8 @@ def _ensure_pip(main_python: Path) -> bool:
     确保专用 Python(python311/python.exe) 内 pip 可用并升级。
     不再创建/使用 venv。
     """
-    import urllib.request, subprocess
+    import subprocess
+    import urllib.request
 
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
@@ -1604,7 +1606,11 @@ def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
     """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
-    import subprocess, os, time, traceback, re
+    import os
+    import re
+    import subprocess
+    import time
+    import traceback
     from pathlib import Path
 
     max_retries = 2
@@ -2604,13 +2610,16 @@ def _progress_dialog():
             "progress_chunk": "#4c9aff" if dark else "#1976d2",
         }
 
-    dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
+    dlg = QDialog()
+    dlg.setWindowTitle("安装进度")
+    dlg.resize(680, 440)
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
     lay = QVBoxLayout(dlg)
     info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
-    logw = QTextEdit(); logw.setReadOnly(True)
+    logw = QTextEdit()
+    logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
     progress.setFixedHeight(20)  # 增加高度
@@ -2623,7 +2632,10 @@ def _progress_dialog():
     btn_row = QHBoxLayout()
     btn_row.addWidget(btn_pause)
     btn_row.addWidget(btn_cancel)
-    lay.addWidget(info); lay.addWidget(logw,1); lay.addWidget(progress); lay.addLayout(btn_row)
+    lay.addWidget(info)
+    lay.addWidget(logw, 1)
+    lay.addWidget(progress)
+    lay.addLayout(btn_row)
 
     def _apply_theme_styles(force: bool = False):
         theme = _theme_tokens()
@@ -2777,7 +2789,8 @@ def clear_deps_state():
     """
     清空依赖状态文件，用于当依赖目录损坏或首次初始化异常时自动修复。
     """
-    import json, os
+    import json
+    import os
     from pathlib import Path
 
     try:
