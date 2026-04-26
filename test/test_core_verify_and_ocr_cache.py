@@ -48,9 +48,27 @@ class InternalModelMathCraftTests(unittest.TestCase):
         from backend.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
-            "failed to query ONNX providers: module 'onnxruntime' has no attribute "
-            "'get_available_providers'"
+            "onnxruntime dependency is incomplete: missing get_available_providers "
+            "(origin=<namespace package>)"
         )
+        self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
+
+    def test_mathcraft_failure_classifier_reports_broken_onnxruntime_without_patterns_module(self):
+        from backend.model import classify_mathcraft_failure
+
+        real_import = __import__
+
+        def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "mathcraft_ocr.error_patterns" and "looks_like_onnxruntime_install_error" in fromlist:
+                raise ImportError("simulated missing new error pattern")
+            return real_import(name, globals, locals, fromlist, level)
+
+        with mock.patch("builtins.__import__", side_effect=_blocked_import):
+            info = classify_mathcraft_failure(
+                "onnxruntime dependency is incomplete: missing get_available_providers "
+                "(origin=<namespace package>)"
+            )
+
         self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
 
     def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):

@@ -318,7 +318,15 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         try:
             from mathcraft_ocr.error_patterns import looks_like_onnxruntime_install_error
         except Exception:
-            return False
+            markers = (
+                "failed to import onnxruntime",
+                "failed to query onnx providers",
+                "onnxruntime missing get_available_providers",
+                "missing get_available_providers",
+                "module 'onnxruntime' has no attribute 'get_available_providers'",
+                "onnxruntime dependency is incomplete",
+            )
+            return any(marker in lower for marker in markers)
         return looks_like_onnxruntime_install_error(raw)
 
     if not raw:
