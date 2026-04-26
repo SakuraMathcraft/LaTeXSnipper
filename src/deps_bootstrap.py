@@ -1386,6 +1386,24 @@ def _gpu_available():
     except Exception:
         return False
 
+
+def _cuda_toolkit_available():
+    try:
+        r = subprocess.run(
+            ["nvcc", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            timeout=2,
+            creationflags=flags,
+        )
+    except Exception:
+        return False
+    output = f"{r.stdout or ''}\n{r.stderr or ''}".lower()
+    return r.returncode == 0 and "cuda" in output
+
+
 def _diagnose_install_failure(output: str, returncode: int) -> str:
     """
     分析 pip 安装失败的输出，诊断具体原因
@@ -2196,9 +2214,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # ---------- GPU 加速提示 ----------
     gpu_info_label = QLabel()
-    if _gpu_available():
-        gpu_info_label.setText("✅ 检测到 NVIDIA GPU；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端")
+    has_nvidia_gpu = _gpu_available()
+    has_cuda_toolkit = _cuda_toolkit_available()
+    if has_nvidia_gpu and has_cuda_toolkit:
+        gpu_info_label.setText(
+            "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端"
+        )
         gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
+    elif has_nvidia_gpu:
+        gpu_info_label.setText(
+            "⚠️ 检测到 NVIDIA GPU，但未检测到 nvcc/CUDA Toolkit；仍可手动选择 MATHCRAFT_GPU"
+        )
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     else:
         gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端")
         gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")

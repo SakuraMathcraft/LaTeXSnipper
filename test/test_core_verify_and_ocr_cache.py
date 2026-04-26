@@ -51,6 +51,21 @@ class InternalModelMathCraftTests(unittest.TestCase):
         )
         self.assertNotEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
 
+    def test_external_model_failure_message_is_not_mathcraft_classified(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        raw = "无法连接到 127.0.0.1:11434，请确认服务已启动。"
+        self.assertEqual(
+            recognition_failure_user_message(raw, "external_model"),
+            raw,
+        )
+
+    def test_mathcraft_failure_message_still_uses_mathcraft_classifier(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
+        self.assertIn("CUDA", message)
+
     def test_subprocess_env_points_worker_at_repo_root(self):
         from backend.model import ModelWrapper
 

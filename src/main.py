@@ -2747,6 +2747,7 @@ def _load_runtime_modules():
     from backend.model import ModelWrapper, classify_mathcraft_failure
     from backend.model_factory import create_model_wrapper
     from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
+    from backend.recognition_errors import recognition_failure_user_message
     from editor.workbench_window import WorkbenchWindow
     from handwriting import HandwritingWindow
     from handwriting.bilingual_pdf_window import BilingualPdfWindow
@@ -2789,6 +2790,7 @@ def _load_runtime_modules():
         get_latex_renderer,
         init_latex_settings,
         load_config_from_mapping,
+        recognition_failure_user_message,
         _pyperclip,
     )
 
@@ -2819,6 +2821,7 @@ def _load_runtime_modules():
     get_latex_renderer,
     init_latex_settings,
     load_config_from_mapping,
+    recognition_failure_user_message,
     pyperclip,
 ) = _load_runtime_modules()
 
@@ -8053,8 +8056,7 @@ th {{
         except Exception:
             pass
 
-        info = classify_mathcraft_failure(msg)
-        content = info.get("user_message") or str(msg)
+        content = self._recognition_failure_content(msg, worker_attr="pdf_predict_worker")
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
@@ -8188,7 +8190,27 @@ th {{
         self.on_predict_ok(text)
 
     def _on_external_predict_fail(self, msg: str):
-        self.on_predict_fail(msg)
+        self.on_predict_fail(msg, external_model=True)
+
+    def _is_external_recognition_worker(self, worker) -> bool:
+        return bool(getattr(worker, "config", None)) and worker.__class__.__name__.startswith("ExternalModel")
+
+    def _recognition_failure_content(
+        self,
+        msg: str,
+        *,
+        worker_attr: str | None = None,
+        external_model: bool | None = None,
+    ) -> str:
+        is_external = bool(external_model)
+        if external_model is None:
+            worker = getattr(self, worker_attr or "", None)
+            is_external = (
+                self._is_external_recognition_worker(worker)
+                or getattr(self, "current_model", "") == "external_model"
+            )
+        backend = "external_model" if is_external else "mathcraft"
+        return recognition_failure_user_message(msg, backend)
 
     def _clear_predict_result_dialog_ref(self, dialog_obj=None):
         """仅在回调对象仍是当前窗口时，清理结果窗口引用，避免并发回调误清空。"""
@@ -8927,7 +8949,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 <body>{table_content}</body>
 </html>'''
 
-    def on_predict_fail(self, msg: str):
+    def on_predict_fail(self, msg: str, external_model: bool | None = None):
         self._next_predict_result_screen_index = None
         self._restore_hidden_unpinned_predict_result_dialog()
         if self._is_user_cancelled_recognition_error(msg):
@@ -8970,8 +8992,11 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
                 )
             except Exception:
                 pass
-        info = classify_mathcraft_failure(msg)
-        content = info.get("user_message") or str(msg)
+        content = self._recognition_failure_content(
+            msg,
+            worker_attr="predict_worker",
+            external_model=external_model,
+        )
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(

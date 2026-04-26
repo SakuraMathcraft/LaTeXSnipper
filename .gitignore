@@ -41,6 +41,10 @@ tauri_stderr.log
 .coverage
 .tmp/
 
+# Local app state
+src/.release_etag_cache.json
+src/deps/.deps_state.json
+
 # Local OCR/PDF regression outputs
 test_pdf/outputs/**
 !test_pdf/outputs/
