@@ -3,9 +3,12 @@
 import inspect
 import json
 import os
+import re
 import sys
 import tempfile
+import tomllib
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -32,6 +35,97 @@ class InternalModelMathCraftTests(unittest.TestCase):
             "MathCraft runtime is not ready: missing=['mathcraft-formula-rec'], unsupported=[]"
         )
         self.assertEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
+
+    def test_mathcraft_failure_classifier_reports_cuda_runtime(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "Failed to create CUDAExecutionProvider. Require cuDNN 9.* and CUDA 12.*. "
+            "LoadLibrary failed with error 126 when trying to load "
+            "onnxruntime_providers_cuda.dll"
+        )
+        self.assertEqual(info["code"], "CUDA_RUNTIME_BROKEN")
+
+    def test_mathcraft_failure_classifier_reports_broken_onnxruntime(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "onnxruntime dependency is incomplete: missing get_available_providers "
+            "(origin=<namespace package>)"
+        )
+        self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
+
+    def test_mathcraft_failure_classifier_reports_broken_onnxruntime_without_patterns_module(self):
+        from backend.model import classify_mathcraft_failure
+
+        real_import = __import__
+
+        def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "mathcraft_ocr.error_patterns" and "looks_like_onnxruntime_install_error" in fromlist:
+                raise ImportError("simulated missing new error pattern")
+            return real_import(name, globals, locals, fromlist, level)
+
+        with mock.patch("builtins.__import__", side_effect=_blocked_import):
+            info = classify_mathcraft_failure(
+                "onnxruntime dependency is incomplete: missing get_available_providers "
+                "(origin=<namespace package>)"
+            )
+
+        self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
+
+    def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "MathCraft runtime is not ready: missing=[], unsupported=[]"
+        )
+        self.assertNotEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
+
+    def test_external_model_failure_message_is_not_mathcraft_classified(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        raw = "无法连接到 127.0.0.1:11434，请确认服务已启动。"
+        self.assertEqual(
+            recognition_failure_user_message(raw, "external_model"),
+            raw,
+        )
+
+    def test_mathcraft_failure_message_still_uses_mathcraft_classifier(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
+        self.assertIn("CUDA", message)
+
+    def test_provider_reports_incomplete_onnxruntime_namespace(self):
+        from mathcraft_ocr.errors import ProviderError
+        from mathcraft_ocr.providers import detect_providers
+
+        with mock.patch(
+            "mathcraft_ocr.providers.importlib.import_module",
+            return_value=object(),
+        ):
+            with self.assertRaises(ProviderError) as ctx:
+                detect_providers()
+
+        self.assertIn("missing get_available_providers", str(ctx.exception))
+
+    def test_cleanup_removes_orphan_onnxruntime_namespace(self):
+        import deps_bootstrap
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            pyexe = root / "python311" / "python.exe"
+            site_packages = root / "python311" / "Lib" / "site-packages"
+            orphan = site_packages / "onnxruntime"
+            orphan.mkdir(parents=True)
+            pyexe.parent.mkdir(parents=True, exist_ok=True)
+            pyexe.write_text("", encoding="utf-8")
+
+            with mock.patch("deps_bootstrap._current_installed", return_value={}):
+                removed = deps_bootstrap._cleanup_orphan_onnxruntime_namespace(pyexe)
+
+            self.assertEqual(removed, 1)
+            self.assertFalse(orphan.exists())
 
     def test_subprocess_env_points_worker_at_repo_root(self):
         from backend.model import ModelWrapper
@@ -87,6 +181,48 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
 
 class DependencyBootstrapMathCraftTests(unittest.TestCase):
+    def test_mathcraft_package_version_matches_public_init(self):
+        import mathcraft_ocr
+
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        match = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
+
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual(match.group(1), mathcraft_ocr.__version__)
+
+    def test_mathcraft_package_metadata_keeps_direct_library_deps_only(self):
+        data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        dep_names = {
+            re.split(r"[<>=!~; ]", dep, 1)[0].strip().lower()
+            for dep in data["project"]["dependencies"]
+        }
+
+        for dep in (
+            "numpy",
+            "opencv-python",
+            "pillow",
+            "rapidocr",
+            "tokenizers",
+            "transformers",
+        ):
+            self.assertIn(dep, dep_names)
+
+        for dep in (
+            "coloredlogs",
+            "flatbuffers",
+            "latex2mathml",
+            "lxml",
+            "matplotlib",
+            "packaging",
+            "protobuf",
+            "pymupdf",
+            "requests",
+            "sentencepiece",
+            "sympy",
+        ):
+            self.assertNotIn(dep, dep_names)
+
     def test_dependency_layers_are_mathcraft_onnx_only(self):
         import deps_bootstrap
 
@@ -160,6 +296,27 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             self.assertFalse(leftover_dir.exists())
             self.assertFalse(leftover_dist.exists())
             self.assertTrue(normal_dir.exists())
+
+    def test_pyinstaller_spec_keeps_psutil_for_packaged_speed_meter(self):
+        spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+        hiddenimports = re.search(r"hiddenimports=\[(.*?)\],", spec, re.S)
+        excludes = re.search(r"excludes=\[(.*?)\],", spec, re.S)
+        prune_prefixes = re.search(r"remove_prefixes = \((.*?)\)", spec, re.S)
+
+        self.assertIsNotNone(hiddenimports)
+        self.assertIsNotNone(excludes)
+        self.assertIsNotNone(prune_prefixes)
+        self.assertIn('"psutil"', hiddenimports.group(1))
+        self.assertNotIn('"psutil"', excludes.group(1))
+        self.assertNotIn('"psutil"', prune_prefixes.group(1))
+
+    def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
+        source = (SRC / "deps_bootstrap.py").read_text(encoding="utf-8")
+
+        self.assertIn("ONNX Runtime 支撑依赖导入检查通过", source)
+        self.assertNotIn("onnxruntime-gpu runtime check passed", source)
+        self.assertNotIn("onnxruntime CPU runtime check passed", source)
+        self.assertNotIn("Dependencies installed ✅", source)
 
 
 if __name__ == "__main__":

@@ -4,12 +4,16 @@
     "include": [
         "src"
     ],
+    "extraPaths": [
+        "."
+    ],
     "exclude": [
         "**/__pycache__",
         "build",
         "python311",
         "apps",
-        "src/deps/python311"
+        "src/deps/python311",
+        "src/deps/translation_env"
     ],
     "reportUnusedImport": "warning",
     "reportUnusedVariable": "warning",

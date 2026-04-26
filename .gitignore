@@ -39,6 +39,11 @@ tauri_stderr.log
 # Logs
 *.log
 .coverage
+.tmp/
+
+# Local app state
+src/.release_etag_cache.json
+src/deps/.deps_state.json
 
 # Local OCR/PDF regression outputs
 test_pdf/outputs/**
@@ -52,6 +57,7 @@ pix2text/
 release_assets/
 
 # Release notes (local docs, do not version)
+WECHAT_ARTICLE.md
 RELEASE_NOTES*.md
 release_v*.md
 release*.md

@@ -110,6 +110,25 @@ def _worker_pythonpath() -> str:
     return os.pathsep.join(str(root) for root in _worker_code_roots())
 
 
+def _failed_warmup_component_details(result: dict[str, Any]) -> list[str]:
+    statuses = result.get("component_statuses", [])
+    if not isinstance(statuses, list):
+        return []
+    details: list[str] = []
+    for status in statuses:
+        if not isinstance(status, dict) or bool(status.get("ready")):
+            continue
+        model_id = str(status.get("model_id") or "").strip()
+        detail = str(status.get("detail") or "").strip()
+        if model_id and detail:
+            details.append(f"{model_id}: {detail}")
+        elif detail:
+            details.append(detail)
+        elif model_id:
+            details.append(f"{model_id}: not ready")
+    return details
+
+
 def _bundled_mathcraft_models_dir() -> Path | None:
     candidates: list[Path] = []
     try:
@@ -288,6 +307,28 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "log_message": log_message,
         }
 
+    def _looks_like_cuda_runtime_error() -> bool:
+        try:
+            from mathcraft_ocr.error_patterns import looks_like_cuda_runtime_error
+        except Exception:
+            return False
+        return looks_like_cuda_runtime_error(raw)
+
+    def _looks_like_onnxruntime_install_error() -> bool:
+        try:
+            from mathcraft_ocr.error_patterns import looks_like_onnxruntime_install_error
+        except Exception:
+            markers = (
+                "failed to import onnxruntime",
+                "failed to query onnx providers",
+                "onnxruntime missing get_available_providers",
+                "missing get_available_providers",
+                "module 'onnxruntime' has no attribute 'get_available_providers'",
+                "onnxruntime dependency is incomplete",
+            )
+            return any(marker in lower for marker in markers)
+        return looks_like_onnxruntime_install_error(raw)
+
     if not raw:
         return _pack(
             "UNKNOWN",
@@ -309,6 +350,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
+    if _looks_like_onnxruntime_install_error():
+        return _pack(
+            "ONNXRUNTIME_BROKEN",
+            "onnxruntime 依赖异常",
+            "onnxruntime 依赖未正确安装或被残留包污染，请通过依赖向导重装 MATHCRAFT_CPU 或 MATHCRAFT_GPU 后端。",
+            f"onnxruntime 可导入但运行时接口不完整或 provider 查询失败: {raw[:300]}",
+        )
     mathcraft_runtime_modules = (
         "rapidocr",
         "cv2",
@@ -326,7 +374,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖向导安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。",
             f"MathCraft worker 缺少运行依赖，通常是打包模板 Python 尚未部署完整依赖: {raw[:300]}",
         )
-    if "not ready" in lower and "missing" in lower:
+    if "not ready" in lower and "missing" in lower and "missing=[]" not in lower:
         return _pack(
             "MODEL_CACHE_INCOMPLETE",
             "模型缓存不完整",
@@ -347,11 +395,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。",
             f"RapidOCR 解码越界，通常是 PP-OCR 识别模型与字典文件不匹配: {raw[:300]}",
         )
-    if "cuda" in lower and (
-        "createexecutionproviderinstance" in lower
-        or "cuda_path is set" in lower
-        or "cuda wasn't able to be loaded" in lower
-    ):
+    if _looks_like_cuda_runtime_error():
         return _pack(
             "CUDA_RUNTIME_BROKEN",
             "CUDA 环境异常",
@@ -638,9 +682,14 @@ class ModelWrapper(QObject):
             if not ready:
                 missing = result.get("missing_models", [])
                 unsupported = result.get("unsupported_models", [])
-                raise RuntimeError(
-                    f"MathCraft runtime is not ready: missing={missing}, unsupported={unsupported}"
+                failed_components = _failed_warmup_component_details(result)
+                detail = (
+                    f"MathCraft runtime is not ready: missing={missing}, "
+                    f"unsupported={unsupported}"
                 )
+                if failed_components:
+                    detail = f"{detail}, failed_components={failed_components}"
+                raise RuntimeError(detail)
             provider = result.get("provider_info", {})
             if isinstance(provider, dict):
                 self.device = str(provider.get("device") or self.device or "cpu")

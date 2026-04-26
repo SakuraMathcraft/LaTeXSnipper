@@ -35,8 +35,16 @@ def detect_providers(prefer: str = "auto") -> ProviderInfo:
     except Exception as exc:  # pragma: no cover - import environment dependent
         raise ProviderError(f"failed to import onnxruntime: {exc}") from exc
 
+    get_available_providers = getattr(ort, "get_available_providers", None)
+    if not callable(get_available_providers):
+        origin = getattr(ort, "__file__", None) or "<namespace package>"
+        raise ProviderError(
+            "onnxruntime dependency is incomplete: missing get_available_providers "
+            f"(origin={origin})"
+        )
+
     try:
-        available = tuple(ort.get_available_providers())
+        available = tuple(get_available_providers())
     except Exception as exc:  # pragma: no cover - runtime environment dependent
         raise ProviderError(f"failed to query ONNX providers: {exc}") from exc
 

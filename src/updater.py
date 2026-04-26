@@ -42,7 +42,12 @@ MIRROR_URLS = [
 
 CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
-DEBUG_LOG = True
+DEBUG_LOG = os.environ.get("LATEXSNIPPER_UPDATE_DEBUG", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
 def _resource_path(relative_path: str) -> str:
@@ -656,25 +661,33 @@ def check_update_dialog(parent=None):
     title_font.setBold(True)
     title.setFont(title_font)
     lay.addWidget(title)
-    lbl_current = QLabel(f"当前版本: {__version__}"); lay.addWidget(lbl_current)
+    lbl_current = QLabel(f"当前版本: {__version__}")
+    lay.addWidget(lbl_current)
     lbl_status = QLabel("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
     lay.addWidget(lbl_status)
-    bar = QProgressBar(); bar.setRange(0, 0); lay.addWidget(bar)
+    bar = QProgressBar()
+    bar.setRange(0, 0)
+    lay.addWidget(bar)
 
     txt = RemoteImageBrowser()
     txt.setOpenExternalLinks(True)
     txt.setPlaceholderText("变更日志 / 诊断输出...")
     lay.addWidget(txt, 1)
 
-    btn_row = QHBoxLayout(); btn_row.addStretch()
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
     btn_download = PushButton(FluentIcon.DOWNLOAD, "下载更新")
     btn_open = PushButton(FluentIcon.LINK, "打开链接")
     btn_copy = PushButton(FluentIcon.COPY, "复制链接")
     btn_retry = PushButton(FluentIcon.SYNC, "重新检查")
     btn_close = PushButton(FluentIcon.CLOSE, "关闭")
     for b in (btn_download, btn_open, btn_copy, btn_retry, btn_close):
-        b.setFixedHeight(32); btn_row.addWidget(b)
-    btn_download.setEnabled(False); btn_open.setEnabled(False); btn_copy.setEnabled(False); btn_retry.setEnabled(False)
+        b.setFixedHeight(32)
+        btn_row.addWidget(b)
+    btn_download.setEnabled(False)
+    btn_open.setEnabled(False)
+    btn_copy.setEnabled(False)
+    btn_retry.setEnabled(False)
     lay.addLayout(btn_row)
 
     state = {
@@ -685,7 +698,8 @@ def check_update_dialog(parent=None):
         "pause_requested": False,
         "closing": False,
     }
-    watchdog = QTimer(dlg); watchdog.setSingleShot(True)
+    watchdog = QTimer(dlg)
+    watchdog.setSingleShot(True)
 
     class _ResultEmitter(QObject):
         done = pyqtSignal(object, object, object)
@@ -738,6 +752,13 @@ def check_update_dialog(parent=None):
         except RuntimeError:
             pass
 
+    def safe_emit_signal(obj, signal_name: str, *args):
+        try:
+            signal = getattr(obj, signal_name)
+        except RuntimeError:
+            return
+        safe_emit(signal, *args)
+
     def watchdog_timeout():
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
@@ -777,8 +798,8 @@ a{{color:{theme['accent']};}}
             txt.start_new_html(f"<pre>{esc}</pre>")
 
     def on_result(info, err, diag):
-        if DEBUG_LOG:
-            print(f"DEBUG: diag = {diag}")
+        if DEBUG_LOG and diag:
+            print(f"[Updater] release diagnostics: {diag}")
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True
@@ -1206,18 +1227,18 @@ a{{color:{theme['accent']};}}
                                 continue
                             f.write(chunk)
                             cur += len(chunk)
-                            safe_emit(emitter.download_progress, cur, total, dest)
+                            safe_emit_signal(emitter, "download_progress", cur, total, dest)
                 if os.path.exists(dest):
                     try:
                         os.remove(dest)
                     except Exception:
                         pass
                 os.replace(tmp_path, dest)
-                safe_emit(emitter.download_done, dest, None)
+                safe_emit_signal(emitter, "download_done", dest, None)
             except _PauseDownload:
-                safe_emit(emitter.download_done, dest, "__paused__")
+                safe_emit_signal(emitter, "download_done", dest, "__paused__")
             except Exception as e:
-                safe_emit(emitter.download_done, dest, str(e))
+                safe_emit_signal(emitter, "download_done", dest, str(e))
 
         threading.Thread(target=worker_download, daemon=True).start()
 

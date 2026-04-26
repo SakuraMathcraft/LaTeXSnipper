@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -62,7 +63,10 @@ def _install_stable_gui_deps(pyexe: str, reason: str):
 
 
 def _early_ensure_pyqt6_and_pywin32():
-    import os, sys, subprocess, importlib
+    import importlib
+    import os
+    import subprocess
+    import sys
     pyexe = sys.executable
     exe_name = os.path.basename(pyexe).lower()
     # 仅在源码解释器模式启用早期 pip 自修复；打包 exe 不支持 `-m pip` 语义
@@ -703,15 +707,21 @@ class LogViewerDialog(QDialog):
         lay = QVBoxLayout(self)
         self.lbl = QLabel(str(self._log_file))
         self.lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.txt = QPlainTextEdit(); self.txt.setReadOnly(True)
+        self.txt = QPlainTextEdit()
+        self.txt.setReadOnly(True)
 
         btn_row = QHBoxLayout()
         self.btn_open = QPushButton("打开目录")
         self.btn_clear = QPushButton("清空日志")
         self.btn_close = QPushButton("关闭")
-        btn_row.addWidget(self.btn_open); btn_row.addWidget(self.btn_clear); btn_row.addStretch(); btn_row.addWidget(self.btn_close)
+        btn_row.addWidget(self.btn_open)
+        btn_row.addWidget(self.btn_clear)
+        btn_row.addStretch()
+        btn_row.addWidget(self.btn_close)
 
-        lay.addWidget(self.lbl); lay.addWidget(self.txt, 1); lay.addLayout(btn_row)
+        lay.addWidget(self.lbl)
+        lay.addWidget(self.txt, 1)
+        lay.addLayout(btn_row)
 
         self.btn_open.clicked.connect(self._open_dir)
         self.btn_clear.clicked.connect(self._clear_log)
@@ -2346,7 +2356,8 @@ def _run_pip_install(pyexe: str, pkgs: list[str]) -> bool:
     使用指定解释器安装依赖；自动尝试多个索引源。
     注意：这里传入的是 pip 包名（例如 PyQt6-Fluent-Widgets），不是导入名。
     """
-    import subprocess, os
+    import os
+    import subprocess
     if not pyexe or not os.path.exists(pyexe):
         print("[ERROR] 未找到私有解释器，无法安装依赖。")
         return False
@@ -2736,6 +2747,7 @@ def _load_runtime_modules():
     from backend.model import ModelWrapper, classify_mathcraft_failure
     from backend.model_factory import create_model_wrapper
     from backend.platform import PlatformCapabilityRegistry, ScreenshotConfig, TrayMenuHandlers
+    from backend.recognition_errors import recognition_failure_user_message
     from editor.workbench_window import WorkbenchWindow
     from handwriting import HandwritingWindow
     from handwriting.bilingual_pdf_window import BilingualPdfWindow
@@ -2778,6 +2790,7 @@ def _load_runtime_modules():
         get_latex_renderer,
         init_latex_settings,
         load_config_from_mapping,
+        recognition_failure_user_message,
         _pyperclip,
     )
 
@@ -2808,6 +2821,7 @@ def _load_runtime_modules():
     get_latex_renderer,
     init_latex_settings,
     load_config_from_mapping,
+    recognition_failure_user_message,
     pyperclip,
 ) = _load_runtime_modules()
 
@@ -4483,7 +4497,9 @@ class FavoritesWindow(QMainWindow):
 
         self.refresh_list()
         self.save_favorites()
-        self.show(); self.raise_(); self.activateWindow()
+        self.show()
+        self.raise_()
+        self.activateWindow()
         self._set_status("已加入收藏")
 
 class PdfResultWindow(QMainWindow):
@@ -4773,6 +4789,7 @@ class MainWindow(QMainWindow):
         self.model_status = "未加载"
         self.action_status = ""
         self._predict_busy = False
+        self._last_recognition_cancel_notice_at = 0.0
         self.setAcceptDrops(True)
         self.overlay = None
         self._last_capture_screen_index = None
@@ -7364,7 +7381,7 @@ th {{
         if cancelled:
             self._predict_busy = False
             self.set_model_status("识别已中断")
-            self.set_action_status("已中断当前识别", auto_clear_ms=2200)
+            self._show_recognition_cancelled_infobar(reset_cancel_flag=False)
 
     def _is_user_cancelled_recognition_error(self, msg: str) -> bool:
         text = str(msg or "").strip().lower()
@@ -7378,10 +7395,14 @@ th {{
             or "已中断" in text
         )
 
-    def _show_recognition_cancelled_infobar(self) -> None:
-        self._recognition_cancel_requested = False
+    def _show_recognition_cancelled_infobar(self, *, reset_cancel_flag: bool = True) -> None:
+        if reset_cancel_flag:
+            self._recognition_cancel_requested = False
         self.set_model_status("已中断")
-        self.set_action_status("已中断当前识别", auto_clear_ms=3000)
+        now = time.monotonic()
+        if now - float(getattr(self, "_last_recognition_cancel_notice_at", 0.0) or 0.0) < 2.5:
+            return
+        self._last_recognition_cancel_notice_at = now
         try:
             InfoBar.info(
                 title="识别已中断",
@@ -8035,8 +8056,7 @@ th {{
         except Exception:
             pass
 
-        info = classify_mathcraft_failure(msg)
-        content = info.get("user_message") or str(msg)
+        content = self._recognition_failure_content(msg, worker_attr="pdf_predict_worker")
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
@@ -8170,7 +8190,27 @@ th {{
         self.on_predict_ok(text)
 
     def _on_external_predict_fail(self, msg: str):
-        self.on_predict_fail(msg)
+        self.on_predict_fail(msg, external_model=True)
+
+    def _is_external_recognition_worker(self, worker) -> bool:
+        return bool(getattr(worker, "config", None)) and worker.__class__.__name__.startswith("ExternalModel")
+
+    def _recognition_failure_content(
+        self,
+        msg: str,
+        *,
+        worker_attr: str | None = None,
+        external_model: bool | None = None,
+    ) -> str:
+        is_external = bool(external_model)
+        if external_model is None:
+            worker = getattr(self, worker_attr or "", None)
+            is_external = (
+                self._is_external_recognition_worker(worker)
+                or getattr(self, "current_model", "") == "external_model"
+            )
+        backend = "external_model" if is_external else "mathcraft"
+        return recognition_failure_user_message(msg, backend)
 
     def _clear_predict_result_dialog_ref(self, dialog_obj=None):
         """仅在回调对象仍是当前窗口时，清理结果窗口引用，避免并发回调误清空。"""
@@ -8909,7 +8949,7 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
 <body>{table_content}</body>
 </html>'''
 
-    def on_predict_fail(self, msg: str):
+    def on_predict_fail(self, msg: str, external_model: bool | None = None):
         self._next_predict_result_screen_index = None
         self._restore_hidden_unpinned_predict_result_dialog()
         if self._is_user_cancelled_recognition_error(msg):
@@ -8952,8 +8992,11 @@ pre {{ white-space: pre-wrap; word-wrap: break-word; }}
                 )
             except Exception:
                 pass
-        info = classify_mathcraft_failure(msg)
-        content = info.get("user_message") or str(msg)
+        content = self._recognition_failure_content(
+            msg,
+            worker_attr="predict_worker",
+            external_model=external_model,
+        )
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
@@ -9824,7 +9867,8 @@ open_debug_console(force=False, tee=True)
 # 文件: 'src/main.py'（入口关键片段）
 if __name__ == "__main__":
     import multiprocessing
-    import os, sys
+    import os
+    import sys
     multiprocessing.freeze_support()
     # 判断是否为 PyInstaller 打包环境
     if getattr(sys, 'frozen', False):

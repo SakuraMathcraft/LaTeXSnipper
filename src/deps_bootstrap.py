@@ -357,23 +357,19 @@ class InstallWorker(QThread):
                     no_cache=self.no_cache,
                     proc_setter=lambda p: setattr(self, "proc", p),
                 )
-                if runtime_ort_ok:
-                    self.log_updated.emit("[OK] onnxruntime-gpu runtime check passed ✅")
-                else:
+                if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime-gpu runtime still invalid: {runtime_ort_err[:400]}")
             elif want_cpu_runtime:
                 runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_runtime(
                     self.pyexe, expect_gpu=False, timeout=45
                 )
-                if runtime_ort_ok:
-                    self.log_updated.emit("[OK] onnxruntime CPU runtime check passed ✅")
-                else:
+                if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
             all_ok = (fail_count == 0) and runtime_ort_ok
 
             if all_ok:
-                self.log_updated.emit("[OK] 所有依赖安装成功 ✅")
+                self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
             elif fail_count == 0 and not runtime_ort_ok:
                 self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败 ❌")
                 if runtime_ort_err:
@@ -497,6 +493,9 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit(f"[ERR] {pkg_name} 卸载失败: {e}")
             self.progress_updated.emit(5 + int(75 * idx / total))
 
+        if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
+            _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
+
         try:
             data = {"installed_layers": []}
             if self.state_path.exists():
@@ -590,6 +589,51 @@ def _cleanup_pip_interrupted_leftovers(pyexe: str | Path, log_fn=None) -> int:
         suffix = "..." if len(removed) > 8 else ""
         log_fn(f"[INFO] 已清理 pip 中断残留: {shown}{suffix}")
     return len(removed)
+
+
+def _cleanup_orphan_onnxruntime_namespace(
+    pyexe: str | Path,
+    installed_map: dict | None = None,
+    log_fn=None,
+) -> int:
+    """
+    Remove an onnxruntime package directory left behind without pip metadata.
+
+    pip cannot uninstall this state because no onnxruntime*.dist-info exists,
+    but Python still imports the namespace and then misses get_available_providers.
+    """
+    current = installed_map if installed_map is not None else _current_installed(pyexe)
+    if "onnxruntime" in current or "onnxruntime-gpu" in current:
+        return 0
+    try:
+        site_packages = _site_packages_root(Path(pyexe))
+    except Exception:
+        site_packages = None
+    if not site_packages or not site_packages.exists():
+        return 0
+
+    target = site_packages / "onnxruntime"
+    if not target.exists():
+        return 0
+    try:
+        if not target.resolve().is_relative_to(site_packages.resolve()):
+            return 0
+    except Exception:
+        return 0
+
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except Exception as e:
+        if log_fn:
+            log_fn(f"[WARN] 清理 onnxruntime 孤儿目录失败: {e}")
+        return 0
+
+    if log_fn:
+        log_fn(f"[INFO] 已清理未被 pip 管理的 onnxruntime 残留目录: {target}")
+    return 1
 
 
 def _verify_runtime_support_imports(pyexe: str, timeout: int = 30) -> tuple[bool, str]:
@@ -750,7 +794,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         )
     if log_fn:
         if ok:
-            log_fn("[OK] ONNX Runtime 关键依赖导入检查通过")
+            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过（numpy/protobuf 等）")
         else:
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
@@ -929,6 +973,12 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
         return False
     current = installed_map if installed_map is not None else _current_installed(pyexe)
     if pkg_key not in current:
+        if pkg_key in {"onnxruntime", "onnxruntime-gpu"}:
+            return _cleanup_orphan_onnxruntime_namespace(
+                pyexe,
+                installed_map=current,
+                log_fn=log_fn,
+            ) > 0
         return False
     try:
         subprocess.run(
@@ -938,6 +988,12 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
             creationflags=flags
         )
         current.pop(pkg_key, None)
+        if pkg_key in {"onnxruntime", "onnxruntime-gpu"}:
+            _cleanup_orphan_onnxruntime_namespace(
+                pyexe,
+                installed_map=current,
+                log_fn=log_fn,
+            )
         if log_fn:
             log_fn(f"[OK] 已卸载冲突的 {pkg_key} ✅")
         return True
@@ -1132,7 +1188,8 @@ def _inject_private_python_paths(pyexe: Path):
     仅在开发模式下注入私有 site-packages 路径。
     打包后的程序：AI 模型在子进程中运行，无需注入。
     """
-    import sys, os
+    import os
+    import sys
     
     # 打包模式下不注入，避免与内置包冲突
     is_frozen = getattr(sys, 'frozen', False)
@@ -1170,7 +1227,8 @@ def _ensure_pip(main_python: Path) -> bool:
     确保专用 Python(python311/python.exe) 内 pip 可用并升级。
     不再创建/使用 venv。
     """
-    import urllib.request, subprocess
+    import subprocess
+    import urllib.request
 
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
@@ -1383,6 +1441,24 @@ def _gpu_available():
         return r.returncode == 0
     except Exception:
         return False
+
+
+def _cuda_toolkit_available():
+    try:
+        r = subprocess.run(
+            ["nvcc", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            timeout=2,
+            creationflags=flags,
+        )
+    except Exception:
+        return False
+    output = f"{r.stdout or ''}\n{r.stderr or ''}".lower()
+    return r.returncode == 0 and "cuda" in output
+
 
 def _diagnose_install_failure(output: str, returncode: int) -> str:
     """
@@ -1604,7 +1680,11 @@ def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
     """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
-    import subprocess, os, time, traceback, re
+    import os
+    import re
+    import subprocess
+    import time
+    import traceback
     from pathlib import Path
 
     max_retries = 2
@@ -1629,6 +1709,8 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
     env["PYTHONUNBUFFERED"] = "1"
     name = _root_name(pkg)
+    if name in {"onnxruntime", "onnxruntime-gpu"}:
+        _cleanup_orphan_onnxruntime_namespace(pyexe, log_fn=log_q.put)
     mirror_index = "https://pypi.tuna.tsinghua.edu.cn/simple"
     official_index = "https://pypi.org/simple"
 
@@ -2190,9 +2272,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     # ---------- GPU 加速提示 ----------
     gpu_info_label = QLabel()
-    if _gpu_available():
-        gpu_info_label.setText("✅ 检测到 NVIDIA GPU；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端")
+    has_nvidia_gpu = _gpu_available()
+    has_cuda_toolkit = _cuda_toolkit_available()
+    if has_nvidia_gpu and has_cuda_toolkit:
+        gpu_info_label.setText(
+            "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可选择 MATHCRAFT_GPU 使用 onnxruntime-gpu 后端"
+        )
         gpu_info_label.setStyleSheet(f"color:{theme['ok']};font-size:12px;margin:4px 0;")
+    elif has_nvidia_gpu:
+        gpu_info_label.setText(
+            "⚠️ 检测到 NVIDIA GPU，但未检测到 nvcc/CUDA Toolkit；仍可手动选择 MATHCRAFT_GPU"
+        )
+        gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
     else:
         gpu_info_label.setText("⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端")
         gpu_info_label.setStyleSheet(f"color:{theme['hint']};font-size:12px;margin:4px 0;")
@@ -2604,13 +2695,16 @@ def _progress_dialog():
             "progress_chunk": "#4c9aff" if dark else "#1976d2",
         }
 
-    dlg = QDialog(); dlg.setWindowTitle("安装进度"); dlg.resize(680,440)
+    dlg = QDialog()
+    dlg.setWindowTitle("安装进度")
+    dlg.resize(680, 440)
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
     lay = QVBoxLayout(dlg)
     info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
-    logw = QTextEdit(); logw.setReadOnly(True)
+    logw = QTextEdit()
+    logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
     progress.setFixedHeight(20)  # 增加高度
@@ -2623,7 +2717,10 @@ def _progress_dialog():
     btn_row = QHBoxLayout()
     btn_row.addWidget(btn_pause)
     btn_row.addWidget(btn_cancel)
-    lay.addWidget(info); lay.addWidget(logw,1); lay.addWidget(progress); lay.addLayout(btn_row)
+    lay.addWidget(info)
+    lay.addWidget(logw, 1)
+    lay.addWidget(progress)
+    lay.addLayout(btn_row)
 
     def _apply_theme_styles(force: bool = False):
         theme = _theme_tokens()
@@ -2777,7 +2874,8 @@ def clear_deps_state():
     """
     清空依赖状态文件，用于当依赖目录损坏或首次初始化异常时自动修复。
     """
-    import json, os
+    import json
+    import os
     from pathlib import Path
 
     try:
@@ -3682,9 +3780,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _finalize_done_ui()
                         return
 
-                    _append_log("\n[OK] Dependencies installed ✅")
-                    _append_log("[INFO] Verifying installed layers in background...")
-                    _set_info_text("Dependencies downloaded, validating in background...")
+                    _append_log("\n[INFO] 正在后台验证已安装功能层...")
+                    _set_info_text("依赖下载完成，正在后台验证功能层...")
 
                     verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
                     verify_worker_holder["obj"] = verify_worker
