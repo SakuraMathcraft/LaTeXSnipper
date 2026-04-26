@@ -252,7 +252,6 @@ a = Analysis(
         (str(SRC / "backend"), "backend"),
         (str(SRC / "editor"), "editor"),
         (str(SRC / "handwriting"), "handwriting"),
-        (str(SRC / "ui"), "ui"),
         (str(SRC / "core"), "core"),
     ] + optional_root_datas + extra_datas,
     hiddenimports=[
