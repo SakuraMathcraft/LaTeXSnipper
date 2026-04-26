@@ -11,6 +11,12 @@ import subprocess
 import time
 import traceback
 
+from backend.cuda_runtime_policy import (
+    onnxruntime_cpu_spec,
+    onnxruntime_gpu_policy,
+    onnxruntime_gpu_spec,
+)
+
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
 
@@ -237,8 +243,10 @@ class InstallWorker(QThread):
 
             def _resolve_layer_pkg_spec(pkg_spec: str) -> str:
                 root_name = re.split(r'[<>=!~ ]', pkg_spec, 1)[0].strip().lower()
+                if root_name == "onnxruntime":
+                    return onnxruntime_cpu_spec(self.pyexe)
                 if root_name == "onnxruntime-gpu":
-                    return ORT_GPU_DEFAULT_SPEC
+                    return onnxruntime_gpu_spec(self.pyexe)
                 return pkg_spec
 
             pending = []
@@ -348,7 +356,7 @@ class InstallWorker(QThread):
             if want_gpu_runtime:
                 runtime_ort_ok, runtime_ort_err = _repair_gpu_onnxruntime_runtime(
                     self.pyexe,
-                    ORT_GPU_DEFAULT_SPEC,
+                    onnxruntime_gpu_spec(self.pyexe),
                     self.stop_event,
                     self.pause_event,
                     self.log_q,
@@ -538,8 +546,8 @@ def _config_dir_path() -> Path:
         pass
     return p
 
-ORT_CPU_SPEC = "onnxruntime~=1.19.2"
-ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu~=1.19.2"
+ORT_CPU_SPEC = "onnxruntime"
+ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu"
 pip_ready_event = threading.Event()
 PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 # ONNX Runtime 支撑包版本约束，避免 pip 解析带入不可用组合。
@@ -1788,6 +1796,11 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
     env["PYTHONUNBUFFERED"] = "1"
     name = _root_name(pkg)
+    ort_gpu_policy = None
+    if name == "onnxruntime-gpu":
+        ort_gpu_policy = onnxruntime_gpu_policy(pyexe)
+        pkg = ort_gpu_policy.requirement
+        name = _root_name(pkg)
     if name in {"onnxruntime", "onnxruntime-gpu"}:
         _cleanup_orphan_onnxruntime_namespace(pyexe, log_fn=log_q.put)
     mirror_index = "https://pypi.tuna.tsinghua.edu.cn/simple"
@@ -1811,6 +1824,16 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                 str(pyexe), "-m", "pip", "install",
                 pkg, "--upgrade", *PIP_INSTALL_SUPPRESS_ARGS
             ]
+            if retry == 0 and ort_gpu_policy is not None:
+                log_q.put(
+                    "[INFO] onnxruntime-gpu policy: "
+                    f"CUDA {ort_gpu_policy.cuda.version_text} -> {ort_gpu_policy.requirement} "
+                    f"({ort_gpu_policy.source_label})"
+                )
+                if ort_gpu_policy.warning:
+                    log_q.put(f"[WARN] {ort_gpu_policy.warning}")
+            if ort_gpu_policy is not None and ort_gpu_policy.pre:
+                args.append("--pre")
             # 需要强制重装的包（版本冲突敏感）
             force_reinstall_pkgs = {
                 "protobuf",
@@ -1832,7 +1855,11 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
             if name in {"onnxruntime", "onnxruntime-gpu"}:
                 args.append("--no-deps")
 
-            if use_mirror:
+            if ort_gpu_policy is not None and ort_gpu_policy.index_url:
+                args += ["-i", ort_gpu_policy.index_url]
+                if retry == 0:
+                    log_q.put(f"[Source] {ort_gpu_policy.source_label}")
+            elif use_mirror:
                 args += ["-i", mirror_index]
                 if retry == 0:
                     log_q.put("[Source] 使用清华源 📦")
@@ -1928,7 +1955,13 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                     log_q.put("=" * 60)
                     log_q.put("💡 手动安装提示（请在终端中执行以下命令）：")
                     log_q.put("")
-                    manual_cmd = f'"{pyexe}" -m pip install {pkg} --upgrade --user'
+                    manual_cmd = f'"{pyexe}" -m pip install "{pkg}" --upgrade --user'
+                    if name in {"onnxruntime", "onnxruntime-gpu"}:
+                        manual_cmd += " --no-deps"
+                    if ort_gpu_policy is not None and ort_gpu_policy.pre:
+                        manual_cmd += " --pre"
+                    if ort_gpu_policy is not None and ort_gpu_policy.index_url:
+                        manual_cmd += f" -i {ort_gpu_policy.index_url}"
                     log_q.put(f"  {manual_cmd}")
                     log_q.put("")
                     log_q.put("如遇权限问题，可尝试：")

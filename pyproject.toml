@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mathcraft-ocr"
-version = "0.1.7"
+version = "0.1.8"
 description = "ONNX-only OCR runtime for mathematical documents"
 readme = "README_MATHCRAFT_OCR.md"
 requires-python = ">=3.10"
@@ -46,11 +46,11 @@ dependencies = [
 
 [project.optional-dependencies]
 cpu = [
-  "onnxruntime~=1.19.2; python_version < '3.13'",
+  "onnxruntime>=1.19.2,<1.26; python_version < '3.13'",
   "onnxruntime>=1.20,<1.26; python_version >= '3.13'",
 ]
 gpu = [
-  "onnxruntime-gpu~=1.19.2; python_version < '3.13'",
+  "onnxruntime-gpu>=1.19.2,<1.26; python_version < '3.13'",
   "onnxruntime-gpu>=1.20,<1.26; python_version >= '3.13'",
 ]
 dev = [
