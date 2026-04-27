@@ -1,7 +1,7 @@
 param(
     [string]$PackageVersion = "2.3.100.0",
     [string]$IdentityName = "MathCraft.LaTeXSnipper",
-    [string]$Publisher = "CN=126B7303-F9CB-485C-8DA9-542DD30D121A",
+    [string]$Publisher = "CN=126B7303-E9CB-485C-8DA9-542DD30D121A",
     [string]$PublisherDisplayName = "MathCraft",
     [string]$StoreProductId = "9NM3W4C98PFC",
     [string]$BuildName = "LaTeXSnipperStore",
