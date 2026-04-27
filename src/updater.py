@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import html
 import json
 import os
 import re
@@ -23,22 +24,14 @@ from PyQt6.QtGui import QTextDocument, QFont
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
-try:
-    import markdown2  # pyright: ignore[reportMissingImports]
-except ImportError:
-    markdown2 = None
+from distribution import APP_VERSION, is_store_distribution, store_update_uri
 
 # ---------------- 常量 ----------------
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
 _UPDATE_DIALOG: Optional[QDialog] = None
-__version__ = "v2.3.2"
-
-PRIMARY_URL = "https://raw.githubusercontent.com/SakuraMathcraft/LaTeXSnipper/main/version.json"
-MIRROR_URLS = [
-    "https://cdn.jsdelivr.net/gh/SakuraMathcraft/LaTeXSnipper/version.json",
-    "https://raw.fastgit.org/SakuraMathcraft/LaTeXSnipper/main/version.json"
-]
+_CURRENT_BUILD_SHA256: Optional[str] = None
+__version__ = APP_VERSION
 
 CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
@@ -219,6 +212,7 @@ class ReleaseInfo:
     asset_id: str = ""
     asset_size: int = 0
     asset_updated_at: str = ""
+    asset_sha256: str = ""
 
 # ---------------- 辅助函数 ----------------
 def _load_cached_info():
@@ -251,6 +245,7 @@ def _save_cached_info(etag: str, info: ReleaseInfo):
                     "asset_id": info.asset_id,
                     "asset_size": info.asset_size,
                     "asset_updated_at": info.asset_updated_at,
+                    "asset_sha256": info.asset_sha256,
                 }
             }, f)
     except Exception:
@@ -268,17 +263,6 @@ def _stable_tag_key(tag: str) -> tuple[int, ...]:
     if not parts:
         return tuple()
     return tuple(int(p) for p in parts)
-
-
-def _is_newer_version(latest: str, current: str) -> bool:
-    latest_key = _stable_tag_key(latest)
-    current_key = _stable_tag_key(current)
-    if latest_key and current_key:
-        max_len = max(len(latest_key), len(current_key))
-        latest_key += (0,) * (max_len - len(latest_key))
-        current_key += (0,) * (max_len - len(current_key))
-        return latest_key > current_key
-    return str(latest or "").strip() != str(current or "").strip()
 
 
 def _compare_versions(left: str, right: str) -> int:
@@ -299,6 +283,48 @@ def _compare_versions(left: str, right: str) -> int:
         return 0
     return 1 if left_raw > right_raw else -1
 
+
+def _normalize_sha256(value: object) -> str:
+    raw = str(value or "").strip().lower()
+    if raw.startswith("sha256:"):
+        raw = raw.split(":", 1)[1].strip()
+    raw = re.sub(r"\s+", "", raw)
+    return raw if re.fullmatch(r"[0-9a-f]{64}", raw) else ""
+
+
+def _asset_sha256_from_payload(payload: dict) -> str:
+    return _normalize_sha256(
+        payload.get("asset_sha256")
+        or payload.get("sha256")
+        or payload.get("sha256_digest")
+        or payload.get("digest")
+        or payload.get("hash")
+    )
+
+
+def _brief_error_message(err: object, *, context: str = "update") -> str:
+    if isinstance(err, requests.exceptions.Timeout):
+        return "连接 GitHub 超时，请检查网络或代理后重试。"
+    if isinstance(err, requests.exceptions.SSLError):
+        return "TLS 证书校验失败，请检查系统证书、代理或安全软件设置。"
+    if isinstance(err, requests.exceptions.ConnectionError):
+        return "无法连接 GitHub，请检查网络、代理或 DNS 设置。"
+    if isinstance(err, requests.exceptions.HTTPError):
+        resp = getattr(err, "response", None)
+        code = getattr(resp, "status_code", None)
+        if code == 403:
+            return "GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。"
+        if code == 404:
+            return "未找到可用的 GitHub Release，请确认发布页已创建。"
+        if code:
+            return f"GitHub API 返回 HTTP {code}，请稍后重试。"
+    raw = " ".join(str(err or "").replace("\r", " ").replace("\n", " ").split())
+    if not raw:
+        return "更新请求失败，请检查网络后重试。"
+    limit = 120 if context == "download" else 96
+    return raw if len(raw) <= limit else raw[: limit - 3] + "..."
+
+
 def _attach_auth_headers(h: dict):
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token:
@@ -315,32 +341,11 @@ def _fmt_reset(ts_utc: Optional[str]):
     except Exception:
         return ts_utc
 
-def _fetch_version_json_fallback() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[str, str]]]:
-    diags: List[Tuple[str, str]] = []
-    for u in [PRIMARY_URL] + MIRROR_URLS:
-        try:
-            r = _session.get(u, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-            r.raise_for_status()
-            js = r.json()
-            return ReleaseInfo(
-                js.get("latest", ""),
-                js.get("url", "https://github.com/SakuraMathcraft/LaTeXSnipper/releases"),
-                js.get("changelog", ""),
-                js.get("asset_url", "") or js.get("download_url", ""),
-                js.get("asset_name", "") or js.get("filename", ""),
-                str(js.get("asset_id", "") or ""),
-                int(js.get("asset_size", 0) or 0),
-                str(js.get("asset_updated_at", "") or ""),
-            ), None, diags
-        except Exception as e:
-            diags.append((u, repr(e)))
-    return None, "回退 version.json 亦失败", diags
 
-
-def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str]:
+def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str, str]:
     assets = rel.get("assets") or []
     if not isinstance(assets, list):
-        return "", "", "", 0, ""
+        return "", "", "", 0, "", ""
     priorities = (".exe", ".msi", ".zip")
     for suffix in priorities:
         for asset in assets:
@@ -353,6 +358,7 @@ def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str]:
                     str(asset.get("id", "") or ""),
                     int(asset.get("size", 0) or 0),
                     str(asset.get("updated_at", "") or ""),
+                    _asset_sha256_from_payload(asset),
                 )
     for asset in assets:
         name = str(asset.get("name", "") or "")
@@ -364,8 +370,9 @@ def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str]:
                 str(asset.get("id", "") or ""),
                 int(asset.get("size", 0) or 0),
                 str(asset.get("updated_at", "") or ""),
+                _asset_sha256_from_payload(asset),
             )
-    return "", "", "", 0, ""
+    return "", "", "", 0, "", ""
 
 
 def _release_page_url(url: str) -> bool:
@@ -386,6 +393,47 @@ def _normalize_download_asset(url: str, name: str) -> tuple[str, str]:
     if not clean_name or "." not in Path(clean_name).name:
         return "", ""
     return clean_url, clean_name
+
+
+def _compute_file_sha256(path: str | Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            if chunk:
+                h.update(chunk)
+    return h.hexdigest()
+
+
+def _current_build_sha256() -> str:
+    global _CURRENT_BUILD_SHA256
+    if _CURRENT_BUILD_SHA256 is not None:
+        return _CURRENT_BUILD_SHA256
+    _CURRENT_BUILD_SHA256 = ""
+    if not getattr(sys, "frozen", False):
+        return ""
+    try:
+        exe_path = Path(sys.executable)
+        if exe_path.is_file():
+            _CURRENT_BUILD_SHA256 = _compute_file_sha256(exe_path)
+    except Exception:
+        _CURRENT_BUILD_SHA256 = ""
+    return _CURRENT_BUILD_SHA256
+
+
+def _same_version_build_update_reason(info: ReleaseInfo) -> str:
+    if _compare_versions(info.latest, __version__) != 0:
+        return ""
+    if Path(str(info.asset_name or "")).suffix.lower() != ".exe":
+        return ""
+    remote_sha256 = _normalize_sha256(info.asset_sha256)
+    if not remote_sha256:
+        return ""
+    local_sha256 = _current_build_sha256()
+    if local_sha256:
+        return "构建哈希不同" if local_sha256 != remote_sha256 else ""
+    if not getattr(sys, "frozen", False):
+        return "源码运行，无法校验本机安装包哈希"
+    return ""
 
 
 def _schedule_windows_installer(path: str) -> None:
@@ -448,6 +496,7 @@ def _asset_fingerprint(info: ReleaseInfo) -> dict:
         "asset_id": str(info.asset_id or ""),
         "asset_size": int(info.asset_size or 0),
         "asset_updated_at": str(info.asset_updated_at or ""),
+        "asset_sha256": _normalize_sha256(info.asset_sha256),
     }
 
 
@@ -477,8 +526,7 @@ def _clear_installer_meta() -> None:
     except Exception:
         pass
 
-# ---------------- 主获取（含限频检测增强） ----------------
-# ---------------- 主获取（含限频检测增强） ----------------
+# ---------------- 主获取 ----------------
 def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[str, str]]]:
     diagnostics: List[Tuple[str, str]] = []
     headers: Dict[str, str] = {}
@@ -488,7 +536,7 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
     if cached_info and _compare_versions(cached_info.latest, __version__) < 0:
         etag = None
         cached_info = None
-    if etag:
+    if etag and cached_info:
         headers["If-None-Match"] = etag
     try:
         resp = _session.get(_API_RELEASES, headers=headers, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
@@ -503,11 +551,8 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         if resp.status_code == 304:
             if cached_info:
                 return cached_info, None, diagnostics
-            else:
-                # 无缓存，回退获取
-                info, err, fb = _fetch_version_json_fallback()
-                diagnostics.extend(fb)
-                return info, err, diagnostics
+            diagnostics.append(("GitHub Releases API", "缓存已过期，请重新检查"))
+            return None, "更新缓存失效，请重新检查。", diagnostics
 
         if resp.status_code == 403:
             remain = resp.headers.get("X-RateLimit-Remaining")
@@ -515,16 +560,15 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
             msg = f"GitHub 限频: 剩余={remain} 重置≈{_fmt_reset(reset)}"
             diagnostics.append((_API_RELEASES, msg))
             diagnostics.append(("RATE_LIMIT", msg))  # 哨兵
-            info, err, fb = _fetch_version_json_fallback()
-            diagnostics.extend(fb)
-            if info:
-                return info, None, diagnostics
-            return None, msg + " 且回退失败", diagnostics
+            return None, "GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。", diagnostics
 
         resp.raise_for_status()
 
         new_etag = resp.headers.get("ETag")
         releases = resp.json()
+        if not isinstance(releases, list):
+            diagnostics.append((_API_RELEASES, "响应格式不是 release 列表"))
+            return None, "GitHub Releases 响应格式异常。", diagnostics
 
         ordered = sorted(
             releases,
@@ -552,22 +596,25 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         return info, None, diagnostics
 
     except Exception as e:
-        diagnostics.append((_API_RELEASES, repr(e)))
-        info, err, fb = _fetch_version_json_fallback()
-        diagnostics.extend(fb)
-        if info:
-            return info, None, diagnostics
-        return None, str(e), diagnostics
+        diagnostics.append((_API_RELEASES, _brief_error_message(e)))
+        return None, _brief_error_message(e), diagnostics
 
 # ---------------- 图文浏览器 ----------------
 _GITHUB_RAW_PREFIX = "https://raw.githubusercontent.com/SakuraMathcraft/LaTeXSnipper/main/"
 _REL_IMG_PATTERN = re.compile(r'!\[([^\]]*)\]\((?!https?://|data:)([^)]+)\)')
+_MARK_TAG_PATTERN = re.compile(r"</?mark\b[^>]*>", re.IGNORECASE)
 
 def _fix_relative_images(md: str) -> str:
     return _REL_IMG_PATTERN.sub(
         lambda m: f"![{m.group(1)}]({_GITHUB_RAW_PREFIX}{m.group(2).lstrip('./')})",
         md
     )
+
+
+def _prepare_release_markdown(md: str) -> str:
+    fixed = _fix_relative_images(md)
+    return _MARK_TAG_PATTERN.sub("", fixed)
+
 
 class RemoteImageBrowser(QTextBrowser):
     def __init__(self, parent=None):
@@ -582,6 +629,16 @@ class RemoteImageBrowser(QTextBrowser):
         self._generation += 1
         self._abort_pending()
         super().setHtml(html)
+
+    def start_new_markdown(self, markdown: str, stylesheet: str = ""):
+        self._generation += 1
+        self._abort_pending()
+        if stylesheet:
+            self.document().setDefaultStyleSheet(stylesheet)
+        self.document().setMarkdown(
+            markdown,
+            QTextDocument.MarkdownFeature.MarkdownDialectGitHub,
+        )
 
     def _abort_pending(self):
         for r in list(self._pending.values()):
@@ -618,18 +675,109 @@ class RemoteImageBrowser(QTextBrowser):
         reply.deleteLater()
 
 # ---------------- 主对话框 ----------------
+def _show_existing_update_dialog():
+    if _UPDATE_DIALOG is None:
+        return None
+    try:
+        if _UPDATE_DIALOG.isVisible():
+            _UPDATE_DIALOG.show()
+            _UPDATE_DIALOG.raise_()
+            _UPDATE_DIALOG.activateWindow()
+            return _UPDATE_DIALOG
+    except RuntimeError:
+        pass
+    _clear_global()
+    return None
+
+
+def _open_store_update_page(parent) -> None:
+    try:
+        import webbrowser
+
+        webbrowser.open(store_update_uri())
+    except Exception as e:
+        InfoBar.error(
+            title="无法打开 Microsoft Store",
+            content=_brief_error_message(e),
+            parent=parent,
+            duration=3500,
+            position=InfoBarPosition.TOP,
+        )
+
+
+def _store_update_dialog(parent=None):
+    global _UPDATE_DIALOG
+    existing = _show_existing_update_dialog()
+    if existing is not None:
+        return existing
+
+    dlg = QDialog(parent)
+    dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+    dlg.setWindowTitle("检查更新")
+    dlg.setWindowFlags(
+        (
+            dlg.windowFlags()
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        & ~Qt.WindowType.WindowMinimizeButtonHint
+        & ~Qt.WindowType.WindowContextHelpButtonHint
+        & ~Qt.WindowType.WindowMinMaxButtonsHint
+    )
+    dlg.resize(520, 220)
+    dlg.setModal(False)
+    dlg.setWindowModality(Qt.WindowModality.NonModal)
+    _apply_app_window_icon(dlg)
+    _UPDATE_DIALOG = dlg
+    dlg.destroyed.connect(_clear_global)
+
+    lay = QVBoxLayout(dlg)
+    title = QLabel("版本更新")
+    title_font = QFont(title.font())
+    title_font.setPointSize(max(title_font.pointSize(), 14))
+    title_font.setBold(True)
+    title.setFont(title_font)
+    lay.addWidget(title)
+
+    lay.addWidget(QLabel(f"当前版本: {__version__}"))
+    lay.addWidget(QLabel("当前渠道: Microsoft Store"))
+    status = QLabel("此版本由 Microsoft Store 管理更新，不会下载 GitHub Release 安装包。")
+    status.setWordWrap(True)
+    lay.addWidget(status)
+
+    desc = QLabel("如需更新，请打开 Microsoft Store 的库/下载页面，或等待 Store 自动更新。")
+    desc.setWordWrap(True)
+    lay.addWidget(desc)
+    lay.addStretch()
+
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
+    btn_store = PushButton(FluentIcon.LINK, "打开 Microsoft Store")
+    btn_close = PushButton(FluentIcon.CLOSE, "关闭")
+    for button in (btn_store, btn_close):
+        button.setFixedHeight(32)
+        btn_row.addWidget(button)
+    lay.addLayout(btn_row)
+
+    btn_store.clicked.connect(lambda: _open_store_update_page(dlg))
+    btn_close.clicked.connect(dlg.close)
+
+    dlg.show()
+    dlg.raise_()
+    dlg.activateWindow()
+    return dlg
+
+
 def check_update_dialog(parent=None):
     global _UPDATE_DIALOG
-    if _UPDATE_DIALOG is not None:
-        try:
-            if _UPDATE_DIALOG.isVisible():
-                _UPDATE_DIALOG.show()
-                _UPDATE_DIALOG.raise_()
-                _UPDATE_DIALOG.activateWindow()
-                return _UPDATE_DIALOG
-        except RuntimeError:
-            pass
-        _clear_global()
+    if is_store_distribution():
+        return _store_update_dialog(parent)
+
+    existing = _show_existing_update_dialog()
+    if existing is not None:
+        return existing
 
     dlg = QDialog(parent)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -676,7 +824,7 @@ def check_update_dialog(parent=None):
 
     btn_row = QHBoxLayout()
     btn_row.addStretch()
-    btn_download = PushButton(FluentIcon.DOWNLOAD, "下载更新")
+    btn_download = PushButton(FluentIcon.DOWNLOAD, "下载并安装")
     btn_open = PushButton(FluentIcon.LINK, "打开链接")
     btn_copy = PushButton(FluentIcon.COPY, "复制链接")
     btn_retry = PushButton(FluentIcon.SYNC, "重新检查")
@@ -697,6 +845,7 @@ def check_update_dialog(parent=None):
         "downloading": False,
         "pause_requested": False,
         "closing": False,
+        "same_version_build_update_reason": "",
     }
     watchdog = QTimer(dlg)
     watchdog.setSingleShot(True)
@@ -776,13 +925,8 @@ def check_update_dialog(parent=None):
         if not changelog:
             txt.start_new_html("<p>(无变更日志)</p>")
             return
-        md = _fix_relative_images(changelog)
-        if markdown2:
-            html_body = markdown2.markdown(
-                md, extras=["fenced-code-blocks", "tables", "strike", "task_list"]
-            )
-            style = f"""
-<style>
+        md = _prepare_release_markdown(changelog)
+        css = f"""
 body{{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:12px;line-height:1.55;color:{theme['text']};}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;}}
 code,pre{{font-family:Consolas,'Microsoft YaHei',monospace;}}
@@ -790,12 +934,8 @@ img{{max-width:100%;}}
 table{{border-collapse:collapse;}}
 table,th,td{{border:1px solid {theme['border']};padding:4px;}}
 a{{color:{theme['accent']};}}
-</style>
 """
-            txt.start_new_html(style + html_body)
-        else:
-            esc = md.replace("&", "&amp;").replace("<", "&lt;")
-            txt.start_new_html(f"<pre>{esc}</pre>")
+        txt.start_new_markdown(md, css)
 
     def on_result(info, err, diag):
         if DEBUG_LOG and diag:
@@ -807,34 +947,50 @@ a{{color:{theme['accent']};}}
         bar.setRange(0, 1)
         dlg.unsetCursor()
         if err:
-            lbl_status.setText(f"获取失败: {err}")
-            lines = ["尝试结果:"]
+            message = _brief_error_message(err)
+            lbl_status.setText(f"获取失败：{message}")
+            lines = [
+                "<p>无法获取更新信息。请检查网络、代理或 GitHub 访问状态后重试。</p>",
+                "<ul>",
+            ]
+            shown_diag = False
             for u, e in diag:
-                lines.append(f"- {u}\n  -> {e}")
-            if not any(k in ("RATE_LIMIT",) or "限频" in e for k, e in diag):
-                lines.append("请求过于频繁，建议: 检查网络 / 代理 / DNS, 稍后再试。")
-            esc = "\n".join(lines).replace("&", "&amp;").replace("<", "&lt;")
-            txt.start_new_html(f"<pre>{esc}</pre>")
+                if u == "RATE_LIMIT":
+                    continue
+                lines.append(f"<li>{html.escape(str(u))}：{html.escape(_brief_error_message(e))}</li>")
+                shown_diag = True
+            if not shown_diag:
+                lines.append(f"<li>来源：{html.escape(_API_RELEASES)}</li>")
+            if not any(k in ("RATE_LIMIT",) or "限频" in str(e) for k, e in diag):
+                lines.append("<li>建议：检查网络 / 代理 / DNS，稍后再试。</li>")
+            lines.append("</ul>")
+            txt.start_new_html("".join(lines))
             btn_retry.setEnabled(True)
             return
 
         state["info"] = info
         cmp = _compare_versions(info.latest, __version__)
+        state["same_version_build_update_reason"] = _same_version_build_update_reason(info)
         if cmp > 0:
             lbl_status.setText(f"发现新版本: {info.latest} (当前 {__version__})")
+        elif state["same_version_build_update_reason"]:
+            lbl_status.setText(
+                f"发现同版本更新: {info.latest} (当前 {__version__}，"
+                f"{state['same_version_build_update_reason']})"
+            )
         elif cmp == 0:
             lbl_status.setText(f"已经是最新版本: {info.latest}")
         else:
             lbl_status.setText(f"当前版本高于线上稳定版本: {info.latest} (当前 {__version__})")
         render_changelog(info.changelog)
 
-        # 限频提示（包含备用源触发）
+        # 限频提示
         rate_msg = next(
             (m for k, m in diag if k == "RATE_LIMIT" or "GitHub 限频" in m),
             None
         )
         if rate_msg:
-            lbl_status.setText(lbl_status.text() + "（限频/备用源）")
+            lbl_status.setText(lbl_status.text() + "（GitHub 限频）")
             warn_html = (
                 f"<div style='color:{theme['warn_text']};font-size:12px;"
                 f"border:1px solid {theme['warn_border']};background:{theme['warn_bg']};"
@@ -933,18 +1089,15 @@ a{{color:{theme['accent']};}}
             btn_download.setText("继续下载")
         elif has_valid_local:
             btn_download.setText("安装已下载")
-        elif _is_newer_version(info.latest, __version__):
+        elif _compare_versions(info.latest, __version__) > 0 or state.get(
+            "same_version_build_update_reason"
+        ):
             btn_download.setText("下载并安装")
         else:
             btn_download.setText("重新下载")
 
     def _compute_sha256(path: str) -> str:
-        h = hashlib.sha256()
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                if chunk:
-                    h.update(chunk)
-        return h.hexdigest()
+        return _compute_file_sha256(path)
 
     def _read_signature_status(path: str) -> str:
         ext = Path(path).suffix.lower()
@@ -1007,8 +1160,21 @@ a{{color:{theme['accent']};}}
             return
         ext = Path(path).suffix.lower()
         sha256_hex = _compute_sha256(path)
-        signature_status = _read_signature_status(path)
         info = state.get("info")
+        expected_sha256 = _normalize_sha256(info.asset_sha256) if isinstance(info, ReleaseInfo) else ""
+        if expected_sha256 and sha256_hex.lower() != expected_sha256:
+            _clear_installer_meta()
+            _remove_path(path)
+            lbl_status.setText("下载校验失败：安装包 SHA256 与线上发布信息不一致")
+            InfoBar.error(
+                title="下载校验失败",
+                content="安装包 SHA256 与线上发布信息不一致，请重新下载。",
+                parent=dlg,
+                duration=4500,
+                position=InfoBarPosition.TOP,
+            )
+            return
+        signature_status = _read_signature_status(path)
         if isinstance(info, ReleaseInfo):
             _save_installer_meta(info, path, sha256_hex)
         if os.name != "nt" or not getattr(sys, "frozen", False) or ext not in (".exe", ".msi"):
@@ -1050,7 +1216,7 @@ a{{color:{theme['accent']};}}
             except Exception:
                 InfoBar.error(
                     title="启动安装器失败",
-                    content=str(e),
+                    content=_brief_error_message(e),
                     parent=dlg,
                     duration=4000,
                     position=InfoBarPosition.TOP,
@@ -1089,16 +1255,17 @@ a{{color:{theme['accent']};}}
             )
             return
         if err:
+            message = _brief_error_message(err, context="download")
             _refresh_download_button()
             btn_open.setEnabled(bool(state.get("info")))
             btn_copy.setEnabled(bool(state.get("info")))
             btn_retry.setEnabled(True)
             dlg.unsetCursor()
             bar.setRange(0, 1)
-            lbl_status.setText(f"下载失败: {err}")
+            lbl_status.setText(f"下载失败：{message}")
             InfoBar.error(
                 title="下载失败",
-                content=str(err),
+                content=message,
                 parent=dlg,
                 duration=4000,
                 position=InfoBarPosition.TOP,
@@ -1126,6 +1293,7 @@ a{{color:{theme['accent']};}}
         state["aborted"] = False
         state["closing"] = False
         state["info"] = None
+        state["same_version_build_update_reason"] = ""
         lbl_status.setText("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
         txt.start_new_html("<p style='color:#777;'>正在获取...</p>")
         bar.setRange(0, 0)
@@ -1156,7 +1324,7 @@ a{{color:{theme['accent']};}}
             except Exception as e:
                 InfoBar.error(
                     title="复制失败",
-                    content=str(e),
+                    content=_brief_error_message(e),
                     parent=dlg,
                     duration=3000,
                     position=InfoBarPosition.TOP,
@@ -1238,7 +1406,7 @@ a{{color:{theme['accent']};}}
             except _PauseDownload:
                 safe_emit_signal(emitter, "download_done", dest, "__paused__")
             except Exception as e:
-                safe_emit_signal(emitter, "download_done", dest, str(e))
+                safe_emit_signal(emitter, "download_done", dest, _brief_error_message(e, context="download"))
 
         threading.Thread(target=worker_download, daemon=True).start()
 

@@ -12,6 +12,7 @@ This spec bundles required resources/dependencies so the app can run on target m
 import os
 import sys
 import shutil
+import json
 from pathlib import Path
 
 import PyQt6
@@ -25,6 +26,10 @@ ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
+BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
+STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
+if BUILD_CHANNEL not in {"github", "store"}:
+    raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
@@ -35,6 +40,24 @@ QT6_BIN = QT6_DIR / "bin"
 
 extra_datas = []
 extra_binaries = []
+generated_root = ROOT / "build" / "generated"
+generated_root.mkdir(parents=True, exist_ok=True)
+distribution_channel_file = generated_root / "distribution_channel.json"
+distribution_channel_file.write_text(
+    json.dumps(
+        {
+            "channel": BUILD_CHANNEL,
+            "store_product_id": STORE_PRODUCT_ID,
+        },
+        ensure_ascii=False,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+extra_datas.append((str(distribution_channel_file), "."))
+print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
+if BUILD_CHANNEL == "store" and not STORE_PRODUCT_ID:
+    print("[SPEC] store product id is not set; Store build will open the Store updates page.")
 if QT6_RESOURCES.exists():
     extra_datas.append((str(QT6_RESOURCES), "PyQt6/Qt6/resources"))
 if QT6_LOCALES.exists():

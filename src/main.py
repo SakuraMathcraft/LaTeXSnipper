@@ -1245,12 +1245,6 @@ def _is_packaged_mode() -> bool:
     return '_internal' in app_dir_str
 
 APP_DIR = _get_app_root()
-# 可通过环境变量 `LATEXSNIPPER_MODEL_DIR` 覆盖模型目录
-_model_env = os.environ.get("LATEXSNIPPER_MODEL_DIR")
-MODEL_DIR = Path(_model_env) if _model_env else (APP_DIR / "models")
-
-# 确保目录存在
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 print(f"[DEBUG] 主程序目录: {APP_DIR}")
 print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
@@ -2932,7 +2926,6 @@ def _exec_close_only_message_box(
     _apply_close_only_window_flags(msg)
     return QMessageBox.StandardButton(msg.exec())
 
-os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(DEPS_DIR, exist_ok=True)
 os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
@@ -4842,7 +4835,6 @@ class MainWindow(QMainWindow):
                     self.current_model = preferred
         except Exception:
             pass
-        self.model_dir = MODEL_DIR
 
         # 设置图标
         icon_path = resource_path("assets/icon.ico")

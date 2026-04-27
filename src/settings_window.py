@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
+from distribution import is_store_distribution
 from updater import check_update_dialog
 from backend.external_model import (
     ExternalModelConnectionWorker,
@@ -444,7 +445,8 @@ class SettingsWindow(QDialog):
         lay.addSpacing(8)
         # 检查更新
         lay.addWidget(QLabel("检查更新:"))
-        self.btn_update = PushButton(FluentIcon.UPDATE, "检查更新")
+        update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
+        self.btn_update = PushButton(FluentIcon.UPDATE, update_text)
         self.btn_update.setFixedHeight(36)
         lay.addWidget(self.btn_update)
         # 启动行为
