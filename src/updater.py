@@ -29,6 +29,7 @@ from distribution import APP_VERSION, is_store_distribution, store_update_uri
 # ---------------- 常量 ----------------
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
+_RELEASES_PAGE = "https://github.com/SakuraMathcraft/LaTeXSnipper/releases"
 _UPDATE_DIALOG: Optional[QDialog] = None
 _CURRENT_BUILD_SHA256: Optional[str] = None
 __version__ = APP_VERSION
@@ -375,6 +376,37 @@ def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str, str]:
     return "", "", "", 0, "", ""
 
 
+def _release_info_from_payload(rel: dict) -> ReleaseInfo:
+    return ReleaseInfo(
+        rel.get("tag_name", ""),
+        rel.get("html_url", ""),
+        rel.get("body", ""),
+        *_pick_release_asset(rel),
+    )
+
+
+def _fetch_latest_release_fallback(
+    diagnostics: List[Tuple[str, str]]
+) -> tuple[Optional[ReleaseInfo], str]:
+    latest_api = f"{_API_RELEASES}/latest"
+    headers: Dict[str, str] = {}
+    _attach_auth_headers(headers)
+    try:
+        resp = _session.get(latest_api, headers=headers, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+        if resp.status_code == 404:
+            diagnostics.append((latest_api, "latest release not found"))
+            return None, ""
+        resp.raise_for_status()
+        payload = resp.json()
+        if not isinstance(payload, dict) or not payload.get("tag_name"):
+            diagnostics.append((latest_api, "invalid latest release response"))
+            return None, ""
+        return _release_info_from_payload(payload), str(resp.headers.get("ETag") or "")
+    except Exception as e:
+        diagnostics.append((latest_api, _brief_error_message(e)))
+        return None, ""
+
+
 def _release_page_url(url: str) -> bool:
     path = str(QUrl(url).path() or "").lower()
     return "/releases/tag/" in path or path.endswith("/releases/latest")
@@ -582,15 +614,18 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         ]
         rel = stable_releases[0] if stable_releases else (ordered[0] if ordered else None)
         if not rel:
-            diagnostics.append((_API_RELEASES, "no releases"))
-            return None, "未找到 release", diagnostics
+            diagnostics.append(("EMPTY_RELEASES", "GitHub Releases API returned an empty list"))
+            fallback_info, fallback_etag = _fetch_latest_release_fallback(diagnostics)
+            if fallback_info:
+                if fallback_etag:
+                    _save_cached_info(fallback_etag, fallback_info)
+                return fallback_info, None, diagnostics
+            if cached_info:
+                diagnostics.append(("CACHE", "using cached release after empty GitHub response"))
+                return cached_info, None, diagnostics
+            return None, "GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。", diagnostics
 
-        info = ReleaseInfo(
-            rel.get("tag_name", ""),
-            rel.get("html_url", ""),
-            rel.get("body", ""),
-            *_pick_release_asset(rel),
-        )
+        info = _release_info_from_payload(rel)
         if new_etag:
             _save_cached_info(new_etag, info)
         return info, None, diagnostics
@@ -846,6 +881,7 @@ def check_update_dialog(parent=None):
         "pause_requested": False,
         "closing": False,
         "same_version_build_update_reason": "",
+        "fallback_url": _RELEASES_PAGE,
     }
     watchdog = QTimer(dlg)
     watchdog.setSingleShot(True)
@@ -917,6 +953,8 @@ def check_update_dialog(parent=None):
         txt.start_new_html(
             f"<pre>超出设定: connect={CONNECT_TIMEOUT}s read={READ_TIMEOUT}s\n可点 重新检查 再发起。</pre>"
         )
+        btn_open.setEnabled(True)
+        btn_copy.setEnabled(True)
         btn_retry.setEnabled(True)
 
     watchdog.timeout.connect(watchdog_timeout)
@@ -948,23 +986,33 @@ a{{color:{theme['accent']};}}
         dlg.unsetCursor()
         if err:
             message = _brief_error_message(err)
-            lbl_status.setText(f"获取失败：{message}")
+            lbl_status.setText(f"暂时无法确认更新：{message}")
             lines = [
-                "<p>无法获取更新信息。请检查网络、代理或 GitHub 访问状态后重试。</p>",
+                "<p>暂时无法获取更新信息。可稍后重试，或直接打开 GitHub Releases 页面查看。</p>",
                 "<ul>",
             ]
             shown_diag = False
             for u, e in diag:
                 if u == "RATE_LIMIT":
                     continue
-                lines.append(f"<li>{html.escape(str(u))}：{html.escape(_brief_error_message(e))}</li>")
+                if u == "EMPTY_RELEASES":
+                    lines.append("<li>GitHub API 本次返回了空发布列表，但这不代表项目没有发布版本。</li>")
+                    shown_diag = True
+                    continue
+                if u == "CACHE":
+                    lines.append("<li>已改用本地缓存的发布信息。</li>")
+                    shown_diag = True
+                    continue
+                lines.append(f"<li>{html.escape(str(u))}: {html.escape(_brief_error_message(e))}</li>")
                 shown_diag = True
             if not shown_diag:
-                lines.append(f"<li>来源：{html.escape(_API_RELEASES)}</li>")
+                lines.append(f"<li>来源: {html.escape(_API_RELEASES)}</li>")
             if not any(k in ("RATE_LIMIT",) or "限频" in str(e) for k, e in diag):
-                lines.append("<li>建议：检查网络 / 代理 / DNS，稍后再试。</li>")
+                lines.append("<li>建议：检查网络、代理或 DNS；也可以直接打开发布页。</li>")
             lines.append("</ul>")
             txt.start_new_html("".join(lines))
+            btn_open.setEnabled(True)
+            btn_copy.setEnabled(True)
             btn_retry.setEnabled(True)
             return
 
@@ -1285,8 +1333,8 @@ a{{color:{theme['accent']};}}
 
     def worker():
         info, err, diag = _fetch_release()
-        # 线程结束后发信号；若对话框已销毁，emitter 也随父销毁，不会调用槽
-        safe_emit(emitter.done, info, err, diag)
+        # 线程结束后发信号；若对话框已销毁，emitter 也随父销毁，直接跳过。
+        safe_emit_signal(emitter, "done", info, err, diag)
 
     def start_fetch():
         state["done"] = False
@@ -1305,15 +1353,22 @@ a{{color:{theme['accent']};}}
         watchdog.start(total_wait_ms)
         threading.Thread(target=worker, daemon=True).start()
 
-    def do_open():
+    def _current_update_link() -> str:
         if state["info"]:
+            return state["info"].asset_url or state["info"].url or state.get("fallback_url", "")
+        return str(state.get("fallback_url", "") or "")
+
+    def do_open():
+        link = _current_update_link()
+        if link:
             import webbrowser
-            webbrowser.open(state["info"].asset_url or state["info"].url)
+            webbrowser.open(link)
 
     def do_copy():
-        if state["info"]:
+        link = _current_update_link()
+        if link:
             try:
-                QApplication.clipboard().setText(state["info"].asset_url or state["info"].url)
+                QApplication.clipboard().setText(link)
                 InfoBar.success(
                     title="已复制",
                     content="下载链接已复制到剪贴板。",
