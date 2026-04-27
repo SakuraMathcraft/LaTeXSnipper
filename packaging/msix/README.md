@@ -6,7 +6,7 @@ Store identity values from Partner Center:
 
 ```text
 Package/Identity/Name: MathCraft.LaTeXSnipper
-Package/Identity/Publisher: CN=126B7303-F9CB-485C-8DA9-542DD30D121A
+Package/Identity/Publisher: CN=126B7303-E9CB-485C-8DA9-542DD30D121A
 Package/Properties/PublisherDisplayName: MathCraft
 Package Family Name: MathCraft.LaTeXSnipper_akhs4jyvhsn64
 Store ID: 9NM3W4C98PFC
