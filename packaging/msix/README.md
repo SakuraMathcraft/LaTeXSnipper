@@ -30,4 +30,13 @@ The script emits an unsigned `.msix` under `dist\store` for Partner Center uploa
 powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -SignForLocalTest
 ```
 
-The local-test certificate must be imported into Trusted People before installing the signed local-test package.
+The local-test package is signed with a self-signed certificate. Trust that certificate before installing the signed local-test package:
+
+```cmd
+certutil -addstore Root "E:\LaTexSnipper\dist\store\LaTeXSnipperStore-localtest.cer"
+certutil -addstore TrustedPeople "E:\LaTexSnipper\dist\store\LaTeXSnipperStore-localtest.cer"
+```
+
+Run those commands from an elevated Command Prompt or PowerShell. Importing into `CurrentUser\Root` is not enough for App Installer on all systems.
+
+Upload the unsigned `.msix` to Partner Center. Do not upload the `.localtest.msix` package.

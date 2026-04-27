@@ -108,7 +108,8 @@ function New-PngFromIcon {
         [string]$OutputPath,
         [int]$Width,
         [int]$Height,
-        [string]$Background = "#202020"
+        [string]$Background = "#202020",
+        [double]$PaddingRatio = 0.04
     )
 
     $assetScript = @'
@@ -125,13 +126,14 @@ output_path = Path(sys.argv[2])
 width = int(sys.argv[3])
 height = int(sys.argv[4])
 background = sys.argv[5]
+padding_ratio = float(sys.argv[6])
 
 canvas = Image.new("RGBA", (width, height), background)
 image = Image.open(icon_path)
 image.load()
 image = image.convert("RGBA")
 
-padding = max(4, min(width, height) // 8)
+padding = max(1, round(min(width, height) * padding_ratio))
 max_width = max(1, width - padding * 2)
 max_height = max(1, height - padding * 2)
 image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
@@ -145,7 +147,7 @@ canvas.save(output_path, "PNG")
     $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "latexsnipper-msix-asset-$PID.py"
     Write-TextFile -Path $tempScript -Value $assetScript
     try {
-        & $PythonPath $tempScript $IconPath $OutputPath $Width $Height $Background
+        & $PythonPath $tempScript $IconPath $OutputPath $Width $Height $Background $PaddingRatio
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to generate MSIX image asset: $OutputPath"
         }
@@ -164,13 +166,13 @@ function New-MsixAssets {
 
     $assetsDir = Join-Path $Root "Assets"
     New-Item -ItemType Directory -Force -Path $assetsDir | Out-Null
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square44x44Logo.png") -Width 44 -Height 44
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square71x71Logo.png") -Width 71 -Height 71
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square150x150Logo.png") -Width 150 -Height 150
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square310x310Logo.png") -Width 310 -Height 310
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "StoreLogo.png") -Width 50 -Height 50
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Wide310x150Logo.png") -Width 310 -Height 150
-    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "SplashScreen.png") -Width 620 -Height 300
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square44x44Logo.png") -Width 44 -Height 44 -PaddingRatio 0.04
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square71x71Logo.png") -Width 71 -Height 71 -PaddingRatio 0.04
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square150x150Logo.png") -Width 150 -Height 150 -PaddingRatio 0.04
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Square310x310Logo.png") -Width 310 -Height 310 -PaddingRatio 0.04
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "StoreLogo.png") -Width 50 -Height 50 -PaddingRatio 0.04
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "Wide310x150Logo.png") -Width 310 -Height 150 -PaddingRatio 0.12
+    New-PngFromIcon -PythonPath $PythonPath -IconPath $IconPath -OutputPath (Join-Path $assetsDir "SplashScreen.png") -Width 620 -Height 300 -PaddingRatio 0.18
 }
 
 function Invoke-PyInstallerBuild {
@@ -234,16 +236,25 @@ function Sign-LocalTestMsix {
     $signtool = Find-WindowsSdkTool -ToolName "signtool.exe"
     $cert = New-LocalTestCertificate -Publisher $Publisher
     $signedPath = [System.IO.Path]::ChangeExtension($MsixPath, ".localtest.msix")
+    $signLog = Join-Path $OutputDir "signtool-localtest.log"
     Copy-Item -LiteralPath $MsixPath -Destination $signedPath -Force
-    & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint $signedPath
+    & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint $signedPath *> $signLog
     if ($LASTEXITCODE -ne 0) {
-        throw "signtool failed with exit code $LASTEXITCODE"
+        $tail = Get-Content -Path $signLog -Tail 80 -ErrorAction SilentlyContinue
+        if ($tail) {
+            Write-Host ""
+            Write-Host "signtool output tail:"
+            $tail | ForEach-Object { Write-Host $_ }
+            Write-Host ""
+        }
+        throw "signtool failed with exit code $LASTEXITCODE. Full log: $signLog"
     }
     $cerPath = Join-Path $OutputDir "LaTeXSnipperStore-localtest.cer"
     Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-    return @{
+    return [pscustomobject]@{
         Msix = $signedPath
         Certificate = $cerPath
+        SignLog = $signLog
     }
 }
 
@@ -363,5 +374,10 @@ if ($SignForLocalTest) {
     Write-Host "  $($signed.Msix)"
     Write-Host "Local test certificate:"
     Write-Host "  $($signed.Certificate)"
-    Write-Host "Install the certificate into Trusted People before installing the local test MSIX."
+    Write-Host "SignTool log:"
+    Write-Host "  $($signed.SignLog)"
+    Write-Host "Trust the local-test certificate before installing the local test MSIX."
+    Write-Host "Run these commands from an elevated Command Prompt or PowerShell:"
+    Write-Host "  certutil -addstore Root `"$($signed.Certificate)`""
+    Write-Host "  certutil -addstore TrustedPeople `"$($signed.Certificate)`""
 }
