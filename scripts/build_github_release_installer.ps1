@@ -4,7 +4,8 @@ param(
     [switch]$Sign,
     [string]$CertificateThumbprint = "",
     [string]$TimestampUrl = "http://timestamp.digicert.com",
-    [string]$InnoCompiler = ""
+    [string]$InnoCompiler = "",
+    [string]$PythonPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,6 +70,40 @@ function Find-WindowsSdkTool {
     throw "Could not find $ToolName. Install the Windows SDK or put it on PATH."
 }
 
+function Resolve-BuildPython {
+    param(
+        [string]$Root,
+        [string]$RequestedPython
+    )
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPython)) {
+        $candidates += $RequestedPython
+    }
+
+    $candidates += (Join-Path $Root "src\deps\python311\python.exe")
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($command) {
+            return $command.Source
+        }
+    }
+
+    $pythonCommand = Get-Command "python" -ErrorAction SilentlyContinue
+    if ($pythonCommand) {
+        return $pythonCommand.Source
+    }
+
+    throw "Could not find build Python. Pass -PythonPath or install Python on PATH."
+}
+
 function Invoke-CodeSign {
     param(
         [string]$Signtool,
@@ -107,10 +142,7 @@ function Write-Sha256File {
 }
 
 $root = Resolve-RepoRoot
-$python = Join-Path $root "src\deps\python311\python.exe"
-if (-not (Test-Path $python)) {
-    throw "Bundled build Python not found: $python"
-}
+$python = Resolve-BuildPython -Root $root -RequestedPython $PythonPath
 
 $isccCandidates = @()
 if ($InnoCompiler) {
@@ -175,9 +207,16 @@ if ($Sign) {
     Invoke-CodeSign -Signtool $signtool -Path $appExe -Thumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
 }
 
-& $iscc $iss
-if ($LASTEXITCODE -ne 0) {
-    throw "Inno Setup failed with exit code $LASTEXITCODE"
+$oldRepoRoot = $env:LATEXSNIPPER_REPO_ROOT
+try {
+    $env:LATEXSNIPPER_REPO_ROOT = $root
+    & $iscc $iss
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup failed with exit code $LASTEXITCODE"
+    }
+}
+finally {
+    $env:LATEXSNIPPER_REPO_ROOT = $oldRepoRoot
 }
 
 if (-not (Test-Path $installer)) {
