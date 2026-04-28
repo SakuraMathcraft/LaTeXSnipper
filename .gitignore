@@ -30,6 +30,7 @@ src/models/
 
 # Local runtime components (do not version)
 python311/
+Store_CPU/
 python-*.exe
 wix*-binaries.zip
 nsis_tauri_utils.dll

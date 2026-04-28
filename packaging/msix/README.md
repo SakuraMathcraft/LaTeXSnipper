@@ -15,19 +15,21 @@ Store ID: 9NM3W4C98PFC
 Build the Store-channel MSIX package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU
 ```
 
-By default the script runs PyInstaller with the bundled build interpreter at `src\deps\python311\python.exe`, not the Python found on `PATH`. Override it only when deliberately testing another environment:
+The Store package must bundle a CPU-only dependency runtime. `Store_CPU` must contain `python311\python.exe` and `.deps_state.json`, and the state file must declare `MATHCRAFT_CPU` without `MATHCRAFT_GPU`.
+
+By default the script runs PyInstaller with the bundled build interpreter at `src\deps\python311\python.exe`, not the Python found on `PATH`. This interpreter is only used to build the package; the runtime bundled into the MSIX comes from `-StoreRuntimeDir`. Override the build interpreter only when deliberately testing another environment:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -PythonPath src\deps\python311\python.exe
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -PythonPath src\deps\python311\python.exe
 ```
 
 The script emits an unsigned `.msix` under `dist\store` for Partner Center upload. For local install testing only:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -SignForLocalTest
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -SignForLocalTest
 ```
 
 The local-test package is signed with a self-signed certificate. Trust that certificate before installing the signed local-test package:
