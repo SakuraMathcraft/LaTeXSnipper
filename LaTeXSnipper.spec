@@ -28,6 +28,7 @@ APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
+BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
 if BUILD_CHANNEL not in {"github", "store"}:
     raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
 
@@ -245,20 +246,37 @@ def _prune_bundled_python_site_packages(dist_root: Path):
                 print(f"[SPEC] prune bundled python script skip {child}: {exc}")
 
 
-# Bundle root python311 folder (offline dependency deployment)
-BUNDLED_PY311 = ROOT / "python311"
+def _resolve_bundled_deps_root() -> Path:
+    if BUNDLED_DEPS_DIR_ENV:
+        return Path(BUNDLED_DEPS_DIR_ENV).expanduser()
+    return ROOT
+
+
+# Bundle dependency runtime. Store builds pass a clean CPU-only deps root here.
+BUNDLED_DEPS_ROOT = _resolve_bundled_deps_root()
+BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
 if BUNDLED_PY311.exists():
     extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
     print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
 else:
     print(f"[SPEC] bundled python311 not found, skip: {BUNDLED_PY311}")
 
-# Optional offline Python installer
+BUNDLED_DEPS_STATE = BUNDLED_DEPS_ROOT / ".deps_state.json"
+if BUNDLED_DEPS_STATE.exists():
+    extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
+    print(f"[SPEC] include bundled deps state: {BUNDLED_DEPS_STATE}")
+else:
+    print(f"[SPEC] bundled deps state not found, skip: {BUNDLED_DEPS_STATE}")
+
+# Optional offline Python installer. Store packages carry a complete CPU runtime
+# and should not include a nested Python installer.
 BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-amd64.exe"
 optional_root_datas = []
-if BUNDLED_PY_INSTALLER.exists():
+if BUILD_CHANNEL != "store" and BUNDLED_PY_INSTALLER.exists():
     optional_root_datas.append((str(BUNDLED_PY_INSTALLER), "."))
     print(f"[SPEC] include bundled installer: {BUNDLED_PY_INSTALLER}")
+elif BUILD_CHANNEL == "store":
+    print("[SPEC] store build skips bundled Python installer.")
 else:
     print(f"[SPEC] bundled installer not found, skip: {BUNDLED_PY_INSTALLER}")
 

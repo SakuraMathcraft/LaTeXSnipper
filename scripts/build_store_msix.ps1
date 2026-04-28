@@ -8,6 +8,7 @@ param(
     [string]$DisplayName = "LaTeXSnipper",
     [string]$Description = "Recognize, edit, and export mathematical content from screenshots, images, PDFs, and handwriting.",
     [string]$PythonPath = "",
+    [string]$StoreRuntimeDir = "Store_CPU",
     [ValidateSet("x64", "x86", "arm64")]
     [string]$Architecture = "x64",
     [switch]$SkipPyInstaller,
@@ -51,6 +52,91 @@ function Resolve-PythonExecutable {
     }
 
     return (Resolve-Path $candidate).Path
+}
+
+function Resolve-StoreRuntimeDirectory {
+    param(
+        [string]$Root,
+        [string]$RequestedPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $candidate = Join-Path $Root "Store_CPU"
+    }
+    elseif ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+        $candidate = $RequestedPath
+    }
+    else {
+        $candidate = Join-Path $Root $RequestedPath
+    }
+
+    if (-not (Test-Path $candidate)) {
+        throw "Store runtime directory not found: $candidate"
+    }
+
+    $resolved = (Resolve-Path $candidate).Path
+    $python = Join-Path $resolved "python311\python.exe"
+    $state = Join-Path $resolved ".deps_state.json"
+    if (-not (Test-Path $python)) {
+        throw "Store runtime must contain python311\python.exe: $python"
+    }
+    if (-not (Test-Path $state)) {
+        throw "Store runtime must contain .deps_state.json: $state"
+    }
+
+    $stateJson = Get-Content -Path $state -Raw -Encoding UTF8 | ConvertFrom-Json
+    $layers = @($stateJson.installed_layers)
+    if ($layers -contains "MATHCRAFT_GPU") {
+        throw "Store runtime must be CPU-only, but .deps_state.json contains MATHCRAFT_GPU: $state"
+    }
+    if (-not ($layers -contains "MATHCRAFT_CPU")) {
+        throw "Store runtime must declare MATHCRAFT_CPU in .deps_state.json: $state"
+    }
+    $sitePackages = Join-Path $resolved "python311\Lib\site-packages"
+    if (Test-Path $sitePackages) {
+        $gpuDistInfo = Get-ChildItem -Path $sitePackages -Directory -Filter "onnxruntime_gpu*.dist-info" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($gpuDistInfo) {
+            throw "Store runtime must be CPU-only, but onnxruntime-gpu metadata was found: $($gpuDistInfo.FullName)"
+        }
+    }
+
+    return $resolved
+}
+
+function Sync-StoreRuntimeToStaging {
+    param(
+        [string]$StoreRuntimeDir,
+        [string]$StagingRoot
+    )
+
+    $depsRoot = Join-Path $StagingRoot "_internal\deps"
+    $sourcePython = Join-Path $StoreRuntimeDir "python311"
+    $sourceState = Join-Path $StoreRuntimeDir ".deps_state.json"
+    $targetPython = Join-Path $depsRoot "python311"
+    $targetState = Join-Path $depsRoot ".deps_state.json"
+    $stalePythonInstaller = Join-Path $StagingRoot "_internal\python-3.11.0-amd64.exe"
+
+    if (-not (Test-Path $sourcePython)) {
+        throw "Store runtime python311 directory not found: $sourcePython"
+    }
+    if (-not (Test-Path $sourceState)) {
+        throw "Store runtime state file not found: $sourceState"
+    }
+
+    New-Item -ItemType Directory -Force -Path $depsRoot | Out-Null
+    if (Test-Path $targetPython) {
+        Remove-Item -LiteralPath $targetPython -Recurse -Force
+    }
+    if (Test-Path $stalePythonInstaller) {
+        Remove-Item -LiteralPath $stalePythonInstaller -Force
+    }
+    Copy-Item -LiteralPath $sourcePython -Destination $depsRoot -Recurse -Force
+    Copy-Item -LiteralPath $sourceState -Destination $targetState -Force
+
+    Write-Host "Synced Store CPU runtime into staging:"
+    Write-Host "  $targetPython"
+    Write-Host "  $targetState"
 }
 
 function Find-WindowsSdkTool {
@@ -181,16 +267,19 @@ function Invoke-PyInstallerBuild {
         [string]$Root,
         [string]$BuildName,
         [string]$StoreProductId,
+        [string]$BundledDepsDir,
         [bool]$Clean
     )
 
     $oldChannel = $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL
     $oldProduct = $env:LATEXSNIPPER_STORE_PRODUCT_ID
     $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
+    $oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
     try {
         $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = "store"
         $env:LATEXSNIPPER_STORE_PRODUCT_ID = $StoreProductId
         $env:LATEXSNIPPER_BUILD_NAME = $BuildName
+        $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $BundledDepsDir
         $args = @("-m", "PyInstaller", (Join-Path $Root "LaTeXSnipper.spec"), "--noconfirm")
         if ($Clean) {
             $args += "--clean"
@@ -204,6 +293,7 @@ function Invoke-PyInstallerBuild {
         $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = $oldChannel
         $env:LATEXSNIPPER_STORE_PRODUCT_ID = $oldProduct
         $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
+        $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
     }
 }
 
@@ -287,6 +377,7 @@ Test-PackageVersion -Version $PackageVersion
 
 $root = Resolve-RepoRoot
 $resolvedPythonPath = Resolve-PythonExecutable -Root $root -RequestedPath $PythonPath
+$resolvedStoreRuntimeDir = Resolve-StoreRuntimeDirectory -Root $root -RequestedPath $StoreRuntimeDir
 $distApp = Join-Path $root "dist\$BuildName"
 $stagingRoot = Join-Path $root "build\msix\$BuildName"
 $outputDir = Join-Path $root "dist\store"
@@ -304,10 +395,12 @@ if (-not (Test-Path $iconPath)) {
 
 Write-Host "Using Python:"
 Write-Host "  $resolvedPythonPath"
+Write-Host "Using Store CPU runtime:"
+Write-Host "  $resolvedStoreRuntimeDir"
 Write-Host ""
 
 if (-not $SkipPyInstaller) {
-    Invoke-PyInstallerBuild -PythonPath $resolvedPythonPath -Root $root -BuildName $BuildName -StoreProductId $StoreProductId -Clean ([bool]$Clean)
+    Invoke-PyInstallerBuild -PythonPath $resolvedPythonPath -Root $root -BuildName $BuildName -StoreProductId $StoreProductId -BundledDepsDir $resolvedStoreRuntimeDir -Clean ([bool]$Clean)
 }
 
 $exePath = Join-Path $distApp "$BuildName.exe"
@@ -320,6 +413,7 @@ if (Test-Path $stagingRoot) {
 }
 New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
 Copy-Item -Path (Join-Path $distApp "*") -Destination $stagingRoot -Recurse -Force
+Sync-StoreRuntimeToStaging -StoreRuntimeDir $resolvedStoreRuntimeDir -StagingRoot $stagingRoot
 
 New-MsixAssets -Root $stagingRoot -IconPath $iconPath -PythonPath $resolvedPythonPath
 
