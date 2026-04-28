@@ -1849,9 +1849,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
                 # 其他包：普通升级即可，不强制重装依赖
                 pass
             
-            # Qt 顶层包禁依赖以防触发 PyQt6-Qt6 重装
-            if name in {"pyqt6", "pyqt6-webengine"}:
-                args.append("--no-deps")
             if name in {"onnxruntime", "onnxruntime-gpu"}:
                 args.append("--no-deps")
 
@@ -2950,23 +2947,25 @@ def _sync_deps_fluent_theme() -> None:
 
 
 def _apply_app_window_icon(win) -> None:
-    try:
-        from PyQt6.QtGui import QIcon
-        icon_path = resource_path("assets/icon.ico")
-        if icon_path and os.path.exists(icon_path):
-            win.setWindowIcon(QIcon(icon_path))
-    except Exception:
-        pass
+    from core.window_icons import apply_app_window_icon
+    apply_app_window_icon(win, resource_path("assets/icon.ico"))
 
 
 def _select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
     from PyQt6.QtWidgets import QFileDialog
+    from core.window_icons import schedule_native_dialog_icon
+
     dlg = QFileDialog(parent, title, initial_dir)
     dlg.setFileMode(QFileDialog.FileMode.Directory)
     dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
     _apply_app_window_icon(dlg)
-    if dlg.exec() != QFileDialog.DialogCode.Accepted:
-        return ""
+    icon_timer = schedule_native_dialog_icon(title, resource_path("assets/icon.ico"))
+    try:
+        if dlg.exec() != QFileDialog.DialogCode.Accepted:
+            return ""
+    finally:
+        if icon_timer is not None:
+            icon_timer.stop()
     selected = dlg.selectedFiles()
     return selected[0] if selected else ""
 
@@ -3253,10 +3252,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     global _LAST_ENSURE_DEPS_FORCE_ENTER
     _LAST_ENSURE_DEPS_FORCE_ENTER = False
     from PyQt6.QtWidgets import QApplication
-    app = QApplication.instance()
-    if app is None:
-        print("[WARN] ensure_deps 需要 GUI，但当前未创建 QApplication。请在主程序创建 QApplication 后再调用。")
-        return False
+    app = QApplication.instance() or QApplication(sys.argv[:1])
 
     def _notify_before_show_ui():
         if not callable(before_show_ui):

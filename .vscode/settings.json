@@ -1,4 +1,9 @@
 {
     "git.ignoreLimitWarning": true,
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\src\\deps\\python311\\python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}",
+        "${workspaceFolder}\\src\\deps\\python311\\Lib\\site-packages"
+    ]
 }

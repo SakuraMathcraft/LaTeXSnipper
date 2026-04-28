@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -14,9 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-windows:
-    name: Build Windows Package
+  build-windows-installer:
+    name: Build Windows Installer
     runs-on: windows-latest
+    env:
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,35 +42,139 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install -r requirements-build.txt
 
-      - name: Build with PyInstaller
+      - name: Install Inno Setup
         shell: pwsh
-        run: |
-          pyinstaller LaTeXSnipper.spec --clean
+        run: choco install innosetup --yes --no-progress
 
-      - name: Package artifacts
+      - name: Prepare bundled Python seed
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          $folder = "LaTeXSnipper-$tag-windows-x64"
-          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-          Copy-Item "dist/LaTeXSnipper" "artifacts/$folder" -Recurse -Force
-          Compress-Archive -Path "artifacts/$folder/*" -DestinationPath "artifacts/$folder.zip" -Force
-          if (Test-Path "dist/LaTeXSnipper/LaTeXSnipper.exe") {
-            Copy-Item "dist/LaTeXSnipper/LaTeXSnipper.exe" "artifacts/LaTeXSnipper-$tag.exe" -Force
+          $installer = Join-Path $PWD "python-3.11.0-amd64.exe"
+          $target = Join-Path $PWD "python311"
+          Invoke-WebRequest `
+            -Uri "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe" `
+            -OutFile $installer
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*Python Software Foundation*") {
+            throw "Downloaded Python installer signature is not trusted: $($signature.Status) $($signature.SignerCertificate.Subject)"
           }
+          $process = Start-Process `
+            -FilePath $installer `
+            -ArgumentList @(
+              "/quiet",
+              "InstallAllUsers=0",
+              "TargetDir=$target",
+              "Include_pip=1",
+              "Include_tcltk=1",
+              "Include_launcher=0",
+              "Include_test=0",
+              "Include_doc=0",
+              "PrependPath=0",
+              "Shortcuts=0"
+            ) `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Python installer failed with exit code $($process.ExitCode)"
+          }
+          if (-not (Test-Path (Join-Path $target "python.exe"))) {
+            throw "Bundled Python seed was not created: $target"
+          }
+          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel setuptools
 
-      - name: Upload workflow artifact
+      - name: Build unsigned installer
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -Flavor normal -PythonPath python
+
+      - name: Upload unsigned installer artifact
+        id: upload-unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ github.ref_name }}
-          path: artifacts/*
+          name: unsigned-latexsnipper-installer
+          path: dist/installer/LaTeXSnipperSetup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Check SignPath configuration
+        id: signpath-config
+        shell: pwsh
+        run: |
+          $missing = @()
+          foreach ($name in @(
+            "SIGNPATH_ORGANIZATION_ID",
+            "SIGNPATH_PROJECT_SLUG",
+            "SIGNPATH_SIGNING_POLICY_SLUG",
+            "SIGNPATH_ARTIFACT_CONFIGURATION_SLUG",
+            "SIGNPATH_API_TOKEN"
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              $missing += $name
+            }
+          }
+          if ($missing.Count -gt 0) {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            "missing=$($missing -join ', ')" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath is not configured: $($missing -join ', ')"
+          }
+          else {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            "missing=" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath is configured."
+          }
+
+      - name: Require SignPath for tag releases
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && steps.signpath-config.outputs.enabled != 'true' }}
+        shell: pwsh
+        run: |
+          throw "Tag releases require SignPath. Missing: ${{ steps.signpath-config.outputs.missing }}"
+
+      - name: Submit installer to SignPath
+        id: signpath
+        if: ${{ steps.signpath-config.outputs.enabled == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Write signed installer SHA256
+        if: ${{ steps.signpath.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path signed -Filter *.exe -Recurse
+          if ($files.Count -eq 0) {
+            throw "SignPath completed, but no signed installer was found."
+          }
+          foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $shaPath = "$($file.FullName).sha256"
+            [System.IO.File]::WriteAllText(
+              $shaPath,
+              "$hash  $($file.Name)`n",
+              [System.Text.UTF8Encoding]::new($false)
+            )
+          }
+
+      - name: Upload signed installer artifact
+        if: ${{ steps.signpath.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-latexsnipper-installer
+          path: signed/**
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish GitHub Release assets
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && steps.signpath.outcome == 'success' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            artifacts/*.zip
-            artifacts/*.exe
+            signed/**/*.exe
+            signed/**/*.sha256

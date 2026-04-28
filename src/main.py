@@ -444,12 +444,27 @@ def _ensure_single_instance() -> bool:
     return True
 
 
-if not _ensure_single_instance():
+def _show_already_running_message() -> None:
     try:
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(None, "LaTeXSnipper", "Another instance is already running.")
+        icon_path = resource_path("assets/icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            icon = QIcon(icon_path)
+            app.setWindowIcon(icon)
+        else:
+            icon = None
+        msg = QMessageBox()
+        msg.setWindowTitle("LaTeXSnipper")
+        msg.setText("Another instance is already running.")
+        msg.setIcon(QMessageBox.Icon.Information)
+        if icon is not None:
+            msg.setWindowIcon(icon)
+        msg.exec()
     except Exception:
         print("[WARN] already running; exiting")
+
+
+if not _ensure_single_instance():
+    _show_already_running_message()
     sys.exit(0)
 
 atexit.register(_release_single_instance_lock)
@@ -694,120 +709,6 @@ try:
     print("[MathJax] QWebEngine 配置已应用（支持本地文件+CDN 备选）")
 except Exception as e:
     print(f"[WARN] QWebEngine 配置失败: {e}")
-
-class LogViewerDialog(QDialog):
-    def __init__(self, log_file: Path, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("实时日志")
-        self.resize(820, 520)
-        self._log_file = Path(log_file)
-        self._pos = 0
-        self._theme_is_dark_cached = None
-
-        lay = QVBoxLayout(self)
-        self.lbl = QLabel(str(self._log_file))
-        self.lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.txt = QPlainTextEdit()
-        self.txt.setReadOnly(True)
-
-        btn_row = QHBoxLayout()
-        self.btn_open = QPushButton("打开目录")
-        self.btn_clear = QPushButton("清空日志")
-        self.btn_close = QPushButton("关闭")
-        btn_row.addWidget(self.btn_open)
-        btn_row.addWidget(self.btn_clear)
-        btn_row.addStretch()
-        btn_row.addWidget(self.btn_close)
-
-        lay.addWidget(self.lbl)
-        lay.addWidget(self.txt, 1)
-        lay.addLayout(btn_row)
-
-        self.btn_open.clicked.connect(self._open_dir)
-        self.btn_clear.clicked.connect(self._clear_log)
-        self.btn_close.clicked.connect(self.close)
-
-        self._ensure_file()
-        self.timer = QTimer(self)
-        self.timer.setInterval(300)
-        self.timer.timeout.connect(self._poll_file)
-        self.timer.start()
-        self._poll_file(_initial=True)
-        self._apply_theme_styles(force=True)
-
-    def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
-        if not force and self._theme_is_dark_cached is dark:
-            return
-        self._theme_is_dark_cached = dark
-        try:
-            self.lbl.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']};")
-        except Exception:
-            pass
-
-    def _ensure_file(self):
-        self._log_file.parent.mkdir(parents=True, exist_ok=True)
-        if not self._log_file.exists():
-            self._log_file.write_text("", encoding="utf-8")
-        self._pos = 0
-
-    def _open_dir(self):
-        try:
-            if os.name == "nt":
-                os.startfile(self._log_file.parent)  # type: ignore[attr-defined]
-            else:
-                import subprocess
-                subprocess.Popen(["xdg-open", str(self._log_file.parent)])
-        except Exception:
-            pass
-
-    def _clear_log(self):
-        try:
-            self._log_file.write_text("", encoding="utf-8")
-            self._pos = 0
-            self.txt.clear()
-        except Exception:
-            pass
-
-    def _poll_file(self, _initial: bool = False):
-        try:
-            with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
-                f.seek(self._pos)
-                chunk = f.read()
-                self._pos = f.tell()
-            if chunk:
-                self.txt.appendPlainText(chunk.rstrip("\n"))
-                self.txt.verticalScrollBar().setValue(self.txt.verticalScrollBar().maximum())
-        except Exception:
-            pass
-
-    def closeEvent(self, ev):
-        try:
-            self.timer.stop()
-        except Exception:
-            pass
-        return super().closeEvent(ev)
-
-    def event(self, e):
-        result = super().event(e)
-        try:
-            if e.type() in (
-                QEvent.Type.StyleChange,
-                QEvent.Type.PaletteChange,
-                QEvent.Type.ApplicationPaletteChange,
-            ):
-                self._apply_theme_styles()
-        except Exception:
-            pass
-        return result
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        try:
-            self._apply_theme_styles(force=True)
-        except Exception:
-            pass
-
 
 class RuntimeLogDialog(QDialog):
     """初始化/运行日志窗口（GUI 版，不使用系统控制台）。"""
@@ -1099,71 +1000,6 @@ def init_app_logging() -> Path:
     _APP_LOGGING_INITIALIZED = True
     
     return active_log_path
-
-def open_realtime_log_window(parent=None):
-    """
-    打开实时日志窗口，显示开发控制台/文件的合并日志。
-    """
-    global APP_LOG_FILE
-    if APP_LOG_FILE is None:
-        APP_LOG_FILE = init_app_logging()
-    try:
-        dlg = LogViewerDialog(APP_LOG_FILE, parent=parent)
-        dlg.exec()
-    except Exception as e:
-        QMessageBox.critical(parent, "错误", f"无法打开日志窗口: {e}")
-
-def _read_deps_dir_from_config() -> Path | None:
-    """
-    从配置文件读取依赖目录。
-    结构: { "install_base_dir": "D:/LaTeXSnipper/deps" }
-    """
-    cfg = _config_path()
-    if not cfg.exists():
-        return None
-    try:
-        data = json.loads(cfg.read_text(encoding="utf-8"))
-        v = data.get("install_base_dir")
-        if isinstance(v, str) and v.strip():
-            return Path(v)
-    except Exception:
-        pass
-    return None
-
-def open_deps_terminal(parent=None):
-    """
-    在依赖目录打开 cmd.exe，并预置:
-    - PATH: 依赖目录内的可用 Python 优先
-    """
-    deps_dir = _read_deps_dir_from_config()
-    if not deps_dir or not deps_dir.exists():
-        QMessageBox.warning(parent, "未找到依赖目录", "请先通过依赖向导选择或安装依赖目录。")
-        return
-
-    pyexe = _find_install_base_python(deps_dir)
-    py_dir = pyexe.parent if pyexe is not None else None
-
-    # 组装环境
-    env = os.environ.copy()
-    # 无论打包模式还是开发模式，都允许注入依赖目录内的 Python 路径到 PATH
-    if py_dir is not None and py_dir.exists():
-        env["PATH"] = f"{py_dir};{env.get('PATH','')}"
-
-    # 进入目录并打开 cmd，显示简短提示
-    banner = (
-        'echo LaTeXSnipper 依赖终端 && '
-        'where python && python --version && pip --version && '
-        'echo.'
-    )
-    try:
-        subprocess.Popen(
-            ["cmd.exe", "/K", banner],
-            cwd=str(deps_dir),
-            env=env,
-            creationflags=subprocess.CREATE_NEW_CONSOLE  # 独立窗口
-        )
-    except Exception as e:
-        QMessageBox.critical(parent, "打开失败", f"无法打开依赖终端: {e}")
 
 # AA_ShareOpenGLContexts 已在文件顶部 QApplication 创建前设置
 
@@ -1753,6 +1589,7 @@ def _select_install_base_dir() -> Path:
         from PyQt6.QtGui import QFont
         app = QApplication.instance() or QApplication([])
         apply_theme_mode(read_theme_mode_from_config())
+        _apply_app_window_icon(app)
         font = QFont("Microsoft YaHei UI", 9)
         font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
         app.setFont(font)
@@ -1772,23 +1609,30 @@ def _select_install_base_dir() -> Path:
 
 
 def _apply_app_window_icon(win) -> None:
-    try:
-        from PyQt6.QtGui import QIcon
-        icon_path = resource_path("assets/icon.ico")
-        if icon_path and os.path.exists(icon_path):
-            win.setWindowIcon(QIcon(icon_path))
-    except Exception:
-        pass
+    from core.window_icons import apply_app_window_icon
+    apply_app_window_icon(win, resource_path("assets/icon.ico"))
 
 
 def _select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
-    from PyQt6.QtWidgets import QFileDialog
-    dlg = QFileDialog(parent, title, initial_dir)
+    from PyQt6.QtWidgets import QFileDialog, QWidget
+    from core.window_icons import schedule_native_dialog_icon
+
+    owner = parent
+    if owner is None:
+        owner = QWidget()
+        owner.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        _apply_app_window_icon(owner)
+    dlg = QFileDialog(owner, title, initial_dir)
     dlg.setFileMode(QFileDialog.FileMode.Directory)
     dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
     _apply_app_window_icon(dlg)
-    if dlg.exec() != QFileDialog.DialogCode.Accepted:
-        return ""
+    icon_timer = schedule_native_dialog_icon(title, resource_path("assets/icon.ico"))
+    try:
+        if dlg.exec() != QFileDialog.DialogCode.Accepted:
+            return ""
+    finally:
+        if icon_timer is not None:
+            icon_timer.stop()
     selected = dlg.selectedFiles()
     return selected[0] if selected else ""
 
@@ -2002,14 +1846,8 @@ def _same_runtime_version_as_current(pyexe: str | None) -> bool:
     cur = (sys.version_info.major, sys.version_info.minor)
     return any((maj, minr) == cur for maj, minr, _ in _stdlib_zip_versions(base))
 
-def _qt_bin_dirs(base: Path) -> list[Path]:
-    return [
-        base / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin",
-        base / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "plugins",
-    ]
-
 def _scrub_path_inplace(env: dict | None = None):
-    """仅移除 WindowsApps 污染；保留 .venv 与各 Python 安装路径，避免误删当前运行时。"""
+    """移除 Windows Store Python alias，避免源码模式重启后子进程解析到 WindowsApps。"""
     e = env if env is not None else os.environ
     paths = (e.get("PATH") or "").split(";")
     bad_tokens = ("\\WindowsApps\\Python", "Microsoft\\WindowsApps")
@@ -2024,98 +1862,10 @@ def _scrub_path_inplace(env: dict | None = None):
         keep.append(q)
     e["PATH"] = ";".join(keep)
 
-_GUI_DEPS_CHECKED = False
-def _try_import_gui() -> bool:
-    """尝试导入 GUI 依赖；成功返回 True，不弹窗。"""
-    try:
-        import importlib
-        importlib.invalidate_caches()
-        importlib.import_module("PyQt6")
-        importlib.import_module("qfluentwidgets")
-        # 检查 win32api（pywin32）
-        try:
-            import win32api as _win32api
-            _ = _win32api
-        except ImportError:
-            return False
-        # 触发一次 Qt 核心模块加载，尽早暴露 DLL 问题
-        from PyQt6.QtCore import QT_VERSION_STR as _QT_VERSION_STR
-        _ = _QT_VERSION_STR
-        return True
-    except Exception as e:
-        print(f"[DEBUG] GUI import failed: {e}")
-        return False
-
-def _inject_private_paths(pyexe: str | None):
-    """
-    注入私有解释器路径：
-    - 不同版本：仅注入 Lib、Lib/site-packages 与 Qt bin/plugins
-    - 相同版本：额外注入 base、DLLs 与 python*.zip
-    """
-    if not pyexe or not os.path.exists(pyexe):
-        return
-
-    base = _python_base_from_exe(pyexe)
-    _scrub_path_inplace()
-    same = _same_runtime_version_as_current(pyexe)
-    zips = []
-    if same:
-        zips = [z for (maj, minr, z) in _stdlib_zip_versions(base)
-                if (maj, minr) == (sys.version_info.major, sys.version_info.minor)]
-
-    # 只允许注入当前依赖目录，不允许注入其它盘符或历史路径
-    cand = [
-        str(base / "Lib"),
-        str(base / "Lib" / "site-packages"),
-        *zips,
-    ]
-    if same:
-        cand = [
-            str(base),
-            str(base / "DLLs"),
-            *cand,
-        ]
-
-    # 只保留 src 目录、当前依赖目录及其 site-packages
-    src_dir = str(Path(__file__).resolve().parent)
-    allowed_prefixes = [src_dir, str(base), str(base / "Lib"), str(base / "Lib" / "site-packages")]
-    seen = set()
-    newp = []
-    for p in cand + list(sys.path):
-        if not p:
-            continue
-        try:
-            absp = os.path.abspath(p)
-            key = os.path.normcase(absp)
-        except Exception:
-            continue
-        # 只允许 src 目录和当前依赖目录相关路径
-        if not any(absp.startswith(prefix) for prefix in allowed_prefixes):
-            continue
-        if key in seen:
-            continue
-        seen.add(key)
-        newp.append(p)
-    sys.path[:] = newp
-    try:
-        if hasattr(os, "add_dll_directory"):
-            if same:
-                os.add_dll_directory(str(base))
-                dlls = base / "DLLs"
-                if dlls.exists():
-                    os.add_dll_directory(str(dlls))
-            for d in _qt_bin_dirs(base):
-                if d.exists():
-                    os.add_dll_directory(str(d))
-    except Exception:
-        pass
-    print(f"[DEBUG] 已注入私有解释器路径: {base}  same_ver={same}  zips={zips}")
-
-
 def _append_private_site_packages(pyexe: str | None):
     '''
-    Append private Lib/site-packages to sys.path without overriding bundled Qt runtime.
-    Packaged mode only.
+    Append dependency-runtime Lib/site-packages in packaged mode.
+    UI dependencies are bundled with the app and are not managed by dependency layers.
     '''
     if not pyexe or not os.path.exists(pyexe):
         return
@@ -2132,126 +1882,9 @@ def _append_private_site_packages(pyexe: str | None):
                     sys.path.append(pstr)
         except Exception:
             pass
-    print(f"[INFO] packaged: appended deps path (no Qt override): {base}")
-
-def _block_pyqt6_from_private(pyexe: str | None):
-    '''
-    Prevent resolving PyQt6 from private site-packages in packaged mode.
-    This avoids Qt runtime mixing when private deps also include PyQt6.
-    '''
-    if not pyexe or not os.path.exists(pyexe):
-        return
-    try:
-        base = _python_base_from_exe(pyexe)
-        private_sp = str(base / "Lib" / "site-packages").lower()
-    except Exception:
-        return
-
-    if not private_sp:
-        return
-
-    try:
-        import importlib.abc
-        import importlib.machinery
-
-        class _BlockPrivatePyQt6(importlib.abc.MetaPathFinder):
-            def find_spec(self, fullname, path=None, target=None):
-                if not fullname.startswith("PyQt6"):
-                    return None
-                if fullname in sys.modules or "PyQt6" in sys.modules:
-                    return None
-                filtered = []
-                for p in sys.path:
-                    try:
-                        if not str(p).lower().startswith(private_sp):
-                            filtered.append(p)
-                    except Exception:
-                        continue
-                return importlib.machinery.PathFinder.find_spec(fullname, filtered, target)
-
-        sys.meta_path.insert(0, _BlockPrivatePyQt6())
-        print("[INFO] packaged: blocked PyQt6 from private site-packages")
-    except Exception as e:
-        print(f"[WARN] failed to block PyQt6 from private deps: {e}")
+    print(f"[INFO] packaged: appended dependency runtime path: {base}")
 
 
-def _setup_qt_dll_dirs(pyexe: str | None = None):
-    """
-    准确将 PyQt6 的 Qt 运行库加入 DLL 搜索路径与插件搜索路径，并预加载核心 DLL。
-    必须在任何 PyQt6/qfluentwidgets 导入之前调用。
-    """
-    qt6_roots: list[Path] = []
-
-    # 1) 优先按目标解释器推导 site-packages/PyQt6/Qt6
-    try:
-        if pyexe and os.path.exists(pyexe):
-            p = Path(pyexe)
-            base = p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
-            sp = base / "Lib" / "site-packages"
-            q = sp / "PyQt6" / "Qt6"
-            if q.exists():
-                qt6_roots.append(q)
-    except Exception:
-        pass
-
-    # 2) 兜底：从当前 sys.path 扫描所有 site-packages
-    try:
-        for entry in list(sys.path):
-            try:
-                sp = Path(entry)
-                if sp.name.lower() == "site-packages":
-                    q = sp / "PyQt6" / "Qt6"
-                    if q.exists():
-                        qt6_roots.append(q)
-            except Exception:
-                continue
-    except Exception:
-        pass
-    # 去重
-    uniq = []
-    seen = set()
-    for q in qt6_roots:
-        key = str(q.resolve()).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        uniq.append(q)
-    # 注入 DLL/插件目录，并预加载必要 DLL
-    for q in uniq:
-        bin_dir = q / "bin"
-        plug_dir = q / "plugins"
-
-        # 先放入 PATH，避免某些第三方加载路径只认 PATH
-        try:
-            if bin_dir.exists():
-                old = os.environ.get("PATH", "")
-                if str(bin_dir) not in old:
-                    os.environ["PATH"] = str(bin_dir) + ";" + old
-        except Exception:
-            pass
-        # 使用 Win10+ 的安全方式加入 DLL 搜索路径
-        try:
-            if hasattr(os, "add_dll_directory") and bin_dir.exists():
-                os.add_dll_directory(str(bin_dir))
-        except Exception:
-            pass
-
-        # 设置 Qt 插件目录（平台插件、图像插件等）
-        try:
-            if plug_dir.exists():
-                os.environ.setdefault("QT_PLUGIN_PATH", str(plug_dir))
-                os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plug_dir / "platforms"))
-        except Exception:
-            pass
-        # 预加载关键 Qt DLL（减少“找不到指定的程序”概率）
-        try:
-            if bin_dir.exists():
-                for dll in ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Xml.dll"):
-                    f = bin_dir / dll
-                    if f.exists():
-                        ctypes.WinDLL(str(f))
-        except Exception:
-            pass
 def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     """
     允许保留的路径前缀。
@@ -2287,11 +1920,6 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
                         roots.add(z)
             except Exception:
                 pass
-    # base_dir 下的常见结构
-    for cand in (base_dir / "venv", base_dir / "python_full"):
-        # 无法准确判版本时，保守处理：不加入 base/DLLs，只留 Lib 路径
-        add_private_base(cand, allow_core=False)
-
     # 指定解释器的基目录（可精确判断版本）
     try:
         allow_core = _same_runtime_version_as_current(pyexe) if (pyexe and os.path.exists(pyexe)) else False
@@ -2305,6 +1933,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     for r in _current_runtime_roots():
         roots.add(r)
     return list(roots)
+
 def _relaunch_with(pyexe: str):
     """用私有解释器重启；Windows 下隐藏后台窗口，避免终端闪现。"""
     import subprocess
@@ -2328,115 +1957,6 @@ def _relaunch_with(pyexe: str):
     print(f"[INFO] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
 
-def _native_message_box(title: str, text: str, flags: int = 0x00000040 | 0x00000004 | 0x00040000) -> int:
-    """
-    使用 Win32 原生 MessageBox（无 PyQt6 也可用）。
-    返回值：6=Yes, 7=No。失败时返回 7。
-    """
-    try:
-        import ctypes
-        MessageBoxW = ctypes.windll.user32.MessageBoxW
-        return int(MessageBoxW(None, text, title, flags))
-    except Exception:
-        # 回退到控制台提示
-        try:
-            print(f"[PROMPT] {title}: {text}")
-        except Exception:
-            pass
-        return 7
-
-def _run_pip_install(pyexe: str, pkgs: list[str]) -> bool:
-    """
-    使用指定解释器安装依赖；自动尝试多个索引源。
-    注意：这里传入的是 pip 包名（例如 PyQt6-Fluent-Widgets），不是导入名。
-    """
-    import os
-    import subprocess
-    if not pyexe or not os.path.exists(pyexe):
-        print("[ERROR] 未找到私有解释器，无法安装依赖。")
-        return False
-
-    indexes = [
-        None,  # 环境默认（可能带 PIP_INDEX_URL）
-        "https://pypi.org/simple",
-        "https://mirrors.aliyun.com/pypi/simple/",
-        "https://pypi.tuna.tsinghua.edu.cn/simple",
-    ]
-    base_cmd = [pyexe, "-m", "pip", "install", "-U", "--timeout", "35", "--retries", "2"]
-    base_env = os.environ.copy()
-    base_env.setdefault("PIP_NO_INPUT", "1")
-
-    for idx in indexes:
-        env = base_env.copy()
-        cmd = base_cmd + pkgs
-        if idx:
-            cmd += ["-i", idx]
-            env.pop("PIP_INDEX_URL", None)  # 避免外部变量干扰
-        print(f"[INFO] 开始安装依赖: {' '.join(pkgs)}  index={idx or 'ENV/DEFAULT'}")
-        try:
-            subprocess.check_call(cmd, env=env, creationflags=_win_subprocess_flags())
-            print("[OK] 依赖安装完成。")
-            return True
-        except Exception as e:
-            print(f"[WARN] 该索引安装失败: {e}")
-    print("[ERROR] 所有索引均安装失败。")
-    return False
-def _ensure_gui_deps_or_prompt(pyexe: str | None):
-    """
-    仅在缺失时弹窗提示安装；已具备则静默返回。
-    必须在任何 `from PyQt6 ...` / `from qfluentwidgets ...` 之前调用。
-    """
-    global _GUI_DEPS_CHECKED
-    if _GUI_DEPS_CHECKED:
-        return
-    _GUI_DEPS_CHECKED = True
-
-    # 先注入路径与 Qt DLL 目录，再尝试导入
-    _inject_private_paths(pyexe)
-    _setup_qt_dll_dirs(pyexe)
-    if _try_import_gui():
-        return
-
-    # 检查 win32api 缺失，自动补装 pywin32
-    try:
-        import win32api as _win32api
-        _ = _win32api
-    except ImportError:
-        print("[INFO] 检测到 win32api 缺失，自动安装 pywin32")
-        _run_pip_install(pyexe, ["pywin32"])
-        # 安装后重试
-        if _try_import_gui():
-            print("[OK] pywin32 安装完成，GUI 依赖已就绪。")
-            return
-    gui_specs = list(STABLE_GUI_PIP_SPECS)
-    shown_cmd = (f"{pyexe} -m pip install {' '.join(gui_specs)}"
-                 if pyexe else f"python -m pip install {' '.join(gui_specs)}")
-    msg = (
-        "检测到 GUI 依赖缺失，将尝试安装：\n\n"
-        f"{shown_cmd}\n\n"
-        "是否继续？"
-    )
-    ans = _native_message_box("LaTeXSnipper 依赖安装", msg)
-    if ans != 6:  # 6=Yes
-        print("[WARN] 用户取消安装 GUI 依赖，本次启动将不再提示。")
-        return
-
-    if not pyexe or not os.path.exists(pyexe):
-        print("[ERROR] 无有效解释器用于安装，取消。")
-        return
-
-    ok = _run_pip_install(pyexe, gui_specs)
-    if not ok:
-        print("[ERROR] 依赖安装失败。")
-        return
-    # 安装后重试导入
-    _inject_private_paths(pyexe)
-    _setup_qt_dll_dirs(pyexe)
-    if _try_import_gui():
-        print("[OK] GUI 依赖安装完成。")
-    else:
-        print("[ERROR] 安装后仍无法导入，请检查 Qt DLL 路径或重启。")
-
 def _norm_path(s: str | None) -> str | None:
     if not s:
         return None
@@ -2456,7 +1976,8 @@ def _clean_bad_env():
     if not p or not os.path.exists(p):
         os.environ.pop("LATEXSNIPPER_PYEXE", None)
 
-def _has_ensurepip_venv(pyexe: str) -> bool:
+def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
+    """确认目标解释器包含完整标准库启动模块；这里只检测，不创建 venv。"""
     try:
         import subprocess
         r = subprocess.run([pyexe, "-c", "import ensurepip, venv;print('ok')"],
@@ -2470,7 +1991,7 @@ def _find_full_python(base_dir: Path) -> str | None:
     candidate = _find_install_base_python(base_dir)
     if candidate is not None:
         try:
-            if candidate.exists() and _has_ensurepip_venv(str(candidate)):
+            if candidate.exists() and _has_full_python_bootstrap_modules(str(candidate)):
                 return str(candidate)
         except Exception:
             pass
@@ -2489,7 +2010,7 @@ def _find_full_python(base_dir: Path) -> str | None:
         return None
     for name in ("python3.11.exe", "python.exe", "python3.exe"):
         which = _norm_path(shutil.which(name))
-        if which and os.path.exists(which) and _has_ensurepip_venv(which):
+        if which and os.path.exists(which) and _has_full_python_bootstrap_modules(which):
             return which
     return None
 
@@ -2651,15 +2172,10 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
     _sanitize_sys_path(TARGET_PY, BASE_DIR)
     if _is_packaged_mode():
         _append_private_site_packages(TARGET_PY)
-        _block_pyqt6_from_private(TARGET_PY)
-    else:
-        _ensure_startup_splash("检查 GUI 依赖版本...")
-        _ensure_gui_deps_or_prompt(TARGET_PY)
 
-    # 5) Startup deps check: show wizard only when required layers are missing.
-    # Pass BASE_DIR to avoid repeated path prompts.
-    # 若当前进程是“重启后打开依赖向导”场景，则跳过这里的预检查，
-    # 由 __main__ 分支统一执行一次交互式校验，避免重复日志与重复验证。
+    # 启动预检：普通启动只在缺少必需功能层时显示依赖向导。
+    # 显式进入向导模式时跳过这里的静默预检，由 __main__ 执行一次交互式校验；
+    # 向导内切换依赖目录会直接刷新当前环境，不需要重启。
     _open_wizard_env = (os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1")
     if _open_wizard_env:
         print("[INFO] 依赖向导模式：跳过启动预检查，由向导统一验证。")
@@ -2684,7 +2200,7 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
             print(f"[WARN] deps wizard failed: {e}")
 
 def ensure_deps(*args, **kwargs):
-    # 已就绪则直接返回 True，避免再次尝试 venv/构建 UI
+    # 已就绪则直接返回 True，避免重复触发依赖向导。
     # 但从设置页进入时必须执行校验，不能被短路
     from_settings = bool(kwargs.get("from_settings", False))
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not from_settings:

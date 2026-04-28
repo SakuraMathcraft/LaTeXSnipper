@@ -3,9 +3,14 @@
 #define MyAppPublisher "MathCraft"
 #define MyAppURL "https://github.com/SakuraMathcraft/LaTeXSnipper"
 #define MyAppExeName "LaTeXSnipper.exe"
-#define MyBuildDir "E:\LaTexSnipper\dist\LaTeXSnipper"
-#define MyOutputDir "E:\LaTexSnipper\dist\installer"
-#define MyLicenseFile "E:\LaTexSnipper\LICENSE"
+#if GetEnv("LATEXSNIPPER_REPO_ROOT") != ""
+#define MyRepoRoot GetEnv("LATEXSNIPPER_REPO_ROOT")
+#else
+#define MyRepoRoot "E:\LaTexSnipper"
+#endif
+#define MyBuildDir MyRepoRoot + "\dist\LaTeXSnipper"
+#define MyOutputDir MyRepoRoot + "\dist\installer"
+#define MyLicenseFile MyRepoRoot + "\LICENSE"
 
 [Setup]
 AppId={{B4F7AE05-D837-4F3B-A971-28BD8CCE631A}
@@ -24,7 +29,7 @@ DisableProgramGroupPage=yes
 LicenseFile={#MyLicenseFile}
 OutputDir={#MyOutputDir}
 OutputBaseFilename=LaTeXSnipperSetup-{#MyAppVersion}
-SetupIconFile=E:\LaTexSnipper\src\assets\icon.ico
+SetupIconFile={#MyRepoRoot}\src\assets\icon.ico
 SolidCompression=yes
 WizardStyle=modern
 
