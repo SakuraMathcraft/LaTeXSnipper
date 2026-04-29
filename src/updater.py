@@ -31,7 +31,7 @@ _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
 _RELEASES_PAGE = "https://github.com/SakuraMathcraft/LaTeXSnipper/releases"
 _UPDATE_DIALOG: Optional[QDialog] = None
-_CURRENT_BUILD_SHA256: Optional[str] = None
+_RELEASE_CACHE_SCHEMA_VERSION = 2
 __version__ = APP_VERSION
 
 CONNECT_TIMEOUT = 6
@@ -42,6 +42,13 @@ DEBUG_LOG = os.environ.get("LATEXSNIPPER_UPDATE_DEBUG", "").strip().lower() in {
     "yes",
     "on",
 }
+_INSTALLER_ASSET_SUFFIXES = (".exe", ".msi", ".zip")
+_ASSET_SIDECAR_SUFFIXES = (
+    ".sigstore.json",
+    ".sha256",
+    ".sha256sum",
+    ".sha256.txt",
+)
 
 
 def _resource_path(relative_path: str) -> str:
@@ -220,6 +227,8 @@ def _load_cached_info():
     try:
         with open(_ETAG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
+        if int(data.get("asset_policy_version", 0) or 0) != _RELEASE_CACHE_SCHEMA_VERSION:
+            return None, 0, None
         etag = data.get("etag")
         ts = data.get("ts", 0)
         info_dict = data.get("info")
@@ -235,6 +244,7 @@ def _save_cached_info(etag: str, info: ReleaseInfo):
     try:
         with open(_ETAG_PATH, "w", encoding="utf-8") as f:
             json.dump({
+                "asset_policy_version": _RELEASE_CACHE_SCHEMA_VERSION,
                 "etag": etag,
                 "ts": int(time.time()),
                 "info": {
@@ -343,36 +353,79 @@ def _fmt_reset(ts_utc: Optional[str]):
         return ts_utc
 
 
+def _asset_supported_suffix_rank(name: str) -> int:
+    lower = str(name or "").lower()
+    for rank, suffix in enumerate(_INSTALLER_ASSET_SUFFIXES):
+        if lower.endswith(suffix):
+            return rank
+    return len(_INSTALLER_ASSET_SUFFIXES)
+
+
+def _is_asset_sidecar(name: str) -> bool:
+    lower = str(name or "").lower()
+    return any(lower.endswith(suffix) for suffix in _ASSET_SIDECAR_SUFFIXES)
+
+
+def _installer_channel_rank(name: str) -> int:
+    compact = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+    is_latexsnipper = "latexsnipper" in compact
+    is_setup = "setup" in compact
+    is_offline = "offline" in compact
+    if is_latexsnipper and is_setup and not is_offline:
+        return 0
+    if is_setup and not is_offline:
+        return 1
+    if is_latexsnipper and is_setup and is_offline:
+        return 2
+    if is_offline:
+        return 3
+    return 4
+
+
+def _release_asset_sort_key(asset: dict) -> tuple[int, int, int, str]:
+    name = str(asset.get("name", "") or "")
+    return (
+        _asset_supported_suffix_rank(name),
+        1 if _is_asset_sidecar(name) else 0,
+        _installer_channel_rank(name),
+        name.lower(),
+    )
+
+
+def _release_asset_tuple(asset: dict) -> tuple[str, str, str, int, str, str]:
+    name = str(asset.get("name", "") or "")
+    return (
+        str(asset.get("browser_download_url", "") or ""),
+        name,
+        str(asset.get("id", "") or ""),
+        int(asset.get("size", 0) or 0),
+        str(asset.get("updated_at", "") or ""),
+        _asset_sha256_from_payload(asset),
+    )
+
+
 def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str, str]:
     assets = rel.get("assets") or []
     if not isinstance(assets, list):
         return "", "", "", 0, "", ""
-    priorities = (".exe", ".msi", ".zip")
-    for suffix in priorities:
-        for asset in assets:
-            name = str(asset.get("name", "") or "")
-            url = str(asset.get("browser_download_url", "") or "")
-            if name.lower().endswith(suffix) and url:
-                return (
-                    url,
-                    name,
-                    str(asset.get("id", "") or ""),
-                    int(asset.get("size", 0) or 0),
-                    str(asset.get("updated_at", "") or ""),
-                    _asset_sha256_from_payload(asset),
-                )
-    for asset in assets:
-        name = str(asset.get("name", "") or "")
-        url = str(asset.get("browser_download_url", "") or "")
-        if url:
-            return (
-                url,
-                name,
-                str(asset.get("id", "") or ""),
-                int(asset.get("size", 0) or 0),
-                str(asset.get("updated_at", "") or ""),
-                _asset_sha256_from_payload(asset),
-            )
+    candidates = [
+        asset
+        for asset in assets
+        if isinstance(asset, dict) and str(asset.get("browser_download_url", "") or "")
+    ]
+    if not candidates:
+        return "", "", "", 0, "", ""
+    installers = [
+        asset
+        for asset in candidates
+        if _asset_supported_suffix_rank(str(asset.get("name", "") or ""))
+        < len(_INSTALLER_ASSET_SUFFIXES)
+        and not _is_asset_sidecar(str(asset.get("name", "") or ""))
+    ]
+    if installers:
+        return _release_asset_tuple(min(installers, key=_release_asset_sort_key))
+    if candidates:
+        return _release_asset_tuple(candidates[0])
     return "", "", "", 0, "", ""
 
 
@@ -434,38 +487,6 @@ def _compute_file_sha256(path: str | Path) -> str:
             if chunk:
                 h.update(chunk)
     return h.hexdigest()
-
-
-def _current_build_sha256() -> str:
-    global _CURRENT_BUILD_SHA256
-    if _CURRENT_BUILD_SHA256 is not None:
-        return _CURRENT_BUILD_SHA256
-    _CURRENT_BUILD_SHA256 = ""
-    if not getattr(sys, "frozen", False):
-        return ""
-    try:
-        exe_path = Path(sys.executable)
-        if exe_path.is_file():
-            _CURRENT_BUILD_SHA256 = _compute_file_sha256(exe_path)
-    except Exception:
-        _CURRENT_BUILD_SHA256 = ""
-    return _CURRENT_BUILD_SHA256
-
-
-def _same_version_build_update_reason(info: ReleaseInfo) -> str:
-    if _compare_versions(info.latest, __version__) != 0:
-        return ""
-    if Path(str(info.asset_name or "")).suffix.lower() != ".exe":
-        return ""
-    remote_sha256 = _normalize_sha256(info.asset_sha256)
-    if not remote_sha256:
-        return ""
-    local_sha256 = _current_build_sha256()
-    if local_sha256:
-        return "构建哈希不同" if local_sha256 != remote_sha256 else ""
-    if not getattr(sys, "frozen", False):
-        return "源码运行，无法校验本机安装包哈希"
-    return ""
 
 
 def _schedule_windows_installer(path: str) -> None:
@@ -880,7 +901,6 @@ def check_update_dialog(parent=None):
         "downloading": False,
         "pause_requested": False,
         "closing": False,
-        "same_version_build_update_reason": "",
         "fallback_url": _RELEASES_PAGE,
     }
     watchdog = QTimer(dlg)
@@ -1018,14 +1038,8 @@ a{{color:{theme['accent']};}}
 
         state["info"] = info
         cmp = _compare_versions(info.latest, __version__)
-        state["same_version_build_update_reason"] = _same_version_build_update_reason(info)
         if cmp > 0:
             lbl_status.setText(f"发现新版本: {info.latest} (当前 {__version__})")
-        elif state["same_version_build_update_reason"]:
-            lbl_status.setText(
-                f"发现同版本更新: {info.latest} (当前 {__version__}，"
-                f"{state['same_version_build_update_reason']})"
-            )
         elif cmp == 0:
             lbl_status.setText(f"已经是最新版本: {info.latest}")
         else:
@@ -1137,9 +1151,7 @@ a{{color:{theme['accent']};}}
             btn_download.setText("继续下载")
         elif has_valid_local:
             btn_download.setText("安装已下载")
-        elif _compare_versions(info.latest, __version__) > 0 or state.get(
-            "same_version_build_update_reason"
-        ):
+        elif _compare_versions(info.latest, __version__) > 0:
             btn_download.setText("下载并安装")
         else:
             btn_download.setText("重新下载")
@@ -1341,7 +1353,6 @@ a{{color:{theme['accent']};}}
         state["aborted"] = False
         state["closing"] = False
         state["info"] = None
-        state["same_version_build_update_reason"] = ""
         lbl_status.setText("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
         txt.start_new_html("<p style='color:#777;'>正在获取...</p>")
         bar.setRange(0, 0)

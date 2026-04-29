@@ -20,10 +20,12 @@ powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVe
 
 The Store package must bundle a CPU-only dependency runtime. `Store_CPU` must contain `python311\python.exe` and `.deps_state.json`, and the state file must declare `MATHCRAFT_CPU` without `MATHCRAFT_GPU`.
 
+The Store package also bundles MathCraft models by default. The script looks in `MathCraft\models` first, then `%APPDATA%\MathCraft\models`; pass `-MathCraftModelsRoot` to use another complete model directory.
+
 By default the script runs PyInstaller with the bundled build interpreter at `src\deps\python311\python.exe`, not the Python found on `PATH`. This interpreter is only used to build the package; the runtime bundled into the MSIX comes from `-StoreRuntimeDir`. Override the build interpreter only when deliberately testing another environment:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -PythonPath src\deps\python311\python.exe
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -MathCraftModelsRoot "$env:APPDATA\MathCraft\models" -PythonPath src\deps\python311\python.exe
 ```
 
 The script emits an unsigned `.msix` under `dist\store` for Partner Center upload. For local install testing only:
