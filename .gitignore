@@ -63,6 +63,7 @@ RELEASE_NOTES*.md
 release_v*.md
 release*.md
 docs/
+packaging/msix/image/
 
 # Android signing
 *.jks

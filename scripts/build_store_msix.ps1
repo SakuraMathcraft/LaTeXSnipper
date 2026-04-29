@@ -9,6 +9,7 @@ param(
     [string]$Description = "Recognize, edit, and export mathematical content from screenshots, images, PDFs, and handwriting.",
     [string]$PythonPath = "",
     [string]$StoreRuntimeDir = "Store_CPU",
+    [string]$MathCraftModelsRoot = "",
     [ValidateSet("x64", "x86", "arm64")]
     [string]$Architecture = "x64",
     [switch]$SkipPyInstaller,
@@ -104,6 +105,69 @@ function Resolve-StoreRuntimeDirectory {
     return $resolved
 }
 
+function Resolve-MathCraftModelsDirectory {
+    param(
+        [string]$Root,
+        [string]$RequestedPath
+    )
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        if ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+            $candidates += $RequestedPath
+        }
+        else {
+            $candidates += (Join-Path $Root $RequestedPath)
+        }
+    }
+    $candidates += (Join-Path $Root "MathCraft\models")
+    if ($env:APPDATA) {
+        $candidates += (Join-Path $env:APPDATA "MathCraft\models")
+    }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path $candidate)) {
+            continue
+        }
+        $resolved = (Resolve-Path $candidate).Path
+        Test-MathCraftModelsDirectory -Root $Root -ModelsRoot $resolved
+        return $resolved
+    }
+
+    throw "MathCraft models directory not found. Pass -MathCraftModelsRoot or place models under MathCraft\models."
+}
+
+function Test-MathCraftModelsDirectory {
+    param(
+        [string]$Root,
+        [string]$ModelsRoot
+    )
+
+    $manifestPath = Join-Path $Root "mathcraft_ocr\manifests\models.v1.json"
+    if (-not (Test-Path $manifestPath)) {
+        throw "MathCraft model manifest not found: $manifestPath"
+    }
+    $manifest = Get-Content -Path $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $missing = @()
+    foreach ($model in $manifest.models.PSObject.Properties) {
+        $modelId = $model.Name
+        $modelDir = Join-Path $ModelsRoot $modelId
+        if (-not (Test-Path $modelDir)) {
+            $missing += "$modelId\"
+            continue
+        }
+        foreach ($file in @($model.Value.files)) {
+            $filePath = Join-Path $modelDir $file.path
+            if (-not (Test-Path $filePath)) {
+                $missing += "$modelId\$($file.path)"
+            }
+        }
+    }
+    if ($missing.Count -gt 0) {
+        throw "MathCraft bundled models are incomplete in $ModelsRoot. Missing: $($missing -join ', ')"
+    }
+}
+
 function Sync-StoreRuntimeToStaging {
     param(
         [string]$StoreRuntimeDir,
@@ -137,6 +201,23 @@ function Sync-StoreRuntimeToStaging {
     Write-Host "Synced Store CPU runtime into staging:"
     Write-Host "  $targetPython"
     Write-Host "  $targetState"
+}
+
+function Sync-MathCraftModelsToStaging {
+    param(
+        [string]$ModelsRoot,
+        [string]$StagingRoot
+    )
+
+    $targetRoot = Join-Path $StagingRoot "_internal\MathCraft\models"
+    $targetParent = Split-Path -Parent $targetRoot
+    New-Item -ItemType Directory -Force -Path $targetParent | Out-Null
+    if (Test-Path $targetRoot) {
+        Remove-Item -LiteralPath $targetRoot -Recurse -Force
+    }
+    Copy-Item -LiteralPath $ModelsRoot -Destination $targetParent -Recurse -Force
+    Write-Host "Synced MathCraft bundled models into staging:"
+    Write-Host "  $targetRoot"
 }
 
 function Find-WindowsSdkTool {
@@ -268,6 +349,7 @@ function Invoke-PyInstallerBuild {
         [string]$BuildName,
         [string]$StoreProductId,
         [string]$BundledDepsDir,
+        [string]$ModelsRoot,
         [bool]$Clean
     )
 
@@ -275,11 +357,15 @@ function Invoke-PyInstallerBuild {
     $oldProduct = $env:LATEXSNIPPER_STORE_PRODUCT_ID
     $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
     $oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
+    $oldBundleModels = $env:LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS
+    $oldModelsRoot = $env:MATHCRAFT_MODELS_ROOT
     try {
         $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = "store"
         $env:LATEXSNIPPER_STORE_PRODUCT_ID = $StoreProductId
         $env:LATEXSNIPPER_BUILD_NAME = $BuildName
         $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $BundledDepsDir
+        $env:LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS = "1"
+        $env:MATHCRAFT_MODELS_ROOT = $ModelsRoot
         $args = @("-m", "PyInstaller", (Join-Path $Root "LaTeXSnipper.spec"), "--noconfirm")
         if ($Clean) {
             $args += "--clean"
@@ -294,6 +380,8 @@ function Invoke-PyInstallerBuild {
         $env:LATEXSNIPPER_STORE_PRODUCT_ID = $oldProduct
         $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
         $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
+        $env:LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS = $oldBundleModels
+        $env:MATHCRAFT_MODELS_ROOT = $oldModelsRoot
     }
 }
 
@@ -378,6 +466,7 @@ Test-PackageVersion -Version $PackageVersion
 $root = Resolve-RepoRoot
 $resolvedPythonPath = Resolve-PythonExecutable -Root $root -RequestedPath $PythonPath
 $resolvedStoreRuntimeDir = Resolve-StoreRuntimeDirectory -Root $root -RequestedPath $StoreRuntimeDir
+$resolvedMathCraftModelsRoot = Resolve-MathCraftModelsDirectory -Root $root -RequestedPath $MathCraftModelsRoot
 $distApp = Join-Path $root "dist\$BuildName"
 $stagingRoot = Join-Path $root "build\msix\$BuildName"
 $outputDir = Join-Path $root "dist\store"
@@ -397,10 +486,12 @@ Write-Host "Using Python:"
 Write-Host "  $resolvedPythonPath"
 Write-Host "Using Store CPU runtime:"
 Write-Host "  $resolvedStoreRuntimeDir"
+Write-Host "Using MathCraft bundled models:"
+Write-Host "  $resolvedMathCraftModelsRoot"
 Write-Host ""
 
 if (-not $SkipPyInstaller) {
-    Invoke-PyInstallerBuild -PythonPath $resolvedPythonPath -Root $root -BuildName $BuildName -StoreProductId $StoreProductId -BundledDepsDir $resolvedStoreRuntimeDir -Clean ([bool]$Clean)
+    Invoke-PyInstallerBuild -PythonPath $resolvedPythonPath -Root $root -BuildName $BuildName -StoreProductId $StoreProductId -BundledDepsDir $resolvedStoreRuntimeDir -ModelsRoot $resolvedMathCraftModelsRoot -Clean ([bool]$Clean)
 }
 
 $exePath = Join-Path $distApp "$BuildName.exe"
@@ -414,6 +505,7 @@ if (Test-Path $stagingRoot) {
 New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
 Copy-Item -Path (Join-Path $distApp "*") -Destination $stagingRoot -Recurse -Force
 Sync-StoreRuntimeToStaging -StoreRuntimeDir $resolvedStoreRuntimeDir -StagingRoot $stagingRoot
+Sync-MathCraftModelsToStaging -ModelsRoot $resolvedMathCraftModelsRoot -StagingRoot $stagingRoot
 
 New-MsixAssets -Root $stagingRoot -IconPath $iconPath -PythonPath $resolvedPythonPath
 
