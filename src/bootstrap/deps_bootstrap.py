@@ -16,6 +16,24 @@ from backend.cuda_runtime_policy import (
     onnxruntime_gpu_policy,
     onnxruntime_gpu_spec,
 )
+from bootstrap.deps_python_runtime import (
+    find_existing_python as _find_existing_python,
+    find_local_python311_installer as _find_local_python311_installer_impl,
+    inject_private_python_paths as _inject_private_python_paths,
+    normalize_deps_base_dir as _normalize_deps_base_dir,
+    site_packages_root as _site_packages_root,
+)
+from bootstrap.deps_qt_compat import QIcon, QThread, QTimer, pyqtSignal
+from bootstrap.deps_pip_runner import (
+    PipInstallRunner,
+    configure_pip_runner,
+)
+from bootstrap.deps_state import (
+    load_json as _load_json,
+    normalize_chosen_layers as _normalize_chosen_layers_impl,
+    sanitize_state_layers as _sanitize_state_layers_impl,
+    save_json as _save_json,
+)
 
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
@@ -23,108 +41,6 @@ _LAST_ENSURE_DEPS_FORCE_ENTER = False
 def was_last_ensure_deps_force_enter():
     return _LAST_ENSURE_DEPS_FORCE_ENTER
 
-
-try:
-    from PyQt6.QtCore import QThread, pyqtSignal
-    from PyQt6.QtCore import QTimer
-    from PyQt6.QtGui import QIcon
-except Exception:
-    class _Signal:
-        def __init__(self):
-            self._handlers = []
-
-        def connect(self, fn):
-            if callable(fn) and fn not in self._handlers:
-                self._handlers.append(fn)
-
-        def disconnect(self, fn):
-            try:
-                self._handlers.remove(fn)
-            except ValueError:
-                pass
-
-        def emit(self, *args, **kwargs):
-            for fn in list(self._handlers):
-                try:
-                    fn(*args, **kwargs)
-                except Exception:
-                    pass
-
-    class _SignalDescriptor:
-        def __set_name__(self, _owner, name):
-            self._name = f"__sig_{name}"
-
-        def __get__(self, instance, _owner):
-            if instance is None:
-                return self
-            sig = instance.__dict__.get(self._name)
-            if sig is None:
-                sig = _Signal()
-                instance.__dict__[self._name] = sig
-            return sig
-
-    def pyqtSignal(*_args, **_kwargs):
-        return _SignalDescriptor()
-
-    class QThread:
-        def __init__(self, *args, **kwargs):
-            super().__init__()
-            self._thread = None
-            self._running = False
-
-        def start(self):
-            if self._thread and self._thread.is_alive():
-                return
-
-            def _runner():
-                try:
-                    self._running = True
-                    self.run()
-                finally:
-                    self._running = False
-
-            self._thread = threading.Thread(target=_runner, daemon=True)
-            self._thread.start()
-
-        def run(self):
-            pass
-
-        def isRunning(self):
-            return bool(self._thread and self._thread.is_alive())
-
-        def wait(self, timeout_ms=None):
-            if not self._thread:
-                return True
-            timeout_s = None
-            if timeout_ms is not None:
-                try:
-                    timeout_s = max(0.0, float(timeout_ms) / 1000.0)
-                except Exception:
-                    timeout_s = None
-            self._thread.join(timeout=timeout_s)
-            return not self._thread.is_alive()
-
-    class QTimer:
-        def __init__(self, *_args, **_kwargs):
-            self.timeout = _Signal()
-
-        def start(self, *_args, **_kwargs):
-            return
-
-        def stop(self):
-            return
-
-        @staticmethod
-        def singleShot(_ms, fn):
-            if callable(fn):
-                try:
-                    fn()
-                except Exception:
-                    pass
-
-    class QIcon:
-        def __init__(self, *_args, **_kwargs):
-            pass
 
 try:
     import psutil
@@ -550,6 +466,11 @@ ORT_CPU_SPEC = "onnxruntime"
 ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu"
 pip_ready_event = threading.Event()
 PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
+configure_pip_runner(
+    safe_run=safe_run,
+    subprocess_lock=subprocess_lock,
+    suppress_args=PIP_INSTALL_SUPPRESS_ARGS,
+)
 # ONNX Runtime 支撑包版本约束，避免 pip 解析带入不可用组合。
 CRITICAL_VERSIONS = {
     "numpy": "numpy>=1.26,<3",
@@ -1172,142 +1093,17 @@ LAYER_MAP = {
 MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
 
 # ---------------- 基础工具 ----------------
-def _load_json(p: Path, default):
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            return default
-    return default
-
-def _save_json(p: Path, data, log_q=None):
-    try:
-        from pathlib import Path
-        Path(p).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        msg = f"[Deps] 写文件失败: {e}"
-        print(msg)
-        if log_q:
-            log_q.put(msg)
-
 def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
-    """规范化层状态：移除未知层，并保证 MathCraft CPU/GPU 后端互斥。"""
-    if state is None:
-        state = _load_json(state_path, {"installed_layers": []})
-
-    raw_installed = state.get("installed_layers", [])
-    raw_failed = state.get("failed_layers", [])
-
-    if not isinstance(raw_installed, list):
-        raw_installed = []
-    if not isinstance(raw_failed, list):
-        raw_failed = []
-
-    installed = [layer for layer in raw_installed if layer in LAYER_MAP]
-    failed = [layer for layer in raw_failed if layer in LAYER_MAP]
-
-    present_runtime = {x for x in MATHCRAFT_RUNTIME_LAYERS if x in installed or x in failed}
-    if len(present_runtime) > 1:
-        if "MATHCRAFT_GPU" in installed and "MATHCRAFT_CPU" not in installed:
-            keep_runtime = "MATHCRAFT_GPU"
-        elif "MATHCRAFT_CPU" in installed and "MATHCRAFT_GPU" not in installed:
-            keep_runtime = "MATHCRAFT_CPU"
-        elif "MATHCRAFT_GPU" in failed and "MATHCRAFT_CPU" not in failed:
-            keep_runtime = "MATHCRAFT_GPU"
-        elif "MATHCRAFT_CPU" in failed and "MATHCRAFT_GPU" not in failed:
-            keep_runtime = "MATHCRAFT_CPU"
-        else:
-            keep_runtime = "MATHCRAFT_GPU"
-        installed = [layer for layer in installed if layer not in MATHCRAFT_RUNTIME_LAYERS or layer == keep_runtime]
-        failed = [layer for layer in failed if layer not in MATHCRAFT_RUNTIME_LAYERS or layer == keep_runtime]
-
-    changed = (installed != raw_installed) or (failed != raw_failed)
-    payload = {"installed_layers": installed}
-    if failed:
-        payload["failed_layers"] = failed
-
-    if changed:
-        _save_json(state_path, payload)
-        dropped = sorted(set(raw_installed + raw_failed) - set(installed + failed))
-        if dropped:
-            print(f"[INFO] 已忽略并移除废弃/未知层: {', '.join(dropped)}")
-
-    return payload
+    return _sanitize_state_layers_impl(
+        state_path,
+        valid_layers=set(LAYER_MAP),
+        runtime_layers=MATHCRAFT_RUNTIME_LAYERS,
+        state=state,
+    )
 
 
 def _normalize_chosen_layers(layers: list[str] | None) -> list[str]:
-    """Normalize selected layers and enforce MathCraft CPU/GPU backend mutual exclusion."""
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for layer in (layers or []):
-        name = str(layer)
-        if name not in LAYER_MAP or name in seen:
-            continue
-        if name == "MATHCRAFT_CPU" and "MATHCRAFT_GPU" in seen:
-            continue
-        if name == "MATHCRAFT_GPU" and "MATHCRAFT_CPU" in seen:
-            ordered = [x for x in ordered if x != "MATHCRAFT_CPU"]
-            seen.discard("MATHCRAFT_CPU")
-        ordered.append(name)
-        seen.add(name)
-    return ordered
-
-def _site_packages_root(pyexe: Path):
-    """
-    传入的是 python.exe 路径：
-      - 独立版: <deps_dir>/python311/python.exe -> <deps_dir>/python311/Lib/site-packages
-      - venv 版: <deps_dir>/venv/Scripts/python.exe -> <deps_dir>/venv/Lib/site-packages
-    """
-    py_dir = pyexe.parent
-    # 支持 .venv/Scripts/python.exe 结构，向上查找 Lib/site-packages
-    candidates = [
-        py_dir / "Lib" / "site-packages",
-        py_dir.parent / "Lib" / "site-packages",
-        py_dir.parent.parent / "Lib" / "site-packages",
-    ]
-    for sp in candidates:
-        if sp.exists():
-            return sp
-    return None
-
-def _inject_private_python_paths(pyexe: Path):
-    """
-    仅在开发模式下注入私有 site-packages 路径。
-    打包后的程序：AI 模型在子进程中运行，无需注入。
-    """
-    import os
-    import sys
-    
-    # 打包模式下不注入，避免与内置包冲突
-    is_frozen = getattr(sys, 'frozen', False)
-    if is_frozen:
-        print("[INFO] 打包模式：跳过路径注入，AI 模型将在子进程中使用独立 Python")
-        return
-    
-    sp = _site_packages_root(pyexe)
-    if not sp:
-        return
-
-    # 1) 剔除 venv/项目 site-packages，避免环境混用
-    bad_markers = [
-        os.sep + ".venv" + os.sep,
-        os.sep + "env" + os.sep,
-        os.sep + "venv" + os.sep,
-    ]
-    sys.path[:] = [p for p in sys.path if not any(m in p for m in bad_markers)]
-    # 2) 把私有 site-packages 放到最前
-    if str(sp) not in sys.path:
-        sys.path.insert(0, str(sp))
-
-    # 3) Windows: 显式加入私有解释器 DLL 目录，避免运行时误用系统路径。
-    if os.name == "nt":
-        try:
-            import os as _os
-            dlls_dir = pyexe.parent / "DLLs"
-            if dlls_dir.exists():
-                _os.add_dll_directory(str(dlls_dir))
-        except Exception:
-            pass
+    return _normalize_chosen_layers_impl(layers, valid_layers=set(LAYER_MAP))
 
 def _ensure_pip(main_python: Path) -> bool:
     """
@@ -1647,362 +1443,29 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         return f"❓ 未知错误 (code={returncode}) - 请查看上方日志获取详情"
 
 
-def _run_logged_pip_command(pyexe, pip_args, stop_event, log_q, flags=0, use_mirror=False, proc_setter=None, timeout=1200):
-    import subprocess
-    from pathlib import Path
-
-    proc = None
-    output_lines = []
-    env = os.environ.copy()
-    main_site = Path(pyexe).parent / "Lib" / "site-packages"
-    if main_site.exists():
-        env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
-    env["PYTHONUNBUFFERED"] = "1"
-
-    args = [str(pyexe), "-m", "pip", *pip_args]
-    if use_mirror:
-        args += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
-    else:
-        args += ["-i", "https://pypi.org/simple"]
-
-    log_q.put(f"[CMD] {' '.join(args)}")
-    try:
-        with subprocess_lock:
-            proc = safe_run(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                encoding="utf-8",
-                env=env,
-                creationflags=flags,
-            )
-        if proc_setter is not None:
-            try:
-                proc_setter(proc)
-            except Exception:
-                pass
-
-        for line in proc.stdout:
-            if stop_event.is_set():
-                log_q.put("[CANCEL] 用户取消安装，正在终止当前 pip 进程...")
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=5)
-                except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-                return False, "\n".join(output_lines)
-            line = line.rstrip()
-            log_q.put(line)
-            output_lines.append(line)
-        proc.communicate(timeout=timeout)
-        return proc.returncode == 0, "\n".join(output_lines)
-    except subprocess.TimeoutExpired:
-        log_q.put("[WARN] pip 恢复命令执行超时")
-        try:
-            if proc is not None:
-                proc.kill()
-        except Exception:
-            pass
-        return False, "\n".join(output_lines)
-    except Exception as e:
-        log_q.put(f"[WARN] pip 恢复命令异常: {e}")
-        return False, "\n".join(output_lines)
-    finally:
-        if proc_setter is not None:
-            try:
-                proc_setter(None)
-            except Exception:
-                pass
-
-
-def _maybe_recover_antlr_wheel_failure(pyexe, pkg, output: str, stop_event, log_q, use_mirror=False, flags=0, proc_setter=None) -> bool:
-    lower = str(output or "").lower()
-    pkg_lower = re.split(r'[<>=!~ ]', str(pkg or ""), 1)[0].strip().lower()
-    if pkg_lower not in {"rapidocr", "omegaconf", "antlr4-python3-runtime"}:
-        return False
-    if "antlr4-python3-runtime" not in lower:
-        return False
-    if "bdist_wheel" not in lower and "metadata-generation-failed" not in lower:
-        return False
-
-    log_q.put("[INFO] 检测到 antlr4-python3-runtime 构建失败，尝试自动修复打包工具链...")
-
-    ok_tools, _ = _run_logged_pip_command(
-        pyexe,
-        ["install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS],
-        stop_event,
-        log_q,
-        flags=flags,
-        use_mirror=use_mirror,
-        proc_setter=proc_setter,
-        timeout=900,
-    )
-    if not ok_tools:
-        log_q.put("[WARN] 自动补齐 pip/setuptools/wheel 失败，无法继续 antlr 构建恢复。")
-        return False
-
-    ok_antlr, _ = _run_logged_pip_command(
-        pyexe,
-        ["install", "antlr4-python3-runtime==4.9.3", "--no-build-isolation", *PIP_INSTALL_SUPPRESS_ARGS],
-        stop_event,
-        log_q,
-        flags=flags,
-        use_mirror=use_mirror,
-        proc_setter=proc_setter,
-        timeout=900,
-    )
-    if not ok_antlr:
-        log_q.put("[WARN] 预装 antlr4-python3-runtime==4.9.3 失败，antlr 构建恢复未生效。")
-        return False
-
-    log_q.put("[OK] antlr4-python3-runtime 恢复已完成，准备重试当前包。")
-    return True
-
 # pip 安装入口：支持 pause_event、实时日志和镜像切换
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
     """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
-    import os
-    import re
-    import subprocess
-    import time
-    import traceback
-    from pathlib import Path
-
-    max_retries = 2
-    retry = 0
-    proc = None
-    antlr_recovery_applied = False
-
-    def _root_name(spec: str) -> str:
-        return re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
-    # Fallback 修复：防止传入错误 pyexe
-    if not Path(pyexe).exists():
-        pyexe = Path(sys.executable)
-        log_q.put(f"[WARN] 传入 Python 不存在，自动切换为 {pyexe}")
-
-    if not pip_ready_event.wait(timeout=60):
-        log_q.put(f"[ERR] pip 未初始化完成，跳过 {pkg}")
-        return False
-
-    env = os.environ.copy()
-    main_site = Path(pyexe).parent / "Lib" / "site-packages"
-    if main_site.exists():
-        env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
-    env["PYTHONUNBUFFERED"] = "1"
-    name = _root_name(pkg)
-    ort_gpu_policy = None
-    if name == "onnxruntime-gpu":
-        ort_gpu_policy = onnxruntime_gpu_policy(pyexe)
-        pkg = ort_gpu_policy.requirement
-        name = _root_name(pkg)
-    if name in {"onnxruntime", "onnxruntime-gpu"}:
-        _cleanup_orphan_onnxruntime_namespace(pyexe, log_fn=log_q.put)
-    mirror_index = "https://pypi.tuna.tsinghua.edu.cn/simple"
-    official_index = "https://pypi.org/simple"
-
-    while retry <= max_retries:
-        if stop_event.is_set():
-            log_q.put("[INFO] 检测到停止信号，中断安装任务。")
-            return False
-        # 若处于暂停状态，则等待继续
-        if pause_event is not None and not pause_event.is_set():
-            log_q.put("[INFO] 已暂停，等待继续 ...")
-            while not pause_event.is_set():
-
-                if stop_event.is_set():
-                    log_q.put("[CANCEL] 用户取消安装。")
-                    return False
-                time.sleep(0.1)
-        try:
-            args = [
-                str(pyexe), "-m", "pip", "install",
-                pkg, "--upgrade", *PIP_INSTALL_SUPPRESS_ARGS
-            ]
-            if retry == 0 and ort_gpu_policy is not None:
-                log_q.put(
-                    "[INFO] onnxruntime-gpu policy: "
-                    f"CUDA {ort_gpu_policy.cuda.version_text} -> {ort_gpu_policy.requirement} "
-                    f"({ort_gpu_policy.source_label})"
-                )
-                if ort_gpu_policy.warning:
-                    log_q.put(f"[WARN] {ort_gpu_policy.warning}")
-            if ort_gpu_policy is not None and ort_gpu_policy.pre:
-                args.append("--pre")
-            # 需要强制重装的包（版本冲突敏感）
-            force_reinstall_pkgs = {
-                "protobuf",
-            }
-            
-            if force_reinstall:
-                args.append("--force-reinstall")
-                if no_cache:
-                    args.append("--no-cache-dir")
-            elif name in force_reinstall_pkgs:
-                args.append("--force-reinstall")
-            else:
-                # 其他包：普通升级即可，不强制重装依赖
-                pass
-            
-            if name in {"onnxruntime", "onnxruntime-gpu"}:
-                args.append("--no-deps")
-
-            if ort_gpu_policy is not None and ort_gpu_policy.index_url:
-                args += ["-i", ort_gpu_policy.index_url]
-                if retry == 0:
-                    log_q.put(f"[Source] {ort_gpu_policy.source_label}")
-            elif use_mirror:
-                args += ["-i", mirror_index]
-                if retry == 0:
-                    log_q.put("[Source] 使用清华源 📦")
-            else:
-                args += ["-i", official_index]
-                if retry == 0:
-                    log_q.put("[Source] 使用官方源 🌐")
-
-            log_q.put(f"[CMD] {' '.join(args)}")
-            with subprocess_lock:
-                proc = safe_run(
-                    args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    encoding="utf-8",
-                    env=env,
-                    creationflags=flags
-                )
-            if proc_setter is not None:
-                try:
-                    proc_setter(proc)
-                except Exception:
-                    pass
-
-            # 收集输出用于错误诊断
-            output_lines = []
-            for line in proc.stdout:
-                if stop_event.is_set():
-                    log_q.put("[CANCEL] 用户取消安装，正在终止当前 pip 进程...")
-                    try:
-                        proc.terminate()
-                        proc.wait(timeout=5)
-                    except Exception:
-                        try:
-                            proc.kill()
-                        except Exception:
-                            pass
-                    return False
-                # 运行中支持暂停/继续
-                if pause_event is not None:
-                    while not pause_event.is_set():
-                        if stop_event.is_set():
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                            return False
-                        time.sleep(0.1)
-                log_q.put(line.rstrip())
-                output_lines.append(line.rstrip())
-            proc.communicate(timeout=1200)
-
-            if proc.returncode == 0:
-                log_q.put(f"[OK] {pkg} 安装成功 ✅")
-                return True
-            else:
-                if stop_event.is_set():
-                    log_q.put("[CANCEL] 用户取消安装。")
-                    return False
-                # 分析失败原因
-                full_output = "\n".join(output_lines[-50:])  # 最后50行
-                failure_reason = _diagnose_install_failure(full_output, proc.returncode)
-                
-                log_q.put(f"[WARN] {pkg} 安装失败 (returncode={proc.returncode})")
-                log_q.put(f"[DIAG] 可能原因: {failure_reason}")
-
-                if not antlr_recovery_applied:
-                    antlr_recovery_applied = _maybe_recover_antlr_wheel_failure(
-                        pyexe,
-                        pkg,
-                        full_output,
-                        stop_event,
-                        log_q,
-                        use_mirror=use_mirror,
-                        flags=flags,
-                        proc_setter=proc_setter,
-                    )
-                    if antlr_recovery_applied:
-                        log_q.put("[INFO] 已应用 antlr/wheel 恢复，立即重试当前包...")
-                        time.sleep(1)
-                        continue
-                
-                retry += 1
-                if retry <= max_retries:
-                    log_q.put(f"[INFO] 第 {retry} 次重试中... ⏳")
-                else:
-                    # 所有重试都失败，提供手动安装命令
-                    log_q.put(f"[ERR] {pkg} 安装失败 ❌")
-                    log_q.put(f"[ERR] 失败原因: {failure_reason}")
-                    log_q.put("")
-                    log_q.put("=" * 60)
-                    log_q.put("💡 手动安装提示（请在终端中执行以下命令）：")
-                    log_q.put("")
-                    manual_cmd = f'"{pyexe}" -m pip install "{pkg}" --upgrade --user'
-                    if name in {"onnxruntime", "onnxruntime-gpu"}:
-                        manual_cmd += " --no-deps"
-                    if ort_gpu_policy is not None and ort_gpu_policy.pre:
-                        manual_cmd += " --pre"
-                    if ort_gpu_policy is not None and ort_gpu_policy.index_url:
-                        manual_cmd += f" -i {ort_gpu_policy.index_url}"
-                    log_q.put(f"  {manual_cmd}")
-                    log_q.put("")
-                    log_q.put("如遇权限问题，可尝试：")
-                    log_q.put('  1. 关闭程序后以管理员身份运行终端')
-                    log_q.put('  2. 或使用 --user 选项安装到用户目录')
-                    log_q.put('  3. 或在设置中点击"打开环境终端"执行上述命令')
-                    log_q.put("=" * 60)
-                    log_q.put("")
-                    return False
-             # 重试前也响应暂停/取消
-                if pause_event is not None:
-                    while not pause_event.is_set():
-                        if stop_event.is_set():
-                            return False
-                        time.sleep(0.1)
-                time.sleep(3)
-                continue
-
-        except subprocess.TimeoutExpired:
-            log_q.put(f"[ERR] {pkg} 安装超时，正在重试...")
-            retry += 1
-            continue
-        except Exception as e:
-            tb = traceback.format_exc()
-            log_q.put(f"[FATAL] {pkg} 安装异常: {e}\n{tb}")
-            return False
-        finally:
-            if proc_setter is not None:
-                try:
-                    proc_setter(None)
-                except Exception:
-                    pass
-
-    # 检查 pip 可用
-    try:
-        subprocess.check_call(
-            [str(pyexe), "-m", "pip", "--version"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags
-        )
-    except Exception:
-        log_q.put(f"[ERR] pip 不可用，跳过 {pkg}")
-        return False
-    # 防御式返回（正常流程不会走到这里）
-    return False
+    return PipInstallRunner(
+        pyexe=pyexe,
+        pkg=pkg,
+        stop_event=stop_event,
+        log_q=log_q,
+        use_mirror=use_mirror,
+        flags=flags,
+        pause_event=pause_event,
+        force_reinstall=force_reinstall,
+        no_cache=no_cache,
+        proc_setter=proc_setter,
+        pip_ready_event=pip_ready_event,
+        suppress_args=PIP_INSTALL_SUPPRESS_ARGS,
+        safe_run=safe_run,
+        subprocess_lock=subprocess_lock,
+        onnxruntime_gpu_policy=onnxruntime_gpu_policy,
+        cleanup_orphan_onnxruntime_namespace=_cleanup_orphan_onnxruntime_namespace,
+        diagnose_install_failure=_diagnose_install_failure,
+    ).install()
 
 # --------------- UI ---------------
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
@@ -3070,129 +2533,7 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
         pass
 
 def _find_local_python311_installer(deps_dir: Path) -> Path | None:
-    """Locate the bundled/local Python 3.11 installer without downloading anything."""
-    candidates: list[Path] = []
-    try:
-        candidates.append(deps_dir / "python-3.11.0-amd64.exe")
-    except Exception:
-        pass
-    try:
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            candidates.append(Path(sys._MEIPASS) / "python-3.11.0-amd64.exe")
-    except Exception:
-        pass
-    try:
-        exe_dir = Path(sys.executable).resolve().parent
-        candidates.append(exe_dir / "_internal" / "python-3.11.0-amd64.exe")
-        candidates.append(exe_dir / "python-3.11.0-amd64.exe")
-    except Exception:
-        pass
-    candidates.extend([
-        Path(__file__).resolve().parent.parent / "python-3.11.0-amd64.exe",
-        Path.cwd() / "python-3.11.0-amd64.exe",
-    ])
-    seen: set[str] = set()
-    for candidate in candidates:
-        try:
-            key = str(candidate.resolve()).lower()
-        except Exception:
-            key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            if candidate.exists():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
-def _iter_python_candidates(base_dir: Path) -> list[Path]:
-    """Return likely python.exe candidates inside the selected dependency directory."""
-    base_dir = Path(base_dir)
-    candidates = [
-        base_dir / "python.exe",
-        base_dir / "Scripts" / "python.exe",
-        base_dir / "python311" / "python.exe",
-        base_dir / "python311" / "Scripts" / "python.exe",
-        base_dir / "Python311" / "python.exe",
-        base_dir / "Python311" / "Scripts" / "python.exe",
-        base_dir / "python_full" / "python.exe",
-        base_dir / "venv" / "Scripts" / "python.exe",
-        base_dir / ".venv" / "Scripts" / "python.exe",
-    ]
-    try:
-        for child in base_dir.iterdir():
-            if not child.is_dir():
-                continue
-            name = child.name.lower()
-            if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
-                candidates.extend([
-                    child / "python.exe",
-                    child / "Scripts" / "python.exe",
-                ])
-    except Exception:
-        pass
-
-    seen: set[str] = set()
-    ordered: list[Path] = []
-    for candidate in candidates:
-        try:
-            key = str(candidate.resolve()).lower()
-        except Exception:
-            key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        ordered.append(candidate)
-    return ordered
-
-
-def _find_existing_python(base_dir: Path) -> Path | None:
-    """Reuse any existing python.exe inside the selected dependency directory."""
-    for candidate in _iter_python_candidates(base_dir):
-        try:
-            if candidate.exists():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
-def _normalize_deps_base_dir(selected_dir: Path) -> Path:
-    """
-    Normalize the dependency base directory chosen by the user.
-
-    The wizard manages a base directory that may contain a nested `python311`.
-    If the user directly picks an empty leaf directory named like `python311`,
-    treat its parent as the real base directory to avoid creating `python311/python311`.
-    """
-    path = Path(selected_dir)
-    try:
-        name = path.name.lower()
-    except Exception:
-        return path
-
-    looks_like_python_leaf = (
-        name in {"venv", ".venv", "python_full"}
-        or name.startswith("python")
-    )
-    if not looks_like_python_leaf:
-        return path
-
-    existing_py = _find_existing_python(path)
-    if existing_py is not None:
-        return path
-
-    parent = path.parent
-    try:
-        if parent and str(parent) != str(path):
-            return parent
-    except Exception:
-        pass
-    return path
-
+    return _find_local_python311_installer_impl(deps_dir, __file__)
 
 def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900,
                                    before_launch=None) -> bool:

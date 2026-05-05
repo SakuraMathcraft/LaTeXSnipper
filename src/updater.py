@@ -24,7 +24,7 @@ from PyQt6.QtGui import QTextDocument, QFont
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
-from distribution import APP_VERSION, is_store_distribution, store_update_uri
+from runtime.distribution import APP_VERSION, is_store_distribution, store_update_uri
 
 # ---------------- 常量 ----------------
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")

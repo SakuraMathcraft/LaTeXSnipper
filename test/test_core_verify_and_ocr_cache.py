@@ -111,7 +111,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("missing get_available_providers", str(ctx.exception))
 
     def test_cleanup_removes_orphan_onnxruntime_namespace(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -122,7 +122,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
             pyexe.parent.mkdir(parents=True, exist_ok=True)
             pyexe.write_text("", encoding="utf-8")
 
-            with mock.patch("deps_bootstrap._current_installed", return_value={}):
+            with mock.patch("bootstrap.deps_bootstrap._current_installed", return_value={}):
                 removed = deps_bootstrap._cleanup_orphan_onnxruntime_namespace(pyexe)
 
             self.assertEqual(removed, 1)
@@ -225,7 +225,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             self.assertNotIn(dep, dep_names)
 
     def test_dependency_layers_are_mathcraft_onnx_only(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         self.assertIn("MATHCRAFT_CPU", deps_bootstrap.LAYER_MAP)
         self.assertIn("MATHCRAFT_GPU", deps_bootstrap.LAYER_MAP)
@@ -239,13 +239,13 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("argostranslate", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         verify_code = "\n".join(str(v) for v in deps_bootstrap.LAYER_VERIFY_CODE.values()).lower()
         self.assertIn("cudaexecutionprovider", verify_code)
 
     def test_mathcraft_backend_selection_is_mutually_exclusive(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         chosen = deps_bootstrap._normalize_chosen_layers(
             ["BASIC", "MATHCRAFT_CPU", "MATHCRAFT_GPU"]
@@ -253,15 +253,26 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertEqual(chosen, ["BASIC", "MATHCRAFT_GPU"])
 
     def test_onnxruntime_install_path_does_not_force_dependency_reinstall(self):
-        source = (SRC / "deps_bootstrap.py").read_text(encoding="utf-8").lower()
-        force_block = source.split("force_reinstall_pkgs = {", 1)[1].split("}", 1)[0]
+        from bootstrap.deps_pip_runner import PipInstallRunner
 
-        self.assertNotIn("onnxruntime", force_block)
-        self.assertIn('if name in {"onnxruntime", "onnxruntime-gpu"}:', source)
-        self.assertIn('args.append("--no-deps")', source)
+        log_q = mock.Mock()
+        runner = PipInstallRunner(
+            pyexe=sys.executable,
+            pkg="onnxruntime",
+            stop_event=mock.Mock(),
+            log_q=log_q,
+            suppress_args=[],
+        )
+
+        onnx_args = runner._build_install_args(sys.executable, "onnxruntime", "onnxruntime", 0, None)
+        self.assertIn("--no-deps", onnx_args)
+        self.assertNotIn("--force-reinstall", onnx_args)
+
+        protobuf_args = runner._build_install_args(sys.executable, "protobuf", "protobuf", 0, None)
+        self.assertIn("--force-reinstall", protobuf_args)
 
     def test_critical_repair_covers_onnxruntime_dependency_chain(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         for pkg in ("numpy", "sympy", "flatbuffers", "packaging", "coloredlogs", "protobuf"):
             self.assertIn(pkg, deps_bootstrap.CRITICAL_VERSIONS)
@@ -350,7 +361,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("cudart64_12.dll", dll_names)
 
     def test_pip_interrupted_leftovers_are_cleaned_from_target_site(self):
-        import deps_bootstrap
+        import bootstrap.deps_bootstrap as deps_bootstrap
 
         with tempfile.TemporaryDirectory() as d:
             site = Path(d) / "site-packages"
@@ -390,7 +401,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn('"psutil"', prune_prefixes.group(1))
 
     def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
-        source = (SRC / "deps_bootstrap.py").read_text(encoding="utf-8")
+        source = (SRC / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
 
         self.assertIn("ONNX Runtime 支撑依赖导入检查通过", source)
         self.assertNotIn("onnxruntime-gpu runtime check passed", source)
