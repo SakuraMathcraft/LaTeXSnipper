@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 
 from preview.math_preview import (
-    _mathml_standardize,
-    _normalize_latex_for_export,
+    mathml_standardize,
+    normalize_latex_for_export,
     latex_to_svg,
 )
 
@@ -16,17 +16,17 @@ def latex_to_svg_code(latex: str) -> str:
 
 
 def latex_to_mathml(latex: str) -> str:
-    latex = _normalize_latex_for_export(latex)
+    latex = normalize_latex_for_export(latex)
     import latex2mathml.converter
 
     mathml = latex2mathml.converter.convert(latex)
-    return _mathml_standardize(mathml)
+    return mathml_standardize(mathml)
 
 
 def latex_to_omml(latex: str) -> str:
     """Convert LaTeX to Office Math Markup Language, falling back to MathML."""
     try:
-        latex = _normalize_latex_for_export(latex)
+        latex = normalize_latex_for_export(latex)
         import latex2mathml.converter
 
         mathml = latex2mathml.converter.convert(latex)

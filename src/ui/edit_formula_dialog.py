@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QTimer, QUrl
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 
-from preview.math_preview import _dialog_theme_tokens, _is_dark_ui, build_math_html
+from preview.math_preview import dialog_theme_tokens, is_dark_ui, build_math_html
 from runtime.app_paths import get_app_root
 from ui.window_helpers import apply_no_minimize_window_flags
 
@@ -52,7 +52,7 @@ class EditFormulaDialog(QDialog):
             self.editor.textChanged.connect(self._on_text_changed)
         else:
             fallback = QLabel("WebEngine 未加载，无法预览")
-            fallback.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; padding: 20px;")
+            fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 20px;")
             lay.addWidget(fallback, 1)
 
         btns = QDialogButtonBox(
@@ -73,7 +73,7 @@ class EditFormulaDialog(QDialog):
             return None
 
     def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark

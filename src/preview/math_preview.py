@@ -19,7 +19,7 @@ MATHJAX_CDN_URL = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.
 MATHJAX_CDN_URL_BACKUP = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
 
 
-def _is_dark_ui() -> bool:
+def is_dark_ui() -> bool:
     try:
         import qfluentwidgets as qfw
         fn = getattr(qfw, "isDarkTheme", None)
@@ -34,8 +34,8 @@ def _is_dark_ui() -> bool:
     return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
 
-def _preview_theme_tokens() -> dict:
-    if _is_dark_ui():
+def preview_theme_tokens() -> dict:
+    if is_dark_ui():
         return {
             "body_bg": "#14171d",
             "body_text": "#e8ebf0",
@@ -90,8 +90,8 @@ def _preview_theme_tokens() -> dict:
     }
 
 
-def _formula_label_theme_tokens() -> dict:
-    if _is_dark_ui():
+def formula_label_theme_tokens() -> dict:
+    if is_dark_ui():
         return {
             "text": "#d7dee9",
             "tooltip_bg": "#27303b",
@@ -106,8 +106,8 @@ def _formula_label_theme_tokens() -> dict:
     }
 
 
-def _dialog_theme_tokens() -> dict:
-    if _is_dark_ui():
+def dialog_theme_tokens() -> dict:
+    if is_dark_ui():
         return {
             "window_bg": "#1b1f27",
             "panel_bg": "#232934",
@@ -249,7 +249,7 @@ __FORMULAS__
 _MATHJAX_LOGGED_KEYS = set()
 
 
-def _get_mathjax_base_url():
+def get_mathjax_base_url():
     """获取 MathJax 的 base URL (用于 setHtml)
     
     这个函数必须返回一个指向 es5 目录的 file:// URL，
@@ -354,7 +354,7 @@ def _get_mathjax_base_url():
         return url
         
     except Exception as e:
-        print(f"[ERROR] _get_mathjax_base_url 异常: {e}")
+        print(f"[ERROR] get_mathjax_base_url 异常: {e}")
         import traceback
         traceback.print_exc()
         # 返回临时路径作为后备方案
@@ -415,7 +415,7 @@ def _strip_math_delimiters(latex: str) -> str:
         return t[1:-1].strip()
     return t
 
-def _normalize_latex_for_export(latex: str) -> str:
+def normalize_latex_for_export(latex: str) -> str:
     """规范化导出用 LaTeX：简化单字符上下标、补充必要空格。"""
     t = _strip_math_delimiters(latex)
     if not t:
@@ -428,13 +428,13 @@ def _normalize_latex_for_export(latex: str) -> str:
     t = re.sub(r"[ \t]+", " ", t).strip()
     return t
 
-def _latex_inline(latex: str) -> str:
+def latex_inline(latex: str) -> str:
     return f"${latex}$"
 
-def _latex_display(latex: str) -> str:
+def latex_display(latex: str) -> str:
     return f"\\[\n{latex}\n\\]"
 
-def _latex_equation(latex: str) -> str:
+def latex_equation(latex: str) -> str:
     return f"\\begin{{equation}}\n{latex}\n\\end{{equation}}"
 
 def _ensure_mathml_block(mathml: str) -> str:
@@ -450,7 +450,7 @@ def _ensure_mathml_block(mathml: str) -> str:
     new_tag = f"<math{attrs}{sep}display=\"block\">"
     return mathml[:m.start()] + new_tag + mathml[m.end():]
 
-def _mathml_standardize(mathml: str) -> str:
+def mathml_standardize(mathml: str) -> str:
     """标准 MathML：保证 display=block，统一无穷符号样式。"""
     mathml = _ensure_mathml_block(mathml)
     # 合并 := 到单个 <mo>
@@ -491,12 +491,12 @@ def _mathml_htmlize(mathml: str) -> str:
     mathml = mathml.replace("&#x221E;", _MATHML_INF).replace("&#X221E;", _MATHML_INF)
     return mathml
 
-def _mathml_to_html_fragment(mathml: str) -> str:
+def mathml_to_html_fragment(mathml: str) -> str:
     """将 MathML 包装为可直接嵌入网页的 HTML 片段。"""
     html_mathml = _mathml_htmlize(mathml)
     return f'<span class="latexsnipper-math" data-format="mathml">{html_mathml}</span>'
 
-def _mathml_with_prefix(mathml: str, prefix: str) -> str:
+def mathml_with_prefix(mathml: str, prefix: str) -> str:
     """将 MathML 标签统一加命名空间前缀，如 mml:, m:, attr:。"""
     if not mathml:
         return mathml
@@ -539,7 +539,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         if labels is None:
             labels = [None] * len(formulas)
         
-        tokens = _preview_theme_tokens()
+        tokens = preview_theme_tokens()
 
         # 生成每个公式的 MathJax HTML
         formula_html = ""
@@ -577,7 +577,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         import traceback
         traceback.print_exc()
         # 返回错误提示 HTML
-        tokens = _preview_theme_tokens()
+        tokens = preview_theme_tokens()
         return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
     <body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">

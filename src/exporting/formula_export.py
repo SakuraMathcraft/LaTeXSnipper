@@ -6,12 +6,12 @@ from dataclasses import dataclass
 from typing import Callable
 
 from preview.math_preview import (
-    _latex_display,
-    _latex_equation,
-    _latex_inline,
-    _mathml_to_html_fragment,
-    _mathml_with_prefix,
-    _normalize_latex_for_export,
+    latex_display,
+    latex_equation,
+    latex_inline,
+    mathml_to_html_fragment,
+    mathml_with_prefix,
+    normalize_latex_for_export,
 )
 
 
@@ -65,29 +65,29 @@ def build_formula_export(
     svg_converter: Callable[[str], str],
 ) -> tuple[str, str]:
     """Return (export_text, display_name) for a formula export format."""
-    clean = _normalize_latex_for_export(latex)
+    clean = normalize_latex_for_export(latex)
     fmt = str(format_type or "").strip()
 
     if fmt == "latex":
-        return _latex_inline(clean), FORMAT_DISPLAY_NAMES[fmt]
+        return latex_inline(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "latex_display":
-        return _latex_display(clean), FORMAT_DISPLAY_NAMES[fmt]
+        return latex_display(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "latex_equation":
-        return _latex_equation(clean), FORMAT_DISPLAY_NAMES[fmt]
+        return latex_equation(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "markdown_inline":
-        return _latex_inline(clean), FORMAT_DISPLAY_NAMES[fmt]
+        return latex_inline(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "markdown_block":
         return f"$$\n{clean}\n$$", FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "html":
-        return _mathml_to_html_fragment(mathml_converter(clean)), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_to_html_fragment(mathml_converter(clean)), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml":
         return mathml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml_mml":
-        return _mathml_with_prefix(mathml_converter(clean), "mml"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(mathml_converter(clean), "mml"), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml_m":
-        return _mathml_with_prefix(mathml_converter(clean), "m"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(mathml_converter(clean), "m"), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml_attr":
-        return _mathml_with_prefix(mathml_converter(clean), "attr"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(mathml_converter(clean), "attr"), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "omml":
         return omml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "svgcode":

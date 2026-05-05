@@ -763,12 +763,12 @@ class RuntimeLogDialog(QDialog):
         self._apply_theme_styles(force=True)
 
     def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark
         try:
-            self.lbl.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']};")
+            self.lbl.setStyleSheet(f"color: {dialog_theme_tokens()['muted']};")
         except Exception:
             pass
 
@@ -2336,10 +2336,10 @@ def get_app_dir():
 APP_DIR = get_app_dir()
 
 from preview.math_preview import (  # noqa: E402
-    _dialog_theme_tokens,
-    _formula_label_theme_tokens,
-    _get_mathjax_base_url,
-    _is_dark_ui,
+    dialog_theme_tokens,
+    formula_label_theme_tokens,
+    get_mathjax_base_url,
+    is_dark_ui,
     build_math_html,
     configure_math_preview_runtime,
 )
@@ -2530,7 +2530,7 @@ except Exception:
     except Exception:
         sip = None
 def _action_btn_style() -> str:
-    if _is_dark_ui():
+    if is_dark_ui():
         return (
             "PrimaryPushButton{background:#2f6ea8;color:#f5f7fb;border:1px solid #4d8dca;"
             "border-radius:4px;padding:4px 10px;font-size:12px;}"
@@ -2931,7 +2931,7 @@ class MainWindow(QMainWindow):
                 pass
             # 初始显示空白渲染
             html = build_math_html("")
-            base_url = _get_mathjax_base_url()
+            base_url = get_mathjax_base_url()
             
             try:
                 self.preview_view.setHtml(html, base_url)
@@ -3070,7 +3070,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def _main_theme_tokens(self) -> dict:
-        if _is_dark_ui():
+        if is_dark_ui():
             return {
                 "title": "#8ec5ff",
                 "muted": "#95a0af",
@@ -3081,7 +3081,7 @@ class MainWindow(QMainWindow):
         }
 
     def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark
@@ -3136,7 +3136,7 @@ class MainWindow(QMainWindow):
                     c = app.palette().window().color()
                     dark_by_palette = ((c.red() + c.green() + c.blue()) / 3.0) < 128
             except Exception:
-                dark_by_palette = _is_dark_ui()
+                dark_by_palette = is_dark_ui()
             apply_theme("DARK" if dark_by_palette else "LIGHT")
             self._apply_theme_styles(force=True)
             try:
@@ -3368,7 +3368,7 @@ class MainWindow(QMainWindow):
     def _apply_formula_label_theme(self, lbl: QLabel):
         if lbl is None:
             return
-        t = _formula_label_theme_tokens()
+        t = formula_label_theme_tokens()
         lbl.setToolTip("点击加载到编辑器并渲染")
         lbl.setStyleSheet(
             "QLabel {"
@@ -3377,7 +3377,7 @@ class MainWindow(QMainWindow):
         )
 
     def _history_row_theme_tokens(self) -> dict:
-        if _is_dark_ui():
+        if is_dark_ui():
             return {
                 "index": "#8ec5ff",
                 "name": "#ffb74d",
@@ -3775,11 +3775,11 @@ class MainWindow(QMainWindow):
         try:
             # 构建智能渲染的 HTML
             html = self._build_smart_preview_html(all_items)
-            base_url = _get_mathjax_base_url()
+            base_url = get_mathjax_base_url()
             self.preview_view.setHtml(html, base_url)
         except Exception as e:
             try:
-                self.preview_view.setHtml(build_preview_error_html(e), _get_mathjax_base_url())
+                self.preview_view.setHtml(build_preview_error_html(e), get_mathjax_base_url())
             except Exception:
                 pass  # 显示错误信息也失败了
     
@@ -5002,7 +5002,7 @@ class MainWindow(QMainWindow):
 
         tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能降低识别稳定性。")
         tip.setWordWrap(True)
-        tip.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; font-size: 11px;")
+        tip.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; font-size: 11px;")
         layout.addWidget(tip)
 
         def _refresh_dpi_label(value: int):
@@ -5285,7 +5285,7 @@ class MainWindow(QMainWindow):
                 window_icon=self.icon,
                 select_save_file=_select_save_file_with_icon,
                 warning_dialog=custom_warning_dialog,
-                is_dark_ui=_is_dark_ui,
+                is_dark_ui=is_dark_ui,
             )
         self._pdf_result_window.set_content(text, fmt_key, structured_result=structured_result)
         print(f"[DEBUG] PDF 结果窗口打开 length={len(text or '')}")
@@ -5598,13 +5598,13 @@ class MainWindow(QMainWindow):
 
     def _set_predict_result_pin_button_style(self, button, pinned: bool):
         try:
-            t = _dialog_theme_tokens()
+            t = dialog_theme_tokens()
             icon = FluentIcon.UNPIN if pinned else FluentIcon.PIN
             button.setIcon(icon.icon())
             button.setIconSize(QSize(18, 18))
             button.setToolTip("固定为小窗口并保持置顶，再点一次恢复可调整大小")
             if pinned:
-                dark = _is_dark_ui()
+                dark = is_dark_ui()
                 bg = "#2f6ea8" if dark else "#3daee9"
                 hover = "#3e82c3" if dark else "#5dbff2"
                 pressed = "#245a8d" if dark else "#319fd9"
@@ -5929,7 +5929,7 @@ class MainWindow(QMainWindow):
                 from PyQt6.QtWebEngineWidgets import QWebEngineView
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
-                preview_view.setHtml(build_math_html(code), _get_mathjax_base_url())
+                preview_view.setHtml(build_math_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
                 
                 # 设置防抖定时器
@@ -5939,13 +5939,13 @@ class MainWindow(QMainWindow):
                 def do_render():
                     latex = te.toPlainText().strip()
                     if latex and preview_view:
-                        preview_view.setHtml(build_math_html(latex), _get_mathjax_base_url())
+                        preview_view.setHtml(build_math_html(latex), get_mathjax_base_url())
 
                 render_timer.timeout.connect(do_render)
                 te.textChanged.connect(lambda: render_timer.start(300))
             else:
                 fallback = QLabel("WebEngine 未加载，无法渲染预览")
-                fallback.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; padding: 10px;")
+                fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 10px;")
                 lay.addWidget(fallback)
 
         # 混合模式：渲染文字和公式
@@ -5958,7 +5958,7 @@ class MainWindow(QMainWindow):
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
                 # 混合模式使用特殊渲染
-                preview_view.setHtml(self._build_mixed_html(code), _get_mathjax_base_url())
+                preview_view.setHtml(self._build_mixed_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
                 
                 render_timer = QTimer(dlg)
@@ -5967,7 +5967,7 @@ class MainWindow(QMainWindow):
                 def do_render_mixed():
                     content = te.toPlainText().strip()
                     if content and preview_view:
-                        preview_view.setHtml(self._build_mixed_html(content), _get_mathjax_base_url())
+                        preview_view.setHtml(self._build_mixed_html(content), get_mathjax_base_url())
                 
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
@@ -6208,7 +6208,7 @@ class MainWindow(QMainWindow):
         dlg.setModal(False)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.destroyed.connect(lambda: setattr(self, "shortcut_window", None))
-        t = _dialog_theme_tokens()
+        t = dialog_theme_tokens()
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
         edit = QLineEdit(dlg)
@@ -6223,11 +6223,11 @@ QLineEdit {{
     border: 1px solid {t['border']};
     border-radius: 6px;
     padding: 4px 8px;
-    selection-background-color: {"#3b4756" if _is_dark_ui() else "#d7e3f1"};
+    selection-background-color: {"#3b4756" if is_dark_ui() else "#d7e3f1"};
     selection-color: {t['text']};
 }}
 QLineEdit:focus {{
-    border: 1px solid {"#66788a" if _is_dark_ui() else "#9aa9bb"};
+    border: 1px solid {"#66788a" if is_dark_ui() else "#9aa9bb"};
 }}
 """
         )

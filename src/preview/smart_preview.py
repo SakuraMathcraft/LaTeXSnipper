@@ -6,7 +6,7 @@ import html as html_module
 import re
 from collections.abc import Callable
 
-from preview.math_preview import _preview_theme_tokens, build_math_html
+from preview.math_preview import preview_theme_tokens, build_math_html
 from runtime.config_manager import normalize_content_type
 
 
@@ -14,7 +14,7 @@ FormulaRenderer = Callable[[str], str]
 
 
 def build_preview_error_html(error: Exception | str) -> str:
-    tokens = _preview_theme_tokens()
+    tokens = preview_theme_tokens()
     return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
 <body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
@@ -33,7 +33,7 @@ def build_preview_error_html(error: Exception | str) -> str:
 def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer, *, debug: bool = False) -> str:
     """Build the main history/editor preview HTML for mixed content types."""
     try:
-        tokens = _preview_theme_tokens()
+        tokens = preview_theme_tokens()
         if not items:
             return build_math_html("")
 
@@ -179,7 +179,7 @@ th {{ background-color: {tokens['th_bg']}; }}
 
 
 def build_html_build_error(error: Exception | str) -> str:
-    tokens = _preview_theme_tokens()
+    tokens = preview_theme_tokens()
     return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
 <body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
@@ -232,7 +232,7 @@ def render_content_block(
         return result
     except Exception as exc:
         print(f"[RenderBlock] 处理内容块失败: {exc}")
-        tokens = _preview_theme_tokens()
+        tokens = preview_theme_tokens()
         error_msg = f"内容块渲染失败: {exc}"
         return (
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
