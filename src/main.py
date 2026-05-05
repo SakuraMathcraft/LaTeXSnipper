@@ -2340,13 +2340,13 @@ from preview.math_preview import (  # noqa: E402
     _formula_label_theme_tokens,
     _get_mathjax_base_url,
     _is_dark_ui,
-    _mathml_standardize,
-    _mathml_with_prefix,
-    _normalize_latex_for_export,
-    _preview_theme_tokens,
     build_math_html,
     configure_math_preview_runtime,
-    latex_to_svg,
+)
+from preview.smart_preview import (  # noqa: E402
+    build_preview_error_html,
+    build_smart_preview_html,
+    render_formula_content_html,
 )
 from runtime.config_manager import (  # noqa: E402
     ConfigManager,
@@ -2355,13 +2355,18 @@ from runtime.config_manager import (  # noqa: E402
 )
 from runtime.history_store import load_history_store, save_history_store  # noqa: E402
 from runtime.webengine_runtime import load_webengine_view  # noqa: E402
-from exporting.formula_export import EXPORT_FORMAT_SPECS, build_formula_export  # noqa: E402
+from exporting.formula_converters import (  # noqa: E402
+    latex_to_mathml,
+    latex_to_omml,
+    latex_to_svg_code,
+)
 from preview.content_preview import (  # noqa: E402
     build_mixed_content_html,
-    build_mixed_preview_html,
-    build_table_html,
-    build_table_preview_html,
-    build_text_preview_html,
+)
+from ui.formula_export_menu import (  # noqa: E402
+    export_formula_to_clipboard,
+    populate_formula_export_menu,
+    show_formula_export_menu,
 )
 
 configure_math_preview_runtime(APP_DIR)
@@ -3188,23 +3193,8 @@ class MainWindow(QMainWindow):
         m.addAction(Action("复制", triggered=lambda: self._do_copy_row(row)))
         m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
 
-        # 导出子菜单 - 增加更多导出格式
         export_menu = CenterMenu("导出为...", parent=m)
-        export_menu.addAction(Action("LaTeX (行内 $...$)", triggered=lambda: self._export_as("latex", latex)))
-        export_menu.addAction(Action("LaTeX (display \\[...\\])", triggered=lambda: self._export_as("latex_display", latex)))
-        export_menu.addAction(Action("LaTeX (equation 编号)", triggered=lambda: self._export_as("latex_equation", latex)))
-        export_menu.addSeparator()
-        export_menu.addAction(Action("Markdown (行内 $...$)", triggered=lambda: self._export_as("markdown_inline", latex)))
-        export_menu.addAction(Action("Markdown (块级 $$...$$)", triggered=lambda: self._export_as("markdown_block", latex)))
-        export_menu.addSeparator()
-        export_menu.addAction(Action("MathML", triggered=lambda: self._export_as("mathml", latex)))
-        export_menu.addAction(Action("MathML (.mml)", triggered=lambda: self._export_as("mathml_mml", latex)))
-        export_menu.addAction(Action("MathML (<m>)", triggered=lambda: self._export_as("mathml_m", latex)))
-        export_menu.addAction(Action("MathML (attr)", triggered=lambda: self._export_as("mathml_attr", latex)))
-        export_menu.addSeparator()
-        export_menu.addAction(Action("HTML", triggered=lambda: self._export_as("html", latex)))
-        export_menu.addAction(Action("Word OMML", triggered=lambda: self._export_as("omml", latex)))
-        export_menu.addAction(Action("SVG Code", triggered=lambda: self._export_as("svgcode", latex)))
+        populate_formula_export_menu(export_menu, lambda format_type: self._export_as(format_type, latex))
         m.addMenu(export_menu)
 
         m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
@@ -3710,133 +3700,30 @@ class MainWindow(QMainWindow):
 
     def _show_export_menu_for_source(self, anchor_widget, text_source, empty_hint: str = "内容为空", info_parent=None):
         """在指定控件下方显示导出菜单，支持编辑器和结果对话框复用。"""
-        def _current_text() -> str:
-            try:
-                if callable(text_source):
-                    return (text_source() or "").strip()
-            except Exception:
-                return ""
-            return (str(text_source) if text_source is not None else "").strip()
-
-        text = _current_text()
-        if not text:
-            self.set_action_status(empty_hint, parent=info_parent)
-            return
-
-        def _export_current(format_type: str):
-            current = _current_text()
-            if not current:
-                self.set_action_status(empty_hint, parent=info_parent)
-                return
-            self._export_as(format_type, current, info_parent=info_parent)
-
-        menu = CenterMenu(parent=self)
-        for spec in EXPORT_FORMAT_SPECS:
-            if spec.separator_before:
-                menu.addSeparator()
-                continue
-            menu.addAction(Action(spec.label or spec.key, triggered=lambda _checked=False, key=spec.key: _export_current(key)))
-
-        if anchor_widget:
-            pos = anchor_widget.mapToGlobal(anchor_widget.rect().bottomLeft())
-        else:
-            pos = self.mapToGlobal(self.rect().center())
-        menu.exec(pos)
+        show_formula_export_menu(
+            parent=self,
+            menu_cls=CenterMenu,
+            anchor_widget=anchor_widget,
+            text_source=text_source,
+            status_callback=lambda message: self.set_action_status(message, parent=info_parent),
+            export_callback=lambda format_type, text: self._export_as(format_type, text, info_parent=info_parent),
+            empty_hint=empty_hint,
+        )
 
     def _export_as(self, format_type: str, latex: str, info_parent=None):
         """导出公式为指定格式（支持多种格式）"""
         try:
-            result, format_name = build_formula_export(
+            _ok, message = export_formula_to_clipboard(
                 format_type,
                 latex,
-                mathml_converter=self._latex_to_mathml,
-                omml_converter=self._latex_to_omml,
-                svg_converter=self._latex_to_svg_code,
+                mathml_converter=latex_to_mathml,
+                omml_converter=latex_to_omml,
+                svg_converter=latex_to_svg_code,
             )
         except Exception as e:
             self.set_action_status(f"导出失败: {e}", parent=info_parent)
             return
-
-        if result:
-            try:
-                QApplication.clipboard().setText(result)
-                self.set_action_status(f"已复制 {format_name} 格式", parent=info_parent)
-            except Exception:
-                try:
-                    import pyperclip
-                    pyperclip.copy(result)
-                    self.set_action_status(f"已复制 {format_name} 格式", parent=info_parent)
-                except Exception:
-                    self.set_action_status("复制失败", parent=info_parent)
-
-    def _latex_to_svg_code(self, latex: str) -> str:
-        """将 LaTeX 转换为 SVG 代码"""
-        return latex_to_svg(latex)
-
-    def _latex_to_mathml(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML 格式（使用 latex2mathml 库）"""
-        latex = _normalize_latex_for_export(latex)
-        import latex2mathml.converter
-        mathml = latex2mathml.converter.convert(latex)
-        return _mathml_standardize(mathml)
-
-    def _latex_to_mathml_element(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML <m> 元素格式"""
-        return _mathml_with_prefix(self._latex_to_mathml(latex), "m")
-
-    def _latex_to_mathml_with_attr(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML 属性格式（用于 HTML 属性）"""
-        return _mathml_with_prefix(self._latex_to_mathml(latex), "attr")
-
-    def _latex_to_omml(self, latex: str) -> str:
-        """将 LaTeX 转换为 Office Math Markup Language (OMML) 格式
-        
-        OMML 是 Microsoft Office 使用的公式格式，可以直接粘贴到 Word 中。
-        """
-        try:
-            latex = _normalize_latex_for_export(latex)
-            import latex2mathml.converter
-            # 获取标准 MathML 输出
-            mathml = latex2mathml.converter.convert(latex)
-            
-            # 尝试使用 lxml 转换为 OMML
-            try:
-                from lxml import etree
-                import os
-                
-                # 加载 MML2OMML.XSL 转换样式表（Office 自带）
-                xsl_paths = [
-                    os.path.expandvars(r"%ProgramFiles%\Microsoft Office\root\Office16\MML2OMML.XSL"),
-                    os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft Office\root\Office16\MML2OMML.XSL"),
-                    os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office16\MML2OMML.XSL"),
-                    os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office19\MML2OMML.XSL"),
-                ]
-                
-                xsl_path = None
-                for p in xsl_paths:
-                    if os.path.exists(p):
-                        xsl_path = p
-                        break
-                
-                if xsl_path:
-                    xsl_doc = etree.parse(xsl_path)
-                    transform = etree.XSLT(xsl_doc)
-                    mathml_doc = etree.fromstring(mathml.encode('utf-8'))
-                    omml_doc = transform(mathml_doc)
-                    result = etree.tostring(omml_doc, encoding='unicode')
-                    # 返回 OMML 结果（通常是 <m:oMath> 标签）
-                    return result if result else mathml
-            except Exception:
-                # 如果转换失败，返回 MathML（Word 也支持）
-                return mathml
-            
-        except ImportError:
-            # 没有 latex2mathml，尝试返回 Word 域代码格式
-            escaped = latex.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-            # Word 域代码格式：{ EQ ... }
-            return f"{{ EQ \\\\o\\\\al(\\\\lc\\\\(({escaped})\\\\rc\\\\))"
-        except Exception:
-            raise
+        self.set_action_status(message, parent=info_parent)
 
     def render_latex_in_preview(self, latex: str, label: str = None):
         """渲染指定的 LaTeX 公式到预览区域（点击历史记录时添加到列表）"""
@@ -3891,345 +3778,40 @@ class MainWindow(QMainWindow):
             base_url = _get_mathjax_base_url()
             self.preview_view.setHtml(html, base_url)
         except Exception as e:
-            # 在 WebEngine 中显示错误信息
             try:
-                tokens = _preview_theme_tokens()
-                error_html = f'''<!DOCTYPE html>
-<html><head><meta charset="utf-8"/></head>
-<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
-<h3>⚠️ 公式渲染失败</h3>
-<p><strong>错误:</strong></p>
-<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
-<p><strong>检查项:</strong></p>
-<ul>
-<li>MathJax 资源是否存在</li>
-<li>资源路径是否正确</li>
-<li>PyQt6 WebEngine 是否正常工作</li>
-</ul>
-</body></html>'''
-                self.preview_view.setHtml(error_html, _get_mathjax_base_url())
+                self.preview_view.setHtml(build_preview_error_html(e), _get_mathjax_base_url())
             except Exception:
                 pass  # 显示错误信息也失败了
     
+    def _render_formula_preview_content(self, content: str) -> str:
+        render_mode = None
+        try:
+            from backend.latex_renderer import _latex_settings
+
+            render_mode = _latex_settings.get_render_mode() if _latex_settings else None
+        except Exception:
+            render_mode = None
+
+        cache_key = self._build_preview_latex_cache_key(content) if render_mode and render_mode.startswith("latex_") else ""
+        has_cached_svg = bool(cache_key) and cache_key in self._preview_svg_cache
+        cached_svg = self._preview_svg_cache.get(cache_key, "") if has_cached_svg else ""
+        return render_formula_content_html(
+            content,
+            render_mode=render_mode,
+            cache_key=cache_key,
+            has_cached_svg=has_cached_svg,
+            cached_svg=cached_svg or "",
+            namespace_svg_ids=self._namespace_preview_svg_ids,
+            schedule_render=self._schedule_preview_latex_render,
+        )
+
     def _build_smart_preview_html(self, items: list) -> str:
-        """根据每条记录的类型构建智能渲染 HTML
-        
-        Args:
-            items: [(content, label, content_type), ...]
-        """
-        try:
-            tokens = _preview_theme_tokens()
-            
-            if not items:
-                return build_math_html("")
-            
-            # 构建各个内容块
-            content_blocks = []
-            
-            for content, label, content_type in items:
-                block_html = self._render_content_block(content, label, content_type)
-                content_blocks.append(block_html)
-            
-            body_content = "\n".join(content_blocks)
-            
-            # 构建完整 HTML
-            mathjax_config = '''
-<script>
-window.MathJax = {
-  tex: {
-    inlineMath: [['$','$'], ['\\(','\\)']],
-    displayMath: [['$$','$$'], ['\\[','\\]']],
-    processEscapes: true
-  },
-  svg: {
-    fontCache: 'global',
-    scale: 1
-  },
-  options: {
-    enableMenu: false,
-    processHtmlClass: 'formula-content'
-  }
-};
-</script>
-<!-- 本地 MathJax 加载（使用相对路径） -->
-<script src="tex-mml-chtml.js" type="text/javascript"></script>'''
-            
-            return f'''<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-{mathjax_config}
-<style>
-body {{ 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-    padding: 16px; 
-    line-height: 1.6;
-    background: {tokens['body_bg']};
-    color: {tokens['body_text']};
-}}
-.content-block {{
-    margin-bottom: 16px;
-    padding: 12px;
-    background: {tokens['panel_bg']};
-    border-radius: 8px;
-    border-left: 4px solid {tokens['border_formula']};
-}}
-.content-block.text-type {{
-    border-left-color: {tokens['border_text']};
-}}
-.content-block.table-type {{
-    border-left-color: {tokens['border_table']};
-}}
-.content-block.mixed-type {{
-    border-left-color: {tokens['border_mixed']};
-}}
-.block-label {{
-    font-size: 12px;
-    color: {tokens['muted_text']};
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}}
-.type-badge {{
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: {tokens['badge_formula_bg']};
-    color: {tokens['badge_formula_text']};
-}}
-.type-badge.text {{ background: {tokens['badge_text_bg']}; color: {tokens['badge_text_text']}; }}
-.type-badge.table {{ background: {tokens['badge_table_bg']}; color: {tokens['badge_table_text']}; }}
-.type-badge.mixed {{ background: {tokens['badge_mixed_bg']}; color: {tokens['badge_mixed_text']}; }}
-.block-content {{
-    font-size: 14px;
-    text-align: center;
-}}
-.formula-content {{
-    text-align: center;
-    padding: 0.15em 0.35em;
-    margin: 0.05em 0;
-    display: inline-block;
-    max-width: 100%;
-    box-sizing: border-box;
-}}
-.formula-content img,
-.formula-content svg {{
-    max-width: 100%;
-    height: auto;
-    vertical-align: middle;
-    display: block;
-    margin: 0 auto;
-}}
-.formula-content.latex-svg svg {{
-    display: block;
-    margin: 0 auto;
-    max-width: calc(100% / 1.25);
-    height: auto;
-    transform: scale(1.25);
-    transform-origin: center center;
-}}
-.formula-content.latex-svg {{
-    color: {tokens['latex_formula_text']};
-    padding-top: 0.25em;
-    padding-bottom: 0.25em;
-}}
-.formula-content.latex-svg svg[fill]:not([fill="none"]),
-.formula-content.latex-svg svg *[fill]:not([fill="none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[stroke]:not([stroke="none"]),
-.formula-content.latex-svg svg *[stroke]:not([stroke="none"]) {{
-    stroke: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]),
-.formula-content.latex-svg svg *[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]),
-.formula-content.latex-svg svg *[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]) {{
-    stroke: currentColor !important;
-}}
-.text-content {{
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}}
-table {{
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-}}
-th, td {{
-    border: 1px solid {tokens['table_border']};
-    padding: 8px;
-    text-align: left;
-}}
-th {{
-    background-color: {tokens['th_bg']};
-}}
-.MathJax {{ font-size: 1.4em; }}
-.formula-content mjx-container,
-.block-content mjx-container {{
-    font-size: 140% !important;
-}}
-</style>
-</head>
-<body>{body_content}</body>
-</html>'''
-        except Exception as e:
-            # 返回错误提示 HTML
-            tokens = _preview_theme_tokens()
-            return f'''<!DOCTYPE html>
-<html><head><meta charset="utf-8"/></head>
-<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
-<h3>⚠️ HTML 构建失败</h3>
-<p><strong>错误:</strong></p>
-<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{str(e)}</pre>
-</body></html>'''
-    
-    def _render_content_block(self, content: str, label: str, content_type: str) -> str:
-        """渲染单个内容块"""
-        import html as html_module
-        
-        try:
-            # 确保参数是正确的类型
-            if content is None:
-                content = ""
-            else:
-                content = str(content)
-            
-            if label is None:
-                label = ""
-            else:
-                label = str(label)
-            
-            if content_type is None:
-                content_type = "mathcraft"
-            else:
-                content_type = str(content_type)
-            
-            if not getattr(sys, "frozen", False):
-                print(f"[RenderBlock] 处理内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
-            
-            # 类型显示名称和样式
-            content_type = normalize_content_type(content_type)
-            type_info = {
-                "mathcraft": ("公式", ""),
-                "mathcraft_text": ("文字", "text"),
-                "mathcraft_mixed": ("混合", "mixed"),
-            }
-            
-            type_name, type_class = type_info.get(content_type, ("内容", ""))
-            block_class = f"content-block {type_class}-type" if type_class else "content-block"
-            badge_class = f"type-badge {type_class}" if type_class else "type-badge"
-            
-            # 根据类型渲染内容
-            if content_type == "mathcraft":
-                # 公式模式：根据当前选择的渲染引擎来渲染
-                try:
-                    from backend.latex_renderer import _latex_settings
-                    if _latex_settings:
-                        mode = _latex_settings.get_render_mode()
-                        # 如果选择了 LaTeX 渲染，使用 LaTeX 渲染
-                        if mode and mode.startswith("latex_"):
-                            cache_key = self._build_preview_latex_cache_key(content)
-                            if cache_key in self._preview_svg_cache:
-                                svg = self._preview_svg_cache.get(cache_key) or ""
-                                if svg:
-                                    safe_svg = self._namespace_preview_svg_ids(svg, cache_key)
-                                    rendered_content = f'<div class="formula-content latex-svg">{safe_svg}</div>'
-                                else:
-                                    rendered_content = f'<div class="formula-content">$${content}$$</div>'
-                            else:
-                                self._schedule_preview_latex_render(content)
-                                rendered_content = f'<div class="formula-content">$${content}$$</div>'
-                        else:
-                            # 使用 MathJax 渲染
-                            rendered_content = f'<div class="formula-content">$${content}$$</div>'
-                    else:
-                        # 没有设置，使用 MathJax
-                        rendered_content = f'<div class="formula-content">$${content}$$</div>'
-                except Exception:
-                    # 异常处理，使用 MathJax
-                    rendered_content = f'<div class="formula-content">$${content}$$</div>'
-            elif content_type == "mathcraft_mixed":
-                # 混合模式：文字和公式混合，由 MathJax 处理
-                rendered_content = self._render_mixed_content(content)
-            else:
-                # 文字模式
-                escaped = html_module.escape(content)
-                rendered_content = f'<div class="text-content">{escaped}</div>'
-            
-            result = f'''<div class="{block_class}">
-    <div class="block-label">
-        <span>{html_module.escape(label or "")}</span>
-        <span class="{badge_class}">{type_name}</span>
-    </div>
-    <div class="block-content">{rendered_content}</div>
-</div>'''
-            if not getattr(sys, "frozen", False):
-                print(f"[RenderBlock] 渲染成功，输出长度: {len(result)}")
-            return result
-        except Exception as e:
-            print(f"[RenderBlock] 处理内容块失败: {e}")
-            import traceback
-            traceback.print_exc()
-            # 返回错误提示
-            error_msg = f"内容块渲染失败: {str(e)}"
-            tokens = _preview_theme_tokens()
-            return (
-                f'<div style="color: {tokens["error_text"]}; padding: 10px; '
-                f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
-            )
-    
-    def _render_mixed_content(self, content: str) -> str:
-        """渲染混合内容（文字和公式混合，由 MathJax 统一处理）"""
-        import html as html_module
-        import re
-        
-        try:
-            if not content:
-                return ""
-            
-            # 提取并保护公式部分
-            # 先匹配块级公式 $$...$$，再匹配行内公式 $...$
-            formula_pattern = r'(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)'
-            parts = re.split(formula_pattern, content)
-            result_parts = []
-            
-            for part in parts:
-                if not part:
-                    continue
-                if part.startswith('$$') and part.endswith('$$'):
-                    result_parts.append(part)  # 块级公式保持原样
-                elif part.startswith('$') and part.endswith('$'):
-                    result_parts.append(part)  # 行内公式保持原样
-                else:
-                    # 普通文本转义并保留换行
-                    escaped = html_module.escape(part).replace('\n', '<br>')
-                    result_parts.append(escaped)
-            
-            return ''.join(result_parts)
-        except Exception as e:
-            print(f"[RenderMixed] 混合内容渲染失败: {e}")
-            return f'<div style="color: red;">{html_module.escape(f"混合内容渲染失败: {str(e)}")}</div>'
+        return build_smart_preview_html(
+            items,
+            self._render_formula_preview_content,
+            debug=not getattr(sys, "frozen", False),
+        )
 
-    def _render_table_content(self, content: str) -> str:
-        """渲染表格内容"""
-        import html as html_module
-
-        try:
-            if not content:
-                return ""
-            
-            if '<table' in content.lower():
-                return content  # 已经是 HTML 表格
-            else:
-                # Markdown 或纯文本表格
-                return f'<pre>{html_module.escape(content)}</pre>'
-        except Exception as e:
-            print(f"[RenderTable] 表格内容渲染失败: {e}")
-            return f'<div style="color: red;">{html_module.escape(f"表格渲染失败: {str(e)}")}</div>'
 
     def _clear_preview(self):
         """清空预览区域的公式列表"""
@@ -6433,18 +6015,6 @@ th {{
 
     def _build_mixed_html(self, content: str) -> str:
         return build_mixed_content_html(content)
-
-    def _build_mixed_preview_html(self, formulas: list, labels: list) -> str:
-        return build_mixed_preview_html(formulas, labels)
-
-    def _build_text_preview_html(self, formulas: list, labels: list) -> str:
-        return build_text_preview_html(formulas, labels)
-
-    def _build_table_preview_html(self, formulas: list, labels: list) -> str:
-        return build_table_preview_html(formulas, labels)
-
-    def _build_table_html(self, content: str) -> str:
-        return build_table_html(content)
 
     def on_predict_fail(self, msg: str, external_model: bool | None = None):
         self._next_predict_result_screen_index = None
