@@ -1,4 +1,5 @@
-﻿# backend/capture_overlay.py
+# backend/capture_overlay.py
+import math
 import time
 from dataclasses import dataclass
 
@@ -13,6 +14,7 @@ from PyQt6.QtGui import (
     QFontMetrics,
     QCursor,
     QImage,
+    QPixmap,
     QRegion,
 )
 
@@ -77,7 +79,6 @@ def choose_screen_index(
 def map_global_rect_to_screen_capture(
     global_rect: tuple[int, int, int, int],
     screen_geometry: tuple[int, int, int, int],
-    dpr: float,
 ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None:
     """Map global logical rect to target screen local rect.
 
@@ -106,6 +107,34 @@ def map_global_rect_to_screen_capture(
         max(1, int(local_logical[3])),
     )
     return local_logical, logical_capture
+
+
+def crop_screen_snapshot(
+    snapshot: _ScreenSnapshot,
+    local_logical_rect: tuple[int, int, int, int],
+) -> QPixmap:
+    """Crop a pre-overlay screen snapshot using screen-local logical coordinates."""
+    lx, ly, lw, lh = [int(v) for v in local_logical_rect]
+    image = snapshot.image
+    if image.isNull() or lw <= 0 or lh <= 0:
+        return QPixmap()
+
+    x1 = int(math.floor(lx * snapshot.scale_x))
+    y1 = int(math.floor(ly * snapshot.scale_y))
+    x2 = int(math.ceil((lx + lw) * snapshot.scale_x))
+    y2 = int(math.ceil((ly + lh) * snapshot.scale_y))
+
+    x1 = max(0, min(x1, image.width()))
+    y1 = max(0, min(y1, image.height()))
+    x2 = max(x1, min(x2, image.width()))
+    y2 = max(y1, min(y2, image.height()))
+    if x2 <= x1 or y2 <= y1:
+        return QPixmap()
+
+    cropped = image.copy(x1, y1, x2 - x1, y2 - y1)
+    pixmap = QPixmap.fromImage(cropped)
+    pixmap.setDevicePixelRatio(max(1.0, float(snapshot.scale_x)))
+    return pixmap
 
 
 class ScreenCaptureOverlay(QWidget):
@@ -194,6 +223,16 @@ class ScreenCaptureOverlay(QWidget):
             except Exception:
                 continue
         return snapshots
+
+    def _snapshot_for_screen_index(self, screen_index: int) -> _ScreenSnapshot | None:
+        screens = QGuiApplication.screens()
+        if screen_index < 0 or screen_index >= len(screens):
+            return None
+        target_geo = QRect(screens[screen_index].geometry())
+        for snapshot in self._screen_snapshots:
+            if snapshot.geometry == target_geo:
+                return snapshot
+        return None
 
     def _update_cursor_position_from_global(self, global_pos: QPoint) -> None:
         self.current_global_pos = global_pos
@@ -741,7 +780,6 @@ class ScreenCaptureOverlay(QWidget):
         mapped = map_global_rect_to_screen_capture(
             (global_x, global_y, width, height),
             _rect_to_tuple(screen.geometry()),
-            float(screen.devicePixelRatio() or 1.0),
         )
         if mapped is None:
             if self.capture_display_mode == "index" and actual_idx != target_idx and 0 <= actual_idx < len(screens):
@@ -749,9 +787,12 @@ class ScreenCaptureOverlay(QWidget):
             self._finish_capture(None)
             return
 
-        _logical_rect, native_rect = mapped
-        nx, ny, nw, nh = native_rect
-        pixmap = screen.grabWindow(0, nx, ny, nw, nh)
+        logical_rect, native_rect = mapped
+        snapshot = self._snapshot_for_screen_index(int(target_idx))
+        pixmap = crop_screen_snapshot(snapshot, logical_rect) if snapshot is not None else QPixmap()
+        if pixmap.isNull():
+            nx, ny, nw, nh = native_rect
+            pixmap = screen.grabWindow(0, nx, ny, nw, nh)
         self.last_capture_screen_index = int(target_idx)
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 

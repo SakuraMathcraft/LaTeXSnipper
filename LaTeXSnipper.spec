@@ -29,6 +29,7 @@ BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS",
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
 BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
+BUNDLE_PYTHON_INSTALLER = os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER", "1").strip() != "0"
 if BUILD_CHANNEL not in {"github", "store"}:
     raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
 
@@ -192,6 +193,40 @@ def _prune_collect_tree(dist_root: Path):
             print(f"[SPEC] prune skip {child}: {exc}")
 
     _prune_bundled_python_site_packages(dist_root)
+    _prune_qt_webengine_payload(dist_root)
+
+
+def _prune_qt_webengine_payload(dist_root: Path):
+    """Trim optional Qt WebEngine payload while keeping runtime-critical files."""
+    qt_roots = [
+        dist_root / "PyQt6" / "Qt6",
+        dist_root / "Qt6",
+    ]
+    for qt_root in qt_roots:
+        if not qt_root.exists():
+            continue
+
+        resources_dir = qt_root / "resources"
+        if resources_dir.exists():
+            for pattern in ("*.debug.pak", "*.debug.bin"):
+                for child in resources_dir.glob(pattern):
+                    try:
+                        child.unlink(missing_ok=True)
+                        print(f"[SPEC] pruned Qt WebEngine debug resource: {child.relative_to(dist_root)}")
+                    except Exception as exc:
+                        print(f"[SPEC] prune Qt WebEngine debug resource skip {child}: {exc}")
+
+        locales_dir = qt_root / "translations" / "qtwebengine_locales"
+        if locales_dir.exists():
+            keep_locales = {"en-US.pak", "en-GB.pak", "zh-CN.pak", "zh-TW.pak"}
+            for child in locales_dir.glob("*.pak"):
+                if child.name in keep_locales:
+                    continue
+                try:
+                    child.unlink(missing_ok=True)
+                    print(f"[SPEC] pruned Qt WebEngine locale: {child.relative_to(dist_root)}")
+                except Exception as exc:
+                    print(f"[SPEC] prune Qt WebEngine locale skip {child}: {exc}")
 
 
 def _prune_bundled_python_site_packages(dist_root: Path):
@@ -272,11 +307,13 @@ else:
 # and should not include a nested Python installer.
 BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-amd64.exe"
 optional_root_datas = []
-if BUILD_CHANNEL != "store" and BUNDLED_PY_INSTALLER.exists():
+if BUILD_CHANNEL != "store" and BUNDLE_PYTHON_INSTALLER and BUNDLED_PY_INSTALLER.exists():
     optional_root_datas.append((str(BUNDLED_PY_INSTALLER), "."))
     print(f"[SPEC] include bundled installer: {BUNDLED_PY_INSTALLER}")
 elif BUILD_CHANNEL == "store":
     print("[SPEC] store build skips bundled Python installer.")
+elif not BUNDLE_PYTHON_INSTALLER:
+    print("[SPEC] bundled Python installer disabled by LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER=0.")
 else:
     print(f"[SPEC] bundled installer not found, skip: {BUNDLED_PY_INSTALLER}")
 
@@ -291,9 +328,15 @@ a = Analysis(
 
         # Code folders
         (str(SRC / "backend"), "backend"),
+        (str(SRC / "bootstrap"), "bootstrap"),
         (str(SRC / "editor"), "editor"),
+        (str(SRC / "exporting"), "exporting"),
         (str(SRC / "handwriting"), "handwriting"),
         (str(SRC / "core"), "core"),
+        (str(SRC / "preview"), "preview"),
+        (str(SRC / "runtime"), "runtime"),
+        (str(SRC / "ui"), "ui"),
+        (str(SRC / "workers"), "workers"),
     ] + optional_root_datas + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine core
@@ -349,6 +392,32 @@ a = Analysis(
         "editor.workbench_bridge",
         "editor.workbench_window",
         "editor.advanced_cas",
+        "bootstrap",
+        "bootstrap.deps_bootstrap",
+        "bootstrap.deps_pip_runner",
+        "bootstrap.deps_python_runtime",
+        "bootstrap.deps_qt_compat",
+        "bootstrap.deps_state",
+        "exporting",
+        "exporting.formula_export",
+        "preview",
+        "preview.content_preview",
+        "preview.math_preview",
+        "runtime",
+        "runtime.app_paths",
+        "runtime.config_manager",
+        "runtime.distribution",
+        "runtime.history_store",
+        "runtime.startup_dependency_flow",
+        "runtime.startup_gui_deps",
+        "runtime.webengine_runtime",
+        "ui",
+        "ui.edit_formula_dialog",
+        "ui.favorites_window",
+        "ui.pdf_result_window",
+        "ui.window_helpers",
+        "workers",
+        "workers.recognition_workers",
         "handwriting",
         "handwriting.handwriting_window",
         "handwriting.ink_canvas",

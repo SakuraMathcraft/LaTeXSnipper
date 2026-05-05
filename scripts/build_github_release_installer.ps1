@@ -5,7 +5,8 @@ param(
     [string]$CertificateThumbprint = "",
     [string]$TimestampUrl = "http://timestamp.digicert.com",
     [string]$InnoCompiler = "",
-    [string]$PythonPath = ""
+    [string]$PythonPath = "",
+    [switch]$SkipPythonInstaller
 )
 
 $ErrorActionPreference = "Stop"
@@ -180,10 +181,12 @@ if (-not (Test-Path $iss)) {
 $oldChannel = $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL
 $oldStoreProduct = $env:LATEXSNIPPER_STORE_PRODUCT_ID
 $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
+$oldBundlePythonInstaller = $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER
 try {
     $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = "github"
     $env:LATEXSNIPPER_STORE_PRODUCT_ID = ""
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
+    $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = if ($SkipPythonInstaller) { "0" } else { "1" }
 
     & $python -m PyInstaller $spec --clean --noconfirm
     if ($LASTEXITCODE -ne 0) {
@@ -194,6 +197,7 @@ finally {
     $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = $oldChannel
     $env:LATEXSNIPPER_STORE_PRODUCT_ID = $oldStoreProduct
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
+    $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = $oldBundlePythonInstaller
 }
 
 $appExe = Join-Path $root "dist\$buildName\$buildName.exe"

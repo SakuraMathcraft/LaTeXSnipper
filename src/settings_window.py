@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
-from distribution import is_store_distribution
+from runtime.distribution import is_store_distribution
 from updater import check_update_dialog
 from backend.external_model import (
     ExternalModelConnectionWorker,
