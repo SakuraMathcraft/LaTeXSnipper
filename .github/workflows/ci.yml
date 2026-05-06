@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - develop
+      - MathCraft
   pull_request:
     branches:
       - main
       - develop
+      - MathCraft
   workflow_dispatch:
 
 permissions:
@@ -35,7 +37,7 @@ jobs:
         run: python -m pip install --upgrade pip
 
       - name: Byte-compile source tree
-        run: python -m compileall -q src
+        run: python -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr
 
       - name: Byte-compile key entry files
-        run: python -m py_compile src/main.py src/deps_bootstrap.py src/updater.py
+        run: python -m py_compile src/main.py src/bootstrap/deps_bootstrap.py src/updater.py LaTeXSnipper.spec
