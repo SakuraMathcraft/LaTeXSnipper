@@ -324,6 +324,8 @@ a = Analysis(
     binaries=[] + extra_binaries,
     datas=[
         (str(SRC / "assets"), "assets"),
+        # Launched by the dependency Python as a file-based CAS worker.
+        (str(SRC / "editor" / "advanced_cas.py"), "editor"),
     ] + optional_root_datas + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine core

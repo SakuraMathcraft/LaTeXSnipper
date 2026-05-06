@@ -400,6 +400,12 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn('"psutil"', excludes.group(1))
         self.assertNotIn('"psutil"', prune_prefixes.group(1))
 
+    def test_pyinstaller_spec_keeps_file_based_external_workers(self):
+        spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+
+        self.assertIn('SRC / "editor" / "advanced_cas.py"', spec)
+        self.assertNotIn('(str(SRC / "editor"), "editor")', spec)
+
     def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
         source = (SRC / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
 
