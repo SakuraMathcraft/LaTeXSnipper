@@ -151,12 +151,15 @@ LaTeXSnipper/
 |-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
 |-- src/
 |   |-- main.py                    # Main desktop application entry
-|   |-- deps_bootstrap.py          # Dependency wizard and runtime verification
 |   |-- distribution.py            # GitHub / Microsoft Store channel policy
 |   |-- backend/                   # OCR wrapper, CUDA diagnostics, capture, platform services
+|   |-- bootstrap/                 # Dependency wizard and runtime verification
 |   |-- core/                      # Document composition, export contracts, restart contracts
 |   |-- editor/                    # Math workbench and formula editing UI
 |   |-- handwriting/               # Handwriting canvas, PDF preview, document tools
+|   |-- preview/                   # MathJax preview and render helpers
+|   |-- runtime/                   # Config, history, and runtime helpers
+|   |-- ui/                        # Extracted desktop dialogs and window helpers
 |   |-- assets/                    # Icons and bundled web/math resources
 |   `-- deps/                      # Bundled/local Python dependency environment
 |-- Inno/                          # GitHub Release installer scripts

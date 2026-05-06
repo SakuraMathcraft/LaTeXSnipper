@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mathcraft-ocr"
 version = "0.1.8"
 description = "ONNX-only OCR runtime for mathematical documents"
-readme = "README_MATHCRAFT_OCR.md"
+readme = "readme.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
