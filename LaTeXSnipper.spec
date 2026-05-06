@@ -323,20 +323,7 @@ a = Analysis(
     pathex=[str(SRC), str(ROOT)],
     binaries=[] + extra_binaries,
     datas=[
-        # Resource folders
         (str(SRC / "assets"), "assets"),
-
-        # Code folders
-        (str(SRC / "backend"), "backend"),
-        (str(SRC / "bootstrap"), "bootstrap"),
-        (str(SRC / "editor"), "editor"),
-        (str(SRC / "exporting"), "exporting"),
-        (str(SRC / "handwriting"), "handwriting"),
-        (str(SRC / "core"), "core"),
-        (str(SRC / "preview"), "preview"),
-        (str(SRC / "runtime"), "runtime"),
-        (str(SRC / "ui"), "ui"),
-        (str(SRC / "workers"), "workers"),
     ] + optional_root_datas + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine core

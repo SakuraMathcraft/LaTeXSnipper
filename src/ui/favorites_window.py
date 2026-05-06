@@ -11,14 +11,14 @@ from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, 
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from preview.math_preview import (
-    _latex_display,
-    _latex_equation,
-    _latex_inline,
-    _mathml_standardize,
-    _mathml_to_html_fragment,
-    _mathml_with_prefix,
-    _normalize_latex_for_export,
-    _preview_theme_tokens,
+    latex_display,
+    latex_equation,
+    latex_inline,
+    mathml_standardize,
+    mathml_to_html_fragment,
+    mathml_with_prefix,
+    normalize_latex_for_export,
+    preview_theme_tokens,
     latex_to_svg,
 )
 from runtime.app_paths import resource_path
@@ -107,7 +107,7 @@ class FavoritesWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def _favorites_list_qss(self) -> str:
-        t = _preview_theme_tokens()
+        t = preview_theme_tokens()
         return f"""
             QListWidget {{
                 border: none;
@@ -235,8 +235,8 @@ class FavoritesWindow(QMainWindow):
         # 导出子菜单 - 增加更多导出格式
         export_menu = menu.addMenu("导出为...")
         a_latex = export_menu.addAction("LaTeX (行内 $...$)")
-        a_latex_display = export_menu.addAction("LaTeX (display \\[...\\])")
-        a_latex_equation = export_menu.addAction("LaTeX (equation 编号)")
+        alatex_display = export_menu.addAction("LaTeX (display \\[...\\])")
+        alatex_equation = export_menu.addAction("LaTeX (equation 编号)")
         export_menu.addSeparator()
         a_md_inline = export_menu.addAction("Markdown (行内 $...$)")
         a_md_block = export_menu.addAction("Markdown (块级 $$...$$)")
@@ -268,9 +268,9 @@ class FavoritesWindow(QMainWindow):
             self._delete_item(latex)
         elif act == a_latex:
             self._export_as("latex", latex)
-        elif act == a_latex_display:
+        elif act == alatex_display:
             self._export_as("latex_display", latex)
-        elif act == a_latex_equation:
+        elif act == alatex_equation:
             self._export_as("latex_equation", latex)
         elif act == a_html:
             self._export_as("html", latex)
@@ -327,27 +327,27 @@ class FavoritesWindow(QMainWindow):
         """导出公式为指定格式（统一使用 matplotlib SVG）"""
         result = ""
         format_name = ""
-        clean = _normalize_latex_for_export(latex)
+        clean = normalize_latex_for_export(latex)
 
         if format_type == "latex":
-            result = _latex_inline(clean)
+            result = latex_inline(clean)
             format_name = "LaTeX (行内)"
         elif format_type == "latex_display":
-            result = _latex_display(clean)
+            result = latex_display(clean)
             format_name = "LaTeX (display \\[\\])"
         elif format_type == "latex_equation":
-            result = _latex_equation(clean)
+            result = latex_equation(clean)
             format_name = "LaTeX (equation)"
         elif format_type == "html":
             # HTML 格式
             try:
-                result = _mathml_to_html_fragment(self._latex_to_mathml(clean))
+                result = mathml_to_html_fragment(self._latex_to_mathml(clean))
             except Exception as e:
                 self._set_status(f"HTML 导出失败: {e}")
                 return
             format_name = "HTML"
         elif format_type == "markdown_inline":
-            result = _latex_inline(clean)
+            result = latex_inline(clean)
             format_name = "Markdown 行内"
         elif format_type == "markdown_block":
             result = f"$$\n{clean}\n$$"
@@ -361,21 +361,21 @@ class FavoritesWindow(QMainWindow):
             format_name = "MathML"
         elif format_type == "mathml_mml":
             try:
-                result = _mathml_with_prefix(self._latex_to_mathml(clean), "mml")
+                result = mathml_with_prefix(self._latex_to_mathml(clean), "mml")
             except Exception as e:
                 self._set_status(f"MathML 导出失败: {e}")
                 return
             format_name = "MathML (.mml)"
         elif format_type == "mathml_m":
             try:
-                result = _mathml_with_prefix(self._latex_to_mathml(clean), "m")
+                result = mathml_with_prefix(self._latex_to_mathml(clean), "m")
             except Exception as e:
                 self._set_status(f"MathML 导出失败: {e}")
                 return
             format_name = "MathML (<m>)"
         elif format_type == "mathml_attr":
             try:
-                result = _mathml_with_prefix(self._latex_to_mathml(clean), "attr")
+                result = mathml_with_prefix(self._latex_to_mathml(clean), "attr")
             except Exception as e:
                 self._set_status(f"MathML 导出失败: {e}")
                 return
@@ -414,22 +414,22 @@ class FavoritesWindow(QMainWindow):
     
     def _latex_to_mathml(self, latex: str) -> str:
         """将 LaTeX 转换为 MathML 格式"""
-        latex = _normalize_latex_for_export(latex)
+        latex = normalize_latex_for_export(latex)
         import latex2mathml.converter
         mathml = latex2mathml.converter.convert(latex)
-        return _mathml_standardize(mathml)
+        return mathml_standardize(mathml)
     
     def _latex_to_mathml_element(self, latex: str) -> str:
         """将 LaTeX 转换为 MathML <m> 元素格式"""
-        return _mathml_with_prefix(self._latex_to_mathml(latex), "m")
+        return mathml_with_prefix(self._latex_to_mathml(latex), "m")
     
     def _latex_to_mathml_with_attr(self, latex: str) -> str:
         """将 LaTeX 转换为 MathML 属性格式"""
-        return _mathml_with_prefix(self._latex_to_mathml(latex), "attr")
+        return mathml_with_prefix(self._latex_to_mathml(latex), "attr")
     def _latex_to_omml(self, latex: str) -> str:
         """将 LaTeX 转换为 OMML 格式"""
         try:
-            latex = _normalize_latex_for_export(latex)
+            latex = normalize_latex_for_export(latex)
             import latex2mathml.converter as _latex2mathml_converter
             _ = _latex2mathml_converter
             mathml = self._latex_to_mathml(latex)

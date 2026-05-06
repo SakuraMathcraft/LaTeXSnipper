@@ -160,11 +160,13 @@ class ScreenCaptureOverlay(QWidget):
         self.preferred_screen_index = preferred_screen_index
         self.color_display_mode = "rgb"
         self._cursor_override_active = False
+        self._finished = False
         self._copy_notice_until = 0.0
         self._screen_snapshots: list[_ScreenSnapshot] = []
         self._copy_notice_timer = QTimer(self)
         self._copy_notice_timer.setSingleShot(True)
         self._copy_notice_timer.timeout.connect(self.update)
+        self._clear_blank_override_cursors()
         self._screen_snapshots = self._capture_screen_snapshots()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -238,8 +240,21 @@ class ScreenCaptureOverlay(QWidget):
         self.current_global_pos = global_pos
         self.current_pos = self.mapFromGlobal(global_pos)
 
+    @staticmethod
+    def _clear_blank_override_cursors() -> None:
+        """Clear stale global blank cursors left by interrupted overlays."""
+        try:
+            for _ in range(8):
+                cursor = QGuiApplication.overrideCursor()
+                if cursor is None or cursor.shape() != Qt.CursorShape.BlankCursor:
+                    break
+                QGuiApplication.restoreOverrideCursor()
+        except Exception:
+            pass
+
     def _hide_system_cursor(self) -> None:
         try:
+            self._clear_blank_override_cursors()
             self.setCursor(QCursor(Qt.CursorShape.BlankCursor))
             if not self._cursor_override_active:
                 QGuiApplication.setOverrideCursor(QCursor(Qt.CursorShape.BlankCursor))
@@ -253,16 +268,30 @@ class ScreenCaptureOverlay(QWidget):
                 QGuiApplication.restoreOverrideCursor()
                 self._cursor_override_active = False
             self.unsetCursor()
+            self._clear_blank_override_cursors()
         except Exception:
             pass
 
     def _finish_capture(self, pixmap) -> None:
+        if self._finished:
+            return
+        self._finished = True
         try:
             self.releaseKeyboard()
         except Exception:
             pass
         self._restore_system_cursor()
         self.selection_done.emit(pixmap)
+
+    def cancel_capture(self) -> None:
+        self.start_pos = None
+        self.end_pos = None
+        self.current_pos = None
+        self.start_global_pos = None
+        self.end_global_pos = None
+        self.current_global_pos = None
+        self._finish_capture(None)
+        self.close()
 
     def _snapshot_at_global_pos(self, global_pos: QPoint | None) -> _ScreenSnapshot | None:
         if global_pos is None:
@@ -667,14 +696,7 @@ class ScreenCaptureOverlay(QWidget):
             event.accept()
             return
         if event.key() == Qt.Key.Key_Escape:
-            self.start_pos = None
-            self.end_pos = None
-            self.current_pos = None
-            self.start_global_pos = None
-            self.end_global_pos = None
-            self.current_global_pos = None
-            self._finish_capture(None)
-            self.close()
+            self.cancel_capture()
             return
         super().keyPressEvent(event)
 

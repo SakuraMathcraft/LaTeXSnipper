@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from preview.math_preview import _preview_theme_tokens
+from preview.math_preview import preview_theme_tokens
 
 
 def build_mixed_content_html(content: str) -> str:
     """构建混合内容（文字+公式）的 HTML"""
     import html
     import re
-    tokens = _preview_theme_tokens()
+    tokens = preview_theme_tokens()
 
     # 提取并保护公式部分
     # 先匹配块级公式 $$...$$，再匹配行内公式 $...$

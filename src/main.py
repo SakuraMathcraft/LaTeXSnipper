@@ -763,12 +763,12 @@ class RuntimeLogDialog(QDialog):
         self._apply_theme_styles(force=True)
 
     def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark
         try:
-            self.lbl.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']};")
+            self.lbl.setStyleSheet(f"color: {dialog_theme_tokens()['muted']};")
         except Exception:
             pass
 
@@ -2336,10 +2336,10 @@ def get_app_dir():
 APP_DIR = get_app_dir()
 
 from preview.math_preview import (  # noqa: E402
-    _dialog_theme_tokens,
-    _formula_label_theme_tokens,
-    _get_mathjax_base_url,
-    _is_dark_ui,
+    dialog_theme_tokens,
+    formula_label_theme_tokens,
+    get_mathjax_base_url,
+    is_dark_ui,
     build_math_html,
     configure_math_preview_runtime,
 )
@@ -2530,7 +2530,7 @@ except Exception:
     except Exception:
         sip = None
 def _action_btn_style() -> str:
-    if _is_dark_ui():
+    if is_dark_ui():
         return (
             "PrimaryPushButton{background:#2f6ea8;color:#f5f7fb;border:1px solid #4d8dca;"
             "border-radius:4px;padding:4px 10px;font-size:12px;}"
@@ -2626,6 +2626,8 @@ class MainWindow(QMainWindow):
         self._last_recognition_cancel_notice_at = 0.0
         self.setAcceptDrops(True)
         self.overlay = None
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self.predict_thread = None
@@ -2931,7 +2933,7 @@ class MainWindow(QMainWindow):
                 pass
             # 初始显示空白渲染
             html = build_math_html("")
-            base_url = _get_mathjax_base_url()
+            base_url = get_mathjax_base_url()
             
             try:
                 self.preview_view.setHtml(html, base_url)
@@ -3070,7 +3072,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def _main_theme_tokens(self) -> dict:
-        if _is_dark_ui():
+        if is_dark_ui():
             return {
                 "title": "#8ec5ff",
                 "muted": "#95a0af",
@@ -3081,7 +3083,7 @@ class MainWindow(QMainWindow):
         }
 
     def _apply_theme_styles(self, force: bool = False):
-        dark = _is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark
@@ -3136,7 +3138,7 @@ class MainWindow(QMainWindow):
                     c = app.palette().window().color()
                     dark_by_palette = ((c.red() + c.green() + c.blue()) / 3.0) < 128
             except Exception:
-                dark_by_palette = _is_dark_ui()
+                dark_by_palette = is_dark_ui()
             apply_theme("DARK" if dark_by_palette else "LIGHT")
             self._apply_theme_styles(force=True)
             try:
@@ -3368,7 +3370,7 @@ class MainWindow(QMainWindow):
     def _apply_formula_label_theme(self, lbl: QLabel):
         if lbl is None:
             return
-        t = _formula_label_theme_tokens()
+        t = formula_label_theme_tokens()
         lbl.setToolTip("点击加载到编辑器并渲染")
         lbl.setStyleSheet(
             "QLabel {"
@@ -3377,7 +3379,7 @@ class MainWindow(QMainWindow):
         )
 
     def _history_row_theme_tokens(self) -> dict:
-        if _is_dark_ui():
+        if is_dark_ui():
             return {
                 "index": "#8ec5ff",
                 "name": "#ffb74d",
@@ -3660,12 +3662,12 @@ class MainWindow(QMainWindow):
             return
         try:
             QApplication.clipboard().setText(text)
-            self.set_action_status("已复制公式")
+            self.set_action_status("已复制")
         except Exception:
             try:
                 import pyperclip
                 pyperclip.copy(text)
-                self.set_action_status("已复制公式")
+                self.set_action_status("已复制")
             except Exception:
                 self.set_action_status("复制失败")
 
@@ -3775,11 +3777,11 @@ class MainWindow(QMainWindow):
         try:
             # 构建智能渲染的 HTML
             html = self._build_smart_preview_html(all_items)
-            base_url = _get_mathjax_base_url()
+            base_url = get_mathjax_base_url()
             self.preview_view.setHtml(html, base_url)
         except Exception as e:
             try:
-                self.preview_view.setHtml(build_preview_error_html(e), _get_mathjax_base_url())
+                self.preview_view.setHtml(build_preview_error_html(e), get_mathjax_base_url())
             except Exception:
                 pass  # 显示错误信息也失败了
     
@@ -5002,7 +5004,7 @@ class MainWindow(QMainWindow):
 
         tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能降低识别稳定性。")
         tip.setWordWrap(True)
-        tip.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; font-size: 11px;")
+        tip.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; font-size: 11px;")
         layout.addWidget(tip)
 
         def _refresh_dpi_label(value: int):
@@ -5285,7 +5287,7 @@ class MainWindow(QMainWindow):
                 window_icon=self.icon,
                 select_save_file=_select_save_file_with_icon,
                 warning_dialog=custom_warning_dialog,
-                is_dark_ui=_is_dark_ui,
+                is_dark_ui=is_dark_ui,
             )
         self._pdf_result_window.set_content(text, fmt_key, structured_result=structured_result)
         print(f"[DEBUG] PDF 结果窗口打开 length={len(text or '')}")
@@ -5377,6 +5379,13 @@ class MainWindow(QMainWindow):
             custom_warning_dialog("错误", content, self)
 
     def start_capture(self):
+        if self._capture_start_pending or self.overlay is not None:
+            try:
+                if self.overlay is not None:
+                    self.system_provider.activate_window(self.overlay)
+            except Exception:
+                pass
+            return
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self._prepare_predict_result_dialog_for_capture()
@@ -5385,21 +5394,48 @@ class MainWindow(QMainWindow):
             self.showMinimized()  # 只最小化显示，不抢前台
         if not self.model:
             self._restore_hidden_unpinned_predict_result_dialog()
+            self._restore_predict_result_dialog_visibility()
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         perm = self.screenshot_provider.request_permission()
         if getattr(perm, "state", None) == "denied":
             self._restore_hidden_unpinned_predict_result_dialog()
+            self._restore_predict_result_dialog_visibility()
             custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
             return
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
         )
-        self.overlay = self.screenshot_provider.create_overlay(cfg)
-        self.overlay.installEventFilter(self)
-        self.overlay.selection_done.connect(self.on_capture_done)
-        self.system_provider.activate_window(self.overlay)
+        hidden_unpinned_dialog = self._hidden_unpinned_predict_result_dialog_for_capture is not None
+        self._capture_start_pending = True
+        self._capture_waiting_for_hidden_result_window = hidden_unpinned_dialog
+        if hidden_unpinned_dialog:
+            self._flush_desktop_after_capture_window_hide()
+            QTimer.singleShot(220, lambda cfg=cfg: self._begin_capture_overlay(cfg))
+        else:
+            self._begin_capture_overlay(cfg)
+
+    def _begin_capture_overlay(self, cfg: ScreenshotConfig):
+        if not self._capture_start_pending:
+            return
+        waiting_for_hidden_result = self._capture_waiting_for_hidden_result_window
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
+        if self.overlay is not None:
+            return
+        try:
+            if waiting_for_hidden_result:
+                self._flush_desktop_after_capture_window_hide()
+            self.overlay = self.screenshot_provider.create_overlay(cfg)
+            self.overlay.installEventFilter(self)
+            self.overlay.selection_done.connect(self.on_capture_done)
+            self.system_provider.activate_window(self.overlay)
+        except Exception as e:
+            self.overlay = None
+            QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
+            QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
+            custom_warning_dialog("错误", f"截图遮罩启动失败: {e}", self)
 
     def eventFilter(self, obj, event):
         if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
@@ -5413,9 +5449,15 @@ class MainWindow(QMainWindow):
         if obj is getattr(self, "overlay", None) and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Escape:
                 try:
-                    obj.close()
+                    cancel = getattr(obj, "cancel_capture", None)
+                    if callable(cancel):
+                        cancel()
+                    else:
+                        obj.close()
                 except Exception:
                     pass
+                self._capture_start_pending = False
+                self._capture_waiting_for_hidden_result_window = False
                 self.overlay = None
                 QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
                 QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
@@ -5424,6 +5466,8 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def on_capture_done(self, pixmap):
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
@@ -5598,13 +5642,13 @@ class MainWindow(QMainWindow):
 
     def _set_predict_result_pin_button_style(self, button, pinned: bool):
         try:
-            t = _dialog_theme_tokens()
+            t = dialog_theme_tokens()
             icon = FluentIcon.UNPIN if pinned else FluentIcon.PIN
             button.setIcon(icon.icon())
             button.setIconSize(QSize(18, 18))
             button.setToolTip("固定为小窗口并保持置顶，再点一次恢复可调整大小")
             if pinned:
-                dark = _is_dark_ui()
+                dark = is_dark_ui()
                 bg = "#2f6ea8" if dark else "#3daee9"
                 hover = "#3e82c3" if dark else "#5dbff2"
                 pressed = "#245a8d" if dark else "#319fd9"
@@ -5750,6 +5794,41 @@ class MainWindow(QMainWindow):
         except Exception:
             return False
 
+    def _hide_unpinned_predict_result_dialog_for_capture(self, dlg: QDialog) -> None:
+        """Hide an unpinned result dialog before the clean desktop snapshot is taken."""
+        try:
+            if os.name == "nt":
+                hwnd = int(dlg.winId())
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+            dlg.hide()
+            dlg.setVisible(False)
+        except Exception:
+            try:
+                dlg.hide()
+            except Exception:
+                pass
+
+    def _flush_desktop_after_capture_window_hide(self) -> None:
+        """Let Qt and DWM publish hidden result windows before ScreenCaptureOverlay grabs pixels."""
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+        except Exception:
+            pass
+        if os.name == "nt":
+            try:
+                ctypes.windll.dwmapi.DwmFlush()
+            except Exception:
+                pass
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+        except Exception:
+            pass
+
     def _prepare_predict_result_dialog_for_capture(self):
         dlg = getattr(self, "_predict_result_dialog", None)
         self._restore_predict_result_dialog_after_capture = None
@@ -5761,7 +5840,7 @@ class MainWindow(QMainWindow):
                 self._restore_predict_result_dialog_after_capture = dlg
             elif dlg.isVisible():
                 self._hidden_unpinned_predict_result_dialog_for_capture = dlg
-                dlg.hide()
+                self._hide_unpinned_predict_result_dialog_for_capture(dlg)
         except Exception:
             self._restore_predict_result_dialog_after_capture = None
             self._hidden_unpinned_predict_result_dialog_for_capture = None
@@ -5929,7 +6008,7 @@ class MainWindow(QMainWindow):
                 from PyQt6.QtWebEngineWidgets import QWebEngineView
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
-                preview_view.setHtml(build_math_html(code), _get_mathjax_base_url())
+                preview_view.setHtml(build_math_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
                 
                 # 设置防抖定时器
@@ -5939,13 +6018,13 @@ class MainWindow(QMainWindow):
                 def do_render():
                     latex = te.toPlainText().strip()
                     if latex and preview_view:
-                        preview_view.setHtml(build_math_html(latex), _get_mathjax_base_url())
+                        preview_view.setHtml(build_math_html(latex), get_mathjax_base_url())
 
                 render_timer.timeout.connect(do_render)
                 te.textChanged.connect(lambda: render_timer.start(300))
             else:
                 fallback = QLabel("WebEngine 未加载，无法渲染预览")
-                fallback.setStyleSheet(f"color: {_dialog_theme_tokens()['muted']}; padding: 10px;")
+                fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 10px;")
                 lay.addWidget(fallback)
 
         # 混合模式：渲染文字和公式
@@ -5958,7 +6037,7 @@ class MainWindow(QMainWindow):
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
                 # 混合模式使用特殊渲染
-                preview_view.setHtml(self._build_mixed_html(code), _get_mathjax_base_url())
+                preview_view.setHtml(self._build_mixed_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
                 
                 render_timer = QTimer(dlg)
@@ -5967,7 +6046,7 @@ class MainWindow(QMainWindow):
                 def do_render_mixed():
                     content = te.toPlainText().strip()
                     if content and preview_view:
-                        preview_view.setHtml(self._build_mixed_html(content), _get_mathjax_base_url())
+                        preview_view.setHtml(self._build_mixed_html(content), get_mathjax_base_url())
                 
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
@@ -6208,7 +6287,7 @@ class MainWindow(QMainWindow):
         dlg.setModal(False)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.destroyed.connect(lambda: setattr(self, "shortcut_window", None))
-        t = _dialog_theme_tokens()
+        t = dialog_theme_tokens()
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
         edit = QLineEdit(dlg)
@@ -6223,11 +6302,11 @@ QLineEdit {{
     border: 1px solid {t['border']};
     border-radius: 6px;
     padding: 4px 8px;
-    selection-background-color: {"#3b4756" if _is_dark_ui() else "#d7e3f1"};
+    selection-background-color: {"#3b4756" if is_dark_ui() else "#d7e3f1"};
     selection-color: {t['text']};
 }}
 QLineEdit:focus {{
-    border: 1px solid {"#66788a" if _is_dark_ui() else "#9aa9bb"};
+    border: 1px solid {"#66788a" if is_dark_ui() else "#9aa9bb"};
 }}
 """
         )
