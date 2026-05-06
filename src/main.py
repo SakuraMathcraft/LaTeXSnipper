@@ -2626,6 +2626,8 @@ class MainWindow(QMainWindow):
         self._last_recognition_cancel_notice_at = 0.0
         self.setAcceptDrops(True)
         self.overlay = None
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self.predict_thread = None
@@ -3660,12 +3662,12 @@ class MainWindow(QMainWindow):
             return
         try:
             QApplication.clipboard().setText(text)
-            self.set_action_status("已复制公式")
+            self.set_action_status("已复制")
         except Exception:
             try:
                 import pyperclip
                 pyperclip.copy(text)
-                self.set_action_status("已复制公式")
+                self.set_action_status("已复制")
             except Exception:
                 self.set_action_status("复制失败")
 
@@ -5377,6 +5379,13 @@ class MainWindow(QMainWindow):
             custom_warning_dialog("错误", content, self)
 
     def start_capture(self):
+        if self._capture_start_pending or self.overlay is not None:
+            try:
+                if self.overlay is not None:
+                    self.system_provider.activate_window(self.overlay)
+            except Exception:
+                pass
+            return
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self._prepare_predict_result_dialog_for_capture()
@@ -5385,21 +5394,48 @@ class MainWindow(QMainWindow):
             self.showMinimized()  # 只最小化显示，不抢前台
         if not self.model:
             self._restore_hidden_unpinned_predict_result_dialog()
+            self._restore_predict_result_dialog_visibility()
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         perm = self.screenshot_provider.request_permission()
         if getattr(perm, "state", None) == "denied":
             self._restore_hidden_unpinned_predict_result_dialog()
+            self._restore_predict_result_dialog_visibility()
             custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
             return
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
         )
-        self.overlay = self.screenshot_provider.create_overlay(cfg)
-        self.overlay.installEventFilter(self)
-        self.overlay.selection_done.connect(self.on_capture_done)
-        self.system_provider.activate_window(self.overlay)
+        hidden_unpinned_dialog = self._hidden_unpinned_predict_result_dialog_for_capture is not None
+        self._capture_start_pending = True
+        self._capture_waiting_for_hidden_result_window = hidden_unpinned_dialog
+        if hidden_unpinned_dialog:
+            self._flush_desktop_after_capture_window_hide()
+            QTimer.singleShot(220, lambda cfg=cfg: self._begin_capture_overlay(cfg))
+        else:
+            self._begin_capture_overlay(cfg)
+
+    def _begin_capture_overlay(self, cfg: ScreenshotConfig):
+        if not self._capture_start_pending:
+            return
+        waiting_for_hidden_result = self._capture_waiting_for_hidden_result_window
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
+        if self.overlay is not None:
+            return
+        try:
+            if waiting_for_hidden_result:
+                self._flush_desktop_after_capture_window_hide()
+            self.overlay = self.screenshot_provider.create_overlay(cfg)
+            self.overlay.installEventFilter(self)
+            self.overlay.selection_done.connect(self.on_capture_done)
+            self.system_provider.activate_window(self.overlay)
+        except Exception as e:
+            self.overlay = None
+            QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
+            QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
+            custom_warning_dialog("错误", f"截图遮罩启动失败: {e}", self)
 
     def eventFilter(self, obj, event):
         if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
@@ -5413,9 +5449,15 @@ class MainWindow(QMainWindow):
         if obj is getattr(self, "overlay", None) and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Escape:
                 try:
-                    obj.close()
+                    cancel = getattr(obj, "cancel_capture", None)
+                    if callable(cancel):
+                        cancel()
+                    else:
+                        obj.close()
                 except Exception:
                     pass
+                self._capture_start_pending = False
+                self._capture_waiting_for_hidden_result_window = False
                 self.overlay = None
                 QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
                 QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
@@ -5424,6 +5466,8 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def on_capture_done(self, pixmap):
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
@@ -5750,6 +5794,41 @@ class MainWindow(QMainWindow):
         except Exception:
             return False
 
+    def _hide_unpinned_predict_result_dialog_for_capture(self, dlg: QDialog) -> None:
+        """Hide an unpinned result dialog before the clean desktop snapshot is taken."""
+        try:
+            if os.name == "nt":
+                hwnd = int(dlg.winId())
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+            dlg.hide()
+            dlg.setVisible(False)
+        except Exception:
+            try:
+                dlg.hide()
+            except Exception:
+                pass
+
+    def _flush_desktop_after_capture_window_hide(self) -> None:
+        """Let Qt and DWM publish hidden result windows before ScreenCaptureOverlay grabs pixels."""
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+        except Exception:
+            pass
+        if os.name == "nt":
+            try:
+                ctypes.windll.dwmapi.DwmFlush()
+            except Exception:
+                pass
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.processEvents()
+        except Exception:
+            pass
+
     def _prepare_predict_result_dialog_for_capture(self):
         dlg = getattr(self, "_predict_result_dialog", None)
         self._restore_predict_result_dialog_after_capture = None
@@ -5761,7 +5840,7 @@ class MainWindow(QMainWindow):
                 self._restore_predict_result_dialog_after_capture = dlg
             elif dlg.isVisible():
                 self._hidden_unpinned_predict_result_dialog_for_capture = dlg
-                dlg.hide()
+                self._hide_unpinned_predict_result_dialog_for_capture(dlg)
         except Exception:
             self._restore_predict_result_dialog_after_capture = None
             self._hidden_unpinned_predict_result_dialog_for_capture = None
