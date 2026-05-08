@@ -202,9 +202,17 @@ class InstallWorker(QThread):
 
             pending = _reorder_mathcraft_install_specs(pending, gpu_runtime_first=want_gpu_runtime)
 
+            # ---- Pandoc 二进制自动下载（无论 pip 包是否已装，都要确保二进制存在） ----
+            if "PANDOC" in chosen_layers:
+                _ensure_pandoc_binary(
+                    self.pyexe,
+                    self.log_updated.emit,
+                    progress_fn=self.progress_updated.emit,
+                )
+
             if not pending:
                 self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
-                self.progress_updated.emit(100)
+                self.progress_updated.emit(80)
                 self._emit_done_safe(True)
                 return
 
@@ -251,7 +259,7 @@ class InstallWorker(QThread):
                     except RuntimeError:
                         pass
                 done_count += 1
-                percent = int(done_count / total * 100)
+                percent = int(done_count / total * 80)
                 self.progress_updated.emit(percent)
                 if ok:
                     self.log_updated.emit(f"[OK] {pkg} 安装成功 ✅")
@@ -676,6 +684,260 @@ def _force_repair_broken_runtime_imports(
     return ok, err or last_err
 
 
+def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
+    """确保 pandoc 二进制文件可用。
+
+    pypandoc (pip install pandoc) 只是 Python 包装器，不包含 pandoc 二进制。
+    本函数在 pip 安装完 pypandoc 后调用，自动下载 pandoc 二进制文件。
+
+    Args:
+        progress_fn: 可选回调 ``(percent: int, status: str)`` 用于上报下载进度。
+    """
+    if log_fn:
+        log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")
+
+    # 1. 已经有 pandoc？
+    import shutil as _shutil
+    if _shutil.which("pandoc"):
+        if log_fn:
+            log_fn("[PANDOC] pandoc 已在 PATH 中，跳过下载 ✅")
+        return True
+
+    # 2. 尝试通过 pypandoc 自动下载
+    if log_fn:
+        log_fn("[PANDOC] 未检测到 pandoc 二进制，尝试自动下载...")
+    if progress_fn:
+        progress_fn(85)
+
+    try:
+        code = (
+            "import pypandoc, shutil, sys\n"
+            "if shutil.which('pandoc'):\n"
+            "    print('ALREADY_OK')\n"
+            "    sys.exit(0)\n"
+            "print('DOWNLOADING')\n"
+            "pypandoc.download_pandoc()\n"
+            "p = pypandoc.get_pandoc_path()\n"
+            "print(f'DOWNLOADED: {p}')\n"
+        )
+        result = subprocess.run(
+            [pyexe, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            creationflags=flags,
+        )
+        output = (result.stdout or "") + (result.stderr or "")
+        if log_fn:
+            for line in output.strip().splitlines():
+                log_fn(f"[PANDOC] {line}")
+
+        if result.returncode == 0 and ("ALREADY_OK" in output or "DOWNLOADED" in output):
+            if log_fn:
+                log_fn("[PANDOC] pandoc 二进制文件就绪 ✅")
+            if progress_fn:
+                progress_fn(100)
+            return True
+
+        if log_fn:
+            log_fn(f"[PANDOC] 自动下载失败 (exit={result.returncode})")
+
+    except subprocess.TimeoutExpired:
+        if log_fn:
+            log_fn("[PANDOC] 自动下载超时（5 分钟）")
+    except Exception as e:
+        if log_fn:
+            log_fn(f"[PANDOC] 自动下载异常: {e}")
+
+    # 3. 回退：从多个镜像下载 zip
+    if log_fn:
+        log_fn("[PANDOC] 尝试从镜像直接下载 pandoc...")
+    if progress_fn:
+        progress_fn(90)
+    ok = _download_pandoc_from_mirrors(log_fn)
+    if ok:
+        if log_fn:
+            log_fn("[PANDOC] pandoc 二进制文件就绪 ✅")
+        if progress_fn:
+            progress_fn(100)
+        return True
+
+    if log_fn:
+        log_fn("[PANDOC] ⚠️ pandoc 二进制自动下载全部失败")
+        log_fn("[PANDOC] 请手动安装：https://github.com/jgm/pandoc/releases")
+        log_fn("[PANDOC] 或运行: winget install JohnMacFarlane.Pandoc")
+    if progress_fn:
+        progress_fn(100)
+    return False
+
+
+# Pandoc 下载镜像列表
+_PANDOC_VERSION = "3.7.0.2"
+_PANDOC_ZIP_NAME = f"pandoc-{_PANDOC_VERSION}-windows-x86_64.zip"
+_PANDOC_MIRRORS: list[str] = [
+    # 国内镜像优先
+    f"https://mirror.ghproxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{_PANDOC_ZIP_NAME}",
+    f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{_PANDOC_ZIP_NAME}",
+    f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{_PANDOC_ZIP_NAME}",
+    # GitHub 官方（国内可能很慢）
+    f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{_PANDOC_ZIP_NAME}",
+]
+
+
+def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
+    """用 HEAD 请求测试各镜像延迟，返回从快到慢排序后的列表。"""
+    import urllib.request
+    import time as _time
+
+    results: list[tuple[float, str]] = []
+    for url in mirrors:
+        short = url[:70]
+        try:
+            req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "LaTeXSnipper"})
+            t0 = _time.monotonic()
+            resp = urllib.request.urlopen(req, timeout=8)
+            resp.close()
+            latency = _time.monotonic() - t0
+            results.append((latency, url))
+            if log_fn:
+                log_fn(f"[PANDOC] 延迟测试 {short}... → {latency:.1f}s")
+        except Exception as e:
+            if log_fn:
+                log_fn(f"[PANDOC] 延迟测试 {short}... → 失败 ({str(e)[:60]})")
+            continue
+
+    if not results:
+        return mirrors  # 全部失败，保持原序
+
+    results.sort(key=lambda x: x[0])
+    ranked = [url for _, url in results]
+    if log_fn:
+        log_fn(f"[PANDOC] 最快镜像: {ranked[0][:70]}...")
+    return ranked
+
+
+def _download_pandoc_from_mirrors(log_fn=None) -> bool:
+    """依次尝试多个镜像下载 pandoc 并解压到 deps/pandoc/。"""
+    import platform
+    import zipfile
+    import io
+    import urllib.request
+    import time as _time
+
+    if platform.system() != "Windows" or platform.machine() not in ("AMD64", "x86_64"):
+        if log_fn:
+            log_fn("[PANDOC] 自动下载仅支持 Windows x64，请手动安装")
+        return False
+
+    pandoc_dir = _pandoc_data_dir()
+    pandoc_dir.mkdir(parents=True, exist_ok=True)
+
+    if log_fn:
+        log_fn(f"[PANDOC] 共 {len(_PANDOC_MIRRORS)} 个镜像源，正在测速选择最快...")
+
+    # 先测速，按延迟排序
+    mirrors = _rank_mirrors_by_speed(_PANDOC_MIRRORS, log_fn)
+
+    for idx, url in enumerate(mirrors, start=1):
+        if log_fn:
+            log_fn(f"[PANDOC] [{idx}/{len(mirrors)}] 尝试: {url[:80]}...")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "LaTeXSnipper"})
+            resp = urllib.request.urlopen(req, timeout=30)
+            total = int(resp.headers.get("Content-Length", 0))
+            if log_fn and total > 0:
+                log_fn(f"[PANDOC] 文件大小: {total // 1024} KB")
+
+            # 分块下载 + 速度/进度输出
+            chunks: list[bytes] = []
+            downloaded = 0
+            last_log_time = _time.monotonic()
+            last_log_bytes = 0
+            chunk_size = 64 * 1024  # 64 KB
+
+            while True:
+                chunk = resp.read(chunk_size)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                downloaded += len(chunk)
+
+                now = _time.monotonic()
+                elapsed = now - last_log_time
+                if elapsed >= 2.0:  # 每 2 秒输出一次
+                    speed = (downloaded - last_log_bytes) / elapsed / 1024  # KB/s
+                    if total > 0:
+                        pct = downloaded * 100 // total
+                        if log_fn:
+                            log_fn(f"[PANDOC] 下载中: {pct}%  ({downloaded // 1024}/{total // 1024} KB)  {speed:.0f} KB/s")
+                    else:
+                        if log_fn:
+                            log_fn(f"[PANDOC] 下载中: {downloaded // 1024} KB  {speed:.0f} KB/s")
+                    last_log_time = now
+                    last_log_bytes = downloaded
+
+            resp.close()
+            data = b"".join(chunks)
+
+            if len(data) < 100_000:
+                if log_fn:
+                    log_fn(f"[PANDOC] 响应过小 ({len(data)} bytes)，跳过此镜像")
+                continue
+
+            if log_fn:
+                log_fn(f"[PANDOC] 下载完成 ({len(data) // 1024} KB)，正在解压...")
+
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                for member in zf.namelist():
+                    if member.endswith("pandoc.exe"):
+                        exe_data = zf.read(member)
+                        exe_path = pandoc_dir / "pandoc.exe"
+                        exe_path.write_bytes(exe_data)
+                        if log_fn:
+                            log_fn(f"[PANDOC] 已写入: {exe_path}")
+
+                        # 添加到 PATH（当前进程）
+                        dir_str = str(pandoc_dir)
+                        if dir_str not in os.environ.get("PATH", ""):
+                            os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+
+                        # 验证
+                        result = subprocess.run(
+                            [str(exe_path), "--version"],
+                            capture_output=True, text=True, timeout=10,
+                            creationflags=flags,
+                        )
+                        if result.returncode == 0:
+                            ver_line = (result.stdout or "").splitlines()[0]
+                            if log_fn:
+                                log_fn(f"[PANDOC] 验证通过: {ver_line}")
+                            return True
+
+            if log_fn:
+                log_fn("[PANDOC] zip 中未找到 pandoc.exe")
+
+        except Exception as e:
+            if log_fn:
+                log_fn(f"[PANDOC] 失败: {str(e)[:120]}")
+            continue
+
+    return False
+
+
+def _pandoc_data_dir() -> Path:
+    """pandoc 二进制存放目录（位于项目根目录下 deps/pandoc）。"""
+    # 从当前工作目录或 .venv 的父目录推导项目根
+    cwd = Path.cwd()
+    venv_candidate = cwd / ".venv"
+    if venv_candidate.is_dir():
+        base = cwd
+    else:
+        # 回退到 cwd 本身
+        base = cwd
+    target = base / "deps" / "pandoc"
+    return target
+
+
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
     """
     安装完成后强制修复关键依赖版本。
@@ -827,6 +1089,18 @@ print("BASIC OK")
     "CORE": _CORE_VERIFY_CODE,
     "MATHCRAFT_CPU": _onnxruntime_session_verify_code(expect_gpu=False),
     "MATHCRAFT_GPU": _onnxruntime_session_verify_code(expect_gpu=True),
+    "PANDOC": """
+import importlib.util, shutil, os, sys
+if importlib.util.find_spec("pypandoc") is None:
+    raise RuntimeError("pypandoc not installed")
+# 也检查 deps/pandoc 目录
+deps_pandoc = os.path.join(os.path.dirname(sys.executable), "pandoc")
+if os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = deps_pandoc + os.pathsep + os.environ.get("PATH", "")
+if not shutil.which("pandoc"):
+    raise RuntimeError("pandoc binary not found (pypandoc is installed but pandoc executable is missing)")
+print("PANDOC OK")
+""",
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
@@ -1087,6 +1361,9 @@ LAYER_MAP = {
     ],
     "MATHCRAFT_GPU": [
         ORT_GPU_DEFAULT_SPEC,
+    ],
+    "PANDOC": [
+        "pandoc>=2.4",
     ],
 }
 
@@ -1977,6 +2254,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
         "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
         "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
+        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/rtf 等文档格式转换。\n"
         "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
         "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
         "\n"

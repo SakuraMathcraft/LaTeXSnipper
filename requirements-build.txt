@@ -14,3 +14,5 @@ humanfriendly==10.0
 lxml==4.9.4
 PyMuPDF==1.27.2.2
 pywin32==311
+# Pandoc 导出后端（可选）- pip install pandoc
+pandoc==2.4
