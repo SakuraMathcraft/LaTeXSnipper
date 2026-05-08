@@ -202,68 +202,99 @@ class InstallWorker(QThread):
 
             pending = _reorder_mathcraft_install_specs(pending, gpu_runtime_first=want_gpu_runtime)
 
+            # 先处理 pip 包安装（0–80%），pandoc 放最后（80–100%）
+            want_pandoc = "PANDOC" in chosen_layers
+
             if not pending:
-                self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
-                self.progress_updated.emit(100)
-                self._emit_done_safe(True)
-                return
+                if want_pandoc:
+                    self.log_updated.emit("[INFO] 所有 pip 依赖已安装，检查 pandoc...")
+                    self.progress_updated.emit(20)
+                else:
+                    self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
+                    self.progress_updated.emit(80)
+                    self._emit_done_safe(True)
+                    return
 
-            self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
-
-            total = len(pending)
-            done_count = 0
             fail_count = 0
-            failed_pkgs = []
+            failed_pkgs: list[str] = []
+            pip_progress_max = 80
 
-            for idx, pkg in enumerate(pending, start=1):
-                while not self.pause_event.is_set():
+            if pending:
+                self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
+
+                total = len(pending)
+                done_count = 0
+                fail_count = 0
+                failed_pkgs = []
+                # pip 阶段占用 0–70%（如果有 pandoc）或 0–80%（无 pandoc）
+                pip_progress_max = 70 if want_pandoc else 80
+
+                for idx, pkg in enumerate(pending, start=1):
+                    while not self.pause_event.is_set():
+                        if self.stop_event.is_set():
+                            self.log_updated.emit("[CANCEL] 用户取消安装。")
+                            break
+                        time.sleep(0.1)
                     if self.stop_event.is_set():
                         self.log_updated.emit("[CANCEL] 用户取消安装。")
                         break
-                    time.sleep(0.1)
-                if self.stop_event.is_set():
-                    self.log_updated.emit("[CANCEL] 用户取消安装。")
-                    break
 
-                try:
-                    pkg_label = re.split(r'[<>=!~ ]', pkg, 1)[0].strip()
-                    self.status_updated.emit(f"正在安装第 {idx}/{total} 个包：{pkg_label}")
-                    self.busy_state_changed.emit(True)
-                    ok = _pip_install(
-                        self.pyexe,
-                        pkg,
-                        self.stop_event,
-                        self.log_q,
-                        use_mirror=self.mirror,
-                        flags=flags,
-                        pause_event=self.pause_event,
-                        force_reinstall=self.force_reinstall,
-                        no_cache=self.no_cache,
-                        proc_setter=lambda p: setattr(self, "proc", p),
-                    )
-                except Exception as e:
-                    ok = False
-                    tb = traceback.format_exc()
-                    self.log_updated.emit(f"[FATAL] 安装 {pkg} 时发生异常: {e}\n{tb}")
-                finally:
                     try:
-                        self.busy_state_changed.emit(False)
-                    except RuntimeError:
-                        pass
-                done_count += 1
-                percent = int(done_count / total * 100)
-                self.progress_updated.emit(percent)
-                if ok:
-                    self.log_updated.emit(f"[OK] {pkg} 安装成功 ✅")
-                else:
-                    self.log_updated.emit(f"[ERR] {pkg} 安装失败 ❌")
-                    fail_count += 1
-                    failed_pkgs.append(pkg)
+                        pkg_label = re.split(r'[<>=!~ ]', pkg, 1)[0].strip()
+                        self.status_updated.emit(f"正在安装第 {idx}/{total} 个包：{pkg_label}")
+                        self.busy_state_changed.emit(True)
+                        ok = _pip_install(
+                            self.pyexe,
+                            pkg,
+                            self.stop_event,
+                            self.log_q,
+                            use_mirror=self.mirror,
+                            flags=flags,
+                            pause_event=self.pause_event,
+                            force_reinstall=self.force_reinstall,
+                            no_cache=self.no_cache,
+                            proc_setter=lambda p: setattr(self, "proc", p),
+                        )
+                    except Exception as e:
+                        ok = False
+                        tb = traceback.format_exc()
+                        self.log_updated.emit(f"[FATAL] 安装 {pkg} 时发生异常: {e}\n{tb}")
+                    finally:
+                        try:
+                            self.busy_state_changed.emit(False)
+                        except RuntimeError:
+                            pass
+                    done_count += 1
+                    percent = int(done_count / total * pip_progress_max)
+                    self.progress_updated.emit(percent)
+                    if ok:
+                        self.log_updated.emit(f"[OK] {pkg} 安装成功 ✅")
+                    else:
+                        self.log_updated.emit(f"[ERR] {pkg} 安装失败 ❌")
+                        fail_count += 1
+                        failed_pkgs.append(pkg)
 
-            if self.stop_event.is_set():
-                self.log_updated.emit("[CANCEL] 安装已取消。")
-                self._emit_done_safe(False)
-                return
+                if self.stop_event.is_set():
+                    self.log_updated.emit("[CANCEL] 安装已取消。")
+                    self._emit_done_safe(False)
+                    return
+
+            # ---- Pandoc 二进制（pip 完成后，占剩余进度条） ----
+            pandoc_ok = True
+            if want_pandoc:
+                base_progress = pip_progress_max if pending else 20
+                self.log_updated.emit("[PANDOC] 检查 pandoc 二进制文件...")
+
+                def _pandoc_progress(pct: int):
+                    # pct: 85/90/100 → 映射到 base_progress..95
+                    mapped = base_progress + int((pct - 85) / 15.0 * (95 - base_progress))
+                    self.progress_updated.emit(mapped)
+
+                pandoc_ok = _ensure_pandoc_binary(
+                    self.pyexe,
+                    self.log_updated.emit,
+                    progress_fn=_pandoc_progress,
+                )
 
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
@@ -290,7 +321,7 @@ class InstallWorker(QThread):
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
-            all_ok = (fail_count == 0) and runtime_ort_ok
+            all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
 
             if all_ok:
                 self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
@@ -421,6 +452,26 @@ class UninstallLayerWorker(QThread):
 
         if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
             _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
+
+        # PANDOC 层卸载：删除 pip 包后，还要清理二进制和残留文件
+        if any(str(name).lower() == "pandoc" for name in self.pkg_names):
+            self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
+            _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
+            # 删除整个 deps/pandoc/ 目录
+            pandoc_dir = _pandoc_data_dir()
+            if pandoc_dir.exists():
+                try:
+                    import shutil as _shutil
+                    _shutil.rmtree(pandoc_dir, ignore_errors=True)
+                    self.log_updated.emit(f"[PANDOC] 已删除目录: {pandoc_dir}")
+                except Exception as e:
+                    self.log_updated.emit(f"[PANDOC] 删除目录失败: {e}")
+            # 从当前进程 PATH 中移除 deps/pandoc
+            pandoc_dir_str = str(pandoc_dir)
+            current_path = os.environ.get("PATH", "")
+            if pandoc_dir_str in current_path:
+                os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
+                self.log_updated.emit("[PANDOC] 已从 PATH 中移除 deps/pandoc")
 
         try:
             data = {"installed_layers": []}
@@ -676,6 +727,466 @@ def _force_repair_broken_runtime_imports(
     return ok, err or last_err
 
 
+def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
+    """确保 pandoc 二进制文件可用。
+
+    pip install pandoc 只装 Python 包装器 (pypandoc)，不包含 pandoc 二进制。
+    本函数在 pip 安装完成后调用，从镜像站直接下载 pandoc 二进制到 deps/pandoc/。
+
+    Args:
+        progress_fn: 可选回调 ``(percent: int)`` 用于上报下载进度。
+    """
+    if log_fn:
+        log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")
+
+    # 1. 已经有 pandoc？优先检查 deps/pandoc/（依赖向导安装的最新版），再查系统 PATH
+    import shutil as _shutil
+
+    def _resolve_pandoc_exe() -> str | None:
+        """优先返回 deps/pandoc/ 中的二进制路径。"""
+        deps_dir = Path.cwd() / "deps" / "pandoc"
+        if deps_dir.is_dir():
+            for name in ("pandoc.exe", "pandoc"):
+                p = deps_dir / name
+                if p.exists() and p.is_file():
+                    return str(p)
+        return _shutil.which("pandoc")
+
+    pandoc_exe = _resolve_pandoc_exe()
+    if pandoc_exe:
+        current_ver = _get_pandoc_version(pandoc_exe)
+        if current_ver and not _pandoc_version_too_old(current_ver, _PANDOC_VERSION):
+            if log_fn:
+                log_fn(f"[PANDOC] pandoc 已就绪 (v{'.'.join(str(x) for x in current_ver)})，跳过下载 ✅")
+            _cleanup_pandoc_leftovers(log_fn)
+            return True
+        if log_fn:
+            if current_ver:
+                log_fn(f"[PANDOC] 检测到 pandoc v{'.'.join(str(x) for x in current_ver)} < v{_PANDOC_VERSION}，尝试更新...")
+            else:
+                log_fn("[PANDOC] 检测到 pandoc 但无法读取版本，尝试更新...")
+
+    # 2. 直接从镜像下载（跨平台，国内可用）
+    #    注：pypandoc.download_pandoc() 在国内网络下几乎不可用
+    #    （GitHub 超时 / msiexec 弹窗），直接跳过。
+    _cleanup_pandoc_leftovers(log_fn)
+    if log_fn:
+        log_fn("[PANDOC] 从镜像下载 pandoc 二进制...")
+    if progress_fn:
+        progress_fn(85)
+    ok = _download_pandoc_from_mirrors(log_fn)
+    if ok:
+        if log_fn:
+            log_fn("[PANDOC] pandoc 二进制文件就绪 ✅")
+        if progress_fn:
+            progress_fn(100)
+        _cleanup_pandoc_leftovers(log_fn)
+        return True
+
+    if log_fn:
+        log_fn("[PANDOC] ⚠️ pandoc 二进制自动下载全部失败")
+        log_fn("[PANDOC] 请手动安装：https://github.com/jgm/pandoc/releases")
+        if sys.platform == "win32":
+            log_fn("[PANDOC] 或运行: winget install JohnMacFarlane.Pandoc")
+        elif sys.platform == "linux":
+            log_fn("[PANDOC] 或运行: sudo apt install pandoc / sudo dnf install pandoc")
+        elif sys.platform == "darwin":
+            log_fn("[PANDOC] 或运行: brew install pandoc")
+    if progress_fn:
+        progress_fn(100)
+    return False
+
+
+def _cleanup_pandoc_leftovers(log_fn=None) -> None:
+    """清理 pandoc 相关无用文件：残留 .msi、旧版本二进制、临时文件。
+
+    对锁定文件会重试 3 次（间隔 0.5s），Windows 上最终回退到重启后删除。
+    """
+    import time as _time
+
+    cwd = Path.cwd()
+    removed_count = 0
+
+    def _safe_unlink(filepath: Path, label: str) -> bool:
+        """安全删除单个文件，带重试和 Windows 延迟删除回退。"""
+        nonlocal removed_count
+        for attempt in range(3):
+            try:
+                filepath.unlink()
+                removed_count += 1
+                if log_fn:
+                    log_fn(f"[PANDOC] 已清理{label}: {filepath.name}")
+                return True
+            except PermissionError:
+                if attempt < 2:
+                    _time.sleep(0.5)
+                    continue
+                # Windows: 尝试 MoveFileEx 延迟删除
+                if sys.platform == "win32":
+                    try:
+                        import ctypes
+                        ctypes.windll.kernel32.MoveFileExW(
+                            str(filepath), None, 4  # MOVEFILE_DELAY_UNTIL_REBOOT = 4
+                        )
+                        removed_count += 1
+                        if log_fn:
+                            log_fn(f"[PANDOC] 已标记重启后删除{label}: {filepath.name}")
+                        return True
+                    except Exception:
+                        pass
+                if log_fn:
+                    log_fn(f"[PANDOC] 清理{label}失败(占用): {filepath.name}")
+                return False
+            except Exception as e:
+                if log_fn:
+                    log_fn(f"[PANDOC] 清理{label}失败: {filepath.name} ({e})")
+                return False
+        return False
+
+    # 1. 清理项目根目录下的 .msi 安装包
+    for pattern in ("pandoc-*-windows-x86_64.msi", "pandoc-*.msi"):
+        for msi_path in cwd.glob(pattern):
+            _safe_unlink(msi_path, " MSI")
+
+    # 2. 清理项目根目录下的 .zip / .tar.gz 安装包
+    for pattern in ("pandoc-*.zip", "pandoc-*.tar.gz"):
+        for archive in cwd.glob(pattern):
+            _safe_unlink(archive, "归档")
+
+    # 3. 清理 deps/pandoc/ 中不属于当前平台的旧二进制
+    pandoc_dir = _pandoc_data_dir()
+    if pandoc_dir.is_dir():
+        try:
+            _bin_name = _pandoc_platform_archive()[1]
+        except Exception:
+            _bin_name = None
+        for stale in pandoc_dir.iterdir():
+            if stale.is_file() and stale.name.startswith("pandoc"):
+                if _bin_name and stale.name == _bin_name:
+                    continue
+                _safe_unlink(stale, "旧二进制")
+
+    if removed_count > 0 and log_fn:
+        log_fn(f"[PANDOC] 共清理 {removed_count} 个无用文件")
+
+
+def _get_pandoc_version(pandoc_path: str | None = None) -> tuple[int, ...] | None:
+    """获取已安装 pandoc 的版本号。
+
+    Returns:
+        版本元组如 (3, 9, 0, 2)，失败返回 None。
+    """
+    import shutil as _shutil
+    exe = pandoc_path or _shutil.which("pandoc")
+    if not exe:
+        # 检查 deps/pandoc/ 目录
+        try:
+            deps_dir = Path.cwd() / "deps" / "pandoc"
+            for candidate in ("pandoc.exe", "pandoc"):
+                cand_path = deps_dir / candidate
+                if cand_path.exists():
+                    exe = str(cand_path)
+                    break
+        except Exception:
+            pass
+    if not exe:
+        return None
+
+    try:
+        result = subprocess.run(
+            [str(exe), "--version"],
+            capture_output=True, text=True, timeout=10,
+            creationflags=flags if sys.platform == "win32" else 0,
+        )
+        if result.returncode != 0:
+            return None
+        # 第一行格式: "pandoc 3.9.0.2" 或 "pandoc.exe 3.9.0.2"
+        first_line = (result.stdout or "").splitlines()[0].strip()
+        parts = first_line.split()
+        for part in parts:
+            stripped = part.strip().rstrip(",")
+            if stripped and stripped[0].isdigit():
+                return tuple(int(x) for x in stripped.split("."))
+    except Exception:
+        pass
+    return None
+
+
+def _pandoc_version_too_old(current: tuple[int, ...] | None, target: str) -> bool:
+    """判断当前 pandoc 版本是否低于目标版本。"""
+    if current is None:
+        return True  # 无法检测版本 → 当作过旧
+    target_tuple = tuple(int(x) for x in target.split("."))
+    return current < target_tuple
+
+
+# Pandoc 下载配置
+_PANDOC_VERSION = "3.9.0.2"
+
+
+def _pandoc_platform_archive() -> tuple[str, str, str]:
+    """返回 (平台归档文件名, 二进制名, 归档类型)。
+
+    Returns:
+        (archive_name, binary_name, archive_type)
+        archive_type: "zip" | "tar.gz"
+    """
+    import platform as _plt
+    system = _plt.system()
+    machine = _plt.machine()
+
+    if system == "Windows" and machine in ("AMD64", "x86_64"):
+        return (
+            f"pandoc-{_PANDOC_VERSION}-windows-x86_64.zip",
+            "pandoc.exe",
+            "zip",
+        )
+    if system == "Linux" and machine in ("x86_64", "AMD64"):
+        return (
+            f"pandoc-{_PANDOC_VERSION}-linux-amd64.tar.gz",
+            "pandoc",
+            "tar.gz",
+        )
+    if system == "Darwin":
+        if machine == "arm64":
+            return (
+                f"pandoc-{_PANDOC_VERSION}-arm64-macOS.zip",
+                "pandoc",
+                "zip",
+            )
+        if machine in ("x86_64", "AMD64"):
+            return (
+                f"pandoc-{_PANDOC_VERSION}-x86_64-macOS.zip",
+                "pandoc",
+                "zip",
+            )
+
+    raise RuntimeError(
+        f"[PANDOC] 不支持的平台: {system} {machine}，请手动安装 pandoc"
+    )
+
+
+def _build_pandoc_mirrors() -> list[str]:
+    """为当前平台构建镜像 URL 列表。"""
+    archive_name, _bin_name, _arc_type = _pandoc_platform_archive()
+    return [
+        # 国内镜像优先
+        f"https://mirror.ghproxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        # GitHub 官方（国内可能很慢）
+        f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+    ]
+
+
+def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
+    """用 HEAD 请求测试各镜像延迟，返回从快到慢排序后的列表。"""
+    import urllib.request
+    import time as _time
+
+    results: list[tuple[float, str]] = []
+    for url in mirrors:
+        short = url[:70]
+        try:
+            req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "LaTeXSnipper"})
+            t0 = _time.monotonic()
+            resp = urllib.request.urlopen(req, timeout=8)
+            resp.close()
+            latency = _time.monotonic() - t0
+            results.append((latency, url))
+            if log_fn:
+                log_fn(f"[PANDOC] 延迟测试 {short}... → {latency:.1f}s")
+        except Exception as e:
+            if log_fn:
+                log_fn(f"[PANDOC] 延迟测试 {short}... → 失败 ({str(e)[:60]})")
+            continue
+
+    if not results:
+        return mirrors  # 全部失败，保持原序
+
+    results.sort(key=lambda x: x[0])
+    ranked = [url for _, url in results]
+    if log_fn:
+        log_fn(f"[PANDOC] 最快镜像: {ranked[0][:70]}...")
+    return ranked
+
+
+def _download_pandoc_from_mirrors(log_fn=None) -> bool:
+    """依次尝试多个镜像下载 pandoc 并解压到 deps/pandoc/。
+
+    支持 Windows (.zip)、Linux (.tar.gz)、macOS (.zip)。
+    """
+    import io
+    import urllib.request
+    import time as _time
+
+    try:
+        archive_name, binary_name, archive_type = _pandoc_platform_archive()
+    except RuntimeError as e:
+        if log_fn:
+            log_fn(f"[PANDOC] {e}")
+        return False
+
+    pandoc_dir = _pandoc_data_dir()
+    pandoc_dir.mkdir(parents=True, exist_ok=True)
+
+    mirrors = _build_pandoc_mirrors()
+    if log_fn:
+        log_fn(f"[PANDOC] 平台归档: {archive_name} ({archive_type})")
+        log_fn(f"[PANDOC] 共 {len(mirrors)} 个镜像源，正在测速选择最快...")
+
+    # 先测速，按延迟排序
+    mirrors = _rank_mirrors_by_speed(mirrors, log_fn)
+
+    for idx, url in enumerate(mirrors, start=1):
+        if log_fn:
+            log_fn(f"[PANDOC] [{idx}/{len(mirrors)}] 尝试: {url[:80]}...")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "LaTeXSnipper"})
+            resp = urllib.request.urlopen(req, timeout=30)
+            total = int(resp.headers.get("Content-Length", 0))
+            if log_fn and total > 0:
+                log_fn(f"[PANDOC] 文件大小: {total // 1024} KB")
+
+            # 分块下载 + 速度/进度输出
+            chunks: list[bytes] = []
+            downloaded = 0
+            last_log_time = _time.monotonic()
+            last_log_bytes = 0
+            chunk_size = 64 * 1024  # 64 KB
+
+            while True:
+                chunk = resp.read(chunk_size)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                downloaded += len(chunk)
+
+                now = _time.monotonic()
+                elapsed = now - last_log_time
+                if elapsed >= 2.0:
+                    speed = (downloaded - last_log_bytes) / elapsed / 1024  # KB/s
+                    if total > 0:
+                        pct = downloaded * 100 // total
+                        if log_fn:
+                            log_fn(f"[PANDOC] 下载中: {pct}%  ({downloaded // 1024}/{total // 1024} KB)  {speed:.0f} KB/s")
+                    else:
+                        if log_fn:
+                            log_fn(f"[PANDOC] 下载中: {downloaded // 1024} KB  {speed:.0f} KB/s")
+                    last_log_time = now
+                    last_log_bytes = downloaded
+
+            resp.close()
+            data = b"".join(chunks)
+
+            if len(data) < 100_000:
+                if log_fn:
+                    log_fn(f"[PANDOC] 响应过小 ({len(data)} bytes)，跳过此镜像")
+                continue
+
+            if log_fn:
+                log_fn(f"[PANDOC] 下载完成 ({len(data) // 1024} KB)，正在解压 ({archive_type})...")
+
+            # ---- 根据归档类型解压 ----
+            exe_data = _extract_pandoc_binary(data, archive_type, binary_name, log_fn)
+            if exe_data is None:
+                if log_fn:
+                    log_fn(f"[PANDOC] 归档中未找到 {binary_name}")
+                continue
+
+            exe_path = pandoc_dir / binary_name
+            exe_path.write_bytes(exe_data)
+            if log_fn:
+                log_fn(f"[PANDOC] 已写入: {exe_path}")
+
+            # Linux/macOS 需要可执行权限
+            if sys.platform != "win32":
+                try:
+                    os.chmod(str(exe_path), 0o755)
+                except Exception:
+                    pass
+
+            # 添加到 PATH（当前进程）
+            dir_str = str(pandoc_dir)
+            if dir_str not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+
+            # 验证
+            verify_cmd = [str(exe_path), "--version"]
+            result = subprocess.run(
+                verify_cmd,
+                capture_output=True, text=True, timeout=10,
+                creationflags=flags if sys.platform == "win32" else 0,
+            )
+            if result.returncode == 0:
+                ver_line = (result.stdout or "").splitlines()[0]
+                if log_fn:
+                    log_fn(f"[PANDOC] 验证通过: {ver_line}")
+                return True
+
+        except Exception as e:
+            if log_fn:
+                log_fn(f"[PANDOC] 失败: {str(e)[:120]}")
+            continue
+
+    return False
+
+
+def _extract_pandoc_binary(
+    data: bytes,
+    archive_type: str,
+    binary_name: str,
+    log_fn=None,
+) -> bytes | None:
+    """从归档数据中提取 pandoc 二进制文件。
+
+    Args:
+        data: 归档文件字节数据
+        archive_type: "zip" | "tar.gz"
+        binary_name: 要查找的二进制文件名
+
+    Returns:
+        二进制数据，失败返回 None
+    """
+    import io
+    import zipfile
+
+    if archive_type == "zip":
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            for member in zf.namelist():
+                if member.endswith(binary_name):
+                    return zf.read(member)
+        return None
+
+    if archive_type == "tar.gz":
+        import tarfile
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+            for member in tf.getmembers():
+                if member.name.endswith(binary_name) and member.isfile():
+                    f = tf.extractfile(member)
+                    if f:
+                        return f.read()
+        return None
+
+    if log_fn:
+        log_fn(f"[PANDOC] 不支持的归档类型: {archive_type}")
+    return None
+
+
+def _pandoc_data_dir() -> Path:
+    """pandoc 二进制存放目录（位于项目根目录下 deps/pandoc）。"""
+    # 从当前工作目录或 .venv 的父目录推导项目根
+    cwd = Path.cwd()
+    venv_candidate = cwd / ".venv"
+    if venv_candidate.is_dir():
+        base = cwd
+    else:
+        # 回退到 cwd 本身
+        base = cwd
+    target = base / "deps" / "pandoc"
+    return target
+
+
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
     """
     安装完成后强制修复关键依赖版本。
@@ -827,6 +1338,18 @@ print("BASIC OK")
     "CORE": _CORE_VERIFY_CODE,
     "MATHCRAFT_CPU": _onnxruntime_session_verify_code(expect_gpu=False),
     "MATHCRAFT_GPU": _onnxruntime_session_verify_code(expect_gpu=True),
+    "PANDOC": """
+import importlib.util, shutil, os, sys
+if importlib.util.find_spec("pypandoc") is None:
+    raise RuntimeError("pypandoc not installed")
+# 也检查 deps/pandoc 目录
+deps_pandoc = os.path.join(os.path.dirname(sys.executable), "pandoc")
+if os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = deps_pandoc + os.pathsep + os.environ.get("PATH", "")
+if not shutil.which("pandoc"):
+    raise RuntimeError("pandoc binary not found (pypandoc is installed but pandoc executable is missing)")
+print("PANDOC OK")
+""",
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
@@ -1087,6 +1610,9 @@ LAYER_MAP = {
     ],
     "MATHCRAFT_GPU": [
         ORT_GPU_DEFAULT_SPEC,
+    ],
+    "PANDOC": [
+        "pandoc>=2.4",
     ],
 }
 
@@ -1977,6 +2503,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
         "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
         "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
+        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/rtf 等文档格式转换。\n"
         "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
         "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
         "\n"
