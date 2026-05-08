@@ -90,21 +90,24 @@ _download_attempted: bool = False
 
 
 def _find_pandoc_binary() -> Optional[str]:
-    """Try to locate the ``pandoc`` executable on PATH or in the deps directory."""
-    # 1. Check PATH
+    """Try to locate the ``pandoc`` executable — prefers deps/pandoc/ over system PATH."""
+    # 1. Check deps/pandoc directory FIRST (dependency wizard puts latest version here)
+    try:
+        deps_dir = Path.cwd() / "deps" / "pandoc"
+        if deps_dir.is_dir():
+            for candidate in ("pandoc.exe", "pandoc"):
+                deps_pandoc = deps_dir / candidate
+                if deps_pandoc.exists() and deps_pandoc.is_file():
+                    dir_str = str(deps_pandoc.parent)
+                    if dir_str not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+                    return str(deps_pandoc)
+    except Exception:
+        pass
+    # 2. Check system PATH (fallback)
     found = shutil.which("pandoc")
     if found:
         return found
-    # 2. Check deps/pandoc directory (installed by dependency wizard)
-    try:
-        deps_pandoc = Path.cwd() / "deps" / "pandoc" / "pandoc.exe"
-        if deps_pandoc.exists():
-            dir_str = str(deps_pandoc.parent)
-            if dir_str not in os.environ.get("PATH", ""):
-                os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
-            return str(deps_pandoc)
-    except Exception:
-        pass
     return None
 
 
