@@ -449,14 +449,6 @@ class SettingsWindow(QDialog):
         pandoc_layout = QVBoxLayout(self.pandoc_widget)
         pandoc_layout.setContentsMargins(0, 0, 0, 0)
         pandoc_layout.setSpacing(6)
-        # 启用开关
-        self.pandoc_enable_check = QCheckBox("启用 Pandoc 导出后端")
-        self.pandoc_enable_check.setChecked(False)
-        self.pandoc_enable_check.setToolTip(
-            "启用后可在导出菜单中使用 Pandoc 支持的格式（docx/odt/epub/rtf 等）。\n"
-            "需要安装 pypandoc (pip install pypandoc) 和 pandoc 可执行文件。"
-        )
-        pandoc_layout.addWidget(self.pandoc_enable_check)
         # 状态显示
         self.pandoc_status_label = QLabel("状态：未检测")
         self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
@@ -476,7 +468,7 @@ class SettingsWindow(QDialog):
         pandoc_layout.addLayout(pandoc_btn_row)
         # 提示信息
         self.pandoc_hint_label = QLabel(
-            "提示：可通过依赖管理向导安装 PANDOC 层，检测时会自动下载 pandoc 二进制文件。"
+            "提示：安装 PANDOC 层后，导出菜单会自动显示 Pandoc 格式。"
         )
         self.pandoc_hint_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
         self.pandoc_hint_label.setWordWrap(True)
@@ -564,7 +556,6 @@ class SettingsWindow(QDialog):
         # Pandoc 相关信号
         self.pandoc_detect_btn.clicked.connect(self._detect_pandoc)
         self.pandoc_install_btn.clicked.connect(self._open_deps_wizard)
-        self.pandoc_enable_check.stateChanged.connect(self._on_pandoc_enable_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
@@ -2164,16 +2155,6 @@ class SettingsWindow(QDialog):
 
     def _init_pandoc_status(self):
         """初始化 Pandoc 状态检测"""
-        # 从配置读取启用状态
-        enabled = False
-        try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                enabled = bool(self.parent().cfg.get("pandoc_export_enabled", False))
-        except Exception:
-            enabled = False
-        self.pandoc_enable_check.setChecked(enabled)
-
-        # 后台检测 Pandoc 可用性
         self._detect_pandoc_async()
 
     def _detect_pandoc_async(self):
@@ -2232,19 +2213,5 @@ class SettingsWindow(QDialog):
             self.pandoc_detect_btn.setEnabled(True),
             self.pandoc_detect_btn.setText("检测 Pandoc"),
         ))
-
-    def _on_pandoc_enable_changed(self, state: int):
-        """Pandoc 启用开关变化"""
-        enabled = state == 2  # Qt.CheckState.Checked
-        try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("pandoc_export_enabled", enabled)
-        except Exception:
-            pass
-        if enabled:
-            self._detect_pandoc_async()
-            self._show_notification("info", "Pandoc 导出", "已启用 Pandoc 导出后端。如果 Pandoc 未安装，导出菜单中不会显示 Pandoc 格式。")
-        else:
-            self._show_notification("info", "Pandoc 导出", "已禁用 Pandoc 导出后端。")
 
 # ---------------- 主窗口 ----------------
