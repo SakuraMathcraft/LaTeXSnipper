@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import tomllib
 
 
@@ -23,3 +24,22 @@ def test_build_requirements_use_pypandoc_wrapper() -> None:
 
     assert any(spec.startswith("pypandoc") for spec in specs)
     assert not any(spec.startswith("pandoc") for spec in specs)
+
+
+def test_pyinstaller_spec_keeps_pandoc_runtime_backend() -> None:
+    spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+    hiddenimports = re.search(r"hiddenimports=\[(.*?)\],", spec, re.S)
+    excludes = re.search(r"excludes=\[(.*?)\],", spec, re.S)
+    prune_prefixes = re.search(r"remove_prefixes = \((.*?)\)", spec, re.S)
+
+    assert hiddenimports is not None
+    assert excludes is not None
+    assert prune_prefixes is not None
+    for module_name in (
+        "exporting.pandoc_exporter",
+        "runtime.pandoc_runtime",
+        "pypandoc",
+    ):
+        assert f'"{module_name}"' in hiddenimports.group(1)
+        assert f'"{module_name}"' not in excludes.group(1)
+        assert f'"{module_name}"' not in prune_prefixes.group(1)
