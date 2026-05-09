@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -86,12 +88,19 @@ PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
 _available_cache: Optional[bool] = None
 _pandoc_version_cache: Optional[str] = None
+_pandoc_path_cache: Optional[str] = None
 _download_attempted: bool = False
 
 
 def _find_pandoc_binary() -> Optional[str]:
-    """Try to locate the ``pandoc`` executable — prefers deps/pandoc/ over system PATH."""
-    # 1. Check deps/pandoc directory FIRST (dependency wizard puts latest version here)
+    """Try to locate the ``pandoc`` executable."""
+    configured = load_configured_pandoc_path()
+    if configured is not None:
+        dir_str = str(configured.parent)
+        if dir_str not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+        return str(configured)
+
     try:
         deps_dir = Path.cwd() / "deps" / "pandoc"
         if deps_dir.is_dir():
@@ -136,12 +145,13 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     When *force* is ``True`` the cache is bypassed *and* an auto-download of
     the pandoc binary is attempted if it cannot be found.
     """
-    global _available_cache, _pandoc_version_cache, _download_attempted
+    global _available_cache, _pandoc_version_cache, _pandoc_path_cache, _download_attempted
     if _available_cache is not None and not force:
         return _available_cache
 
     _available_cache = False
     _pandoc_version_cache = None
+    _pandoc_path_cache = None
 
     # When force=True, clear stale import cache so a fresh import succeeds
     # after the user has just installed pypandoc.
@@ -156,12 +166,13 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    # 2. Try to locate pandoc binary via pypandoc or PATH
-    pandoc_path: Optional[str] = None
-    try:
-        pandoc_path = pypandoc.get_pandoc_path()
-    except Exception:
-        pandoc_path = _find_pandoc_binary()
+    # 2. Prefer the persisted app-level path, then pypandoc/PATH fallbacks.
+    pandoc_path = _find_pandoc_binary()
+    if not pandoc_path:
+        try:
+            pandoc_path = pypandoc.get_pandoc_path()
+        except Exception:
+            pandoc_path = None
 
     # 3. If still not found, try auto-download (first attempt only)
     if not pandoc_path:
@@ -183,8 +194,11 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
+        _pandoc_path_cache = str(Path(pandoc_path).resolve())
+        save_configured_pandoc_path(_pandoc_path_cache)
     except Exception:
         _pandoc_version_cache = "(unknown version)"
+        _pandoc_path_cache = str(pandoc_path)
 
     _available_cache = True
     logger.info("Pandoc available: %s", _pandoc_version_cache)
@@ -195,6 +209,12 @@ def pandoc_version() -> Optional[str]:
     """Return the pandoc version string, or *None* if unavailable."""
     check_pandoc_available()
     return _pandoc_version_cache
+
+
+def pandoc_path() -> Optional[str]:
+    """Return the resolved pandoc executable path, or *None* if unavailable."""
+    check_pandoc_available()
+    return _pandoc_path_cache
 
 
 def is_available() -> bool:

@@ -472,6 +472,12 @@ class UninstallLayerWorker(QThread):
             if pandoc_dir_str in current_path:
                 os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
                 self.log_updated.emit("[PANDOC] 已从 PATH 中移除 deps/pandoc")
+            try:
+                from runtime.pandoc_runtime import clear_configured_pandoc_path
+                clear_configured_pandoc_path()
+                self.log_updated.emit("[PANDOC] 已清理持久化路径配置")
+            except Exception:
+                pass
 
         try:
             data = {"installed_layers": []}
@@ -743,7 +749,14 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
     import shutil as _shutil
 
     def _resolve_pandoc_exe() -> str | None:
-        """优先返回 deps/pandoc/ 中的二进制路径。"""
+        """优先返回已持久化或 deps/pandoc/ 中的二进制路径。"""
+        try:
+            from runtime.pandoc_runtime import load_configured_pandoc_path
+            configured = load_configured_pandoc_path()
+            if configured is not None:
+                return str(configured)
+        except Exception:
+            pass
         deps_dir = Path.cwd() / "deps" / "pandoc"
         if deps_dir.is_dir():
             for name in ("pandoc.exe", "pandoc"):
@@ -758,6 +771,11 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
         if current_ver and not _pandoc_version_too_old(current_ver, _PANDOC_VERSION):
             if log_fn:
                 log_fn(f"[PANDOC] pandoc 已就绪 (v{'.'.join(str(x) for x in current_ver)})，跳过下载 ✅")
+            try:
+                from runtime.pandoc_runtime import save_configured_pandoc_path
+                save_configured_pandoc_path(pandoc_exe)
+            except Exception:
+                pass
             _cleanup_pandoc_leftovers(log_fn)
             return True
         if log_fn:
@@ -1119,6 +1137,11 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
             )
             if result.returncode == 0:
                 ver_line = (result.stdout or "").splitlines()[0]
+                try:
+                    from runtime.pandoc_runtime import save_configured_pandoc_path
+                    save_configured_pandoc_path(exe_path)
+                except Exception:
+                    pass
                 if log_fn:
                     log_fn(f"[PANDOC] 验证通过: {ver_line}")
                 return True
@@ -1341,6 +1364,23 @@ print("BASIC OK")
 import importlib.util, shutil, os, sys
 if importlib.util.find_spec("pypandoc") is None:
     raise RuntimeError("pypandoc not installed")
+configured_pandoc = None
+try:
+    import json
+    from pathlib import Path
+    cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+    if cfg_path.exists():
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        raw = str(cfg.get("pandoc_executable_path", "") or "").strip() if isinstance(cfg, dict) else ""
+        if raw:
+            path = Path(raw).expanduser()
+            configured_pandoc = path if path.is_file() else None
+except Exception:
+    configured_pandoc = None
+if configured_pandoc is not None:
+    deps_dir = str(configured_pandoc.parent)
+    if deps_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = deps_dir + os.pathsep + os.environ.get("PATH", "")
 # 也检查 deps/pandoc 目录
 deps_pandoc = os.path.join(os.path.dirname(sys.executable), "pandoc")
 if os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):

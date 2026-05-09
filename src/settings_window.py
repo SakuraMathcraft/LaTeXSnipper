@@ -2157,7 +2157,7 @@ class SettingsWindow(QDialog):
         """初始化 Pandoc 状态检测"""
         self._detect_pandoc_async()
 
-    def _detect_pandoc_async(self):
+    def _detect_pandoc_async(self, *, notify: bool = False):
         """异步检测 Pandoc 可用性"""
         import threading
 
@@ -2166,14 +2166,16 @@ class SettingsWindow(QDialog):
 
         def _worker():
             try:
-                from exporting.pandoc_exporter import check_pandoc_available, pandoc_version
+                from exporting.pandoc_exporter import check_pandoc_available, pandoc_path, pandoc_version
                 available = check_pandoc_available(force=True)
                 version = pandoc_version() if available else None
+                resolved_path = pandoc_path() if available else None
             except Exception as e:
                 available = False
                 version = str(e)
+                resolved_path = None
             # 用信号安全地回传到 UI 线程
-            self._pandoc_detect_result = (available, version)
+            self._pandoc_detect_result = (available, version, resolved_path, notify)
             # 使用 QMetaObject.invokeMethod 确保在主线程执行
             from PyQt6.QtCore import QMetaObject, Qt
             QMetaObject.invokeMethod(
@@ -2185,16 +2187,32 @@ class SettingsWindow(QDialog):
     @pyqtSlot()
     def _on_pandoc_detect_done(self):
         """Pandoc 检测完成回调（UI 线程）"""
-        available, version_info = getattr(self, "_pandoc_detect_result", (False, None))
-        self._update_pandoc_status_ui(available, version_info)
+        available, version_info, resolved_path, notify = getattr(
+            self, "_pandoc_detect_result", (False, None, None, False)
+        )
+        self._update_pandoc_status_ui(available, version_info, resolved_path)
+        self.pandoc_detect_btn.setEnabled(True)
+        self.pandoc_detect_btn.setText("检测 Pandoc")
+        if notify:
+            if available:
+                detail = str(version_info or "Pandoc 可用")
+                if resolved_path:
+                    detail = f"{detail}\n路径: {resolved_path}"
+                self._show_notification("success", "Pandoc 检测成功", detail)
+            else:
+                detail = str(version_info or "请通过依赖管理向导安装 PANDOC 层")
+                self._show_notification("warning", "Pandoc 未就绪", detail)
 
-    def _update_pandoc_status_ui(self, available: bool, version_info: str | None):
+    def _update_pandoc_status_ui(self, available: bool, version_info: str | None, resolved_path: str | None = None):
         """更新 Pandoc 状态 UI（UI 线程调用）"""
         if available:
             ver_text = version_info or "pandoc"
             self.pandoc_status_label.setText(f"✅ {ver_text}")
             self.pandoc_status_label.setStyleSheet("color: #2e7d32; font-size: 10px; padding: 2px;")
-            self.pandoc_hint_label.setText("Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。")
+            if resolved_path:
+                self.pandoc_hint_label.setText(f"Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。\n路径：{resolved_path}")
+            else:
+                self.pandoc_hint_label.setText("Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。")
         else:
             self.pandoc_status_label.setText("❌ 未检测到 Pandoc")
             self.pandoc_status_label.setStyleSheet("color: #c62828; font-size: 10px; padding: 2px;")
@@ -2206,12 +2224,6 @@ class SettingsWindow(QDialog):
         """手动触发 Pandoc 检测"""
         self.pandoc_detect_btn.setEnabled(False)
         self.pandoc_detect_btn.setText("检测中...")
-        self._detect_pandoc_async()
-        # 恢复按钮状态（延迟）
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(2000, lambda: (
-            self.pandoc_detect_btn.setEnabled(True),
-            self.pandoc_detect_btn.setText("检测 Pandoc"),
-        ))
+        self._detect_pandoc_async(notify=True)
 
 # ---------------- 主窗口 ----------------
