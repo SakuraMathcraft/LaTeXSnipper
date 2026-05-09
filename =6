@@ -1,0 +1,7 @@
+Defaulting to user installation because normal site-packages is not writeable
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Requirement already satisfied: pyinstaller in /home/user/.local/lib/python3.11/site-packages (6.20.0)
+Requirement already satisfied: altgraph in /home/user/.local/lib/python3.11/site-packages (from pyinstaller) (0.17.5)
+Requirement already satisfied: packaging>=22.0 in /home/user/.local/lib/python3.11/site-packages (from pyinstaller) (26.2)
+Requirement already satisfied: pyinstaller-hooks-contrib>=2026.4 in /home/user/.local/lib/python3.11/site-packages (from pyinstaller) (2026.5)
+Requirement already satisfied: setuptools>=42.0.0 in /usr/lib/python3/dist-packages (from pyinstaller) (66.1.1)

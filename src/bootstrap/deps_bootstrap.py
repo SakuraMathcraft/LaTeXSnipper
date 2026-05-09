@@ -165,13 +165,17 @@ class InstallWorker(QThread):
                     return onnxruntime_gpu_spec(self.pyexe)
                 return pkg_spec
 
+            # 过滤系统包（#system: 前缀），这些不走 pip 安装
+            system_pkgs = [p for p in self.pkgs if p.startswith("#system:")]
+            pip_pkgs = [p for p in self.pkgs if not p.startswith("#system:")]
+
             pending = []
             skipped = []
             if self.force_reinstall:
-                pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
+                pending = [_resolve_layer_pkg_spec(p) for p in pip_pkgs]
                 self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
             else:
-                for p in self.pkgs:
+                for p in pip_pkgs:
                     effective_p = _resolve_layer_pkg_spec(p)
                     pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
                     if pkg_name in installed_before:
@@ -204,10 +208,14 @@ class InstallWorker(QThread):
 
             # 先处理 pip 包安装（0–80%），pandoc 放最后（80–100%）
             want_pandoc = "PANDOC" in chosen_layers
+            want_screenshot = "SCREENSHOT" in chosen_layers
 
             if not pending:
                 if want_pandoc:
                     self.log_updated.emit("[INFO] 所有 pip 依赖已安装，检查 pandoc...")
+                    self.progress_updated.emit(20)
+                elif want_screenshot and os.name != "nt":
+                    self.log_updated.emit("[INFO] 所有 pip 依赖已安装，检查截图工具...")
                     self.progress_updated.emit(20)
                 else:
                     self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
@@ -218,11 +226,11 @@ class InstallWorker(QThread):
             fail_count = 0
             failed_pkgs: list[str] = []
             pip_progress_max = 80
+            total = len(pending)  # 提前声明，避免 pending 为空时 UnboundLocalError
 
             if pending:
                 self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
 
-                total = len(pending)
                 done_count = 0
                 fail_count = 0
                 failed_pkgs = []
@@ -296,6 +304,16 @@ class InstallWorker(QThread):
                     progress_fn=_pandoc_progress,
                 )
 
+            # ---- Linux 截图工具（系统包，通过包管理器安装） ----
+            screenshot_ok = True
+            if want_screenshot and os.name != "nt":
+                self.log_updated.emit("[SCREENSHOT] 正在安装 Linux 截图工具...")
+                screenshot_ok = _install_screenshot_tools(self.log_updated.emit)
+                if screenshot_ok:
+                    self.log_updated.emit("[SCREENSHOT] 截图工具安装完成 ✅")
+                else:
+                    self.log_updated.emit("[SCREENSHOT] 截图工具安装失败，请手动执行: sudo apt install maim grim flameshot")
+
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
             runtime_ort_ok = True
@@ -321,7 +339,7 @@ class InstallWorker(QThread):
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
-            all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
+            all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok and screenshot_ok
 
             if all_ok:
                 self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
@@ -395,6 +413,8 @@ class LayerVerifyWorker(QThread):
             state = _load_json(self.state_path, {"installed_layers": []})
             current_layers = set(state.get("installed_layers", []))
             current_layers.update(verify_ok_layers)
+            # 移除验证失败的层，避免残留
+            current_layers.difference_update(verify_fail_layers)
             # MathCraft ONNX 后端互斥：成功写回时只保留一个。
             if "MATHCRAFT_GPU" in verify_ok_layers:
                 current_layers.discard("MATHCRAFT_CPU")
@@ -423,10 +443,12 @@ class UninstallLayerWorker(QThread):
 
     def run(self):
         ok = True
-        total = max(len(self.pkg_names), 1)
+        # 过滤系统包（#system: 前缀），不走 pip 卸载
+        pip_pkg_names = [p for p in self.pkg_names if not p.startswith("#system:")]
+        total = max(len(pip_pkg_names), 1)
         self.log_updated.emit(f"[STEP] 开始卸载层 {self.layer_name} ...")
         self.progress_updated.emit(5)
-        for idx, pkg_name in enumerate(self.pkg_names, start=1):
+        for idx, pkg_name in enumerate(pip_pkg_names, start=1):
             self.log_updated.emit(f"[CMD] {self.pyexe} -m pip uninstall -y {pkg_name}")
             try:
                 result = subprocess.run(
@@ -450,11 +472,11 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit(f"[ERR] {pkg_name} 卸载失败: {e}")
             self.progress_updated.emit(5 + int(75 * idx / total))
 
-        if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
+        if any(str(name).lower().startswith("onnxruntime") for name in pip_pkg_names):
             _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
 
         # PANDOC 层卸载：删除 pip 包后，还要清理二进制和残留文件
-        if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
+        if any(str(name).lower() in {"pypandoc", "pandoc"} for name in pip_pkg_names):
             self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
             _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
             # 删除整个 deps/pandoc/ 目录
@@ -478,6 +500,11 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit("[PANDOC] 已清理持久化路径配置")
             except Exception:
                 pass
+
+        # SCREENSHOT 层卸载：使用包管理器卸载所有截图工具
+        if self.layer_name == "SCREENSHOT" and os.name != "nt":
+            self.log_updated.emit("[SCREENSHOT] 正在卸载截图工具...")
+            _uninstall_screenshot_tools(log_fn=self.log_updated.emit)
 
         try:
             data = {"installed_layers": []}
@@ -1209,17 +1236,272 @@ def _pandoc_data_dir() -> Path:
     return target
 
 
+# ---------------------------------------------------------------------------
+# Linux 截图工具（系统包）安装/卸载/验证
+# ---------------------------------------------------------------------------
+
+# 所有支持的截图工具及其对应的 apt 包名
+_SCREENSHOT_TOOL_PACKAGES: dict[str, str] = {
+    "maim": "maim",
+    "grim": "grim",
+    "scrot": "scrot",
+    "import": "imagemagick",          # ImageMagick 提供 import 命令
+    "gnome-screenshot": "gnome-screenshot",
+    "flameshot": "flameshot",
+    "spectacle": "spectacle",
+}
+
+
+def _get_screenshot_tools() -> list[str]:
+    """返回当前桌面环境推荐的截图工具列表（按优先级排序）。"""
+    is_wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
+    if is_wayland:
+        return ["grim", "gnome-screenshot", "flameshot", "spectacle", "maim", "scrot", "import"]
+    return ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]
+
+
+def _is_any_screenshot_tool_installed() -> bool:
+    """检查是否有任一截图工具已安装。"""
+    import shutil as _shutil
+    for tool in _SCREENSHOT_TOOL_PACKAGES:
+        if _shutil.which(tool):
+            return True
+    return False
+
+
+def _list_installed_screenshot_tools() -> list[str]:
+    """列出当前已安装的截图工具。"""
+    import shutil as _shutil
+    return [t for t in _SCREENSHOT_TOOL_PACKAGES if _shutil.which(t)]
+
+
+def _detect_package_manager() -> str | None:
+    """检测可用的系统包管理器。"""
+    import shutil as _shutil
+    for pm in ("apt-get", "dnf", "yum", "pacman", "zypper"):
+        if _shutil.which(pm):
+            return pm
+    return None
+
+
+def _build_install_cmd(package_manager: str, pkg_name: str) -> list[str]:
+    """构建安装命令。"""
+    if package_manager in ("apt-get", "apt"):
+        return [package_manager, "install", "-y", pkg_name]
+    elif package_manager in ("dnf", "yum"):
+        return [package_manager, "install", "-y", pkg_name]
+    elif package_manager == "pacman":
+        return [package_manager, "-S", "--noconfirm", pkg_name]
+    elif package_manager == "zypper":
+        return [package_manager, "install", "-y", pkg_name]
+    return []
+
+
+def _build_uninstall_cmd(package_manager: str, pkg_name: str) -> list[str]:
+    """构建卸载命令。"""
+    if package_manager in ("apt-get", "apt"):
+        return [package_manager, "remove", "-y", pkg_name]
+    elif package_manager in ("dnf", "yum"):
+        return [package_manager, "remove", "-y", pkg_name]
+    elif package_manager == "pacman":
+        return [package_manager, "-R", "--noconfirm", pkg_name]
+    elif package_manager == "zypper":
+        return [package_manager, "remove", "-y", pkg_name]
+    return []
+
+
+def _run_with_privilege(cmd: list[str], log_fn=None) -> bool:
+    """尝试使用多种提权方式运行命令。
+
+    顺序：sudo → 直接运行。
+    Returns: 命令是否成功。
+    """
+    import shutil as _shutil
+
+    # 1) sudo（终端交互）
+    if _shutil.which("sudo"):
+        try:
+            env = os.environ.copy()
+            env.setdefault("DEBIAN_FRONTEND", "noninteractive")
+            result = subprocess.run(
+                ["sudo"] + cmd, capture_output=True, text=True, timeout=120, env=env,
+            )
+            if result.returncode == 0:
+                if log_fn:
+                    log_fn(f"[SCREENSHOT] sudo 执行成功: {' '.join(cmd[:3])}")
+                return True
+        except Exception:
+            pass
+
+    # 2) 直接运行（可能已经 root）
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            if log_fn:
+                log_fn(f"[SCREENSHOT] 直接执行成功: {' '.join(cmd[:3])}")
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def _install_screenshot_tools(log_fn=None) -> bool:
+    """安装 Linux 截图工具。
+
+    按优先级尝试安装各截图工具，至少安装成功一个即视为成功。
+    支持 apt-get/dnf/pacman/zypper 等包管理器。
+    """
+    if _is_any_screenshot_tool_installed():
+        installed = _list_installed_screenshot_tools()
+        if log_fn:
+            log_fn(f"[SCREENSHOT] 已有可用工具: {', '.join(installed)}，跳过安装")
+        return True
+
+    pm = _detect_package_manager()
+    if not pm:
+        if log_fn:
+            log_fn("[SCREENSHOT] 未找到系统包管理器，请手动安装截图工具")
+            log_fn("[SCREENSHOT] 推荐: sudo apt install maim grim flameshot")
+        return False
+
+    if log_fn:
+        log_fn(f"[SCREENSHOT] 包管理器: {pm}，按优先级尝试安装截图工具...")
+
+    tools = _get_screenshot_tools()
+    installed_any = False
+
+    for tool in tools:
+        pkg = _SCREENSHOT_TOOL_PACKAGES.get(tool)
+        if not pkg:
+            continue
+
+        # 检查是否已通过之前的步骤安装
+        import shutil as _shutil
+        if _shutil.which(tool):
+            installed_any = True
+            if log_fn:
+                log_fn(f"[SCREENSHOT] {tool} 已就绪 ✓")
+            continue
+
+        cmd = _build_install_cmd(pm, pkg)
+        if not cmd:
+            continue
+
+        if log_fn:
+            log_fn(f"[SCREENSHOT] 尝试安装 {tool} (包: {pkg})...")
+
+        if _run_with_privilege(cmd, log_fn=log_fn):
+            if _shutil.which(tool):
+                installed_any = True
+                if log_fn:
+                    log_fn(f"[SCREENSHOT] {tool} 安装成功 ✅")
+                continue
+
+        if log_fn:
+            log_fn(f"[SCREENSHOT] {tool} 安装失败，尝试下一个...")
+
+    if installed_any:
+        if log_fn:
+            log_fn("[SCREENSHOT] 截图工具安装完成 ✅")
+        return True
+
+    # 终极回退：在终端窗口中安装
+    if log_fn:
+        log_fn("[SCREENSHOT] 所有自动安装方式均失败，尝试终端安装...")
+    for terminal in ("x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "lxterminal", "xterm"):
+        term = _shutil.which(terminal)
+        if not term:
+            continue
+        pkgs = " ".join(_SCREENSHOT_TOOL_PACKAGES.get(t, t) for t in tools[:3])
+        try:
+            subprocess.run(
+                [term, "-e", f"sudo {pm} install -y {pkgs}; echo '按 Enter 关闭...'; read"],
+                timeout=180,
+            )
+            if _is_any_screenshot_tool_installed():
+                if log_fn:
+                    log_fn(f"[SCREENSHOT] 截图工具安装完成 ✅ (终端)")
+                return True
+            break
+        except Exception:
+            continue
+
+    if log_fn:
+        log_fn("[SCREENSHOT] 截图工具安装失败，请手动安装:")
+        log_fn(f"[SCREENSHOT]   sudo {pm} install maim grim flameshot imagemagick")
+    return False
+
+
+def _uninstall_screenshot_tools(log_fn=None) -> bool:
+    """卸载所有通过系统包管理器安装的截图工具。
+
+    注意：使用 sudo 可能需要用户授权。如果某个工具卸载失败，继续尝试下一个。
+    """
+    installed = _list_installed_screenshot_tools()
+    if not installed:
+        if log_fn:
+            log_fn("[SCREENSHOT] 未检测到截图工具，跳过卸载")
+        return True
+
+    pm = _detect_package_manager()
+    if not pm:
+        if log_fn:
+            log_fn(f"[SCREENSHOT] 未找到包管理器，请手动卸载: {', '.join(installed)}")
+        return False
+
+    if log_fn:
+        log_fn(f"[SCREENSHOT] 将卸载以下截图工具: {', '.join(installed)}")
+
+    all_ok = True
+    for tool in installed:
+        pkg = _SCREENSHOT_TOOL_PACKAGES.get(tool, tool)
+        cmd = _build_uninstall_cmd(pm, pkg)
+        if not cmd:
+            continue
+
+        if log_fn:
+            log_fn(f"[SCREENSHOT] 正在卸载 {tool} (包: {pkg})...")
+
+        if _run_with_privilege(cmd, log_fn=log_fn):
+            if log_fn:
+                log_fn(f"[SCREENSHOT] {tool} 已卸载 ✅")
+        else:
+            all_ok = False
+            if log_fn:
+                log_fn(f"[SCREENSHOT] {tool} 卸载失败，请手动执行: sudo {pm} remove {pkg}")
+
+    if all_ok:
+        if log_fn:
+            log_fn("[SCREENSHOT] 截图工具卸载完成 ✅")
+    else:
+        if log_fn:
+            log_fn("[SCREENSHOT] 部分工具卸载失败（可能需要 sudo 权限）")
+
+    return all_ok
+
+
+def _verify_screenshot_layer(pyexe: str, timeout: int = 10) -> tuple[bool, str]:
+    """验证 SCREENSHOT 层：检查是否有截图工具可用。"""
+    if os.name == "nt":
+        return True, ""  # Windows 上不需要
+    if _is_any_screenshot_tool_installed():
+        installed = _list_installed_screenshot_tools()
+        return True, f"可用工具: {', '.join(installed)}"
+    return False, "未安装截图工具，请通过依赖向导安装 SCREENSHOT 层"
+
+
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
     """
     安装完成后强制修复关键依赖版本。
     """
     import subprocess
-    
+
     if log_fn:
         log_fn("[INFO] 正在修复关键依赖版本...")
 
     _cleanup_pip_interrupted_leftovers(pyexe, log_fn)
-    
+
     installed_before = _current_installed(pyexe)
 
     for pkg, spec in CRITICAL_VERSIONS.items():
@@ -1245,7 +1527,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         except Exception as e:
             if log_fn:
                 log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
-    
+
     if log_fn:
         log_fn("[INFO] 关键版本修复完成")
 
@@ -1389,17 +1671,33 @@ if not shutil.which("pandoc"):
     raise RuntimeError("pandoc binary not found (pypandoc is installed but pandoc executable is missing)")
 print("PANDOC OK")
 """,
+    "SCREENSHOT": """
+import shutil, sys, os
+if os.name == "nt":
+    print("SCREENSHOT OK (not required on Windows)")
+elif os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
+    if shutil.which("grim"):
+        print("SCREENSHOT OK (grim)")
+    elif shutil.which("maim"):
+        print("SCREENSHOT OK (maim)")
+    else:
+        raise RuntimeError("Wayland 截图工具未安装。请安装: sudo apt install grim")
+elif shutil.which("maim") or shutil.which("scrot") or shutil.which("import"):
+    print("SCREENSHOT OK")
+else:
+    raise RuntimeError("截图工具未安装。请安装: sudo apt install maim")
+""",
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     """
     验证某个功能层是否能在运行时正常工作。
-    
+
     返回: (success: bool, error_msg: str)
     """
     import subprocess
-    
+
     if layer == "CORE":
         timeout = max(timeout, 120)
 
@@ -1451,7 +1749,7 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
 def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
     """
     验证声称已安装的层是否真正可用。
-    
+
     返回: 真正可用的层列表
     """
     verified = []
@@ -1653,6 +1951,10 @@ LAYER_MAP = {
     "PANDOC": [
         "pypandoc>=1.15",
     ],
+    # Linux 截图 CLI 工具（系统包，非 pip）：安装 maim 用于替代 Qt grabWindow
+    "SCREENSHOT": [
+        "#system:maim",
+    ],
 }
 
 MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
@@ -1681,10 +1983,14 @@ def _ensure_pip(main_python: Path) -> bool:
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
 
-    # If not a real python.exe, skip pip bootstrap (prevents get-pip in app dir)
+    # Verify this looks like a real python executable before bootstrap
     try:
         name = main_python.name.lower()
-        if not (name.startswith('python') and name.endswith('.exe')):
+        is_python_exe = (
+            (os.name == "nt" and name.startswith("python") and name.endswith(".exe"))
+            or (os.name != "nt" and (name.startswith("python") or "python" in name))
+        )
+        if not is_python_exe:
             print(f"[WARN] pip bootstrap skipped for non-python executable: {main_python}")
             return False
     except Exception:
@@ -1916,7 +2222,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
 
     if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
         return "🧩 antlr4-python3-runtime 构建环境缺少 wheel - 可先补齐 pip/setuptools/wheel 并关闭 build isolation"
-    
+
     # 1. 文件/进程占用（最常见的权限问题）
     if any(x in output_lower for x in [
         "permission denied",
@@ -1928,7 +2234,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "errno 13",
     ]):
         return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
-    
+
     # 2. 依赖冲突
     if any(x in output_lower for x in [
         "conflicting dependencies",
@@ -1939,7 +2245,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "package requires",
     ]):
         return "⚠️ 依赖版本冲突 - 某些包的版本要求互相矛盾"
-    
+
     # 3. 网络问题
     if any(x in output_lower for x in [
         "connection refused",
@@ -1953,7 +2259,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "connectionerror",
     ]):
         return "🌐 网络连接失败 - 请检查网络或尝试使用镜像源"
-    
+
     # 4. 磁盘空间
     if any(x in output_lower for x in [
         "no space left",
@@ -1962,7 +2268,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "oserror: [errno 28]",
     ]):
         return "💾 磁盘空间不足 - 请清理磁盘后重试"
-    
+
     # 5. 编译失败（C扩展）
     if any(x in output_lower for x in [
         "building wheel",
@@ -1973,7 +2279,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "cl.exe",
     ]):
         return "🔧 编译失败 - 可能缺少 Visual C++ Build Tools"
-    
+
     # 6. Python 版本不兼容
     if any(x in output_lower for x in [
         "requires python",
@@ -1981,7 +2287,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "not supported",
     ]):
         return "🐍 Python 版本不兼容 - 该包不支持当前 Python 版本"
-    
+
     # 7. pip 本身的问题
     if any(x in output_lower for x in [
         "pip._internal",
@@ -1989,7 +2295,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "modulenotfounderror: no module named 'pip'",
     ]):
         return "📦 pip 损坏或版本过低 - 请先升级 pip"
-    
+
     # 8. CUDA/GPU 相关
     if any(x in output_lower for x in [
         "cuda",
@@ -1998,7 +2304,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "gpu",
     ]) and "error" in output_lower:
         return "🎮 CUDA/GPU 相关错误 - 请检查 CUDA 版本是否匹配"
-    
+
     # 默认
     if returncode == 1:
         return f"❓ 一般错误 (code={returncode}) - 请查看上方日志获取详情"
@@ -2382,6 +2688,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 遍历所有功能层
     effective_default_select = _effective_default_select()
     for layer in LAYER_MAP.keys():
+        # SCREENSHOT 层仅在 Linux 上显示
+        if layer == "SCREENSHOT" and os.name == "nt":
+            continue
         row = QHBoxLayout()
         cb = QCheckBox(layer)
         del_btn = QToolButton()
@@ -2393,6 +2702,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         row.addWidget(cb)
         row.addWidget(del_btn)
         lay.addLayout(row)
+        # SCREENSHOT 层添加说明
+        if layer == "SCREENSHOT":
+            tools = ", ".join(_get_screenshot_tools()[:4])
+            hint_text = f"     安装 {tools} 等命令行截图工具（提升 Linux 截图质量）"
+            hint = QLabel(hint_text)
+            hint.setStyleSheet(f"color:{theme['muted']};font-size:11px;margin:0 0 4px 0;")
+            lay.addWidget(hint)
 
     # ---------- MathCraft CPU / GPU 后端互斥逻辑 ----------
     def on_mathcraft_cpu_changed(state):
@@ -2676,7 +2992,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 dlg
             )
             return
-        
+
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
@@ -3223,13 +3539,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
+    _DEFAULT_PYEXE_NAME = "python.exe" if os.name == "nt" else "python3"
     if is_frozen:
         # Packaged: runtime stays bundled, but dependency wizard should only treat
         # a python inside deps_dir as reusable. Missing deps python must remain
         # visible to the UI so the user can initialize it from the wizard.
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / "python.exe")
+        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         if existing_pyexe and existing_pyexe.exists():
             print(f"[INFO] packaged: use deps python for pip: {pyexe}")
             use_bundled_python = False
@@ -3240,14 +3557,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         # 开发模式：支持依赖隔离和私有解释器
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / "python.exe")
+        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         deps_dir_resolved = str(Path(deps_dir).resolve())
         mismatch_reason = ""
-        
+
         # 检查是否打包模式
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
         mode_str = "打包模式" if is_packaged else "开发模式"
-        
+
         if current_site and deps_dir and str(current_site).startswith(deps_dir_resolved):
             print(f"[INFO] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
             print(f"[DIAG] 当前 site-packages 路径: {current_site}")

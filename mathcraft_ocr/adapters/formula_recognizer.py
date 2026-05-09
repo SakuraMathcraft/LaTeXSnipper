@@ -34,6 +34,54 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
     return exp / np.sum(exp, axis=-1, keepdims=True)
 
 
+def _count_latex_tokens(text: str) -> int:
+    """统计 LaTeX 公式中的语义单元数量。
+
+    一个语义单元可以是：
+    - LaTeX 命令（\\foo、\\bar12 等）
+    - 单个字母或数字
+    - 数学运算符（+ - = < > 等）
+    - 希腊字母（作为整体）
+
+    空格、花括号、下划线、上标等结构性符号不计入，
+    但它们的存在暗示有内容——若结构性符号充足也计为有效。
+    """
+    import re
+
+    count = 0
+    i = 0
+    n = len(text)
+
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            # LaTeX 命令：\ 后跟字母序列（可选空格/非字母终止）
+            j = i + 1
+            while j < n and (text[j].isalpha() or text[j] == "@"):
+                j += 1
+            cmd = text[i:j]
+            if len(cmd) >= 2:
+                count += 1
+            i = j
+        elif ch.isalpha() or ch.isdigit():
+            count += 1
+            i += 1
+        elif ch in "+-=*/<>|!?′∞∂∇∫∏∑√∝±×÷·∘∧∨∩∪⊂⊃∈∉⊆⊇≤≥≠≈≡≅∼∝⊥∥∠△□◇∇∀∃∄∅ℕℤℚℝℂℍ":
+            count += 1
+            i += 1
+        else:
+            i += 1
+
+    # 如果没有任何字母/数字/命令，但有足够的 LaTeX 结构标记（{}_^$&），
+    # 也算作有内容（例如纯符号公式）
+    if count == 0:
+        structural = sum(1 for ch in text if ch in "{}_^$&#")
+        if structural >= 4:
+            count = 1
+
+    return count
+
+
 @lru_cache(maxsize=8)
 def _load_processor(model_dir: str):
     _disable_transformers_framework_imports()
@@ -179,9 +227,9 @@ def _check_output_quality(text: str, token_ids: list[int]) -> "_OutputQuality":
     if not text.strip():
         return _OutputQuality(True, 0.0, "empty")
 
-    # 2) 过短（少于3个有意义字符）
-    meaningful = [c for c in text if c.isalpha() or c.isdigit()]
-    if len(meaningful) < 3:
+    # 2) 过短：统计 LaTeX 语义单元（命令、字母、数字、数学符号）
+    meaningful = _count_latex_tokens(text)
+    if meaningful < 2:
         return _OutputQuality(True, 0.15, "too_short")
 
     # 3) 检测连续重复 token（同一 token 连续出现超过阈值）
@@ -190,13 +238,19 @@ def _check_output_quality(text: str, token_ids: list[int]) -> "_OutputQuality":
         if max_consecutive >= 8:
             return _OutputQuality(True, 0.1, f"repeated_token_x{max_consecutive}")
 
-    # 4) 检测循环模式（如 "abc abc abc ..."）
+    # 4) 检测 token n-gram 重复（多 token 序列循环出现，如 \chi_{\pm} 重复）
+    if token_ids and len(token_ids) >= 12:
+        ngram_repeat = _detect_token_ngram_repeat(token_ids)
+        if ngram_repeat:
+            return _OutputQuality(True, 0.1, f"ngram_repeat_{ngram_repeat}")
+
+    # 5) 检测循环模式（任意位置出现的重复子串）
     if text:
         cycle_ratio = _detect_cycle(text, min_cycle=6, max_cycle=40)
         if cycle_ratio > 0.5:
             return _OutputQuality(True, 0.15, f"cycle_ratio_{cycle_ratio:.2f}")
 
-    # 5) 过长的单 token 重复序列（例如 \chi_{\pm} 重复 >10 次）
+    # 6) 过长的单 token 重复序列（例如 \chi_{\pm} 重复 >10 次）
     tokens = text.split()
     if len(tokens) > 10:
         from collections import Counter
@@ -233,24 +287,84 @@ def _max_consecutive_same(ids: list[int]) -> int:
     return max_run
 
 
-def _detect_cycle(text: str, min_cycle: int = 4, max_cycle: int = 30) -> float:
-    """检测文本中的循环模式，返回被循环覆盖的字符比例。"""
-    if len(text) < min_cycle * 2:
-        return 0.0
-    best_ratio = 0.0
-    for cycle_len in range(min_cycle, min(max_cycle, len(text) // 2) + 1):
-        pattern = text[:cycle_len]
-        matched = 0
-        pos = 0
-        while pos + cycle_len <= len(text):
-            if text[pos:pos + cycle_len] == pattern:
-                matched += cycle_len
-                pos += cycle_len
+def _detect_token_ngram_repeat(
+    ids: list[int],
+    min_ngram: int = 3,
+    max_ngram: int = 8,
+    min_repeats: int = 5,
+) -> str | None:
+    """检测 token ID 序列中的 n-gram 循环重复。
+
+    对于 ``\\chi _ { \\pm }`` 这种由多个不同 token 组成的重复单元，
+    普通连续相同检测无法捕获，但 n-gram 检测可以发现循环模式。
+
+    返回描述字符串（如 "len4_x12"），或 None 表示未检测到。
+    """
+    n = len(ids)
+    if n < min_ngram * min_repeats:
+        return None
+
+    # 使用后缀数组思路：对于每个起始位置，尝试不同长度的 n-gram
+    for ngram_len in range(min_ngram, min(max_ngram + 1, n // min_repeats + 1)):
+        ngram = tuple(ids[:ngram_len])
+        count = 1
+        pos = ngram_len
+        while pos + ngram_len <= n:
+            if tuple(ids[pos:pos + ngram_len]) == ngram:
+                count += 1
+                pos += ngram_len
             else:
                 pos += 1
-        ratio = matched / len(text)
-        if ratio > best_ratio:
-            best_ratio = ratio
-            if best_ratio > 0.7:
-                break
+        if count >= min_repeats and count * ngram_len >= n * 0.5:
+            return f"len{ngram_len}_x{count}"
+
+    # 也检查从非零位置开始的 n-gram（循环不一定从开头开始）
+    for start in range(1, min(n // 4, 20)):
+        for ngram_len in range(min_ngram, min(max_ngram + 1, (n - start) // min_repeats + 1)):
+            ngram = tuple(ids[start:start + ngram_len])
+            count = 1
+            pos = start + ngram_len
+            while pos + ngram_len <= n:
+                if tuple(ids[pos:pos + ngram_len]) == ngram:
+                    count += 1
+                    pos += ngram_len
+                else:
+                    pos += 1
+            if count >= min_repeats and count * ngram_len >= (n - start) * 0.5:
+                return f"len{ngram_len}_x{count}_offset{start}"
+
+    return None
+
+
+def _detect_cycle(text: str, min_cycle: int = 4, max_cycle: int = 30) -> float:
+    """检测文本中任意位置的循环模式，返回被循环覆盖的字符比例。
+
+    与旧版不同，此实现不限定循环必须从文本开头开始，
+    而是搜索所有可能的子串作为候选模式。
+    """
+    n = len(text)
+    if n < min_cycle * 2:
+        return 0.0
+    best_ratio = 0.0
+
+    # 对每个可能的起始位置和循环长度进行检测
+    max_start = min(n // 4, 50)  # 只检查前 50 个字符作为起始
+    for start in range(0, max_start + 1):
+        remaining = n - start
+        for cycle_len in range(min_cycle, min(max_cycle, remaining // 2) + 1):
+            pattern = text[start:start + cycle_len]
+            matched = cycle_len  # 第一个模式自身
+            pos = start + cycle_len
+            while pos + cycle_len <= n:
+                if text[pos:pos + cycle_len] == pattern:
+                    matched += cycle_len
+                    pos += cycle_len
+                else:
+                    pos += 1
+            ratio = matched / remaining if remaining > 0 else 0.0
+            if ratio > best_ratio:
+                best_ratio = ratio
+                if best_ratio > 0.7:
+                    return best_ratio
+
     return best_ratio

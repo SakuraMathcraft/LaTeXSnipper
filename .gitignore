@@ -76,3 +76,6 @@ apps/android-client/android/*.jks
 apps/android-client/node_modules/
 apps/android-client/android/.idea/
 apps/android-client/*.tsbuildinfo
+src/settings_window.py
+deps/pandoc/pandoc
+packaging/

@@ -62,6 +62,7 @@ class LinuxScreenshotProvider:
         return ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
+            screenshot_tool=cfg.screenshot_tool,
         )
 
 

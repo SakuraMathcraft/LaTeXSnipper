@@ -478,6 +478,50 @@ class SettingsWindow(QDialog):
         self._init_pandoc_status()
         # 分隔
         lay.addSpacing(8)
+        # ============ Linux 截图工具选择 ============
+        self._os_name = os.name
+        self._is_linux = (self._os_name != "nt" and sys.platform != "darwin")
+        self.screenshot_tool_widget = QWidget()
+        screenshot_tool_layout = QVBoxLayout(self.screenshot_tool_widget)
+        screenshot_tool_layout.setContentsMargins(0, 0, 0, 0)
+        screenshot_tool_layout.setSpacing(6)
+        screenshot_tool_layout.addWidget(QLabel("Linux 截图工具:"))
+        self.screenshot_tool_combo = ComboBox()
+        self.screenshot_tool_combo.setFixedHeight(36)
+        # 从 capture_overlay 导入工具列表
+        self._populate_screenshot_tool_combo()
+        screenshot_tool_layout.addWidget(self.screenshot_tool_combo)
+        # 状态显示
+        self.screenshot_tool_status = QLabel("状态：未检测")
+        self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+        self.screenshot_tool_status.setWordWrap(True)
+        screenshot_tool_layout.addWidget(self.screenshot_tool_status)
+        # 操作按钮
+        shot_btn_row = QHBoxLayout()
+        shot_btn_row.setContentsMargins(0, 0, 0, 0)
+        shot_btn_row.setSpacing(6)
+        self.screenshot_test_btn = PrimaryPushButton(FluentIcon.PHOTO, "测试截图")
+        self.screenshot_test_btn.setFixedHeight(32)
+        self.screenshot_test_btn.setToolTip("使用选中的工具截取屏幕左上角区域以测试是否正常工作")
+        shot_btn_row.addWidget(self.screenshot_test_btn)
+        self.screenshot_detect_btn = PushButton(FluentIcon.SEARCH, "检测已安装工具")
+        self.screenshot_detect_btn.setFixedHeight(32)
+        shot_btn_row.addWidget(self.screenshot_detect_btn)
+        screenshot_tool_layout.addLayout(shot_btn_row)
+        # 提示
+        self.screenshot_tool_hint = QLabel(
+            "提示：截图预览黑屏时，可在此切换不同的截图工具试试。\n"
+            "Wayland 推荐 grim，X11 推荐 maim。全屏截图工具（如 flameshot）仅做兜底。"
+        )
+        self.screenshot_tool_hint.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
+        self.screenshot_tool_hint.setWordWrap(True)
+        screenshot_tool_layout.addWidget(self.screenshot_tool_hint)
+        # 非 Linux 隐藏
+        if not self._is_linux:
+            self.screenshot_tool_widget.setVisible(False)
+        lay.addWidget(self.screenshot_tool_widget)
+        # 分隔
+        lay.addSpacing(8)
         # 检查更新
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -558,6 +602,10 @@ class SettingsWindow(QDialog):
         self.pandoc_install_btn.clicked.connect(self._open_deps_wizard)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
+        # 截图工具相关信号
+        self.screenshot_tool_combo.currentIndexChanged.connect(self._on_screenshot_tool_changed)
+        self.screenshot_test_btn.clicked.connect(self._test_screenshot_tool)
+        self.screenshot_detect_btn.clicked.connect(self._detect_screenshot_tools)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
@@ -1492,7 +1540,7 @@ class SettingsWindow(QDialog):
         except Exception:
             _dbg_idx = -1
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
-        
+
         pyexe = self._resolve_dynamic_main_pyexe()
         print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
@@ -2266,5 +2314,145 @@ class SettingsWindow(QDialog):
         self.pandoc_detect_btn.setEnabled(False)
         self.pandoc_detect_btn.setText("检测中...")
         self._detect_pandoc_async(notify=True)
+
+    # ---------------- 截图工具 ----------------
+    def _get_parent_cfg(self):
+        """获取父窗口的 ConfigManager。"""
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                return self.parent().cfg
+        except Exception:
+            pass
+        return None
+
+    def _populate_screenshot_tool_combo(self) -> None:
+        """填充截图工具下拉框。"""
+        self.screenshot_tool_combo.blockSignals(True)
+        self.screenshot_tool_combo.clear()
+        self.screenshot_tool_combo.addItem("自动检测（推荐）", userData="")
+        try:
+            from backend.capture_overlay import _LINUX_SCREENSHOT_TOOLS, _list_available_tools
+            available = _list_available_tools()
+            for name, info in _LINUX_SCREENSHOT_TOOLS.items():
+                installed = " ✓" if name in available else ""
+                label = f"{info.get('desc', name)}{installed}"
+                self.screenshot_tool_combo.addItem(label, userData=name)
+        except ImportError:
+            pass
+        self.screenshot_tool_combo.blockSignals(False)
+
+        # 恢复当前选择
+        cfg = self._get_parent_cfg()
+        current_tool = cfg.get("screenshot_tool", "") if cfg else ""
+        for i in range(self.screenshot_tool_combo.count()):
+            if self.screenshot_tool_combo.itemData(i) == current_tool:
+                self.screenshot_tool_combo.setCurrentIndex(i)
+                break
+
+    def _on_screenshot_tool_changed(self, index: int) -> None:
+        """截图工具选择变更时保存到配置。"""
+        tool = self.screenshot_tool_combo.itemData(index) or ""
+        cfg = self._get_parent_cfg()
+        if cfg:
+            cfg.set("screenshot_tool", tool or "")
+            self._update_screenshot_tool_status()
+            print(f"[Settings] 截图工具已切换: {tool or '自动检测'}")
+
+    def _update_screenshot_tool_status(self) -> None:
+        """更新截图工具状态显示。"""
+        cfg = self._get_parent_cfg()
+        tool = cfg.get("screenshot_tool", "") if cfg else ""
+        if not tool:
+            self.screenshot_tool_status.setText("状态：自动检测可用工具")
+            self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+            return
+        try:
+            from backend.capture_overlay import _LINUX_SCREENSHOT_TOOLS, _list_available_tools
+            available = _list_available_tools()
+            if tool in available:
+                desc = _LINUX_SCREENSHOT_TOOLS.get(tool, {}).get("desc", tool)
+                self.screenshot_tool_status.setText(f"状态：{desc} 已就绪 ✓")
+                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
+            else:
+                self.screenshot_tool_status.setText(f"状态：{tool} 未安装 ⚠")
+                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+        except ImportError:
+            self.screenshot_tool_status.setText(f"状态：{tool}（无法检测）")
+            self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+
+    def _detect_screenshot_tools(self) -> None:
+        """检测已安装的截图工具并刷新列表。"""
+        self.screenshot_detect_btn.setEnabled(False)
+        self.screenshot_detect_btn.setText("检测中...")
+        QTimer.singleShot(200, self._do_detect_screenshot_tools)
+
+    def _do_detect_screenshot_tools(self) -> None:
+        """执行截图工具检测。"""
+        try:
+            self._populate_screenshot_tool_combo()
+            self._update_screenshot_tool_status()
+            from backend.capture_overlay import _list_available_tools
+            available = _list_available_tools()
+            if available:
+                self.screenshot_tool_status.setText(f"状态：已检测到 {len(available)} 个工具: {', '.join(available)}")
+                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
+            else:
+                self.screenshot_tool_status.setText("状态：未检测到任何截图工具，请安装 maim/grim/flameshot 等")
+                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+        except Exception as e:
+            self.screenshot_tool_status.setText(f"检测失败: {e}")
+            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+        finally:
+            self.screenshot_detect_btn.setEnabled(True)
+            self.screenshot_detect_btn.setText("检测已安装工具")
+
+    def _test_screenshot_tool(self) -> None:
+        """测试当前选中的截图工具。"""
+        self.screenshot_test_btn.setEnabled(False)
+        self.screenshot_test_btn.setText("测试中...")
+        self.screenshot_tool_status.setText("状态：正在测试截图...")
+        self.screenshot_tool_status.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
+
+        tool = self.screenshot_tool_combo.currentData() or ""
+        if not tool:
+            # 自动检测：使用第一个可用工具测试
+            try:
+                from backend.capture_overlay import _list_available_tools
+                available = _list_available_tools()
+                tool = available[0] if available else ""
+            except ImportError:
+                pass
+
+        if not tool:
+            self.screenshot_tool_status.setText("状态：没有可用的截图工具")
+            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+            self.screenshot_test_btn.setEnabled(True)
+            self.screenshot_test_btn.setText("测试截图")
+            return
+
+        # 使用 QTimer 延迟执行，避免阻塞 UI
+        QTimer.singleShot(100, lambda: self._do_test_screenshot_tool(tool))
+
+    def _do_test_screenshot_tool(self, tool: str) -> None:
+        """在后台执行截图测试。"""
+        try:
+            from backend.capture_overlay import test_screenshot_tool
+            result = test_screenshot_tool(tool)
+            if result["ok"]:
+                msg = result["message"]
+                img_path = result.get("image_path")
+                if img_path:
+                    msg += f"\n已保存到: {img_path}"
+                self.screenshot_tool_status.setText(f"状态：测试成功 ✓ - {msg}")
+                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
+            else:
+                self.screenshot_tool_status.setText(f"状态：测试失败 ✗ - {result['message']}")
+                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+        except Exception as e:
+            self.screenshot_tool_status.setText(f"状态：测试异常 - {e}")
+            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
+        finally:
+            self.screenshot_test_btn.setEnabled(True)
+            self.screenshot_test_btn.setText("测试截图")
 
 # ---------------- 主窗口 ----------------

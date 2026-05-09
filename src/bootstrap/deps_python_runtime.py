@@ -7,18 +7,45 @@ import sys
 from pathlib import Path
 
 
+def _linux_site_packages(pyexe: Path) -> Path | None:
+    """Search for lib/pythonX.Y/site-packages typical of Linux/macOS venvs."""
+    py_dir = pyexe.parent  # e.g. .venv/bin/
+    prefix_candidates = [py_dir.parent]  # .venv/
+    # Also check one level up in case python is at prefix/bin/ inside prefix/
+    for p in (py_dir.parent, py_dir.parent.parent, py_dir):
+        try:
+            lib = p / "lib"
+            if lib.is_dir():
+                for child in sorted(lib.iterdir(), reverse=True):
+                    if child.is_dir() and child.name.startswith("python"):
+                        sp = child / "site-packages"
+                        if sp.exists():
+                            return sp
+        except Exception:
+            continue
+    return None
+
+
 def site_packages_root(pyexe: Path):
-    """Return the best matching site-packages directory for a private python.exe."""
+    """Return the best matching site-packages directory for a python executable."""
     pyexe = Path(pyexe)
     py_dir = pyexe.parent
-    candidates = [
+
+    # Windows-style paths
+    win_candidates = [
         py_dir / "Lib" / "site-packages",
         py_dir.parent / "Lib" / "site-packages",
         py_dir.parent.parent / "Lib" / "site-packages",
     ]
-    for site_packages in candidates:
+    for site_packages in win_candidates:
         if site_packages.exists():
             return site_packages
+
+    # Linux/macOS-style paths (lib/pythonX.Y/site-packages)
+    linux_sp = _linux_site_packages(pyexe)
+    if linux_sp is not None:
+        return linux_sp
+
     return None
 
 
@@ -92,29 +119,40 @@ def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | N
 
 
 def iter_python_candidates(base_dir: Path) -> list[Path]:
-    """Return likely python.exe candidates inside the selected dependency directory."""
+    """Return likely python executable candidates inside the selected dependency directory."""
     base_dir = Path(base_dir)
-    candidates = [
-        base_dir / "python.exe",
-        base_dir / "Scripts" / "python.exe",
-        base_dir / "python311" / "python.exe",
-        base_dir / "python311" / "Scripts" / "python.exe",
-        base_dir / "Python311" / "python.exe",
-        base_dir / "Python311" / "Scripts" / "python.exe",
-        base_dir / "python_full" / "python.exe",
-        base_dir / "venv" / "Scripts" / "python.exe",
-        base_dir / ".venv" / "Scripts" / "python.exe",
-    ]
+    # Executable names: platform-dependent
+    if os.name == "nt":
+        exe_names = ("python.exe",)
+        scripts_dir = "Scripts"
+    else:
+        exe_names = ("python3", "python")
+        scripts_dir = "bin"
+
+    candidates: list[Path] = []
+    for exe_name in exe_names:
+        candidates.extend([
+            base_dir / exe_name,
+            base_dir / scripts_dir / exe_name,
+            base_dir / "python311" / exe_name,
+            base_dir / "python311" / scripts_dir / exe_name,
+            base_dir / "Python311" / exe_name,
+            base_dir / "Python311" / scripts_dir / exe_name,
+            base_dir / "python_full" / exe_name,
+            base_dir / "venv" / scripts_dir / exe_name,
+            base_dir / ".venv" / scripts_dir / exe_name,
+        ])
     try:
         for child in base_dir.iterdir():
             if not child.is_dir():
                 continue
             name = child.name.lower()
             if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
-                candidates.extend([
-                    child / "python.exe",
-                    child / "Scripts" / "python.exe",
-                ])
+                for exe_name in exe_names:
+                    candidates.extend([
+                        child / exe_name,
+                        child / scripts_dir / exe_name,
+                    ])
     except Exception:
         pass
 
