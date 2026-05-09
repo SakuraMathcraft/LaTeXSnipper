@@ -416,6 +416,7 @@ def _release_single_instance_lock():
 
 def _ensure_single_instance() -> bool:
     '''Prevent multiple GUI instances using a file lock.'''
+    global _single_instance_lock
     lock_dir = Path.home() / ".latexsnipper"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / "instance.lock"
@@ -442,7 +443,6 @@ def _ensure_single_instance() -> bool:
                         time.sleep(delay)
                         continue
                     return False
-                global _single_instance_lock
                 _single_instance_lock = fh
                 return True
             return False
@@ -465,7 +465,6 @@ def _ensure_single_instance() -> bool:
                         time.sleep(delay)
                         continue
                     return False
-                global _single_instance_lock
                 _single_instance_lock = fh
                 return True
             return False
@@ -1431,6 +1430,7 @@ def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
 def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
     """Return likely python.exe candidates inside a selected dependency base directory."""
     base_dir = Path(base_dir)
+    # Common candidates for both Windows and Linux
     candidates = [
         base_dir / "python.exe",
         base_dir / "Scripts" / "python.exe",
@@ -1442,6 +1442,15 @@ def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
         base_dir / "venv" / "Scripts" / "python.exe",
         base_dir / ".venv" / "Scripts" / "python.exe",
     ]
+    # Linux-specific candidates (python3, venv/bin/python3)
+    if os.name != "nt":
+        candidates.extend([
+            base_dir / "python3",
+            base_dir / "bin" / "python3",
+            base_dir / "python311" / "bin" / "python3",
+            base_dir / "venv" / "bin" / "python3",
+            base_dir / ".venv" / "bin" / "python3",
+        ])
     try:
         for child in base_dir.iterdir():
             if not child.is_dir():
@@ -1958,7 +1967,7 @@ def _relaunch_with(pyexe: str):
         sys.exit(5)
     env = os.environ.copy()
     env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
-    env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
     _scrub_path_inplace(env)
@@ -2170,7 +2179,7 @@ if not TARGET_PY:
 os.environ["LATEXSNIPPER_PYEXE"] = TARGET_PY
 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(BASE_DIR)
 os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
-os.environ.setdefault("PYTHONNOUSERSITE", "1")
+os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ.pop("MATHCRAFT_HOME", None)
