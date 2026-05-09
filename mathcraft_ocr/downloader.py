@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import socket
 import tempfile
+import threading
 import time
 import urllib.request
 import zipfile
@@ -14,6 +16,73 @@ from pathlib import Path
 from .cache import model_dir
 from .errors import DownloadUnavailableError, ModelCacheError
 from .manifest import ModelSpec
+
+
+# ---------------------------------------------------------------------------
+# GitHub 加速镜像列表 — 按优先级排列
+# ---------------------------------------------------------------------------
+_GITHUB_MIRRORS = [
+    "https://ghproxy.com/",
+    "https://mirror.ghproxy.com/",
+    "https://gh.api.99988866.xyz/",
+    "https://gh-proxy.com/",
+    "https://github.moeyy.xyz/",
+]
+
+# 用于测速的小文件 URL（GitHub 上一个很小的文件）
+_SPEED_TEST_PATH = "https://raw.githubusercontent.com/SakuraMathcraft/MathCraft-Models/main/README.md"
+
+
+def _is_github_url(url: str) -> bool:
+    return "github.com" in url
+
+
+def _expand_mirrors(source: str) -> list[str]:
+    """将 GitHub URL 展开为多个镜像候选 URL（原始 URL 排在最后作为兜底）。"""
+    urls: list[str] = []
+    if _is_github_url(source):
+        for mirror in _GITHUB_MIRRORS:
+            urls.append(mirror.rstrip("/") + "/" + source)
+    # 原始 URL 作为最后的兜底
+    urls.append(source)
+    return urls
+
+
+def _test_url_speed(url: str, timeout: float = 5.0) -> float:
+    """测试 URL 的响应速度，返回首字节时间（秒）。失败返回 inf。"""
+    try:
+        start = time.monotonic()
+        req = urllib.request.Request(url, headers={"Range": "bytes=0-1023"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            _ = resp.read(1024)
+        elapsed = time.monotonic() - start
+        return elapsed
+    except Exception:
+        return float("inf")
+
+
+def _select_fastest_mirrors(sources: list[str], timeout: float = 5.0) -> list[str]:
+    """测速并返回按速度排序的 URL 列表（最快的在前）。"""
+    if len(sources) <= 1:
+        return sources
+
+    results: list[tuple[float, str]] = []
+
+    def _test(url: str) -> None:
+        speed = _test_url_speed(url, timeout=timeout)
+        results.append((speed, url))
+
+    threads: list[threading.Thread] = []
+    for url in sources:
+        t = threading.Thread(target=_test, args=(url,), daemon=True)
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join(timeout=timeout + 2.0)
+
+    results.sort(key=lambda x: x[0])
+    return [url for _, url in results]
 
 
 def _is_placeholder_source(source: str) -> bool:
@@ -142,15 +211,39 @@ def download_model_archive(
     timeout: float | None = None,
     source_overrides: dict[str, list[str] | tuple[str, ...]] | None = None,
     progress_callback: Callable[[str], None] | None = None,
+    enable_mirrors: bool = True,
 ) -> Path:
     sources = list(source_overrides.get(spec.model_id, ())) if source_overrides else []
     if not sources:
         sources = list(spec.sources)
+
+    # 展开 GitHub 镜像
+    if enable_mirrors:
+        expanded: list[str] = []
+        for src in sources:
+            if src and not _is_placeholder_source(src):
+                if _is_github_url(src):
+                    expanded.extend(_expand_mirrors(src))
+                else:
+                    expanded.append(src)
+        if expanded:
+            sources = expanded
+
     sources = [src for src in sources if src and not _is_placeholder_source(src)]
     if not sources:
         raise DownloadUnavailableError(
             f"no usable download source configured for model '{spec.model_id}'"
         )
+
+    # 多镜像测速并择优排序（仅在启用镜像且有多个候选时）
+    if enable_mirrors and len(sources) > 1:
+        if progress_callback:
+            progress_callback(f"model {spec.model_id} testing {len(sources)} mirrors...")
+        sources = _select_fastest_mirrors(sources, timeout=5.0)
+        if progress_callback:
+            fastest = sources[0]
+            label = "原始源" if fastest in spec.sources else "镜像"
+            progress_callback(f"model {spec.model_id} selected fastest ({label}): {fastest[:80]}...")
 
     target_root = Path(target_root)
     target_root.mkdir(parents=True, exist_ok=True)

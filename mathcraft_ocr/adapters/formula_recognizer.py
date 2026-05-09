@@ -165,5 +165,92 @@ def recognize_formula_images(
     for ids, scores in zip(token_ids, token_scores):
         text = tokenizer.decode(ids, skip_special_tokens=True).strip()
         score = float(sum(scores) / len(scores)) if scores else 0.0
+        # 输出质量检测：降低低质量/幻觉输出的分数
+        quality = _check_output_quality(text, ids)
+        if quality.low_quality:
+            score = min(score, quality.adjusted_score)
         results.append((text, score))
     return results
+
+
+def _check_output_quality(text: str, token_ids: list[int]) -> "_OutputQuality":
+    """检测公式识别输出质量，识别幻觉/重复模式。"""
+    # 1) 空输出
+    if not text.strip():
+        return _OutputQuality(True, 0.0, "empty")
+
+    # 2) 过短（少于3个有意义字符）
+    meaningful = [c for c in text if c.isalpha() or c.isdigit()]
+    if len(meaningful) < 3:
+        return _OutputQuality(True, 0.15, "too_short")
+
+    # 3) 检测连续重复 token（同一 token 连续出现超过阈值）
+    if token_ids:
+        max_consecutive = _max_consecutive_same(token_ids)
+        if max_consecutive >= 8:
+            return _OutputQuality(True, 0.1, f"repeated_token_x{max_consecutive}")
+
+    # 4) 检测循环模式（如 "abc abc abc ..."）
+    if text:
+        cycle_ratio = _detect_cycle(text, min_cycle=6, max_cycle=40)
+        if cycle_ratio > 0.5:
+            return _OutputQuality(True, 0.15, f"cycle_ratio_{cycle_ratio:.2f}")
+
+    # 5) 过长的单 token 重复序列（例如 \chi_{\pm} 重复 >10 次）
+    tokens = text.split()
+    if len(tokens) > 10:
+        from collections import Counter
+        freq = Counter(tokens)
+        if freq:
+            top_count = freq.most_common(1)[0][1]
+            if top_count > 8 and top_count / len(tokens) > 0.5:
+                return _OutputQuality(True, 0.12, f"token_dominated_{freq.most_common(1)[0][0]}")
+
+    return _OutputQuality(False, 1.0, "ok")
+
+
+class _OutputQuality:
+    __slots__ = ("low_quality", "adjusted_score", "reason")
+
+    def __init__(self, low_quality: bool, adjusted_score: float, reason: str):
+        self.low_quality = low_quality
+        self.adjusted_score = adjusted_score
+        self.reason = reason
+
+
+def _max_consecutive_same(ids: list[int]) -> int:
+    """返回连续相同 token 的最大长度。"""
+    if not ids:
+        return 0
+    max_run = 1
+    current_run = 1
+    for i in range(1, len(ids)):
+        if ids[i] == ids[i - 1]:
+            current_run += 1
+            max_run = max(max_run, current_run)
+        else:
+            current_run = 1
+    return max_run
+
+
+def _detect_cycle(text: str, min_cycle: int = 4, max_cycle: int = 30) -> float:
+    """检测文本中的循环模式，返回被循环覆盖的字符比例。"""
+    if len(text) < min_cycle * 2:
+        return 0.0
+    best_ratio = 0.0
+    for cycle_len in range(min_cycle, min(max_cycle, len(text) // 2) + 1):
+        pattern = text[:cycle_len]
+        matched = 0
+        pos = 0
+        while pos + cycle_len <= len(text):
+            if text[pos:pos + cycle_len] == pattern:
+                matched += cycle_len
+                pos += cycle_len
+            else:
+                pos += 1
+        ratio = matched / len(text)
+        if ratio > best_ratio:
+            best_ratio = ratio
+            if best_ratio > 0.7:
+                break
+    return best_ratio

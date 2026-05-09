@@ -483,7 +483,7 @@ class ModelWrapper(QObject):
         env = os.environ.copy()
         for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
-        env["PYTHONNOUSERSITE"] = "1"
+        env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
         env["PYTHONPATH"] = _worker_pythonpath()
         env["ORT_DISABLE_AZURE"] = "1"
         bundled_models = _bundled_mathcraft_models_dir()
@@ -799,7 +799,17 @@ class ModelWrapper(QObject):
 
     def predict(self, pil_img: Image.Image, model_name: str = "mathcraft") -> str:
         result = self.predict_result(pil_img, model_name=model_name)
-        return str(result.get("text", "") or "").strip()
+        text = str(result.get("text", "") or "").strip()
+        # 低置信度检测：如果分数极低且输出为空或疑似幻觉，给出提示
+        score = result.get("score")
+        if isinstance(score, (int, float)) and float(score) < 0.2:
+            if not text:
+                return "[未识别到公式内容]"
+            return f"[低置信度] {text}"
+        # 混合模式下无 score 字段，若 text 为空说明未检测到任何内容
+        if not text:
+            return "[未检测到可识别内容]"
+        return text
 
     def __del__(self):
         try:

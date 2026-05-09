@@ -1,5 +1,6 @@
 # backend/capture_overlay.py
 import math
+import os
 import time
 from dataclasses import dataclass
 
@@ -17,6 +18,85 @@ from PyQt6.QtGui import (
     QPixmap,
     QRegion,
 )
+
+
+# ---------------------------------------------------------------------------
+# Wayland 截图 fallback — 通过 D-Bus Screenshot 门户
+# ---------------------------------------------------------------------------
+def _wayland_screenshot_via_portal() -> QImage | None:
+    """通过 org.freedesktop.portal.Screenshot 在 Wayland 上截图。
+
+    grabWindow(0) 在 Wayland 上返回空图像（因为 Wayland 没有根窗口概念），
+    因此需要通过 xdg-desktop-portal 的 Screenshot API 来捕获屏幕。
+    """
+    try:
+        import dbus
+        from dbus.mainloop.glib import DBusGMainLoop
+    except ImportError:
+        return None
+
+    try:
+        from gi.repository import GLib  # type: ignore
+    except ImportError:
+        return None
+
+    loop = GLib.MainLoop()
+    result: dict = {}
+
+    def _on_response(response: int, results: dict) -> None:
+        result["response"] = response
+        result["results"] = results
+        loop.quit()
+
+    try:
+        DBusGMainLoop(set_as_default=True)
+        bus = dbus.SessionBus()
+        portal = bus.get_object(
+            "org.freedesktop.portal.Desktop",
+            "/org/freedesktop/portal/desktop",
+        )
+        screenshot = dbus.Interface(
+            portal,
+            "org.freedesktop.portal.Screenshot",
+        )
+        screenshot.connect_to_signal("Response", _on_response)
+
+        token = screenshot.Screenshot(
+            "",  # parent_window (empty = no parent)
+            {
+                "interactive": False,
+                "modal": False,
+            },
+        )
+        # token is the request handle path (e.g. "/org/freedesktop/portal/desktop/request/...")
+
+        # 等待响应（最多 10 秒）
+        GLib.timeout_add(10000, loop.quit)
+        loop.run()
+    except Exception:
+        return None
+
+    if result.get("response") != 0:
+        return None
+
+    uri = result.get("results", {}).get("uri", "")
+    if not uri:
+        return None
+
+    # URI 格式: file:///path/to/screenshot.png
+    path = uri.replace("file://", "")
+    image = QImage(path)
+    if image.isNull():
+        return None
+
+    # 清理临时文件
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+    return image
+
 
 
 _CROSSHAIR_ARM = 9
@@ -205,6 +285,8 @@ class ScreenCaptureOverlay(QWidget):
 
     def _capture_screen_snapshots(self) -> list[_ScreenSnapshot]:
         snapshots: list[_ScreenSnapshot] = []
+        wayland_fallback_used = False
+
         for screen in QGuiApplication.screens():
             try:
                 geo = QRect(screen.geometry())
@@ -213,7 +295,15 @@ class ScreenCaptureOverlay(QWidget):
                 pixmap = screen.grabWindow(0, 0, 0, geo.width(), geo.height())
                 image = pixmap.toImage().copy()
                 if image.isNull():
-                    continue
+                    # Wayland: grabWindow(0) 返回空，尝试 D-Bus portal 截图
+                    if not wayland_fallback_used:
+                        wayland_image = _wayland_screenshot_via_portal()
+                        if wayland_image is not None and not wayland_image.isNull():
+                            wayland_fallback_used = True
+                            image = wayland_image.copy()
+                            print("[Overlay] Wayland: 使用 D-Bus Screenshot portal 截图成功")
+                    if image.isNull():
+                        continue
                 snapshots.append(
                     _ScreenSnapshot(
                         geometry=geo,
@@ -815,6 +905,21 @@ class ScreenCaptureOverlay(QWidget):
         if pixmap.isNull():
             nx, ny, nw, nh = native_rect
             pixmap = screen.grabWindow(0, nx, ny, nw, nh)
+        # Wayland fallback: grabWindow(0) 在 Wayland 上可能返回空
+        if pixmap.isNull():
+            wayland_img = _wayland_screenshot_via_portal()
+            if wayland_img is not None and not wayland_img.isNull():
+                # 从 portal 截图中裁剪目标区域
+                screen_geo = screen.geometry()
+                sx, sy = screen_geo.x(), screen_geo.y()
+                nx, ny, nw, nh = native_rect
+                crop_x = max(0, int((nx - sx) * (wayland_img.width() / max(1, screen_geo.width()))))
+                crop_y = max(0, int((ny - sy) * (wayland_img.height() / max(1, screen_geo.height()))))
+                crop_w = max(1, int(nw * (wayland_img.width() / max(1, screen_geo.width()))))
+                crop_h = max(1, int(nh * (wayland_img.height() / max(1, screen_geo.height()))))
+                cropped = wayland_img.copy(crop_x, crop_y, min(crop_w, wayland_img.width() - crop_x), min(crop_h, wayland_img.height() - crop_y))
+                pixmap = QPixmap.fromImage(cropped)
+                print("[Overlay] Wayland: 使用 D-Bus portal 裁剪截图")
         self.last_capture_screen_index = int(target_idx)
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 
