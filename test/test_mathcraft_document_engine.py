@@ -47,6 +47,25 @@ def test_document_engine_preserves_display_math() -> None:
     assert "$$\nx = y + z\n$$" in text
 
 
+def test_document_engine_can_render_typst_formulas() -> None:
+    text = compose_mathcraft_markdown_document(
+        [
+            "\n".join(
+                [
+                    "Notice that",
+                    "$$",
+                    "x = y + z",
+                    "$$",
+                    "and continue.",
+                ]
+            )
+        ],
+        typst_formulas=True,
+    )
+    assert isinstance(text, str)
+    assert text
+
+
 def test_document_engine_merges_cross_page_continuation() -> None:
     text = compose_mathcraft_markdown_document(
         [

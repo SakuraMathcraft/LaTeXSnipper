@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
@@ -443,6 +443,41 @@ class SettingsWindow(QDialog):
         lay.addWidget(self.latex_options_widget)
         # 分隔
         lay.addSpacing(8)
+        # ============ Pandoc 导出设置 ============
+        lay.addWidget(QLabel("Pandoc 导出 (可选):"))
+        self.pandoc_widget = QWidget()
+        pandoc_layout = QVBoxLayout(self.pandoc_widget)
+        pandoc_layout.setContentsMargins(0, 0, 0, 0)
+        pandoc_layout.setSpacing(6)
+        # 状态显示
+        self.pandoc_status_label = QLabel("状态：未检测")
+        self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+        self.pandoc_status_label.setWordWrap(True)
+        pandoc_layout.addWidget(self.pandoc_status_label)
+        # 操作按钮
+        pandoc_btn_row = QHBoxLayout()
+        pandoc_btn_row.setContentsMargins(0, 0, 0, 0)
+        pandoc_btn_row.setSpacing(6)
+        self.pandoc_detect_btn = PushButton(FluentIcon.SEARCH, "检测 Pandoc")
+        self.pandoc_detect_btn.setFixedHeight(32)
+        pandoc_btn_row.addWidget(self.pandoc_detect_btn)
+        self.pandoc_install_btn = PushButton(FluentIcon.DEVELOPER_TOOLS, "打开依赖向导安装")
+        self.pandoc_install_btn.setFixedHeight(32)
+        self.pandoc_install_btn.setToolTip("打开依赖管理向导，勾选 PANDOC 层即可一键安装\n依赖向导会下载并管理 pandoc 二进制文件")
+        pandoc_btn_row.addWidget(self.pandoc_install_btn)
+        pandoc_layout.addLayout(pandoc_btn_row)
+        # 提示信息
+        self.pandoc_hint_label = QLabel(
+            "提示：安装 PANDOC 层后，导出菜单会自动显示 Pandoc 格式。"
+        )
+        self.pandoc_hint_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
+        self.pandoc_hint_label.setWordWrap(True)
+        pandoc_layout.addWidget(self.pandoc_hint_label)
+        lay.addWidget(self.pandoc_widget)
+        # 初始化 Pandoc 状态
+        self._init_pandoc_status()
+        # 分隔
+        lay.addSpacing(8)
         # 检查更新
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -518,6 +553,9 @@ class SettingsWindow(QDialog):
         self.external_test_btn.clicked.connect(self._test_external_model_connection)
         self.external_help_btn.clicked.connect(self._show_external_model_help)
         self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
+        # Pandoc 相关信号
+        self.pandoc_detect_btn.clicked.connect(self._detect_pandoc)
+        self.pandoc_install_btn.clicked.connect(self._open_deps_wizard)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
@@ -2112,4 +2150,80 @@ class SettingsWindow(QDialog):
             self._update_mathcraft_visibility()
         finally:
             self._model_selection_syncing = False
+
+    # ============ Pandoc 导出方法 ============
+
+    def _init_pandoc_status(self):
+        """初始化 Pandoc 状态检测"""
+        self._detect_pandoc_async()
+
+    def _detect_pandoc_async(self, *, notify: bool = False):
+        """异步检测 Pandoc 可用性"""
+        import threading
+
+        self.pandoc_status_label.setText("状态：检测中（仅验证已安装的 pandoc）...")
+        self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
+
+        def _worker():
+            try:
+                from exporting.pandoc_exporter import check_pandoc_available, pandoc_path, pandoc_version
+                available = check_pandoc_available(force=True)
+                version = pandoc_version() if available else None
+                resolved_path = pandoc_path() if available else None
+            except Exception as e:
+                available = False
+                version = str(e)
+                resolved_path = None
+            # 用信号安全地回传到 UI 线程
+            self._pandoc_detect_result = (available, version, resolved_path, notify)
+            # 使用 QMetaObject.invokeMethod 确保在主线程执行
+            from PyQt6.QtCore import QMetaObject, Qt
+            QMetaObject.invokeMethod(
+                self, "_on_pandoc_detect_done", Qt.ConnectionType.QueuedConnection
+            )
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @pyqtSlot()
+    def _on_pandoc_detect_done(self):
+        """Pandoc 检测完成回调（UI 线程）"""
+        available, version_info, resolved_path, notify = getattr(
+            self, "_pandoc_detect_result", (False, None, None, False)
+        )
+        self._update_pandoc_status_ui(available, version_info, resolved_path)
+        self.pandoc_detect_btn.setEnabled(True)
+        self.pandoc_detect_btn.setText("检测 Pandoc")
+        if notify:
+            if available:
+                detail = str(version_info or "Pandoc 可用")
+                if resolved_path:
+                    detail = f"{detail}\n路径: {resolved_path}"
+                self._show_notification("success", "Pandoc 检测成功", detail)
+            else:
+                detail = str(version_info or "请通过依赖管理向导安装 PANDOC 层")
+                self._show_notification("warning", "Pandoc 未就绪", detail)
+
+    def _update_pandoc_status_ui(self, available: bool, version_info: str | None, resolved_path: str | None = None):
+        """更新 Pandoc 状态 UI（UI 线程调用）"""
+        if available:
+            ver_text = version_info or "pandoc"
+            self.pandoc_status_label.setText(f"✅ {ver_text}")
+            self.pandoc_status_label.setStyleSheet("color: #2e7d32; font-size: 10px; padding: 2px;")
+            if resolved_path:
+                self.pandoc_hint_label.setText(f"Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。\n路径：{resolved_path}")
+            else:
+                self.pandoc_hint_label.setText("Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。")
+        else:
+            self.pandoc_status_label.setText("❌ 未检测到 Pandoc")
+            self.pandoc_status_label.setStyleSheet("color: #c62828; font-size: 10px; padding: 2px;")
+            self.pandoc_hint_label.setText(
+                "提示：可通过依赖管理向导一键安装 PANDOC 层。"
+            )
+
+    def _detect_pandoc(self):
+        """手动触发 Pandoc 检测"""
+        self.pandoc_detect_btn.setEnabled(False)
+        self.pandoc_detect_btn.setText("检测中...")
+        self._detect_pandoc_async(notify=True)
+
 # ---------------- 主窗口 ----------------

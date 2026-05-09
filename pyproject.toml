@@ -58,6 +58,9 @@ dev = [
   "build>=1.2",
   "twine>=5.0",
 ]
+pandoc = [
+  "pypandoc>=1.15",
+]
 
 [project.urls]
 Homepage = "https://github.com/SakuraMathcraft/LaTeXSnipper"

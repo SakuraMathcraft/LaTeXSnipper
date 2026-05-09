@@ -7,6 +7,11 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+try:
+    import pypandoc
+except ImportError:  # pragma: no cover
+    pypandoc = None
+
 
 _SECTION_RE = re.compile(r"^(\d+(?:\.\d+)*)\s+(.+?)\s*$")
 _COMPACT_SECTION_RE = re.compile(r"^(\d+(?:\.\d+)+)(?!\.)(\S.+?)\s*$")
@@ -54,17 +59,27 @@ class _StructuredBlock:
     confidence_flags: tuple[str, ...] = ()
 
 
-def compose_mathcraft_markdown_pages(page_results: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> str:
+def convert_latex_to_typst(latex_code: str) -> str:
+    """Convert LaTeX formula text to Typst when pypandoc is available."""
+    if pypandoc is None:
+        return latex_code
+    try:
+        return str(pypandoc.convert_text(latex_code, "typst", format="latex")).strip()
+    except Exception:
+        return latex_code
+
+
+def compose_mathcraft_markdown_pages(page_results: list[dict[str, Any]] | tuple[dict[str, Any], ...], *, typst_formulas: bool = False) -> str:
     """Compose page-level structured MathCraft OCR results into Markdown."""
     page_texts: list[str] = []
     for page_index, page in enumerate(page_results, start=1):
         page_text = _structured_page_to_text(page, page_index)
         if page_text.strip():
             page_texts.append(page_text)
-    return compose_mathcraft_markdown_document(page_texts)
+    return compose_mathcraft_markdown_document(page_texts, typst_formulas=typst_formulas)
 
 
-def compose_mathcraft_markdown_document(page_texts: list[str] | tuple[str, ...]) -> str:
+def compose_mathcraft_markdown_document(page_texts: list[str] | tuple[str, ...], *, typst_formulas: bool = False) -> str:
     """Compose page-level MathCraft OCR text into a cleaner Markdown document."""
     pages = [str(page or "").replace("\r\n", "\n").strip() for page in page_texts]
     pages = [page for page in pages if page]
@@ -76,7 +91,7 @@ def compose_mathcraft_markdown_document(page_texts: list[str] | tuple[str, ...])
         blocks.extend(_page_text_to_blocks(page, page_index))
     blocks = _promote_document_headings(blocks)
     blocks = _merge_cross_page_continuations(blocks)
-    return _render_blocks(blocks)
+    return _render_blocks(blocks, typst_formulas=typst_formulas)
 
 
 def _page_text_to_blocks(text: str, page_index: int) -> list[_Block]:
@@ -287,7 +302,7 @@ def _merge_cross_page_continuations(blocks: list[_Block]) -> list[_Block]:
     return merged
 
 
-def _render_blocks(blocks: list[_Block]) -> str:
+def _render_blocks(blocks: list[_Block], *, typst_formulas: bool = False) -> str:
     chunks: list[str] = []
     last_page = 0
     for block in blocks:
@@ -304,7 +319,10 @@ def _render_blocks(blocks: list[_Block]) -> str:
         elif block.kind == "heading":
             chunks.append(_render_section_heading(text))
         elif block.kind == "formula":
-            chunks.append(_normalize_display_math(text))
+            if typst_formulas:
+                chunks.append(convert_latex_to_typst(text))
+            else:
+                chunks.append(_normalize_display_math(text))
         elif block.kind == "list_item":
             chunks.append(f"- {text}")
         else:

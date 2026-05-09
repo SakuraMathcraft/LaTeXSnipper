@@ -14,6 +14,14 @@ from preview.math_preview import (
     normalize_latex_for_export,
 )
 
+# Lazy import for Pandoc availability check
+def _pandoc_available() -> bool:
+    try:
+        from exporting.pandoc_exporter import is_available
+        return is_available()
+    except Exception:
+        return False
+
 
 @dataclass(frozen=True)
 class ExportFormatSpec:
@@ -40,6 +48,18 @@ EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
     ExportFormatSpec("svgcode", "SVG Code"),
 )
 
+# Pandoc formats are added dynamically when Pandoc is available
+def _get_pandoc_format_specs() -> tuple[ExportFormatSpec, ...]:
+    """Return Pandoc format specs if Pandoc is available."""
+    if not _pandoc_available():
+        return ()
+    from exporting.pandoc_exporter import PANDOC_FORMATS
+    specs = [ExportFormatSpec("", separator_before=True)]
+    specs.append(ExportFormatSpec("_pandoc_header", "── Pandoc 导出 ──"))
+    for fmt in PANDOC_FORMATS:
+        specs.append(ExportFormatSpec(fmt.key, fmt.label))
+    return tuple(specs)
+
 FORMAT_DISPLAY_NAMES = {
     "latex": "LaTeX (行内)",
     "latex_display": "LaTeX (display \\[\\])",
@@ -54,6 +74,11 @@ FORMAT_DISPLAY_NAMES = {
     "omml": "Word OMML",
     "svgcode": "SVG Code",
 }
+
+
+def get_all_export_format_specs() -> tuple[ExportFormatSpec, ...]:
+    """Return all format specs, including Pandoc formats when available."""
+    return EXPORT_FORMAT_SPECS + _get_pandoc_format_specs()
 
 
 def build_formula_export(
@@ -92,4 +117,42 @@ def build_formula_export(
         return omml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "svgcode":
         return svg_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
+
+    # Pandoc formats
+    if fmt.startswith("pandoc_"):
+        return _build_pandoc_export(fmt, clean)
+
     return "", ""
+
+
+def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
+    """Build export result using Pandoc backend.
+
+    Returns (export_text, display_name). For binary formats, returns a
+    placeholder string indicating binary data is available.
+    """
+    from exporting.pandoc_exporter import (
+        PANDOC_FORMAT_MAP,
+        PandocNotAvailable,
+        convert_latex_to,
+        get_format_label,
+    )
+
+    fmt = PANDOC_FORMAT_MAP.get(format_key)
+    if fmt is None:
+        return "", ""
+
+    label = get_format_label(format_key)
+
+    try:
+        result = convert_latex_to(format_key, latex, as_document=True)
+    except PandocNotAvailable as exc:
+        return f"[Pandoc 不可用] {exc}", label
+    except Exception as exc:
+        return f"[Pandoc 转换失败] {exc}", label
+
+    if isinstance(result, bytes):
+        # Binary format – return a marker; caller should handle file saving
+        return f"[BINARY:{format_key}]", label
+
+    return result, label
