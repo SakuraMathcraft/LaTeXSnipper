@@ -7,8 +7,8 @@ import os
 
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import InfoBar, InfoBarPosition
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
+from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 
 from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from preview.math_preview import preview_theme_tokens
@@ -221,28 +221,19 @@ class FavoritesWindow(QMainWindow):
         if not latex:
             return
         
-        menu = QMenu(self)
-        a_copy = menu.addAction("复制")
-        
-        export_menu = menu.addMenu("导出为...")
+        menu = RoundMenu(parent=self)
+        menu.addAction(Action("复制", triggered=lambda: self._copy_item(latex)))
+
+        export_menu = RoundMenu("导出为...", parent=menu)
         populate_formula_export_menu(export_menu, lambda format_type: self._export_as(format_type, latex))
-        
+        menu.addMenu(export_menu)
+
         menu.addSeparator()
-        a_add_history = menu.addAction("添加到历史")
-        a_rename = menu.addAction("重命名")
-        a_edit = menu.addAction("编辑")
-        a_del = menu.addAction("删除")
-        act = menu.exec(self.list_widget.mapToGlobal(pos))
-        if act == a_copy:
-            self._copy_item(latex)
-        elif act == a_add_history:
-            self._add_to_history(latex)
-        elif act == a_rename:
-            self._rename_item(latex)
-        elif act == a_edit:
-            self._edit_item(item, latex)
-        elif act == a_del:
-            self._delete_item(latex)
+        menu.addAction(Action("添加到历史", triggered=lambda: self._add_to_history(latex)))
+        menu.addAction(Action("重命名", triggered=lambda: self._rename_item(latex)))
+        menu.addAction(Action("编辑", triggered=lambda: self._edit_item(item, latex)))
+        menu.addAction(Action("删除", triggered=lambda: self._delete_item(latex)))
+        menu.exec(self.list_widget.mapToGlobal(pos))
     
     def _add_to_history(self, latex: str):
         """将收藏夹公式添加到历史记录（继承标签和类型）"""
