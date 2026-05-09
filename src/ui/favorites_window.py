@@ -10,20 +10,12 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from preview.math_preview import (
-    latex_display,
-    latex_equation,
-    latex_inline,
-    mathml_standardize,
-    mathml_to_html_fragment,
-    mathml_with_prefix,
-    normalize_latex_for_export,
-    preview_theme_tokens,
-    latex_to_svg,
-)
+from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
+from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
 from runtime.config_manager import normalize_content_type, resolve_user_data_file
 from ui.edit_formula_dialog import EditFormulaDialog
+from ui.formula_export_menu import export_formula_to_clipboard, populate_formula_export_menu
 from ui.window_helpers import (
     apply_close_only_window_flags as _apply_close_only_window_flags,
     exec_close_only_message_box,
@@ -232,23 +224,8 @@ class FavoritesWindow(QMainWindow):
         menu = QMenu(self)
         a_copy = menu.addAction("复制")
         
-        # 导出子菜单 - 增加更多导出格式
         export_menu = menu.addMenu("导出为...")
-        a_latex = export_menu.addAction("LaTeX (行内 $...$)")
-        alatex_display = export_menu.addAction("LaTeX (display \\[...\\])")
-        alatex_equation = export_menu.addAction("LaTeX (equation 编号)")
-        export_menu.addSeparator()
-        a_md_inline = export_menu.addAction("Markdown (行内 $...$)")
-        a_md_block = export_menu.addAction("Markdown (块级 $$...$$)")
-        export_menu.addSeparator()
-        a_mathml = export_menu.addAction("MathML")
-        a_mathml_mml = export_menu.addAction("MathML (.mml)")
-        a_mathml_m = export_menu.addAction("MathML (<m>)")
-        a_mathml_attr = export_menu.addAction("MathML (attr)")
-        export_menu.addSeparator()
-        a_html = export_menu.addAction("HTML")
-        a_omml = export_menu.addAction("Word OMML")
-        a_svgcode = export_menu.addAction("SVG Code")
+        populate_formula_export_menu(export_menu, lambda format_type: self._export_as(format_type, latex))
         
         menu.addSeparator()
         a_add_history = menu.addAction("添加到历史")
@@ -266,30 +243,6 @@ class FavoritesWindow(QMainWindow):
             self._edit_item(item, latex)
         elif act == a_del:
             self._delete_item(latex)
-        elif act == a_latex:
-            self._export_as("latex", latex)
-        elif act == alatex_display:
-            self._export_as("latex_display", latex)
-        elif act == alatex_equation:
-            self._export_as("latex_equation", latex)
-        elif act == a_html:
-            self._export_as("html", latex)
-        elif act == a_md_inline:
-            self._export_as("markdown_inline", latex)
-        elif act == a_md_block:
-            self._export_as("markdown_block", latex)
-        elif act == a_mathml:
-            self._export_as("mathml", latex)
-        elif act == a_mathml_mml:
-            self._export_as("mathml_mml", latex)
-        elif act == a_mathml_m:
-            self._export_as("mathml_m", latex)
-        elif act == a_mathml_attr:
-            self._export_as("mathml_attr", latex)
-        elif act == a_omml:
-            self._export_as("omml", latex)
-        elif act == a_svgcode:
-            self._export_as("svgcode", latex)
     
     def _add_to_history(self, latex: str):
         """将收藏夹公式添加到历史记录（继承标签和类型）"""
@@ -324,142 +277,19 @@ class FavoritesWindow(QMainWindow):
             self._set_status("已添加到历史记录")
 
     def _export_as(self, format_type: str, latex: str):
-        """导出公式为指定格式（统一使用 matplotlib SVG）"""
-        result = ""
-        format_name = ""
-        clean = normalize_latex_for_export(latex)
-
-        if format_type == "latex":
-            result = latex_inline(clean)
-            format_name = "LaTeX (行内)"
-        elif format_type == "latex_display":
-            result = latex_display(clean)
-            format_name = "LaTeX (display \\[\\])"
-        elif format_type == "latex_equation":
-            result = latex_equation(clean)
-            format_name = "LaTeX (equation)"
-        elif format_type == "html":
-            # HTML 格式
-            try:
-                result = mathml_to_html_fragment(self._latex_to_mathml(clean))
-            except Exception as e:
-                self._set_status(f"HTML 导出失败: {e}")
-                return
-            format_name = "HTML"
-        elif format_type == "markdown_inline":
-            result = latex_inline(clean)
-            format_name = "Markdown 行内"
-        elif format_type == "markdown_block":
-            result = f"$$\n{clean}\n$$"
-            format_name = "Markdown 块级"
-        elif format_type == "mathml":
-            try:
-                result = self._latex_to_mathml(clean)
-            except Exception as e:
-                self._set_status(f"MathML 导出失败: {e}")
-                return
-            format_name = "MathML"
-        elif format_type == "mathml_mml":
-            try:
-                result = mathml_with_prefix(self._latex_to_mathml(clean), "mml")
-            except Exception as e:
-                self._set_status(f"MathML 导出失败: {e}")
-                return
-            format_name = "MathML (.mml)"
-        elif format_type == "mathml_m":
-            try:
-                result = mathml_with_prefix(self._latex_to_mathml(clean), "m")
-            except Exception as e:
-                self._set_status(f"MathML 导出失败: {e}")
-                return
-            format_name = "MathML (<m>)"
-        elif format_type == "mathml_attr":
-            try:
-                result = mathml_with_prefix(self._latex_to_mathml(clean), "attr")
-            except Exception as e:
-                self._set_status(f"MathML 导出失败: {e}")
-                return
-            format_name = "MathML (attr)"
-        elif format_type == "omml":
-            try:
-                result = self._latex_to_omml(clean)
-            except Exception as e:
-                self._set_status(f"OMML 导出失败: {e}")
-                return
-            format_name = "Word OMML"
-        elif format_type == "svgcode":
-            try:
-                result = self._latex_to_svg_code(clean)
-            except Exception as e:
-                self._set_status(f"SVG 导出失败: {e}")
-                return
-            format_name = "SVG Code"
-        
-        if result:
-            try:
-                from PyQt6.QtWidgets import QApplication
-                QApplication.clipboard().setText(result)
-                self._set_status(f"已复制 {format_name} 格式")
-            except Exception:
-                try:
-                    import pyperclip
-                    pyperclip.copy(result)
-                    self._set_status(f"已复制 {format_name} 格式")
-                except Exception:
-                    self._set_status("复制失败")
-    
-    def _latex_to_svg_code(self, latex: str) -> str:
-        """将 LaTeX 转换为 SVG 代码"""
-        return latex_to_svg(latex)
-    
-    def _latex_to_mathml(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML 格式"""
-        latex = normalize_latex_for_export(latex)
-        import latex2mathml.converter
-        mathml = latex2mathml.converter.convert(latex)
-        return mathml_standardize(mathml)
-    
-    def _latex_to_mathml_element(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML <m> 元素格式"""
-        return mathml_with_prefix(self._latex_to_mathml(latex), "m")
-    
-    def _latex_to_mathml_with_attr(self, latex: str) -> str:
-        """将 LaTeX 转换为 MathML 属性格式"""
-        return mathml_with_prefix(self._latex_to_mathml(latex), "attr")
-    def _latex_to_omml(self, latex: str) -> str:
-        """将 LaTeX 转换为 OMML 格式"""
+        """导出公式为指定格式。"""
         try:
-            latex = normalize_latex_for_export(latex)
-            import latex2mathml.converter as _latex2mathml_converter
-            _ = _latex2mathml_converter
-            mathml = self._latex_to_mathml(latex)
-
-            try:
-                from lxml import etree
-                import os
-
-                xsl_paths = [
-                    os.path.expandvars(r"%ProgramFiles%\Microsoft Office\root\Office16\MML2OMML.XSL"),
-                    os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft Office\root\Office16\MML2OMML.XSL"),
-                    os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office16\MML2OMML.XSL"),
-                ]
-
-                for xsl_path in xsl_paths:
-                    if os.path.exists(xsl_path):
-                        xslt = etree.parse(xsl_path)
-                        transform = etree.XSLT(xslt)
-                        doc = etree.fromstring(mathml.encode())
-                        result = transform(doc)
-                        return str(result)
-
-                return mathml
-            except ImportError:
-                return mathml
-        except ImportError:
-            escaped = latex.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-            return f"{{ EQ \\\\o\\\\al(\\\\lc\\\\(({escaped})\\\\rc\\\\))"
-        except Exception:
-            raise
+            _ok, message = export_formula_to_clipboard(
+                format_type,
+                latex,
+                mathml_converter=latex_to_mathml,
+                omml_converter=latex_to_omml,
+                svg_converter=latex_to_svg_code,
+            )
+        except Exception as e:
+            self._set_status(f"导出失败: {e}")
+            return
+        self._set_status(message)
 
     def _copy_item(self, latex: str):
         """复制公式到剪贴板"""
