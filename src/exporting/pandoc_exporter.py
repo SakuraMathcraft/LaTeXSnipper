@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+import importlib.util
 from pathlib import Path
 from typing import Optional
 
@@ -89,9 +90,6 @@ PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 _available_cache: Optional[bool] = None
 _pandoc_version_cache: Optional[str] = None
 _pandoc_path_cache: Optional[str] = None
-_download_attempted: bool = False
-
-
 def _find_pandoc_binary() -> Optional[str]:
     """Try to locate the ``pandoc`` executable."""
     configured = load_configured_pandoc_path()
@@ -99,6 +97,7 @@ def _find_pandoc_binary() -> Optional[str]:
         dir_str = str(configured.parent)
         if dir_str not in os.environ.get("PATH", ""):
             os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+        os.environ["PYPANDOC_PANDOC"] = str(configured)
         return str(configured)
 
     try:
@@ -110,42 +109,25 @@ def _find_pandoc_binary() -> Optional[str]:
                     dir_str = str(deps_pandoc.parent)
                     if dir_str not in os.environ.get("PATH", ""):
                         os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+                    os.environ["PYPANDOC_PANDOC"] = str(deps_pandoc)
                     return str(deps_pandoc)
     except Exception:
         pass
     # 2. Check system PATH (fallback)
     found = shutil.which("pandoc")
     if found:
+        os.environ["PYPANDOC_PANDOC"] = found
         return found
     return None
-
-
-def _try_download_pandoc_binary() -> Optional[str]:
-    """Use pypandoc.download_pandoc() to fetch the pandoc binary automatically.
-
-    Returns the path to the downloaded binary, or *None* on failure.
-    """
-    global _download_attempted
-    if _download_attempted:
-        return None
-    _download_attempted = True
-    try:
-        import pypandoc  # type: ignore[import-untyped]
-        logger.info("pandoc binary not found – attempting auto-download via pypandoc…")
-        pypandoc.download_pandoc()
-        return pypandoc.get_pandoc_path()
-    except Exception as exc:
-        logger.debug("pypandoc.download_pandoc() failed: %s", exc)
-        return None
 
 
 def check_pandoc_available(*, force: bool = False) -> bool:
     """Return *True* if ``pypandoc`` can be imported **and** a pandoc binary exists.
 
-    When *force* is ``True`` the cache is bypassed *and* an auto-download of
-    the pandoc binary is attempted if it cannot be found.
+    When *force* is ``True`` the cache is bypassed. This function never
+    downloads or installs pandoc; dependency management owns installation.
     """
-    global _available_cache, _pandoc_version_cache, _pandoc_path_cache, _download_attempted
+    global _available_cache, _pandoc_version_cache, _pandoc_path_cache
     if _available_cache is not None and not force:
         return _available_cache
 
@@ -157,33 +139,20 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     # after the user has just installed pypandoc.
     if force:
         sys.modules.pop("pypandoc", None)
-        _download_attempted = False  # allow re-download attempt
 
     # 1. Try pypandoc
-    try:
-        import pypandoc  # type: ignore[import-untyped]
-    except ImportError:
+    if importlib.util.find_spec("pypandoc") is None:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    # 2. Prefer the persisted app-level path, then pypandoc/PATH fallbacks.
+    # 2. Prefer the persisted app-level path, then local deps/PATH fallbacks.
     pandoc_path = _find_pandoc_binary()
-    if not pandoc_path:
-        try:
-            pandoc_path = pypandoc.get_pandoc_path()
-        except Exception:
-            pandoc_path = None
-
-    # 3. If still not found, try auto-download (first attempt only)
-    if not pandoc_path:
-        logger.info("pandoc binary not found on system – trying auto-download")
-        pandoc_path = _try_download_pandoc_binary()
 
     if not pandoc_path:
         logger.debug("pandoc binary not found – Pandoc export disabled")
         return False
 
-    # 4. Get version
+    # 3. Get version
     try:
         ver_output = subprocess.check_output(
             [pandoc_path, "--version"],

@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import core.mathcraft_document_engine as document_engine
 from core.mathcraft_document_engine import (
     compose_mathcraft_markdown_document,
     compose_mathcraft_markdown_pages,
@@ -17,9 +18,9 @@ from core.mathcraft_document_engine import (
 )
 
 
-def test_convert_latex_to_typst_without_pypandoc():
+def test_convert_latex_to_typst_without_pypandoc(monkeypatch):
     """Test that convert_latex_to_typst returns original text when pypandoc is not available."""
-    # This test assumes pypandoc is not installed
+    monkeypatch.setattr(document_engine, "pypandoc", None)
     latex = r"\int_{0}^{\infty} e^{-x} dx"
     result = convert_latex_to_typst(latex)
     assert result == latex

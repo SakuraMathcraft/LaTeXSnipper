@@ -43,3 +43,9 @@ def test_missing_configured_pandoc_path_is_ignored(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(pandoc_runtime, "app_config_path", lambda: cfg_path)
 
     assert pandoc_runtime.load_configured_pandoc_path() is None
+
+
+def test_pandoc_exporter_does_not_auto_download_pandoc() -> None:
+    source = (SRC / "exporting" / "pandoc_exporter.py").read_text(encoding="utf-8")
+
+    assert "download_pandoc" not in source
