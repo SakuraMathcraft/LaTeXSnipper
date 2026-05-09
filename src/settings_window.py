@@ -454,7 +454,7 @@ class SettingsWindow(QDialog):
         self.pandoc_enable_check.setChecked(False)
         self.pandoc_enable_check.setToolTip(
             "启用后可在导出菜单中使用 Pandoc 支持的格式（docx/odt/epub/rtf 等）。\n"
-            "需要安装 pypandoc (pip install pandoc) 和 pandoc 可执行文件。"
+            "需要安装 pypandoc (pip install pypandoc) 和 pandoc 可执行文件。"
         )
         pandoc_layout.addWidget(self.pandoc_enable_check)
         # 状态显示

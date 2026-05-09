@@ -454,7 +454,7 @@ class UninstallLayerWorker(QThread):
             _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
 
         # PANDOC 层卸载：删除 pip 包后，还要清理二进制和残留文件
-        if any(str(name).lower() == "pandoc" for name in self.pkg_names):
+        if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
             self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
             _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
             # 删除整个 deps/pandoc/ 目录
@@ -730,7 +730,7 @@ def _force_repair_broken_runtime_imports(
 def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
     """确保 pandoc 二进制文件可用。
 
-    pip install pandoc 只装 Python 包装器 (pypandoc)，不包含 pandoc 二进制。
+    pip install pypandoc 只装 Python 包装器，不包含 pandoc 二进制。
     本函数在 pip 安装完成后调用，从镜像站直接下载 pandoc 二进制到 deps/pandoc/。
 
     Args:
@@ -1611,7 +1611,7 @@ LAYER_MAP = {
         ORT_GPU_DEFAULT_SPEC,
     ],
     "PANDOC": [
-        "pandoc>=2.4",
+        "pypandoc>=1.15",
     ],
 }
 

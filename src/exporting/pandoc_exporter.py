@@ -1,6 +1,6 @@
 """Optional Pandoc export backend for LaTeXSnipper.
 
-Uses ``pypandoc`` (pip install pandoc) to convert LaTeX / Markdown / MathML
+Uses ``pypandoc`` (pip install pypandoc) to convert LaTeX / Markdown / MathML
 inputs to docx, odt, epub, rtf, plain-text and other Pandoc-supported formats.
 
 Pandoc is treated as an **optional** dependency:
@@ -270,7 +270,7 @@ def convert_latex_to(
     """
     if not is_available():
         raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pandoc) 并确保 pandoc 可执行文件在 PATH 中。"
+            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
         )
 
     fmt = PANDOC_FORMAT_MAP.get(target_key)
@@ -341,7 +341,7 @@ def convert_markdown_to(
     """
     if not is_available():
         raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pandoc) 并确保 pandoc 可执行文件在 PATH 中。"
+            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
         )
 
     fmt = PANDOC_FORMAT_MAP.get(target_key)

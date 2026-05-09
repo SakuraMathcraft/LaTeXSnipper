@@ -59,7 +59,7 @@ dev = [
   "twine>=5.0",
 ]
 pandoc = [
-  "pandoc>=2.4",
+  "pypandoc>=1.15",
 ]
 
 [project.urls]
