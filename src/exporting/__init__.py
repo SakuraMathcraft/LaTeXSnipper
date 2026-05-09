@@ -7,3 +7,5 @@ Submodules:
 """
 
 from .pandoc_exporter import is_available as pandoc_is_available
+
+__all__ = ["pandoc_is_available"]

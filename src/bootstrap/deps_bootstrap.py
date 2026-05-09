@@ -1016,7 +1016,6 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
 
     支持 Windows (.zip)、Linux (.tar.gz)、macOS (.zip)。
     """
-    import io
     import urllib.request
     import time as _time
 

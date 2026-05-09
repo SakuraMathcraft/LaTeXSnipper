@@ -136,7 +136,7 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     When *force* is ``True`` the cache is bypassed *and* an auto-download of
     the pandoc binary is attempted if it cannot be found.
     """
-    global _available_cache, _pandoc_version_cache
+    global _available_cache, _pandoc_version_cache, _download_attempted
     if _available_cache is not None and not force:
         return _available_cache
 
@@ -233,18 +233,6 @@ def _wrap_formula_in_document(latex: str) -> str:
         f"\\[{text}\\]\n"
         "\\end{document}\n"
     )
-
-
-def _wrap_markdown_formula(latex: str) -> str:
-    """Wrap a formula as a Markdown document with a math block."""
-    text = (latex or "").strip()
-    if text.startswith("$$") and text.endswith("$$"):
-        inner = text[2:-2].strip()
-    elif text.startswith("$") and text.endswith("$"):
-        inner = text[1:-1].strip()
-    else:
-        inner = text
-    return f"$$\n{inner}\n$$\n"
 
 
 # ---------------------------------------------------------------------------

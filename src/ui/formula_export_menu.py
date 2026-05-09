@@ -7,7 +7,7 @@ from collections.abc import Callable
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import Action
 
-from exporting.formula_export import EXPORT_FORMAT_SPECS, build_formula_export, get_all_export_format_specs
+from exporting.formula_export import build_formula_export, get_all_export_format_specs
 
 
 StatusCallback = Callable[[str], None]

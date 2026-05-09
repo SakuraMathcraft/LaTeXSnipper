@@ -2194,7 +2194,7 @@ class SettingsWindow(QDialog):
             # 用信号安全地回传到 UI 线程
             self._pandoc_detect_result = (available, version)
             # 使用 QMetaObject.invokeMethod 确保在主线程执行
-            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+            from PyQt6.QtCore import QMetaObject, Qt
             QMetaObject.invokeMethod(
                 self, "_on_pandoc_detect_done", Qt.ConnectionType.QueuedConnection
             )
