@@ -87,7 +87,7 @@ The `v2.1` handwriting window supports the following flow:
 | ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
 | 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
 | ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
-| 🔄 Multi-format export | LaTeX, Markdown, MathML, HTML, OMML, SVG |
+| 🔄 Multi-format export | 30 export choices across LaTeX, Markdown, MathML, HTML, OMML, SVG, Typst, Word, EPUB, RTF, wiki formats, and more |
 | 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
 | 🧠 Advanced fallback | Local `SymPy/mpmath` engine for harder expressions |
 | 🌙 Theme support | Light/Dark adaptation across windows and tools |
@@ -116,6 +116,28 @@ For heavy expressions, the engine uses automatic fallback:
 2. Switch to local advanced engine on timeout/failure/unreliable results
 3. Use `SymPy/mpmath` for robust fallback
 4. Recover closed forms for selected known constants from numeric output
+
+---
+
+## Export Formats
+
+LaTeXSnipper exposes a shared export menu in the main window and favorites window.
+
+Built-in formula export formats:
+
+- LaTeX inline, display, and equation
+- Markdown inline and block math
+- MathML standard, `.mml`, `<m>`, and attribute forms
+- HTML, Word OMML, and SVG code
+
+Optional Pandoc export formats are enabled after installing the `PANDOC` layer in the dependency wizard:
+
+- Word `.docx`, ODT `.odt`, EPUB `.epub`, InDesign `.icml`
+- RTF, plain text, standalone HTML, LaTeX `.tex`, Typst `.typ`
+- GitHub Markdown, CommonMark, reStructuredText
+- MediaWiki, DokuWiki, Org-mode, Textile, Jira Wiki, and man page output
+
+Pandoc is optional. If it is not installed, the core recognition, editing, handwriting, preview, and built-in export formats continue to work normally.
 
 ---
 
