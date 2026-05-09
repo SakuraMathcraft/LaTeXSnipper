@@ -802,7 +802,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
         return True
 
     if log_fn:
-        log_fn("[PANDOC] ⚠️ pandoc 二进制自动下载全部失败")
+        log_fn("[PANDOC] pandoc 二进制文件下载失败")
         log_fn("[PANDOC] 请手动安装：https://github.com/jgm/pandoc/releases")
         if sys.platform == "win32":
             log_fn("[PANDOC] 或运行: winget install JohnMacFarlane.Pandoc")

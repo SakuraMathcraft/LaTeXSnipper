@@ -463,7 +463,7 @@ class SettingsWindow(QDialog):
         pandoc_btn_row.addWidget(self.pandoc_detect_btn)
         self.pandoc_install_btn = PushButton(FluentIcon.DEVELOPER_TOOLS, "打开依赖向导安装")
         self.pandoc_install_btn.setFixedHeight(32)
-        self.pandoc_install_btn.setToolTip("打开依赖管理向导，勾选 PANDOC 层即可一键安装\npypandoc 会自动下载 pandoc 二进制文件，无需手动操作")
+        self.pandoc_install_btn.setToolTip("打开依赖管理向导，勾选 PANDOC 层即可一键安装\n依赖向导会下载并管理 pandoc 二进制文件")
         pandoc_btn_row.addWidget(self.pandoc_install_btn)
         pandoc_layout.addLayout(pandoc_btn_row)
         # 提示信息
@@ -2161,7 +2161,7 @@ class SettingsWindow(QDialog):
         """异步检测 Pandoc 可用性"""
         import threading
 
-        self.pandoc_status_label.setText("状态：检测中（首次可能需要自动下载 pandoc 二进制文件）...")
+        self.pandoc_status_label.setText("状态：检测中（仅验证已安装的 pandoc）...")
         self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
 
         def _worker():
