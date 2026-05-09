@@ -21,17 +21,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ $# -ge 1 ]]; then
     VERSION="$1"
 else
-    # 从 version_info.txt 提取版本号
-    VERSION=$(grep -oP 'filevers=\\([^)]+\\)' "$PROJECT_ROOT/version_info.txt" \
-        | grep -oP '[0-9]+,\\s*[0-9]+,\\s*[0-9]+' \
-        | head -1 \
-        | tr -d ' ' \
-        | tr ',' '.')
+    # 从 pyproject.toml 提取版本号 (最可靠)
+    VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' "$PROJECT_ROOT/pyproject.toml" | head -1)
     if [[ -z "$VERSION" ]]; then
-        VERSION=$(grep -oP 'version\\s*=\\s*"[^"]*"' "$PROJECT_ROOT/pyproject.toml" \
+        # 备选：从 version_info.txt 提取
+        VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
             | head -1 \
-            | grep -oP '"[^"]*"' \
-            | tr -d '"')
+            | tr -d ' ' \
+            | tr ',' '.')
     fi
 fi
 
