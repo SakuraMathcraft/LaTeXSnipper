@@ -25,9 +25,9 @@ class HardwareInfo:
 
 @lru_cache(maxsize=1)
 def detect_hardware_info() -> HardwareInfo:
-    total_mb, free_mb = _windows_memory_status()
+    total_mb, free_mb = _memory_status()
     gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi()
-    if not gpu_name:
+    if not gpu_name and os.name == "nt":
         gpu_name, gpu_total_mb, gpu_driver = _query_windows_video_controller()
     return HardwareInfo(
         logical_processors=max(1, int(os.cpu_count() or 1)),
@@ -165,6 +165,31 @@ def _parse_video_controller_payload(payload: object) -> tuple[str, int, str]:
     adapter_ram = _safe_int(str(payload.get("AdapterRAM") or "0"))
     adapter_ram_mb = adapter_ram // (1024 * 1024) if adapter_ram > 0 else 0
     return name, adapter_ram_mb, driver
+
+
+def _memory_status() -> tuple[int, int]:
+    """Return (total_memory_mb, free_memory_mb) for the current platform."""
+    if os.name == "nt":
+        return _windows_memory_status()
+    return _linux_memory_status()
+
+
+def _linux_memory_status() -> tuple[int, int]:
+    """Read /proc/meminfo for total and available memory in MB."""
+    try:
+        total_mb = 0
+        avail_mb = 0
+        with open("/proc/meminfo", "r") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    total_kb = int(line.split()[1])
+                    total_mb = total_kb // 1024
+                elif line.startswith("MemAvailable:"):
+                    avail_kb = int(line.split()[1])
+                    avail_mb = avail_kb // 1024
+        return total_mb, avail_mb
+    except Exception:
+        return 0, 0
 
 
 def _windows_memory_status() -> tuple[int, int]:

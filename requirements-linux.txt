@@ -1,0 +1,8 @@
+# Linux-specific dependencies for LaTeXSnipper
+# These are OPTIONAL additions to requirements.txt
+
+# Global hotkey support (X11 recommended; limited Wayland support)
+pynput>=1.7.6
+
+# Optional: better Wayland global hotkey support via D-Bus
+# dasbus>=1.7

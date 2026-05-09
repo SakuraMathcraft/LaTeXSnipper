@@ -113,18 +113,19 @@ def _early_ensure_pyqt6_and_pywin32():
         print("[OK] PyQt6-Fluent-Widgets 安装成功。")
 
     # 检查 win32api
-    try:
-        import win32api as _win32api
-        _ = _win32api
-    except ImportError:
-        print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
-        importlib.invalidate_caches()
-        # 关键：安装后直接提示用户重启
-        print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
-        import time
-        time.sleep(2)
-        sys.exit(0)
+    if os.name == "nt":
+        try:
+            import win32api as _win32api
+            _ = _win32api
+        except ImportError:
+            print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
+            importlib.invalidate_caches()
+            # 关键：安装后直接提示用户重启
+            print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
+            import time
+            time.sleep(2)
+            sys.exit(0)
 
     # 检查 pyperclip
     try:
@@ -399,6 +400,12 @@ def _release_single_instance_lock():
                 msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
             except Exception:
                 pass
+        else:
+            import fcntl
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
     except Exception:
         pass
     try:
@@ -408,7 +415,7 @@ def _release_single_instance_lock():
 
 
 def _ensure_single_instance() -> bool:
-    '''Prevent multiple GUI instances on Windows using a file lock.'''
+    '''Prevent multiple GUI instances using a file lock.'''
     lock_dir = Path.home() / ".latexsnipper"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / "instance.lock"
@@ -441,7 +448,29 @@ def _ensure_single_instance() -> bool:
             return False
         except Exception:
             return True
-    return True
+    else:
+        # Linux / macOS: use fcntl advisory lock
+        try:
+            import fcntl
+            attempts = 150 if restart_flag else 1
+            delay = 0.2
+            for _ in range(attempts):
+                fh = open(lock_file, "a+", encoding="utf-8")
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except (IOError, OSError):
+                    fh.close()
+                    if restart_flag:
+                        import time
+                        time.sleep(delay)
+                        continue
+                    return False
+                global _single_instance_lock
+                _single_instance_lock = fh
+                return True
+            return False
+        except Exception:
+            return True
 
 
 def _show_already_running_message() -> None:
@@ -1933,7 +1962,7 @@ def _relaunch_with(pyexe: str):
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
     _scrub_path_inplace(env)
-    env.setdefault("QT_QPA_PLATFORM", "windows")
+    env.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "xcb")
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
     try:

@@ -1,5 +1,10 @@
 from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig
 from backend.platform.registry import PlatformCapabilityRegistry, PlatformProviders, TrayMenuHandlers
+from backend.platform.linux_provider import (
+    LinuxHotkeyProvider,
+    LinuxScreenshotProvider,
+    LinuxSystemProvider,
+)
 
 __all__ = [
     "PermissionResult",
@@ -8,4 +13,7 @@ __all__ = [
     "PlatformCapabilityRegistry",
     "PlatformProviders",
     "TrayMenuHandlers",
+    "LinuxHotkeyProvider",
+    "LinuxScreenshotProvider",
+    "LinuxSystemProvider",
 ]

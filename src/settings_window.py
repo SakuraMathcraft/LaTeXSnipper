@@ -1603,37 +1603,78 @@ class SettingsWindow(QDialog):
             "echo.\n"
         )
         try:
-            if as_admin:
-                import tempfile
-                batch_content = "@echo off\n" \
-                    + f'cd /d "{venv_dir}"\n' \
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + python_bind_lines \
-                    + help_text
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content)
-                    batch_path = f.name
-                import ctypes
-                ctypes.windll.shell32.ShellExecuteW(
-                    None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
-                )
-                self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
+            if os.name == "nt":
+                if as_admin:
+                    import tempfile
+                    batch_content = "@echo off\n" \
+                        + f'cd /d "{venv_dir}"\n' \
+                        + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
+                        + python_bind_lines \
+                        + help_text
+                    with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
+                        f.write(batch_content)
+                        batch_path = f.name
+                    import ctypes
+                    ctypes.windll.shell32.ShellExecuteW(
+                        None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
+                    )
+                    self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
+                else:
+                    import tempfile
+                    batch_content_normal = "@echo off\n" \
+                        + f'cd /d "{venv_dir}"\n' \
+                        + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
+                        + python_bind_lines \
+                        + help_text
+                    with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
+                        f.write(batch_content_normal)
+                        batch_path = f.name
+                    subprocess.Popen(
+                        ["cmd.exe", "/k", batch_path],
+                        cwd=venv_dir,
+                        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                    )
+                    self._show_info("终端已打开", "已以普通模式打开。", "success")
             else:
+                # Linux (and macOS): write a shell script and open a terminal
                 import tempfile
-                batch_content_normal = "@echo off\n" \
-                    + f'cd /d "{venv_dir}"\n' \
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + python_bind_lines \
-                    + help_text
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content_normal)
-                    batch_path = f.name
-                subprocess.Popen(
-                    ["cmd.exe", "/k", batch_path],
-                    cwd=venv_dir,
-                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                import stat
+                shell_help = help_text.replace("echo.", "echo").replace("echo ", "echo ")
+                shell_bind_lines = (
+                    f'export LATEXSNIPPER_PYEXE="{pyexe}"\n'
+                    f'alias python="{pyexe}"\n'
+                    f'alias py="{pyexe}"\n'
+                    f'alias pip="{pyexe} -m pip"\n'
+                    f'cd "{venv_dir}"\n'
+                    f'export PATH="{pyexe_dir}:{pyexe_dir}/bin:{os.environ.get("PATH", "")}"\n'
                 )
-                self._show_info("终端已打开", "已以普通模式打开。", "success")
+                shell_content = "#!/bin/bash\n" + shell_bind_lines + shell_help
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".sh", delete=False, encoding="utf-8"
+                ) as f:
+                    f.write(shell_content)
+                    script_path = f.name
+                os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IXUSR)
+
+                # Try common Linux terminal emulators in order
+                terminals = [
+                    ["gnome-terminal", "--", "bash", script_path],
+                    ["konsole", "-e", "bash", script_path],
+                    ["xfce4-terminal", "-e", f"bash {script_path}"],
+                    ["xterm", "-e", "bash", script_path],
+                    ["lxterminal", "-e", "bash", script_path],
+                ]
+                launched = False
+                for term_cmd in terminals:
+                    term_exe = term_cmd[0]
+                    if shutil.which(term_exe):
+                        subprocess.Popen(term_cmd, cwd=venv_dir)
+                        launched = True
+                        self._show_info("终端已打开", f"已通过 {term_exe} 打开。", "success")
+                        break
+                if not launched:
+                    self._show_info("终端打开失败",
+                        "未找到可用的终端模拟器。请手动打开终端并执行命令。", "error")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 

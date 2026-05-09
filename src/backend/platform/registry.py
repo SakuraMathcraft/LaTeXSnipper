@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from backend.platform.windows_provider import (
     TrayMenuHandlers,
@@ -9,13 +9,18 @@ from backend.platform.windows_provider import (
     WindowsScreenshotProvider,
     WindowsSystemProvider,
 )
+from backend.platform.linux_provider import (
+    LinuxHotkeyProvider,
+    LinuxScreenshotProvider,
+    LinuxSystemProvider,
+)
 
 
 @dataclass
 class PlatformProviders:
-    hotkey: WindowsHotkeyProvider
-    screenshot: WindowsScreenshotProvider
-    system: WindowsSystemProvider
+    hotkey: object = field(default=None)
+    screenshot: object = field(default=None)
+    system: object = field(default=None)
 
 
 class PlatformCapabilityRegistry:
@@ -24,15 +29,22 @@ class PlatformCapabilityRegistry:
         self.disable_global_hotkey = bool(disable_global_hotkey)
 
     def create(self) -> PlatformProviders:
-        # V1 only provides a Windows implementation.
-        if sys.platform != "win32":
-            raise RuntimeError(f"Unsupported platform for V1 providers: {sys.platform}")
-        hotkey = WindowsHotkeyProvider(
-            parent=self.parent,
-            global_enabled=(not self.disable_global_hotkey),
-        )
-        screenshot = WindowsScreenshotProvider()
-        system = WindowsSystemProvider()
+        if sys.platform == "win32":
+            hotkey = WindowsHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = WindowsScreenshotProvider()
+            system = WindowsSystemProvider()
+        elif sys.platform == "linux":
+            hotkey = LinuxHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = LinuxScreenshotProvider()
+            system = LinuxSystemProvider()
+        else:
+            raise RuntimeError(f"Unsupported platform for providers: {sys.platform}")
         return PlatformProviders(hotkey=hotkey, screenshot=screenshot, system=system)
 
 
