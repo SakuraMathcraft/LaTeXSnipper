@@ -2908,7 +2908,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             normalized = str(_normalize_deps_base_dir(Path(d)))
             path_edit.setText(normalized)
             normalized_path = Path(normalized)
-            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / "python.exe")
+            _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
+            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / _default_pyexe_name)
             pyexe = active_pyexe
             state_path = normalized_path / STATE_FILE
             state_file = str(state_path)
@@ -3453,7 +3454,8 @@ def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: i
     except Exception as e:
         print(f"[WARN] 启动本地 Python 安装器失败: {e}")
         return False
-    return (target_dir / "python.exe").exists()
+    _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
+    return (target_dir / _default_pyexe_name).exists()
 
 # --------------- 主入口 ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
@@ -3731,7 +3733,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         py_root = deps_path / "python311"
         existing_pyexe = _find_existing_python(deps_path)
         if is_frozen:
-            pyexe = existing_pyexe or (py_root / "python.exe")
+            pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
             use_bundled = not (existing_pyexe and existing_pyexe.exists())
         else:
             deps_dir_resolved = str(deps_path.resolve())
@@ -3742,7 +3744,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 pyexe = existing_pyexe
                 use_bundled = False
             else:
-                pyexe = py_root / "python.exe"
+                pyexe = py_root / _DEFAULT_PYEXE_NAME
                 use_bundled = True
         _apply_runtime_context(pyexe)
         state_path = deps_path / STATE_FILE
