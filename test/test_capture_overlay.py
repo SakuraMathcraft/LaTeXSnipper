@@ -3,6 +3,13 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+# In the Windows GPU dependency environment, importing Qt before onnxruntime can
+# make ORT's native extension fail DLL initialization later in the same process.
+try:
+    import onnxruntime  # noqa: F401
+except Exception:
+    pass
+
 from PyQt6.QtGui import QColor, QGuiApplication, QImage
 from PyQt6.QtCore import QRect
 

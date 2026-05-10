@@ -11,6 +11,8 @@ env/
 # Build
 build/
 dist/
+!LaTeXSnipper-linux.spec
+!LaTeXSnipper-macos.spec
 !LaTeXSnipper.spec
 !LaTeXSnipper.offline.spec
 *.egg-info/
