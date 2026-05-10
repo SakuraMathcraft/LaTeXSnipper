@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -88,11 +89,19 @@ _LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
         "desc": "grim (wlroots/Sway Wayland)",
         "env": "wayland",
     },
+    # ---- macOS 工具 ----
+    "screencapture": {
+        "cmds": [["screencapture", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
+        "desc": "screencapture (macOS 内置)",
+        "env": "macos",
+    },
 }
 
 
 def _detect_display_env() -> str:
-    """检测当前桌面环境类型: 'wayland' | 'x11' | 'unknown'."""
+    """检测当前桌面环境类型: 'wayland' | 'x11' | 'macos' | 'unknown'."""
+    if sys.platform == "darwin":
+        return "macos"
     if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
         return "wayland"
     if os.environ.get("DISPLAY"):
@@ -139,9 +148,11 @@ def _find_linux_screenshot_tool(preferred: str | None = None) -> str | None:
     if not available:
         return None
 
-    # Wayland 优先 gnome-screenshot（GNOME）→ grim（wlroots），X11 优先 maim
+    # macOS 优先 screencapture，Wayland 优先 gnome-screenshot → grim，X11 优先 maim
     env = _detect_display_env()
-    if env == "wayland":
+    if env == "macos":
+        priority = ["screencapture"]
+    elif env == "wayland":
         priority = ["gnome-screenshot", "flameshot", "spectacle", "grim", "maim", "import", "scrot"]
     else:
         priority = ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]

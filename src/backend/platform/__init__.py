@@ -5,6 +5,11 @@ from backend.platform.linux_provider import (
     LinuxScreenshotProvider,
     LinuxSystemProvider,
 )
+from backend.platform.macos_provider import (
+    MacOSHotkeyProvider,
+    MacOSScreenshotProvider,
+    MacOSSystemProvider,
+)
 
 __all__ = [
     "PermissionResult",
@@ -16,4 +21,7 @@ __all__ = [
     "LinuxHotkeyProvider",
     "LinuxScreenshotProvider",
     "LinuxSystemProvider",
+    "MacOSHotkeyProvider",
+    "MacOSScreenshotProvider",
+    "MacOSSystemProvider",
 ]

@@ -14,6 +14,11 @@ from backend.platform.linux_provider import (
     LinuxScreenshotProvider,
     LinuxSystemProvider,
 )
+from backend.platform.macos_provider import (
+    MacOSHotkeyProvider,
+    MacOSScreenshotProvider,
+    MacOSSystemProvider,
+)
 
 
 @dataclass
@@ -43,6 +48,13 @@ class PlatformCapabilityRegistry:
             )
             screenshot = LinuxScreenshotProvider()
             system = LinuxSystemProvider()
+        elif sys.platform == "darwin":
+            hotkey = MacOSHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = MacOSScreenshotProvider()
+            system = MacOSSystemProvider()
         else:
             raise RuntimeError(f"Unsupported platform for providers: {sys.platform}")
         return PlatformProviders(hotkey=hotkey, screenshot=screenshot, system=system)

@@ -6697,7 +6697,26 @@ QLineEdit:focus {{
             self._graceful_shutdown()
             event.accept()
             return
-        # 普通关闭 = 最小化到托盘
+        # Linux：托盘图标支持不稳定，关闭窗口时弹出确认对话框
+        if sys.platform == "linux":
+            reply = QMessageBox.question(
+                self,
+                "确认退出",
+                "关闭窗口将完全退出 LaTeXSnipper，是否确认？\n\n"
+                "（提示：你可以通过系统托盘菜单的「退出」来关闭程序）",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._force_exit = True
+                if self.tray_icon:
+                    self.tray_icon.hide()
+                self.close()
+                QTimer.singleShot(0, QCoreApplication.quit)
+            else:
+                event.ignore()
+            return
+        # Windows：普通关闭 = 最小化到托盘
         self.hide()
         if self.tray_icon:
             # 只在第一次最小化时显示提示

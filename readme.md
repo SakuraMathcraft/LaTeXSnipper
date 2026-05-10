@@ -10,7 +10,7 @@
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Version](https://img.shields.io/badge/version-v2.3.2-brightgreen?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-Windows-orange?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
 [![GitHub Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
@@ -188,10 +188,14 @@ LaTeXSnipper/
 |-- packaging/msix/                # Microsoft Store MSIX manifest and notes
 |-- scripts/                       # Build, release, and regression utilities
 |-- docs/                          # Design and architecture notes
-|-- LaTeXSnipper.spec              # PyInstaller GitHub build
+|-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)
 |-- LaTeXSnipper.offline.spec      # PyInstaller offline-model build
+|-- LaTeXSnipper-linux.spec        # PyInstaller Linux build
+|-- LaTeXSnipper-macos.spec        # PyInstaller macOS build
 |-- pyproject.toml
 |-- requirements.txt
+|-- requirements-linux.txt
+|-- requirements-macos.txt
 |-- requirements-build.txt
 |-- version_info.txt
 `-- README.md
