@@ -78,6 +78,8 @@ def test_cross_platform_changes_do_not_expand_windows_dependency_surface() -> No
     for rel_path in ("Inno/latexsnipper.iss", "Inno/latexsnipper_offline.iss"):
         inno = (ROOT / rel_path).read_text(encoding="utf-8")
         assert r"DefaultDirName={localappdata}\{#MyAppName}" in inno
+        assert "PrivilegesRequired=lowest" in inno
+        assert "PrivilegesRequired=admin" not in inno
         assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
     assert (ROOT / "Inno" / "ChineseSimplified.isl").exists()
 
@@ -95,3 +97,36 @@ def test_platform_protocols_cover_main_window_provider_calls() -> None:
         "activate_window",
     ):
         assert method_name in protocols
+
+
+def test_release_workflow_uses_node24_actions_and_pinned_windows_runner() -> None:
+    workflows = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / ".github" / "workflows" / "ci.yml",
+            ROOT / ".github" / "workflows" / "release.yml",
+        )
+    )
+
+    assert "actions/checkout@v4" not in workflows
+    assert "actions/setup-python@v5" not in workflows
+    assert "actions/upload-artifact@v4" not in workflows
+    assert "actions/download-artifact@v4" not in workflows
+    assert "actions/checkout@v6" in workflows
+    assert "actions/setup-python@v6" in workflows
+    assert "actions/upload-artifact@v7" in workflows
+    assert "actions/download-artifact@v7" in workflows
+    assert "runs-on: windows-latest" not in workflows
+    assert "runs-on: windows-2025" in workflows
+
+
+def test_windows_release_normalizes_bundled_python_seed() -> None:
+    script = (ROOT / "scripts" / "build_github_release_installer.ps1").read_text(encoding="utf-8")
+
+    assert "function Normalize-BundledPythonSeed" in script
+    assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
+    assert "python311._pth" in script
+    assert "Lib\\site-packages" in script
+    assert "sys.prefix does not point to bundled python311" in script
+    assert "sys.path contains paths outside bundled python311" in script
+    assert "Normalize-BundledPythonSeed -Root $root" in script

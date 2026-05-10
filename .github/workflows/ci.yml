@@ -23,13 +23,13 @@ concurrency:
 jobs:
   compile-check:
     name: Compile Check
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -66,6 +66,12 @@ jobs:
             if ($text -notmatch [regex]::Escape('DefaultDirName={localappdata}\{#MyAppName}')) {
               throw "Inno script must install under localappdata by default: $iss"
             }
+            if ($text -notmatch '(?m)^PrivilegesRequired=lowest$') {
+              throw "Inno per-user installer must use PrivilegesRequired=lowest: $iss"
+            }
+            if ($text -match '(?m)^PrivilegesRequired=admin$') {
+              throw "Inno per-user installer must not request admin privileges: $iss"
+            }
             if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
               throw "Inno script must use the repository Simplified Chinese language file: $iss"
             }
@@ -74,6 +80,20 @@ jobs:
           foreach ($job in @("build-windows-installer", "build-linux-deb", "build-macos-app", "publish-release-assets")) {
             if ($release -notmatch "(?m)^  ${job}:") {
               throw "Release workflow is missing job: $job"
+            }
+          }
+          foreach ($workflow in @((Get-Content -LiteralPath ".github\workflows\ci.yml" -Raw), $release)) {
+            if ($workflow -match "actions/checkout@v[0-5]\b") {
+              throw "GitHub Actions checkout must use a Node 24 version."
+            }
+            if ($workflow -match "actions/setup-python@v[0-5]\b") {
+              throw "GitHub Actions setup-python must use a Node 24 version."
+            }
+            if ($workflow -match "actions/(upload-artifact|download-artifact)@v[0-6]\b") {
+              throw "GitHub Actions artifact actions must use Node 24 versions."
+            }
+            if ($workflow -match "runs-on:\s*windows-latest") {
+              throw "Windows workflows must pin windows-2025 instead of windows-latest."
             }
           }
           foreach ($path in @(

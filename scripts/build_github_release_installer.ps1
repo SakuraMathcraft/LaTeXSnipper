@@ -142,8 +142,118 @@ function Write-Sha256File {
     return $hash
 }
 
+function Normalize-BundledPythonSeed {
+    param([string]$Root)
+
+    $seedRoot = Join-Path $Root "python311"
+    if (-not (Test-Path $seedRoot)) {
+        Write-Host "Bundled Python seed not found, skip normalization: $seedRoot"
+        return
+    }
+
+    $pythonExe = Join-Path $seedRoot "python.exe"
+    if (-not (Test-Path $pythonExe)) {
+        throw "Bundled Python seed is missing python.exe: $pythonExe"
+    }
+
+    $pyvenvCfg = Join-Path $seedRoot "pyvenv.cfg"
+    if (Test-Path $pyvenvCfg) {
+        Remove-Item -LiteralPath $pyvenvCfg -Force
+    }
+
+    $pthPath = Join-Path $seedRoot "python311._pth"
+    $pthLines = @(
+        "python311.zip",
+        ".",
+        "DLLs",
+        "Lib",
+        "Lib\site-packages",
+        "import site"
+    )
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($pthPath, (($pthLines -join "`n") + "`n"), $utf8NoBom)
+
+    $sitePackages = Join-Path $seedRoot "Lib\site-packages"
+    if (Test-Path $sitePackages) {
+        $keepNames = @(
+            "_distutils_hack",
+            "distutils-precedence.pth",
+            "packaging",
+            "pip",
+            "pkg_resources",
+            "README.txt",
+            "setuptools",
+            "wheel"
+        )
+        $keepPrefixes = @(
+            "packaging-",
+            "pip-",
+            "setuptools-",
+            "wheel-"
+        )
+        foreach ($child in Get-ChildItem -LiteralPath $sitePackages -Force) {
+            $keep = $keepNames -contains $child.Name
+            foreach ($prefix in $keepPrefixes) {
+                if ($child.Name.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $keep = $true
+                    break
+                }
+            }
+            if (-not $keep) {
+                Remove-Item -LiteralPath $child.FullName -Recurse -Force
+                Write-Host "Pruned bundled Python package: $($child.Name)"
+            }
+        }
+    }
+
+    $scriptsDir = Join-Path $seedRoot "Scripts"
+    if (Test-Path $scriptsDir) {
+        foreach ($child in Get-ChildItem -LiteralPath $scriptsDir -Force) {
+            $name = $child.Name.ToLowerInvariant()
+            if ($name.StartsWith("pip") -or $name.StartsWith("easy_install") -or $name.StartsWith("wheel")) {
+                continue
+            }
+            Remove-Item -LiteralPath $child.FullName -Recurse -Force
+            Write-Host "Pruned bundled Python script: $($child.Name)"
+        }
+    }
+
+    $verifyCode = @"
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1]).resolve()
+paths = [pathlib.Path(p).resolve() for p in sys.path]
+bad = [str(p) for p in paths if not (p == root or root in p.parents)]
+result = {
+    "executable": str(pathlib.Path(sys.executable).resolve()),
+    "prefix": str(pathlib.Path(sys.prefix).resolve()),
+    "base_prefix": str(pathlib.Path(sys.base_prefix).resolve()),
+    "paths": [str(p) for p in paths],
+    "outside_paths": bad,
+}
+print(json.dumps(result, ensure_ascii=False))
+if pathlib.Path(sys.prefix).resolve() != root:
+    raise SystemExit("sys.prefix does not point to bundled python311")
+if pathlib.Path(sys.base_prefix).resolve() != root:
+    raise SystemExit("sys.base_prefix does not point to bundled python311")
+if bad:
+    raise SystemExit("sys.path contains paths outside bundled python311")
+"@
+    $verifyJson = & $pythonExe -c $verifyCode $seedRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled Python seed verification failed."
+    }
+    $verify = $verifyJson | ConvertFrom-Json
+    Write-Host "Bundled Python seed normalized:"
+    Write-Host "  executable: $($verify.executable)"
+    Write-Host "  prefix: $($verify.prefix)"
+}
+
 $root = Resolve-RepoRoot
 $python = Resolve-BuildPython -Root $root -RequestedPython $PythonPath
+Normalize-BundledPythonSeed -Root $root
 
 $isccCandidates = @()
 if ($InnoCompiler) {
