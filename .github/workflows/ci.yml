@@ -66,10 +66,10 @@ jobs:
             if ($text -notmatch [regex]::Escape('DefaultDirName={localappdata}\{#MyAppName}')) {
               throw "Inno script must install under localappdata by default: $iss"
             }
-            if ($text -notmatch '(?m)^PrivilegesRequired=lowest$') {
+            if ($text -notmatch '(?m)^PrivilegesRequired=lowest\r?$') {
               throw "Inno per-user installer must use PrivilegesRequired=lowest: $iss"
             }
-            if ($text -match '(?m)^PrivilegesRequired=admin$') {
+            if ($text -match '(?m)^PrivilegesRequired=admin\r?$') {
               throw "Inno per-user installer must not request admin privileges: $iss"
             }
             if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
