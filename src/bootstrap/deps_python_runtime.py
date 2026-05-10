@@ -79,7 +79,12 @@ def inject_private_python_paths(pyexe: Path) -> None:
 
 
 def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | None:
-    """Locate the bundled/local Python 3.11 installer without downloading anything."""
+    """Locate the bundled/local Python 3.11 installer without downloading anything.
+
+    Windows-only: the .exe installer only exists on Windows.
+    """
+    if os.name != "nt":
+        return None
     deps_dir = Path(deps_dir)
     candidates: list[Path] = []
     try:
@@ -115,6 +120,32 @@ def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | N
                 return candidate
         except Exception:
             continue
+    return None
+
+
+def find_system_python3() -> Path | None:
+    """Find a usable system Python 3 interpreter on Linux/macOS.
+
+    On Windows this always returns None — the .exe installer path is used instead.
+    """
+    if os.name == "nt":
+        return None
+    # Common system paths in order of preference
+    candidates = [
+        "/usr/bin/python3",
+        "/usr/local/bin/python3",
+        "/opt/homebrew/bin/python3",
+        "/home/linuxbrew/.linuxbrew/bin/python3",
+    ]
+    for candidate in candidates:
+        p = Path(candidate)
+        if p.exists() and p.is_file():
+            return p
+    # Fallback: search PATH
+    import shutil as _shutil
+    which = _shutil.which("python3")
+    if which:
+        return Path(which)
     return None
 
 

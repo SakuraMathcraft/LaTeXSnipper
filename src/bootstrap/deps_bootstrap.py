@@ -19,6 +19,7 @@ from backend.cuda_runtime_policy import (
 from bootstrap.deps_python_runtime import (
     find_existing_python as _find_existing_python,
     find_local_python311_installer as _find_local_python311_installer_impl,
+    find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
     normalize_deps_base_dir as _normalize_deps_base_dir,
     site_packages_root as _site_packages_root,
@@ -3405,12 +3406,67 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
 def _find_local_python311_installer(deps_dir: Path) -> Path | None:
     return _find_local_python311_installer_impl(deps_dir, __file__)
 
+
+def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool:
+    """Create a Python venv at target_dir using the system python3 interpreter.
+
+    Only meaningful on Linux/macOS.  On Windows this always returns False.
+    """
+    import time
+
+    if os.name == "nt":
+        return False
+
+    system_python = _find_system_python3()
+    if system_python is None:
+        print("[WARN] 未找到系统 Python 3，无法创建 venv")
+        return False
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
+    try:
+        proc = subprocess.Popen(
+            [str(system_python), "-m", "venv", "--without-pip", str(target_dir)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        deadline = time.monotonic() + timeout
+        while True:
+            ret = proc.poll()
+            if ret is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired([str(system_python), "-m", "venv"], timeout)
+            time.sleep(0.2)
+        if ret != 0:
+            out = proc.stdout.read() if proc.stdout else ""
+            print(f"[WARN] venv 创建失败（返回码 {ret}）: {out[-500:]}")
+            return False
+        print(f"[OK] venv 创建成功: {target_dir}")
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"[WARN] venv 创建超时（{timeout} 秒）")
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        print(f"[WARN] venv 创建异常: {e}")
+        return False
+
+
 def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900,
                                    before_launch=None) -> bool:
     """
     Launch the local Python installer and wait for it to finish.
     The installer UI is shown to the user; no network download is attempted here.
+
+    Windows-only: the .exe installer only exists on Windows.
     """
+    if os.name != "nt":
+        return False
     import time
 
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -3584,33 +3640,53 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
             else:
                 try:
-                    installer = _find_local_python311_installer(Path(deps_dir))
-                    if installer is None:
+                    if os.name != "nt":
+                        # Linux / macOS: use system python3 to create a venv
+                        ok = _setup_python_venv_from_system(py_root)
+                        if not ok:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "未找到 Python 3",
+                                "未检测到可复用的 Python 环境，且系统中未找到 python3。\n\n"
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        pyexe = py_root / "bin" / "python3"
+                        print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    else:
+                        installer = _find_local_python311_installer(Path(deps_dir))
+                        if installer is None:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装器未找到",
+                                "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
+                                "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
                         _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装器未找到",
-                            "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        return False
-                    print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
-                    _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                    if not ok or not pyexe.exists():
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装失败",
-                            "Python 3.11.0 安装失败。\n\n"
-                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        return False
-                    print(f"[OK] 已安装私有 Python: {pyexe}")
+                        ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
+                        if not ok or not pyexe.exists():
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装失败",
+                                "Python 3.11.0 安装失败。\n\n"
+                                f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        print(f"[OK] 已安装私有 Python: {pyexe}")
                 except Exception as e:
                     print(f"[ERR] 自动安装 Python 失败: {e}")
                     _notify_before_show_ui()
@@ -3821,48 +3897,69 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if need_install:
             if chosen_layers:
                 if use_bundled_python and not os.path.exists(str(pyexe)):
-                    installer = _find_local_python311_installer(deps_path)
-                    if installer is None:
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装器未找到",
-                            "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        always_show_ui = True
-                        continue
+                    if os.name != "nt":
+                        # Linux / macOS: use system python3 to create a venv
+                        ok = _setup_python_venv_from_system(py_root)
+                        if not ok:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "未找到 Python 3",
+                                "系统中未找到 python3，无法初始化依赖环境。\n\n"
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
+                        pyexe = py_root / "bin" / "python3"
+                        print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    else:
+                        installer = _find_local_python311_installer(deps_path)
+                        if installer is None:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装器未找到",
+                                "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
+                                "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
 
-                    _notify_before_show_ui()
-                    confirm = _exec_close_only_message_box(
-                        None,
-                        "初始化依赖环境",
-                        "目标依赖目录未检测到可复用 Python 环境。\n\n"
-                        f"是否现在初始化以下目录后继续安装依赖？\n{py_root}",
-                        icon=QMessageBox.Icon.Question,
-                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        default_button=QMessageBox.StandardButton.Yes,
-                    )
-                    if confirm != QMessageBox.StandardButton.Yes:
-                        always_show_ui = True
-                        continue
-
-                    _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                    if not ok or not os.path.exists(str(pyexe)):
                         _notify_before_show_ui()
-                        _exec_close_only_message_box(
+                        confirm = _exec_close_only_message_box(
                             None,
-                            "安装失败",
-                            "Python 3.11.0 安装失败。\n\n"
-                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
+                            "初始化依赖环境",
+                            "目标依赖目录未检测到可复用 Python 环境。\n\n"
+                            f"是否现在初始化以下目录后继续安装依赖？\n{py_root}",
+                            icon=QMessageBox.Icon.Question,
+                            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                            default_button=QMessageBox.StandardButton.Yes,
                         )
-                        always_show_ui = True
-                        continue
+                        if confirm != QMessageBox.StandardButton.Yes:
+                            always_show_ui = True
+                            continue
+
+                        _notify_before_show_ui()
+                        ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
+                        if not ok or not os.path.exists(str(pyexe)):
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装失败",
+                                "Python 3.11.0 安装失败。\n\n"
+                                f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
                     try:
                         _ensure_pip(pyexe)
                     except Exception as e:

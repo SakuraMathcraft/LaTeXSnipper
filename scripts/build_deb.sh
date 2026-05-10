@@ -74,6 +74,67 @@ if ! python3 -c "import PyInstaller" &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
+# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# ---------------------------------------------------------------------------
+echo ""
+echo "[0.5/5] 准备内嵌 Python 3.11 运行时..."
+
+PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"
+
+# 检查是否已有有效的 python311（非损坏的符号链接）
+NEED_REBUILD=false
+if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
+    NEED_REBUILD=true
+elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
+    NEED_REBUILD=true
+else
+    # 验证能否运行
+    if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
+        NEED_REBUILD=true
+    fi
+fi
+
+if $NEED_REBUILD; then
+    echo "  重新创建内嵌 Python 3.11 运行时..."
+    rm -rf "$PYTHON311_DIR"
+
+    # 使用系统 python3 创建 venv（--copies 复制而非符号链接）
+    if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
+        echo "  ✓ 已通过 venv --copies 创建 python311"
+    else
+        echo "  WARNING: venv --copies 失败，尝试手动复制系统 Python..."
+
+        # 手动复制方案
+        SYSTEM_PYTHON3=$(which python3)
+        SYSTEM_PYTHON3_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')
+        SYSTEM_PYTHON3_DYLOAD=$(python3 -c 'import sysconfig; print(sysconfig.get_path("platstdlib"))')
+
+        mkdir -p "$PYTHON311_DIR/bin"
+        cp "$SYSTEM_PYTHON3" "$PYTHON311_DIR/bin/python3"
+        chmod 755 "$PYTHON311_DIR/bin/python3"
+
+        if [[ -d "$SYSTEM_PYTHON3_LIB" ]]; then
+            mkdir -p "$PYTHON311_DIR/lib"
+            cp -a "$SYSTEM_PYTHON3_LIB" "$PYTHON311_DIR/lib/"
+        fi
+        if [[ -d "$SYSTEM_PYTHON3_DYLOAD" ]] && [[ "$SYSTEM_PYTHON3_DYLOAD" != "$SYSTEM_PYTHON3_LIB" ]]; then
+            mkdir -p "$(dirname "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")")"
+            cp -a "$SYSTEM_PYTHON3_DYLOAD" "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")"
+        fi
+        echo "  ✓ 已通过手动复制创建 python311"
+    fi
+
+    # 确保 pip 可用
+    if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
+        echo "  ✓ pip 已就绪"
+    else
+        echo "  WARNING: ensurepip 不可用，将在运行时安装 pip"
+    fi
+else
+    echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
+fi
+
+# ---------------------------------------------------------------------------
 # 步骤 1: PyInstaller 构建
 # ---------------------------------------------------------------------------
 echo ""
