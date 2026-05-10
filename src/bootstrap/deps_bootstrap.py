@@ -4089,6 +4089,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 if vw is not None and vw.isRunning():
                     vw.wait(3000)
 
+                install_verified_in_progress_ui = bool(post_install_verify_passed.get("value", False))
                 if result == RESULT_BACK_TO_WIZARD:
                     try:
                         state = _sanitize_state_layers(state_path)
@@ -4096,11 +4097,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         missing_layers = _missing_required_layers(installed["layers"])
                     except Exception:
                         pass
-                    skip_next_ui_runtime_verify = bool(post_install_verify_passed.get("value", False))
+                    skip_next_ui_runtime_verify = install_verified_in_progress_ui
                     always_show_ui = True
                     continue
                 if result != QDialog.DialogCode.Accepted:
                     # 用户在进度窗口点“退出下载”，回到依赖选择窗口
+                    skip_next_ui_runtime_verify = install_verified_in_progress_ui
                     continue
         break
     return True
