@@ -24,6 +24,7 @@ DefaultDirName={localappdata}\{#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=lowest
 ChangesAssociations=no
 DisableProgramGroupPage=yes
 LicenseFile={#MyLicenseFile}
