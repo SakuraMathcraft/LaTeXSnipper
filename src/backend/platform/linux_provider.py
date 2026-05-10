@@ -5,15 +5,12 @@ Provides hotkey, screenshot, and system integration using Qt and pynput.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
-
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 from backend.capture_overlay import ScreenCaptureOverlay
-from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig
+from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
 from backend.qhotkey import QHotkey
 
 
@@ -64,14 +61,6 @@ class LinuxScreenshotProvider:
             preferred_screen_index=cfg.preferred_screen_index,
             screenshot_tool=cfg.screenshot_tool,
         )
-
-
-@dataclass
-class TrayMenuHandlers:
-    on_open: Callable[[], None]
-    on_capture: Callable[[], None]
-    on_exit: Callable[[], None]
-    build_capture_submenu: Callable[[QMenu], None] | None = None
 
 
 class LinuxSystemProvider:

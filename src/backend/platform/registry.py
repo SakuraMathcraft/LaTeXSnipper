@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from backend.platform.windows_provider import (
+from backend.platform.protocols import (
+    IHotkeyProvider,
+    IScreenshotProvider,
+    ISystemProvider,
     TrayMenuHandlers,
+)
+from backend.platform.windows_provider import (
     WindowsHotkeyProvider,
     WindowsScreenshotProvider,
     WindowsSystemProvider,
@@ -23,9 +28,9 @@ from backend.platform.macos_provider import (
 
 @dataclass
 class PlatformProviders:
-    hotkey: object = field(default=None)
-    screenshot: object = field(default=None)
-    system: object = field(default=None)
+    hotkey: IHotkeyProvider
+    screenshot: IScreenshotProvider
+    system: ISystemProvider
 
 
 class PlatformCapabilityRegistry:

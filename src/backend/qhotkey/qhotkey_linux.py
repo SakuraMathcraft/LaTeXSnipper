@@ -38,7 +38,7 @@ class LinuxHotkey(QObject):
         self._listener = None
         self._pynput_available = False
         try:
-            from pynput import keyboard as _pynput_keyboard
+            from pynput import keyboard as _pynput_keyboard  # type: ignore[reportMissingModuleSource]
             self._pynput_keyboard = _pynput_keyboard
             self._pynput_available = True
         except ImportError:

@@ -6,3 +6,6 @@ pyinstaller-hooks-contrib==2026.4
 
 # ==================== Windows 专有（构建时打包）====================
 pywin32==311
+
+# Pandoc 导出后端（可选）- Python wrapper; pandoc.exe is managed separately.
+pypandoc==1.17

@@ -190,8 +190,6 @@ LaTeXSnipper/
 |-- docs/                          # Design and architecture notes
 |-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)
 |-- LaTeXSnipper.offline.spec      # PyInstaller offline-model build
-|-- LaTeXSnipper-linux.spec        # PyInstaller Linux build
-|-- LaTeXSnipper-macos.spec        # PyInstaller macOS build
 |-- pyproject.toml
 |-- requirements.txt
 |-- requirements-linux.txt

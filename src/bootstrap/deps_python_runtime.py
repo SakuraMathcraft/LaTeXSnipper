@@ -10,7 +10,6 @@ from pathlib import Path
 def _linux_site_packages(pyexe: Path) -> Path | None:
     """Search for lib/pythonX.Y/site-packages typical of Linux/macOS venvs."""
     py_dir = pyexe.parent  # e.g. .venv/bin/
-    prefix_candidates = [py_dir.parent]  # .venv/
     # Also check one level up in case python is at prefix/bin/ inside prefix/
     for p in (py_dir.parent, py_dir.parent.parent, py_dir):
         try:
