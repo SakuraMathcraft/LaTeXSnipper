@@ -41,3 +41,34 @@ jobs:
 
       - name: Byte-compile key entry files
         run: python -m py_compile src/main.py src/bootstrap/deps_bootstrap.py src/updater.py LaTeXSnipper.spec
+
+      - name: Validate cross-platform packaging metadata
+        shell: pwsh
+        run: |
+          $required = @(
+            "Inno\ChineseSimplified.isl",
+            "LaTeXSnipper-linux.spec",
+            "LaTeXSnipper-linux-offline.spec",
+            "LaTeXSnipper-macos.spec",
+            "scripts\build_deb.sh",
+            "scripts\build_deb_offline.sh",
+            "scripts\build_macos.sh",
+            "packaging\debian\DEBIAN\control"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Required packaging file is missing: $path"
+            }
+          }
+          foreach ($iss in @("Inno\latexsnipper.iss", "Inno\latexsnipper_offline.iss")) {
+            $text = Get-Content -LiteralPath $iss -Raw
+            if ($text -notmatch [regex]::Escape('DefaultDirName={localappdata}\{#MyAppName}')) {
+              throw "Inno script must install under localappdata by default: $iss"
+            }
+            if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
+              throw "Inno script must use the repository Simplified Chinese language file: $iss"
+            }
+          }
+
+      - name: Byte-compile cross-platform specs
+        run: python -m py_compile LaTeXSnipper-linux.spec LaTeXSnipper-linux-offline.spec LaTeXSnipper-macos.spec

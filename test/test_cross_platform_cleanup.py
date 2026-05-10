@@ -77,8 +77,9 @@ def test_cross_platform_changes_do_not_expand_windows_dependency_surface() -> No
 
     for rel_path in ("Inno/latexsnipper.iss", "Inno/latexsnipper_offline.iss"):
         inno = (ROOT / rel_path).read_text(encoding="utf-8")
-        assert r"DefaultDirName=D:\{#MyAppName}" in inno
-        assert "ChineseSimplified.isl" not in inno
+        assert r"DefaultDirName={localappdata}\{#MyAppName}" in inno
+        assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
+    assert (ROOT / "Inno" / "ChineseSimplified.isl").exists()
 
 
 def test_platform_protocols_cover_main_window_provider_calls() -> None:
