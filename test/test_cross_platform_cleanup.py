@@ -59,6 +59,16 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     assert 'else ROOT / "src" / "deps"' in macos_spec
 
 
+def test_macos_spec_bundles_collected_dependencies() -> None:
+    macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
+
+    assert "coll = COLLECT(" in macos_spec
+    assert "a.binaries" in macos_spec
+    assert "a.datas" in macos_spec
+    assert "app_bundle = BUNDLE(\n    coll," in macos_spec
+    assert "app_bundle = BUNDLE(\n    exe," not in macos_spec
+
+
 def test_cross_platform_changes_do_not_expand_windows_dependency_surface() -> None:
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
     requirements = [line.strip() for line in requirements if line.strip() and not line.startswith("#")]
