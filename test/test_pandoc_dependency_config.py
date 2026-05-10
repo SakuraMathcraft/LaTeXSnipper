@@ -65,6 +65,6 @@ def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
 def test_dependency_progress_close_reuses_post_install_verify_result() -> None:
     source = (ROOT / "src" / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
 
-    assert "install_verified_in_progress_ui = bool(post_install_verify_passed.get(\"value\", False))" in source
+    assert 'install_verified_in_progress_ui = bool(post_install_verify_passed.get("value", False))' in source
     assert "skip_next_ui_runtime_verify = install_verified_in_progress_ui" in source
     assert source.count("skip_next_ui_runtime_verify = install_verified_in_progress_ui") >= 2

@@ -1,12 +1,29 @@
+from __future__ import annotations
+
+import importlib
 import os
+from pathlib import Path
+import sys
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtGui import QColor, QGuiApplication, QImage
-from PyQt6.QtCore import QRect
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
-from backend.capture_overlay import (
+# In the Windows GPU dependency environment, importing Qt before onnxruntime can
+# make ORT's native extension fail DLL initialization later in the same process.
+try:
+    importlib.import_module("onnxruntime")
+except Exception:
+    pass
+
+from PyQt6.QtGui import QColor, QGuiApplication, QImage  # noqa: E402
+from PyQt6.QtCore import QRect  # noqa: E402
+
+from backend.capture_overlay import (  # noqa: E402  # type: ignore[reportMissingImports]
     _ScreenSnapshot,
     choose_screen_index,
     crop_screen_snapshot,

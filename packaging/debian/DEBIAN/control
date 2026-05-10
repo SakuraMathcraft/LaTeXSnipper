@@ -1,0 +1,20 @@
+Package: latexsnipper
+Version: 2.3.2
+Section: utils
+Priority: optional
+Architecture: amd64
+Installed-Size: 1019920
+Maintainer: Mathcraft <mathcraft@example.com>
+Homepage: https://github.com/SakuraMathcraft/LaTeXSnipper
+Description: Desktop math workspace for capture, recognize, edit and compute
+ LaTeXSnipper is a desktop math workspace built for end-to-end math
+ content workflows:
+  - Capture and recognize mathematical content from screenshots
+  - Continue editing and computing in the integrated math workbench
+  - Handwrite expressions in a dedicated canvas and convert to LaTeX
+  - Send results back to the main editor or copy to clipboard
+ .
+ Supports both X11 and Wayland display servers.
+Depends: libc6 (>= 2.28), libgl1, libglib2.0-0, libx11-6, libxcb1, libxkbcommon0, libxcomposite1, libxdamage1, libxext6, libxfixes3, libxrandr2, libxrender1, libegl1, libopengl0, libfontconfig1, libdbus-1-3, libnss3, libnspr4, libasound2, libpulse0, libxss1, libxtst6, libgtk-3-0, libgdk-pixbuf-2.0-0, libatk-bridge2.0-0, libcups2, libdrm2, zlib1g, gnome-screenshot | maim | grim
+Recommends: pandoc, texlive-latex-base, python3
+Suggests: texlive-full, imagemagick, scrot, poppler-utils

@@ -3,19 +3,34 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from backend.platform.windows_provider import (
+from backend.platform.protocols import (
+    IHotkeyProvider,
+    IScreenshotProvider,
+    ISystemProvider,
     TrayMenuHandlers,
+)
+from backend.platform.windows_provider import (
     WindowsHotkeyProvider,
     WindowsScreenshotProvider,
     WindowsSystemProvider,
+)
+from backend.platform.linux_provider import (
+    LinuxHotkeyProvider,
+    LinuxScreenshotProvider,
+    LinuxSystemProvider,
+)
+from backend.platform.macos_provider import (
+    MacOSHotkeyProvider,
+    MacOSScreenshotProvider,
+    MacOSSystemProvider,
 )
 
 
 @dataclass
 class PlatformProviders:
-    hotkey: WindowsHotkeyProvider
-    screenshot: WindowsScreenshotProvider
-    system: WindowsSystemProvider
+    hotkey: IHotkeyProvider
+    screenshot: IScreenshotProvider
+    system: ISystemProvider
 
 
 class PlatformCapabilityRegistry:
@@ -24,15 +39,29 @@ class PlatformCapabilityRegistry:
         self.disable_global_hotkey = bool(disable_global_hotkey)
 
     def create(self) -> PlatformProviders:
-        # V1 only provides a Windows implementation.
-        if sys.platform != "win32":
-            raise RuntimeError(f"Unsupported platform for V1 providers: {sys.platform}")
-        hotkey = WindowsHotkeyProvider(
-            parent=self.parent,
-            global_enabled=(not self.disable_global_hotkey),
-        )
-        screenshot = WindowsScreenshotProvider()
-        system = WindowsSystemProvider()
+        if sys.platform == "win32":
+            hotkey = WindowsHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = WindowsScreenshotProvider()
+            system = WindowsSystemProvider()
+        elif sys.platform == "linux":
+            hotkey = LinuxHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = LinuxScreenshotProvider()
+            system = LinuxSystemProvider()
+        elif sys.platform == "darwin":
+            hotkey = MacOSHotkeyProvider(
+                parent=self.parent,
+                global_enabled=(not self.disable_global_hotkey),
+            )
+            screenshot = MacOSScreenshotProvider()
+            system = MacOSSystemProvider()
+        else:
+            raise RuntimeError(f"Unsupported platform for providers: {sys.platform}")
         return PlatformProviders(hotkey=hotkey, screenshot=screenshot, system=system)
 
 

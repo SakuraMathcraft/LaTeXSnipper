@@ -1,3 +1,8 @@
+"""macOS platform providers for LaTeXSnipper.
+
+Provides hotkey, screenshot, and system integration using Qt and pynput.
+"""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject
@@ -9,8 +14,12 @@ from backend.platform.protocols import PermissionResult, PermissionState, Screen
 from backend.qhotkey import QHotkey
 
 
-class WindowsHotkeyProvider(QObject):
-    """Windows hotkey provider (strict global hotkey path)."""
+class MacOSHotkeyProvider(QObject):
+    """macOS hotkey provider using pynput for global hotkeys.
+
+    Note: pynput on macOS requires Accessibility permission in
+    System Settings → Privacy & Security → Accessibility.
+    """
 
     def __init__(self, parent=None, global_enabled: bool = True):
         super().__init__(parent)
@@ -43,22 +52,23 @@ class WindowsHotkeyProvider(QObject):
             pass
 
 
-class WindowsScreenshotProvider:
-    """Windows screenshot provider with overlay adapter."""
+class MacOSScreenshotProvider:
+    """macOS screenshot provider using native screencapture CLI + Qt overlay."""
 
     def request_permission(self) -> PermissionResult:
-        # Windows does not require explicit runtime prompt for this capture path.
-        return PermissionResult(PermissionState.ALLOWED, "windows-default-allowed")
+        # macOS requires Screen Recording permission in System Settings
+        return PermissionResult(PermissionState.ALLOWED, "macos-default-allowed")
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
         return ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
+            screenshot_tool=cfg.screenshot_tool,
         )
 
 
-class WindowsSystemProvider:
-    """Windows system integration provider."""
+class MacOSSystemProvider:
+    """macOS system integration provider using Qt's QSystemTrayIcon."""
 
     def create_tray(self, icon: QIcon, parent=None) -> QSystemTrayIcon:
         tray = QSystemTrayIcon(icon, parent)
@@ -67,33 +77,36 @@ class WindowsSystemProvider:
         return tray
 
     def set_tray_tooltip(self, tray: QSystemTrayIcon, text: str) -> None:
-        if tray:
-            tray.setToolTip(text)
+        tray.setToolTip(text)
 
     def update_tray_menu(self, tray: QSystemTrayIcon, hotkey: str, handlers: TrayMenuHandlers) -> None:
-        if not tray:
+        tray_menu = tray.contextMenu()
+        if tray_menu is None:
             return
-        tray_menu = QMenu()
-        tray_menu.setObjectName("latexsnipperTrayMenu")
-        tray_menu.setStyleSheet(
-            "QMenu#latexsnipperTrayMenu{padding:4px;}"
-            "QMenu#latexsnipperTrayMenu::item{padding:4px 18px 4px 8px;}"
-            "QMenu#latexsnipperTrayMenu::item:selected{background-color:rgba(127,127,127,48);border-radius:4px;}"
-            "QMenu#latexsnipperTrayMenu::item:pressed{background-color:rgba(127,127,127,64);border-radius:4px;}"
-            "QMenu#latexsnipperTrayMenu::icon{width:0px;height:0px;margin:0px;padding:0px;}"
-            "QMenu#latexsnipperTrayMenu::indicator{width:0px;height:0px;margin:0px;padding:0px;}"
-        )
-        tray_menu.addAction("打开主窗口", handlers.on_open)
+        tray_menu.clear()
         tray_menu.addAction(f"截图识别（{hotkey}）", handlers.on_capture)
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
+        tray_menu.addSeparator()
+        tray_menu.addAction("打开主窗口", handlers.on_open)
+        tray_menu.addSeparator()
         tray_menu.addAction("退出", handlers.on_exit)
-        tray.setContextMenu(tray_menu)
 
-    def show_notification(self, tray: QSystemTrayIcon, title: str, text: str, critical: bool = False, timeout_ms: int = 2500) -> None:
+    def show_notification(
+        self,
+        tray: QSystemTrayIcon,
+        title: str,
+        text: str,
+        critical: bool = False,
+        timeout_ms: int = 2500,
+    ) -> None:
         if not tray:
             return
-        icon = QSystemTrayIcon.MessageIcon.Critical if critical else QSystemTrayIcon.MessageIcon.Information
+        icon = (
+            QSystemTrayIcon.MessageIcon.Critical
+            if critical
+            else QSystemTrayIcon.MessageIcon.Information
+        )
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:

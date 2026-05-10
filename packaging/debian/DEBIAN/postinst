@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        if [[ -f /usr/lib/latexsnipper/LaTeXSnipper ]]; then
+            chmod 755 /usr/lib/latexsnipper/LaTeXSnipper
+        fi
+        if [[ -f /usr/lib/latexsnipper-offline/LaTeXSnipperOffline ]]; then
+            chmod 755 /usr/lib/latexsnipper-offline/LaTeXSnipperOffline
+        fi
+
+        qwebengine_process=$(find /usr/lib/latexsnipper /usr/lib/latexsnipper-offline -name QtWebEngineProcess -type f 2>/dev/null | head -1 || true)
+        if [[ -n "$qwebengine_process" ]]; then
+            chmod 755 "$qwebengine_process"
+        fi
+
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime || true
+        fi
+
+        echo "LaTeXSnipper installed. Run it with: latexsnipper"
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument: $1" >&2
+        ;;
+esac
+
+exit 0

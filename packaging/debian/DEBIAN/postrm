@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    remove|purge)
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime || true
+        fi
+
+        if [[ "$1" == "purge" ]]; then
+            rm -rf /usr/lib/latexsnipper /usr/lib/latexsnipper-offline
+            rm -f /usr/bin/latexsnipper
+            echo "User configuration is preserved. Remove ~/.latexsnipper, ~/.MathCraft, or ~/.mathcraft manually if needed."
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument: $1" >&2
+        ;;
+esac
+
+exit 0

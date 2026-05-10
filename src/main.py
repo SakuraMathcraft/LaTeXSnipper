@@ -19,6 +19,10 @@ from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# Force UTF-8 encoding for all subprocess pipes on Windows (avoids gbk decode crashes)
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+
 STABLE_GUI_PIP_SPECS = [
     "PyQt6==6.10.0",
     "PyQt6-Qt6==6.10.0",
@@ -113,18 +117,19 @@ def _early_ensure_pyqt6_and_pywin32():
         print("[OK] PyQt6-Fluent-Widgets 安装成功。")
 
     # 检查 win32api
-    try:
-        import win32api as _win32api
-        _ = _win32api
-    except ImportError:
-        print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
-        importlib.invalidate_caches()
-        # 关键：安装后直接提示用户重启
-        print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
-        import time
-        time.sleep(2)
-        sys.exit(0)
+    if os.name == "nt":
+        try:
+            import win32api as _win32api
+            _ = _win32api
+        except ImportError:
+            print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
+            importlib.invalidate_caches()
+            # 关键：安装后直接提示用户重启
+            print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
+            import time
+            time.sleep(2)
+            sys.exit(0)
 
     # 检查 pyperclip
     try:
@@ -399,6 +404,12 @@ def _release_single_instance_lock():
                 msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
             except Exception:
                 pass
+        else:
+            import fcntl
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
     except Exception:
         pass
     try:
@@ -408,7 +419,8 @@ def _release_single_instance_lock():
 
 
 def _ensure_single_instance() -> bool:
-    '''Prevent multiple GUI instances on Windows using a file lock.'''
+    '''Prevent multiple GUI instances using a file lock.'''
+    global _single_instance_lock
     lock_dir = Path.home() / ".latexsnipper"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / "instance.lock"
@@ -435,13 +447,33 @@ def _ensure_single_instance() -> bool:
                         time.sleep(delay)
                         continue
                     return False
-                global _single_instance_lock
                 _single_instance_lock = fh
                 return True
             return False
         except Exception:
             return True
-    return True
+    else:
+        # Linux / macOS: use fcntl advisory lock
+        try:
+            import fcntl
+            attempts = 150 if restart_flag else 1
+            delay = 0.2
+            for _ in range(attempts):
+                fh = open(lock_file, "a+", encoding="utf-8")
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except (IOError, OSError):
+                    fh.close()
+                    if restart_flag:
+                        import time
+                        time.sleep(delay)
+                        continue
+                    return False
+                _single_instance_lock = fh
+                return True
+            return False
+        except Exception:
+            return True
 
 
 def _show_already_running_message() -> None:
@@ -691,6 +723,11 @@ def _startup_deps_resume_message() -> str:
 
 
 _ensure_startup_splash("配置 MathJax 与 WebEngine...")
+
+# Ensure src/ is on sys.path so that sibling packages (runtime, backend, etc.) are importable
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
 
 # ============ QWebEngine profile configuration ============
 from runtime.webengine_runtime import configure_default_webengine_profile  # noqa: E402
@@ -973,7 +1010,7 @@ def init_app_logging() -> Path:
     if not getattr(root, "_latexsnipper_session_logged", False):
         logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, active_log_path)
         setattr(root, "_latexsnipper_session_logged", True)
-    
+
     # 初始化 LaTeX 设置
     _ensure_startup_splash(_startup_status_message("初始化 LaTeX 设置..."))
     try:
@@ -985,7 +1022,7 @@ def init_app_logging() -> Path:
         print(f"[WARN] LaTeX 设置初始化失败: {e}")
 
     _APP_LOGGING_INITIALIZED = True
-    
+
     return active_log_path
 
 # AA_ShareOpenGLContexts 已在文件顶部 QApplication 创建前设置
@@ -1041,7 +1078,7 @@ def read_theme_mode_from_config() -> str:
 
 def _get_app_root() -> Path:
     """获取应用程序根目录
-    
+
     在打包模式下（PyInstaller），返回 _internal 目录
     在开发模式下，返回 src 目录所在的目录
     """
@@ -1062,7 +1099,7 @@ def _is_packaged_mode() -> bool:
     # 首先检查 sys._MEIPASS（PyInstaller 标志）
     if hasattr(sys, '_MEIPASS'):
         return True
-    
+
     # 检查 APP_DIR 路径中是否包含 _internal（打包后的标志）
     app_dir_str = str(_get_app_root()).lower()
     return '_internal' in app_dir_str
@@ -1402,6 +1439,7 @@ def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
 def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
     """Return likely python.exe candidates inside a selected dependency base directory."""
     base_dir = Path(base_dir)
+    # Common candidates for both Windows and Linux
     candidates = [
         base_dir / "python.exe",
         base_dir / "Scripts" / "python.exe",
@@ -1413,6 +1451,15 @@ def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
         base_dir / "venv" / "Scripts" / "python.exe",
         base_dir / ".venv" / "Scripts" / "python.exe",
     ]
+    # Linux-specific candidates (python3, venv/bin/python3)
+    if os.name != "nt":
+        candidates.extend([
+            base_dir / "python3",
+            base_dir / "bin" / "python3",
+            base_dir / "python311" / "bin" / "python3",
+            base_dir / "venv" / "bin" / "python3",
+            base_dir / ".venv" / "bin" / "python3",
+        ])
     try:
         for child in base_dir.iterdir():
             if not child.is_dir():
@@ -1666,7 +1713,7 @@ def _save_install_base_dir(p: Path) -> None:
 def resolve_install_base_dir() -> Path:
     """
     解析依赖安装目录。统一处理开发模式和打包模式。
-    
+
     流程：
     1. 检查配置文件中的 install_base_dir
     2. 打包模式首启时，若存在内置 `_internal/deps` 且其中已带可用 Python，自动采用并写入配置
@@ -1681,7 +1728,7 @@ def resolve_install_base_dir() -> Path:
         current_dev_base = _current_dev_install_base_dir()
         if current_dev_base is not None:
             return current_dev_base
-    
+
     # 第1步：读取配置中的依赖目录
     p = _read_install_base_dir()
 
@@ -1707,9 +1754,9 @@ def resolve_install_base_dir() -> Path:
             time.sleep(2)
             sys.exit(7)
     p = _normalize_install_base_dir(p)
-    
+
     py_exe = _find_install_base_python(p)
-    
+
     # 第3步：检查 Python 是否已存在
     if py_exe is not None and py_exe.exists():
         print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
@@ -1929,11 +1976,14 @@ def _relaunch_with(pyexe: str):
         sys.exit(5)
     env = os.environ.copy()
     env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
-    env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
     _scrub_path_inplace(env)
-    env.setdefault("QT_QPA_PLATFORM", "windows")
+    if os.name == "nt":
+        env.setdefault("QT_QPA_PLATFORM", "windows")
+    elif sys.platform.startswith("linux"):
+        env.setdefault("QT_QPA_PLATFORM", "xcb")
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
     try:
@@ -2141,7 +2191,7 @@ if not TARGET_PY:
 os.environ["LATEXSNIPPER_PYEXE"] = TARGET_PY
 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(BASE_DIR)
 os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
-os.environ.setdefault("PYTHONNOUSERSITE", "1")
+os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ.pop("MATHCRAFT_HOME", None)
@@ -2908,7 +2958,7 @@ class MainWindow(QMainWindow):
         self._formula_types = {}  # 存储公式内容类型: {formula: content_type}
         if ensure_webengine_loaded():
             self.preview_view = QWebEngineView()
-            
+
             # 允许本地 MathJax 资源访问
             try:
                 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -2917,7 +2967,7 @@ class MainWindow(QMainWindow):
                 settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
             except Exception:
                 pass  # 安全设置配置失败（可能是版本差异）
-            
+
             self.preview_view.setMinimumHeight(200)
             try:
                 self.preview_view.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -2934,7 +2984,7 @@ class MainWindow(QMainWindow):
             # 初始显示空白渲染
             html = build_math_html("")
             base_url = get_mathjax_base_url()
-            
+
             try:
                 self.preview_view.setHtml(html, base_url)
             except Exception:
@@ -3749,18 +3799,18 @@ class MainWindow(QMainWindow):
         # 限制最多显示 20 个公式
         if len(self._rendered_formulas) > 20:
             self._rendered_formulas = self._rendered_formulas[:20]
-        
+
         # 渲染
         self._refresh_preview()
-    
+
     def _refresh_preview(self):
         """刷新预览区域 - 根据每条记录的类型进行智能渲染"""
         if not self.preview_view:
             return
-        
+
         # 构建公式列表、标签和类型
         all_items = []  # [(formula, label, content_type), ...]
-        
+
         # 编辑器内容（如果有且不在已渲染列表中）
         editor_text = self.latex_editor.toPlainText().strip()
         existing_formulas = [f for f, _ in self._rendered_formulas]
@@ -3768,12 +3818,12 @@ class MainWindow(QMainWindow):
             # 编辑中的内容使用当前模式
             current_mode = getattr(self, "current_model", "mathcraft")
             all_items.append((editor_text, "编辑中", current_mode))
-        
+
         # 已渲染的公式列表 - 使用各自存储的类型
         for formula, label in self._rendered_formulas:
             content_type = self._formula_types.get(formula, "mathcraft")  # 默认公式模式
             all_items.append((formula, label, content_type))
-        
+
         try:
             # 构建智能渲染的 HTML
             html = self._build_smart_preview_html(all_items)
@@ -3784,7 +3834,7 @@ class MainWindow(QMainWindow):
                 self.preview_view.setHtml(build_preview_error_html(e), get_mathjax_base_url())
             except Exception:
                 pass  # 显示错误信息也失败了
-    
+
     def _render_formula_preview_content(self, content: str) -> str:
         render_mode = None
         try:
@@ -3820,13 +3870,13 @@ class MainWindow(QMainWindow):
         self._rendered_formulas = []
         self._refresh_preview()
         self.set_action_status("已清空预览")
-    
+
     def _add_preview_to_history(self):
         """将预览中的公式添加到历史记录（继承标签）"""
         if not self._rendered_formulas:
             self.set_action_status("预览中没有公式")
             return
-        
+
         added_count = 0
         for formula, label in self._rendered_formulas:
             if formula and formula not in self.history:
@@ -3850,7 +3900,7 @@ class MainWindow(QMainWindow):
                     if name:
                         self._formula_names[formula] = name
                 added_count += 1
-        
+
         if added_count > 0:
             self.save_history()
             self.rebuild_history_ui()
@@ -3970,7 +4020,7 @@ class MainWindow(QMainWindow):
         hl = QHBoxLayout(row)
         hl.setContentsMargins(6, 4, 6, 4)
         hl.setSpacing(6)
-        
+
         # 编号标签
         if index > 0:
             num_lbl = QLabel(f"#{index}")
@@ -3982,7 +4032,7 @@ class MainWindow(QMainWindow):
         text_col = QVBoxLayout()
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.setSpacing(2)
-        
+
         # 公式名称（如果有）
         formula_name = self._formula_names.get(t, "")
         if formula_name:
@@ -3994,7 +4044,7 @@ class MainWindow(QMainWindow):
             row._name_label = name_lbl
         else:
             row._name_label = None
-        
+
         lbl = QLabel(t)
         lbl.setWordWrap(True)
         lbl.setMinimumWidth(0)
@@ -4494,7 +4544,7 @@ class MainWindow(QMainWindow):
                 self.set_model_status(f"预热中 ({m})")
         else:
             self.set_model_status(f"预热中 ({m})")
-            
+
         # 更新设置窗口选择状态
         if self.settings_window:
             self.settings_window.update_model_selection()
@@ -5994,23 +6044,23 @@ class MainWindow(QMainWindow):
         te.setText(code)
         dlg._predict_result_editor = te
         lay.addWidget(te)
-        
+
         # 根据模式选择不同的预览策略
         preview_label = None
         preview_view = None
-        
+
         # 公式模式：使用 MathJax 渲染
         if normalize_content_type(current_mode) == "mathcraft":
             preview_label = BodyLabel("公式预览：")
             lay.addWidget(preview_label)
-            
+
             if ensure_webengine_loaded():
                 from PyQt6.QtWebEngineWidgets import QWebEngineView
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
                 preview_view.setHtml(build_math_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
-                
+
                 # 设置防抖定时器
                 render_timer = QTimer(dlg)
                 render_timer.setSingleShot(True)
@@ -6031,7 +6081,7 @@ class MainWindow(QMainWindow):
         elif current_mode == "mathcraft_mixed":
             preview_label = BodyLabel("混合内容预览：")
             lay.addWidget(preview_label)
-            
+
             if ensure_webengine_loaded():
                 from PyQt6.QtWebEngineWidgets import QWebEngineView
                 preview_view = QWebEngineView()
@@ -6039,15 +6089,15 @@ class MainWindow(QMainWindow):
                 # 混合模式使用特殊渲染
                 preview_view.setHtml(self._build_mixed_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
-                
+
                 render_timer = QTimer(dlg)
                 render_timer.setSingleShot(True)
-                
+
                 def do_render_mixed():
                     content = te.toPlainText().strip()
                     if content and preview_view:
                         preview_view.setHtml(self._build_mixed_html(content), get_mathjax_base_url())
-                
+
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
 
@@ -6055,13 +6105,13 @@ class MainWindow(QMainWindow):
         elif current_mode == "mathcraft_text":
             preview_label = BodyLabel("文本预览：")
             lay.addWidget(preview_label)
-            
+
             preview_text = QTextEdit()
             preview_text.setReadOnly(True)
             preview_text.setPlainText(code)
             preview_text.setMinimumHeight(100)
             lay.addWidget(preview_text, 1)
-            
+
             # 同步更新预览
             def update_preview():
                 preview_text.setPlainText(te.toPlainText())
@@ -6386,6 +6436,7 @@ QLineEdit:focus {{
 
     def prepare_restart(self):
         """Called by settings restart flow: close heavy resources and release app lock early."""
+        self._force_exit = True  # 跳过 closeEvent 中的确认对话框
         try:
             self._graceful_shutdown()
         except Exception:
@@ -6552,14 +6603,14 @@ QLineEdit:focus {{
         if getattr(self, "_shutdown_done", False):
             return
         self._shutdown_done = True  # 防止多次调用
-        
+
         # 保存历史记录和公式名称
         try:
             self.save_history()
             print("[关闭] 历史记录已保存")
         except Exception as e:
             print(f"[关闭] 保存历史失败: {e}")
-        
+
         # 保存收藏夹
         try:
             if hasattr(self, 'favorites_window') and self.favorites_window:
@@ -6567,7 +6618,7 @@ QLineEdit:focus {{
                 print("[关闭] 收藏夹已保存")
         except Exception as e:
             print(f"[关闭] 保存收藏夹失败: {e}")
-        
+
         # 保存配置
         try:
             self.cfg.save()
@@ -6587,7 +6638,7 @@ QLineEdit:focus {{
                         pass
         except Exception:
             pass
-        
+
         if self.predict_thread:
             try:
                 if self.predict_thread.isRunning():
@@ -6658,7 +6709,26 @@ QLineEdit:focus {{
             self._graceful_shutdown()
             event.accept()
             return
-        # 普通关闭 = 最小化到托盘
+        # Linux：托盘图标支持不稳定，关闭窗口时弹出确认对话框
+        if sys.platform == "linux":
+            reply = QMessageBox.question(
+                self,
+                "确认退出",
+                "关闭窗口将完全退出 LaTeXSnipper，是否确认？\n\n"
+                "（提示：你可以通过系统托盘菜单的「退出」来关闭程序）",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._force_exit = True
+                if self.tray_icon:
+                    self.tray_icon.hide()
+                self.close()
+                QTimer.singleShot(0, QCoreApplication.quit)
+            else:
+                event.ignore()
+            return
+        # Windows：普通关闭 = 最小化到托盘
         self.hide()
         if self.tray_icon:
             # 只在第一次最小化时显示提示

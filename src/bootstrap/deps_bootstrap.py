@@ -19,6 +19,7 @@ from backend.cuda_runtime_policy import (
 from bootstrap.deps_python_runtime import (
     find_existing_python as _find_existing_python,
     find_local_python311_installer as _find_local_python311_installer_impl,
+    find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
     normalize_deps_base_dir as _normalize_deps_base_dir,
     site_packages_root as _site_packages_root,
@@ -34,7 +35,6 @@ from bootstrap.deps_state import (
     sanitize_state_layers as _sanitize_state_layers_impl,
     save_json as _save_json,
 )
-
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
 
@@ -218,11 +218,11 @@ class InstallWorker(QThread):
             fail_count = 0
             failed_pkgs: list[str] = []
             pip_progress_max = 80
+            total = len(pending)  # 提前声明，避免 pending 为空时 UnboundLocalError
 
             if pending:
                 self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
 
-                total = len(pending)
                 done_count = 0
                 fail_count = 0
                 failed_pkgs = []
@@ -395,6 +395,8 @@ class LayerVerifyWorker(QThread):
             state = _load_json(self.state_path, {"installed_layers": []})
             current_layers = set(state.get("installed_layers", []))
             current_layers.update(verify_ok_layers)
+            # 移除验证失败的层，避免残留
+            current_layers.difference_update(verify_fail_layers)
             # MathCraft ONNX 后端互斥：成功写回时只保留一个。
             if "MATHCRAFT_GPU" in verify_ok_layers:
                 current_layers.discard("MATHCRAFT_CPU")
@@ -1200,12 +1202,12 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
     安装完成后强制修复关键依赖版本。
     """
     import subprocess
-    
+
     if log_fn:
         log_fn("[INFO] 正在修复关键依赖版本...")
 
     _cleanup_pip_interrupted_leftovers(pyexe, log_fn)
-    
+
     installed_before = _current_installed(pyexe)
 
     for pkg, spec in CRITICAL_VERSIONS.items():
@@ -1231,7 +1233,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         except Exception as e:
             if log_fn:
                 log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
-    
+
     if log_fn:
         log_fn("[INFO] 关键版本修复完成")
 
@@ -1381,11 +1383,11 @@ print("PANDOC OK")
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     """
     验证某个功能层是否能在运行时正常工作。
-    
+
     返回: (success: bool, error_msg: str)
     """
     import subprocess
-    
+
     if layer == "CORE":
         timeout = max(timeout, 120)
 
@@ -1437,7 +1439,7 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
 def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
     """
     验证声称已安装的层是否真正可用。
-    
+
     返回: 真正可用的层列表
     """
     verified = []
@@ -1667,10 +1669,14 @@ def _ensure_pip(main_python: Path) -> bool:
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
 
-    # If not a real python.exe, skip pip bootstrap (prevents get-pip in app dir)
+    # Verify this looks like a real python executable before bootstrap
     try:
         name = main_python.name.lower()
-        if not (name.startswith('python') and name.endswith('.exe')):
+        is_python_exe = (
+            (os.name == "nt" and name.startswith("python") and name.endswith(".exe"))
+            or (os.name != "nt" and (name.startswith("python") or "python" in name))
+        )
+        if not is_python_exe:
             print(f"[WARN] pip bootstrap skipped for non-python executable: {main_python}")
             return False
     except Exception:
@@ -1705,7 +1711,7 @@ def _ensure_pip(main_python: Path) -> bool:
 
     # 升级三件套
     cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=flags)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=flags)
     ok = res.returncode == 0
     if ok:
         pip_ready_event.set()
@@ -1871,7 +1877,7 @@ def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
 
 def _gpu_available():
     try:
-        r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2, creationflags=flags)
+        r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=2, creationflags=flags)
         return r.returncode == 0
     except Exception:
         return False
@@ -1884,6 +1890,7 @@ def _cuda_toolkit_available():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             errors="replace",
             timeout=2,
             creationflags=flags,
@@ -1902,7 +1909,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
 
     if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
         return "🧩 antlr4-python3-runtime 构建环境缺少 wheel - 可先补齐 pip/setuptools/wheel 并关闭 build isolation"
-    
+
     # 1. 文件/进程占用（最常见的权限问题）
     if any(x in output_lower for x in [
         "permission denied",
@@ -1914,7 +1921,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "errno 13",
     ]):
         return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
-    
+
     # 2. 依赖冲突
     if any(x in output_lower for x in [
         "conflicting dependencies",
@@ -1925,7 +1932,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "package requires",
     ]):
         return "⚠️ 依赖版本冲突 - 某些包的版本要求互相矛盾"
-    
+
     # 3. 网络问题
     if any(x in output_lower for x in [
         "connection refused",
@@ -1939,7 +1946,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "connectionerror",
     ]):
         return "🌐 网络连接失败 - 请检查网络或尝试使用镜像源"
-    
+
     # 4. 磁盘空间
     if any(x in output_lower for x in [
         "no space left",
@@ -1948,7 +1955,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "oserror: [errno 28]",
     ]):
         return "💾 磁盘空间不足 - 请清理磁盘后重试"
-    
+
     # 5. 编译失败（C扩展）
     if any(x in output_lower for x in [
         "building wheel",
@@ -1959,7 +1966,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "cl.exe",
     ]):
         return "🔧 编译失败 - 可能缺少 Visual C++ Build Tools"
-    
+
     # 6. Python 版本不兼容
     if any(x in output_lower for x in [
         "requires python",
@@ -1967,7 +1974,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "not supported",
     ]):
         return "🐍 Python 版本不兼容 - 该包不支持当前 Python 版本"
-    
+
     # 7. pip 本身的问题
     if any(x in output_lower for x in [
         "pip._internal",
@@ -1975,7 +1982,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "modulenotfounderror: no module named 'pip'",
     ]):
         return "📦 pip 损坏或版本过低 - 请先升级 pip"
-    
+
     # 8. CUDA/GPU 相关
     if any(x in output_lower for x in [
         "cuda",
@@ -1984,7 +1991,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "gpu",
     ]) and "error" in output_lower:
         return "🎮 CUDA/GPU 相关错误 - 请检查 CUDA 版本是否匹配"
-    
+
     # 默认
     if returncode == 1:
         return f"❓ 一般错误 (code={returncode}) - 请查看上方日志获取详情"
@@ -2591,7 +2598,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             normalized = str(_normalize_deps_base_dir(Path(d)))
             path_edit.setText(normalized)
             normalized_path = Path(normalized)
-            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / "python.exe")
+            _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
+            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / _default_pyexe_name)
             pyexe = active_pyexe
             state_path = normalized_path / STATE_FILE
             state_file = str(state_path)
@@ -2662,7 +2670,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 dlg
             )
             return
-        
+
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
@@ -3087,12 +3095,67 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
 def _find_local_python311_installer(deps_dir: Path) -> Path | None:
     return _find_local_python311_installer_impl(deps_dir, __file__)
 
+
+def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool:
+    """Create a Python venv at target_dir using the system python3 interpreter.
+
+    Only meaningful on Linux/macOS.  On Windows this always returns False.
+    """
+    import time
+
+    if os.name == "nt":
+        return False
+
+    system_python = _find_system_python3()
+    if system_python is None:
+        print("[WARN] 未找到系统 Python 3，无法创建 venv")
+        return False
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
+    try:
+        proc = subprocess.Popen(
+            [str(system_python), "-m", "venv", "--without-pip", str(target_dir)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        deadline = time.monotonic() + timeout
+        while True:
+            ret = proc.poll()
+            if ret is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired([str(system_python), "-m", "venv"], timeout)
+            time.sleep(0.2)
+        if ret != 0:
+            out = proc.stdout.read() if proc.stdout else ""
+            print(f"[WARN] venv 创建失败（返回码 {ret}）: {out[-500:]}")
+            return False
+        print(f"[OK] venv 创建成功: {target_dir}")
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"[WARN] venv 创建超时（{timeout} 秒）")
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        print(f"[WARN] venv 创建异常: {e}")
+        return False
+
+
 def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: int = 900,
                                    before_launch=None) -> bool:
     """
     Launch the local Python installer and wait for it to finish.
     The installer UI is shown to the user; no network download is attempted here.
+
+    Windows-only: the .exe installer only exists on Windows.
     """
+    if os.name != "nt":
+        return False
     import time
 
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -3136,7 +3199,8 @@ def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: i
     except Exception as e:
         print(f"[WARN] 启动本地 Python 安装器失败: {e}")
         return False
-    return (target_dir / "python.exe").exists()
+    _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
+    return (target_dir / _default_pyexe_name).exists()
 
 # --------------- 主入口 ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
@@ -3209,13 +3273,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
+    _DEFAULT_PYEXE_NAME = "python.exe" if os.name == "nt" else "python3"
     if is_frozen:
         # Packaged: runtime stays bundled, but dependency wizard should only treat
         # a python inside deps_dir as reusable. Missing deps python must remain
         # visible to the UI so the user can initialize it from the wizard.
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / "python.exe")
+        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         if existing_pyexe and existing_pyexe.exists():
             print(f"[INFO] packaged: use deps python for pip: {pyexe}")
             use_bundled_python = False
@@ -3226,14 +3291,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         # 开发模式：支持依赖隔离和私有解释器
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / "python.exe")
+        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         deps_dir_resolved = str(Path(deps_dir).resolve())
         mismatch_reason = ""
-        
+
         # 检查是否打包模式
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
         mode_str = "打包模式" if is_packaged else "开发模式"
-        
+
         if current_site and deps_dir and str(current_site).startswith(deps_dir_resolved):
             print(f"[INFO] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
             print(f"[DIAG] 当前 site-packages 路径: {current_site}")
@@ -3264,33 +3329,53 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
             else:
                 try:
-                    installer = _find_local_python311_installer(Path(deps_dir))
-                    if installer is None:
+                    if os.name != "nt":
+                        # Linux / macOS: use system python3 to create a venv
+                        ok = _setup_python_venv_from_system(py_root)
+                        if not ok:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "未找到 Python 3",
+                                "未检测到可复用的 Python 环境，且系统中未找到 python3。\n\n"
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        pyexe = py_root / "bin" / "python3"
+                        print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    else:
+                        installer = _find_local_python311_installer(Path(deps_dir))
+                        if installer is None:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装器未找到",
+                                "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
+                                "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
                         _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装器未找到",
-                            "未检测到可复用 Python，且未找到本地 Python 3.11.0 安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        return False
-                    print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
-                    _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                    if not ok or not pyexe.exists():
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装失败",
-                            "Python 3.11.0 安装失败。\n\n"
-                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        return False
-                    print(f"[OK] 已安装私有 Python: {pyexe}")
+                        ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
+                        if not ok or not pyexe.exists():
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装失败",
+                                "Python 3.11.0 安装失败。\n\n"
+                                f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            return False
+                        print(f"[OK] 已安装私有 Python: {pyexe}")
                 except Exception as e:
                     print(f"[ERR] 自动安装 Python 失败: {e}")
                     _notify_before_show_ui()
@@ -3413,7 +3498,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         py_root = deps_path / "python311"
         existing_pyexe = _find_existing_python(deps_path)
         if is_frozen:
-            pyexe = existing_pyexe or (py_root / "python.exe")
+            pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
             use_bundled = not (existing_pyexe and existing_pyexe.exists())
         else:
             deps_dir_resolved = str(deps_path.resolve())
@@ -3424,7 +3509,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 pyexe = existing_pyexe
                 use_bundled = False
             else:
-                pyexe = py_root / "python.exe"
+                pyexe = py_root / _DEFAULT_PYEXE_NAME
                 use_bundled = True
         _apply_runtime_context(pyexe)
         state_path = deps_path / STATE_FILE
@@ -3501,48 +3586,69 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         if need_install:
             if chosen_layers:
                 if use_bundled_python and not os.path.exists(str(pyexe)):
-                    installer = _find_local_python311_installer(deps_path)
-                    if installer is None:
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "安装器未找到",
-                            "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
-                            "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        always_show_ui = True
-                        continue
+                    if os.name != "nt":
+                        # Linux / macOS: use system python3 to create a venv
+                        ok = _setup_python_venv_from_system(py_root)
+                        if not ok:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "未找到 Python 3",
+                                "系统中未找到 python3，无法初始化依赖环境。\n\n"
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
+                        pyexe = py_root / "bin" / "python3"
+                        print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    else:
+                        installer = _find_local_python311_installer(deps_path)
+                        if installer is None:
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装器未找到",
+                                "目标依赖目录未检测到可复用 Python，且未找到本地安装器。\n\n"
+                                "请将 `python-3.11.0-amd64.exe` 放到依赖目录、程序目录下的 `_internal`，或项目根目录后重试。",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
 
-                    _notify_before_show_ui()
-                    confirm = _exec_close_only_message_box(
-                        None,
-                        "初始化依赖环境",
-                        "目标依赖目录未检测到可复用 Python 环境。\n\n"
-                        f"是否现在初始化以下目录后继续安装依赖？\n{py_root}",
-                        icon=QMessageBox.Icon.Question,
-                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        default_button=QMessageBox.StandardButton.Yes,
-                    )
-                    if confirm != QMessageBox.StandardButton.Yes:
-                        always_show_ui = True
-                        continue
-
-                    _notify_before_show_ui()
-                    ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                    if not ok or not os.path.exists(str(pyexe)):
                         _notify_before_show_ui()
-                        _exec_close_only_message_box(
+                        confirm = _exec_close_only_message_box(
                             None,
-                            "安装失败",
-                            "Python 3.11.0 安装失败。\n\n"
-                            f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
+                            "初始化依赖环境",
+                            "目标依赖目录未检测到可复用 Python 环境。\n\n"
+                            f"是否现在初始化以下目录后继续安装依赖？\n{py_root}",
+                            icon=QMessageBox.Icon.Question,
+                            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                            default_button=QMessageBox.StandardButton.Yes,
                         )
-                        always_show_ui = True
-                        continue
+                        if confirm != QMessageBox.StandardButton.Yes:
+                            always_show_ui = True
+                            continue
+
+                        _notify_before_show_ui()
+                        ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
+                        if not ok or not os.path.exists(str(pyexe)):
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "安装失败",
+                                "Python 3.11.0 安装失败。\n\n"
+                                f"请确认已通过本地安装器安装到以下目录：\n{py_root}",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
                     try:
                         _ensure_pip(pyexe)
                     except Exception as e:

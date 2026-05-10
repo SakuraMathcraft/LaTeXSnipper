@@ -1,0 +1,11 @@
+# Linux-specific dependencies for LaTeXSnipper.
+# These are optional additions to requirements.txt.
+
+# Global hotkey support. X11 works best; Wayland support is limited by desktop
+# environment permissions.
+pynput>=1.7.6
+
+# Optional runtime screenshot tools are detected by the app but not installed by
+# the dependency wizard:
+#   Wayland: grim
+#   X11: maim or gnome-screenshot

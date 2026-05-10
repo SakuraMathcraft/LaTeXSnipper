@@ -26,7 +26,8 @@ classifiers = [
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "Operating System :: Microsoft :: Windows",
-  "Operating System :: OS Independent",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -77,6 +78,11 @@ exclude = ["src*", "test*", "scripts*", "docs*", "release_assets*", "build*", "d
 
 [tool.setuptools.package-data]
 mathcraft_ocr = ["manifests/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["test"]
+addopts = ["--ignore=python311", "--ignore=src/deps", "--ignore=.venv", "--ignore=build", "--ignore=dist"]
 
 [tool.vulture]
 paths = ["src"]
