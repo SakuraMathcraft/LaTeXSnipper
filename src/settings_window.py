@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer, QEvent, QThread
+from PyQt6.QtCore import Qt, pyqtSignal,pyqtSlot, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
@@ -441,87 +441,6 @@ class SettingsWindow(QDialog):
         latex_layout.addWidget(self.lbl_latex_desc)
         self.latex_options_widget.setVisible(False)  # 默认隐藏
         lay.addWidget(self.latex_options_widget)
-        # 分隔
-        lay.addSpacing(8)
-        # ============ Pandoc 导出设置 ============
-        lay.addWidget(QLabel("Pandoc 导出 (可选):"))
-        self.pandoc_widget = QWidget()
-        pandoc_layout = QVBoxLayout(self.pandoc_widget)
-        pandoc_layout.setContentsMargins(0, 0, 0, 0)
-        pandoc_layout.setSpacing(6)
-        # 状态显示
-        self.pandoc_status_label = QLabel("状态：未检测")
-        self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.pandoc_status_label.setWordWrap(True)
-        pandoc_layout.addWidget(self.pandoc_status_label)
-        # 操作按钮
-        pandoc_btn_row = QHBoxLayout()
-        pandoc_btn_row.setContentsMargins(0, 0, 0, 0)
-        pandoc_btn_row.setSpacing(6)
-        self.pandoc_detect_btn = PushButton(FluentIcon.SEARCH, "检测 Pandoc")
-        self.pandoc_detect_btn.setFixedHeight(32)
-        pandoc_btn_row.addWidget(self.pandoc_detect_btn)
-        self.pandoc_install_btn = PushButton(FluentIcon.DEVELOPER_TOOLS, "打开依赖向导安装")
-        self.pandoc_install_btn.setFixedHeight(32)
-        self.pandoc_install_btn.setToolTip("打开依赖管理向导，勾选 PANDOC 层即可一键安装\n依赖向导会下载并管理 pandoc 二进制文件")
-        pandoc_btn_row.addWidget(self.pandoc_install_btn)
-        pandoc_layout.addLayout(pandoc_btn_row)
-        # 提示信息
-        self.pandoc_hint_label = QLabel(
-            "提示：安装 PANDOC 层后，导出菜单会自动显示 Pandoc 格式。"
-        )
-        self.pandoc_hint_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
-        self.pandoc_hint_label.setWordWrap(True)
-        pandoc_layout.addWidget(self.pandoc_hint_label)
-        lay.addWidget(self.pandoc_widget)
-        # 初始化 Pandoc 状态
-        self._init_pandoc_status()
-        # 分隔
-        lay.addSpacing(8)
-        # ============ Linux 截图工具选择 ============
-        self._os_name = os.name
-        self._is_linux = (self._os_name != "nt" and sys.platform != "darwin")
-        self.screenshot_tool_widget = QWidget()
-        screenshot_tool_layout = QVBoxLayout(self.screenshot_tool_widget)
-        screenshot_tool_layout.setContentsMargins(0, 0, 0, 0)
-        screenshot_tool_layout.setSpacing(6)
-        screenshot_tool_layout.addWidget(QLabel("Linux 截图工具:"))
-        self.screenshot_tool_combo = ComboBox()
-        self.screenshot_tool_combo.setFixedHeight(36)
-        # 从 capture_overlay 导入工具列表
-        self._populate_screenshot_tool_combo()
-        screenshot_tool_layout.addWidget(self.screenshot_tool_combo)
-        # 状态显示
-        self.screenshot_tool_status = QLabel("状态：未检测")
-        self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.screenshot_tool_status.setWordWrap(True)
-        screenshot_tool_layout.addWidget(self.screenshot_tool_status)
-        # 操作按钮
-        shot_btn_row = QHBoxLayout()
-        shot_btn_row.setContentsMargins(0, 0, 0, 0)
-        shot_btn_row.setSpacing(6)
-        self.screenshot_test_btn = PrimaryPushButton(FluentIcon.PHOTO, "测试截图")
-        self.screenshot_test_btn.setFixedHeight(32)
-        self.screenshot_test_btn.setToolTip("使用选中的工具截取屏幕左上角区域以测试是否正常工作")
-        shot_btn_row.addWidget(self.screenshot_test_btn)
-        self.screenshot_detect_btn = PushButton(FluentIcon.SEARCH, "检测已安装工具")
-        self.screenshot_detect_btn.setFixedHeight(32)
-        shot_btn_row.addWidget(self.screenshot_detect_btn)
-        screenshot_tool_layout.addLayout(shot_btn_row)
-        # 提示
-        self.screenshot_tool_hint = QLabel(
-            "提示：截图预览黑屏时，可在此切换不同的截图工具试试。\n"
-            "Wayland 推荐 grim，X11 推荐 maim。全屏截图工具（如 flameshot）仅做兜底。"
-        )
-        self.screenshot_tool_hint.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
-        self.screenshot_tool_hint.setWordWrap(True)
-        screenshot_tool_layout.addWidget(self.screenshot_tool_hint)
-        # 非 Linux 隐藏
-        if not self._is_linux:
-            self.screenshot_tool_widget.setVisible(False)
-        lay.addWidget(self.screenshot_tool_widget)
-        # 分隔
-        lay.addSpacing(8)
         # 检查更新
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -599,10 +518,6 @@ class SettingsWindow(QDialog):
         self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
-        # 截图工具相关信号
-        self.screenshot_tool_combo.currentIndexChanged.connect(self._on_screenshot_tool_changed)
-        self.screenshot_test_btn.clicked.connect(self._test_screenshot_tool)
-        self.screenshot_detect_btn.clicked.connect(self._detect_screenshot_tools)
         self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
@@ -1537,7 +1452,7 @@ class SettingsWindow(QDialog):
         except Exception:
             _dbg_idx = -1
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
-
+        
         pyexe = self._resolve_dynamic_main_pyexe()
         print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
@@ -1648,78 +1563,37 @@ class SettingsWindow(QDialog):
             "echo.\n"
         )
         try:
-            if os.name == "nt":
-                if as_admin:
-                    import tempfile
-                    batch_content = "@echo off\n" \
-                        + f'cd /d "{venv_dir}"\n' \
-                        + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                        + python_bind_lines \
-                        + help_text
-                    with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                        f.write(batch_content)
-                        batch_path = f.name
-                    import ctypes
-                    ctypes.windll.shell32.ShellExecuteW(
-                        None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
-                    )
-                    self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
-                else:
-                    import tempfile
-                    batch_content_normal = "@echo off\n" \
-                        + f'cd /d "{venv_dir}"\n' \
-                        + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                        + python_bind_lines \
-                        + help_text
-                    with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                        f.write(batch_content_normal)
-                        batch_path = f.name
-                    subprocess.Popen(
-                        ["cmd.exe", "/k", batch_path],
-                        cwd=venv_dir,
-                        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
-                    )
-                    self._show_info("终端已打开", "已以普通模式打开。", "success")
-            else:
-                # Linux (and macOS): write a shell script and open a terminal
+            if as_admin:
                 import tempfile
-                import stat
-                shell_help = help_text.replace("echo.", "echo").replace("echo ", "echo ")
-                shell_bind_lines = (
-                    f'export LATEXSNIPPER_PYEXE="{pyexe}"\n'
-                    f'alias python="{pyexe}"\n'
-                    f'alias py="{pyexe}"\n'
-                    f'alias pip="{pyexe} -m pip"\n'
-                    f'cd "{venv_dir}"\n'
-                    f'export PATH="{pyexe_dir}:{pyexe_dir}/bin:{os.environ.get("PATH", "")}"\n'
+                batch_content = "@echo off\n" \
+                    + f'cd /d "{venv_dir}"\n' \
+                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
+                    + python_bind_lines \
+                    + help_text
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
+                    f.write(batch_content)
+                    batch_path = f.name
+                import ctypes
+                ctypes.windll.shell32.ShellExecuteW(
+                    None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
                 )
-                shell_content = "#!/bin/bash\n" + shell_bind_lines + shell_help
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".sh", delete=False, encoding="utf-8"
-                ) as f:
-                    f.write(shell_content)
-                    script_path = f.name
-                os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IXUSR)
-
-                # Try common Linux terminal emulators in order
-                terminals = [
-                    ["gnome-terminal", "--", "bash", script_path],
-                    ["konsole", "-e", "bash", script_path],
-                    ["xfce4-terminal", "-e", f"bash {script_path}"],
-                    ["xterm", "-e", "bash", script_path],
-                    ["lxterminal", "-e", "bash", script_path],
-                ]
-                launched = False
-                for term_cmd in terminals:
-                    term_exe = term_cmd[0]
-                    if shutil.which(term_exe):
-                        subprocess.Popen(term_cmd, cwd=venv_dir)
-                        launched = True
-                        self._show_info("终端已打开", f"已通过 {term_exe} 打开。", "success")
-                        break
-                if not launched:
-                    self._show_info("终端打开失败",
-                        "未找到可用的终端模拟器。请手动打开终端并执行命令。", "error")
+                self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
+            else:
+                import tempfile
+                batch_content_normal = "@echo off\n" \
+                    + f'cd /d "{venv_dir}"\n' \
+                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
+                    + python_bind_lines \
+                    + help_text
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
+                    f.write(batch_content_normal)
+                    batch_path = f.name
+                subprocess.Popen(
+                    ["cmd.exe", "/k", batch_path],
+                    cwd=venv_dir,
+                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                )
+                self._show_info("终端已打开", "已以普通模式打开。", "success")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 
@@ -2236,220 +2110,5 @@ class SettingsWindow(QDialog):
             self._update_mathcraft_visibility()
         finally:
             self._model_selection_syncing = False
-
-    # ============ Pandoc 导出方法 ============
-
-    def _init_pandoc_status(self):
-        """初始化 Pandoc 状态检测"""
-        self._detect_pandoc_async()
-
-    def _detect_pandoc_async(self, *, notify: bool = False):
-        """异步检测 Pandoc 可用性"""
-        import threading
-
-        self.pandoc_status_label.setText("状态：检测中（仅验证已安装的 pandoc）...")
-        self.pandoc_status_label.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-
-        def _worker():
-            try:
-                from exporting.pandoc_exporter import check_pandoc_available, pandoc_path, pandoc_version
-                available = check_pandoc_available(force=True)
-                version = pandoc_version() if available else None
-                resolved_path = pandoc_path() if available else None
-            except Exception as e:
-                available = False
-                version = str(e)
-                resolved_path = None
-            # 用信号安全地回传到 UI 线程
-            self._pandoc_detect_result = (available, version, resolved_path, notify)
-            # 使用 QMetaObject.invokeMethod 确保在主线程执行
-            from PyQt6.QtCore import QMetaObject, Qt
-            QMetaObject.invokeMethod(
-                self, "_on_pandoc_detect_done", Qt.ConnectionType.QueuedConnection
-            )
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    @pyqtSlot()
-    def _on_pandoc_detect_done(self):
-        """Pandoc 检测完成回调（UI 线程）"""
-        available, version_info, resolved_path, notify = getattr(
-            self, "_pandoc_detect_result", (False, None, None, False)
-        )
-        self._update_pandoc_status_ui(available, version_info, resolved_path)
-        self.pandoc_detect_btn.setEnabled(True)
-        self.pandoc_detect_btn.setText("检测 Pandoc")
-        if notify:
-            if available:
-                detail = str(version_info or "Pandoc 可用")
-                if resolved_path:
-                    detail = f"{detail}\n路径: {resolved_path}"
-                self._show_notification("success", "Pandoc 检测成功", detail)
-            else:
-                detail = str(version_info or "请通过依赖管理向导安装 PANDOC 层")
-                self._show_notification("warning", "Pandoc 未就绪", detail)
-
-    def _update_pandoc_status_ui(self, available: bool, version_info: str | None, resolved_path: str | None = None):
-        """更新 Pandoc 状态 UI（UI 线程调用）"""
-        if available:
-            ver_text = version_info or "pandoc"
-            self.pandoc_status_label.setText(f"✅ {ver_text}")
-            self.pandoc_status_label.setStyleSheet("color: #2e7d32; font-size: 10px; padding: 2px;")
-            if resolved_path:
-                self.pandoc_hint_label.setText(f"Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。\n路径：{resolved_path}")
-            else:
-                self.pandoc_hint_label.setText("Pandoc 已就绪，可在导出菜单中使用 Pandoc 格式。")
-        else:
-            self.pandoc_status_label.setText("❌ 未检测到 Pandoc")
-            self.pandoc_status_label.setStyleSheet("color: #c62828; font-size: 10px; padding: 2px;")
-            self.pandoc_hint_label.setText(
-                "提示：可通过依赖管理向导一键安装 PANDOC 层。"
-            )
-
-    def _detect_pandoc(self):
-        """手动触发 Pandoc 检测"""
-        self.pandoc_detect_btn.setEnabled(False)
-        self.pandoc_detect_btn.setText("检测中...")
-        self._detect_pandoc_async(notify=True)
-
-    # ---------------- 截图工具 ----------------
-    def _get_parent_cfg(self):
-        """获取父窗口的 ConfigManager。"""
-        try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                return self.parent().cfg
-        except Exception:
-            pass
-        return None
-
-    def _populate_screenshot_tool_combo(self) -> None:
-        """填充截图工具下拉框。"""
-        self.screenshot_tool_combo.blockSignals(True)
-        self.screenshot_tool_combo.clear()
-        self.screenshot_tool_combo.addItem("自动检测（推荐）", userData="")
-        try:
-            from backend.capture_overlay import _LINUX_SCREENSHOT_TOOLS, _list_available_tools
-            available = _list_available_tools()
-            for name, info in _LINUX_SCREENSHOT_TOOLS.items():
-                installed = " ✓" if name in available else ""
-                label = f"{info.get('desc', name)}{installed}"
-                self.screenshot_tool_combo.addItem(label, userData=name)
-        except ImportError:
-            pass
-        self.screenshot_tool_combo.blockSignals(False)
-
-        # 恢复当前选择
-        cfg = self._get_parent_cfg()
-        current_tool = cfg.get("screenshot_tool", "") if cfg else ""
-        for i in range(self.screenshot_tool_combo.count()):
-            if self.screenshot_tool_combo.itemData(i) == current_tool:
-                self.screenshot_tool_combo.setCurrentIndex(i)
-                break
-
-    def _on_screenshot_tool_changed(self, index: int) -> None:
-        """截图工具选择变更时保存到配置。"""
-        tool = self.screenshot_tool_combo.itemData(index) or ""
-        cfg = self._get_parent_cfg()
-        if cfg:
-            cfg.set("screenshot_tool", tool or "")
-            self._update_screenshot_tool_status()
-            print(f"[Settings] 截图工具已切换: {tool or '自动检测'}")
-
-    def _update_screenshot_tool_status(self) -> None:
-        """更新截图工具状态显示。"""
-        cfg = self._get_parent_cfg()
-        tool = cfg.get("screenshot_tool", "") if cfg else ""
-        if not tool:
-            self.screenshot_tool_status.setText("状态：自动检测可用工具")
-            self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-            return
-        try:
-            from backend.capture_overlay import _LINUX_SCREENSHOT_TOOLS, _list_available_tools
-            available = _list_available_tools()
-            if tool in available:
-                desc = _LINUX_SCREENSHOT_TOOLS.get(tool, {}).get("desc", tool)
-                self.screenshot_tool_status.setText(f"状态：{desc} 已就绪 ✓")
-                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
-            else:
-                self.screenshot_tool_status.setText(f"状态：{tool} 未安装 ⚠")
-                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-        except ImportError:
-            self.screenshot_tool_status.setText(f"状态：{tool}（无法检测）")
-            self.screenshot_tool_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-
-    def _detect_screenshot_tools(self) -> None:
-        """检测已安装的截图工具并刷新列表。"""
-        self.screenshot_detect_btn.setEnabled(False)
-        self.screenshot_detect_btn.setText("检测中...")
-        QTimer.singleShot(200, self._do_detect_screenshot_tools)
-
-    def _do_detect_screenshot_tools(self) -> None:
-        """执行截图工具检测。"""
-        try:
-            self._populate_screenshot_tool_combo()
-            self._update_screenshot_tool_status()
-            from backend.capture_overlay import _list_available_tools
-            available = _list_available_tools()
-            if available:
-                self.screenshot_tool_status.setText(f"状态：已检测到 {len(available)} 个工具: {', '.join(available)}")
-                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
-            else:
-                self.screenshot_tool_status.setText("状态：未检测到任何截图工具，请安装 maim/grim/flameshot 等")
-                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-        except Exception as e:
-            self.screenshot_tool_status.setText(f"检测失败: {e}")
-            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-        finally:
-            self.screenshot_detect_btn.setEnabled(True)
-            self.screenshot_detect_btn.setText("检测已安装工具")
-
-    def _test_screenshot_tool(self) -> None:
-        """测试当前选中的截图工具。"""
-        self.screenshot_test_btn.setEnabled(False)
-        self.screenshot_test_btn.setText("测试中...")
-        self.screenshot_tool_status.setText("状态：正在测试截图...")
-        self.screenshot_tool_status.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
-
-        tool = self.screenshot_tool_combo.currentData() or ""
-        if not tool:
-            # 自动检测：使用第一个可用工具测试
-            try:
-                from backend.capture_overlay import _list_available_tools
-                available = _list_available_tools()
-                tool = available[0] if available else ""
-            except ImportError:
-                pass
-
-        if not tool:
-            self.screenshot_tool_status.setText("状态：没有可用的截图工具")
-            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-            self.screenshot_test_btn.setEnabled(True)
-            self.screenshot_test_btn.setText("测试截图")
-            return
-
-        # 使用 QTimer 延迟执行，避免阻塞 UI
-        QTimer.singleShot(100, lambda: self._do_test_screenshot_tool(tool))
-
-    def _do_test_screenshot_tool(self, tool: str) -> None:
-        """在后台执行截图测试。"""
-        try:
-            from backend.capture_overlay import test_screenshot_tool
-            result = test_screenshot_tool(tool)
-            if result["ok"]:
-                msg = result["message"]
-                img_path = result.get("image_path")
-                if img_path:
-                    msg += f"\n已保存到: {img_path}"
-                self.screenshot_tool_status.setText(f"状态：测试成功 ✓ - {msg}")
-                self.screenshot_tool_status.setStyleSheet("color: #2d8; font-size: 10px; padding: 2px;")
-            else:
-                self.screenshot_tool_status.setText(f"状态：测试失败 ✗ - {result['message']}")
-                self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-        except Exception as e:
-            self.screenshot_tool_status.setText(f"状态：测试异常 - {e}")
-            self.screenshot_tool_status.setStyleSheet("color: #e88; font-size: 10px; padding: 2px;")
-        finally:
-            self.screenshot_test_btn.setEnabled(True)
-            self.screenshot_test_btn.setText("测试截图")
 
 # ---------------- 主窗口 ----------------
