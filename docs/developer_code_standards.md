@@ -39,6 +39,22 @@ path while allowing Linux and macOS support to evolve cleanly.
   the script targets macOS.
 - README references to packaging scripts or spec files must point to files that
   exist in the repository.
+- GitHub Actions release builds must keep Windows, Linux, macOS, and release
+  publishing jobs in one workflow unless the PR explicitly changes release
+  policy and documents the replacement.
+
+## Language And Encoding Rules
+
+- Packaging and automation files must be English-only and ASCII-only. This
+  includes `.github/workflows/*`, `scripts/*.sh`, `*.spec`, `requirements*.txt`,
+  and `packaging/debian/DEBIAN/*`.
+- Shell scripts, workflow files, PyInstaller spec files, and Debian maintainer
+  scripts must use LF line endings. Do not add localized comments, banners, or
+  terminal output to these files.
+- User-facing application strings and README content may be localized when the
+  localization is intentional and encoded as UTF-8.
+- Do not add mixed-encoding text, garbled comments, or copied terminal prose to
+  source files. If a comment is needed, keep it short, technical, and readable.
 
 ## Clean Code Rules
 
