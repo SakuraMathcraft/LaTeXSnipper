@@ -57,14 +57,13 @@ case "$1" in
             rm -f /usr/bin/latexsnipper
         fi
 
-        # 清理用户级缓存和配置（如果有的话）
-        # 注意：这些是每个用户的目录，不能直接删除 /home/* 下的内容
-        # 这里仅作为参考提示
+        # 清理用户级缓存和配置文件（提示用户手动删除）
         echo ""
-        echo "注意：用户级配置文件（如 ~/.config/mathcraft/）未被自动删除。"
+        echo "注意：用户级配置和缓存文件未被自动删除。"
         echo "如需彻底清理，请手动执行："
-        echo "  rm -rf ~/.config/mathcraft/"
-        echo "  rm -rf ~/.cache/mathcraft/"
+        echo "  rm -rf ~/.latexsnipper/"
+        echo "  rm -rf ~/.MathCraft/"
+        echo "  rm -rf ~/.mathcraft/"
         ;;
 
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

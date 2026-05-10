@@ -251,7 +251,9 @@ class SettingsWindow(QDialog):
         mathcraft_env_layout.setSpacing(6)
         mathcraft_env_layout.addWidget(QLabel("MathCraft 运行环境:"))
         self.mathcraft_pyexe_input = QLineEdit()
-        self.mathcraft_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
+        self.mathcraft_pyexe_input.setPlaceholderText(
+            "使用主依赖环境 python.exe" if os.name == "nt" else "使用主依赖环境 python3"
+        )
         self.mathcraft_pyexe_input.setFixedHeight(30)
         self.mathcraft_pyexe_input.setReadOnly(True)
         mathcraft_env_layout.addWidget(self.mathcraft_pyexe_input)
@@ -753,9 +755,15 @@ class SettingsWindow(QDialog):
     def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
         try:
             env_root = self._python_env_root(pyexe)
-            site = env_root / "Lib" / "site-packages"
-            if not site.exists():
+            site_candidates = self._site_packages_candidates(env_root)
+            site = None
+            for candidate in site_candidates:
+                if candidate.exists():
+                    site = candidate
+                    break
+            if site is None:
                 return {}
+
             names = {d.name.lower() for d in site.iterdir()}
             has_ort = any(name.startswith("onnxruntime-") for name in names) or (site / "onnxruntime").exists()
             if not has_ort:
@@ -777,9 +785,27 @@ class SettingsWindow(QDialog):
         except Exception:
             return {}
 
+    @staticmethod
+    def _site_packages_candidates(env_root: Path) -> list[Path]:
+        """Return possible site-packages paths for both Windows and Linux/macOS."""
+        candidates: list[Path] = []
+        # Windows-style: Lib/site-packages
+        candidates.append(env_root / "Lib" / "site-packages")
+        # Linux/macOS-style: lib/pythonX.Y/site-packages
+        try:
+            lib = env_root / "lib"
+            if lib.is_dir():
+                for child in sorted(lib.iterdir(), reverse=True):
+                    if child.is_dir() and child.name.startswith("python"):
+                        candidates.append(child / "site-packages")
+        except Exception:
+            pass
+        return candidates
+
     def _probe_compute_mode_info(self, pyexe: str) -> dict:
+        _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
         if not pyexe or not os.path.exists(pyexe):
-            return {"present": False, "error": "python.exe not found"}
+            return {"present": False, "error": f"{_default_pyexe_name} not found"}
         code = (
             "import json\n"
             "out={'present': False, 'providers': [], 'gpu_available': False, 'gpu_name': '', 'cpu_name': ''}\n"
@@ -841,6 +867,35 @@ class SettingsWindow(QDialog):
         if (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl:
             return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
 
+        gpu_name = ""
+        cpu_name = ""
+
+        if os.name == "nt":
+            gpu_name, cpu_name = self._probe_device_names_windows()
+        elif sys.platform == "darwin":
+            gpu_name, cpu_name = self._probe_device_names_macos()
+        else:
+            gpu_name, cpu_name = self._probe_device_names_linux()
+
+        # Fallback: try nvidia-smi on any platform
+        if not gpu_name:
+            try:
+                res = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    creationflags=_subprocess_creationflags(),
+                )
+                names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
+                gpu_name = names[0] if names else ""
+            except Exception:
+                pass
+
+        self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
+        return gpu_name, cpu_name
+
+    def _probe_device_names_windows(self) -> tuple[str, str]:
         def _run_ps(cmd: str) -> str:
             try:
                 res = subprocess.run(
@@ -858,25 +913,61 @@ class SettingsWindow(QDialog):
         gpu_name = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
         if not gpu_name:
             gpu_name = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-        if not gpu_name:
-            try:
-                res = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
-                    creationflags=_subprocess_creationflags(),
-                )
-                names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
-                gpu_name = names[0] if names else ""
-            except Exception:
-                gpu_name = ""
 
         cpu_name = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
         if not cpu_name:
             cpu_name = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
 
-        self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
+        return gpu_name, cpu_name
+
+    @staticmethod
+    def _probe_device_names_linux() -> tuple[str, str]:
+        gpu_name = ""
+        cpu_name = ""
+        try:
+            res = subprocess.run(
+                ["lspci"], capture_output=True, text=True, timeout=5,
+            )
+            for line in (res.stdout or "").splitlines():
+                if "VGA" in line or "3D" in line or "Display" in line:
+                    gpu_name = line.strip()
+                    break
+        except Exception:
+            pass
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        cpu_name = line.split(":", 1)[1].strip()
+                        break
+        except Exception:
+            pass
+        return gpu_name, cpu_name
+
+    @staticmethod
+    def _probe_device_names_macos() -> tuple[str, str]:
+        gpu_name = ""
+        cpu_name = ""
+        try:
+            res = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True, text=True, timeout=5,
+            )
+            cpu_name = (res.stdout or "").strip()
+        except Exception:
+            pass
+        try:
+            res = subprocess.run(
+                ["system_profiler", "SPDisplaysDataType"],
+                capture_output=True, text=True, timeout=8,
+            )
+            for line in (res.stdout or "").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("Chipset Model:") or stripped.startswith("芯片组型号："):
+                    gpu_name = stripped.split(":", 1)[1].strip()
+                    break
+        except Exception:
+            pass
         return gpu_name, cpu_name
 
     def _refresh_env_status(self, env_key: str):
@@ -993,22 +1084,34 @@ class SettingsWindow(QDialog):
     @staticmethod
     def _find_install_base_python(base_dir: Path) -> Path | None:
         base_dir = Path(base_dir)
-        candidates = [
-            base_dir / "python.exe",
-            base_dir / "Scripts" / "python.exe",
-            base_dir / "python311" / "python.exe",
-            base_dir / "python311" / "Scripts" / "python.exe",
-            base_dir / "Python311" / "python.exe",
-            base_dir / "Python311" / "Scripts" / "python.exe",
-            base_dir / "venv" / "Scripts" / "python.exe",
-            base_dir / ".venv" / "Scripts" / "python.exe",
-            base_dir / "python_full" / "python.exe",
-        ]
+        exe_names: tuple[str, ...]
+        scripts_dir: str
+        if os.name == "nt":
+            exe_names = ("python.exe",)
+            scripts_dir = "Scripts"
+        else:
+            exe_names = ("python3", "python")
+            scripts_dir = "bin"
+
+        candidates: list[Path] = []
+        for exe_name in exe_names:
+            candidates.extend([
+                base_dir / exe_name,
+                base_dir / scripts_dir / exe_name,
+                base_dir / "python311" / exe_name,
+                base_dir / "python311" / scripts_dir / exe_name,
+                base_dir / "Python311" / exe_name,
+                base_dir / "Python311" / scripts_dir / exe_name,
+                base_dir / "venv" / scripts_dir / exe_name,
+                base_dir / ".venv" / scripts_dir / exe_name,
+                base_dir / "python_full" / exe_name,
+            ])
         try:
             for child in sorted(base_dir.glob("python*")):
                 if child.is_dir():
-                    candidates.append(child / "python.exe")
-                    candidates.append(child / "Scripts" / "python.exe")
+                    for exe_name in exe_names:
+                        candidates.append(child / exe_name)
+                        candidates.append(child / scripts_dir / exe_name)
         except Exception:
             pass
         for candidate in candidates:
@@ -1021,7 +1124,10 @@ class SettingsWindow(QDialog):
     @staticmethod
     def _python_env_root(pyexe: str | Path) -> Path:
         p = Path(pyexe)
-        return p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
+        parent_name = p.parent.name.lower()
+        if parent_name in ("scripts", "bin"):
+            return p.parent.parent
+        return p.parent
     def _current_install_base_dir(self) -> Path | None:
         cfg = self._settings_cfg()
         raw = ""
