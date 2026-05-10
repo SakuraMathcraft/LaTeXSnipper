@@ -1,14 +1,11 @@
 # cross_platform/screenshot_tools.py
-"""跨平台截图工具检测、注册与系统包管理。
+"""跨平台截图工具检测与截图函数。
 
-将原先散布在 backend/capture_overlay.py（工具注册表、CLI 截图、
-Wayland portal）和 bootstrap/deps_bootstrap.py（系统包安装/卸载）的
-截图相关逻辑统一到这里。
+将原先散布在 backend/capture_overlay.py 的截图相关逻辑统一到这里。
 
 模块分为两层：
 - 工具层（零外部依赖）：注册表、可用性检测、显示环境探测。
 - Qt 层（QImage）：CLI 截图函数和 Wayland portal，延迟导入 Qt。
-- 包管理层：系统包管理器安装/卸载截图工具。
 """
 
 from __future__ import annotations
@@ -18,7 +15,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Callable
 
 # ============================================================================
 # 工具注册表
@@ -79,17 +75,6 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
         "desc": "screencapture (macOS 内置)",
         "env": "macos",
     },
-}
-
-# 截图工具到系统软件包的映射
-SCREENSHOT_TOOL_PACKAGES: dict[str, str] = {
-    "maim": "maim",
-    "grim": "grim",
-    "scrot": "scrot",
-    "import": "imagemagick",
-    "gnome-screenshot": "gnome-screenshot",
-    "flameshot": "flameshot",
-    "spectacle": "spectacle",
 }
 
 # ============================================================================
@@ -168,23 +153,6 @@ def find_screenshot_tool(preferred: str | None = None) -> str | None:
         if tool in available:
             return tool
     return available[0]
-
-
-def get_screenshot_tools() -> list[str]:
-    """返回当前桌面环境推荐的截图工具列表（按优先级排序）。"""
-    if is_wayland():
-        return ["grim", "gnome-screenshot", "flameshot", "spectacle", "maim", "scrot", "import"]
-    return ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]
-
-
-def is_any_screenshot_tool_installed() -> bool:
-    """检查是否有任一截图工具已安装。"""
-    return any(shutil.which(t) for t in SCREENSHOT_TOOL_PACKAGES)
-
-
-def list_installed_screenshot_tools() -> list[str]:
-    """列出当前已安装的截图工具。"""
-    return [t for t in SCREENSHOT_TOOL_PACKAGES if shutil.which(t)]
 
 
 # ============================================================================
@@ -386,203 +354,100 @@ def wayland_screenshot_via_portal():
     return image
 
 
-# ============================================================================
-# 系统包管理
-# ============================================================================
+def wayland_overlay_background() -> object | None:
+    """Wayland: 获取全屏截图作为 overlay 背景。
 
+    按优先级尝试：D-Bus portal → gnome-screenshot → grim。
+    返回 QImage 或 None。为避免 capture_overlay 的静态依赖，
+    此处返回类型标注为 object | None。
+    """
+    from PyQt6.QtGui import QImage
 
-def detect_package_manager() -> str | None:
-    """检测可用的系统包管理器。"""
-    for pm in ("apt-get", "dnf", "yum", "pacman", "zypper"):
-        if shutil.which(pm):
-            return pm
-    return None
+    # 1) D-Bus Screenshot portal（跨合成器通用，GNOME/KDE 均支持）
+    portal_img = wayland_screenshot_via_portal()
+    if portal_img is not None and not portal_img.isNull():
+        print("[ScreenshotTools] Wayland: 使用 D-Bus Screenshot portal 作为 overlay 背景")
+        return portal_img
 
-
-def _build_install_cmd(package_manager: str, pkg_name: str) -> list[str]:
-    """构建安装命令。"""
-    if package_manager in ("apt-get", "apt"):
-        return [package_manager, "install", "-y", pkg_name]
-    if package_manager in ("dnf", "yum"):
-        return [package_manager, "install", "-y", pkg_name]
-    if package_manager == "pacman":
-        return [package_manager, "-S", "--noconfirm", pkg_name]
-    if package_manager == "zypper":
-        return [package_manager, "install", "-y", pkg_name]
-    return []
-
-
-def _build_uninstall_cmd(package_manager: str, pkg_name: str) -> list[str]:
-    """构建卸载命令。"""
-    if package_manager in ("apt-get", "apt"):
-        return [package_manager, "remove", "-y", pkg_name]
-    if package_manager in ("dnf", "yum"):
-        return [package_manager, "remove", "-y", pkg_name]
-    if package_manager == "pacman":
-        return [package_manager, "-R", "--noconfirm", pkg_name]
-    if package_manager == "zypper":
-        return [package_manager, "remove", "-y", pkg_name]
-    return []
-
-
-def _run_with_privilege(cmd: list[str], log_fn: Callable[[str], None] | None = None) -> bool:
-    """尝试使用多种提权方式运行命令。"""
-    if shutil.which("sudo"):
+    # 2) gnome-screenshot（GNOME 桌面）
+    gnome_sc = shutil.which("gnome-screenshot")
+    if gnome_sc:
         try:
-            env = os.environ.copy()
-            env.setdefault("DEBIAN_FRONTEND", "noninteractive")
-            result = subprocess.run(
-                ["sudo"] + cmd, capture_output=True, text=True, timeout=120, env=env,
+            fd, tmp = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
+            os.close(fd)
+            subprocess.run(
+                [gnome_sc, "-f", tmp], timeout=10, check=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-            if result.returncode == 0:
-                if log_fn:
-                    log_fn(f"[SCREENSHOT] sudo 执行成功: {' '.join(cmd[:3])}")
-                return True
+            img = QImage(tmp)
+            if not img.isNull():
+                result = img.copy()
+                os.unlink(tmp)
+                print("[ScreenshotTools] Wayland: 使用 gnome-screenshot 作为 overlay 背景")
+                return result
+            os.unlink(tmp)
         except Exception:
             pass
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            if log_fn:
-                log_fn(f"[SCREENSHOT] 直接执行成功: {' '.join(cmd[:3])}")
-            return True
-    except Exception:
-        pass
-
-    return False
-
-
-def install_screenshot_tools(log_fn: Callable[[str], None] | None = None) -> bool:
-    """安装 Linux 截图工具。至少安装成功一个即视为成功。"""
-    if is_any_screenshot_tool_installed():
-        installed = list_installed_screenshot_tools()
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 已有可用工具: {', '.join(installed)}，跳过安装")
-        return True
-
-    pm = detect_package_manager()
-    if not pm:
-        if log_fn:
-            log_fn("[SCREENSHOT] 未找到系统包管理器，请手动安装截图工具")
-            log_fn("[SCREENSHOT] 推荐: sudo apt install maim grim flameshot")
-        return False
-
-    if log_fn:
-        log_fn(f"[SCREENSHOT] 包管理器: {pm}，按优先级尝试安装截图工具...")
-
-    tools = get_screenshot_tools()
-    installed_any = False
-
-    for tool in tools:
-        pkg = SCREENSHOT_TOOL_PACKAGES.get(tool)
-        if not pkg:
-            continue
-
-        if shutil.which(tool):
-            installed_any = True
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 已就绪 ✓")
-            continue
-
-        cmd = _build_install_cmd(pm, pkg)
-        if not cmd:
-            continue
-
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 尝试安装 {tool} (包: {pkg})...")
-
-        if _run_with_privilege(cmd, log_fn=log_fn):
-            if shutil.which(tool):
-                installed_any = True
-                if log_fn:
-                    log_fn(f"[SCREENSHOT] {tool} 安装成功 ✅")
-                continue
-
-        if log_fn:
-            log_fn(f"[SCREENSHOT] {tool} 安装失败，尝试下一个...")
-
-    if installed_any:
-        if log_fn:
-            log_fn("[SCREENSHOT] 截图工具安装完成 ✅")
-        return True
-
-    if log_fn:
-        log_fn("[SCREENSHOT] 所有自动安装方式均失败，尝试终端安装...")
-    for terminal in ("x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "lxterminal", "xterm"):
-        term = shutil.which(terminal)
-        if not term:
-            continue
-        pkgs = " ".join(SCREENSHOT_TOOL_PACKAGES.get(t, t) for t in tools[:3])
+    # 3) grim（wlroots 合成器：Sway/Hyprland）
+    grim_bin = shutil.which("grim")
+    if grim_bin:
         try:
+            fd, tmp = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
+            os.close(fd)
             subprocess.run(
-                [term, "-e", f"sudo {pm} install -y {pkgs}; echo '按 Enter 关闭...'; read"],
-                timeout=180,
+                [grim_bin, tmp], timeout=10, check=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-            if is_any_screenshot_tool_installed():
-                if log_fn:
-                    log_fn("[SCREENSHOT] 截图工具安装完成 ✅ (终端)")
-                return True
-            break
+            img = QImage(tmp)
+            if not img.isNull():
+                result = img.copy()
+                os.unlink(tmp)
+                print("[ScreenshotTools] Wayland: 使用 grim 作为 overlay 背景")
+                return result
+            os.unlink(tmp)
         except Exception:
-            continue
+            pass
 
-    if log_fn:
-        log_fn("[SCREENSHOT] 截图工具安装失败，请手动安装:")
-        log_fn(f"[SCREENSHOT]   sudo {pm} install maim grim flameshot imagemagick")
-    return False
+    return None
 
 
-def uninstall_screenshot_tools(log_fn: Callable[[str], None] | None = None) -> bool:
-    """卸载所有通过系统包管理器安装的截图工具。"""
-    installed = list_installed_screenshot_tools()
-    if not installed:
-        if log_fn:
-            log_fn("[SCREENSHOT] 未检测到截图工具，跳过卸载")
-        return True
+def wayland_capture_region(
+    x: int, y: int, width: int, height: int,
+    screen_geometry: tuple[int, int, int, int],
+    preferred_tool: str | None = None,
+) -> object | None:
+    """Wayland: 截取屏幕区域。按 CLI 工具 → D-Bus portal 优先级回退。
 
-    pm = detect_package_manager()
-    if not pm:
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 未找到包管理器，请手动卸载: {', '.join(installed)}")
-        return False
+    返回 QPixmap 或 None（空 QPixmap）。为避免 capture_overlay 的
+    静态 Qt 依赖，返回类型标注为 object | None。
+    """
+    from PyQt6.QtGui import QPixmap
 
-    if log_fn:
-        log_fn(f"[SCREENSHOT] 将卸载以下截图工具: {', '.join(installed)}")
+    # 1) 命令行截图工具（区域截图）
+    cli_img = linux_cli_screenshot_region(x, y, width, height, preferred_tool=preferred_tool)
+    if cli_img is not None and not cli_img.isNull():
+        print(f"[ScreenshotTools] Wayland: 使用 CLI 截图工具 ({find_screenshot_tool(preferred=preferred_tool)})")
+        return QPixmap.fromImage(cli_img)
 
-    all_ok = True
-    for tool in installed:
-        pkg = SCREENSHOT_TOOL_PACKAGES.get(tool, tool)
-        cmd = _build_uninstall_cmd(pm, pkg)
-        if not cmd:
-            continue
+    print("[ScreenshotTools] Wayland CLI 截图失败，尝试 D-Bus portal...")
 
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 正在卸载 {tool} (包: {pkg})...")
+    # 2) D-Bus Screenshot portal（跨合成器通用方案）
+    wayland_img = wayland_screenshot_via_portal()
+    if wayland_img is not None and not wayland_img.isNull():
+        sx, sy, sw, sh = screen_geometry
+        crop_x = max(0, int((x - sx) * (wayland_img.width() / max(1, sw))))
+        crop_y = max(0, int((y - sy) * (wayland_img.height() / max(1, sh))))
+        crop_w = max(1, int(width * (wayland_img.width() / max(1, sw))))
+        crop_h = max(1, int(height * (wayland_img.height() / max(1, sh))))
+        cropped = wayland_img.copy(
+            crop_x, crop_y,
+            min(crop_w, wayland_img.width() - crop_x),
+            min(crop_h, wayland_img.height() - crop_y),
+        )
+        print("[ScreenshotTools] Wayland: 使用 D-Bus portal 裁剪截图")
+        return QPixmap.fromImage(cropped)
 
-        if _run_with_privilege(cmd, log_fn=log_fn):
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 已卸载 ✅")
-        else:
-            all_ok = False
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 卸载失败，请手动执行: sudo {pm} remove {pkg}")
+    print("[ScreenshotTools] Wayland D-Bus portal 截图也失败")
+    return None
 
-    if all_ok:
-        if log_fn:
-            log_fn("[SCREENSHOT] 截图工具卸载完成 ✅")
-    else:
-        if log_fn:
-            log_fn("[SCREENSHOT] 部分工具卸载失败（可能需要 sudo 权限）")
-
-    return all_ok
-
-
-def verify_screenshot_layer(_pyexe: str = "", _timeout: int = 10) -> tuple[bool, str]:
-    """验证 SCREENSHOT 层：检查是否有截图工具可用。"""
-    if os.name == "nt":
-        return True, ""
-    if is_any_screenshot_tool_installed():
-        installed = list_installed_screenshot_tools()
-        return True, f"可用工具: {', '.join(installed)}"
-    return False, "未安装截图工具，请通过依赖向导安装 SCREENSHOT 层"

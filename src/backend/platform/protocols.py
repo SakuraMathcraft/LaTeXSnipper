@@ -21,7 +21,6 @@ class PermissionResult:
 class ScreenshotConfig:
     capture_display_mode: str = "auto"
     preferred_screen_index: int | None = 0
-    screenshot_tool: str | None = None  # Linux CLI 截图工具名，如 "maim"/"grim"/"flameshot"
 
 
 class IHotkeyProvider(Protocol):

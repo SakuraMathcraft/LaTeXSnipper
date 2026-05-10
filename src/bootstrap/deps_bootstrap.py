@@ -35,11 +35,6 @@ from bootstrap.deps_state import (
     sanitize_state_layers as _sanitize_state_layers_impl,
     save_json as _save_json,
 )
-from cross_platform.screenshot_tools import (
-    get_screenshot_tools,
-    install_screenshot_tools,
-    uninstall_screenshot_tools,
-)
 
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
@@ -213,14 +208,10 @@ class InstallWorker(QThread):
 
             # 先处理 pip 包安装（0–80%），pandoc 放最后（80–100%）
             want_pandoc = "PANDOC" in chosen_layers
-            want_screenshot = "SCREENSHOT" in chosen_layers
 
             if not pending:
                 if want_pandoc:
                     self.log_updated.emit("[INFO] 所有 pip 依赖已安装，检查 pandoc...")
-                    self.progress_updated.emit(20)
-                elif want_screenshot and os.name != "nt":
-                    self.log_updated.emit("[INFO] 所有 pip 依赖已安装，检查截图工具...")
                     self.progress_updated.emit(20)
                 else:
                     self.log_updated.emit("[INFO] 所有依赖已安装，无需下载。")
@@ -309,16 +300,6 @@ class InstallWorker(QThread):
                     progress_fn=_pandoc_progress,
                 )
 
-            # ---- Linux 截图工具（系统包，通过包管理器安装） ----
-            screenshot_ok = True
-            if want_screenshot and os.name != "nt":
-                self.log_updated.emit("[SCREENSHOT] 正在安装 Linux 截图工具...")
-                screenshot_ok = install_screenshot_tools(self.log_updated.emit)
-                if screenshot_ok:
-                    self.log_updated.emit("[SCREENSHOT] 截图工具安装完成 ✅")
-                else:
-                    self.log_updated.emit("[SCREENSHOT] 截图工具安装失败，请手动执行: sudo apt install maim grim flameshot")
-
             _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
             runtime_ort_ok = True
@@ -344,7 +325,7 @@ class InstallWorker(QThread):
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
 
-            all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok and screenshot_ok
+            all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
 
             if all_ok:
                 self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
@@ -505,11 +486,6 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit("[PANDOC] 已清理持久化路径配置")
             except Exception:
                 pass
-
-        # SCREENSHOT 层卸载：使用包管理器卸载所有截图工具
-        if self.layer_name == "SCREENSHOT" and os.name != "nt":
-            self.log_updated.emit("[SCREENSHOT] 正在卸载截图工具...")
-            uninstall_screenshot_tools(log_fn=self.log_updated.emit)
 
         try:
             data = {"installed_layers": []}
@@ -1407,22 +1383,6 @@ if not shutil.which("pandoc"):
     raise RuntimeError("pandoc binary not found (pypandoc is installed but pandoc executable is missing)")
 print("PANDOC OK")
 """,
-    "SCREENSHOT": """
-import shutil, sys, os
-if os.name == "nt":
-    print("SCREENSHOT OK (not required on Windows)")
-elif os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
-    if shutil.which("grim"):
-        print("SCREENSHOT OK (grim)")
-    elif shutil.which("maim"):
-        print("SCREENSHOT OK (maim)")
-    else:
-        raise RuntimeError("Wayland 截图工具未安装。请安装: sudo apt install grim")
-elif shutil.which("maim") or shutil.which("scrot") or shutil.which("import"):
-    print("SCREENSHOT OK")
-else:
-    raise RuntimeError("截图工具未安装。请安装: sudo apt install maim")
-""",
 }
 
 # 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
@@ -1686,10 +1646,6 @@ LAYER_MAP = {
     ],
     "PANDOC": [
         "pypandoc>=1.15",
-    ],
-    # Linux 截图 CLI 工具（系统包，非 pip）：安装 maim 用于替代 Qt grabWindow
-    "SCREENSHOT": [
-        "#system:maim",
     ],
 }
 
@@ -2425,9 +2381,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     # 遍历所有功能层
     effective_default_select = _effective_default_select()
     for layer in LAYER_MAP.keys():
-        # SCREENSHOT 层仅在 Linux 上显示
-        if layer == "SCREENSHOT" and os.name == "nt":
-            continue
         row = QHBoxLayout()
         cb = QCheckBox(layer)
         del_btn = QToolButton()
@@ -2439,14 +2392,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         row.addWidget(cb)
         row.addWidget(del_btn)
         lay.addLayout(row)
-        # SCREENSHOT 层添加说明
-        if layer == "SCREENSHOT":
-            tools = ", ".join(get_screenshot_tools()[:4])
-            hint_text = f"     安装 {tools} 等命令行截图工具（提升 Linux 截图质量）"
-            hint = QLabel(hint_text)
-            hint.setStyleSheet(f"color:{theme['muted']};font-size:11px;margin:0 0 4px 0;")
-            lay.addWidget(hint)
-
     # ---------- MathCraft CPU / GPU 后端互斥逻辑 ----------
     def on_mathcraft_cpu_changed(state):
         if state and checks.get("MATHCRAFT_GPU") and checks["MATHCRAFT_GPU"].isEnabled():

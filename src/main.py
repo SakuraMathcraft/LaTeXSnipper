@@ -5453,7 +5453,6 @@ class MainWindow(QMainWindow):
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
-            screenshot_tool=self.cfg.get("screenshot_tool", None),
         )
         hidden_unpinned_dialog = self._hidden_unpinned_predict_result_dialog_for_capture is not None
         self._capture_start_pending = True

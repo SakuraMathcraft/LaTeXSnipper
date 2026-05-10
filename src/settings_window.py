@@ -19,14 +19,6 @@ from backend.external_model import (
 )
 from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
 from core.restart_contract import build_restart_with_wizard_launch
-from cross_platform.screenshot_tools import (
-    list_available_tools,
-    test_screenshot_tool,
-    find_screenshot_tool,
-    LINUX_SCREENSHOT_TOOLS,
-    SCREENSHOT_TOOL_PACKAGES,
-    detect_display_env,
-)
 
 
 def _resource_path(relative_path: str) -> str:
@@ -181,7 +173,6 @@ class SettingsWindow(QDialog):
     mathcraft_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)
     latex_auto_detect_done = pyqtSignal(bool, str, str)
-    screenshot_tool_test_done = pyqtSignal(bool, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -450,30 +441,6 @@ class SettingsWindow(QDialog):
         latex_layout.addWidget(self.lbl_latex_desc)
         self.latex_options_widget.setVisible(False)  # 默认隐藏
         lay.addWidget(self.latex_options_widget)
-        # ============ Linux 截图方式设置 ============
-        self.screenshot_tool_widget = QWidget()
-        screenshot_layout = QVBoxLayout(self.screenshot_tool_widget)
-        screenshot_layout.setContentsMargins(0, 8, 0, 0)
-        screenshot_layout.setSpacing(6)
-        self.lbl_screenshot_tool_title = QLabel("截图方式 (Linux):")
-        screenshot_layout.addWidget(self.lbl_screenshot_tool_title)
-        # 截图工具选择行
-        screenshot_tool_row = QHBoxLayout()
-        screenshot_tool_row.setSpacing(6)
-        self.screenshot_tool_combo = ComboBox()
-        self.screenshot_tool_combo.setFixedHeight(30)
-        self.screenshot_tool_combo.addItem("自动选择", userData="")
-        screenshot_tool_row.addWidget(self.screenshot_tool_combo, 1)
-        self.btn_test_screenshot = PrimaryPushButton("测试截图")
-        self.btn_test_screenshot.setFixedHeight(30)
-        self.btn_test_screenshot.setFixedWidth(100)
-        screenshot_tool_row.addWidget(self.btn_test_screenshot)
-        screenshot_layout.addLayout(screenshot_tool_row)
-        self.lbl_screenshot_tool_desc = QLabel()
-        self.lbl_screenshot_tool_desc.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.lbl_screenshot_tool_desc.setWordWrap(True)
-        screenshot_layout.addWidget(self.lbl_screenshot_tool_desc)
-        lay.addWidget(self.screenshot_tool_widget)
         # 检查更新
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -560,16 +527,12 @@ class SettingsWindow(QDialog):
         self.external_mineru_test_endpoint_input.textChanged.connect(self._on_external_config_changed)
         self.external_timeout_input.textChanged.connect(self._on_external_config_changed)
         self.external_custom_prompt_input.textChanged.connect(self._on_external_config_changed)
-        self.screenshot_tool_combo.currentIndexChanged.connect(self._on_screenshot_tool_changed)
-        self.btn_test_screenshot.clicked.connect(self._test_screenshot_tool)
-        self.screenshot_tool_test_done.connect(self._on_screenshot_tool_test_done)
         # 初始化选择状态
         self._init_model_combo()
         self._update_model_desc()
         self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
-        self._init_screenshot_tool()
         # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
         QTimer.singleShot(120, self._warm_probe_cache_async)
         self.apply_theme_styles(force=True)
@@ -675,8 +638,6 @@ class SettingsWindow(QDialog):
             )
         if hasattr(self, "startup_console_checkbox") and self.startup_console_checkbox is not None:
             self._style_native_checkbox(self.startup_console_checkbox, t["text"], t["muted"])
-        if hasattr(self, "lbl_screenshot_tool_desc") and self.lbl_screenshot_tool_desc is not None:
-            self.lbl_screenshot_tool_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
 
     def event(self, e):
         result = super().event(e)
@@ -2149,193 +2110,5 @@ class SettingsWindow(QDialog):
             self._update_mathcraft_visibility()
         finally:
             self._model_selection_syncing = False
-
-    # ============ 截图方式管理 ============
-
-    def _init_screenshot_tool(self):
-        """初始化截图工具选择下拉框。
-
-        Linux 专用功能，展示所有支持的截图工具，
-        已安装的放在前面并标记 ✓，未安装的标记安装命令。
-        macOS 使用内置 screencapture，不显示此设置。
-        """
-        if sys.platform != "linux":
-            self.screenshot_tool_widget.setVisible(False)
-            return
-
-        # 获取当前已安装的工具列表
-        available = list_available_tools()
-        available_set = set(available)
-
-        # 获取当前配置的偏好工具
-        cfg = self._settings_cfg()
-        preferred = ""
-        if cfg:
-            try:
-                preferred = str(cfg.get("screenshot_tool", "") or "").strip()
-            except Exception:
-                preferred = ""
-
-        # 获取当前桌面环境，过滤适用的工具
-        env = detect_display_env()
-        # Linux 下只显示 x11/any/wayland 的工具
-        all_linux_tools: list[tuple[str, dict]] = []
-        for name, info in LINUX_SCREENSHOT_TOOLS.items():
-            tool_env = str(info.get("env", "any") or "any").strip().lower()
-            if tool_env in ("x11", "wayland", "any") and tool_env != "macos":
-                all_linux_tools.append((name, info))
-
-        # 排序：已安装的在前，再按名称排序
-        all_linux_tools.sort(key=lambda x: (0 if x[0] in available_set else 1, x[0]))
-
-        # 重新填充下拉框
-        prev = self.screenshot_tool_combo.blockSignals(True)
-        self.screenshot_tool_combo.clear()
-        self.screenshot_tool_combo.addItem("自动选择（按桌面环境优先级）", userData="")
-
-        found_idx = 0
-        for tool, info in all_linux_tools:
-            installed = tool in available_set
-            desc = str(info.get("desc", tool))
-            pkg = SCREENSHOT_TOOL_PACKAGES.get(tool, tool)
-            if installed:
-                label = f"✓ {tool} — {desc}"
-            else:
-                label = f"✗ {tool} — {desc}  [apt install {pkg}]"
-            self.screenshot_tool_combo.addItem(label, userData=tool)
-            if tool == preferred:
-                found_idx = self.screenshot_tool_combo.count() - 1
-
-        self.screenshot_tool_combo.setCurrentIndex(found_idx)
-        self.screenshot_tool_combo.blockSignals(prev)
-
-        if not available:
-            self.lbl_screenshot_tool_desc.setText(
-                "⚠️ 未检测到截图工具。请从下拉列表中选择一个并安装（参考括号内的安装命令）。"
-            )
-            self.btn_test_screenshot.setEnabled(False)
-        else:
-            self._update_screenshot_tool_description()
-            self.btn_test_screenshot.setEnabled(True)
-
-        # 当前环境提示
-        env_names = {"wayland": "Wayland", "x11": "X11", "unknown": "未知"}
-        if env in ("wayland", "x11"):
-            self.lbl_screenshot_tool_title.setText(
-                f"截图方式 (Linux / {env_names.get(env, env)}):"
-            )
-
-    @staticmethod
-    def _screenshot_tool_description(tool: str) -> str:
-        """获取截图工具的简短描述。"""
-        info = LINUX_SCREENSHOT_TOOLS.get(tool, {})
-        return info.get("desc", "未知工具")
-
-    @staticmethod
-    def _screenshot_tool_package(tool: str) -> str:
-        """获取截图工具对应的系统包名。"""
-        return SCREENSHOT_TOOL_PACKAGES.get(tool, tool)
-
-    def _get_selected_screenshot_tool(self) -> str | None:
-        """获取当前选中的截图工具名。"""
-        idx = self.screenshot_tool_combo.currentIndex()
-        if idx < 0:
-            return None
-        tool = self.screenshot_tool_combo.itemData(idx)
-        return str(tool).strip() if tool else None
-
-    def _update_screenshot_tool_description(self):
-        """更新截图工具的描述标签。"""
-        tool = self._get_selected_screenshot_tool()
-        available = list_available_tools()
-        if tool:
-            desc = self._screenshot_tool_description(tool)
-            env = self._screenshot_tool_env(tool)
-            env_hint = f"（适用于 {env}）" if env else ""
-            if tool in available:
-                self.lbl_screenshot_tool_desc.setText(
-                    f"✓ 已安装: {tool} — {desc} {env_hint}"
-                )
-            else:
-                pkg = self._screenshot_tool_package(tool)
-                self.lbl_screenshot_tool_desc.setText(
-                    f"✗ 未安装: {tool} — {desc} {env_hint}\n"
-                    f"   安装命令: sudo apt install {pkg}  （或其他包管理器）"
-                )
-        else:
-            if available:
-                current = find_screenshot_tool()
-                if current:
-                    desc = self._screenshot_tool_description(current)
-                    self.lbl_screenshot_tool_desc.setText(
-                        f"自动选择: {current} — {desc}（当前桌面环境推荐）"
-                    )
-                else:
-                    self.lbl_screenshot_tool_desc.setText(
-                        "自动选择 — 将按桌面环境优先级自动选用已安装的截图工具"
-                    )
-            else:
-                self.lbl_screenshot_tool_desc.setText(
-                    "⚠️ 未检测到截图工具，请从下拉列表中选择一个并安装。"
-                )
-
-    @staticmethod
-    def _screenshot_tool_env(tool: str) -> str:
-        """获取截图工具适用的显示环境。"""
-        info = LINUX_SCREENSHOT_TOOLS.get(tool, {})
-        env = str(info.get("env", "") or "").strip().lower()
-        if env == "x11":
-            return "X11"
-        if env == "wayland":
-            return "Wayland"
-        if env == "any":
-            return "X11/Wayland"
-        return ""
-
-    def _on_screenshot_tool_changed(self, _index: int):
-        """截图工具选择变更时保存配置。"""
-        tool = self._get_selected_screenshot_tool()
-        cfg = self._settings_cfg()
-        if cfg:
-            cfg.set("screenshot_tool", tool if tool else None)
-        self._update_screenshot_tool_description()
-
-    def _test_screenshot_tool(self):
-        """测试当前选择的截图工具是否可正常工作。"""
-        # 确定要测试的工具
-        tool = self._get_selected_screenshot_tool()
-        if not tool:
-            tool = find_screenshot_tool()
-        if not tool:
-            self._show_notification(
-                "error", "无可用工具", "未找到任何已安装的截图工具，请先安装 maim、scrot、grim、flameshot 等。"
-            )
-            return
-
-        self.btn_test_screenshot.setEnabled(False)
-        self.btn_test_screenshot.setText("测试中...")
-
-        def worker(tool_name: str):
-            result = test_screenshot_tool(tool_name)
-            ok = bool(result.get("ok", False))
-            message = str(result.get("message", ""))
-            self.screenshot_tool_test_done.emit(ok, tool_name, message)
-
-        import threading
-        threading.Thread(target=worker, args=(tool,), daemon=True).start()
-
-    def _on_screenshot_tool_test_done(self, ok: bool, tool_name: str, message: str):
-        """截图工具测试完成回调（主线程）。"""
-        self.btn_test_screenshot.setEnabled(True)
-        self.btn_test_screenshot.setText("测试截图")
-        if ok:
-            self._show_notification("success", "截图工具可用", f"{tool_name}: {message}")
-        else:
-            self._show_notification("error", "截图工具不可用", f"{tool_name}: {message}")
-
-    def _refresh_screenshot_tool_list(self):
-        """刷新截图工具列表（例如安装新工具后）。"""
-        if sys.platform == "linux":
-            self._init_screenshot_tool()
 
 # ---------------- 主窗口 ----------------
