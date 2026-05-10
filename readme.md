@@ -153,6 +153,8 @@ Pandoc is optional. If it is not installed, the core recognition, editing, handw
 
 ### Option 2: Run from source
 
+Windows:
+
 ```bash
 git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
 cd LaTeXSnipper
@@ -163,6 +165,76 @@ python -m venv .venv
 pip install -r requirements.txt
 python src/main.py
 ```
+
+Linux:
+
+```bash
+git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
+cd LaTeXSnipper
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+pip install -r requirements-linux.txt
+python src/main.py
+```
+
+macOS:
+
+```bash
+git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
+cd LaTeXSnipper
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+pip install -r requirements-macos.txt
+python src/main.py
+```
+
+---
+
+## Platform Support
+
+| Platform | Status | Notes |
+|------|------|------|
+| Windows | Primary release target | GitHub/Inno and Store/MSIX packaging are maintained. |
+| Linux | Supported via provider layer | Qt capture is primary; Wayland/X11 CLI tools are optional fallbacks. |
+| macOS | Supported via provider layer | Uses the same Qt overlay flow with native screenshot fallback support. |
+
+The dependency wizard manages Python dependency layers only. It does not install
+or uninstall system packages. On Linux, tools such as `grim`, `maim`, and
+`gnome-screenshot` can improve screenshot fallback behavior, but they are
+installed by the user or distribution package manager, not by LaTeXSnipper.
+
+### Packaging
+
+Windows packaging:
+
+- `LaTeXSnipper.spec`
+- `LaTeXSnipper.offline.spec`
+- `Inno/latexsnipper.iss`
+- `Inno/latexsnipper_offline.iss`
+- `scripts/build_store_msix.ps1`
+
+Linux packaging:
+
+- `LaTeXSnipper-linux.spec`
+- `LaTeXSnipper-linux-offline.spec`
+- `scripts/build_deb.sh`
+- `scripts/build_deb_offline.sh`
+- `packaging/debian/`
+
+macOS packaging:
+
+- `LaTeXSnipper-macos.spec`
+- `scripts/build_macos.sh`
+
+Linux/macOS build scripts prepare their isolated build runtime under
+`src/deps/python311`. The repository-root `python311` directory is treated as a
+template runtime and must not be mutated by packaging scripts.
 
 ---
 
@@ -191,6 +263,7 @@ LaTeXSnipper/
 |-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)
 |-- LaTeXSnipper.offline.spec      # PyInstaller offline-model build
 |-- LaTeXSnipper-linux.spec        # PyInstaller Linux build
+|-- LaTeXSnipper-linux-offline.spec # PyInstaller Linux offline-model build
 |-- LaTeXSnipper-macos.spec        # PyInstaller macOS build
 |-- pyproject.toml
 |-- requirements.txt
@@ -212,6 +285,19 @@ Contributions are welcome:
 3. Commit your changes
 4. Push your branch
 5. Open a Pull Request
+
+All pull requests must follow [Developer Code Standards](docs/developer_code_standards.md).
+Before requesting review, run:
+
+```powershell
+.\src\deps\python311\python.exe -m ruff check .
+.\src\deps\python311\python.exe -m pytest test
+.\src\deps\python311\python.exe -m pyright
+.\src\deps\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+```
+
+Cross-platform PRs must not change the Windows dependency surface or installer
+behavior unless Windows is explicitly in scope and separately validated.
 
 Recommended focus areas:
 

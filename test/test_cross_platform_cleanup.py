@@ -59,6 +59,28 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     assert 'else ROOT / "src" / "deps"' in macos_spec
 
 
+def test_cross_platform_changes_do_not_expand_windows_dependency_surface() -> None:
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    requirements = [line.strip() for line in requirements if line.strip() and not line.startswith("#")]
+    assert requirements == [
+        "PyQt6==6.10.0",
+        "PyQt6-Qt6==6.10.0",
+        "PyQt6-WebEngine==6.10.0",
+        "PyQt6-WebEngine-Qt6==6.10.0",
+        "PyQt6-Fluent-Widgets==1.11.2",
+    ]
+
+    build_requirements = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
+    assert "pywin32==311" in build_requirements
+    assert "pypandoc==1.17" in build_requirements
+    assert "pypandoc>=1.15" not in build_requirements
+
+    for rel_path in ("Inno/latexsnipper.iss", "Inno/latexsnipper_offline.iss"):
+        inno = (ROOT / rel_path).read_text(encoding="utf-8")
+        assert r"DefaultDirName=D:\{#MyAppName}" in inno
+        assert "ChineseSimplified.isl" not in inno
+
+
 def test_platform_protocols_cover_main_window_provider_calls() -> None:
     protocols = (ROOT / "src" / "backend" / "platform" / "protocols.py").read_text(encoding="utf-8")
 

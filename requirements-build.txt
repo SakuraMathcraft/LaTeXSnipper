@@ -1,11 +1,18 @@
 -r requirements.txt
-
-# ==================== PyInstaller 构建 ====================
 pyinstaller==6.19.0
 pyinstaller-hooks-contrib==2026.4
-
-# ==================== 可选依赖（构建时验证）====================
-pypandoc>=1.15
-
-# ==================== Windows 专有（构建时打包）====================
+pillow==11.0.0
+pyperclip==1.11.0
+packaging==26.1
+requests==2.32.5
+matplotlib==3.10.8
+latex2mathml==3.81.0
+sympy==1.14.0
+mpmath==1.3.0
+networkx==3.6.1
+humanfriendly==10.0
+lxml==4.9.4
+PyMuPDF==1.27.2.2
 pywin32==311
+# Pandoc 导出后端（可选）- Python wrapper; pandoc.exe is managed separately.
+pypandoc==1.17

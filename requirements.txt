@@ -1,36 +1,5 @@
-# ==================== GUI 框架 ====================
 PyQt6==6.10.0
 PyQt6-Qt6==6.10.0
 PyQt6-WebEngine==6.10.0
 PyQt6-WebEngine-Qt6==6.10.0
 PyQt6-Fluent-Widgets==1.11.2
-
-# ==================== BASIC 层（基础运行时）====================
-lxml~=4.9.3
-pillow~=11.0.0
-pyperclip~=1.11.0
-requests~=2.32.5
-certifi~=2026.2.25
-psutil~=7.1.0
-packaging>=23
-
-# ==================== CORE 层（OCR / 数学 / 文档核心）====================
-transformers==4.55.4
-tokenizers==0.21.4
-sentencepiece==0.2.0
-opencv-python==4.13.0.92
-rapidocr==3.5.0
-numpy>=1.26,<3
-flatbuffers>=24.3.25
-coloredlogs>=15.0.1
-sympy>=1.13,<1.15
-protobuf>=3.20,<5
-latex2mathml>=3.81.0
-matplotlib~=3.10.8
-pymupdf~=1.27.2.2
-
-# ==================== ONNX 推理运行时（CPU）====================
-onnxruntime>=1.19.2,<1.26
-
-# ==================== 文档导出（可选）====================
-pypandoc>=1.15
