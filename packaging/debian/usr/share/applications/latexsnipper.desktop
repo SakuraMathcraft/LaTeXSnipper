@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=LaTeXSnipper
+Comment=LaTeX OCR snipping tool with formula recognition
+Exec=/usr/lib/latexsnipper/LaTeXSnipper
+Icon=latexsnipper
+Terminal=false
+Type=Application
+Categories=Utility;Office;Science;
+StartupNotify=true
+StartupWMClass=LaTeXSnipper

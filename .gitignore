@@ -16,7 +16,9 @@ dist/
 !LaTeXSnipper.spec
 !LaTeXSnipper.offline.spec
 *.egg-info/
-packaging/debian/usr
+# Build output in packaging (do not version)
+packaging/debian/usr/lib/latexsnipper/
+packaging/debian/usr/share/doc/
 
 # Large binary files
 *.exe

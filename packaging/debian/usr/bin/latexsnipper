@@ -1,0 +1,23 @@
+#!/bin/bash
+# LaTeXSnipper launcher script
+# This wrapper ensures proper environment and working directory.
+set -e
+
+APP_DIR="/usr/lib/latexsnipper"
+APP_BIN="${APP_DIR}/LaTeXSnipper"
+
+if [[ ! -f "${APP_BIN}" ]]; then
+    echo "Error: LaTeXSnipper executable not found at ${APP_BIN}" >&2
+    exit 1
+fi
+
+# Ensure the binary is executable
+chmod 755 "${APP_BIN}" 2>/dev/null || true
+
+# QtWebEngineProcess must be executable
+QWEP=$(find "${APP_DIR}" -name QtWebEngineProcess -type f 2>/dev/null | head -1)
+if [[ -n "${QWEP}" ]]; then
+    chmod 755 "${QWEP}" 2>/dev/null || true
+fi
+
+exec "${APP_BIN}" "$@"
