@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox

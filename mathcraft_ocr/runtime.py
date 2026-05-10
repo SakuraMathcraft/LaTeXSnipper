@@ -393,53 +393,27 @@ class MathCraftRuntime:
             self._resolve_model_dir(FORMULA_RECOGNIZER_ID),
             plan.provider_info,
         )
-        # 公式识别质量阈值：低分公式块被过滤（防止 UI 截图等误识别）
-        _FORMULA_SCORE_FLOOR = 0.18
         for formula_box, (formula_text, formula_score) in zip(formula_boxes, formula_results):
-            combined_score = min(formula_box.score, formula_score)
-            if combined_score < _FORMULA_SCORE_FLOOR:
-                self._record_cache_event(
-                    f"formula block suppressed: score={combined_score:.4f} text={formula_text[:80]}"
-                )
-                continue
             blocks.append(
                 MathCraftBlock(
                     kind=formula_box.label,
                     box=formula_box.box,
                     text=formula_text,
-                    score=combined_score,
+                    score=min(formula_box.score, formula_score),
                     source="formula_rec",
                 )
             )
         if not blocks:
             formula = self.recognize_formula(rgb)
-            # 质量阈值：低分输出视为无效（通常是 UI 截图等非公式内容）
-            _QUALITY_FLOOR = 0.2
-            if formula.score >= _QUALITY_FLOOR:
-                blocks.append(
-                    MathCraftBlock(
-                        kind="formula",
-                        box=_full_image_box(rgb),
-                        text=formula.text,
-                        score=formula.score,
-                        source="formula_fallback",
-                    )
+            blocks.append(
+                MathCraftBlock(
+                    kind="formula",
+                    box=_full_image_box(rgb),
+                    text=formula.text,
+                    score=formula.score,
+                    source="formula_fallback",
                 )
-            else:
-                # 低质量输出：不展示幻觉公式
-                self._record_cache_event(
-                    f"formula fallback suppressed: score={formula.score:.4f} (likely non-formula content)"
-                )
-                blocks.append(
-                    MathCraftBlock(
-                        kind="unknown",
-                        box=_full_image_box(rgb),
-                        text="",
-                        score=0.0,
-                        source="formula_fallback_suppressed",
-                        confidence_flags=("low_quality",),
-                    )
-                )
+            )
         blocks = list(resolve_formula_text_conflicts(blocks, image_size=(int(width), int(height))))
         ordered_blocks = annotate_blocks(blocks, image_size=(int(width), int(height)))
         regions = tuple(text_regions)
