@@ -2011,7 +2011,7 @@ def _ensure_pip(main_python: Path) -> bool:
 
     # 升级三件套
     cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=flags)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=flags)
     ok = res.returncode == 0
     if ok:
         pip_ready_event.set()
@@ -2177,7 +2177,7 @@ def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
 
 def _gpu_available():
     try:
-        r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2, creationflags=flags)
+        r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=2, creationflags=flags)
         return r.returncode == 0
     except Exception:
         return False
@@ -2190,6 +2190,7 @@ def _cuda_toolkit_available():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             errors="replace",
             timeout=2,
             creationflags=flags,

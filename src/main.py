@@ -19,6 +19,10 @@ from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# Force UTF-8 encoding for all subprocess pipes on Windows (avoids gbk decode crashes)
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+
 STABLE_GUI_PIP_SPECS = [
     "PyQt6==6.10.0",
     "PyQt6-Qt6==6.10.0",
@@ -719,6 +723,11 @@ def _startup_deps_resume_message() -> str:
 
 
 _ensure_startup_splash("配置 MathJax 与 WebEngine...")
+
+# Ensure src/ is on sys.path so that sibling packages (runtime, backend, etc.) are importable
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
 
 # ============ QWebEngine profile configuration ============
 from runtime.webengine_runtime import configure_default_webengine_profile  # noqa: E402
