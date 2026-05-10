@@ -127,6 +127,11 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
     assert "python311._pth" in script
     assert "Lib\\site-packages" in script
+    assert "$verifyCode = @'" in script
+    assert '$verifyCode = @"' not in script
+    assert "latexsnipper_verify_python_seed_" in script
+    assert "& $pythonExe $verifyScript $seedRoot" in script
+    assert "& $pythonExe -c $verifyCode $seedRoot" not in script
     assert "sys.prefix does not point to bundled python311" in script
     assert "sys.path contains paths outside bundled python311" in script
     assert "Normalize-BundledPythonSeed -Root $root" in script

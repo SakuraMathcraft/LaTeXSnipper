@@ -218,7 +218,7 @@ function Normalize-BundledPythonSeed {
         }
     }
 
-    $verifyCode = @"
+    $verifyCode = @'
 import json
 import pathlib
 import sys
@@ -240,10 +240,19 @@ if pathlib.Path(sys.base_prefix).resolve() != root:
     raise SystemExit("sys.base_prefix does not point to bundled python311")
 if bad:
     raise SystemExit("sys.path contains paths outside bundled python311")
-"@
-    $verifyJson = & $pythonExe -c $verifyCode $seedRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "Bundled Python seed verification failed."
+'@
+    $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
+    try {
+        [System.IO.File]::WriteAllText($verifyScript, $verifyCode, $utf8NoBom)
+        $verifyJson = & $pythonExe $verifyScript $seedRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "Bundled Python seed verification failed."
+        }
+    }
+    finally {
+        if (Test-Path $verifyScript) {
+            Remove-Item -LiteralPath $verifyScript -Force
+        }
     }
     $verify = $verifyJson | ConvertFrom-Json
     Write-Host "Bundled Python seed normalized:"
