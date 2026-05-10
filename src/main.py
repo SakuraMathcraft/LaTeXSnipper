@@ -1980,7 +1980,10 @@ def _relaunch_with(pyexe: str):
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
     _scrub_path_inplace(env)
-    env.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "xcb")
+    if os.name == "nt":
+        env.setdefault("QT_QPA_PLATFORM", "windows")
+    elif sys.platform.startswith("linux"):
+        env.setdefault("QT_QPA_PLATFORM", "xcb")
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
     try:
