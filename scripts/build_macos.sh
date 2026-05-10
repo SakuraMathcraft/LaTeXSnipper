@@ -152,70 +152,47 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# 步骤 0.5: 准备构建 Python 环境
 # ---------------------------------------------------------------------------
 echo ""
-echo "[0.5/6] 准备内嵌 Python 3.11 运行时..."
+echo "[0.5/6] 准备构建环境..."
 
-PYTHON311_DIR="$PROJECT_ROOT/python311"
-
-NEED_REBUILD=false
-if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
-elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
+# Use project .venv if available, otherwise use system python3
+BUILD_VENV="$PROJECT_ROOT/.venv"
+if [[ -f "$BUILD_VENV/bin/python3" ]]; then
+    BUILD_PYTHON="$BUILD_VENV/bin/python3"
+    echo "  ✓ 使用项目 .venv: $BUILD_PYTHON"
+elif [[ -f "$BUILD_VENV/bin/python" ]]; then
+    BUILD_PYTHON="$BUILD_VENV/bin/python"
+    echo "  ✓ 使用项目 .venv: $BUILD_PYTHON"
 else
-    if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
-        NEED_REBUILD=true
-    fi
+    BUILD_PYTHON="python3"
+    echo "  ✓ 使用系统 Python: $(which python3)"
 fi
 
-if $NEED_REBUILD; then
-    echo "  重新创建内嵌 Python 3.11 运行时..."
-    rm -rf "$PYTHON311_DIR"
-
-    # 使用系统 python3 创建 venv（--copies 复制而非符号链接）
-    if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
-        echo "  ✓ 已通过 venv --copies 创建 python311"
-    else
-        echo "  WARNING: venv --copies 失败，尝试手动复制系统 Python..."
-
-        SYSTEM_PYTHON3=$(command -v python3)
-        SYSTEM_PYTHON3_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')
-        SYSTEM_PYTHON3_DYLOAD=$(python3 -c 'import sysconfig; print(sysconfig.get_path("platstdlib"))')
-
-        mkdir -p "$PYTHON311_DIR/bin"
-        cp "$SYSTEM_PYTHON3" "$PYTHON311_DIR/bin/python3"
-        chmod 755 "$PYTHON311_DIR/bin/python3"
-
-        if [[ -d "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$PYTHON311_DIR/lib"
-            cp -a "$SYSTEM_PYTHON3_LIB" "$PYTHON311_DIR/lib/"
-        fi
-        if [[ -d "$SYSTEM_PYTHON3_DYLOAD" ]] && [[ "$SYSTEM_PYTHON3_DYLOAD" != "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$(dirname "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")")"
-            cp -a "$SYSTEM_PYTHON3_DYLOAD" "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")"
-        fi
-        echo "  ✓ 已通过手动复制创建 python311"
-    fi
-
-    # 确保 pip 可用
-    if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
-        echo "  ✓ pip 已就绪"
-    else
-        echo "  WARNING: ensurepip 不可用，将在运行时安装 pip"
-    fi
-else
-    echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
+# Verify the build Python works
+if ! "$BUILD_PYTHON" -c "print('ok')" &>/dev/null; then
+    echo "ERROR: Build Python is not functional: $BUILD_PYTHON"
+    exit 1
 fi
 
-# 安装项目依赖到内嵌 Python
-echo "  安装项目依赖到内嵌 Python..."
-"$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
+# Install/upgrade pip in the build environment
+"$BUILD_PYTHON" -m pip install --upgrade pip -q 2>/dev/null || true
 
+# Install PyInstaller if not present
+if ! "$BUILD_PYTHON" -c "import PyInstaller" &>/dev/null; then
+    echo "  安装 PyInstaller..."
+    "$BUILD_PYTHON" -m pip install "pyinstaller>=6" -q || {
+        echo "ERROR: PyInstaller 安装失败"
+        exit 1
+    }
+    echo "  ✓ PyInstaller 安装完成"
+fi
+
+# Install project requirements
 REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
 if [[ -f "$REQUIREMENTS_FILE" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
+    "$BUILD_PYTHON" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
         echo "  WARNING: 部分 requirements.txt 依赖安装失败，继续构建..."
     }
     echo "  ✓ requirements.txt 依赖已安装"
@@ -223,11 +200,15 @@ fi
 
 REQUIREMENTS_MACOS="$PROJECT_ROOT/requirements-macos.txt"
 if [[ -f "$REQUIREMENTS_MACOS" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_MACOS" -q 2>/dev/null || {
+    "$BUILD_PYTHON" -m pip install -r "$REQUIREMENTS_MACOS" -q 2>/dev/null || {
         echo "  WARNING: 部分 requirements-macos.txt 依赖安装失败，继续构建..."
     }
     echo "  ✓ requirements-macos.txt 依赖已安装"
 fi
+
+echo "  ✓ 构建环境准备完成"
+
+# ---------------------------------------------------------------------------
 
 # PyInstaller 也需要安装到内嵌 Python
 "$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
@@ -241,21 +222,11 @@ BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
 # ---------------------------------------------------------------------------
 # 步骤 1: 准备 PyInstaller（使用内嵌 Python）
 # ---------------------------------------------------------------------------
-echo ""
-echo "[1/6] 准备 PyInstaller..."
-
-if ! "$BUILD_PYTHON" -c "import PyInstaller" &>/dev/null; then
-    "$BUILD_PYTHON" -m pip install pyinstaller>=6
-    echo "  ✓ PyInstaller 安装完成"
-else
-    echo "  ✓ PyInstaller 已可用"
-fi
-
 # ---------------------------------------------------------------------------
-# 步骤 2: 清理旧构建
+# 步骤 1: 清理旧构建
 # ---------------------------------------------------------------------------
 echo ""
-echo "[2/6] 清理旧构建..."
+echo "[1/6] 清理旧构建..."
 
 rm -rf "$BUILD_WORK_DIR" 2>/dev/null || true
 rm -rf "$DIST_DIR/$APP_NAME" 2>/dev/null || true
@@ -267,7 +238,7 @@ echo "  ✓ 清理完成"
 # 步骤 3: PyInstaller 构建
 # ---------------------------------------------------------------------------
 echo ""
-echo "[3/6] PyInstaller 构建 LaTeXSnipper..."
+echo "[2/6] PyInstaller 构建 LaTeXSnipper..."
 
 if [[ ! -f "$SPEC_FILE" ]]; then
     echo "ERROR: 找不到 spec 文件: $SPEC_FILE"
@@ -288,7 +259,7 @@ echo "  ✓ PyInstaller 构建完成"
 # 步骤 4: 验证 .app bundle
 # ---------------------------------------------------------------------------
 echo ""
-echo "[4/6] 验证 .app bundle..."
+echo "[3/6] 验证 .app bundle..."
 
 # PyInstaller 输出的 .app 可能在 dist/ 下
 if [[ -d "$DIST_DIR/$APP_BUNDLE" ]]; then
@@ -323,7 +294,7 @@ echo "  ✓ App bundle 验证通过"
 # 步骤 5: 代码签名（可选，需要开发者证书）
 # ---------------------------------------------------------------------------
 echo ""
-echo "[5/6] 代码签名..."
+echo "[4/6] 代码签名..."
 
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 if [[ -n "$SIGN_IDENTITY" ]]; then
@@ -382,7 +353,7 @@ fi
 # 步骤 7: 生成 DMG（可选）
 # ---------------------------------------------------------------------------
 echo ""
-echo "[6/6] 生成 DMG..."
+echo "[5/6] 生成 DMG..."
 
 if $CREATE_DMG_AVAILABLE; then
     mkdir -p "$DMG_OUTPUT_DIR"

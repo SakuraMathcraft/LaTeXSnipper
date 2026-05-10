@@ -354,7 +354,7 @@ exe = EXE(
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file=None,
+    entitlements_file=str(ROOT / "packaging" / "macos" / "entitlements.plist") if (ROOT / "packaging" / "macos" / "entitlements.plist").exists() else None,
     icon=str(SRC / "assets" / "icon.icns") if (SRC / "assets" / "icon.icns").exists() else None,
 )
 

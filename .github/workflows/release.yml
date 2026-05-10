@@ -178,3 +178,164 @@ jobs:
           files: |
             signed/**/*.exe
             signed/**/*.sha256
+
+  build-linux-deb:
+    name: Build Linux .deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r requirements-build.txt
+          python -m pip install -r requirements-linux.txt 2>/dev/null || true
+          python -m pip install pyinstaller>=6
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller \
+            --distpath dist \
+            --workpath build/pyinstaller_linux \
+            --noconfirm \
+            LaTeXSnipper-linux.spec
+
+      - name: Package as .deb
+        run: |
+          mkdir -p dist
+          VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' pyproject.toml | head -1)
+          if [[ -z "$VERSION" ]]; then
+            VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' version_info.txt | head -1 | tr -d ' ' | tr ',' '.')
+          fi
+          echo "Version: $VERSION"
+
+          PACKAGING_DIR="packaging/debian"
+          DEB_LIB_DIR="$PACKAGING_DIR/usr/lib/latexsnipper"
+
+          # Clean and recreate target
+          rm -rf "$DEB_LIB_DIR"
+          mkdir -p "$DEB_LIB_DIR"
+
+          # Copy PyInstaller output
+          if [[ -d "dist/LaTeXSnipper" ]]; then
+            cp -a dist/LaTeXSnipper/* "$DEB_LIB_DIR/"
+          fi
+
+          # Ensure permissions
+          chmod 755 "$DEB_LIB_DIR/LaTeXSnipper" 2>/dev/null || true
+          find "$PACKAGING_DIR/usr/lib/latexsnipper" -type f -name "*.so*" -exec chmod 755 {} \; 2>/dev/null || true
+          chmod 755 "$PACKAGING_DIR/usr/bin/latexsnipper" 2>/dev/null || true
+          chmod 755 "$PACKAGING_DIR/DEBIAN/postinst" 2>/dev/null || true
+          chmod 755 "$PACKAGING_DIR/DEBIAN/prerm" 2>/dev/null || true
+          chmod 755 "$PACKAGING_DIR/DEBIAN/postrm" 2>/dev/null || true
+
+          # Calculate installed size
+          INSTALLED_SIZE=$(du -sk "$PACKAGING_DIR/usr" 2>/dev/null | cut -f1)
+          INSTALLED_SIZE=${INSTALLED_SIZE:-1}
+
+          # Update control file
+          sed -i "s/^Version:.*/Version: ${VERSION}/" "$PACKAGING_DIR/DEBIAN/control"
+          sed -i "s/^Installed-Size:.*/Installed-Size: ${INSTALLED_SIZE}/" "$PACKAGING_DIR/DEBIAN/control"
+
+          # Build .deb
+          cd packaging
+          dpkg-deb --root-owner-group --build debian "../dist/latexsnipper_${VERSION}_amd64.deb"
+          cd ..
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latexsnipper-deb
+          path: dist/latexsnipper_*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/latexsnipper_*.deb
+
+  build-macos-app:
+    name: Build macOS .app
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r requirements-build.txt
+          python -m pip install -r requirements-macos.txt 2>/dev/null || true
+          python -m pip install pyinstaller>=6
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller \
+            --distpath dist \
+            --workpath build/pyinstaller_macos \
+            --noconfirm \
+            LaTeXSnipper-macos.spec
+
+      - name: Verify .app bundle
+        run: |
+          APP_PATH=$(find dist -maxdepth 3 -name "*.app" -type d | head -1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "ERROR: .app bundle not found"
+            ls -la dist/
+            exit 1
+          fi
+          echo "App bundle: $APP_PATH"
+          ls -la "$APP_PATH/Contents/MacOS/"
+
+      - name: Create DMG (optional)
+        run: |
+          APP_PATH=$(find dist -maxdepth 3 -name "*.app" -type d | head -1)
+          if [[ -n "$APP_PATH" ]] && command -v create-dmg &>/dev/null; then
+            VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' pyproject.toml | head -1)
+            ARCH=$(uname -m)
+            create-dmg \
+              --volname "LaTeXSnipper ${VERSION}" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --icon "LaTeXSnipper.app" 150 190 \
+              --hide-extension "LaTeXSnipper.app" \
+              --app-drop-link 450 185 \
+              "dist/LaTeXSnipper_${VERSION}_${ARCH}.dmg" \
+              "$(dirname "$APP_PATH")"
+          fi
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latexsnipper-macos-app
+          path: |
+            dist/*.app/**/*
+            dist/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/*.dmg

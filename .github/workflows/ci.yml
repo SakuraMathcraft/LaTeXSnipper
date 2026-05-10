@@ -17,13 +17,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.job }}
   cancel-in-progress: true
 
 jobs:
-  compile-check:
-    name: Compile Check
-    runs-on: windows-latest
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,11 +33,87 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+      - name: Install ruff
+        run: pip install ruff
 
-      - name: Byte-compile source tree
-        run: python -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr
+      - name: Run ruff check
+        run: ruff check
+
+  compile-check:
+    name: Compile Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Byte-compile source tree (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: python -m compileall -q -x 'src[\\/]+deps' src mathcraft_ocr test
+
+      - name: Byte-compile source tree (Windows)
+        if: runner.os == 'Windows'
+        run: python -m compileall -q -x "src[\\]+deps" src mathcraft_ocr test
 
       - name: Byte-compile key entry files
         run: python -m py_compile src/main.py src/bootstrap/deps_bootstrap.py src/updater.py LaTeXSnipper.spec
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt 2>/dev/null || true
+          pip install rapidocr onnxruntime opencv-python 2>/dev/null || true
+
+      - name: Run pytest
+        run: python -m pytest test --ignore=python311 --ignore=src/deps --ignore=.venv --ignore=build --ignore=dist -v
+
+  test-root:
+    name: Test Root (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt 2>/dev/null || true
+          pip install rapidocr onnxruntime opencv-python 2>/dev/null || true
+
+      - name: Run pytest (root)
+        run: python -m pytest --ignore=python311 --ignore=src/deps --ignore=.venv --ignore=build --ignore=dist -v

@@ -108,66 +108,47 @@ if ! $MODELS_FOUND; then
 fi
 
 # ---------------------------------------------------------------------------
-# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# 步骤 0.5: 准备构建 Python 环境
 # ---------------------------------------------------------------------------
 echo ""
-echo "[0.5/5] 准备内嵌 Python 3.11 运行时..."
+echo "[0.5/5] 准备构建环境..."
 
-PYTHON311_DIR="$PROJECT_ROOT/python311"
-
-NEED_REBUILD=false
-if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
-elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
+# Use project .venv if available, otherwise use system python3
+BUILD_VENV="$PROJECT_ROOT/.venv"
+if [[ -f "$BUILD_VENV/bin/python3" ]]; then
+    BUILD_PYTHON="$BUILD_VENV/bin/python3"
+    echo "  ✓ 使用项目 .venv: $BUILD_PYTHON"
+elif [[ -f "$BUILD_VENV/bin/python" ]]; then
+    BUILD_PYTHON="$BUILD_VENV/bin/python"
+    echo "  ✓ 使用项目 .venv: $BUILD_PYTHON"
 else
-    if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
-        NEED_REBUILD=true
-    fi
+    BUILD_PYTHON="python3"
+    echo "  ✓ 使用系统 Python: $(which python3)"
 fi
 
-if $NEED_REBUILD; then
-    echo "  重新创建内嵌 Python 3.11 运行时..."
-    rm -rf "$PYTHON311_DIR"
-
-    if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
-        echo "  ✓ 已通过 venv --copies 创建 python311"
-    else
-        echo "  WARNING: venv --copies 失败，尝试手动复制系统 Python..."
-        SYSTEM_PYTHON3=$(which python3)
-        SYSTEM_PYTHON3_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')
-        SYSTEM_PYTHON3_DYLOAD=$(python3 -c 'import sysconfig; print(sysconfig.get_path("platstdlib"))')
-
-        mkdir -p "$PYTHON311_DIR/bin"
-        cp "$SYSTEM_PYTHON3" "$PYTHON311_DIR/bin/python3"
-        chmod 755 "$PYTHON311_DIR/bin/python3"
-
-        if [[ -d "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$PYTHON311_DIR/lib"
-            cp -a "$SYSTEM_PYTHON3_LIB" "$PYTHON311_DIR/lib/"
-        fi
-        if [[ -d "$SYSTEM_PYTHON3_DYLOAD" ]] && [[ "$SYSTEM_PYTHON3_DYLOAD" != "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$(dirname "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")")"
-            cp -a "$SYSTEM_PYTHON3_DYLOAD" "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")"
-        fi
-        echo "  ✓ 已通过手动复制创建 python311"
-    fi
-
-    if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
-        echo "  ✓ pip 已就绪"
-    else
-        echo "  WARNING: ensurepip 不可用，将在运行时安装 pip"
-    fi
-else
-    echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
+# Verify the build Python works
+if ! "$BUILD_PYTHON" -c "print('ok')" &>/dev/null; then
+    echo "ERROR: Build Python is not functional: $BUILD_PYTHON"
+    exit 1
 fi
 
-echo "  安装项目依赖到内嵌 Python..."
-"$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
+# Install/upgrade pip in the build environment
+"$BUILD_PYTHON" -m pip install --upgrade pip -q 2>/dev/null || true
 
+# Install PyInstaller if not present
+if ! "$BUILD_PYTHON" -c "import PyInstaller" &>/dev/null; then
+    echo "  安装 PyInstaller..."
+    "$BUILD_PYTHON" -m pip install "pyinstaller>=6" -q || {
+        echo "ERROR: PyInstaller 安装失败"
+        exit 1
+    }
+    echo "  ✓ PyInstaller 安装完成"
+fi
+
+# Install project requirements
 REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
 if [[ -f "$REQUIREMENTS_FILE" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
+    "$BUILD_PYTHON" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
         echo "  WARNING: 部分 requirements.txt 依赖安装失败，继续构建..."
     }
     echo "  ✓ requirements.txt 依赖已安装"
@@ -175,19 +156,13 @@ fi
 
 REQUIREMENTS_LINUX="$PROJECT_ROOT/requirements-linux.txt"
 if [[ -f "$REQUIREMENTS_LINUX" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_LINUX" -q 2>/dev/null || {
+    "$BUILD_PYTHON" -m pip install -r "$REQUIREMENTS_LINUX" -q 2>/dev/null || {
         echo "  WARNING: 部分 requirements-linux.txt 依赖安装失败，继续构建..."
     }
     echo "  ✓ requirements-linux.txt 依赖已安装"
 fi
 
-"$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
-    echo "  WARNING: PyInstaller 安装到内嵌 Python 失败"
-    exit 1
-}
-echo "  ✓ 内嵌 Python 运行时准备完成"
-
-BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
+echo "  ✓ 构建环境准备完成"
 
 # ---------------------------------------------------------------------------
 # 步骤 1: PyInstaller 离线构建
