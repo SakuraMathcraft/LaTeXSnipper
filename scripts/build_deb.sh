@@ -234,6 +234,9 @@ chmod 755 "$PACKAGING_DIR/usr/bin/latexsnipper"
 # DEBIAN 脚本
 chmod 755 "$PACKAGING_DIR/DEBIAN/postinst"
 chmod 755 "$PACKAGING_DIR/DEBIAN/prerm"
+if [[ -f "$PACKAGING_DIR/DEBIAN/postrm" ]]; then
+    chmod 755 "$PACKAGING_DIR/DEBIAN/postrm"
+fi
 
 # 普通数据文件设为 644
 find "$PACKAGING_DIR/usr/share" -type f -exec chmod 644 {} \; 2>/dev/null || true

@@ -1,6 +1,7 @@
 # backend/capture_overlay.py
 import math
 import os
+import shutil
 import sys
 import time
 from dataclasses import dataclass
@@ -61,6 +62,29 @@ class _MagnifierSample:
 
 def _rect_to_tuple(rect: QRect) -> tuple[int, int, int, int]:
     return (int(rect.x()), int(rect.y()), int(rect.width()), int(rect.height()))
+
+
+def _is_image_all_black(image: QImage) -> bool:
+    """检测图像是否基本全黑（Wayland grabWindow(0) 失败特征）。
+
+    采样检测：取四个角和中心的像素，若全部接近纯黑则判定为无效图像。
+    """
+    if image.isNull() or image.width() <= 0 or image.height() <= 0:
+        return True
+    w, h = image.width(), image.height()
+    # 采样位置：四角（偏移 2px 避让边框）和中心
+    sample_points = [
+        (2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3),
+        (w // 2, h // 2),
+    ]
+    dark_threshold = 8  # RGB 各通道 ≤ 8 视为"黑"
+    for sx, sy in sample_points:
+        x = max(0, min(sx, w - 1))
+        y = max(0, min(sy, h - 1))
+        color = image.pixelColor(x, y)
+        if color.red() > dark_threshold or color.green() > dark_threshold or color.blue() > dark_threshold:
+            return False
+    return True
 
 
 def choose_screen_index(
@@ -242,6 +266,7 @@ class ScreenCaptureOverlay(QWidget):
                 print("[Overlay] Wayland: overlay 背景截图成功")
                 return snapshots
             print("[Overlay] Wayland: 所有 overlay 背景截图方式均失败")
+            print("[Overlay] 提示：建议安装 grim、gnome-screenshot 或 flameshot 以在 Wayland 上正常显示截图遮罩。")
 
         for i, screen in enumerate(QGuiApplication.screens()):
             try:
@@ -694,7 +719,11 @@ class ScreenCaptureOverlay(QWidget):
 
         # Wayland：grabWindow(0) 不可用，尝试使用预截图作为背景
         _is_wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
-        if _is_wayland and self._screen_snapshots:
+        _has_valid_snapshots = self._screen_snapshots and any(
+            not snap.image.isNull() and not _is_image_all_black(snap.image)
+            for snap in self._screen_snapshots
+        )
+        if _is_wayland and _has_valid_snapshots:
             # 用预截图填充背景，使桌面内容可见
             for snap in self._screen_snapshots:
                 if not snap.image.isNull():
@@ -930,6 +959,12 @@ class ScreenCaptureOverlay(QWidget):
         pixmap = crop_screen_snapshot(snapshot, logical_rect) if snapshot is not None else QPixmap()
 
         _is_wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
+
+        # Wayland: grabWindow(0) 的快照为全黑图，裁剪结果也是黑的但 .isNull()=False，
+        # 会阻止后续 CLI/portal 回退。因此显式检测全黑像素并丢弃。
+        if _is_wayland and not pixmap.isNull() and _is_image_all_black(pixmap.toImage()):
+            print("[Overlay] Wayland: 预截图裁剪结果为全黑（grabWindow 无效），跳过并尝试 CLI/portal")
+            pixmap = QPixmap()
 
         if not pixmap.isNull():
             pass
