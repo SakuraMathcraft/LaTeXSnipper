@@ -3,7 +3,7 @@ Version: 2.3.2
 Section: utils
 Priority: optional
 Architecture: amd64
-Installed-Size: 659656
+Installed-Size: 659648
 Maintainer: Mathcraft <mathcraft@example.com>
 Homepage: https://github.com/SakuraMathcraft/LaTeXSnipper
 Description: Desktop math workspace for capture, recognize, edit and compute
