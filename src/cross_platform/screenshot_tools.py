@@ -1,11 +1,8 @@
-# cross_platform/screenshot_tools.py
-"""跨平台截图工具检测与截图函数。
+"""Platform screenshot fallbacks used by the capture overlay.
 
-将原先散布在 backend/capture_overlay.py 的截图相关逻辑统一到这里。
-
-模块分为两层：
-- 工具层（零外部依赖）：注册表、可用性检测、显示环境探测。
-- Qt 层（QImage）：CLI 截图函数和 Wayland portal，延迟导入 Qt。
+Qt's root-window capture is still the primary path.  This module contains the
+Linux and macOS command-line fallbacks plus Wayland portal capture, with Qt
+imports delayed until a screenshot is actually needed.
 """
 
 from __future__ import annotations
@@ -16,14 +13,7 @@ import subprocess
 import sys
 import tempfile
 
-# ============================================================================
-# 工具注册表
-# ============================================================================
-
-# 已知的截图工具及其命令行参数模板。
-# 参数模板中 {x} {y} {w} {h} {output} 会被替换为实际值。
 LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
-    # ---- X11 工具 ----
     "maim": {
         "cmds": [["maim", "-x", "{x}", "-y", "{y}", "-w", "{w}", "-h", "{h}", "{output}"]],
         "desc": "maim (X11, 不包含光标)",
@@ -63,13 +53,11 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
         "env": "x11",
         "requires": ["import"],
     },
-    # ---- Wayland 工具 ----
     "grim": {
         "cmds": [["grim", "-g", "{x},{y} {w}x{h}", "{output}"]],
         "desc": "grim (wlroots/Sway Wayland)",
         "env": "wayland",
     },
-    # ---- macOS 工具 ----
     "screencapture": {
         "cmds": [["screencapture", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
         "desc": "screencapture (macOS 内置)",
@@ -77,13 +65,9 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
     },
 }
 
-# ============================================================================
-# 环境探测
-# ============================================================================
-
 
 def detect_display_env() -> str:
-    """检测当前桌面环境类型: 'wayland' | 'x11' | 'macos' | 'unknown'."""
+    """Return the active display environment."""
     if sys.platform == "darwin":
         return "macos"
     if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
@@ -94,20 +78,45 @@ def detect_display_env() -> str:
 
 
 def is_wayland() -> bool:
-    """检查当前是否为 Wayland 会话。"""
+    """Return True for Wayland sessions."""
     return bool(
         os.environ.get("WAYLAND_DISPLAY")
         or os.environ.get("XDG_SESSION_TYPE") == "wayland"
     )
 
 
-# ============================================================================
-# 工具可用性检测
-# ============================================================================
+def is_image_effectively_black(image) -> bool:
+    """Return True when an image is empty or close to all-black.
+
+    Wayland root-window captures can produce a non-null black image.  Overlay
+    code uses this to reject that capture and continue to CLI/portal fallback.
+    """
+    if image.isNull() or image.width() <= 0 or image.height() <= 0:
+        return True
+    width, height = image.width(), image.height()
+    sample_points = [
+        (2, 2),
+        (width - 3, 2),
+        (2, height - 3),
+        (width - 3, height - 3),
+        (width // 2, height // 2),
+    ]
+    dark_threshold = 8
+    for sx, sy in sample_points:
+        x = max(0, min(sx, width - 1))
+        y = max(0, min(sy, height - 1))
+        color = image.pixelColor(x, y)
+        if (
+            color.red() > dark_threshold
+            or color.green() > dark_threshold
+            or color.blue() > dark_threshold
+        ):
+            return False
+    return True
 
 
 def list_available_tools() -> list[str]:
-    """列出当前系统中已安装的所有截图工具。"""
+    """Return installed screenshot tools usable in the current display environment."""
     env = detect_display_env()
     available = []
     for name, info in LINUX_SCREENSHOT_TOOLS.items():
@@ -125,14 +134,7 @@ def list_available_tools() -> list[str]:
 
 
 def find_screenshot_tool(preferred: str | None = None) -> str | None:
-    """查找可用的截图工具。
-
-    Args:
-        preferred: 用户偏好的工具名。如果指定且已安装则优先使用。
-
-    Returns:
-        工具名，未找到返回 None。
-    """
+    """Return the best available screenshot tool for the current environment."""
     available = list_available_tools()
 
     if preferred and preferred in available:
@@ -155,16 +157,11 @@ def find_screenshot_tool(preferred: str | None = None) -> str | None:
     return available[0]
 
 
-# ============================================================================
-# Qt 截图函数（延迟导入 QImage）
-# ============================================================================
-
-
 def _try_screenshot_cmd(
     cmd_template: list[str],
     x: int, y: int, width: int, height: int,
 ):
-    """尝试执行单个截图命令模板。返回 QImage 或 None。"""
+    """Run one screenshot command template and return a QImage or None."""
     from PyQt6.QtGui import QImage
 
     tmp_path = None
@@ -208,11 +205,11 @@ def _try_screenshot_cmd(
                 pass
 
 
-def linux_cli_screenshot_region(
+def _capture_region_with_cli_tools(
     x: int, y: int, width: int, height: int,
     preferred_tool: str | None = None,
 ):
-    """使用命令行工具截取屏幕区域。返回 QImage 或 None。"""
+    """Capture a region with command-line tools and return ``(image, tool_name)``."""
     tool = find_screenshot_tool(preferred=preferred_tool)
 
     tools_to_try: list[str] = []
@@ -230,51 +227,38 @@ def linux_cli_screenshot_region(
         for cmd_template in info["cmds"]:
             result = _try_screenshot_cmd(cmd_template, x, y, width, height)
             if result is not None:
-                return result
+                return result, tool_name
 
-    return None
+    return None, ""
 
 
-def test_screenshot_tool(tool_name: str) -> dict:
-    """测试指定截图工具是否可用。
-
-    Returns:
-        {"ok": bool, "message": str, "image_path": str|None}
-    """
+def wayland_overlay_background():
+    """Capture a full-screen Wayland background image for the overlay."""
     from PyQt6.QtGui import QImage
 
-    info = LINUX_SCREENSHOT_TOOLS.get(tool_name)
-    if info is None:
-        return {"ok": False, "message": f"未知工具: {tool_name}", "image_path": None}
+    portal_img = wayland_screenshot_via_portal()
+    if portal_img is not None and not portal_img.isNull():
+        return portal_img
 
-    main_tool = info["cmds"][0][0] if info["cmds"] else tool_name
-    if not shutil.which(main_tool):
-        requires = info.get("requires", [])
-        missing = [r for r in requires if not shutil.which(r)]
-        if missing:
-            return {"ok": False, "message": f"缺少依赖: {', '.join(missing)}", "image_path": None}
-        return {"ok": False, "message": f"未安装: {main_tool}", "image_path": None}
-
-    tmp_path = None
-    for cmd_template in info["cmds"]:
+    for tool_name in ("gnome-screenshot", "grim"):
+        tool_path = shutil.which(tool_name)
+        if not tool_path:
+            continue
+        tmp_path = None
         try:
-            fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_test_")
+            fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
             os.close(fd)
-            cmd = [
-                str(arg).format(x=0, y=0, w=100, h=100, output=tmp_path)
-                for arg in cmd_template
-            ]
+            cmd = [tool_path, "-f", tmp_path] if tool_name == "gnome-screenshot" else [tool_path, tmp_path]
             subprocess.run(
-                cmd, timeout=10, check=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cmd,
+                timeout=10,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            img = QImage(tmp_path)
-            if not img.isNull():
-                return {
-                    "ok": True,
-                    "message": f"{tool_name} 测试成功 ({img.width()}x{img.height()})",
-                    "image_path": None,
-                }
+            image = QImage(tmp_path)
+            if not image.isNull():
+                return image.copy()
         except Exception:
             continue
         finally:
@@ -283,18 +267,63 @@ def test_screenshot_tool(tool_name: str) -> dict:
                     os.unlink(tmp_path)
                 except OSError:
                     pass
-                tmp_path = None
+    return None
 
-    return {"ok": False, "message": f"{tool_name} 执行失败", "image_path": None}
 
+def capture_region_with_tools(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    *,
+    preferred_tool: str | None = None,
+    screen_geometry: tuple[int, int, int, int] | None = None,
+):
+    """Capture a region using platform CLI/portal fallback paths.
+
+    Returns ``(image, source_label)``.  ``image`` is a QImage or None.
+    """
+    cli_img, source = _capture_region_with_cli_tools(
+        x,
+        y,
+        width,
+        height,
+        preferred_tool=preferred_tool,
+    )
+    if cli_img is not None and not cli_img.isNull():
+        return cli_img, source or "cli"
+
+    if not is_wayland():
+        return None, ""
+
+    wayland_img = wayland_screenshot_via_portal()
+    if wayland_img is None or wayland_img.isNull():
+        return None, ""
+
+    if screen_geometry is None:
+        cropped = wayland_img.copy(x, y, min(width, wayland_img.width() - x), min(height, wayland_img.height() - y))
+        return cropped, "xdg-desktop-portal"
+
+    sx, sy, sw, sh = screen_geometry
+    scale_x = wayland_img.width() / max(1, sw)
+    scale_y = wayland_img.height() / max(1, sh)
+    crop_x = max(0, int((x - sx) * scale_x))
+    crop_y = max(0, int((y - sy) * scale_y))
+    crop_w = max(1, int(width * scale_x))
+    crop_h = max(1, int(height * scale_y))
+    crop_w = min(crop_w, max(0, wayland_img.width() - crop_x))
+    crop_h = min(crop_h, max(0, wayland_img.height() - crop_y))
+    if crop_w <= 0 or crop_h <= 0:
+        return None, ""
+    return wayland_img.copy(crop_x, crop_y, crop_w, crop_h), "xdg-desktop-portal"
 
 def wayland_screenshot_via_portal():
-    """通过 org.freedesktop.portal.Screenshot 在 Wayland 上截图。返回 QImage 或 None。"""
+    """Capture through org.freedesktop.portal.Screenshot on Wayland."""
     from PyQt6.QtGui import QImage
 
     try:
-        import dbus
-        from dbus.mainloop.glib import DBusGMainLoop
+        import dbus  # type: ignore[reportMissingImports]
+        from dbus.mainloop.glib import DBusGMainLoop  # type: ignore[reportMissingImports]
     except ImportError:
         return None
 
@@ -352,102 +381,3 @@ def wayland_screenshot_via_portal():
         pass
 
     return image
-
-
-def wayland_overlay_background() -> object | None:
-    """Wayland: 获取全屏截图作为 overlay 背景。
-
-    按优先级尝试：D-Bus portal → gnome-screenshot → grim。
-    返回 QImage 或 None。为避免 capture_overlay 的静态依赖，
-    此处返回类型标注为 object | None。
-    """
-    from PyQt6.QtGui import QImage
-
-    # 1) D-Bus Screenshot portal（跨合成器通用，GNOME/KDE 均支持）
-    portal_img = wayland_screenshot_via_portal()
-    if portal_img is not None and not portal_img.isNull():
-        print("[ScreenshotTools] Wayland: 使用 D-Bus Screenshot portal 作为 overlay 背景")
-        return portal_img
-
-    # 2) gnome-screenshot（GNOME 桌面）
-    gnome_sc = shutil.which("gnome-screenshot")
-    if gnome_sc:
-        try:
-            fd, tmp = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
-            os.close(fd)
-            subprocess.run(
-                [gnome_sc, "-f", tmp], timeout=10, check=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            img = QImage(tmp)
-            if not img.isNull():
-                result = img.copy()
-                os.unlink(tmp)
-                print("[ScreenshotTools] Wayland: 使用 gnome-screenshot 作为 overlay 背景")
-                return result
-            os.unlink(tmp)
-        except Exception:
-            pass
-
-    # 3) grim（wlroots 合成器：Sway/Hyprland）
-    grim_bin = shutil.which("grim")
-    if grim_bin:
-        try:
-            fd, tmp = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
-            os.close(fd)
-            subprocess.run(
-                [grim_bin, tmp], timeout=10, check=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            img = QImage(tmp)
-            if not img.isNull():
-                result = img.copy()
-                os.unlink(tmp)
-                print("[ScreenshotTools] Wayland: 使用 grim 作为 overlay 背景")
-                return result
-            os.unlink(tmp)
-        except Exception:
-            pass
-
-    return None
-
-
-def wayland_capture_region(
-    x: int, y: int, width: int, height: int,
-    screen_geometry: tuple[int, int, int, int],
-    preferred_tool: str | None = None,
-) -> object | None:
-    """Wayland: 截取屏幕区域。按 CLI 工具 → D-Bus portal 优先级回退。
-
-    返回 QPixmap 或 None（空 QPixmap）。为避免 capture_overlay 的
-    静态 Qt 依赖，返回类型标注为 object | None。
-    """
-    from PyQt6.QtGui import QPixmap
-
-    # 1) 命令行截图工具（区域截图）
-    cli_img = linux_cli_screenshot_region(x, y, width, height, preferred_tool=preferred_tool)
-    if cli_img is not None and not cli_img.isNull():
-        print(f"[ScreenshotTools] Wayland: 使用 CLI 截图工具 ({find_screenshot_tool(preferred=preferred_tool)})")
-        return QPixmap.fromImage(cli_img)
-
-    print("[ScreenshotTools] Wayland CLI 截图失败，尝试 D-Bus portal...")
-
-    # 2) D-Bus Screenshot portal（跨合成器通用方案）
-    wayland_img = wayland_screenshot_via_portal()
-    if wayland_img is not None and not wayland_img.isNull():
-        sx, sy, sw, sh = screen_geometry
-        crop_x = max(0, int((x - sx) * (wayland_img.width() / max(1, sw))))
-        crop_y = max(0, int((y - sy) * (wayland_img.height() / max(1, sh))))
-        crop_w = max(1, int(width * (wayland_img.width() / max(1, sw))))
-        crop_h = max(1, int(height * (wayland_img.height() / max(1, sh))))
-        cropped = wayland_img.copy(
-            crop_x, crop_y,
-            min(crop_w, wayland_img.width() - crop_x),
-            min(crop_h, wayland_img.height() - crop_y),
-        )
-        print("[ScreenshotTools] Wayland: 使用 D-Bus portal 裁剪截图")
-        return QPixmap.fromImage(cropped)
-
-    print("[ScreenshotTools] Wayland D-Bus portal 截图也失败")
-    return None
-

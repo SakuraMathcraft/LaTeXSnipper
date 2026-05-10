@@ -35,7 +35,6 @@ from bootstrap.deps_state import (
     sanitize_state_layers as _sanitize_state_layers_impl,
     save_json as _save_json,
 )
-
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
 
@@ -166,16 +165,13 @@ class InstallWorker(QThread):
                     return onnxruntime_gpu_spec(self.pyexe)
                 return pkg_spec
 
-            # 过滤系统包（#system: 前缀），这些不走 pip 安装
-            pip_pkgs = [p for p in self.pkgs if not p.startswith("#system:")]
-
             pending = []
             skipped = []
             if self.force_reinstall:
-                pending = [_resolve_layer_pkg_spec(p) for p in pip_pkgs]
+                pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
                 self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
             else:
-                for p in pip_pkgs:
+                for p in self.pkgs:
                     effective_p = _resolve_layer_pkg_spec(p)
                     pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
                     if pkg_name in installed_before:
@@ -429,12 +425,10 @@ class UninstallLayerWorker(QThread):
 
     def run(self):
         ok = True
-        # 过滤系统包（#system: 前缀），不走 pip 卸载
-        pip_pkg_names = [p for p in self.pkg_names if not p.startswith("#system:")]
-        total = max(len(pip_pkg_names), 1)
+        total = max(len(self.pkg_names), 1)
         self.log_updated.emit(f"[STEP] 开始卸载层 {self.layer_name} ...")
         self.progress_updated.emit(5)
-        for idx, pkg_name in enumerate(pip_pkg_names, start=1):
+        for idx, pkg_name in enumerate(self.pkg_names, start=1):
             self.log_updated.emit(f"[CMD] {self.pyexe} -m pip uninstall -y {pkg_name}")
             try:
                 result = subprocess.run(
@@ -458,11 +452,11 @@ class UninstallLayerWorker(QThread):
                 self.log_updated.emit(f"[ERR] {pkg_name} 卸载失败: {e}")
             self.progress_updated.emit(5 + int(75 * idx / total))
 
-        if any(str(name).lower().startswith("onnxruntime") for name in pip_pkg_names):
+        if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
             _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
 
         # PANDOC 层卸载：删除 pip 包后，还要清理二进制和残留文件
-        if any(str(name).lower() in {"pypandoc", "pandoc"} for name in pip_pkg_names):
+        if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
             self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
             _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
             # 删除整个 deps/pandoc/ 目录
@@ -813,7 +807,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
         if sys.platform == "win32":
             log_fn("[PANDOC] 或运行: winget install JohnMacFarlane.Pandoc")
         elif sys.platform == "linux":
-            log_fn("[PANDOC] 或通过系统包管理器安装 pandoc")
+            log_fn("[PANDOC] 或运行: sudo apt install pandoc / sudo dnf install pandoc")
         elif sys.platform == "darwin":
             log_fn("[PANDOC] 或运行: brew install pandoc")
     if progress_fn:
@@ -2392,6 +2386,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         row.addWidget(cb)
         row.addWidget(del_btn)
         lay.addLayout(row)
+
     # ---------- MathCraft CPU / GPU 后端互斥逻辑 ----------
     def on_mathcraft_cpu_changed(state):
         if state and checks.get("MATHCRAFT_GPU") and checks["MATHCRAFT_GPU"].isEnabled():
@@ -3343,10 +3338,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 "未检测到可复用的 Python 环境，且系统中未找到 python3。\n\n"
-                                "请通过系统包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: apt install python3 python3-venv\n"
-                                "  Fedora:         dnf install python3\n"
-                                "  Arch:           pacman -S python",
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -3600,10 +3595,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 "系统中未找到 python3，无法初始化依赖环境。\n\n"
-                                "请通过系统包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: apt install python3 python3-venv\n"
-                                "  Fedora:         dnf install python3\n"
-                                "  Arch:           pacman -S python",
+                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
+                                "  Fedora:         sudo dnf install python3\n"
+                                "  Arch:           sudo pacman -S python",
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

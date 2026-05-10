@@ -20,11 +20,10 @@ from PyQt6.QtGui import (
 )
 
 from cross_platform.screenshot_tools import (
+    capture_region_with_tools,
+    is_image_effectively_black,
     is_wayland,
     wayland_overlay_background,
-    linux_cli_screenshot_region,
-    find_screenshot_tool,
-    wayland_capture_region,
 )
 
 _CROSSHAIR_ARM = 9
@@ -58,29 +57,6 @@ class _MagnifierSample:
 
 def _rect_to_tuple(rect: QRect) -> tuple[int, int, int, int]:
     return (int(rect.x()), int(rect.y()), int(rect.width()), int(rect.height()))
-
-
-def _is_image_all_black(image: QImage) -> bool:
-    """检测图像是否基本全黑（Wayland grabWindow(0) 失败特征）。
-
-    采样检测：取四个角和中心的像素，若全部接近纯黑则判定为无效图像。
-    """
-    if image.isNull() or image.width() <= 0 or image.height() <= 0:
-        return True
-    w, h = image.width(), image.height()
-    # 采样位置：四角（偏移 2px 避让边框）和中心
-    sample_points = [
-        (2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3),
-        (w // 2, h // 2),
-    ]
-    dark_threshold = 8  # RGB 各通道 ≤ 8 视为"黑"
-    for sx, sy in sample_points:
-        x = max(0, min(sx, w - 1))
-        y = max(0, min(sy, h - 1))
-        color = image.pixelColor(x, y)
-        if color.red() > dark_threshold or color.green() > dark_threshold or color.blue() > dark_threshold:
-            return False
-    return True
 
 
 def choose_screen_index(
@@ -175,6 +151,7 @@ class ScreenCaptureOverlay(QWidget):
         self,
         capture_display_mode: str = "auto",
         preferred_screen_index: int | None = None,
+        screenshot_tool: str | None = None,
     ):
         super().__init__()
         self.start_pos = None
@@ -189,6 +166,9 @@ class ScreenCaptureOverlay(QWidget):
         if self.capture_display_mode not in ("auto", "index"):
             self.capture_display_mode = "auto"
         self.preferred_screen_index = preferred_screen_index
+        self.screenshot_tool = (screenshot_tool or "").strip() or None
+        if self.screenshot_tool:
+            print(f"[Overlay] 用户指定截图工具: {self.screenshot_tool}")
         self.color_display_mode = "rgb"
         self._cursor_override_active = False
         self._finished = False
@@ -236,12 +216,11 @@ class ScreenCaptureOverlay(QWidget):
 
     def _capture_screen_snapshots(self) -> list[_ScreenSnapshot]:
         snapshots: list[_ScreenSnapshot] = []
-        # Wayland: grabWindow(0) 不可靠（无根窗口），必须用其他方式获取 overlay 背景。
-        # 优先级：D-Bus Screenshot portal（跨合成器通用）→ gnome-screenshot → grim（仅 wlroots）
+
         if is_wayland():
             wayland_bg = wayland_overlay_background()
             if wayland_bg is not None and not wayland_bg.isNull():
-                for i, screen in enumerate(QGuiApplication.screens()):
+                for screen in QGuiApplication.screens():
                     geo = QRect(screen.geometry())
                     if geo.width() <= 0 or geo.height() <= 0:
                         continue
@@ -653,13 +632,11 @@ class ScreenCaptureOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Wayland：grabWindow(0) 不可用，尝试使用预截图作为背景
-        _is_wl = is_wayland()
         _has_valid_snapshots = self._screen_snapshots and any(
-            not snap.image.isNull() and not _is_image_all_black(snap.image)
+            not snap.image.isNull() and not is_image_effectively_black(snap.image)
             for snap in self._screen_snapshots
         )
-        if _is_wl and _has_valid_snapshots:
+        if is_wayland() and _has_valid_snapshots:
             # 用预截图填充背景，使桌面内容可见
             for snap in self._screen_snapshots:
                 if not snap.image.isNull():
@@ -894,29 +871,34 @@ class ScreenCaptureOverlay(QWidget):
         snapshot = self._snapshot_for_screen_index(int(target_idx))
         pixmap = crop_screen_snapshot(snapshot, logical_rect) if snapshot is not None else QPixmap()
 
-        _is_wl = is_wayland()
+        _is_wayland = is_wayland()
 
         # Wayland: grabWindow(0) 的快照为全黑图，裁剪结果也是黑的但 .isNull()=False，
         # 会阻止后续 CLI/portal 回退。因此显式检测全黑像素并丢弃。
-        if _is_wl and not pixmap.isNull() and _is_image_all_black(pixmap.toImage()):
+        if _is_wayland and not pixmap.isNull() and is_image_effectively_black(pixmap.toImage()):
             print("[Overlay] Wayland: 预截图裁剪结果为全黑（grabWindow 无效），跳过并尝试 CLI/portal")
             pixmap = QPixmap()
 
-        if not pixmap.isNull():
-            pass
-        else:
+        if pixmap.isNull():
             print("[Overlay] 预截图裁剪失败，尝试其他方式...")
 
-        # Wayland: grabWindow(0) 始终返回纯黑图像（Wayland 无根窗口），
-        # 因此完全跳过 grabWindow，直接走 CLI 工具 → D-Bus portal 链路。
-        if pixmap.isNull() and _is_wl:
-            pixmap = wayland_capture_region(
-                global_x, global_y, width, height,
-                _rect_to_tuple(screen.geometry()),
+        if pixmap.isNull() and _is_wayland:
+            image, source = capture_region_with_tools(
+                global_x,
+                global_y,
+                width,
+                height,
+                preferred_tool=self.screenshot_tool,
+                screen_geometry=_rect_to_tuple(screen.geometry()),
             )
+            if image is not None and not image.isNull():
+                pixmap = QPixmap.fromImage(image)
+                print(f"[Overlay] Wayland: 使用 {source} 截图")
+            else:
+                print("[Overlay] Wayland CLI/portal 截图均失败")
 
         # X11 / 非 Wayland：传统 grabWindow 回退
-        if pixmap.isNull() and not _is_wl:
+        if pixmap.isNull() and not _is_wayland:
             nx, ny, nw, nh = native_rect
             if os.name != "nt":
                 try:
@@ -939,11 +921,17 @@ class ScreenCaptureOverlay(QWidget):
                         pass
 
         # X11 通用 CLI fallback
-        if pixmap.isNull() and not _is_wl and os.name != "nt":
-            cli_img = linux_cli_screenshot_region(global_x, global_y, width, height)
-            if cli_img is not None and not cli_img.isNull():
-                pixmap = QPixmap.fromImage(cli_img)
-                print(f"[Overlay] Linux: 使用 CLI 截图工具 ({find_screenshot_tool()})")
+        if pixmap.isNull() and not _is_wayland and os.name != "nt":
+            image, source = capture_region_with_tools(
+                global_x,
+                global_y,
+                width,
+                height,
+                preferred_tool=self.screenshot_tool,
+            )
+            if image is not None and not image.isNull():
+                pixmap = QPixmap.fromImage(image)
+                print(f"[Overlay] Linux: 使用 {source} 截图")
             else:
                 print("[Overlay] Linux CLI 截图也失败")
 

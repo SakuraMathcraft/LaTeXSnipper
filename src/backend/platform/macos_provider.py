@@ -5,15 +5,12 @@ Provides hotkey, screenshot, and system integration using Qt and pynput.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
-
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 from backend.capture_overlay import ScreenCaptureOverlay
-from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig
+from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
 from backend.qhotkey import QHotkey
 
 
@@ -66,15 +63,8 @@ class MacOSScreenshotProvider:
         return ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
+            screenshot_tool=cfg.screenshot_tool,
         )
-
-
-@dataclass
-class TrayMenuHandlers:
-    on_open: Callable[[], None]
-    on_capture: Callable[[], None]
-    on_exit: Callable[[], None]
-    build_capture_submenu: Callable[[QMenu], None] | None = None
 
 
 class MacOSSystemProvider:
@@ -95,10 +85,29 @@ class MacOSSystemProvider:
             return
         tray_menu.clear()
         tray_menu.addAction(f"截图识别（{hotkey}）", handlers.on_capture)
+        if callable(handlers.build_capture_submenu):
+            handlers.build_capture_submenu(tray_menu)
         tray_menu.addSeparator()
         tray_menu.addAction("打开主窗口", handlers.on_open)
         tray_menu.addSeparator()
         tray_menu.addAction("退出", handlers.on_exit)
+
+    def show_notification(
+        self,
+        tray: QSystemTrayIcon,
+        title: str,
+        text: str,
+        critical: bool = False,
+        timeout_ms: int = 2500,
+    ) -> None:
+        if not tray:
+            return
+        icon = (
+            QSystemTrayIcon.MessageIcon.Critical
+            if critical
+            else QSystemTrayIcon.MessageIcon.Information
+        )
+        tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
         window.show()
