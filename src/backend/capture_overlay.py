@@ -1,13 +1,9 @@
 # backend/capture_overlay.py
 import math
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal, Qt, QRect, QPoint, QTimer
@@ -24,372 +20,15 @@ from PyQt6.QtGui import (
     QRegion,
 )
 
-# ---------------------------------------------------------------------------
-# Linux 命令行截图工具注册表
-# ---------------------------------------------------------------------------
-
-# 已知的 Linux 截图工具及其命令行参数模板。
-# 每个条目: (工具名, [参数模板列表], 说明)
-# 参数模板中 {x} {y} {w} {h} {output} 会被替换为实际值。
-# grim 和 gnome-screenshot 同时出现在 X11 和 Wayland 列表中，因为它们都能在两种环境下工作。
-_LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
-    # ---- X11 工具 ----
-    "maim": {
-        "cmds": [["maim", "-x", "{x}", "-y", "{y}", "-w", "{w}", "-h", "{h}", "{output}"]],
-        "desc": "maim (X11, 不包含光标)",
-        "env": "x11",
-    },
-    "import": {
-        "cmds": [["import", "-window", "root", "-crop", "{w}x{h}+{x}+{y}", "{output}"]],
-        "desc": "ImageMagick import (X11)",
-        "env": "x11",
-    },
-    "scrot": {
-        "cmds": [["scrot", "-a", "{x},{y},{w},{h}", "-o", "{output}"]],
-        "desc": "scrot (X11)",
-        "env": "x11",
-    },
-    "gnome-screenshot": {
-        "cmds": [
-            # gnome-screenshot 在新版支持 -a（区域截图）
-            ["gnome-screenshot", "-a", "-f", "{output}"],
-            # 旧版不支持 -a，只能用全屏
-            ["gnome-screenshot", "-f", "{output}"],
-        ],
-        "desc": "gnome-screenshot (GNOME 桌面)",
-        "env": "any",
-    },
-    "flameshot": {
-        # flameshot 的 CLI 区域截图方式
-        "cmds": [
-            ["flameshot", "full", "-r", "{output}"],
-        ],
-        "desc": "flameshot (全屏截图)",
-        "env": "any",
-    },
-    "spectacle": {
-        "cmds": [
-            ["spectacle", "-b", "-r", "-o", "{output}"],
-        ],
-        "desc": "spectacle (KDE 桌面)",
-        "env": "any",
-    },
-    "xdotool": {
-        # xdotool 本身不截图，但配合 import 可以用
-        "cmds": [
-            ["import", "-window", "root", "-crop", "{w}x{h}+{x}+{y}", "{output}"],
-        ],
-        "desc": "xdotool + ImageMagick (X11)",
-        "env": "x11",
-        "requires": ["import"],
-    },
-    # ---- Wayland 工具 ----
-    "grim": {
-        "cmds": [["grim", "-g", "{x},{y} {w}x{h}", "{output}"]],
-        "desc": "grim (wlroots/Sway Wayland)",
-        "env": "wayland",
-    },
-    # ---- macOS 工具 ----
-    "screencapture": {
-        "cmds": [["screencapture", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
-        "desc": "screencapture (macOS 内置)",
-        "env": "macos",
-    },
-}
-
-
-def _detect_display_env() -> str:
-    """检测当前桌面环境类型: 'wayland' | 'x11' | 'macos' | 'unknown'."""
-    if sys.platform == "darwin":
-        return "macos"
-    if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
-        return "wayland"
-    if os.environ.get("DISPLAY"):
-        return "x11"
-    return "unknown"
-
-
-def _list_available_tools() -> list[str]:
-    """列出当前系统中已安装的所有截图工具。"""
-    env = _detect_display_env()
-    available = []
-    for name, info in _LINUX_SCREENSHOT_TOOLS.items():
-        tool_env = info.get("env", "any")
-        if tool_env not in (env, "any"):
-            continue
-        # 检查主工具是否安装
-        main_tool = info["cmds"][0][0] if info["cmds"] else name
-        if not shutil.which(main_tool):
-            continue
-        # 检查额外依赖
-        requires = info.get("requires", [])
-        if requires and not all(shutil.which(r) for r in requires):
-            continue
-        available.append(name)
-    return available
-
-
-def _find_linux_screenshot_tool(preferred: str | None = None) -> str | None:
-    """查找可用的 Linux 命令行截图工具。
-
-    Args:
-        preferred: 用户偏好的工具名（如 "maim", "grim", "flameshot"）。
-                   如果指定且已安装则优先使用，否则自动探测。
-
-    Returns:
-        工具名，未找到任何工具返回 None。
-    """
-    available = _list_available_tools()
-
-    # 如果用户指定了偏好工具且可用，直接返回
-    if preferred and preferred in available:
-        return preferred
-
-    if not available:
-        return None
-
-    # macOS 优先 screencapture，Wayland 优先 gnome-screenshot → grim，X11 优先 maim
-    env = _detect_display_env()
-    if env == "macos":
-        priority = ["screencapture"]
-    elif env == "wayland":
-        priority = ["gnome-screenshot", "flameshot", "spectacle", "grim", "maim", "import", "scrot"]
-    else:
-        priority = ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]
-
-    for tool in priority:
-        if tool in available:
-            return tool
-    return available[0]
-
-
-def _linux_cli_screenshot_region(
-    x: int, y: int, width: int, height: int,
-    preferred_tool: str | None = None,
-) -> QImage | None:
-    """使用 Linux 命令行工具截取屏幕区域。
-
-    尝试顺序：用户偏好工具 → 自动探测 → 逐个尝试所有可用工具。
-
-    Args:
-        x, y, width, height: 截图区域（全局坐标）。
-        preferred_tool: 用户偏好的工具名。
-
-    Returns:
-        QImage 或 None。
-    """
-    tool = _find_linux_screenshot_tool(preferred=preferred_tool)
-
-    # 如果首选工具不可用，尝试所有可用工具
-    tools_to_try: list[str] = []
-    if tool:
-        tools_to_try.append(tool)
-    for t in _list_available_tools():
-        if t not in tools_to_try:
-            tools_to_try.append(t)
-
-    for tool_name in tools_to_try:
-        info = _LINUX_SCREENSHOT_TOOLS.get(tool_name)
-        if info is None:
-            continue
-
-        for cmd_template in info["cmds"]:
-            result = _try_screenshot_cmd(cmd_template, x, y, width, height)
-            if result is not None:
-                return result
-
-    return None
-
-
-def _try_screenshot_cmd(
-    cmd_template: list[str],
-    x: int, y: int, width: int, height: int,
-) -> QImage | None:
-    """尝试执行单个截图命令模板。
-
-    Args:
-        cmd_template: 命令模板列表，如 ["maim", "-x", "{x}", ...]。
-        x, y, width, height: 截图区域。
-
-    Returns:
-        QImage 或 None。
-    """
-    tmp_path = None
-    try:
-        fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_cap_")
-        os.close(fd)
-
-        cmd = [
-            str(arg).format(x=x, y=y, w=width, h=height, output=tmp_path)
-            for arg in cmd_template
-        ]
-
-        subprocess.run(
-            cmd, timeout=15, check=True,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-
-        image = QImage(tmp_path)
-        if image.isNull():
-            return None
-
-        # 对于全屏截图工具（flameshot/gnome-screenshot），需要裁剪到目标区域
-        tool_name = cmd_template[0] if cmd_template else ""
-        if tool_name in ("flameshot", "gnome-screenshot", "spectacle"):
-            screen_rect = QRect(x, y, width, height)
-            if image.width() > width or image.height() > height:
-                cropped = image.copy(x % max(1, image.width()),
-                                     y % max(1, image.height()),
-                                     min(width, image.width()),
-                                     min(height, image.height()))
-                return cropped
-
-        return image.copy()
-    except Exception:
-        return None
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-
-
-def test_screenshot_tool(tool_name: str) -> dict:
-    """测试指定截图工具是否可用。
-
-    Args:
-        tool_name: 工具名，如 "maim"、"grim" 等。
-
-    Returns:
-        {"ok": bool, "message": str, "image_path": str|None}
-    """
-    info = _LINUX_SCREENSHOT_TOOLS.get(tool_name)
-    if info is None:
-        return {"ok": False, "message": f"未知工具: {tool_name}", "image_path": None}
-
-    main_tool = info["cmds"][0][0] if info["cmds"] else tool_name
-    if not shutil.which(main_tool):
-        # 检查 requires
-        requires = info.get("requires", [])
-        missing = [r for r in requires if not shutil.which(r)]
-        if missing:
-            return {"ok": False, "message": f"缺少依赖: {', '.join(missing)}", "image_path": None}
-        return {"ok": False, "message": f"未安装: {main_tool}", "image_path": None}
-
-    # 尝试实际截图一个小区域
-    tmp_path = None
-    for cmd_template in info["cmds"]:
-        try:
-            fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_test_")
-            os.close(fd)
-            # 截取屏幕左上角 100x100 区域作为测试
-            cmd = [
-                str(arg).format(x=0, y=0, w=100, h=100, output=tmp_path)
-                for arg in cmd_template
-            ]
-            subprocess.run(
-                cmd, timeout=10, check=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            img = QImage(tmp_path)
-            if not img.isNull():
-                return {
-                    "ok": True,
-                    "message": f"{tool_name} 测试成功 ({img.width()}x{img.height()})",
-                    "image_path": None,
-                }
-        except Exception as e:
-            continue
-        finally:
-            if tmp_path:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                tmp_path = None
-
-    return {"ok": False, "message": f"{tool_name} 执行失败", "image_path": None}
-
-
-# ---------------------------------------------------------------------------
-# Wayland 截图 fallback — 通过 D-Bus Screenshot 门户
-# ---------------------------------------------------------------------------
-def _wayland_screenshot_via_portal() -> QImage | None:
-    """通过 org.freedesktop.portal.Screenshot 在 Wayland 上截图。
-
-    grabWindow(0) 在 Wayland 上返回空图像（因为 Wayland 没有根窗口概念），
-    因此需要通过 xdg-desktop-portal 的 Screenshot API 来捕获屏幕。
-    """
-    try:
-        import dbus
-        from dbus.mainloop.glib import DBusGMainLoop
-    except ImportError:
-        return None
-
-    try:
-        from gi.repository import GLib  # type: ignore
-    except ImportError:
-        return None
-
-    loop = GLib.MainLoop()
-    result: dict = {}
-
-    def _on_response(response: int, results: dict) -> None:
-        result["response"] = response
-        result["results"] = results
-        loop.quit()
-
-    try:
-        DBusGMainLoop(set_as_default=True)
-        bus = dbus.SessionBus()
-        portal = bus.get_object(
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop",
-        )
-        screenshot = dbus.Interface(
-            portal,
-            "org.freedesktop.portal.Screenshot",
-        )
-        screenshot.connect_to_signal("Response", _on_response)
-
-        token = screenshot.Screenshot(
-            "",  # parent_window (empty = no parent)
-            {
-                "interactive": False,
-                "modal": False,
-            },
-        )
-        # token is the request handle path (e.g. "/org/freedesktop/portal/desktop/request/...")
-
-        # 等待响应（最多 10 秒）
-        GLib.timeout_add(10000, loop.quit)
-        loop.run()
-    except Exception:
-        return None
-
-    if result.get("response") != 0:
-        return None
-
-    uri = result.get("results", {}).get("uri", "")
-    if not uri:
-        return None
-
-    # URI 格式: file:///path/to/screenshot.png
-    path = uri.replace("file://", "")
-    image = QImage(path)
-    if image.isNull():
-        return None
-
-    # 清理临时文件
-    try:
-        os.unlink(path)
-    except OSError:
-        pass
-
-    return image
-
-
+from cross_platform.screenshot_tools import (
+    LINUX_SCREENSHOT_TOOLS,
+    detect_display_env,
+    list_available_tools,
+    find_screenshot_tool,
+    linux_cli_screenshot_region,
+    test_screenshot_tool,
+    wayland_screenshot_via_portal,
+)
 
 _CROSSHAIR_ARM = 9
 _CROSSHAIR_OUTER_WIDTH = 3
@@ -638,7 +277,7 @@ class ScreenCaptureOverlay(QWidget):
         按优先级尝试：D-Bus portal → gnome-screenshot → grim。
         """
         # 1) D-Bus Screenshot portal（跨合成器通用，GNOME/KDE 均支持）
-        portal_img = _wayland_screenshot_via_portal()
+        portal_img = wayland_screenshot_via_portal()
         if portal_img is not None and not portal_img.isNull():
             print("[Overlay] Wayland: 使用 D-Bus Screenshot portal 作为 overlay 背景")
             return portal_img
@@ -1301,16 +940,16 @@ class ScreenCaptureOverlay(QWidget):
         # 因此完全跳过 grabWindow，直接走 CLI 工具 → D-Bus portal 链路。
         if pixmap.isNull() and _is_wayland:
             # 1) 命令行截图工具（区域截图）
-            cli_img = _linux_cli_screenshot_region(global_x, global_y, width, height, preferred_tool=self.screenshot_tool)
+            cli_img = linux_cli_screenshot_region(global_x, global_y, width, height, preferred_tool=self.screenshot_tool)
             if cli_img is not None and not cli_img.isNull():
                 pixmap = QPixmap.fromImage(cli_img)
-                print(f"[Overlay] Wayland: 使用 CLI 截图工具 ({_find_linux_screenshot_tool(preferred=self.screenshot_tool)})")
+                print(f"[Overlay] Wayland: 使用 CLI 截图工具 ({find_screenshot_tool(preferred=self.screenshot_tool)})")
             else:
                 print("[Overlay] Wayland CLI 截图失败，尝试 D-Bus portal...")
 
             # 2) D-Bus Screenshot portal（跨合成器通用方案）
             if pixmap.isNull():
-                wayland_img = _wayland_screenshot_via_portal()
+                wayland_img = wayland_screenshot_via_portal()
                 if wayland_img is not None and not wayland_img.isNull():
                     screen_geo = screen.geometry()
                     sx, sy = screen_geo.x(), screen_geo.y()
@@ -1350,10 +989,10 @@ class ScreenCaptureOverlay(QWidget):
 
         # X11 通用 CLI fallback
         if pixmap.isNull() and not _is_wayland and os.name != "nt":
-            cli_img = _linux_cli_screenshot_region(global_x, global_y, width, height, preferred_tool=self.screenshot_tool)
+            cli_img = linux_cli_screenshot_region(global_x, global_y, width, height, preferred_tool=self.screenshot_tool)
             if cli_img is not None and not cli_img.isNull():
                 pixmap = QPixmap.fromImage(cli_img)
-                print(f"[Overlay] Linux: 使用 CLI 截图工具 ({_find_linux_screenshot_tool(preferred=self.screenshot_tool)})")
+                print(f"[Overlay] Linux: 使用 CLI 截图工具 ({find_screenshot_tool(preferred=self.screenshot_tool)})")
             else:
                 print("[Overlay] Linux CLI 截图也失败")
 

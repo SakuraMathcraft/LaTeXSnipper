@@ -35,6 +35,11 @@ from bootstrap.deps_state import (
     sanitize_state_layers as _sanitize_state_layers_impl,
     save_json as _save_json,
 )
+from cross_platform.screenshot_tools import (
+    get_screenshot_tools,
+    install_screenshot_tools,
+    uninstall_screenshot_tools,
+)
 
 _LAST_ENSURE_DEPS_FORCE_ENTER = False
 
@@ -167,7 +172,6 @@ class InstallWorker(QThread):
                 return pkg_spec
 
             # 过滤系统包（#system: 前缀），这些不走 pip 安装
-            system_pkgs = [p for p in self.pkgs if p.startswith("#system:")]
             pip_pkgs = [p for p in self.pkgs if not p.startswith("#system:")]
 
             pending = []
@@ -309,7 +313,7 @@ class InstallWorker(QThread):
             screenshot_ok = True
             if want_screenshot and os.name != "nt":
                 self.log_updated.emit("[SCREENSHOT] 正在安装 Linux 截图工具...")
-                screenshot_ok = _install_screenshot_tools(self.log_updated.emit)
+                screenshot_ok = install_screenshot_tools(self.log_updated.emit)
                 if screenshot_ok:
                     self.log_updated.emit("[SCREENSHOT] 截图工具安装完成 ✅")
                 else:
@@ -505,7 +509,7 @@ class UninstallLayerWorker(QThread):
         # SCREENSHOT 层卸载：使用包管理器卸载所有截图工具
         if self.layer_name == "SCREENSHOT" and os.name != "nt":
             self.log_updated.emit("[SCREENSHOT] 正在卸载截图工具...")
-            _uninstall_screenshot_tools(log_fn=self.log_updated.emit)
+            uninstall_screenshot_tools(log_fn=self.log_updated.emit)
 
         try:
             data = {"installed_layers": []}
@@ -1221,261 +1225,6 @@ def _pandoc_data_dir() -> Path:
         base = cwd
     target = base / "deps" / "pandoc"
     return target
-
-
-# ---------------------------------------------------------------------------
-# Linux 截图工具（系统包）安装/卸载/验证
-# ---------------------------------------------------------------------------
-
-# 所有支持的截图工具及其对应的 apt 包名
-_SCREENSHOT_TOOL_PACKAGES: dict[str, str] = {
-    "maim": "maim",
-    "grim": "grim",
-    "scrot": "scrot",
-    "import": "imagemagick",          # ImageMagick 提供 import 命令
-    "gnome-screenshot": "gnome-screenshot",
-    "flameshot": "flameshot",
-    "spectacle": "spectacle",
-}
-
-
-def _get_screenshot_tools() -> list[str]:
-    """返回当前桌面环境推荐的截图工具列表（按优先级排序）。"""
-    is_wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
-    if is_wayland:
-        return ["grim", "gnome-screenshot", "flameshot", "spectacle", "maim", "scrot", "import"]
-    return ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]
-
-
-def _is_any_screenshot_tool_installed() -> bool:
-    """检查是否有任一截图工具已安装。"""
-    import shutil as _shutil
-    for tool in _SCREENSHOT_TOOL_PACKAGES:
-        if _shutil.which(tool):
-            return True
-    return False
-
-
-def _list_installed_screenshot_tools() -> list[str]:
-    """列出当前已安装的截图工具。"""
-    import shutil as _shutil
-    return [t for t in _SCREENSHOT_TOOL_PACKAGES if _shutil.which(t)]
-
-
-def _detect_package_manager() -> str | None:
-    """检测可用的系统包管理器。"""
-    import shutil as _shutil
-    for pm in ("apt-get", "dnf", "yum", "pacman", "zypper"):
-        if _shutil.which(pm):
-            return pm
-    return None
-
-
-def _build_install_cmd(package_manager: str, pkg_name: str) -> list[str]:
-    """构建安装命令。"""
-    if package_manager in ("apt-get", "apt"):
-        return [package_manager, "install", "-y", pkg_name]
-    elif package_manager in ("dnf", "yum"):
-        return [package_manager, "install", "-y", pkg_name]
-    elif package_manager == "pacman":
-        return [package_manager, "-S", "--noconfirm", pkg_name]
-    elif package_manager == "zypper":
-        return [package_manager, "install", "-y", pkg_name]
-    return []
-
-
-def _build_uninstall_cmd(package_manager: str, pkg_name: str) -> list[str]:
-    """构建卸载命令。"""
-    if package_manager in ("apt-get", "apt"):
-        return [package_manager, "remove", "-y", pkg_name]
-    elif package_manager in ("dnf", "yum"):
-        return [package_manager, "remove", "-y", pkg_name]
-    elif package_manager == "pacman":
-        return [package_manager, "-R", "--noconfirm", pkg_name]
-    elif package_manager == "zypper":
-        return [package_manager, "remove", "-y", pkg_name]
-    return []
-
-
-def _run_with_privilege(cmd: list[str], log_fn=None) -> bool:
-    """尝试使用多种提权方式运行命令。
-
-    顺序：sudo → 直接运行。
-    Returns: 命令是否成功。
-    """
-    import shutil as _shutil
-
-    # 1) sudo（终端交互）
-    if _shutil.which("sudo"):
-        try:
-            env = os.environ.copy()
-            env.setdefault("DEBIAN_FRONTEND", "noninteractive")
-            result = subprocess.run(
-                ["sudo"] + cmd, capture_output=True, text=True, timeout=120, env=env,
-            )
-            if result.returncode == 0:
-                if log_fn:
-                    log_fn(f"[SCREENSHOT] sudo 执行成功: {' '.join(cmd[:3])}")
-                return True
-        except Exception:
-            pass
-
-    # 2) 直接运行（可能已经 root）
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            if log_fn:
-                log_fn(f"[SCREENSHOT] 直接执行成功: {' '.join(cmd[:3])}")
-            return True
-    except Exception:
-        pass
-
-    return False
-
-
-def _install_screenshot_tools(log_fn=None) -> bool:
-    """安装 Linux 截图工具。
-
-    按优先级尝试安装各截图工具，至少安装成功一个即视为成功。
-    支持 apt-get/dnf/pacman/zypper 等包管理器。
-    """
-    if _is_any_screenshot_tool_installed():
-        installed = _list_installed_screenshot_tools()
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 已有可用工具: {', '.join(installed)}，跳过安装")
-        return True
-
-    pm = _detect_package_manager()
-    if not pm:
-        if log_fn:
-            log_fn("[SCREENSHOT] 未找到系统包管理器，请手动安装截图工具")
-            log_fn("[SCREENSHOT] 推荐: sudo apt install maim grim flameshot")
-        return False
-
-    if log_fn:
-        log_fn(f"[SCREENSHOT] 包管理器: {pm}，按优先级尝试安装截图工具...")
-
-    tools = _get_screenshot_tools()
-    installed_any = False
-
-    for tool in tools:
-        pkg = _SCREENSHOT_TOOL_PACKAGES.get(tool)
-        if not pkg:
-            continue
-
-        # 检查是否已通过之前的步骤安装
-        import shutil as _shutil
-        if _shutil.which(tool):
-            installed_any = True
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 已就绪 ✓")
-            continue
-
-        cmd = _build_install_cmd(pm, pkg)
-        if not cmd:
-            continue
-
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 尝试安装 {tool} (包: {pkg})...")
-
-        if _run_with_privilege(cmd, log_fn=log_fn):
-            if _shutil.which(tool):
-                installed_any = True
-                if log_fn:
-                    log_fn(f"[SCREENSHOT] {tool} 安装成功 ✅")
-                continue
-
-        if log_fn:
-            log_fn(f"[SCREENSHOT] {tool} 安装失败，尝试下一个...")
-
-    if installed_any:
-        if log_fn:
-            log_fn("[SCREENSHOT] 截图工具安装完成 ✅")
-        return True
-
-    # 终极回退：在终端窗口中安装
-    if log_fn:
-        log_fn("[SCREENSHOT] 所有自动安装方式均失败，尝试终端安装...")
-    for terminal in ("x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "lxterminal", "xterm"):
-        term = _shutil.which(terminal)
-        if not term:
-            continue
-        pkgs = " ".join(_SCREENSHOT_TOOL_PACKAGES.get(t, t) for t in tools[:3])
-        try:
-            subprocess.run(
-                [term, "-e", f"sudo {pm} install -y {pkgs}; echo '按 Enter 关闭...'; read"],
-                timeout=180,
-            )
-            if _is_any_screenshot_tool_installed():
-                if log_fn:
-                    log_fn(f"[SCREENSHOT] 截图工具安装完成 ✅ (终端)")
-                return True
-            break
-        except Exception:
-            continue
-
-    if log_fn:
-        log_fn("[SCREENSHOT] 截图工具安装失败，请手动安装:")
-        log_fn(f"[SCREENSHOT]   sudo {pm} install maim grim flameshot imagemagick")
-    return False
-
-
-def _uninstall_screenshot_tools(log_fn=None) -> bool:
-    """卸载所有通过系统包管理器安装的截图工具。
-
-    注意：使用 sudo 可能需要用户授权。如果某个工具卸载失败，继续尝试下一个。
-    """
-    installed = _list_installed_screenshot_tools()
-    if not installed:
-        if log_fn:
-            log_fn("[SCREENSHOT] 未检测到截图工具，跳过卸载")
-        return True
-
-    pm = _detect_package_manager()
-    if not pm:
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 未找到包管理器，请手动卸载: {', '.join(installed)}")
-        return False
-
-    if log_fn:
-        log_fn(f"[SCREENSHOT] 将卸载以下截图工具: {', '.join(installed)}")
-
-    all_ok = True
-    for tool in installed:
-        pkg = _SCREENSHOT_TOOL_PACKAGES.get(tool, tool)
-        cmd = _build_uninstall_cmd(pm, pkg)
-        if not cmd:
-            continue
-
-        if log_fn:
-            log_fn(f"[SCREENSHOT] 正在卸载 {tool} (包: {pkg})...")
-
-        if _run_with_privilege(cmd, log_fn=log_fn):
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 已卸载 ✅")
-        else:
-            all_ok = False
-            if log_fn:
-                log_fn(f"[SCREENSHOT] {tool} 卸载失败，请手动执行: sudo {pm} remove {pkg}")
-
-    if all_ok:
-        if log_fn:
-            log_fn("[SCREENSHOT] 截图工具卸载完成 ✅")
-    else:
-        if log_fn:
-            log_fn("[SCREENSHOT] 部分工具卸载失败（可能需要 sudo 权限）")
-
-    return all_ok
-
-
-def _verify_screenshot_layer(pyexe: str, timeout: int = 10) -> tuple[bool, str]:
-    """验证 SCREENSHOT 层：检查是否有截图工具可用。"""
-    if os.name == "nt":
-        return True, ""  # Windows 上不需要
-    if _is_any_screenshot_tool_installed():
-        installed = _list_installed_screenshot_tools()
-        return True, f"可用工具: {', '.join(installed)}"
-    return False, "未安装截图工具，请通过依赖向导安装 SCREENSHOT 层"
 
 
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
@@ -2692,7 +2441,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         lay.addLayout(row)
         # SCREENSHOT 层添加说明
         if layer == "SCREENSHOT":
-            tools = ", ".join(_get_screenshot_tools()[:4])
+            tools = ", ".join(get_screenshot_tools()[:4])
             hint_text = f"     安装 {tools} 等命令行截图工具（提升 Linux 截图质量）"
             hint = QLabel(hint_text)
             hint.setStyleSheet(f"color:{theme['muted']};font-size:11px;margin:0 0 4px 0;")

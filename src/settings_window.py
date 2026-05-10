@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal,pyqtSlot, QTimer, QEvent, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
@@ -1325,7 +1325,7 @@ class SettingsWindow(QDialog):
         threading.Thread(target=worker, args=(latex_path, engine), daemon=True).start()
         return True
 
-    def _on_latex_path_test_done(self, ok: bool, title: str, message: str, engine: str, tested_path: str):
+    def _on_latex_path_test_done(self, ok: bool, title: str, message: str, _engine: str, tested_path: str):
         self._latex_test_in_progress = False
         if ok:
             self.btn_test_latex.setText("✓ 已验证")
