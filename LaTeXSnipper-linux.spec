@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import PyQt6
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files
 
 # Workaround for deep import graph
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
@@ -169,7 +169,7 @@ if ASSETS_DIR.exists():
     extra_datas.append((str(ASSETS_DIR), "assets"))
     print("[SPEC] include assets")
 
-# advanced_cas.py (用作 CAS worker)
+# advanced_cas.py is loaded by the CAS worker.
 ADV_CAS = SRC / "editor" / "advanced_cas.py"
 if ADV_CAS.exists():
     extra_datas.append((str(ADV_CAS), "editor"))
@@ -341,11 +341,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,             # Linux 上不适用 .ico
+    icon=None,
 )
 
 # ---------------------------------------------------------------------------
-# COLLECT (onedir 输出)
+# COLLECT
 # ---------------------------------------------------------------------------
 coll = COLLECT(
     exe,

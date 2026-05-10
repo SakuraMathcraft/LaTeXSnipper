@@ -53,6 +53,7 @@ jobs:
             "scripts\build_deb.sh",
             "scripts\build_deb_offline.sh",
             "scripts\build_macos.sh",
+            "scripts\package_common.sh",
             "packaging\debian\DEBIAN\control"
           )
           foreach ($path in $required) {
@@ -67,6 +68,29 @@ jobs:
             }
             if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
               throw "Inno script must use the repository Simplified Chinese language file: $iss"
+            }
+          }
+          $release = Get-Content -LiteralPath ".github\workflows\release.yml" -Raw
+          foreach ($job in @("build-windows-installer", "build-linux-deb", "build-macos-app", "publish-release-assets")) {
+            if ($release -notmatch "(?m)^  ${job}:") {
+              throw "Release workflow is missing job: $job"
+            }
+          }
+          foreach ($path in @(
+            "scripts\build_deb.sh",
+            "scripts\build_deb_offline.sh",
+            "scripts\build_macos.sh",
+            "scripts\package_common.sh",
+            "requirements-linux.txt",
+            "requirements-macos.txt",
+            "packaging\debian\DEBIAN\postinst",
+            "packaging\debian\DEBIAN\postrm",
+            "packaging\debian\DEBIAN\prerm"
+          )) {
+            $content = Get-Content -LiteralPath $path -Raw
+            $nonAscii = $content.ToCharArray() | Where-Object { [int]$_ -gt 127 } | Select-Object -First 1
+            if ($null -ne $nonAscii) {
+              throw "Packaging script/config must stay ASCII-only: $path"
             }
           }
 

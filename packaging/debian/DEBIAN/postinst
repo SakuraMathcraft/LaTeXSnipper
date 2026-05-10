@@ -1,58 +1,34 @@
 #!/bin/bash
 set -e
 
-# ============================================
-# LaTeXSnipper post-installation script
-# ============================================
-
 case "$1" in
     configure)
-        echo "Setting up LaTeXSnipper..."
-
-        # 确保主程序可执行
         if [[ -f /usr/lib/latexsnipper/LaTeXSnipper ]]; then
             chmod 755 /usr/lib/latexsnipper/LaTeXSnipper
         fi
-
-        # 确保 QtWebEngineProcess 可执行
-        QWEP=$(find /usr/lib/latexsnipper -name QtWebEngineProcess -type f 2>/dev/null | head -1)
-        if [[ -n "$QWEP" ]]; then
-            chmod 755 "$QWEP"
+        if [[ -f /usr/lib/latexsnipper-offline/LaTeXSnipperOffline ]]; then
+            chmod 755 /usr/lib/latexsnipper-offline/LaTeXSnipperOffline
         fi
 
-        # 更新桌面数据库
+        qwebengine_process=$(find /usr/lib/latexsnipper /usr/lib/latexsnipper-offline -name QtWebEngineProcess -type f 2>/dev/null | head -1 || true)
+        if [[ -n "$qwebengine_process" ]]; then
+            chmod 755 "$qwebengine_process"
+        fi
+
         if command -v update-desktop-database >/dev/null 2>&1; then
             update-desktop-database -q /usr/share/applications || true
         fi
-
-        # 更新图标缓存
         if command -v gtk-update-icon-cache >/dev/null 2>&1; then
             gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
         fi
-
-        # 更新 MIME 数据库
         if command -v update-mime-database >/dev/null 2>&1; then
             update-mime-database /usr/share/mime || true
         fi
 
-        echo ""
-        echo "============================================"
-        echo " LaTeXSnipper ${2} 安装完成！"
-        echo ""
-        echo " 启动方式:"
-        echo "   - 终端运行: latexsnipper"
-        echo "   - 应用菜单搜索: LaTeXSnipper"
-        echo ""
-        echo " 截图依赖 (如未安装请手动安装):"
-        echo "   - Wayland: sudo apt install grim"
-        echo "   - X11:     sudo apt install maim"
-        echo "============================================"
+        echo "LaTeXSnipper installed. Run it with: latexsnipper"
         ;;
-
     abort-upgrade|abort-remove|abort-deconfigure)
-        # 无需操作
         ;;
-
     *)
         echo "postinst called with unknown argument: $1" >&2
         ;;

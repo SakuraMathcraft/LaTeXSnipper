@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import PyQt6
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files
 
 # Workaround for deep import graph
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
@@ -374,7 +374,7 @@ app_bundle = BUNDLE(
         "CFBundleIdentifier": "com.mathcraft.latexsnipper",
         "CFBundleVersion": "2.3.2",
         "CFBundleShortVersionString": "2.3.2",
-        "NSHumanReadableCopyright": "© 2026 Mathcraft",
+        "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
         "CFBundleDocumentTypes": [],
         "LSMinimumSystemVersion": "11.0",
     },

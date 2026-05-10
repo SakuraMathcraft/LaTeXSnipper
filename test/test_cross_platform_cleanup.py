@@ -48,12 +48,12 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
         ROOT / "scripts" / "build_deb.sh",
         ROOT / "scripts" / "build_deb_offline.sh",
         ROOT / "scripts" / "build_macos.sh",
+        ROOT / "scripts" / "package_common.sh",
     )
-    for path in script_paths:
-        source = path.read_text(encoding="utf-8")
-        assert 'PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"' in source
-        assert 'PYTHON311_DIR="$PROJECT_ROOT/python311"' not in source
-        assert "grep -oP" not in source
+    sources = "\n".join(path.read_text(encoding="utf-8") for path in script_paths)
+    assert "src/deps/python311" in sources
+    assert "PROJECT_ROOT/python311" not in sources
+    assert "grep -oP" not in sources
 
     macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
     assert 'else ROOT / "src" / "deps"' in macos_spec

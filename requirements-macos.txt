@@ -1,13 +1,10 @@
-# macOS-specific dependencies for LaTeXSnipper
-# These are OPTIONAL additions to requirements.txt
+# macOS-specific dependencies for LaTeXSnipper.
+# These are optional additions to requirements.txt.
 
-# Global hotkey support (requires Accessibility permission)
+# Global hotkey support. The app may need Accessibility permission.
 pynput>=1.7.6
 
-# ==================== 系统工具（非 pip 安装）====================
-# macOS 截图：使用系统内置 screencapture 命令，无需额外安装
-# macOS LaTeX 渲染：
-#   brew install --cask mactex           # 或安装 BasicTeX: brew install --cask basictex
-#   pdflatex 路径: /Library/TeX/texbin/pdflatex
-# macOS pandoc（可选，导出功能需要）:
-#   brew install pandoc
+# The screenshot fallback uses the built-in screencapture command.
+# Optional external tools:
+#   LaTeX renderer: MacTeX or BasicTeX
+#   Pandoc export backend: pandoc

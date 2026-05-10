@@ -1,16 +1,11 @@
-# Linux-specific dependencies for LaTeXSnipper
-# These are OPTIONAL additions to requirements.txt
+# Linux-specific dependencies for LaTeXSnipper.
+# These are optional additions to requirements.txt.
 
-# Global hotkey support (X11 recommended; limited Wayland support)
+# Global hotkey support. X11 works best; Wayland support is limited by desktop
+# environment permissions.
 pynput>=1.7.6
 
-# Optional: better Wayland global hotkey support via D-Bus
-# dasbus>=1.7
-
-# ==================== 系统工具（非 pip 安装）====================
-# Linux 截图 CLI 工具：用于替代 Qt grabWindow 截图（不包含光标/遮罩）
-# 按显示服务器选择，安装其中一个即可：
-#   Wayland:  sudo apt install grim       # 推荐：Wayland 原生截图
-#   X11:      sudo apt install maim       # 推荐：不捕获鼠标光标
-#   X11 备选: sudo apt install scrot       # 轻量
-#   X11 备选: sudo apt install imagemagick  # 提供 import 命令
+# Optional runtime screenshot tools are detected by the app but not installed by
+# the dependency wizard:
+#   Wayland: grim
+#   X11: maim or gnome-screenshot

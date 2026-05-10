@@ -236,6 +236,15 @@ Linux/macOS build scripts prepare their isolated build runtime under
 `src/deps/python311`. The repository-root `python311` directory is treated as a
 template runtime and must not be mutated by packaging scripts.
 
+GitHub Actions release builds run the platform package jobs in one workflow:
+
+- Windows: Inno installer, signed through SignPath for tag releases.
+- Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
+- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
+
+The Linux offline package script is kept for maintainer builds with local
+MathCraft model files and is not part of the default release workflow.
+
 ---
 
 ## Project Structure

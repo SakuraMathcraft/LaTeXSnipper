@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the macOS .app bundle and optional .dmg image.
+# Build a macOS .app bundle and optional .dmg image.
 #
 # Usage:
 #   ./scripts/build_macos.sh [version]
@@ -15,413 +15,124 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$SCRIPT_DIR/package_common.sh"
 
-# ---------------------------------------------------------------------------
-# Resolve architecture
-# ---------------------------------------------------------------------------
-ARCH=$(uname -m)
+[[ "$(uname)" == "Darwin" ]] || die "this script must run on macOS"
+command -v python3 >/dev/null 2>&1 || die "python3 is required"
+
+ARCH="$(uname -m)"
 case "$ARCH" in
-    arm64)
-        ARCH_LABEL="arm64"
-        ;;
-    x86_64)
-        ARCH_LABEL="x86_64"
+    arm64|x86_64)
+        ARCH_LABEL="$ARCH"
         ;;
     *)
-        echo "ERROR: 不支持的架构: $ARCH (需要 arm64 或 x86_64)"
-        exit 1
+        die "unsupported macOS architecture: $ARCH"
         ;;
 esac
 
-echo "检测到架构: ${ARCH} (${ARCH_LABEL})"
-
-# ---------------------------------------------------------------------------
-# Resolve version
-# ---------------------------------------------------------------------------
-if [[ $# -ge 1 ]]; then
-    VERSION="$1"
-else
-    VERSION=$(python3 - "$PROJECT_ROOT" <<'PY'
-import pathlib
-import re
-import sys
-import tomllib
-
-root = pathlib.Path(sys.argv[1])
-version_info = root / "version_info.txt"
-if version_info.exists():
-    match = re.search(
-        r"filevers\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)",
-        version_info.read_text(encoding="utf-8", errors="ignore"),
-    )
-    if match:
-        print(".".join(match.groups()))
-        raise SystemExit
-
-pyproject = root / "pyproject.toml"
-if pyproject.exists():
-    print(tomllib.loads(pyproject.read_text(encoding="utf-8")).get("project", {}).get("version", ""))
-PY
-)
-fi
-
+VERSION="$(resolve_project_version "$PROJECT_ROOT" "${1:-}")"
 if [[ -z "${VERSION:-}" ]]; then
-    echo "ERROR: 无法确定版本号，请手动指定: $0 <version>"
-    exit 1
+    die "unable to determine version; pass one explicitly: $0 <version>"
 fi
 
-echo "============================================"
-echo " LaTeXSnipper macOS 打包工具"
-echo " 版本: ${VERSION}"
-echo " 架构: ${ARCH_LABEL}"
-echo "============================================"
+echo "LaTeXSnipper macOS package build"
+echo "Version: $VERSION"
+echo "Architecture: $ARCH_LABEL"
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 DIST_DIR="$PROJECT_ROOT/dist"
-DMG_OUTPUT_DIR="$DIST_DIR"
 APP_NAME="LaTeXSnipper"
 APP_BUNDLE="${APP_NAME}.app"
-DMG_NAME="LaTeXSnipper_${VERSION}_${ARCH_LABEL}.dmg"
-DMG_PATH="$DMG_OUTPUT_DIR/$DMG_NAME"
+DMG_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.dmg"
+APP_ZIP_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.app.zip"
 BUILD_WORK_DIR="$PROJECT_ROOT/build/pyinstaller_macos"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-macos.spec"
-
-# ---------------------------------------------------------------------------
-# Step 0: build dependency checks
-# ---------------------------------------------------------------------------
-echo ""
-echo "[0/6] 检查构建依赖..."
-
-if [[ "$(uname)" != "Darwin" ]]; then
-    echo "ERROR: 此脚本只能在 macOS 上运行"
-    exit 1
-fi
-
-if ! command -v python3 &>/dev/null; then
-    echo "ERROR: 需要 Python 3.10+"
-    exit 1
-fi
-
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-echo "  Python 版本: $PYTHON_VERSION"
-
-PYINSTALLER_AVAILABLE=true
-if ! python3 -c "import PyInstaller" &>/dev/null; then
-    echo "WARNING: PyInstaller 未安装，将尝试安装..."
-    PYINSTALLER_AVAILABLE=false
-fi
-
-# create-dmg is optional.
-CREATE_DMG_AVAILABLE=false
-if command -v create-dmg &>/dev/null; then
-    CREATE_DMG_AVAILABLE=true
-    echo "  create-dmg: 已安装 ✓"
-else
-    echo "  create-dmg: 未安装（将跳过 .dmg 生成，仅输出 .app）"
-    echo "  安装方法: brew install create-dmg"
-fi
-
-# Check app icon.
 ICNS_PATH="$PROJECT_ROOT/src/assets/icon.icns"
-if [[ -f "$ICNS_PATH" ]]; then
-    echo "  图标文件: icon.icns ✓"
-else
-    echo "  ⚠ 图标文件: icon.icns 未找到"
-    echo "    请将 icon.ico 转换为 icon.icns 放到 src/assets/"
-    echo "    转换方法:"
-    echo "      1. 用 Preview.app 打开 icon.ico"
-    echo "      2. 导出为 PNG (1024x1024)"
-    echo "      3. mkdir icon.iconset"
-    echo "      4. sips -z 16 16 icon.png --out icon.iconset/icon_16x16.png"
-    echo "         ... (生成所有尺寸)"
-    echo "      5. iconutil -c icns icon.iconset -o src/assets/icon.icns"
+
+log_step "0/6" "Checking build tools"
+[[ -f "$SPEC_FILE" ]] || die "missing spec file: $SPEC_FILE"
+if [[ ! -f "$ICNS_PATH" ]]; then
+    echo "warning: icon.icns was not found; the app will use the default icon"
 fi
 
-# ---------------------------------------------------------------------------
-# Step 0.5: prepare isolated Python runtime
-# ---------------------------------------------------------------------------
-echo ""
-echo "[0.5/6] 准备内嵌 Python 3.11 运行时..."
+log_step "1/6" "Preparing isolated Python runtime"
+BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
+install_python_requirements \
+    "$BUILD_PYTHON" \
+    "$PROJECT_ROOT/requirements.txt" \
+    "$PROJECT_ROOT/requirements-macos.txt"
 
-PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"
-mkdir -p "$(dirname "$PYTHON311_DIR")"
+log_step "2/6" "Cleaning previous outputs"
+rm -rf "$BUILD_WORK_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"
 
-NEED_REBUILD=false
-if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
-elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
-    NEED_REBUILD=true
-else
-    if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
-        NEED_REBUILD=true
-    fi
-fi
-
-if $NEED_REBUILD; then
-    echo "  重新创建内嵌 Python 3.11 运行时..."
-    rm -rf "$PYTHON311_DIR"
-
-    # Use --copies so the packaged runtime does not depend on host symlinks.
-    if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
-        echo "  ✓ 已通过 venv --copies 创建 python311"
-    else
-        echo "  WARNING: venv --copies 失败，尝试手动复制系统 Python..."
-
-        SYSTEM_PYTHON3=$(command -v python3)
-        SYSTEM_PYTHON3_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')
-        SYSTEM_PYTHON3_DYLOAD=$(python3 -c 'import sysconfig; print(sysconfig.get_path("platstdlib"))')
-
-        mkdir -p "$PYTHON311_DIR/bin"
-        cp "$SYSTEM_PYTHON3" "$PYTHON311_DIR/bin/python3"
-        chmod 755 "$PYTHON311_DIR/bin/python3"
-
-        if [[ -d "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$PYTHON311_DIR/lib"
-            cp -a "$SYSTEM_PYTHON3_LIB" "$PYTHON311_DIR/lib/"
-        fi
-        if [[ -d "$SYSTEM_PYTHON3_DYLOAD" ]] && [[ "$SYSTEM_PYTHON3_DYLOAD" != "$SYSTEM_PYTHON3_LIB" ]]; then
-            mkdir -p "$(dirname "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")")"
-            cp -a "$SYSTEM_PYTHON3_DYLOAD" "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")"
-        fi
-        echo "  ✓ 已通过手动复制创建 python311"
-    fi
-
-    # Ensure pip is available.
-    if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
-        echo "  ✓ pip 已就绪"
-    else
-        echo "  WARNING: ensurepip 不可用，将在运行时安装 pip"
-    fi
-else
-    echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
-fi
-
-# Install project dependencies into the isolated runtime.
-echo "  安装项目依赖到内嵌 Python..."
-"$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
-
-REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
-if [[ -f "$REQUIREMENTS_FILE" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
-        echo "  WARNING: 部分 requirements.txt 依赖安装失败，继续构建..."
-    }
-    echo "  ✓ requirements.txt 依赖已安装"
-fi
-
-REQUIREMENTS_MACOS="$PROJECT_ROOT/requirements-macos.txt"
-if [[ -f "$REQUIREMENTS_MACOS" ]]; then
-    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_MACOS" -q 2>/dev/null || {
-        echo "  WARNING: 部分 requirements-macos.txt 依赖安装失败，继续构建..."
-    }
-    echo "  ✓ requirements-macos.txt 依赖已安装"
-fi
-
-# Install PyInstaller into the isolated runtime.
-"$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
-    echo "  WARNING: PyInstaller 安装到内嵌 Python 失败，将使用系统 pip"
-}
-echo "  ✓ 内嵌 Python 运行时准备完成"
-
-# Use the isolated runtime for the build.
-BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
-
-# ---------------------------------------------------------------------------
-# Step 1: prepare PyInstaller.
-# ---------------------------------------------------------------------------
-echo ""
-echo "[1/6] 准备 PyInstaller..."
-
-if ! "$BUILD_PYTHON" -c "import PyInstaller" &>/dev/null; then
-    "$BUILD_PYTHON" -m pip install pyinstaller>=6
-    echo "  ✓ PyInstaller 安装完成"
-else
-    echo "  ✓ PyInstaller 已可用"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 2: clean previous build outputs.
-# ---------------------------------------------------------------------------
-echo ""
-echo "[2/6] 清理旧构建..."
-
-rm -rf "$BUILD_WORK_DIR" 2>/dev/null || true
-rm -rf "$DIST_DIR/$APP_NAME" 2>/dev/null || true
-rm -rf "$DIST_DIR/$APP_BUNDLE" 2>/dev/null || true
-
-echo "  ✓ 清理完成"
-
-# ---------------------------------------------------------------------------
-# Step 3: PyInstaller build.
-# ---------------------------------------------------------------------------
-echo ""
-echo "[3/6] PyInstaller 构建 LaTeXSnipper..."
-
-if [[ ! -f "$SPEC_FILE" ]]; then
-    echo "ERROR: 找不到 spec 文件: $SPEC_FILE"
-    exit 1
-fi
-
+log_step "3/6" "Running PyInstaller"
 cd "$PROJECT_ROOT"
-echo "  运行: $BUILD_PYTHON -m PyInstaller LaTeXSnipper-macos.spec"
 "$BUILD_PYTHON" -m PyInstaller \
     --distpath "$DIST_DIR" \
     --workpath "$BUILD_WORK_DIR" \
     --noconfirm \
     "$SPEC_FILE"
 
-echo "  ✓ PyInstaller 构建完成"
-
-# ---------------------------------------------------------------------------
-# Step 4: validate the .app bundle.
-# ---------------------------------------------------------------------------
-echo ""
-echo "[4/6] 验证 .app bundle..."
-
-# PyInstaller may place the app bundle directly under dist or inside a subdir.
+log_step "4/6" "Validating app bundle"
 if [[ -d "$DIST_DIR/$APP_BUNDLE" ]]; then
     APP_PATH="$DIST_DIR/$APP_BUNDLE"
 elif [[ -d "$DIST_DIR/$APP_NAME/$APP_BUNDLE" ]]; then
     APP_PATH="$DIST_DIR/$APP_NAME/$APP_BUNDLE"
 else
-    # Search for an app bundle as a fallback.
-    APP_PATH=$(find "$DIST_DIR" -maxdepth 3 -name "*.app" -type d 2>/dev/null | head -1)
-    if [[ -z "$APP_PATH" ]]; then
-        echo "ERROR: 找不到生成的 .app bundle"
-        echo "  dist/ 目录内容:"
-        ls -la "$DIST_DIR/" 2>/dev/null || echo "  (dist/ 不存在)"
-        exit 1
-    fi
+    APP_PATH="$(find "$DIST_DIR" -maxdepth 3 -name "*.app" -type d 2>/dev/null | head -1)"
 fi
 
-echo "  App bundle: $APP_PATH"
+[[ -n "${APP_PATH:-}" && -d "$APP_PATH" ]] || die "generated .app bundle was not found"
+[[ -f "$APP_PATH/Contents/MacOS/$APP_NAME" ]] || die "missing app executable: $APP_PATH/Contents/MacOS/$APP_NAME"
 
-# Check the main executable.
-APP_EXE="$APP_PATH/Contents/MacOS/$APP_NAME"
-if [[ ! -f "$APP_EXE" ]]; then
-    echo "ERROR: 找不到可执行文件: $APP_EXE"
-    ls -la "$APP_PATH/Contents/MacOS/" 2>/dev/null
-    exit 1
-fi
-
-echo "  可执行文件: $APP_EXE"
-echo "  ✓ App bundle 验证通过"
-
-# ---------------------------------------------------------------------------
-# Step 5: optional code signing.
-# ---------------------------------------------------------------------------
-echo ""
-echo "[5/6] 代码签名..."
-
+log_step "5/6" "Signing app bundle"
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 if [[ -n "$SIGN_IDENTITY" ]]; then
-    echo "  签名身份: $SIGN_IDENTITY"
-
-    # 签名所有 .dylib 和 framework
-    echo "  签名内部组件..."
-    find "$APP_PATH" -name "*.dylib" -type f 2>/dev/null | while read -r lib; do
-        codesign --force --options runtime --sign "$SIGN_IDENTITY" "$lib" 2>/dev/null || true
-    done
-
-    find "$APP_PATH" -name "*.framework" -type d 2>/dev/null | while read -r fw; do
-        codesign --force --options runtime --sign "$SIGN_IDENTITY" "$fw" 2>/dev/null || true
-    done
-
-    # 签名主 bundle
-    codesign --force --options runtime --deep --sign "$SIGN_IDENTITY" "$APP_PATH" 2>/dev/null
-    echo "  ✓ 代码签名完成"
-
-    # 验证签名
-    codesign --verify --verbose "$APP_PATH" 2>&1 || echo "  ⚠ 签名验证有警告（可能不影响使用）"
+    find "$APP_PATH" -name "*.dylib" -type f -print0 | xargs -0 -I{} codesign --force --options runtime --sign "$SIGN_IDENTITY" "{}" || true
+    find "$APP_PATH" -name "*.framework" -type d -print0 | xargs -0 -I{} codesign --force --options runtime --sign "$SIGN_IDENTITY" "{}" || true
+    codesign --force --options runtime --deep --sign "$SIGN_IDENTITY" "$APP_PATH"
+    codesign --verify --verbose "$APP_PATH"
 else
-    echo "  未设置 CODESIGN_IDENTITY，跳过代码签名"
-    echo "  用户首次打开时需右键 → 打开 来绕过 Gatekeeper"
-    echo "  如需签名，请设置: export CODESIGN_IDENTITY='Developer ID Application: ...'"
+    echo "No CODESIGN_IDENTITY set; building unsigned app."
 fi
 
-# ---------------------------------------------------------------------------
-# 步骤 6: 公证（可选，需要 Apple Developer 账号）
-# ---------------------------------------------------------------------------
-NOTARIZE="${NOTARIZE:-0}"
-if [[ "$NOTARIZE" == "1" && -n "${APPLE_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
-    echo ""
-    echo "  提交公证..."
-
-    # 先打包为 zip 用于公证
-    ZIP_PATH="$DIST_DIR/${APP_NAME}_notarize.zip"
-    ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
-
-    xcrun notarytool submit "$ZIP_PATH" \
+if [[ "${NOTARIZE:-0}" == "1" ]]; then
+    [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]] || die "notarization requires APPLE_ID, APPLE_APP_PASSWORD, and APPLE_TEAM_ID"
+    NOTARIZE_ZIP="$DIST_DIR/${APP_NAME}_notarize.zip"
+    ditto -c -k --keepParent "$APP_PATH" "$NOTARIZE_ZIP"
+    xcrun notarytool submit "$NOTARIZE_ZIP" \
         --apple-id "$APPLE_ID" \
         --password "$APPLE_APP_PASSWORD" \
         --team-id "$APPLE_TEAM_ID" \
         --wait
-
-    rm -f "$ZIP_PATH"
-
-    # 装订票据
+    rm -f "$NOTARIZE_ZIP"
     xcrun stapler staple "$APP_PATH"
-    echo "  ✓ 公证完成"
-elif [[ "$NOTARIZE" == "1" ]]; then
-    echo "  ⚠ 公证已启用但缺少环境变量 (APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID)"
 fi
 
-# ---------------------------------------------------------------------------
-# 步骤 7: 生成 DMG（可选）
-# ---------------------------------------------------------------------------
-echo ""
-echo "[6/6] 生成 DMG..."
+log_step "6/6" "Packaging app artifacts"
+ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
 
-if $CREATE_DMG_AVAILABLE; then
-    mkdir -p "$DMG_OUTPUT_DIR"
-
-    # 删除旧 DMG
-    rm -f "$DMG_PATH"
-
-    create-dmg \
-        --volname "LaTeXSnipper ${VERSION}" \
-        --volicon "$ICNS_PATH" \
-        --window-pos 200 120 \
-        --window-size 600 400 \
-        --icon-size 100 \
-        --icon "$APP_NAME.app" 150 190 \
-        --hide-extension "$APP_NAME.app" \
-        --app-drop-link 450 185 \
-        "$DMG_PATH" \
+if command -v create-dmg >/dev/null 2>&1; then
+    CREATE_DMG_ARGS=(
+        --volname "LaTeXSnipper ${VERSION}"
+        --window-pos 200 120
+        --window-size 600 400
+        --icon-size 100
+        --icon "$APP_NAME.app" 150 190
+        --hide-extension "$APP_NAME.app"
+        --app-drop-link 450 185
+        "$DMG_PATH"
         "$(dirname "$APP_PATH")"
-
-    echo ""
-    echo "============================================"
-    echo " ✅ 打包完成！"
-    echo ""
-    echo " DMG: $DMG_PATH"
-    echo " App: $APP_PATH"
-    echo " 文件大小: $(du -h "$DMG_PATH" | cut -f1)"
-    echo ""
-    echo " 安装方法:"
-    echo "   双击 $DMG_NAME 并将 LaTeXSnipper.app 拖到 Applications 文件夹"
-    echo ""
-    if [[ -z "$SIGN_IDENTITY" ]]; then
-        echo " ⚠ 未签名：首次打开请右键 → 打开"
+    )
+    if [[ -f "$ICNS_PATH" ]]; then
+        CREATE_DMG_ARGS=(--volicon "$ICNS_PATH" "${CREATE_DMG_ARGS[@]}")
     fi
-    echo "============================================"
-else
-    echo ""
-    echo "============================================"
-    echo " ✅ App bundle 构建完成！（未生成 DMG）"
-    echo ""
-    echo " App: $APP_PATH"
-    echo ""
-    echo " 安装方法:"
-    echo "   将 LaTeXSnipper.app 拖到 Applications 文件夹"
-    echo ""
-    echo " 生成 DMG（可选）:"
-    echo "   brew install create-dmg"
-    echo "   $0 $VERSION"
-    echo ""
-    if [[ -z "$SIGN_IDENTITY" ]]; then
-        echo " ⚠ 未签名：首次打开请右键 → 打开"
-    fi
-    echo "============================================"
+    create-dmg "${CREATE_DMG_ARGS[@]}"
 fi
+
+ARTIFACTS=("$APP_ZIP_PATH")
+[[ -f "$DMG_PATH" ]] && ARTIFACTS+=("$DMG_PATH")
+write_sha256_file "$DIST_DIR/SHA256SUMS-macos.txt" "${ARTIFACTS[@]}"
+
+echo ""
+echo "macOS artifacts:"
+printf '  %s\n' "${ARTIFACTS[@]}"
