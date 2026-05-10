@@ -359,10 +359,23 @@ exe = EXE(
 )
 
 # ---------------------------------------------------------------------------
+# COLLECT
+# ---------------------------------------------------------------------------
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name=APP_NAME,
+)
+
+# ---------------------------------------------------------------------------
 # BUNDLE
 # ---------------------------------------------------------------------------
 app_bundle = BUNDLE(
-    exe,
+    coll,
     name=APP_NAME + ".app",
     icon=str(SRC / "assets" / "icon.icns") if (SRC / "assets" / "icon.icns").exists() else None,
     bundle_identifier="com.mathcraft.latexsnipper",
