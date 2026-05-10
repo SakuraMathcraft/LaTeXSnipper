@@ -1,22 +1,12 @@
 #!/bin/bash
-# ===========================================================================
-# LaTeXSnipper Debian/Ubuntu .deb 构建脚本
-# 用法: ./scripts/build_deb.sh [版本号]
-# 示例: ./scripts/build_deb.sh 2.3.2
+# Build a Debian/Ubuntu .deb package.
 #
-# 前提条件:
-#   - Python 3.10+ 及所有 requirements-linux.txt 依赖
-#   - PyInstaller (通过 pip 安装)
-#   - dpkg-deb (Debian/Ubuntu 自带)
-#构建流程:
-#   1. 使用 PyInstaller 构建 LaTeXSnipper 二进制
-#   2. 复制构建产物到 deb 包目录结构
-#   3. 设置文件权限
-#   4. 更新 control 文件中的版本号和安装大小
-#   5. 使用 dpkg-deb 构建 .deb 包
-#支持变量:
-#   - VERSION: 版本号 (可选，默认从 version_info.txt 提取)
-# ===========================================================================
+# Usage:
+#   ./scripts/build_deb.sh [version]
+#
+# The script prepares an isolated build Python under src/deps/python311, runs
+# PyInstaller, copies the onedir output into packaging/debian, updates package
+# metadata, and builds the final .deb with dpkg-deb.
 
 set -euo pipefail
 
@@ -24,16 +14,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ---------------------------------------------------------------------------
-# 解析版本号
+# Resolve version
 # ---------------------------------------------------------------------------
 if [[ $# -ge 1 ]]; then
     VERSION="$1"
 else
-    # 从 version_info.txt 提取
-    VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
-        | head -1 \
-        | tr -d ' ' \
-        | tr ',' '.')
+    VERSION=$(python3 - "$PROJECT_ROOT" <<'PY'
+import pathlib
+import re
+import sys
+import tomllib
+
+root = pathlib.Path(sys.argv[1])
+version_info = root / "version_info.txt"
+if version_info.exists():
+    match = re.search(
+        r"filevers\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)",
+        version_info.read_text(encoding="utf-8", errors="ignore"),
+    )
+    if match:
+        print(".".join(match.groups()))
+        raise SystemExit
+
+pyproject = root / "pyproject.toml"
+if pyproject.exists():
+    print(tomllib.loads(pyproject.read_text(encoding="utf-8")).get("project", {}).get("version", ""))
+PY
+)
 fi
 
 if [[ -z "${VERSION:-}" ]]; then
@@ -47,7 +54,7 @@ echo " 版本: ${VERSION}"
 echo "============================================"
 
 # ---------------------------------------------------------------------------
-# 目录定义
+# Paths
 # ---------------------------------------------------------------------------
 PACKAGING_DIR="$PROJECT_ROOT/packaging/debian"
 DEB_OUTPUT_DIR="$PROJECT_ROOT/dist"
@@ -57,7 +64,7 @@ BUILD_DIR="$PROJECT_ROOT/build/generated/LaTeXSnipper-linux"
 DIST_DIR="$PROJECT_ROOT/dist/LaTeXSnipper"
 
 # ---------------------------------------------------------------------------
-# 步骤 0: 检查依赖
+# Step 0: build dependency checks
 # ---------------------------------------------------------------------------
 echo ""
 echo "[0/5] 检查构建依赖..."
@@ -74,21 +81,22 @@ if ! python3 -c "import PyInstaller" &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# Step 0.5: prepare isolated Python runtime
 # ---------------------------------------------------------------------------
 echo ""
 echo "[0.5/5] 准备内嵌 Python 3.11 运行时..."
 
-PYTHON311_DIR="$PROJECT_ROOT/python311"
+PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"
+mkdir -p "$(dirname "$PYTHON311_DIR")"
 
-# 检查是否已有有效的 python311（非损坏的符号链接）
+# Rebuild broken or symlink-based runtimes.
 NEED_REBUILD=false
 if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
     NEED_REBUILD=true
 elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
     NEED_REBUILD=true
 else
-    # 验证能否运行
+    # Verify that the runtime starts.
     if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
         NEED_REBUILD=true
     fi
@@ -98,7 +106,7 @@ if $NEED_REBUILD; then
     echo "  重新创建内嵌 Python 3.11 运行时..."
     rm -rf "$PYTHON311_DIR"
 
-    # 使用系统 python3 创建 venv（--copies 复制而非符号链接）
+    # Use --copies so the packaged runtime does not depend on host symlinks.
     if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
         echo "  ✓ 已通过 venv --copies 创建 python311"
     else
@@ -124,7 +132,7 @@ if $NEED_REBUILD; then
         echo "  ✓ 已通过手动复制创建 python311"
     fi
 
-    # 确保 pip 可用
+    # Ensure pip is available.
     if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
         echo "  ✓ pip 已就绪"
     else
@@ -134,7 +142,7 @@ else
     echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
 fi
 
-# 安装项目依赖到内嵌 Python
+# Install project dependencies into the isolated runtime.
 echo "  安装项目依赖到内嵌 Python..."
 "$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
 
@@ -154,14 +162,14 @@ if [[ -f "$REQUIREMENTS_LINUX" ]]; then
     echo "  ✓ requirements-linux.txt 依赖已安装"
 fi
 
-# PyInstaller 安装到内嵌 Python
+# Install PyInstaller into the isolated runtime.
 "$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
     echo "  WARNING: PyInstaller 安装到内嵌 Python 失败"
     exit 1
 }
 echo "  ✓ 内嵌 Python 运行时准备完成"
 
-# 后续步骤使用内嵌 Python
+# Use the isolated runtime for the build.
 BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
 
 # ---------------------------------------------------------------------------

@@ -1,27 +1,11 @@
 #!/bin/bash
-# ===========================================================================
-# LaTeXSnipper Debian/Ubuntu .deb 离线构建脚本
-# 用法: ./scripts/build_deb_offline.sh [版本号]
-# 示例: ./scripts/build_deb_offline.sh 2.3.2
+# Build the offline Debian/Ubuntu .deb package.
 #
-# 与普通版本的区别:
-#   - 使用 LaTeXSnipper-linux-offline.spec (内嵌 MathCraft 模型)
-#   - 包名为 latexsnipper-offline
-#   - 无需联网即可使用 MathCraft OCR 功能
+# Usage:
+#   ./scripts/build_deb_offline.sh [version]
 #
-# 前提条件:
-#   - Python 3.10+ 及所有 requirements-linux.txt 依赖
-#   - PyInstaller (通过 pip 安装)
-#   - dpkg-deb (Debian/Ubuntu 自带)
-#   - MathCraft 模型文件 (放在 MathCraft/models/ 或通过 MATHCRAFT_MODELS_ROOT 指定)
-#
-# 构建流程:
-#   1. 使用 PyInstaller 构建 LaTeXSnipper 离线二进制 (内嵌模型)
-#   2. 复制构建产物到 deb 包目录结构
-#   3. 设置文件权限
-#   4. 更新 control 文件中的包名、版本号和安装大小
-#   5. 使用 dpkg-deb 构建 .deb 包
-# ===========================================================================
+# This variant uses LaTeXSnipper-linux-offline.spec and bundles MathCraft model
+# files from MathCraft/models or MATHCRAFT_MODELS_ROOT.
 
 set -euo pipefail
 
@@ -29,15 +13,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ---------------------------------------------------------------------------
-# 解析版本号
+# Resolve version
 # ---------------------------------------------------------------------------
 if [[ $# -ge 1 ]]; then
     VERSION="$1"
 else
-    VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
-        | head -1 \
-        | tr -d ' ' \
-        | tr ',' '.')
+    VERSION=$(python3 - "$PROJECT_ROOT" <<'PY'
+import pathlib
+import re
+import sys
+import tomllib
+
+root = pathlib.Path(sys.argv[1])
+version_info = root / "version_info.txt"
+if version_info.exists():
+    match = re.search(
+        r"filevers\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)",
+        version_info.read_text(encoding="utf-8", errors="ignore"),
+    )
+    if match:
+        print(".".join(match.groups()))
+        raise SystemExit
+
+pyproject = root / "pyproject.toml"
+if pyproject.exists():
+    print(tomllib.loads(pyproject.read_text(encoding="utf-8")).get("project", {}).get("version", ""))
+PY
+)
 fi
 
 if [[ -z "${VERSION:-}" ]]; then
@@ -51,7 +53,7 @@ echo " 版本: ${VERSION}"
 echo "============================================"
 
 # ---------------------------------------------------------------------------
-# 目录定义
+# Paths
 # ---------------------------------------------------------------------------
 PACKAGING_DIR="$PROJECT_ROOT/packaging/debian"
 DEB_OUTPUT_DIR="$PROJECT_ROOT/dist"
@@ -61,7 +63,7 @@ BUILD_DIR="$PROJECT_ROOT/build/generated/LaTeXSnipperOffline"
 DIST_DIR="$PROJECT_ROOT/dist/LaTeXSnipperOffline"
 
 # ---------------------------------------------------------------------------
-# 步骤 0: 检查构建依赖
+# Step 0: build dependency checks
 # ---------------------------------------------------------------------------
 echo ""
 echo "[0/5] 检查构建依赖..."
@@ -78,7 +80,7 @@ if ! python3 -c "import PyInstaller" &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# 检查 MathCraft 模型
+# Check MathCraft model files
 # ---------------------------------------------------------------------------
 echo ""
 echo "  检查 MathCraft 模型..."
@@ -108,12 +110,13 @@ if ! $MODELS_FOUND; then
 fi
 
 # ---------------------------------------------------------------------------
-# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# Step 0.5: prepare isolated Python runtime
 # ---------------------------------------------------------------------------
 echo ""
 echo "[0.5/5] 准备内嵌 Python 3.11 运行时..."
 
-PYTHON311_DIR="$PROJECT_ROOT/python311"
+PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"
+mkdir -p "$(dirname "$PYTHON311_DIR")"
 
 NEED_REBUILD=false
 if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then

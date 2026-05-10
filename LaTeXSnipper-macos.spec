@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-LaTeXSnipper PyInstaller spec — macOS 版本
+LaTeXSnipper PyInstaller spec for macOS.
 
-构建命令:
+Build:
     pyinstaller LaTeXSnipper-macos.spec
 """
 
@@ -19,7 +19,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 
 # ---------------------------------------------------------------------------
-# 项目路径
+# Project paths
 # ---------------------------------------------------------------------------
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
@@ -38,7 +38,7 @@ print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
 print(f"[SPEC] output name: {APP_NAME}")
 
 # ---------------------------------------------------------------------------
-# 生成 distribution channel 文件
+# Generate distribution channel metadata
 # ---------------------------------------------------------------------------
 generated_root = ROOT / "build" / "generated"
 generated_root.mkdir(parents=True, exist_ok=True)
@@ -54,7 +54,7 @@ extra_binaries: list[tuple[str, str]] = []
 extra_datas.append((str(distribution_channel_file), "."))
 
 # ---------------------------------------------------------------------------
-# PyQt6 / Qt6 资源
+# PyQt6 / Qt6 resources
 # ---------------------------------------------------------------------------
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
 QT6_DIR = PYQT6_DIR / "Qt6"
@@ -72,20 +72,20 @@ if QT6_LOCALES.exists():
     extra_datas.append((str(QT6_LOCALES), "PyQt6/Qt6/translations/qtwebengine_locales"))
     print("[SPEC] include Qt6 locales")
 
-# WebEngine 进程二进制 — macOS 路径在 framework bundle 内
+# Qt WebEngine process bundle
 qt_webengine_framework = QT6_DIR / "lib" / "QtWebEngineCore.framework"
 if qt_webengine_framework.exists():
     helpers_dir = qt_webengine_framework / "Helpers"
     if helpers_dir.exists():
         extra_datas.append((str(helpers_dir), "PyQt6/Qt6/lib/QtWebEngineCore.framework/Helpers"))
         print("[SPEC] include QtWebEngineCore Helpers")
-    # QtWebEngineProcess.app 路径
+    # QtWebEngineProcess.app path
     process_app = helpers_dir / "QtWebEngineProcess.app"
     if process_app.exists():
         extra_datas.append((str(process_app), "PyQt6/Qt6/lib/QtWebEngineCore.framework/Helpers"))
         print("[SPEC] include QtWebEngineProcess.app")
 else:
-    # 备选：检查 Qt6/libexec
+    # Fallback: check Qt6/libexec
     QT6_LIBEXEC = QT6_DIR / "libexec"
     for webengine_bin in [
         QT6_LIBEXEC / "QtWebEngineProcess",
@@ -96,16 +96,16 @@ else:
             print(f"[SPEC] include QtWebEngineProcess: {webengine_bin}")
             break
 
-# Qt 插件
+# Qt plugins
 if QT6_PLUGINS.exists():
     extra_datas.append((str(QT6_PLUGINS), "PyQt6/Qt6/plugins"))
     print("[SPEC] include Qt6 plugins")
 
 # ---------------------------------------------------------------------------
-# 资源树收集帮助函数
+# Data collection helpers
 # ---------------------------------------------------------------------------
 def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """递归收集目录为 PyInstaller datas 元组。"""
+    """Collect a directory tree as PyInstaller datas tuples."""
     out = []
     if not src_root.exists():
         return out
@@ -124,7 +124,7 @@ def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
 
 
 # ---------------------------------------------------------------------------
-# MathCraft OCR 包
+# MathCraft OCR package
 # ---------------------------------------------------------------------------
 MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
 if MATHCRAFT_OCR_SRC.exists():
@@ -142,7 +142,7 @@ def _resolve_mathcraft_models_root() -> Path | None:
 
 
 # ---------------------------------------------------------------------------
-# MathCraft 模型（可选离线打包）
+# Optional MathCraft model bundle
 # ---------------------------------------------------------------------------
 if BUNDLE_MATHCRAFT_MODELS:
     mathcraft_models_root = _resolve_mathcraft_models_root()
@@ -152,14 +152,14 @@ if BUNDLE_MATHCRAFT_MODELS:
     print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
 
 # ---------------------------------------------------------------------------
-# certifi 证书数据
+# certifi certificate bundle
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
 
 # ---------------------------------------------------------------------------
-# 依赖目录中的 python311（如果存在）
+# Optional bundled Python runtime
 # ---------------------------------------------------------------------------
-BUNDLED_DEPS_ROOT = Path(BUNDLED_DEPS_DIR_ENV).expanduser() if BUNDLED_DEPS_DIR_ENV else ROOT
+BUNDLED_DEPS_ROOT = Path(BUNDLED_DEPS_DIR_ENV).expanduser() if BUNDLED_DEPS_DIR_ENV else ROOT / "src" / "deps"
 BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
 if BUNDLED_PY311.exists():
     extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
@@ -170,7 +170,7 @@ if BUNDLED_DEPS_STATE.exists():
     extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
 
 # ---------------------------------------------------------------------------
-# 静态资源
+# Static assets
 # ---------------------------------------------------------------------------
 ASSETS_DIR = SRC / "assets"
 if ASSETS_DIR.exists():
@@ -213,7 +213,7 @@ a = Analysis(
         "qfluentwidgets.components",
         "qframelesswindow",
 
-        # 基础依赖
+        # Base dependencies
         "PIL",
         "PIL.Image",
         "pyperclip",
@@ -227,12 +227,12 @@ a = Analysis(
         "urllib.request",
         "subprocess",
 
-        # macOS 特有 — 全局热键
+        # macOS global hotkeys
         "pynput",
         "pynput.keyboard",
         "pynput.mouse",
 
-        # 子模块
+        # Application submodules
         "editor",
         "editor.workbench_bridge",
         "editor.workbench_window",
@@ -282,7 +282,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # ML 运行时在主进程之外管理
+        # ML runtimes are managed outside the main process
         "transformers",
         "onnxruntime",
         "onnxruntime-gpu",
@@ -321,7 +321,7 @@ a = Analysis(
         "setuptools",
         "pkg_resources",
 
-        # 平台无关排除
+        # Platform-independent exclusions
         "tkinter",
         "unittest",
         "test",
@@ -337,7 +337,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 
 # ---------------------------------------------------------------------------
-# EXE — macOS 无控制台
+# EXE
 # ---------------------------------------------------------------------------
 exe = EXE(
     pyz,
@@ -359,7 +359,7 @@ exe = EXE(
 )
 
 # ---------------------------------------------------------------------------
-# BUNDLE — macOS .app bundle
+# BUNDLE
 # ---------------------------------------------------------------------------
 app_bundle = BUNDLE(
     exe,
@@ -381,10 +381,10 @@ app_bundle = BUNDLE(
 )
 
 # ---------------------------------------------------------------------------
-# 清理构建后产物（macOS 适配）
+# Post-build pruning
 # ---------------------------------------------------------------------------
 def _prune_collect_tree_macos(dist_root: Path):
-    """移除打包后不必要的运行时产物。"""
+    """Remove unneeded runtime payload from the app bundle."""
     if not dist_root.exists():
         return
     remove_names = {"Pythonwin", "setuptools", "google"}

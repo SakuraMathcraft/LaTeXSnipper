@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-LaTeXSnipper PyInstaller spec — Linux 版本
+LaTeXSnipper PyInstaller spec for Linux.
 
-构建命令:
+Build:
     pyinstaller LaTeXSnipper-linux.spec
 """
 
@@ -19,7 +19,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 
 # ---------------------------------------------------------------------------
-# 项目路径
+# Project paths
 # ---------------------------------------------------------------------------
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
@@ -35,7 +35,7 @@ print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
 print(f"[SPEC] output name: {APP_NAME}")
 
 # ---------------------------------------------------------------------------
-# 生成 distribution channel 文件
+# Generate distribution channel metadata
 # ---------------------------------------------------------------------------
 generated_root = ROOT / "build" / "generated"
 generated_root.mkdir(parents=True, exist_ok=True)
@@ -51,12 +51,12 @@ extra_binaries: list[tuple[str, str]] = []
 extra_datas.append((str(distribution_channel_file), "."))
 
 # ---------------------------------------------------------------------------
-# PyQt6 / Qt6 资源
+# PyQt6 / Qt6 resources
 # ---------------------------------------------------------------------------
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
 QT6_DIR = PYQT6_DIR / "Qt6"
 
-# Qt 资源目录
+# Qt resource directories
 QT6_RESOURCES = QT6_DIR / "resources"
 QT6_LOCALES = QT6_DIR / "translations" / "qtwebengine_locales"
 QT6_BIN = QT6_DIR / "bin"
@@ -72,7 +72,7 @@ if QT6_LOCALES.exists():
     extra_datas.append((str(QT6_LOCALES), "PyQt6/Qt6/translations/qtwebengine_locales"))
     print("[SPEC] include Qt6 locales")
 
-# WebEngine 进程二进制（Linux 上路径不同）
+# Qt WebEngine process binary
 for webengine_bin in [
     QT6_LIBEXEC / "QtWebEngineProcess",
     QT6_BIN / "QtWebEngineProcess",
@@ -82,16 +82,16 @@ for webengine_bin in [
         print(f"[SPEC] include QtWebEngineProcess: {webengine_bin}")
         break
 
-# Qt 插件（imageformats, platforms 等）
+# Qt plugins
 if QT6_PLUGINS.exists():
     extra_datas.append((str(QT6_PLUGINS), "PyQt6/Qt6/plugins"))
     print("[SPEC] include Qt6 plugins")
 
 # ---------------------------------------------------------------------------
-# 资源树收集帮助函数
+# Data collection helpers
 # ---------------------------------------------------------------------------
 def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """递归收集目录为 PyInstaller datas 元组。"""
+    """Collect a directory tree as PyInstaller datas tuples."""
     out = []
     if not src_root.exists():
         return out
@@ -110,7 +110,7 @@ def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
 
 
 # ---------------------------------------------------------------------------
-# MathCraft OCR 包
+# MathCraft OCR package
 # ---------------------------------------------------------------------------
 MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
 if MATHCRAFT_OCR_SRC.exists():
@@ -118,7 +118,7 @@ if MATHCRAFT_OCR_SRC.exists():
     print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
 
 # ---------------------------------------------------------------------------
-# MathCraft 模型（可选离线打包）
+# Optional MathCraft model bundle
 # ---------------------------------------------------------------------------
 def _resolve_mathcraft_models_root() -> Path | None:
     """Locate local MathCraft model files for the offline build variant."""
@@ -145,12 +145,12 @@ if BUNDLE_MATHCRAFT_MODELS:
     print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
 
 # ---------------------------------------------------------------------------
-# certifi 证书数据
+# certifi certificate bundle
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
 
 # ---------------------------------------------------------------------------
-# 依赖目录中的 python311（如果存在）
+# Optional bundled Python runtime
 # ---------------------------------------------------------------------------
 BUNDLED_PY311 = ROOT / "src" / "deps" / "python311"
 if BUNDLED_PY311.exists():
@@ -162,7 +162,7 @@ if BUNDLED_DEPS_STATE.exists():
     extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
 
 # ---------------------------------------------------------------------------
-# 静态资源
+# Static assets
 # ---------------------------------------------------------------------------
 ASSETS_DIR = SRC / "assets"
 if ASSETS_DIR.exists():
@@ -198,7 +198,7 @@ a = Analysis(
         "qfluentwidgets.components",
         "qframelesswindow",
 
-        # 基础依赖
+        # Base dependencies
         "PIL",
         "PIL.Image",
         "pyperclip",
@@ -212,7 +212,7 @@ a = Analysis(
         "urllib.request",
         "subprocess",
 
-        # Linux 特有
+        # Linux-specific optional imports
         "pynput",
         "pynput.keyboard",
         "pynput.mouse",
@@ -222,7 +222,7 @@ a = Analysis(
         "gi.repository.GLib",
         "gi.repository.GObject",
 
-        # 子模块
+        # Application submodules
         "editor",
         "editor.workbench_bridge",
         "editor.workbench_window",
@@ -268,7 +268,7 @@ a = Analysis(
         "handwriting.tools",
         "handwriting.types",
 
-        # mathcraft_ocr / rapidocr 所需的动态导入（importlib）
+        # Dynamic imports used by mathcraft_ocr / rapidocr
         "onnxruntime",
         "onnxruntime.capi",
         "onnx",
@@ -289,7 +289,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # 重型 ML 框架（主进程不直接使用）
+        # Heavy ML frameworks managed outside the main process
         "transformers",
         "onnxruntime-gpu",
         "tensorflow",
@@ -307,7 +307,7 @@ a = Analysis(
         "setuptools",
         "pkg_resources",
 
-        # 无用的标准库
+        # Unused standard-library modules
         "tkinter",
         "unittest",
         "test",
@@ -335,7 +335,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,         # GUI 应用，Linux 上无控制台窗口
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -358,10 +358,10 @@ coll = COLLECT(
 )
 
 # ---------------------------------------------------------------------------
-# 清理构建后产物（Linux 适配）
+# Post-build pruning
 # ---------------------------------------------------------------------------
 def _prune_collect_tree_linux(dist_root: Path):
-    """清理最终输出中不必要的文件。"""
+    """Remove unneeded files from the collected output."""
     if not dist_root.exists():
         return
 
@@ -387,4 +387,4 @@ def _prune_collect_tree_linux(dist_root: Path):
 
 _prune_collect_tree_linux(Path(DISTPATH) / APP_NAME / "_internal")
 
-print(f"\n[SPEC] ✅ 构建完成，产物在: {Path(DISTPATH) / APP_NAME}")
+print(f"\n[SPEC] build complete: {Path(DISTPATH) / APP_NAME}")
