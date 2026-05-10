@@ -1,0 +1,79 @@
+#!/bin/bash
+set -e
+
+# ============================================
+# LaTeXSnipper post-removal script
+# 在软件包被移除后执行清理操作
+# ============================================
+
+case "$1" in
+    remove)
+        # 包已移除，但配置文件保留
+        # 清理 desktop 数据库和图标缓存
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime || true
+        fi
+
+        # 确保 /usr/lib/latexsnipper 已清理（dpkg 应自动处理，这里做兜底）
+        if [[ -d /usr/lib/latexsnipper ]]; then
+            echo "清理残留目录: /usr/lib/latexsnipper"
+            rm -rf /usr/lib/latexsnipper
+        fi
+        ;;
+
+    purge)
+        # 完全清除：移除所有配置文件和残留数据
+        echo "正在完全清除 LaTeXSnipper..."
+
+        # 清理 desktop 数据库和图标缓存
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime || true
+        fi
+
+        # 清理 /usr/lib/latexsnipper（兜底）
+        if [[ -d /usr/lib/latexsnipper ]]; then
+            echo "清理残留目录: /usr/lib/latexsnipper"
+            rm -rf /usr/lib/latexsnipper
+        fi
+
+        # 清理可能残留的启动脚本
+        if [[ -L /usr/bin/latexsnipper ]] || [[ -f /usr/bin/latexsnipper ]]; then
+            rm -f /usr/bin/latexsnipper
+        fi
+
+        # 清理用户级缓存和配置（如果有的话）
+        # 注意：这些是每个用户的目录，不能直接删除 /home/* 下的内容
+        # 这里仅作为参考提示
+        echo ""
+        echo "注意：用户级配置文件（如 ~/.config/mathcraft/）未被自动删除。"
+        echo "如需彻底清理，请手动执行："
+        echo "  rm -rf ~/.config/mathcraft/"
+        echo "  rm -rf ~/.cache/mathcraft/"
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # 升级或失败场景，无需额外操作
+        ;;
+
+    *)
+        echo "postrm called with unknown argument: $1" >&2
+        ;;
+esac
+
+exit 0

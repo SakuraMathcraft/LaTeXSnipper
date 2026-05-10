@@ -11,10 +11,10 @@ env/
 # Build
 build/
 dist/
-*.spec
 !LaTeXSnipper.spec
 !LaTeXSnipper.offline.spec
 *.egg-info/
+packaging/debian/usr
 
 # Large binary files
 *.exe
@@ -78,4 +78,4 @@ apps/android-client/android/.idea/
 apps/android-client/*.tsbuildinfo
 src/settings_window.py
 deps/pandoc/pandoc
-packaging/
+
