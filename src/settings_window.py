@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer, QEvent, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent, QThread
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import (QDialog, QLineEdit, QVBoxLayout, QLabel, QHBoxLayout, QWidget, QCheckBox, QScrollArea, QPlainTextEdit)
 from qfluentwidgets import FluentIcon, PushButton, PrimaryPushButton, ComboBox, MessageBox
@@ -597,9 +597,6 @@ class SettingsWindow(QDialog):
         self.external_test_btn.clicked.connect(self._test_external_model_connection)
         self.external_help_btn.clicked.connect(self._show_external_model_help)
         self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
-        # Pandoc 相关信号
-        self.pandoc_detect_btn.clicked.connect(self._detect_pandoc)
-        self.pandoc_install_btn.clicked.connect(self._open_deps_wizard)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
         # 截图工具相关信号
