@@ -120,6 +120,23 @@ if MATHCRAFT_OCR_SRC.exists():
 # ---------------------------------------------------------------------------
 # MathCraft 模型（可选离线打包）
 # ---------------------------------------------------------------------------
+def _resolve_mathcraft_models_root() -> Path | None:
+    """Locate local MathCraft model files for the offline build variant."""
+    env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
+    candidates = []
+    if env_root:
+        candidates.append(Path(env_root))
+    candidates.append(ROOT / "MathCraft" / "models")
+    # Linux: check ~/.MathCraft/models and ~/.mathcraft/models
+    home = Path.home()
+    candidates.append(home / ".MathCraft" / "models")
+    candidates.append(home / ".mathcraft" / "models")
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 if BUNDLE_MATHCRAFT_MODELS:
     mathcraft_models_root = _resolve_mathcraft_models_root()
     if mathcraft_models_root is None:
@@ -250,24 +267,35 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
+
+        # mathcraft_ocr / rapidocr 所需的动态导入（importlib）
+        "onnxruntime",
+        "onnxruntime.capi",
+        "onnx",
+        "shapely",
+        "pyclipper",
+        "omegaconf",
+        "yaml",
+        "cv2",
+        "numpy",
+        "lxml",
+        "fitz",
+        "matplotlib",
+        "latex2mathml",
+        "pydantic_core",
+        "markupsafe",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # ML 运行时在主进程之外管理
+        # 重型 ML 框架（主进程不直接使用）
         "transformers",
-        "onnxruntime",
         "onnxruntime-gpu",
         "tensorflow",
         "keras",
         "scipy",
         "pandas",
-        "numpy",
-        "numpy.distutils",
-        "onnx",
-        "cv2",
-        "rapidocr",
         "google",
         "google.protobuf",
         "aiohttp",
@@ -276,21 +304,6 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
-        "lxml",
-        "fitz",
-        "matplotlib",
-        "latex2mathml",
-        "contourpy",
-        "fontTools",
-        "kiwisolver",
-        "shapely",
-        "pyclipper",
-        "yaml",
-        "markupsafe",
-        "pydantic_core",
-        "regex",
-        "safetensors",
-        "sentencepiece",
         "setuptools",
         "pkg_resources",
 
@@ -355,10 +368,7 @@ def _prune_collect_tree_linux(dist_root: Path):
     remove_names = {"Pythonwin", "setuptools", "google"}
     remove_prefixes = (
         "aiohttp", "frozenlist", "multidict", "propcache", "yarl",
-        "ctranslate2", "cv2", "rapidocr", "numpy", "numpy.libs",
-        "lxml", "fitz", "matplotlib", "latex2mathml",
-        "contourpy", "fontTools", "kiwisolver", "shapely", "pyclipper",
-        "yaml", "markupsafe", "pydantic_core", "regex",
+        "ctranslate2", "regex",
         "safetensors", "sentencepiece",
     )
     for child in dist_root.iterdir():

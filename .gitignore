@@ -66,6 +66,7 @@ release_v*.md
 release*.md
 docs/
 packaging/msix/image/
+packaging/debian/DEBIAN/control
 
 # Android signing
 *.jks

@@ -6433,6 +6433,7 @@ QLineEdit:focus {{
 
     def prepare_restart(self):
         """Called by settings restart flow: close heavy resources and release app lock early."""
+        self._force_exit = True  # 跳过 closeEvent 中的确认对话框
         try:
             self._graceful_shutdown()
         except Exception:
