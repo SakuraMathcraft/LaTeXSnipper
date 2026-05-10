@@ -8,6 +8,14 @@
 #   - Python 3.10+ 及所有 requirements-linux.txt 依赖
 #   - PyInstaller (通过 pip 安装)
 #   - dpkg-deb (Debian/Ubuntu 自带)
+#构建流程:
+#   1. 使用 PyInstaller 构建 LaTeXSnipper 二进制
+#   2. 复制构建产物到 deb 包目录结构
+#   3. 设置文件权限
+#   4. 更新 control 文件中的版本号和安装大小
+#   5. 使用 dpkg-deb 构建 .deb 包
+#支持变量:
+#   - VERSION: 版本号 (可选，默认从 version_info.txt 提取)
 # ===========================================================================
 
 set -euo pipefail
@@ -21,15 +29,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ $# -ge 1 ]]; then
     VERSION="$1"
 else
-    # 从 pyproject.toml 提取版本号 (最可靠)
-    VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' "$PROJECT_ROOT/pyproject.toml" | head -1)
-    if [[ -z "$VERSION" ]]; then
-        # 备选：从 version_info.txt 提取
-        VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
-            | head -1 \
-            | tr -d ' ' \
-            | tr ',' '.')
-    fi
+    # 从 version_info.txt 提取
+    VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
+        | head -1 \
+        | tr -d ' ' \
+        | tr ',' '.')
 fi
 
 if [[ -z "${VERSION:-}" ]]; then

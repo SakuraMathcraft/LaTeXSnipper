@@ -10,6 +10,25 @@
 #   - PyInstaller (通过 pip 安装)
 #   - create-dmg (可选，用于生成 .dmg): brew install create-dmg
 #   - 图标文件: src/assets/icon.icns (从 icon.ico 转换)
+#脚本概览
+#构建流程（6 步）
+#步骤	说明
+#[0/6]	检查依赖：Python 3.10+、PyInstaller、架构检测 (arm64/x86_64)
+#[1/6]	自动安装 PyInstaller（如未安装）
+#[2/6]	清理旧构建产物
+#[3/6]	pyinstaller LaTeXSnipper-macos.spec → 生成 .app
+#[4/6]	验证 .app bundle 结构
+#[5/6]	代码签名（需 CODESIGN_IDENTITY 环境变量，可选）
+#[6/6]	生成 DMG（需 brew install create-dmg，可选）
+#支持的环境变量
+#变量	                                        说明
+#CODESIGN_IDENTITY	                            签名证书名，如 "Developer ID Application: ..."
+#NOTARIZE=1	                                    启用公证
+#APPLE_ID / APPLE_APP_PASSWORD / APPLE_TEAM_ID	公证凭证
+#注意事项
+#图标：还需要将 icon.ico 转为 src/assets/icon.icns（脚本中有转换方法说明）
+#DMG 生成：需要 brew install create-dmg，未安装则只输出 .app
+#未签名时用户首次运行需右键 → 打开绕过 Gatekeeper
 # ===========================================================================
 
 set -euo pipefail
@@ -41,17 +60,15 @@ echo "检测到架构: ${ARCH} (${ARCH_LABEL})"
 # ---------------------------------------------------------------------------
 if [[ $# -ge 1 ]]; then
     VERSION="$1"
-else
-    # 从 pyproject.toml 提取版本号
-    if command -v python3 &>/dev/null; then
-        VERSION=$(python3 -c "
-import tomllib, pathlib
-try:
-    with open('$PROJECT_ROOT/pyproject.toml', 'rb') as f:
-        data = tomllib.load(f)
-    print(data['project']['version'])
-except Exception:
-    pass
+else    # 首选：从 version_info.txt 提取
+    VERSION=$(grep -oP 'filevers=\s*\(\s*\K[0-9]+,\s*[0-9]+,\s*[0-9]+' "$PROJECT_ROOT/version_info.txt" \
+        | head -1 \
+        | tr -d ' ' \
+        | tr ',' '.' 2>/dev/null)
+
+    if [[ -z "${VERSION:-}" ]]; then
+        # 备选：从 pyproject.toml 提取
+        VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' "$PROJECT_ROOT/pyproject.toml" | head -1
 " 2>/dev/null)
     fi
     if [[ -z "${VERSION:-}" ]]; then
