@@ -813,7 +813,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
         if sys.platform == "win32":
             log_fn("[PANDOC] 或运行: winget install JohnMacFarlane.Pandoc")
         elif sys.platform == "linux":
-            log_fn("[PANDOC] 或运行: sudo apt install pandoc / sudo dnf install pandoc")
+            log_fn("[PANDOC] 或通过系统包管理器安装 pandoc")
         elif sys.platform == "darwin":
             log_fn("[PANDOC] 或运行: brew install pandoc")
     if progress_fn:
@@ -3343,10 +3343,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 "未检测到可复用的 Python 环境，且系统中未找到 python3。\n\n"
-                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
-                                "  Fedora:         sudo dnf install python3\n"
-                                "  Arch:           sudo pacman -S python",
+                                "请通过系统包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: apt install python3 python3-venv\n"
+                                "  Fedora:         dnf install python3\n"
+                                "  Arch:           pacman -S python",
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -3600,10 +3600,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 "系统中未找到 python3，无法初始化依赖环境。\n\n"
-                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
-                                "  Fedora:         sudo dnf install python3\n"
-                                "  Arch:           sudo pacman -S python",
+                                "请通过系统包管理器安装 Python 3.10+ 后重试。\n"
+                                "  Debian/Ubuntu: apt install python3 python3-venv\n"
+                                "  Fedora:         dnf install python3\n"
+                                "  Arch:           pacman -S python",
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

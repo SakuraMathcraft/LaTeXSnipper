@@ -79,7 +79,7 @@ fi
 echo ""
 echo "[0.5/5] 准备内嵌 Python 3.11 运行时..."
 
-PYTHON311_DIR="$PROJECT_ROOT/src/deps/python311"
+PYTHON311_DIR="$PROJECT_ROOT/python311"
 
 # 检查是否已有有效的 python311（非损坏的符号链接）
 NEED_REBUILD=false
@@ -134,6 +134,36 @@ else
     echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
 fi
 
+# 安装项目依赖到内嵌 Python
+echo "  安装项目依赖到内嵌 Python..."
+"$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
+
+REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
+if [[ -f "$REQUIREMENTS_FILE" ]]; then
+    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
+        echo "  WARNING: 部分 requirements.txt 依赖安装失败，继续构建..."
+    }
+    echo "  ✓ requirements.txt 依赖已安装"
+fi
+
+REQUIREMENTS_LINUX="$PROJECT_ROOT/requirements-linux.txt"
+if [[ -f "$REQUIREMENTS_LINUX" ]]; then
+    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_LINUX" -q 2>/dev/null || {
+        echo "  WARNING: 部分 requirements-linux.txt 依赖安装失败，继续构建..."
+    }
+    echo "  ✓ requirements-linux.txt 依赖已安装"
+fi
+
+# PyInstaller 安装到内嵌 Python
+"$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
+    echo "  WARNING: PyInstaller 安装到内嵌 Python 失败"
+    exit 1
+}
+echo "  ✓ 内嵌 Python 运行时准备完成"
+
+# 后续步骤使用内嵌 Python
+BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
+
 # ---------------------------------------------------------------------------
 # 步骤 1: PyInstaller 构建
 # ---------------------------------------------------------------------------
@@ -146,17 +176,12 @@ if [[ ! -f "$SPEC_FILE" ]]; then
     exit 1
 fi
 
-# 确保 PyInstaller 可用
-if ! $PYINSTALLER_AVAILABLE; then
-    pip install pyinstaller>=6
-fi
-
 # 清理旧构建
 rm -rf "$BUILD_DIR" "$DIST_DIR" 2>/dev/null || true
 
 cd "$PROJECT_ROOT"
-echo "  运行: pyinstaller LaTeXSnipper-linux.spec"
-python3 -m PyInstaller \
+echo "  运行: $BUILD_PYTHON -m PyInstaller LaTeXSnipper-linux.spec"
+"$BUILD_PYTHON" -m PyInstaller \
     --distpath "$PROJECT_ROOT/dist" \
     --workpath "$PROJECT_ROOT/build/pyinstaller_linux" \
     --noconfirm \

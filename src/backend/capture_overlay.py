@@ -236,11 +236,9 @@ class ScreenCaptureOverlay(QWidget):
 
     def _capture_screen_snapshots(self) -> list[_ScreenSnapshot]:
         snapshots: list[_ScreenSnapshot] = []
-        _is_wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
-
         # Wayland: grabWindow(0) 不可靠（无根窗口），必须用其他方式获取 overlay 背景。
         # 优先级：D-Bus Screenshot portal（跨合成器通用）→ gnome-screenshot → grim（仅 wlroots）
-        if _is_wayland:
+        if is_wayland():
             wayland_bg = wayland_overlay_background()
             if wayland_bg is not None and not wayland_bg.isNull():
                 for i, screen in enumerate(QGuiApplication.screens()):

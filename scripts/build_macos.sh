@@ -152,14 +152,103 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 步骤 1: 安装 PyInstaller（如需要）
+# 步骤 0.5: 准备内嵌 Python 3.11 运行时
+# ---------------------------------------------------------------------------
+echo ""
+echo "[0.5/6] 准备内嵌 Python 3.11 运行时..."
+
+PYTHON311_DIR="$PROJECT_ROOT/python311"
+
+NEED_REBUILD=false
+if [[ ! -f "$PYTHON311_DIR/bin/python3" ]]; then
+    NEED_REBUILD=true
+elif [[ -L "$PYTHON311_DIR/bin/python3" ]]; then
+    NEED_REBUILD=true
+else
+    if ! "$PYTHON311_DIR/bin/python3" -c "print('ok')" &>/dev/null; then
+        NEED_REBUILD=true
+    fi
+fi
+
+if $NEED_REBUILD; then
+    echo "  重新创建内嵌 Python 3.11 运行时..."
+    rm -rf "$PYTHON311_DIR"
+
+    # 使用系统 python3 创建 venv（--copies 复制而非符号链接）
+    if python3 -m venv --copies "$PYTHON311_DIR" 2>/dev/null; then
+        echo "  ✓ 已通过 venv --copies 创建 python311"
+    else
+        echo "  WARNING: venv --copies 失败，尝试手动复制系统 Python..."
+
+        SYSTEM_PYTHON3=$(command -v python3)
+        SYSTEM_PYTHON3_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')
+        SYSTEM_PYTHON3_DYLOAD=$(python3 -c 'import sysconfig; print(sysconfig.get_path("platstdlib"))')
+
+        mkdir -p "$PYTHON311_DIR/bin"
+        cp "$SYSTEM_PYTHON3" "$PYTHON311_DIR/bin/python3"
+        chmod 755 "$PYTHON311_DIR/bin/python3"
+
+        if [[ -d "$SYSTEM_PYTHON3_LIB" ]]; then
+            mkdir -p "$PYTHON311_DIR/lib"
+            cp -a "$SYSTEM_PYTHON3_LIB" "$PYTHON311_DIR/lib/"
+        fi
+        if [[ -d "$SYSTEM_PYTHON3_DYLOAD" ]] && [[ "$SYSTEM_PYTHON3_DYLOAD" != "$SYSTEM_PYTHON3_LIB" ]]; then
+            mkdir -p "$(dirname "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")")"
+            cp -a "$SYSTEM_PYTHON3_DYLOAD" "$PYTHON311_DIR/lib/$(basename "$SYSTEM_PYTHON3_DYLOAD")"
+        fi
+        echo "  ✓ 已通过手动复制创建 python311"
+    fi
+
+    # 确保 pip 可用
+    if "$PYTHON311_DIR/bin/python3" -m ensurepip --upgrade 2>/dev/null; then
+        echo "  ✓ pip 已就绪"
+    else
+        echo "  WARNING: ensurepip 不可用，将在运行时安装 pip"
+    fi
+else
+    echo "  ✓ 内嵌 Python 3.11 已就绪: $PYTHON311_DIR/bin/python3"
+fi
+
+# 安装项目依赖到内嵌 Python
+echo "  安装项目依赖到内嵌 Python..."
+"$PYTHON311_DIR/bin/python3" -m pip install --upgrade pip -q 2>/dev/null || true
+
+REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
+if [[ -f "$REQUIREMENTS_FILE" ]]; then
+    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_FILE" -q 2>/dev/null || {
+        echo "  WARNING: 部分 requirements.txt 依赖安装失败，继续构建..."
+    }
+    echo "  ✓ requirements.txt 依赖已安装"
+fi
+
+REQUIREMENTS_MACOS="$PROJECT_ROOT/requirements-macos.txt"
+if [[ -f "$REQUIREMENTS_MACOS" ]]; then
+    "$PYTHON311_DIR/bin/python3" -m pip install -r "$REQUIREMENTS_MACOS" -q 2>/dev/null || {
+        echo "  WARNING: 部分 requirements-macos.txt 依赖安装失败，继续构建..."
+    }
+    echo "  ✓ requirements-macos.txt 依赖已安装"
+fi
+
+# PyInstaller 也需要安装到内嵌 Python
+"$PYTHON311_DIR/bin/python3" -m pip install pyinstaller>=6 -q 2>/dev/null || {
+    echo "  WARNING: PyInstaller 安装到内嵌 Python 失败，将使用系统 pip"
+}
+echo "  ✓ 内嵌 Python 运行时准备完成"
+
+# 后续步骤使用内嵌 Python
+BUILD_PYTHON="$PYTHON311_DIR/bin/python3"
+
+# ---------------------------------------------------------------------------
+# 步骤 1: 准备 PyInstaller（使用内嵌 Python）
 # ---------------------------------------------------------------------------
 echo ""
 echo "[1/6] 准备 PyInstaller..."
 
-if ! $PYINSTALLER_AVAILABLE; then
-    python3 -m pip install pyinstaller>=6
+if ! "$BUILD_PYTHON" -c "import PyInstaller" &>/dev/null; then
+    "$BUILD_PYTHON" -m pip install pyinstaller>=6
     echo "  ✓ PyInstaller 安装完成"
+else
+    echo "  ✓ PyInstaller 已可用"
 fi
 
 # ---------------------------------------------------------------------------
@@ -186,8 +275,8 @@ if [[ ! -f "$SPEC_FILE" ]]; then
 fi
 
 cd "$PROJECT_ROOT"
-echo "  运行: pyinstaller LaTeXSnipper-macos.spec"
-python3 -m PyInstaller \
+echo "  运行: $BUILD_PYTHON -m PyInstaller LaTeXSnipper-macos.spec"
+"$BUILD_PYTHON" -m PyInstaller \
     --distpath "$DIST_DIR" \
     --workpath "$BUILD_WORK_DIR" \
     --noconfirm \
