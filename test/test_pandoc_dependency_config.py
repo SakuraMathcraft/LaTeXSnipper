@@ -51,3 +51,12 @@ def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy(
     assert "mirror.ghproxy.com" not in source
     assert "pandoc-*.msi" not in source
     assert "pandoc-*-windows-x86_64.msi" not in source
+
+
+def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
+    source = (ROOT / "src" / "settings_window.py").read_text(encoding="utf-8")
+
+    assert "_detect_pandoc" not in source
+    assert "pandoc_detect_btn" not in source
+    assert "pandoc_install_btn" not in source
+    assert "check_pandoc_available" not in source
