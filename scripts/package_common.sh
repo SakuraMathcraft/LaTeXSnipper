@@ -175,9 +175,14 @@ write_sha256_file() {
     local output_file="$1"
     shift
 
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$@" > "$output_file"
-    else
-        shasum -a 256 "$@" > "$output_file"
-    fi
+    : > "$output_file"
+    local artifact hash
+    for artifact in "$@"; do
+        if command -v sha256sum >/dev/null 2>&1; then
+            hash="$(sha256sum "$artifact" | awk '{print $1}')"
+        else
+            hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
+        fi
+        printf '%s  %s\n' "$hash" "$(basename "$artifact")" >> "$output_file"
+    done
 }
