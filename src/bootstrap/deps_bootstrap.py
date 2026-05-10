@@ -784,9 +784,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
             else:
                 log_fn("[PANDOC] 检测到 pandoc 但无法读取版本，尝试更新...")
 
-    # 2. 直接从镜像下载（跨平台，国内可用）
-    #    注：pypandoc.download_pandoc() 在国内网络下几乎不可用
-    #    （GitHub 超时 / msiexec 弹窗），直接跳过。
+    # 2. 依赖向导直接下载跨平台归档，避免 pypandoc 自动安装的网络和交互安装器问题。
     _cleanup_pandoc_leftovers(log_fn)
     if log_fn:
         log_fn("[PANDOC] 从镜像下载 pandoc 二进制...")
@@ -816,13 +814,12 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
 
 
 def _cleanup_pandoc_leftovers(log_fn=None) -> None:
-    """清理 pandoc 相关无用文件：残留 .msi、旧版本二进制、临时文件。
+    """清理 deps/pandoc/ 中不属于当前平台的旧 pandoc 二进制。
 
     对锁定文件会重试 3 次（间隔 0.5s），Windows 上最终回退到重启后删除。
     """
     import time as _time
 
-    cwd = Path.cwd()
     removed_count = 0
 
     def _safe_unlink(filepath: Path, label: str) -> bool:
@@ -861,17 +858,7 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
                 return False
         return False
 
-    # 1. 清理项目根目录下的 .msi 安装包
-    for pattern in ("pandoc-*-windows-x86_64.msi", "pandoc-*.msi"):
-        for msi_path in cwd.glob(pattern):
-            _safe_unlink(msi_path, " MSI")
-
-    # 2. 清理项目根目录下的 .zip / .tar.gz 安装包
-    for pattern in ("pandoc-*.zip", "pandoc-*.tar.gz"):
-        for archive in cwd.glob(pattern):
-            _safe_unlink(archive, "归档")
-
-    # 3. 清理 deps/pandoc/ 中不属于当前平台的旧二进制
+    # 只清理依赖向导自己管理的 deps/pandoc/，不要触碰项目根目录文件。
     pandoc_dir = _pandoc_data_dir()
     if pandoc_dir.is_dir():
         try:
@@ -988,10 +975,9 @@ def _build_pandoc_mirrors() -> list[str]:
     """为当前平台构建镜像 URL 列表。"""
     archive_name, _bin_name, _arc_type = _pandoc_platform_archive()
     return [
-        # 国内镜像优先
-        f"https://mirror.ghproxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
-        f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        # 国内可用镜像优先，测速后会按实际延迟排序。
         f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         # GitHub 官方（国内可能很慢）
         f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
     ]

@@ -43,3 +43,11 @@ def test_pyinstaller_spec_keeps_pandoc_runtime_backend() -> None:
         assert f'"{module_name}"' in hiddenimports.group(1)
         assert f'"{module_name}"' not in excludes.group(1)
         assert f'"{module_name}"' not in prune_prefixes.group(1)
+
+
+def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy() -> None:
+    source = (ROOT / "src" / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
+
+    assert "mirror.ghproxy.com" not in source
+    assert "pandoc-*.msi" not in source
+    assert "pandoc-*-windows-x86_64.msi" not in source
