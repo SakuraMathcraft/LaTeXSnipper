@@ -55,6 +55,10 @@ prepare_python_runtime() {
     if [[ ! -x "$runtime_python" ]]; then
         rebuild=true
     elif [[ -L "$runtime_python" ]]; then
+        # Symlinks point to the system Python and are not self-contained
+        rebuild=true
+    elif head -c 2 "$runtime_python" 2>/dev/null | grep -q '^#!'; then
+        # A previous build may have left a shell wrapper script behind
         rebuild=true
     elif ! "$runtime_python" -c "print('ok')" >/dev/null 2>&1; then
         rebuild=true
@@ -64,22 +68,9 @@ prepare_python_runtime() {
         rm -rf "$runtime_dir"
         python3 -m venv --copies "$runtime_dir" || die "failed to create isolated runtime at $runtime_dir"
 
-        # On Linux/macOS, the copied Python binary retains sys.prefix hardcoded
-        # to the build machine.  Create a wrapper that sets PYTHONHOME so the
-        # runtime is portable across machines.
-        if [[ "$(uname -s)" != "MINGW"* && "$(uname -s)" != "MSYS"* ]]; then
-            local real_python="$runtime_dir/bin/python3"
-            if [[ -f "$real_python" && ! -L "$real_python" ]]; then
-                mv "$real_python" "$runtime_dir/bin/python3.real"
-                cat > "$real_python" <<'PYWRAP'
-#!/bin/sh
-export PYTHONHOME="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$PYTHONHOME/bin/python3.real" "$@"
-PYWRAP
-                chmod +x "$real_python"
-                echo "[runtime] created portable PYTHONHOME wrapper for bundled Python"
-            fi
-        fi
+        # Standard library discovery is handled by pyvenv.cfg so the
+        # copied binary resolves stdlib from the system Python even
+        # though sys.prefix is hardcoded to the build-machine prefix.
     fi
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true

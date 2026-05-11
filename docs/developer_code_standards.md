@@ -23,7 +23,7 @@ path while allowing Linux and macOS support to evolve cleanly.
   installed by the app.
 - The root `python311` directory is a template runtime. Build scripts must not
   write dependencies into it. Build/runtime dependencies belong under
-  `src/deps/python311`.
+  `python311`.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
 - Keep build tools pinned in `requirements-build.txt` unless the PR explicitly
@@ -71,10 +71,10 @@ path while allowing Linux and macOS support to evolve cleanly.
 Run all checks with the project dependency Python:
 
 ```powershell
-.\src\deps\python311\python.exe -m ruff check .
-.\src\deps\python311\python.exe -m pytest test
-.\src\deps\python311\python.exe -m pyright
-.\src\deps\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+.\python311\python.exe -m ruff check .
+.\python311\python.exe -m pytest test
+.\python311\python.exe -m pyright
+.\python311\python.exe -m compileall -q -x "python311" src mathcraft_ocr test
 ```
 
 For packaging changes, also validate the relevant script/spec on the target
