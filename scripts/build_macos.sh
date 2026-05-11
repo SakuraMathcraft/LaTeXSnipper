@@ -58,8 +58,8 @@ log_step "1/6" "Preparing isolated Python runtime"
 BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
 install_python_requirements \
     "$BUILD_PYTHON" \
-    "$PROJECT_ROOT/requirements.txt" \
-    "$PROJECT_ROOT/requirements-macos.txt"
+    "$PROJECT_ROOT/requirements-macos.txt" \
+    "$PROJECT_ROOT/requirements-build.txt"
 
 log_step "2/6" "Cleaning previous outputs"
 rm -rf "$BUILD_WORK_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"
