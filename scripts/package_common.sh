@@ -94,14 +94,19 @@ prepare_python_runtime() {
             done
         fi
 
-        # Remove the pyvenv.cfg home key so the bundled Python resolves its
-        # stdlib relative to itself instead of the build-machine prefix.
-        # This makes the runtime self-contained and satisfies Debian
-        # reproducible-build requirements (no build-machine paths leak).
+        # Remove pyvenv.cfg entirely so the bundled Python resolves its
+        # stdlib relative to itself.  When pyvenv.cfg is absent, Python's
+        # getpath module (3.11+) searches upward from the binary directory
+        # for the stdlib landmark file (lib/python3.X/os.py).  This avoids
+        # both the macOS/BSD sed -i portability problem and the leak of
+        # build-machine paths that would happen if pyvenv.cfg existed
+        # without a home key (Python would fall back to the compiled-in
+        # prefix).  The result satisfies Debian reproducible-build
+        # requirements.
         local pyvenv_cfg="$runtime_dir/pyvenv.cfg"
         if [[ -f "$pyvenv_cfg" ]]; then
-            sed -i '/^home[[:space:]]*=/d' "$pyvenv_cfg"
-            echo "[RUNTIME] removed home key from pyvenv.cfg (self-contained runtime)"
+            rm -f "$pyvenv_cfg"
+            echo "[RUNTIME] removed pyvenv.cfg (self-contained runtime, landmark-based stdlib discovery)"
         fi
     fi
 
