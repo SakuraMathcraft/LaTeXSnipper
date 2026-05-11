@@ -68,9 +68,31 @@ prepare_python_runtime() {
         rm -rf "$runtime_dir"
         python3 -m venv --copies "$runtime_dir" || die "failed to create isolated runtime at $runtime_dir"
 
-        # Standard library discovery is handled by pyvenv.cfg so the
-        # copied binary resolves stdlib from the system Python even
-        # though sys.prefix is hardcoded to the build-machine prefix.
+        # Copy the system stdlib into the isolated runtime so the bundled
+        # Python is self-contained after PyInstaller packaging.  Without
+        # this, venv --copies only copies the binary; the stdlib is still
+        # resolved via pyvenv.cfg which points to the build machine and
+        # does not exist on target machines.  This also satisfies Debian
+        # reproducible-build requirements.
+        local system_python
+        system_python="$(python3 -c 'import sys; print(sys.prefix)')" || true
+        if [[ -n "$system_python" && -d "$system_python/lib" ]]; then
+            local dest_lib="$runtime_dir/lib"
+            mkdir -p "$dest_lib"
+            for d in "$system_python/lib"/python3.*; do
+                if [[ -d "$d" ]]; then
+                    local ver_dir="$(basename "$d")"
+                    local dest_ver="$dest_lib/$ver_dir"
+                    if [[ ! -d "$dest_ver" ]]; then
+                        echo "[RUNTIME] copying stdlib: $d -> $dest_ver"
+                        cp -a "$d" "$dest_ver"
+                        # Remove system site-packages so they don't conflict
+                        # with the isolated pip-installed packages.
+                        rm -rf "$dest_ver/site-packages" 2>/dev/null || true
+                    fi
+                fi
+            done
+        fi
     fi
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true

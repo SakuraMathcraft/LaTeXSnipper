@@ -288,23 +288,39 @@ def bundled_python_env(pyexe: Path) -> dict:
     On Linux/macOS, PyInstaller-bundled Python may have ``sys.prefix``
     hardcoded to the build machine.  ``PYTHONHOME`` overrides this so the
     standard library is found relative to the actual install location.
+
+    The function verifies that the standard library is actually present
+    before setting ``PYTHONHOME``.  If the stdlib is missing, the bundled
+    ``pyvenv.cfg`` fallback is preserved so the interpreter can still start.
     """
     env = os.environ.copy()
     if os.name == "nt":
         return env
 
     pyexe_path = Path(pyexe).resolve()
-    py_home = pyexe_path.parent.parent  # <prefix>/bin/python3 → <prefix>
+    py_home = pyexe_path.parent.parent  # <prefix>/bin/python3 -> <prefix>
     lib_dir = py_home / "lib"
-    if lib_dir.exists():
-        try:
-            has_python_lib = any(
-                (lib_dir / d).is_dir()
-                for d in os.listdir(lib_dir)
-                if d.startswith("python")
-            )
-        except Exception:
-            has_python_lib = False
-        if has_python_lib:
+    if not lib_dir.exists():
+        return env
+
+    try:
+        python_lib_dirs = sorted(
+            [d for d in os.listdir(lib_dir) if d.startswith("python") and (lib_dir / d).is_dir()],
+            reverse=True,
+        )
+    except Exception:
+        return env
+
+    if not python_lib_dirs:
+        return env
+
+    # Verify the stdlib is actually present, not just a hollow site-packages
+    # skeleton left by venv --copies.  The encodings module is loaded during
+    # interpreter startup and is a reliable marker for a complete stdlib.
+    for d in python_lib_dirs:
+        encodings_dir = lib_dir / d / "encodings"
+        if encodings_dir.is_dir():
             env["PYTHONHOME"] = str(py_home)
+            break
+
     return env
