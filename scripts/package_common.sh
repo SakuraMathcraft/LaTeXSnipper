@@ -93,6 +93,16 @@ prepare_python_runtime() {
                 fi
             done
         fi
+
+        # Remove the pyvenv.cfg home key so the bundled Python resolves its
+        # stdlib relative to itself instead of the build-machine prefix.
+        # This makes the runtime self-contained and satisfies Debian
+        # reproducible-build requirements (no build-machine paths leak).
+        local pyvenv_cfg="$runtime_dir/pyvenv.cfg"
+        if [[ -f "$pyvenv_cfg" ]]; then
+            sed -i '/^home[[:space:]]*=/d' "$pyvenv_cfg"
+            echo "[RUNTIME] removed home key from pyvenv.cfg (self-contained runtime)"
+        fi
     fi
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true

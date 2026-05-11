@@ -439,6 +439,7 @@ class PipInstallRunner:
                 [str(pyexe), "-m", "pip", "--version"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=env,
                 creationflags=self.flags,
             )
         except Exception:

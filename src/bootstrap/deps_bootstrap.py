@@ -437,6 +437,7 @@ class UninstallLayerWorker(QThread):
                     check=False,
                     capture_output=True,
                     text=True,
+                    env=_bundled_python_env(self.pyexe),
                     creationflags=flags
                 )
                 output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
@@ -718,6 +719,7 @@ def _force_repair_broken_runtime_imports(
                 capture_output=True,
                 text=True,
                 timeout=240,
+                env=_bundled_python_env(pyexe),
                 creationflags=flags,
             )
             if result.returncode != 0:
@@ -1221,7 +1223,8 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             timeout_sec = 180
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec, creationflags=flags)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec,
+                                    env=_bundled_python_env(pyexe), creationflags=flags)
             if log_fn:
                 if result.returncode == 0:
                     log_fn(f"  [OK] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
@@ -1399,7 +1402,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
         return True, ""
 
     try:
-        env = os.environ.copy()
+        env = _bundled_python_env(pyexe)
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
@@ -1481,7 +1484,7 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
         "print(json.dumps(out, ensure_ascii=False))\n"
     )
     try:
-        env = os.environ.copy()
+        env = _bundled_python_env(pyexe)
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
@@ -1544,6 +1547,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
             [str(pyexe), "-m", "pip", "uninstall", pkg_key, "-y"],
             timeout=timeout,
             check=False,
+            env=_bundled_python_env(pyexe),
             creationflags=flags
         )
         current.pop(pkg_key, None)
@@ -1665,10 +1669,13 @@ def _ensure_pip(main_python: Path) -> bool:
     不再创建/使用 venv。
     """
     import subprocess
+    import tempfile
     import urllib.request
 
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
+
+    pip_env = _bundled_python_env(main_python)
 
     # Verify this looks like a real python executable before bootstrap
     try:
@@ -1698,21 +1705,30 @@ def _ensure_pip(main_python: Path) -> bool:
     # 检测 pip
     try:
         subprocess.check_call([str(main_python), "-m", "pip", "--version"],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              env=pip_env, creationflags=flags)
         pip_ready_event.set()
         return True
     except Exception:
         pass
 
-    # 安装 pip
+    # 安装 pip — 写入可写临时目录，避免打包后 bin/ 只读 (权限不够)
     gp_url = "https://bootstrap.pypa.io/get-pip.py"
-    gp_path = main_python.parent / "get-pip.py"
+    gp_path = Path(tempfile.gettempdir()) / "latexsnipper-get-pip.py"
     urllib.request.urlretrieve(gp_url, gp_path)
-    subprocess.check_call([str(main_python), str(gp_path)], timeout=180, creationflags=flags)
+    try:
+        subprocess.check_call([str(main_python), str(gp_path)], timeout=180,
+                              env=pip_env, creationflags=flags)
+    finally:
+        try:
+            gp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     # 升级三件套
     cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=flags)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                         encoding="utf-8", errors="replace", env=pip_env, creationflags=flags)
     ok = res.returncode == 0
     if ok:
         pip_ready_event.set()

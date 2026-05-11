@@ -292,35 +292,46 @@ def bundled_python_env(pyexe: Path) -> dict:
     The function verifies that the standard library is actually present
     before setting ``PYTHONHOME``.  If the stdlib is missing, the bundled
     ``pyvenv.cfg`` fallback is preserved so the interpreter can still start.
+
+    Also looks for a ``lib/pythonX.Y`` directory one level above the
+    executable (pyexe.parent.parent) to handle custom layouts where the
+    lib/ tree sits alongside the interpreter rather than under a prefix.
     """
     env = os.environ.copy()
     if os.name == "nt":
         return env
 
     pyexe_path = Path(pyexe).resolve()
-    py_home = pyexe_path.parent.parent  # <prefix>/bin/python3 -> <prefix>
-    lib_dir = py_home / "lib"
-    if not lib_dir.exists():
-        return env
+    # Candidate prefixes to search for lib/pythonX.Y/encodings
+    candidates: list[Path] = []
+    # Standard: <prefix>/bin/python3 -> lib/ at <prefix>/lib
+    candidates.append(pyexe_path.parent.parent)
+    # Alternative: lib/ co-located with the python binary itself
+    candidates.append(pyexe_path.parent)
 
+    for py_home in candidates:
+        lib_dir = py_home / "lib"
+        if not lib_dir.exists():
+            continue
+        try:
+            python_lib_dirs = sorted(
+                [d for d in os.listdir(lib_dir) if d.startswith("python") and (lib_dir / d).is_dir()],
+                reverse=True,
+            )
+        except Exception:
+            continue
+        if not python_lib_dirs:
+            continue
+        for d in python_lib_dirs:
+            encodings_dir = lib_dir / d / "encodings"
+            if encodings_dir.is_dir():
+                env["PYTHONHOME"] = str(py_home)
+                return env
+
+    # stdlib not found — log diagnostic for packaging debugging
     try:
-        python_lib_dirs = sorted(
-            [d for d in os.listdir(lib_dir) if d.startswith("python") and (lib_dir / d).is_dir()],
-            reverse=True,
-        )
+        checked = [str(c) for c in candidates]
+        print(f"[DEBUG] bundled_python_env: stdlib not found at candidates {checked}")
     except Exception:
-        return env
-
-    if not python_lib_dirs:
-        return env
-
-    # Verify the stdlib is actually present, not just a hollow site-packages
-    # skeleton left by venv --copies.  The encodings module is loaded during
-    # interpreter startup and is a reliable marker for a complete stdlib.
-    for d in python_lib_dirs:
-        encodings_dir = lib_dir / d / "encodings"
-        if encodings_dir.is_dir():
-            env["PYTHONHOME"] = str(py_home)
-            break
-
+        pass
     return env
