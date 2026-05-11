@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
@@ -11,6 +10,8 @@ import traceback
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Callable
+
+from .deps_python_runtime import bundled_python_env
 
 _safe_run: Callable | None = None
 _subprocess_lock = None
@@ -34,7 +35,7 @@ def _effective_safe_run(safe_run: Callable | None = None) -> Callable | None:
 
 
 def _pip_env(pyexe) -> dict:
-    env = os.environ.copy()
+    env = bundled_python_env(pyexe)
     main_site = Path(pyexe).parent / "Lib" / "site-packages"
     if main_site.exists():
         env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"

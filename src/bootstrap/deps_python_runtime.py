@@ -280,3 +280,31 @@ def normalize_deps_base_dir(selected_dir: Path) -> Path:
     except Exception:
         pass
     return path
+
+
+def bundled_python_env(pyexe: Path) -> dict:
+    """Return an env dict with PYTHONHOME set for a relocated Python binary.
+
+    On Linux/macOS, PyInstaller-bundled Python may have ``sys.prefix``
+    hardcoded to the build machine.  ``PYTHONHOME`` overrides this so the
+    standard library is found relative to the actual install location.
+    """
+    env = os.environ.copy()
+    if os.name == "nt":
+        return env
+
+    pyexe_path = Path(pyexe).resolve()
+    py_home = pyexe_path.parent.parent  # <prefix>/bin/python3 → <prefix>
+    lib_dir = py_home / "lib"
+    if lib_dir.exists():
+        try:
+            has_python_lib = any(
+                (lib_dir / d).is_dir()
+                for d in os.listdir(lib_dir)
+                if d.startswith("python")
+            )
+        except Exception:
+            has_python_lib = False
+        if has_python_lib:
+            env["PYTHONHOME"] = str(py_home)
+    return env

@@ -63,6 +63,23 @@ prepare_python_runtime() {
     if [[ "$rebuild" == "true" ]]; then
         rm -rf "$runtime_dir"
         python3 -m venv --copies "$runtime_dir" || die "failed to create isolated runtime at $runtime_dir"
+
+        # On Linux/macOS, the copied Python binary retains sys.prefix hardcoded
+        # to the build machine.  Create a wrapper that sets PYTHONHOME so the
+        # runtime is portable across machines.
+        if [[ "$(uname -s)" != "MINGW"* && "$(uname -s)" != "MSYS"* ]]; then
+            local real_python="$runtime_dir/bin/python3"
+            if [[ -f "$real_python" && ! -L "$real_python" ]]; then
+                mv "$real_python" "$runtime_dir/bin/python3.real"
+                cat > "$real_python" <<'PYWRAP'
+#!/bin/sh
+export PYTHONHOME="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$PYTHONHOME/bin/python3.real" "$@"
+PYWRAP
+                chmod +x "$real_python"
+                echo "[runtime] created portable PYTHONHOME wrapper for bundled Python"
+            fi
+        fi
     fi
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true

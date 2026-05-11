@@ -17,6 +17,7 @@ from backend.cuda_runtime_policy import (
     onnxruntime_gpu_spec,
 )
 from bootstrap.deps_python_runtime import (
+    bundled_python_env as _bundled_python_env,
     find_existing_python as _find_existing_python,
     find_local_python311_installer as _find_local_python311_installer_impl,
     find_system_python3 as _find_system_python3,
@@ -640,7 +641,7 @@ def _verify_runtime_support_imports(pyexe: str, timeout: int = 30) -> tuple[bool
         "print(json.dumps({'ok': not bad, 'bad': bad}, ensure_ascii=False))\n"
     )
     try:
-        env = os.environ.copy()
+        env = _bundled_python_env(pyexe)
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
@@ -1750,6 +1751,7 @@ def _current_installed(pyexe):
                 out = subprocess.check_output(
                     [str(pyexe), "-c", code],
                     text=True,
+                    env=_bundled_python_env(pyexe),
                     creationflags=flags,
                 )
             payload = (out or "").strip()
@@ -1766,7 +1768,8 @@ def _current_installed(pyexe):
     try:
         with subprocess_lock:
             subprocess.check_call([str(pyexe), "-m", "pip", "--version"],
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  env=_bundled_python_env(pyexe), creationflags=flags)
     except Exception as e:
         print(f"[WARN] pip 不可用，使用元数据回退: {e}")
         return _installed_via_metadata()
@@ -1774,7 +1777,7 @@ def _current_installed(pyexe):
         with subprocess_lock:
             out = subprocess.check_output(
                 [str(pyexe), "-m", "pip", "list", "--disable-pip-version-check", "--format=json"],
-                text=True, creationflags=flags)
+                text=True, env=_bundled_python_env(pyexe), creationflags=flags)
         raw = (out or "").strip()
         data = None
         try:
