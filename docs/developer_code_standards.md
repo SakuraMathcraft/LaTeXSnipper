@@ -24,10 +24,10 @@ path while allowing Linux and macOS support to evolve cleanly.
 - The root `python311` directory is a template runtime. Build scripts must not
   write dependencies into it. Build/runtime dependencies belong under
   `src/deps/python311`.
-- Keep common `requirements.txt` minimal. Put Linux/macOS additions in
-  `requirements-linux.txt` and `requirements-macos.txt`.
-- Keep the Pandoc build wrapper pinned in `requirements-build.txt` unless the
-  PR explicitly updates and verifies the Pandoc packaging flow.
+- Keep common app runtime packages in `requirements.txt`. Platform files may
+  include it and then add Linux/macOS-only packages.
+- Keep build tools pinned in `requirements-build.txt` unless the PR explicitly
+  updates and verifies the packaging flow.
 
 ## Packaging Rules
 

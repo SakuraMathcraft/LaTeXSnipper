@@ -1,5 +1,7 @@
 # macOS-specific dependencies for LaTeXSnipper.
-# These are optional additions to requirements.txt.
+# This file includes the common runtime requirements and can be installed alone.
+
+-r requirements.txt
 
 # Global hotkey support. The app may need Accessibility permission.
 pynput>=1.7.6

@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 
+_PY311_INSTALLER_NAME = "python-3.11.0-amd64.exe"
+
+
 def _linux_site_packages(pyexe: Path) -> Path | None:
     """Search for lib/pythonX.Y/site-packages typical of Linux/macOS venvs."""
     py_dir = pyexe.parent  # e.g. .venv/bin/
@@ -86,25 +89,68 @@ def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | N
         return None
     deps_dir = Path(deps_dir)
     candidates: list[Path] = []
+
+    def add_candidate(path: Path | str | None) -> None:
+        if path is None:
+            return
+        try:
+            candidates.append(Path(path))
+        except Exception:
+            pass
+
+    def add_installer_at(base: Path | str | None) -> None:
+        if base is None:
+            return
+        try:
+            add_candidate(Path(base) / _PY311_INSTALLER_NAME)
+        except Exception:
+            pass
+
+    def add_parent_tree(start: Path | str | None) -> None:
+        if start is None:
+            return
+        try:
+            path = Path(start).resolve()
+        except Exception:
+            try:
+                path = Path(start)
+            except Exception:
+                return
+        if path.is_file():
+            path = path.parent
+        for base in (path, *path.parents):
+            add_installer_at(base)
+            try:
+                if (base / "pyproject.toml").exists() or (base / ".git").exists():
+                    # Keep walking; nested repos or editable checkouts can still
+                    # have another useful parent.
+                    add_installer_at(base)
+            except Exception:
+                pass
+
     try:
-        candidates.append(deps_dir / "python-3.11.0-amd64.exe")
+        add_installer_at(deps_dir)
+        add_parent_tree(deps_dir)
     except Exception:
         pass
     try:
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            candidates.append(Path(sys._MEIPASS) / "python-3.11.0-amd64.exe")
+            meipass = Path(sys._MEIPASS)
+            add_installer_at(meipass)
+            add_installer_at(meipass.parent / "_internal")
+            add_installer_at(meipass.parent)
     except Exception:
         pass
     try:
         exe_dir = Path(sys.executable).resolve().parent
-        candidates.append(exe_dir / "_internal" / "python-3.11.0-amd64.exe")
-        candidates.append(exe_dir / "python-3.11.0-amd64.exe")
+        add_installer_at(exe_dir / "_internal")
+        add_installer_at(exe_dir)
     except Exception:
         pass
-    candidates.extend([
-        Path(module_file).resolve().parent.parent / "python-3.11.0-amd64.exe",
-        Path.cwd() / "python-3.11.0-amd64.exe",
-    ])
+    add_parent_tree(os.environ.get("LATEXSNIPPER_REPO_ROOT"))
+    add_parent_tree(module_file)
+    add_parent_tree(Path.cwd())
+
     seen: set[str] = set()
     for candidate in candidates:
         try:

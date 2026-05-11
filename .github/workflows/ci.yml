@@ -101,6 +101,8 @@ jobs:
             "scripts\build_deb_offline.sh",
             "scripts\build_macos.sh",
             "scripts\package_common.sh",
+            "requirements.txt",
+            "requirements-build.txt",
             "requirements-linux.txt",
             "requirements-macos.txt",
             "packaging\debian\DEBIAN\postinst",

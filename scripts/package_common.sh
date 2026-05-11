@@ -80,7 +80,9 @@ install_python_requirements() {
         fi
     done
 
-    "$runtime_python" -m pip install "pyinstaller>=6"
+    if ! "$runtime_python" -c "import PyInstaller" >/dev/null 2>&1; then
+        "$runtime_python" -m pip install "pyinstaller>=6"
+    fi
 }
 
 find_mathcraft_models_root() {
