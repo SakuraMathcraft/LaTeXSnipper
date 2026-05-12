@@ -89,7 +89,7 @@ prepare_python_runtime() {
                     # built-in modules on machines where the original prefix
                     # does not exist.
                     rm -rf "$dest_ver"
-                    echo "[RUNTIME] copying stdlib: $d -> $dest_ver"
+                    echo "[RUNTIME] copying stdlib: $d -> $dest_ver" >&2
                     cp -a "$d" "$dest_ver"
                     # Remove system site-packages so they don't conflict
                     # with the isolated pip-installed packages.
@@ -125,7 +125,7 @@ for line in lines:
         out.append(line)
 cfg.write_text("\n".join(out) + "\n", encoding="utf-8")
 PY
-            echo "[RUNTIME] updated pyvenv.cfg home=$venv_bin_dir"
+            echo "[RUNTIME] updated pyvenv.cfg home=$venv_bin_dir" >&2
         fi
     fi
 
