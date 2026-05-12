@@ -6,6 +6,8 @@ import importlib
 import os
 import subprocess
 import sys
+import time
+import types
 
 STABLE_GUI_PIP_SPECS = [
     "PyQt6==6.10.0",
@@ -30,7 +32,7 @@ def _gui_dep_version_mismatches() -> list[str]:
     except Exception:
         return []
 
-    mismatches = []
+    mismatches: list[str] = []
     for dist_name, expected in STABLE_GUI_VERSION_PINS.items():
         try:
             actual = metadata.version(dist_name)
@@ -39,13 +41,13 @@ def _gui_dep_version_mismatches() -> list[str]:
         except Exception:
             actual = None
         if actual != expected:
-            shown = actual if actual is not None else "未安装"
-            mismatches.append(f"{dist_name}={shown}，期望 {expected}")
+            shown = actual if actual is not None else "not installed"
+            mismatches.append(f"{dist_name}={shown}, expected {expected}")
     return mismatches
 
 
 def _install_stable_gui_deps(pyexe: str, reason: str) -> None:
-    print(f"[WARN] GUI 依赖需要修复：{reason}")
+    print(f"[WARN] GUI dependencies require repair: {reason}")
     subprocess.check_call([pyexe, "-m", "pip", "install", "--force-reinstall", *STABLE_GUI_PIP_SPECS])
     importlib.invalidate_caches()
 
@@ -53,10 +55,9 @@ def _install_stable_gui_deps(pyexe: str, reason: str) -> None:
 def early_ensure_pyqt6_and_pywin32() -> None:
     pyexe = sys.executable
     exe_name = os.path.basename(pyexe).lower()
-    # Enable early pip self-repair only in source-interpreter mode; packaged executables do not support `-m pip` semantics.
     can_pip_repair = (not getattr(sys, "frozen", False)) and exe_name.startswith("python")
     if not can_pip_repair:
-        print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
+        print("[INFO] Packaged mode or non-python launcher detected; skipping early pip self-repair.")
         return
 
     mismatches = _gui_dep_version_mismatches()
@@ -67,42 +68,41 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         import PyQt6 as _PyQt6
         _ = _PyQt6
     except ImportError:
-        print("[WARN] 未检测到 PyQt6，尝试自动安装...")
-        _install_stable_gui_deps(pyexe, "PyQt6 未安装")
+        print("[WARN] PyQt6 is missing; attempting automatic installation.")
+        _install_stable_gui_deps(pyexe, "PyQt6 is missing")
         importlib.invalidate_caches()
         import PyQt6 as _PyQt6
         _ = _PyQt6
-        print("[OK] PyQt6 安装成功。")
+        print("[OK] PyQt6 installed.")
     else:
         try:
             from PyQt6 import QtWebEngineWidgets as _QtWebEngineWidgets
             _ = _QtWebEngineWidgets
         except Exception:
-            print("[WARN] 未检测到 PyQt6-WebEngine，尝试自动安装...")
-            _install_stable_gui_deps(pyexe, "PyQt6-WebEngine 未安装")
+            print("[WARN] PyQt6-WebEngine is missing; attempting automatic installation.")
+            _install_stable_gui_deps(pyexe, "PyQt6-WebEngine is missing")
             importlib.invalidate_caches()
 
     try:
         import qfluentwidgets as _qfluentwidgets
         _ = _qfluentwidgets
     except ImportError:
-        print("[WARN] 未检测到 PyQt6-Fluent-Widgets，尝试自动安装...")
-        _install_stable_gui_deps(pyexe, "PyQt6-Fluent-Widgets 未安装")
+        print("[WARN] PyQt6-Fluent-Widgets is missing; attempting automatic installation.")
+        _install_stable_gui_deps(pyexe, "PyQt6-Fluent-Widgets is missing")
         importlib.invalidate_caches()
         import qfluentwidgets as _qfluentwidgets
         _ = _qfluentwidgets
-        print("[OK] PyQt6-Fluent-Widgets 安装成功。")
+        print("[OK] PyQt6-Fluent-Widgets installed.")
 
     if os.name == "nt":
         try:
             import win32api as _win32api
             _ = _win32api
         except ImportError:
-            print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
+            print("[WARN] win32api is missing; attempting pywin32 installation.")
             subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
             importlib.invalidate_caches()
-            print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
-            import time
+            print("[OK] pywin32 installed. Restart the app to complete initialization.")
             time.sleep(2)
             sys.exit(0)
 
@@ -110,19 +110,18 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         import pyperclip as _pyperclip
         _ = _pyperclip
     except ImportError:
-        print("[WARN] 未检测到 pyperclip，尝试自动安装...")
+        print("[WARN] pyperclip is missing; attempting automatic installation.")
         try:
             subprocess.check_call([pyexe, "-m", "pip", "install", "pyperclip"])
             importlib.invalidate_caches()
             import pyperclip as _pyperclip
             _ = _pyperclip
-            print("[OK] pyperclip 安装成功。")
-        except Exception as e:
-            print(f"[WARN] pyperclip 自动安装失败: {e}")
-            import types
+            print("[OK] pyperclip installed.")
+        except Exception as exc:
+            print(f"[WARN] pyperclip automatic installation failed: {exc}")
 
             def _copy_stub(_text):
-                print("[WARN] pyperclip 不可用，无法复制到剪贴板。")
+                print("[WARN] pyperclip is unavailable; clipboard copy is disabled.")
 
             sys.modules.setdefault("pyperclip", types.SimpleNamespace(copy=_copy_stub))
 
@@ -130,18 +129,17 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         import requests as _requests
         _ = _requests
     except ImportError:
-        print("[WARN] 未检测到 requests，尝试自动安装...")
+        print("[WARN] requests is missing; attempting automatic installation.")
         try:
             subprocess.check_call([pyexe, "-m", "pip", "install", "requests"])
             importlib.invalidate_caches()
             import requests as _requests
             _ = _requests
-            print("[OK] requests 安装成功。")
-        except Exception as e:
-            print(f"[WARN] requests 自动安装失败: {e}")
-            import types
+            print("[OK] requests installed.")
+        except Exception as exc:
+            print(f"[WARN] requests automatic installation failed: {exc}")
 
             def _requests_stub(*_args, **_kwargs):
-                raise RuntimeError("requests 不可用，更新检查已禁用。")
+                raise RuntimeError("requests is unavailable; update checks are disabled.")
 
             sys.modules.setdefault("requests", types.SimpleNamespace(get=_requests_stub, post=_requests_stub))
