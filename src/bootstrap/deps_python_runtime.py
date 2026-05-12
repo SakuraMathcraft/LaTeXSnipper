@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -194,6 +195,22 @@ def find_system_python3() -> Path | None:
     return None
 
 
+def is_usable_python(pyexe: Path) -> bool:
+    """Return whether a Python executable can start with its own standard library."""
+    try:
+        if not pyexe.exists() or not pyexe.is_file():
+            return False
+        proc = subprocess.run(
+            [str(pyexe), "-c", "import encodings, sys; print(sys.version_info[:2])"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
 def iter_python_candidates(base_dir: Path) -> list[Path]:
     """Return likely python executable candidates inside the selected dependency directory."""
     base_dir = Path(base_dir)
@@ -250,7 +267,7 @@ def find_existing_python(base_dir: Path) -> Path | None:
     """Reuse any existing python.exe inside the selected dependency directory."""
     for candidate in iter_python_candidates(base_dir):
         try:
-            if candidate.exists():
+            if candidate.exists() and is_usable_python(candidate):
                 return candidate
         except Exception:
             continue

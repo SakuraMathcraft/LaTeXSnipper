@@ -992,36 +992,16 @@ class SettingsWindow(QDialog):
         return path.parent if path.parent != path else path
     @staticmethod
     def _find_install_base_python(base_dir: Path) -> Path | None:
-        base_dir = Path(base_dir)
-        candidates = [
-            base_dir / "python.exe",
-            base_dir / "Scripts" / "python.exe",
-            base_dir / "python311" / "python.exe",
-            base_dir / "python311" / "Scripts" / "python.exe",
-            base_dir / "Python311" / "python.exe",
-            base_dir / "Python311" / "Scripts" / "python.exe",
-            base_dir / "venv" / "Scripts" / "python.exe",
-            base_dir / ".venv" / "Scripts" / "python.exe",
-            base_dir / "python_full" / "python.exe",
-        ]
         try:
-            for child in sorted(base_dir.glob("python*")):
-                if child.is_dir():
-                    candidates.append(child / "python.exe")
-                    candidates.append(child / "Scripts" / "python.exe")
+            from bootstrap.deps_python_runtime import find_existing_python
+
+            return find_existing_python(Path(base_dir))
         except Exception:
-            pass
-        for candidate in candidates:
-            try:
-                if candidate.exists() and candidate.is_file():
-                    return candidate
-            except Exception:
-                continue
-        return None
+            return None
     @staticmethod
     def _python_env_root(pyexe: str | Path) -> Path:
         p = Path(pyexe)
-        return p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
+        return p.parent.parent if p.parent.name.lower() in {"scripts", "bin"} else p.parent
     def _current_install_base_dir(self) -> Path | None:
         cfg = self._settings_cfg()
         raw = ""

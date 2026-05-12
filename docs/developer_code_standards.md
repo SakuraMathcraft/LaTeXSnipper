@@ -21,9 +21,22 @@ path while allowing Linux and macOS support to evolve cleanly.
 - System tools such as `grim`, `maim`, `gnome-screenshot`, and `screencapture`
   are optional runtime fallbacks. They may be detected and documented, but not
   installed by the app.
-- The root `python311` directory is a template runtime. Build scripts must not
-  write dependencies into it. Build/runtime dependencies belong under
-  `src/deps/python311`.
+- The root `python311` directory is the Windows template runtime. Build scripts
+  must not install application dependencies into it or mutate it as a developer
+  environment.
+- Any bundled Python runtime must come from a clean, self-contained,
+  self-referential template. It must not contain `pyvenv.cfg`, build-host
+  prefixes, or paths outside the bundled runtime, and the build must verify
+  `sys.prefix`, `sys.base_prefix`, and `sys.path` before packaging.
+- Empty or first-run dependency configuration must still resolve the intended
+  internal Python environment automatically when that platform intentionally
+  bundles one.
+- The project dependency/build environment belongs under `src/deps/python311`.
+  It may be used to run PyInstaller and collect required runtime files, but it
+  must never be copied as an embedded Python runtime.
+- Linux and macOS release specs must never collect `src/deps/python311` or any
+  build-machine virtual environment into the packaged app. Packaged Linux/macOS
+  installs create dependency environments in the user's app state directory.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
 - Keep build tools pinned in `requirements-build.txt` unless the PR explicitly

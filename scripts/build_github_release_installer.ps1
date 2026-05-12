@@ -1,6 +1,4 @@
 param(
-    [ValidateSet("normal", "offline")]
-    [string]$Flavor = "normal",
     [switch]$Sign,
     [string]$CertificateThumbprint = "",
     [string]$TimestampUrl = "http://timestamp.digicert.com",
@@ -277,18 +275,10 @@ if ($env:ProgramFiles) {
 $isccCandidates += "D:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 $iscc = Find-Tool -ToolName "ISCC.exe" -Candidates $isccCandidates
 
-if ($Flavor -eq "offline") {
-    $buildName = "LaTeXSnipperOffline"
-    $spec = Join-Path $root "LaTeXSnipper.offline.spec"
-    $iss = Join-Path $root "Inno\latexsnipper_offline.iss"
-    $installer = Join-Path $root "dist\installer\LaTeXSnipperOfflineSetup-2.3.2.exe"
-}
-else {
-    $buildName = "LaTeXSnipper"
-    $spec = Join-Path $root "LaTeXSnipper.spec"
-    $iss = Join-Path $root "Inno\latexsnipper.iss"
-    $installer = Join-Path $root "dist\installer\LaTeXSnipperSetup-2.3.2.exe"
-}
+$buildName = "LaTeXSnipper"
+$spec = Join-Path $root "LaTeXSnipper.spec"
+$iss = Join-Path $root "Inno\latexsnipper.iss"
+$installer = Join-Path $root "dist\installer\LaTeXSnipperSetup-2.3.2.exe"
 
 if (-not (Test-Path $spec)) {
     throw "PyInstaller spec not found: $spec"

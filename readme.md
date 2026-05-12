@@ -212,17 +212,13 @@ installed by the user or distribution package manager, not by LaTeXSnipper.
 Windows packaging:
 
 - `LaTeXSnipper.spec`
-- `LaTeXSnipper.offline.spec`
 - `Inno/latexsnipper.iss`
-- `Inno/latexsnipper_offline.iss`
 - `scripts/build_store_msix.ps1`
 
 Linux packaging:
 
 - `LaTeXSnipper-linux.spec`
-- `LaTeXSnipper-linux-offline.spec`
 - `scripts/build_deb.sh`
-- `scripts/build_deb_offline.sh`
 - `packaging/debian/`
 
 macOS packaging:
@@ -247,9 +243,6 @@ The release workflow expects these GitHub Actions variables:
 `SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
 `.signpath/artifact-configurations/windows-installer.xml`; copy that XML into
 the matching SignPath project artifact configuration.
-
-The Linux offline package script is kept for maintainer builds with local
-MathCraft model files and is not part of the default release workflow.
 
 ---
 
@@ -276,9 +269,7 @@ LaTeXSnipper/
 |-- scripts/                       # Build, release, and regression utilities
 |-- docs/                          # Design and architecture notes
 |-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)
-|-- LaTeXSnipper.offline.spec      # PyInstaller offline-model build
 |-- LaTeXSnipper-linux.spec        # PyInstaller Linux build
-|-- LaTeXSnipper-linux-offline.spec # PyInstaller Linux offline-model build
 |-- LaTeXSnipper-macos.spec        # PyInstaller macOS build
 |-- pyproject.toml
 |-- requirements.txt

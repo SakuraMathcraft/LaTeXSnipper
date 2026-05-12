@@ -6,11 +6,8 @@ case "$1" in
         if [[ -f /usr/lib/latexsnipper/LaTeXSnipper ]]; then
             chmod 755 /usr/lib/latexsnipper/LaTeXSnipper
         fi
-        if [[ -f /usr/lib/latexsnipper-offline/LaTeXSnipperOffline ]]; then
-            chmod 755 /usr/lib/latexsnipper-offline/LaTeXSnipperOffline
-        fi
 
-        qwebengine_process=$(find /usr/lib/latexsnipper /usr/lib/latexsnipper-offline -name QtWebEngineProcess -type f 2>/dev/null | head -1 || true)
+        qwebengine_process=$(find /usr/lib/latexsnipper -name QtWebEngineProcess -type f 2>/dev/null | head -1 || true)
         if [[ -n "$qwebengine_process" ]]; then
             chmod 755 "$qwebengine_process"
         fi

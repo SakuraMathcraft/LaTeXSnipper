@@ -24,11 +24,8 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
-BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
-BUNDLE_PYTHON_INSTALLER = os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER", "1").strip() != "0"
 
 if BUILD_CHANNEL not in {"github", "store"}:
     raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
@@ -132,38 +129,10 @@ if MATHCRAFT_OCR_SRC.exists():
     print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
 
 
-def _resolve_mathcraft_models_root() -> Path | None:
-    env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
-    candidates = []
-    if env_root:
-        candidates.append(Path(env_root))
-    candidates.append(ROOT / "MathCraft" / "models")
-    return next((c for c in candidates if c.is_dir()), None)
-
-
-# ---------------------------------------------------------------------------
-# Optional MathCraft model bundle
-# ---------------------------------------------------------------------------
-if BUNDLE_MATHCRAFT_MODELS:
-    mathcraft_models_root = _resolve_mathcraft_models_root()
-    if mathcraft_models_root is None:
-        raise SystemExit("[SPEC] MathCraft offline build: no model root found.")
-    extra_datas += _collect_tree_as_datas(mathcraft_models_root, "MathCraft/models")
-    print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
-
 # ---------------------------------------------------------------------------
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
-
-# ---------------------------------------------------------------------------
-# Optional bundled Python runtime
-# ---------------------------------------------------------------------------
-BUNDLED_DEPS_ROOT = Path(BUNDLED_DEPS_DIR_ENV).expanduser() if BUNDLED_DEPS_DIR_ENV else ROOT / "src" / "deps"
-BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
-if BUNDLED_PY311.exists():
-    extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
-    print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
 
 BUNDLED_DEPS_STATE = ROOT / "src" / "deps" / ".deps_state.json"
 if BUNDLED_DEPS_STATE.exists():
@@ -181,14 +150,6 @@ ADV_CAS = SRC / "editor" / "advanced_cas.py"
 if ADV_CAS.exists():
     extra_datas.append((str(ADV_CAS), "editor"))
 
-# Optional Python installer (not for store builds)
-optional_root_datas = []
-if BUILD_CHANNEL != "store" and BUNDLE_PYTHON_INSTALLER:
-    BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-macos11.pkg"
-    if BUNDLED_PY_INSTALLER.exists():
-        optional_root_datas.append((str(BUNDLED_PY_INSTALLER), "."))
-        print(f"[SPEC] include bundled installer: {BUNDLED_PY_INSTALLER}")
-
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
@@ -196,7 +157,7 @@ a = Analysis(
     [str(SRC / "main.py")],
     pathex=[str(SRC), str(ROOT)],
     binaries=[] + extra_binaries,
-    datas=[] + optional_root_datas + extra_datas,
+    datas=[] + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine
         "PyQt6",
