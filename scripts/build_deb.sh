@@ -69,6 +69,12 @@ chmod 755 "$PACKAGE_ROOT/DEBIAN/postinst" "$PACKAGE_ROOT/DEBIAN/prerm"
 [[ -f "$PACKAGE_ROOT/DEBIAN/postrm" ]] && chmod 755 "$PACKAGE_ROOT/DEBIAN/postrm"
 find "$PACKAGE_ROOT/usr/share" -type f -exec chmod 644 {} \; 2>/dev/null || true
 
+# Remove pyvenv.cfg from the bundled runtime for reproducible builds.
+# At runtime, bundled_python_env() sets PYTHONHOME dynamically so
+# pyvenv.cfg is not needed.  Removing it avoids leaking
+# build-machine absolute paths into the .deb.
+find "$DEB_LIB_DIR" -name "pyvenv.cfg" -delete 2>/dev/null || true
+
 log_step "4/5" "Updating Debian metadata"
 INSTALLED_SIZE="$(du -sk "$PACKAGE_ROOT/usr" | cut -f1)"
 [[ -n "$INSTALLED_SIZE" && "$INSTALLED_SIZE" -gt 0 ]] || INSTALLED_SIZE=1

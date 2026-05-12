@@ -84,6 +84,11 @@ fi
 [[ -n "${APP_PATH:-}" && -d "$APP_PATH" ]] || die "generated .app bundle was not found"
 [[ -f "$APP_PATH/Contents/MacOS/$APP_NAME" ]] || die "missing app executable: $APP_PATH/Contents/MacOS/$APP_NAME"
 
+# Remove pyvenv.cfg from the bundled runtime for reproducible builds.
+# At runtime, bundled_python_env() sets PYTHONHOME dynamically so
+# pyvenv.cfg is not needed.
+find "$APP_PATH" -name "pyvenv.cfg" -delete 2>/dev/null || true
+
 log_step "5/6" "Signing app bundle"
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 if [[ -n "$SIGN_IDENTITY" ]]; then

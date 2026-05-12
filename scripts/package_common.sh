@@ -94,20 +94,40 @@ prepare_python_runtime() {
             done
         fi
 
-        # Remove pyvenv.cfg entirely so the bundled Python resolves its
-        # stdlib relative to itself.  When pyvenv.cfg is absent, Python's
-        # getpath module (3.11+) searches upward from the binary directory
-        # for the stdlib landmark file (lib/python3.X/os.py).  This avoids
-        # both the macOS/BSD sed -i portability problem and the leak of
-        # build-machine paths that would happen if pyvenv.cfg existed
-        # without a home key (Python would fall back to the compiled-in
-        # prefix).  The result satisfies Debian reproducible-build
-        # requirements.
+        # Keep pyvenv.cfg so the copied Python binary can locate the
+        # locally-copied stdlib during the build.  Without it, the binary
+        # falls back to its compiled-in prefix (the build-machine path)
+        # and cannot find encodings/stdlib.
+        #
+        # The venv --copies created pyvenv.cfg with a "home" key pointing
+        # to the build machine's Python bin directory.  Rewrite it to
+        # point to the venv's own bin directory so stdlib is resolved
+        # from the locally-copied lib/pythonX.Y tree.
         local pyvenv_cfg="$runtime_dir/pyvenv.cfg"
         if [[ -f "$pyvenv_cfg" ]]; then
-            rm -f "$pyvenv_cfg"
-            echo "[RUNTIME] removed pyvenv.cfg (self-contained runtime, landmark-based stdlib discovery)"
+            local venv_bin_dir="$runtime_dir/bin"
+            python3 - "$pyvenv_cfg" "$venv_bin_dir" <<'PY'
+import pathlib, sys
+cfg = pathlib.Path(sys.argv[1])
+new_home = sys.argv[2]
+lines = cfg.read_text(encoding="utf-8").splitlines()
+out = []
+for line in lines:
+    if line.startswith("home"):
+        out.append(f"home = {new_home}")
+    elif line.startswith("executable") or line.startswith("command"):
+        continue
+    else:
+        out.append(line)
+cfg.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY
+            echo "[RUNTIME] updated pyvenv.cfg home=$venv_bin_dir"
         fi
+    fi
+
+    # Verify the runtime can import core stdlib before using pip.
+    if ! "$runtime_python" -c "import encodings, sys; print(sys.version)" >/dev/null 2>&1; then
+        die "isolated Python runtime is broken (cannot import encodings); check venv creation"
     fi
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true
