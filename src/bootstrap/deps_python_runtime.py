@@ -11,6 +11,20 @@ from pathlib import Path
 _PY311_INSTALLER_NAME = "python-3.11.0-amd64.exe"
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def _linux_site_packages(pyexe: Path) -> Path | None:
     """Search for lib/pythonX.Y/site-packages typical of Linux/macOS venvs."""
     py_dir = pyexe.parent  # e.g. .venv/bin/
@@ -205,6 +219,7 @@ def is_usable_python(pyexe: Path) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
+            **_hidden_subprocess_kwargs(),
         )
         return proc.returncode == 0
     except Exception:
