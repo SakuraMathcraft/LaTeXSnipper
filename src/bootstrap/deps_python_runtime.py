@@ -328,7 +328,7 @@ def bundled_python_env(pyexe: Path) -> dict:
                 env["PYTHONHOME"] = str(py_home)
                 return env
 
-    # stdlib not found — log diagnostic for packaging debugging
+    # stdlib not found -- log diagnostic for packaging debugging
     try:
         checked = [str(c) for c in candidates]
         print(f"[DEBUG] bundled_python_env: stdlib not found at candidates {checked}")

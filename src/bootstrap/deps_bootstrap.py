@@ -203,7 +203,7 @@ class InstallWorker(QThread):
 
             pending = _reorder_mathcraft_install_specs(pending, gpu_runtime_first=want_gpu_runtime)
 
-            # 先处理 pip 包安装（0–80%），pandoc 放最后（80–100%）
+            # Process pip packages first (0-80%), pandoc last (80-100%)
             want_pandoc = "PANDOC" in chosen_layers
 
             if not pending:
@@ -219,7 +219,7 @@ class InstallWorker(QThread):
             fail_count = 0
             failed_pkgs: list[str] = []
             pip_progress_max = 80
-            total = len(pending)  # 提前声明，避免 pending 为空时 UnboundLocalError
+            total = len(pending)  # Declare early to avoid UnboundLocalError when pending is empty
 
             if pending:
                 self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
@@ -227,7 +227,7 @@ class InstallWorker(QThread):
                 done_count = 0
                 fail_count = 0
                 failed_pkgs = []
-                # pip 阶段占用 0–70%（如果有 pandoc）或 0–80%（无 pandoc）
+                # pip phase uses 0-70% (with pandoc) or 0-80% (without pandoc)
                 pip_progress_max = 70 if want_pandoc else 80
 
                 for idx, pkg in enumerate(pending, start=1):
@@ -280,14 +280,14 @@ class InstallWorker(QThread):
                     self._emit_done_safe(False)
                     return
 
-            # ---- Pandoc 二进制（pip 完成后，占剩余进度条） ----
+            # ---- Pandoc binary (after pip, occupies remaining progress bar) ----
             pandoc_ok = True
             if want_pandoc:
                 base_progress = pip_progress_max if pending else 20
                 self.log_updated.emit("[PANDOC] 检查 pandoc 二进制文件...")
 
                 def _pandoc_progress(pct: int):
-                    # pct: 85/90/100 → 映射到 base_progress..95
+                    # pct: 85/90/100 -> mapped to base_progress..95
                     mapped = base_progress + int((pct - 85) / 15.0 * (95 - base_progress))
                     self.progress_updated.emit(mapped)
 
@@ -396,9 +396,9 @@ class LayerVerifyWorker(QThread):
             state = _load_json(self.state_path, {"installed_layers": []})
             current_layers = set(state.get("installed_layers", []))
             current_layers.update(verify_ok_layers)
-            # 移除验证失败的层，避免残留
+            # Remove layers that failed verification to avoid stale entries
             current_layers.difference_update(verify_fail_layers)
-            # MathCraft ONNX 后端互斥：成功写回时只保留一个。
+            # MathCraft ONNX backend mutual exclusion: keep only one on successful write-back.
             if "MATHCRAFT_GPU" in verify_ok_layers:
                 current_layers.discard("MATHCRAFT_CPU")
             elif "MATHCRAFT_CPU" in verify_ok_layers:
@@ -457,11 +457,11 @@ class UninstallLayerWorker(QThread):
         if any(str(name).lower().startswith("onnxruntime") for name in self.pkg_names):
             _cleanup_orphan_onnxruntime_namespace(self.pyexe, log_fn=self.log_updated.emit)
 
-        # PANDOC 层卸载：删除 pip 包后，还要清理二进制和残留文件
+        # PANDOC layer uninstall: after removing pip packages, also clean up binary and leftover files
         if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
             self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
             _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
-            # 删除整个 deps/pandoc/ 目录
+            # Remove the entire deps/pandoc/ directory
             pandoc_dir = _pandoc_data_dir()
             if pandoc_dir.exists():
                 try:
@@ -470,7 +470,7 @@ class UninstallLayerWorker(QThread):
                     self.log_updated.emit(f"[PANDOC] 已删除目录: {pandoc_dir}")
                 except Exception as e:
                     self.log_updated.emit(f"[PANDOC] 删除目录失败: {e}")
-            # 从当前进程 PATH 中移除 deps/pandoc
+            # Remove deps/pandoc from current process PATH
             pandoc_dir_str = str(pandoc_dir)
             current_path = os.environ.get("PATH", "")
             if pandoc_dir_str in current_path:
@@ -509,7 +509,7 @@ os.environ["PYTHONUTF8"] = "1"
 
 flags = 0
 if sys.platform == "win32":
-    # 后台安装/校验流程始终隐藏子进程窗口，避免终端闪烁影响体验。
+    # Background install/verify always hides subprocess windows to avoid terminal flicker.
     flags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 CONFIG_FILE = "LaTeXSnipper_config.json"
 STATE_FILE = ".deps_state.json"
@@ -532,7 +532,7 @@ configure_pip_runner(
     subprocess_lock=subprocess_lock,
     suppress_args=PIP_INSTALL_SUPPRESS_ARGS,
 )
-# ONNX Runtime 支撑包版本约束，避免 pip 解析带入不可用组合。
+# ONNX Runtime support package version constraints to prevent pip from resolving unusable combinations.
 CRITICAL_VERSIONS = {
     "numpy": "numpy>=1.26,<3",
     "sympy": "sympy>=1.13,<1.15",
@@ -739,22 +739,23 @@ def _force_repair_broken_runtime_imports(
 
 
 def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
-    """确保 pandoc 二进制文件可用。
+    """Ensure the pandoc binary is available.
 
-    pip install pypandoc 只装 Python 包装器，不包含 pandoc 二进制。
-    本函数在 pip 安装完成后调用，从镜像站直接下载 pandoc 二进制到 deps/pandoc/。
+    pip install pypandoc only installs the Python wrapper, not the pandoc binary.
+    This function is called after pip installation, downloading the pandoc binary
+    directly from mirrors to deps/pandoc/.
 
     Args:
-        progress_fn: 可选回调 ``(percent: int)`` 用于上报下载进度。
+        progress_fn: Optional callback ``(percent: int)`` for reporting download progress.
     """
     if log_fn:
         log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")
 
-    # 1. 已经有 pandoc？优先检查 deps/pandoc/（依赖向导安装的最新版），再查系统 PATH
+    # 1. Already have pandoc? Check deps/pandoc/ first (latest from dependency wizard), then system PATH
     import shutil as _shutil
 
     def _resolve_pandoc_exe() -> str | None:
-        """优先返回已持久化或 deps/pandoc/ 中的二进制路径。"""
+        """Return the persisted or deps/pandoc/ binary path first."""
         try:
             from runtime.pandoc_runtime import load_configured_pandoc_path
             configured = load_configured_pandoc_path()
@@ -789,7 +790,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
             else:
                 log_fn("[PANDOC] 检测到 pandoc 但无法读取版本，尝试更新...")
 
-    # 2. 依赖向导直接下载跨平台归档，避免 pypandoc 自动安装的网络和交互安装器问题。
+    # 2. Dependency wizard downloads cross-platform archive directly, avoiding pypandoc auto-install network and interactive installer issues.
     _cleanup_pandoc_leftovers(log_fn)
     if log_fn:
         log_fn("[PANDOC] 从镜像下载 pandoc 二进制...")
@@ -819,16 +820,16 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
 
 
 def _cleanup_pandoc_leftovers(log_fn=None) -> None:
-    """清理 deps/pandoc/ 中不属于当前平台的旧 pandoc 二进制。
+    """Clean up old pandoc binaries in deps/pandoc/ that do not belong to the current platform.
 
-    对锁定文件会重试 3 次（间隔 0.5s），Windows 上最终回退到重启后删除。
+    Locked files are retried 3 times (0.5s intervals), with a final fallback to delete-on-reboot on Windows.
     """
     import time as _time
 
     removed_count = 0
 
     def _safe_unlink(filepath: Path, label: str) -> bool:
-        """安全删除单个文件，带重试和 Windows 延迟删除回退。"""
+        """Safely delete a single file, with retry and Windows delayed-delete fallback."""
         nonlocal removed_count
         for attempt in range(3):
             try:
@@ -841,7 +842,7 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
                 if attempt < 2:
                     _time.sleep(0.5)
                     continue
-                # Windows: 尝试 MoveFileEx 延迟删除
+                # Windows: try MoveFileEx delayed delete
                 if sys.platform == "win32":
                     try:
                         import ctypes
@@ -863,7 +864,7 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
                 return False
         return False
 
-    # 只清理依赖向导自己管理的 deps/pandoc/，不要触碰项目根目录文件。
+    # Only clean up deps/pandoc/ managed by the dependency wizard; do not touch project root files.
     pandoc_dir = _pandoc_data_dir()
     if pandoc_dir.is_dir():
         try:
@@ -881,15 +882,15 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
 
 
 def _get_pandoc_version(pandoc_path: str | None = None) -> tuple[int, ...] | None:
-    """获取已安装 pandoc 的版本号。
+    """Get the version number of installed pandoc.
 
     Returns:
-        版本元组如 (3, 9, 0, 2)，失败返回 None。
+        Version tuple like (3, 9, 0, 2), or None on failure.
     """
     import shutil as _shutil
     exe = pandoc_path or _shutil.which("pandoc")
     if not exe:
-        # 检查 deps/pandoc/ 目录
+        # Check deps/pandoc/ directory
         try:
             deps_dir = Path.cwd() / "deps" / "pandoc"
             for candidate in ("pandoc.exe", "pandoc"):
@@ -910,7 +911,7 @@ def _get_pandoc_version(pandoc_path: str | None = None) -> tuple[int, ...] | Non
         )
         if result.returncode != 0:
             return None
-        # 第一行格式: "pandoc 3.9.0.2" 或 "pandoc.exe 3.9.0.2"
+        # First line format: "pandoc 3.9.0.2" or "pandoc.exe 3.9.0.2"
         first_line = (result.stdout or "").splitlines()[0].strip()
         parts = first_line.split()
         for part in parts:
@@ -923,19 +924,19 @@ def _get_pandoc_version(pandoc_path: str | None = None) -> tuple[int, ...] | Non
 
 
 def _pandoc_version_too_old(current: tuple[int, ...] | None, target: str) -> bool:
-    """判断当前 pandoc 版本是否低于目标版本。"""
+    """Check if the current pandoc version is older than the target version."""
     if current is None:
-        return True  # 无法检测版本 → 当作过旧
+        return True  # Cannot detect version -> treat as too old
     target_tuple = tuple(int(x) for x in target.split("."))
     return current < target_tuple
 
 
-# Pandoc 下载配置
+# Pandoc download configuration
 _PANDOC_VERSION = "3.9.0.2"
 
 
 def _pandoc_platform_archive() -> tuple[str, str, str]:
-    """返回 (平台归档文件名, 二进制名, 归档类型)。
+    """Return (platform archive filename, binary name, archive type).
 
     Returns:
         (archive_name, binary_name, archive_type)
@@ -977,19 +978,19 @@ def _pandoc_platform_archive() -> tuple[str, str, str]:
 
 
 def _build_pandoc_mirrors() -> list[str]:
-    """为当前平台构建镜像 URL 列表。"""
+    """Build a list of mirror URLs for the current platform."""
     archive_name, _bin_name, _arc_type = _pandoc_platform_archive()
     return [
-        # 国内可用镜像优先，测速后会按实际延迟排序。
+        # Prefer mirrors accessible from China; ranked by actual latency after speed test.
         f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
-        # GitHub 官方（国内可能很慢）
+        # GitHub official (may be slow from China)
         f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
     ]
 
 
 def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
-    """用 HEAD 请求测试各镜像延迟，返回从快到慢排序后的列表。"""
+    """Test mirror latency with HEAD requests, return list sorted fastest to slowest."""
     import urllib.request
     import time as _time
 
@@ -1011,7 +1012,7 @@ def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
             continue
 
     if not results:
-        return mirrors  # 全部失败，保持原序
+        return mirrors  # All failed, keep original order
 
     results.sort(key=lambda x: x[0])
     ranked = [url for _, url in results]
@@ -1021,9 +1022,9 @@ def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
 
 
 def _download_pandoc_from_mirrors(log_fn=None) -> bool:
-    """依次尝试多个镜像下载 pandoc 并解压到 deps/pandoc/。
+    """Try multiple mirrors in order to download pandoc and extract to deps/pandoc/.
 
-    支持 Windows (.zip)、Linux (.tar.gz)、macOS (.zip)。
+    Supports Windows (.zip), Linux (.tar.gz), macOS (.zip).
     """
     import urllib.request
     import time as _time
@@ -1043,7 +1044,7 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
         log_fn(f"[PANDOC] 平台归档: {archive_name} ({archive_type})")
         log_fn(f"[PANDOC] 共 {len(mirrors)} 个镜像源，正在测速选择最快...")
 
-    # 先测速，按延迟排序
+    # Speed test first, sort by latency
     mirrors = _rank_mirrors_by_speed(mirrors, log_fn)
 
     for idx, url in enumerate(mirrors, start=1):
@@ -1056,7 +1057,7 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
             if log_fn and total > 0:
                 log_fn(f"[PANDOC] 文件大小: {total // 1024} KB")
 
-            # 分块下载 + 速度/进度输出
+            # Chunked download + speed/progress output
             chunks: list[bytes] = []
             downloaded = 0
             last_log_time = _time.monotonic()
@@ -1095,7 +1096,7 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
             if log_fn:
                 log_fn(f"[PANDOC] 下载完成 ({len(data) // 1024} KB)，正在解压 ({archive_type})...")
 
-            # ---- 根据归档类型解压 ----
+            # ---- Extract based on archive type ----
             exe_data = _extract_pandoc_binary(data, archive_type, binary_name, log_fn)
             if exe_data is None:
                 if log_fn:
@@ -1107,19 +1108,19 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
             if log_fn:
                 log_fn(f"[PANDOC] 已写入: {exe_path}")
 
-            # Linux/macOS 需要可执行权限
+            # Linux/macOS needs executable permission
             if sys.platform != "win32":
                 try:
                     os.chmod(str(exe_path), 0o755)
                 except Exception:
                     pass
 
-            # 添加到 PATH（当前进程）
+            # Add to PATH (current process)
             dir_str = str(pandoc_dir)
             if dir_str not in os.environ.get("PATH", ""):
                 os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
 
-            # 验证
+            # Verify
             verify_cmd = [str(exe_path), "--version"]
             result = subprocess.run(
                 verify_cmd,
@@ -1151,15 +1152,15 @@ def _extract_pandoc_binary(
     binary_name: str,
     log_fn=None,
 ) -> bytes | None:
-    """从归档数据中提取 pandoc 二进制文件。
+    """Extract pandoc binary from archive data.
 
     Args:
-        data: 归档文件字节数据
+        data: Archive file byte data
         archive_type: "zip" | "tar.gz"
-        binary_name: 要查找的二进制文件名
+        binary_name: Binary filename to locate
 
     Returns:
-        二进制数据，失败返回 None
+        Binary data, or None on failure
     """
     import io
     import zipfile
@@ -1187,14 +1188,14 @@ def _extract_pandoc_binary(
 
 
 def _pandoc_data_dir() -> Path:
-    """pandoc 二进制存放目录（位于项目根目录下 deps/pandoc）。"""
-    # 从当前工作目录或 .venv 的父目录推导项目根
+    """Pandoc binary storage directory (under project root deps/pandoc)."""
+    # Derive project root from current working directory or .venv parent
     cwd = Path.cwd()
     venv_candidate = cwd / ".venv"
     if venv_candidate.is_dir():
         base = cwd
     else:
-        # 回退到 cwd 本身
+        # Fallback to cwd itself
         base = cwd
     target = base / "deps" / "pandoc"
     return target
@@ -1218,7 +1219,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
             cur = installed_before.get(pkg)
             if cur and _version_satisfies_spec(pkg, cur, spec):
                 continue
-            # 使用 --no-deps 避免触发依赖解析
+            # Use --no-deps to avoid triggering dependency resolution
             cmd = [str(pyexe), "-m", "pip", "install", spec, "--upgrade", "--no-deps", *PIP_INSTALL_SUPPRESS_ARGS]
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
@@ -1255,7 +1256,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
 
-# 各功能层的运行时验证测试代码
+# Runtime verification test code for each functional layer
 _CORE_VERIFY_CODE = """
 import importlib.util
 
@@ -1373,7 +1374,7 @@ if configured_pandoc is not None:
     deps_dir = str(configured_pandoc.parent)
     if deps_dir not in os.environ.get("PATH", ""):
         os.environ["PATH"] = deps_dir + os.pathsep + os.environ.get("PATH", "")
-# 也检查 deps/pandoc 目录
+# Also check deps/pandoc directory
 deps_pandoc = os.path.join(os.path.dirname(sys.executable), "pandoc")
 if os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):
     os.environ["PATH"] = deps_pandoc + os.pathsep + os.environ.get("PATH", "")
@@ -1383,12 +1384,12 @@ print("PANDOC OK")
 """,
 }
 
-# 严格验证（会触发真实模型加载/推理），仅在强制验证时启用
+# Strict verification (triggers real model loading/inference), enabled only for forced verification
 def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     """
-    验证某个功能层是否能在运行时正常工作。
+    Verify that a functional layer works correctly at runtime.
 
-    返回: (success: bool, error_msg: str)
+    Returns: (success: bool, error_msg: str)
     """
     import subprocess
 
@@ -1398,7 +1399,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
     if layer in LAYER_VERIFY_CODE:
         code = LAYER_VERIFY_CODE[layer]
     else:
-        # 没有验证代码的层，默认通过
+        # Layers without verification code pass by default
         return True, ""
 
     try:
@@ -1415,11 +1416,11 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
         if result.returncode == 0:
             return True, ""
         else:
-            # 提取关键错误信息
+            # Extract key error information
             err = (result.stderr or result.stdout or "").strip()
             if not err:
                 err = f"验证进程返回码 {result.returncode}，但无可用输出"
-            # 截取最后几行，通常是最有用的
+            # Capture last few lines, usually the most useful
             err_lines = err.replace("\r", "").split('\n')[-15:]
             return False, '\n'.join(err_lines)
     except subprocess.TimeoutExpired:
@@ -1442,9 +1443,9 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
 
 def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
     """
-    验证声称已安装的层是否真正可用。
+    Verify that claimed installed layers are actually usable.
 
-    返回: 真正可用的层列表
+    Returns: list of truly usable layers
     """
     verified = []
     for layer in claimed_layers:
@@ -1464,9 +1465,9 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
 
 def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: int = 30) -> tuple[bool, str]:
     """
-    验证 onnxruntime 运行时可用性。
-    - 必须存在 get_available_providers
-    - GPU 场景必须包含 CUDAExecutionProvider
+    Verify onnxruntime runtime availability.
+    - get_available_providers must exist
+    - GPU scenario must include CUDAExecutionProvider
     """
     code = (
         "import json, traceback\n"
@@ -1613,7 +1614,7 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
     return ort_ok2, (ort_err2 or ort_err_after_deps or ort_err)
 
 
-# MathCraft v1 分层依赖：识别运行时只区分 ONNX CPU/GPU 后端。
+# MathCraft v1 layered dependencies: runtime only distinguishes ONNX CPU/GPU backends.
 LAYER_MAP = {
     "BASIC": [
         "lxml~=4.9.3",
@@ -1650,7 +1651,7 @@ LAYER_MAP = {
 
 MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
 
-# ---------------- 基础工具 ----------------
+# ---------------- Basic utilities ----------------
 def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
     return _sanitize_state_layers_impl(
         state_path,
@@ -1665,8 +1666,8 @@ def _normalize_chosen_layers(layers: list[str] | None) -> list[str]:
 
 def _ensure_pip(main_python: Path) -> bool:
     """
-    确保专用 Python(python311/python.exe) 内 pip 可用并升级。
-    不再创建/使用 venv。
+    Ensure pip is available and upgraded in the dedicated Python (python311/python.exe).
+    No longer creates/uses venv.
     """
     import subprocess
     import tempfile
@@ -1691,7 +1692,7 @@ def _ensure_pip(main_python: Path) -> bool:
         pass
 
 
-    # 修复 embedded/_pth 情况
+    # Fix embedded/_pth case
     try:
         pth_candidates = list(main_python.parent.glob("python*.pth")) + list(main_python.parent.glob("python*._pth"))
         for pth_file in pth_candidates:
@@ -1702,7 +1703,7 @@ def _ensure_pip(main_python: Path) -> bool:
     except Exception:
         pass
 
-    # 检测 pip
+    # Detect pip
     try:
         subprocess.check_call([str(main_python), "-m", "pip", "--version"],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -1712,7 +1713,7 @@ def _ensure_pip(main_python: Path) -> bool:
     except Exception:
         pass
 
-    # 安装 pip — 写入可写临时目录，避免打包后 bin/ 只读 (权限不够)
+    # Install pip -- write to writable temp dir to avoid read-only bin/ after packaging (permission denied)
     gp_url = "https://bootstrap.pypa.io/get-pip.py"
     gp_path = Path(tempfile.gettempdir()) / "latexsnipper-get-pip.py"
     urllib.request.urlretrieve(gp_url, gp_path)
@@ -1725,7 +1726,7 @@ def _ensure_pip(main_python: Path) -> bool:
         except Exception:
             pass
 
-    # 升级三件套
+    # Upgrade the trio (pip, setuptools, wheel)
     cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                          encoding="utf-8", errors="replace", env=pip_env, creationflags=flags)
@@ -1735,7 +1736,7 @@ def _ensure_pip(main_python: Path) -> bool:
     return ok
 
 def _current_installed(pyexe):
-    """获取当前环境已安装的包列表"""
+    """Get the list of packages installed in the current environment."""
     def _installed_via_metadata() -> dict:
         """
         Fallback path when pip is unavailable/broken:
@@ -1922,14 +1923,14 @@ def _cuda_toolkit_available():
 
 def _diagnose_install_failure(output: str, returncode: int) -> str:
     """
-    分析 pip 安装失败的输出，诊断具体原因
+    Analyze pip install failure output and diagnose the specific cause.
     """
     output_lower = output.lower()
 
     if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
         return "🧩 antlr4-python3-runtime 构建环境缺少 wheel - 可先补齐 pip/setuptools/wheel 并关闭 build isolation"
 
-    # 1. 文件/进程占用（最常见的权限问题）
+    # 1. File/process in use (most common permission issue)
     if any(x in output_lower for x in [
         "permission denied",
         "access is denied",
@@ -1941,7 +1942,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
 
-    # 2. 依赖冲突
+    # 2. Dependency conflicts
     if any(x in output_lower for x in [
         "conflicting dependencies",
         "incompatible",
@@ -1952,7 +1953,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "⚠️ 依赖版本冲突 - 某些包的版本要求互相矛盾"
 
-    # 3. 网络问题
+    # 3. Network issues
     if any(x in output_lower for x in [
         "connection refused",
         "connection timed out",
@@ -1966,7 +1967,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "🌐 网络连接失败 - 请检查网络或尝试使用镜像源"
 
-    # 4. 磁盘空间
+    # 4. Disk space
     if any(x in output_lower for x in [
         "no space left",
         "disk full",
@@ -1975,7 +1976,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "💾 磁盘空间不足 - 请清理磁盘后重试"
 
-    # 5. 编译失败（C扩展）
+    # 5. Build failure (C extensions)
     if any(x in output_lower for x in [
         "building wheel",
         "failed building",
@@ -1986,7 +1987,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "🔧 编译失败 - 可能缺少 Visual C++ Build Tools"
 
-    # 6. Python 版本不兼容
+    # 6. Python version incompatibility
     if any(x in output_lower for x in [
         "requires python",
         "python_requires",
@@ -1994,7 +1995,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "🐍 Python 版本不兼容 - 该包不支持当前 Python 版本"
 
-    # 7. pip 本身的问题
+    # 7. pip itself issues
     if any(x in output_lower for x in [
         "pip._internal",
         "attributeerror",
@@ -2002,7 +2003,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]):
         return "📦 pip 损坏或版本过低 - 请先升级 pip"
 
-    # 8. CUDA/GPU 相关
+    # 8. CUDA/GPU related
     if any(x in output_lower for x in [
         "cuda",
         "cudnn",
@@ -2011,7 +2012,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     ]) and "error" in output_lower:
         return "🎮 CUDA/GPU 相关错误 - 请检查 CUDA 版本是否匹配"
 
-    # 默认
+    # Default
     if returncode == 1:
         return f"❓ 一般错误 (code={returncode}) - 请查看上方日志获取详情"
     elif returncode == 2:
@@ -2020,10 +2021,10 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         return f"❓ 未知错误 (code={returncode}) - 请查看上方日志获取详情"
 
 
-# pip 安装入口：支持 pause_event、实时日志和镜像切换
+# pip install entry: supports pause_event, real-time logging, and mirror switching
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
                  force_reinstall=False, no_cache=False, proc_setter=None):
-    """安装单个依赖包，支持实时日志、镜像切换、重试与防阻塞。"""
+    """Install a single dependency package with real-time logging, mirror switching, retry, and anti-blocking."""
     return PipInstallRunner(
         pyexe=pyexe,
         pkg=pkg,
@@ -2047,7 +2048,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
 # --------------- UI ---------------
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
                      from_settings=False, skip_runtime_verify_once=False):
-    # 使用外部传入的 installed_layers；不覆盖
+    # Use externally provided installed_layers; do not overwrite
     from PyQt6.QtGui import QColor, QPalette
     from PyQt6.QtCore import QSize
     from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QCheckBox, QLabel,
@@ -2061,7 +2062,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         c = app.palette().window().color()
         return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
-    # 与主窗口保持一致：统一使用本模块的 Fluent 主题同步逻辑。
+    # Keep consistent with main window: use this module's Fluent theme sync logic.
     _sync_deps_fluent_theme()
 
     theme = {
@@ -2165,14 +2166,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     lay.setContentsMargins(16, 16, 16, 12)
 
     def _force_quit():
-        # 可选：通知后台停止任务
+        # Optional: notify background to stop tasks
         try:
             global stop_event
             if 'stop_event' in globals():
                 stop_event.set()
         except Exception:
             pass
-        # 立即退出（不弹确认）
+        # Exit immediately (no confirmation dialog)
         QTimer.singleShot(0, lambda: QApplication.instance().quit())
         QTimer.singleShot(20, lambda: sys.exit(0))
 
@@ -2180,7 +2181,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         evt.accept()
         _force_quit()
 
-    # 新增：读取已安装层
+    # New: read installed layers
     state_path = Path(state_path)
     state_file = str(state_path)
     claimed_layers = []
@@ -2194,9 +2195,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         except Exception:
             pass
 
-    # ====== 运行时验证：检查声称已安装的层是否真正可用 ======
-    # 新增：如果不是设置页面重启且已安装 basic 和 core，则跳过验证
-    # 直接使用 from_settings 参数
+    # ====== Runtime verification: check if claimed installed layers are truly usable ======
+    # New: skip verification if not from settings restart and basic+core are installed
+    # Use from_settings parameter directly
     failed_layers = []
     verified_layers = []
     verified_in_ui = False
@@ -2234,11 +2235,11 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 print(f"[WARN] 更新状态文件失败: {e}")
         else:
             installed_layers["layers"] = claimed_layers
-    # ====== 验证结束 ======
+    # ====== Verification end ======
 
     py_ready = bool(pyexe and os.path.exists(str(pyexe)))
 
-    # 判断是否缺少关键层（BASIC / CORE / MathCraft ONNX 后端）
+    # Check if critical layers are missing (BASIC / CORE / MathCraft ONNX backend)
     missing_layers = []
     if "BASIC" not in installed_layers["layers"]:
         missing_layers.append("BASIC")
@@ -2292,7 +2293,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     lay.addWidget(env_info)
     lay.addWidget(QLabel("选择需要安装的功能层:"))
 
-    # 获取验证失败的层名列表
+    # Get list of layer names that failed verification
     failed_layer_names = list(dict.fromkeys(failed_layer_names))
 
     checks = {}
@@ -2391,7 +2392,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 pdlg.exec()
         return _del
 
-    # 遍历所有功能层
+    # Iterate over all functional layers
     effective_default_select = _effective_default_select()
     for layer in LAYER_MAP.keys():
         row = QHBoxLayout()
@@ -2406,7 +2407,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         row.addWidget(del_btn)
         lay.addLayout(row)
 
-    # ---------- MathCraft CPU / GPU 后端互斥逻辑 ----------
+    # ---------- MathCraft CPU / GPU backend mutual exclusion logic ----------
     def on_mathcraft_cpu_changed(state):
         if state and checks.get("MATHCRAFT_GPU") and checks["MATHCRAFT_GPU"].isEnabled():
             checks["MATHCRAFT_GPU"].setChecked(False)
@@ -2420,7 +2421,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     if "MATHCRAFT_GPU" in checks:
         checks["MATHCRAFT_GPU"].stateChanged.connect(on_mathcraft_gpu_changed)
 
-    # ---------- GPU 加速提示 ----------
+    # ---------- GPU acceleration hint ----------
     gpu_info_label = QLabel()
 
     def _refresh_gpu_info_label() -> None:
@@ -2448,7 +2449,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     _refresh_gpu_info_label()
     lay.addWidget(gpu_info_label)
-    # 路径显示与更改
+    # Path display and change
     path_row = QHBoxLayout()
     path_edit = QLineEdit(deps_dir)
     path_edit.setReadOnly(True)
@@ -2460,7 +2461,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_row.addWidget(btn_path)
     lay.addLayout(path_row)
 
-    # 下载源选择（与主设置页保持一致的 Fluent 风格）
+    # Download source selection (Fluent style consistent with main settings page)
     mirror_row = QHBoxLayout()
     mirror_row.setContentsMargins(0, 0, 0, 0)
     mirror_row.setSpacing(6)
@@ -2527,7 +2528,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     mirror_box.currentIndexChanged.connect(_on_mirror_changed)
 
-    # ---------- 按钮布局 ----------
+    # ---------- Button layout ----------
     btn_row = QHBoxLayout()
 
     btn_download = PushButton(FluentIcon.DOWNLOAD, "下载")
@@ -2542,12 +2543,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_row.addWidget(btn_cancel)
     lay.addLayout(btn_row)
 
-    # 警告 label
+    # Warning label
     warn = QLabel("缺少关键依赖层，部分功能将不可用！")
     warn.setStyleSheet(f"color:{theme['warn']};")
     lay.addWidget(warn)
 
-    # 说明 label
+    # Description label
     desc = QLabel(
         "📦 层级说明：\n"
         "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
@@ -2590,7 +2591,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         except Exception:
             return False
 
-    # 动态更新按钮和警告
+    # Dynamically update buttons and warnings
     def update_ui():
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
@@ -2647,9 +2648,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
             _refresh_gpu_info_label()
-            # 移除与 venv/调试相关输出，避免策略混用
+            # Remove venv/debug related output to avoid policy mixing
             update_ui()
-            # 保存新路径到配置
+            # Save new path to config
             config_path = str(_load_config_path())
             cfg = {}
             if os.path.exists(config_path):
@@ -2673,7 +2674,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_path.clicked.connect(choose_path)
 
     def enter():
-        """进入按钮：环境完整则进入；缺关键层时按入口策略决定是否允许跳过安装。"""
+        """Enter button: enter if environment is complete; allow skip-install when critical layers are missing based on entry policy."""
         sel = _normalize_chosen_layers([L for L, c in checks.items() if c.isChecked()])
         mirror_source = _current_mirror_source()
         chosen["layers"] = sel
@@ -2696,7 +2697,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
             missing.append("MATHCRAFT_CPU")
 
-        # 环境完整时直接进入
+        # Enter directly when environment is complete
         if not missing:
             chosen["action"] = "enter"
             chosen["layers"] = []
@@ -2704,7 +2705,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             dlg.accept()
             return
 
-        # 缺少关键层：允许用户在风险自担下跳过安装并进入。
+        # Missing critical layers: allow user to skip install and enter at their own risk.
         chosen["action"] = "enter"
         chosen["layers"] = []
         chosen["force_enter"] = True
@@ -2748,16 +2749,16 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             default_button=QMessageBox.StandardButton.No,
         )
 
-    # ---------- UI 刷新函数 ----------
+    # ---------- UI refresh function ----------
     def refresh_ui():
-        """在安装完成后刷新依赖状态"""
+        """Refresh dependency state after installation completes."""
         nonlocal failed_layer_names
         try:
             new_state = _sanitize_state_layers(Path(state_path))
             installed_layers["layers"] = new_state.get("installed_layers", [])
             failed_layer_names = new_state.get("failed_layers", [])
 
-            # 更新警告与按钮文本
+            # Update warning and button text
             if (
                 "BASIC" in installed_layers["layers"]
                 and "CORE" in installed_layers["layers"]
@@ -2769,7 +2770,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 warn.setVisible(True)
                 btn_enter.setText("跳过安装并进入")
 
-            # 更新复选框
+            # Update checkboxes
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
@@ -2789,14 +2790,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         except Exception as e:
             print(f"[WARN] UI 刷新失败: {e}")
 
-    # ✅ 暴露给外部调用
+    # Expose to external callers
     dlg.refresh_ui = refresh_ui
 
-    # ---------- 退出按钮逻辑：直接退出程序 ----------
+    # ---------- Exit button logic: exit program directly ----------
     _closing_dialog = {"active": False}
 
     def _exit_app():
-        """退出按钮：先确认，然后直接退出程序"""
+        """Exit button: confirm first, then exit program directly."""
         if _closing_dialog["active"]:
             return
         reply = _ask_exit_confirm()
@@ -2823,13 +2824,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     btn_cancel.clicked.connect(_exit_app)
 
-    # 右上角关闭事件：与退出按钮一致
+    # Top-right close event: consistent with exit button
     def _on_close(evt):
         if _closing_dialog["active"]:
             evt.accept()
             return
         _exit_app()
-        evt.ignore()  # 由 _exit_app 控制退出
+        evt.ignore()  # _exit_app controls the exit
     dlg.closeEvent = _on_close
 
     return dlg, chosen
@@ -2879,8 +2880,8 @@ def _progress_dialog():
     logw.setReadOnly(True)
     progress = QProgressBar()
     progress.setRange(0, 100)
-    progress.setFixedHeight(20)  # 增加高度
-    progress.setMinimumWidth(400)  # 增加宽度
+    progress.setFixedHeight(20)  # Increase height
+    progress.setMinimumWidth(400)  # Increase width
 
     btn_cancel = PushButton(FluentIcon.CLOSE, "退出下载")
     btn_cancel.setFixedHeight(32)
@@ -2899,7 +2900,7 @@ def _progress_dialog():
         if (not force) and getattr(dlg, "_theme_is_dark_cached", None) == theme["dark"]:
             return
         dlg._theme_is_dark_cached = theme["dark"]
-        # 与主 Fluent 主题对齐：不手工覆盖整窗和文本框背景。
+        # Align with main Fluent theme: do not manually override window and text box backgrounds.
         info.setStyleSheet(f"color: {theme['muted']};")
         progress.setStyleSheet("""
             QProgressBar {
@@ -3046,14 +3047,14 @@ def custom_warning_dialog(title, message, parent=None):
 
 def clear_deps_state():
     """
-    清空依赖状态文件，用于当依赖目录损坏或首次初始化异常时自动修复。
+    Clear the dependency state file, used for automatic repair when the dependency directory is corrupted or first-time initialization fails.
     """
     import json
     import os
     from pathlib import Path
 
     try:
-        # 确定配置文件路径
+        # Determine config file path
         home_config = _load_config_path()
         print(f"[DEBUG] 清理状态文件：{home_config}")
 
@@ -3069,13 +3070,13 @@ def clear_deps_state():
             print(f"[ERR] 无法找到依赖目录：{deps_dir}")
             return
 
-        # 删除状态文件
+        # Delete state file
         state_path = Path(deps_dir) / ".deps_state.json"
         if state_path.exists():
             state_path.unlink()
             print(f"[OK] 已删除状态文件：{state_path}")
 
-        # 重建空状态文件（如果目录不可写则回退到用户目录）
+        # Rebuild empty state file (fallback to user directory if unwritable)
         try:
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
@@ -3229,7 +3230,7 @@ def _run_local_python311_installer(installer: Path, target_dir: Path, timeout: i
     _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
     return (target_dir / _default_pyexe_name).exists()
 
-# --------------- 主入口 ---------------
+# --------------- Main entry point ---------------
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
                 deps_dir=None, from_settings=False, before_show_ui=None,
                 after_force_enter=None):
@@ -3261,12 +3262,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     current_pyexe = Path(sys.executable)
     current_site = _site_packages_root(current_pyexe)
 
-    # 2) 先读配置，再决定是否弹目录选择框
+    # 2) Read config first, then decide whether to show directory selection dialog
     cfg_path = _load_config_path()
     if not deps_dir:
         deps_dir = _read_config_install_dir(cfg_path)
 
-    # 如果配置的目录不可写（系统级 .deb 安装），回退到用户目录
+    # If configured directory is not writable (system-level .deb install), fallback to user directory
     if deps_dir:
         try:
             _test = Path(deps_dir) / ".write_check"
@@ -3285,7 +3286,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         _notify_before_show_ui()
         chosen = _select_existing_directory_with_icon(parent, "选择依赖安装/加载目录", str(Path.home()))
         if not chosen:
-            # 用户取消，安全返回，避免后续对 None/省略号做路径拼接
+            # User cancelled, return safely to avoid path concatenation with None/ellipsis later
             return False
         deps_dir = str(_normalize_deps_base_dir(Path(chosen)))
         _write_config_install_dir(cfg_path, deps_dir)
@@ -3294,7 +3295,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     deps_dir = str(deps_path)
     deps_path.mkdir(parents=True, exist_ok=True)
 
-    # 重复的目录选择与保存逻辑移除（前面已处理）
+    # Duplicate directory selection and save logic removed (handled above)
     from PyQt6.QtWidgets import QMessageBox, QDialog
     need_install = False
     if force_enter:
@@ -3329,16 +3330,16 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             print(f"[INFO] packaged: no reusable deps python yet, wizard will initialize: {pyexe}")
             use_bundled_python = True
     else:
-        # 开发模式：支持依赖隔离和私有解释器
+        # Dev mode: support dependency isolation and private interpreter
         py_root = Path(deps_dir) / "python311"
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         deps_dir_resolved = str(Path(deps_dir).resolve())
         mismatch_reason = ""
 
-        # 检查是否打包模式
+        # Check if packaged mode
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
-        mode_str = "打包模式" if is_packaged else "开发模式"
+        mode_str = "Packaged" if is_packaged else "Dev"
 
         if current_site and deps_dir and str(current_site).startswith(deps_dir_resolved):
             print(f"[INFO] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
@@ -3364,7 +3365,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             else:
                 mismatch_reason = "未知原因导致环境不一致。"
             print(f"[DIAG] 环境不一致原因: {mismatch_reason}")
-        # 开发模式下若缺少私有 Python，只认本地安装器，不再联网下载。
+        # In dev mode, if private Python is missing, only use local installer, no network download.
         if use_bundled_python and not pyexe.exists():
             if from_settings:
                 print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
@@ -3429,7 +3430,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     )
                     return False
 
-    # 初始化 pip（无 venv）
+    # Initialize pip (no venv)
     try:
         _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
@@ -3450,7 +3451,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
         sp_local = _site_packages_root(active_pyexe)
-        # 只有在非 BOOTSTRAPPED 模式下才注入私有路径，避免混合不同 Python 版本的包
+        # Only inject private paths in non-BOOTSTRAPPED mode to avoid mixing packages from different Python versions
         if (
             os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1"
             and active_pyexe is not None
@@ -3496,9 +3497,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     def _reverify_installed_layers_if_needed(reason: str = "") -> bool:
         """
-        从设置页进入依赖向导时，
-        在“直接进入/跳过下载”前复验已安装层。
-        返回是否满足 required layers。
+        When entering the dependency wizard from settings page,
+        re-verify installed layers before "enter directly/skip download".
+        Returns whether required layers are satisfied.
         """
         nonlocal state, installed, missing_layers
         if not from_settings:
@@ -3562,7 +3563,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     while True:
         if (missing_layers and prompt_ui) or always_show_ui:
             stop_event = threading.Event()
-            # 默认选中的依赖层（首次启动时）
+            # Default selected dependency layers (first launch)
             default_select = _default_selected_layers(
                 installed.get("layers", []),
                 state.get("failed_layers", []),
@@ -3583,7 +3584,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             _notify_before_show_ui()
             result = dlg.exec()
             if result != dlg.DialogCode.Accepted:
-                # 用户在依赖选择窗口点“退出程序”
+                # User clicked "exit program" in dependency selection window
                 return False
 
             chosen_layers = _normalize_chosen_layers(chosen.get("layers", []))
@@ -3595,7 +3596,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 mirror_source = "tuna" if use_mirror else "off"
             missing_layers, use_bundled_python = _switch_deps_context(chosen.get("deps_path", deps_dir))
 
-            # 检查是否跳过安装并进入（缺少关键层但用户选择直接进入）
+            # Check if skip install and enter (missing critical layers but user chose to enter directly)
             if chosen.get("force_enter", False):
                 _LAST_ENSURE_DEPS_FORCE_ENTER = True
                 _notify_after_force_enter()
@@ -3876,7 +3877,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 btn_pause.clicked.connect(toggle_pause)
                 pause_event.set()
 
-                # === 创建 InstallWorker ===
+                # === Create InstallWorker ===
                 worker = InstallWorker(
                     pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path,
                     chosen_layers, log_q, mirror=use_mirror,
@@ -3904,7 +3905,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             pass
 
                 btn_cancel.clicked.connect(request_cancel)
-                # === 绑定信号 ===
+                # === Bind signals ===
                 worker.log_updated.connect(_append_log)
                 worker.progress_updated.connect(_set_progress)
                 worker.status_updated.connect(_set_info_text)
@@ -3984,7 +3985,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 worker.done.connect(on_install_done)
 
-                # === UI线程日志轮询（防阻塞/防信号风暴）===
+                # === UI thread log polling (anti-blocking/anti-signal-storm) ===
                 timer = QTimer(dlg)
                 timer_holder["log"] = timer
                 timer.setInterval(50)
@@ -4082,7 +4083,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     always_show_ui = True
                     continue
                 if result != QDialog.DialogCode.Accepted:
-                    # 用户在进度窗口点“退出下载”，回到依赖选择窗口
+                    # User clicked "exit download" in progress window, return to dependency selection window
                     skip_next_ui_runtime_verify = install_verified_in_progress_ui
                     continue
         break
