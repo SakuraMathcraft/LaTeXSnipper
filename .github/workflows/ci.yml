@@ -115,16 +115,6 @@ jobs:
           if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
             throw "Inno script must use the repository Simplified Chinese language file: $iss"
           }
-          foreach ($removed in @(
-            "LaTeXSnipper.offline.spec",
-            "LaTeXSnipper-linux-offline.spec",
-            "Inno\latexsnipper_offline.iss",
-            "scripts\build_deb_offline.sh"
-          )) {
-            if (Test-Path $removed) {
-              throw "Offline package entry point must not be restored: $removed"
-            }
-          }
           foreach ($specPath in @("LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec")) {
             $specText = Get-Content -LiteralPath $specPath -Raw
             if ($specText -match "deps/python311|LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME|BUNDLED_PY311|BUNDLED_DEPS_DIR_ENV") {

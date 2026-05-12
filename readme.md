@@ -244,9 +244,6 @@ The release workflow expects these GitHub Actions variables:
 `.signpath/artifact-configurations/windows-installer.xml`; copy that XML into
 the matching SignPath project artifact configuration.
 
-Offline installer/package variants are intentionally not maintained because
-GitHub Release assets must be produced by the signed automated release flow.
-
 ---
 
 ## Project Structure
