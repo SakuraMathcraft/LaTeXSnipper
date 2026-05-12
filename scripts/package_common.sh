@@ -83,13 +83,17 @@ prepare_python_runtime() {
                 if [[ -d "$d" ]]; then
                     local ver_dir="$(basename "$d")"
                     local dest_ver="$dest_lib/$ver_dir"
-                    if [[ ! -d "$dest_ver" ]]; then
-                        echo "[RUNTIME] copying stdlib: $d -> $dest_ver"
-                        cp -a "$d" "$dest_ver"
-                        # Remove system site-packages so they don't conflict
-                        # with the isolated pip-installed packages.
-                        rm -rf "$dest_ver/site-packages" 2>/dev/null || true
-                    fi
+                    # venv --copies pre-creates lib/pythonX.Y/ with an empty
+                    # site-packages/.  We must replace it with the full stdlib
+                    # so the copied binary can find encodings and other
+                    # built-in modules on machines where the original prefix
+                    # does not exist.
+                    rm -rf "$dest_ver"
+                    echo "[RUNTIME] copying stdlib: $d -> $dest_ver"
+                    cp -a "$d" "$dest_ver"
+                    # Remove system site-packages so they don't conflict
+                    # with the isolated pip-installed packages.
+                    rm -rf "$dest_ver/site-packages" 2>/dev/null || true
                 fi
             done
         fi
