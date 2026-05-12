@@ -50,6 +50,21 @@ except Exception:
 
 subprocess_lock = threading.Lock()
 
+
+def _hidden_subprocess_kwargs() -> dict:
+    if sys.platform != "win32":
+        return {}
+    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """Start a subprocess and return the Popen object without eagerly reading stdout."""
     print(f"[RUN] {' '.join(cmd)}")
@@ -57,8 +72,8 @@ def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     popen_kwargs.setdefault("stdout", subprocess.PIPE)
     popen_kwargs.setdefault("stderr", subprocess.STDOUT)
     popen_kwargs.setdefault("text", True)
-    if sys.platform == "win32":
-        popen_kwargs.setdefault("creationflags", flags)
+    for key, value in _hidden_subprocess_kwargs().items():
+        popen_kwargs.setdefault(key, value)
 
 
     proc = subprocess.Popen(

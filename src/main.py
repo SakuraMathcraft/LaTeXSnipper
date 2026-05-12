@@ -1305,7 +1305,7 @@ def _python_candidate_usable(pyexe: Path) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
-            creationflags=_win_subprocess_flags(),
+            **_win_subprocess_kwargs(),
         )
         return proc.returncode == 0
     except Exception:
@@ -1851,7 +1851,7 @@ def _relaunch_with(pyexe: str):
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
     print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
     try:
-        proc = subprocess.Popen(argv, env=env, creationflags=_win_subprocess_flags())
+        proc = subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
     except Exception as e:
         print(f"[ERROR] 启动子进程失败: {e}")
         sys.exit(6)
@@ -1870,6 +1870,31 @@ def _win_subprocess_flags() -> int:
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
+
+def _win_startupinfo():
+    """Return hidden Windows startup info for console subprocesses."""
+    if os.name != "nt":
+        return None
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        return startupinfo
+    except Exception:
+        return None
+
+
+def _win_subprocess_kwargs() -> dict:
+    """Return Windows subprocess options that suppress transient console windows."""
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _win_subprocess_flags()}
+    startupinfo = _win_startupinfo()
+    if startupinfo is not None:
+        kwargs["startupinfo"] = startupinfo
+    return kwargs
+
+
 def _clean_bad_env():
     """Remove or repair invalid LATEXSNIPPER_PYEXE values."""
     val = os.environ.get("LATEXSNIPPER_PYEXE")
@@ -1882,7 +1907,7 @@ def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
     try:
         import subprocess
         r = subprocess.run([pyexe, "-c", "import ensurepip, venv;print('ok')"],
-                           capture_output=True, text=True, timeout=20, creationflags=_win_subprocess_flags())
+                           capture_output=True, text=True, timeout=20, **_win_subprocess_kwargs())
         return r.returncode == 0
     except Exception:
         return False
@@ -1920,7 +1945,7 @@ def _run_python_installer(installer: Path, target_dir: Path) -> bool:
                 "Include_pip=1", "PrependPath=0", "Include_test=0",
                 "Include_doc=0", "Include_launcher=0", "SimpleInstall=1"]
         print(f"[INFO] 正在静默安装 Python 到: {target_dir}")
-        r = subprocess.run(args, timeout=600, creationflags=_win_subprocess_flags())
+        r = subprocess.run(args, timeout=600, **_win_subprocess_kwargs())
         if r.returncode != 0:
             print(f"[WARN] 静默安装返回码: {r.returncode}")
             return False
@@ -2028,8 +2053,7 @@ if _is_packaged_mode():
                 if pyw.exists():
                     run_py = pyw
                 argv = [str(run_py), os.path.abspath(__file__), *sys.argv[1:]]
-                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if (os.name == "nt") else 0
-                subprocess.Popen(argv, env=env, creationflags=creationflags)
+                subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
                 sys.exit(0)
             else:
                 print("[INFO] packaged: already in private python")

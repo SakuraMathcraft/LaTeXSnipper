@@ -46,9 +46,26 @@ def _gui_dep_version_mismatches() -> list[str]:
     return mismatches
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def _install_stable_gui_deps(pyexe: str, reason: str) -> None:
     print(f"[WARN] GUI dependencies require repair: {reason}")
-    subprocess.check_call([pyexe, "-m", "pip", "install", "--force-reinstall", *STABLE_GUI_PIP_SPECS])
+    subprocess.check_call(
+        [pyexe, "-m", "pip", "install", "--force-reinstall", *STABLE_GUI_PIP_SPECS],
+        **_hidden_subprocess_kwargs(),
+    )
     importlib.invalidate_caches()
 
 
@@ -100,7 +117,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
             _ = _win32api
         except ImportError:
             print("[WARN] win32api is missing; attempting pywin32 installation.")
-            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"], **_hidden_subprocess_kwargs())
             importlib.invalidate_caches()
             print("[OK] pywin32 installed. Restart the app to complete initialization.")
             time.sleep(2)
@@ -112,7 +129,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
     except ImportError:
         print("[WARN] pyperclip is missing; attempting automatic installation.")
         try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "pyperclip"])
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pyperclip"], **_hidden_subprocess_kwargs())
             importlib.invalidate_caches()
             import pyperclip as _pyperclip
             _ = _pyperclip
@@ -131,7 +148,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
     except ImportError:
         print("[WARN] requests is missing; attempting automatic installation.")
         try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "requests"])
+            subprocess.check_call([pyexe, "-m", "pip", "install", "requests"], **_hidden_subprocess_kwargs())
             importlib.invalidate_caches()
             import requests as _requests
             _ = _requests

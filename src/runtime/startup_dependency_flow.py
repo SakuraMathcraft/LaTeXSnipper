@@ -30,6 +30,20 @@ def read_show_console_preference(config_path: Path, default: bool = False) -> bo
     return default
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def maybe_redirect_packaged_private_python(
     *,
     install_base_dir: Path,
@@ -70,6 +84,5 @@ def maybe_redirect_packaged_private_python(
         run_py = pyw
 
     child_argv = [str(run_py), os.path.abspath(main_file), *argv[1:]]
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-    subprocess.Popen(child_argv, env=env, creationflags=creationflags)
+    subprocess.Popen(child_argv, env=env, **_hidden_subprocess_kwargs())
     sys.exit(0)

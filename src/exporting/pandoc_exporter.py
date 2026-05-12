@@ -159,7 +159,7 @@ def check_pandoc_available(*, force: bool = False) -> bool:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=10,
-            creationflags=_subprocess_flags(),
+            **_hidden_subprocess_kwargs(),
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
@@ -200,6 +200,20 @@ def _subprocess_flags() -> int:
     if os.name != "nt":
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _subprocess_flags()}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
 
 
 def _wrap_formula_in_document(latex: str) -> str:

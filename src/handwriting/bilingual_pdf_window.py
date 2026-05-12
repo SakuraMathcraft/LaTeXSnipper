@@ -36,6 +36,20 @@ def _translation_env_python(env_dir: str | Path) -> Path:
     return root / "bin" / "python"
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 class _ArgosModelInstallWorker(QThread):
     progress = pyqtSignal(str)
     completed = pyqtSignal(bool, str)
@@ -60,7 +74,7 @@ class _ArgosModelInstallWorker(QThread):
             errors="replace",
             timeout=timeout,
             env=env,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            **_hidden_subprocess_kwargs(),
         )
 
     def _require_ok(self, result: subprocess.CompletedProcess, fallback: str) -> None:
@@ -224,7 +238,7 @@ class _ArgosStatusProbeWorker(QThread):
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+                **_hidden_subprocess_kwargs(),
             )
             self._proc = proc
             try:

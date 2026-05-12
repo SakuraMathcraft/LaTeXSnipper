@@ -42,30 +42,47 @@ def _pip_env(pyexe) -> dict:
     return env
 
 
+def _hidden_startupinfo():
+    if os.name != "nt":
+        return None
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        return startupinfo
+    except Exception:
+        return None
+
+
 def _spawn_process(args, *, env: dict, flags=0, safe_run: Callable | None = None, subprocess_lock=None):
     runner = _effective_safe_run(safe_run)
+    startupinfo = _hidden_startupinfo()
     with _lock_context(subprocess_lock):
         if runner is not None:
-            return runner(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                encoding="utf-8",
-                env=env,
-                creationflags=flags,
-            )
-        return subprocess.Popen(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            encoding="utf-8",
-            env=env,
-            creationflags=flags,
-        )
+            kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.STDOUT,
+                "text": True,
+                "bufsize": 1,
+                "encoding": "utf-8",
+                "env": env,
+                "creationflags": flags,
+            }
+            if startupinfo is not None:
+                kwargs["startupinfo"] = startupinfo
+            return runner(args, **kwargs)
+        kwargs = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "bufsize": 1,
+            "encoding": "utf-8",
+            "env": env,
+            "creationflags": flags,
+        }
+        if startupinfo is not None:
+            kwargs["startupinfo"] = startupinfo
+        return subprocess.Popen(args, **kwargs)
 
 
 def _set_proc(proc_setter, proc) -> None:
@@ -434,11 +451,17 @@ class PipInstallRunner:
                 self._set_proc(None)
 
         try:
+            kwargs = {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "creationflags": self.flags,
+            }
+            startupinfo = _hidden_startupinfo()
+            if startupinfo is not None:
+                kwargs["startupinfo"] = startupinfo
             subprocess.check_call(
                 [str(pyexe), "-m", "pip", "--version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=self.flags,
+                **kwargs,
             )
         except Exception:
             self.log_q.put(f"[ERR] pip is unavailable; skipping {pkg}")

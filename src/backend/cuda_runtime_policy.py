@@ -227,7 +227,7 @@ def python_version_for_executable(pyexe: str | Path | None = None) -> tuple[int,
             capture_output=True,
             text=True,
             timeout=5,
-            creationflags=_subprocess_creationflags(),
+            **_hidden_subprocess_kwargs(),
         )
         text = (result.stdout or "").strip().splitlines()[-1:]
         if text:
@@ -280,7 +280,7 @@ def _detect_nvcc_cuda_version() -> CudaRuntimeInfo:
             text=True,
             errors="replace",
             timeout=3,
-            creationflags=_subprocess_creationflags(),
+            **_hidden_subprocess_kwargs(),
         )
     except Exception:
         return CudaRuntimeInfo(source="nvcc")
@@ -340,6 +340,20 @@ def _subprocess_creationflags() -> int:
     if os.name != "nt":
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _subprocess_creationflags()}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
 
 
 def _quote_cmd_arg(arg: str) -> str:

@@ -56,6 +56,33 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _subprocess_creationflags()}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
+def _existing_non_launcher_pyexe_from_env() -> str:
+    pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+    if not pyexe or not os.path.exists(pyexe):
+        return ""
+    if getattr(sys, "frozen", False):
+        try:
+            if os.path.normcase(os.path.abspath(pyexe)) == os.path.normcase(os.path.abspath(sys.executable)):
+                return ""
+        except Exception:
+            return ""
+    return pyexe
+
+
 def _mathcraft_code_roots() -> list[str]:
     roots: list[Path] = []
 
@@ -725,7 +752,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
             except subprocess.TimeoutExpired:
                 return False
@@ -799,7 +826,7 @@ class SettingsWindow(QDialog):
                 capture_output=True,
                 text=True,
                 timeout=6,
-                creationflags=_subprocess_creationflags(),
+                **_hidden_subprocess_kwargs(),
             )
             raw = (res.stdout or "").strip()
             if raw:
@@ -848,7 +875,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
                 return lines[0] if lines else ""
@@ -865,7 +892,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=3,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
                 gpu_name = names[0] if names else ""
@@ -1020,21 +1047,16 @@ class SettingsWindow(QDialog):
         except Exception:
             return None
     def _resolve_dynamic_main_pyexe(self) -> str:
+        env_pyexe = _existing_non_launcher_pyexe_from_env()
+        if env_pyexe:
+            return env_pyexe
+
         base_dir = self._current_install_base_dir()
         if base_dir is not None:
             candidate = self._find_install_base_python(base_dir)
             if candidate is not None:
                 return str(candidate)
             return ""
-        env_pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-        if env_pyexe and os.path.exists(env_pyexe):
-            if getattr(sys, "frozen", False):
-                try:
-                    if os.path.normcase(os.path.abspath(env_pyexe)) == os.path.normcase(os.path.abspath(sys.executable)):
-                        return ""
-                except Exception:
-                    pass
-            return env_pyexe
         return ""
     def _is_mathcraft_selected(self) -> bool:
         idx = self.model_combo.currentIndex()
@@ -1657,11 +1679,8 @@ class SettingsWindow(QDialog):
             except Exception:
                 pass
             spawn_flags = int(_subprocess_creationflags()) if getattr(sys, "frozen", False) else 0
-            subprocess.Popen(
-                [str(x) for x in spawn_argv],
-                env=env,
-                creationflags=spawn_flags,
-            )
+            popen_kwargs = _hidden_subprocess_kwargs() if spawn_flags else {}
+            subprocess.Popen([str(x) for x in spawn_argv], env=env, **popen_kwargs)
             # Close the current program.
             QApplication.instance().quit()
         except Exception as e:
