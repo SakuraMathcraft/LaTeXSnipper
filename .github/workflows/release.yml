@@ -305,11 +305,6 @@ jobs:
             libxtst6 \
             zlib1g
 
-      - name: Clone MathCraft models
-        run: |
-          git clone --depth 1 https://github.com/SakuraMathcraft/MathCraft-Models.git MathCraft-models
-          echo "MATHCRAFT_MODELS_ROOT=$GITHUB_WORKSPACE/MathCraft-models" >> "$GITHUB_ENV"
-
       - name: Build offline .deb
         env:
           SOURCE_DATE_EPOCH: "1609459200"

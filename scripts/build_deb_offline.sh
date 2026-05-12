@@ -15,12 +15,8 @@ if [[ -z "${VERSION:-}" ]]; then
     die "unable to determine version; pass one explicitly: $0 <version>"
 fi
 
-MODEL_ROOT="$(find_mathcraft_models_root "$PROJECT_ROOT")" || die "MathCraft model files were not found; set MATHCRAFT_MODELS_ROOT"
-export MATHCRAFT_MODELS_ROOT="$MODEL_ROOT"
-
 echo "LaTeXSnipper Linux offline package build"
 echo "Version: $VERSION"
-echo "Models: $MATHCRAFT_MODELS_ROOT"
 
 PACKAGING_TEMPLATE="$PROJECT_ROOT/packaging/debian"
 PACKAGE_ROOT="$PROJECT_ROOT/build/package/debian-latexsnipper-offline"
@@ -29,19 +25,31 @@ DEB_PATH="$DEB_OUTPUT_DIR/latexsnipper-offline_${VERSION}_amd64.deb"
 DIST_DIR="$PROJECT_ROOT/dist/LaTeXSnipperOffline"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-linux-offline.spec"
 
-log_step "0/5" "Checking build tools"
+log_step "0/7" "Checking build tools"
 command -v dpkg-deb >/dev/null 2>&1 || die "dpkg-deb is required; install dpkg-dev on the build host"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 [[ -f "$SPEC_FILE" ]] || die "missing spec file: $SPEC_FILE"
 
-log_step "1/5" "Preparing isolated Python runtime"
+log_step "1/7" "Preparing MathCraft models"
+MODEL_ROOT="$(find_mathcraft_models_root "$PROJECT_ROOT")" || MODEL_ROOT=""
+if [[ -z "$MODEL_ROOT" ]]; then
+    MODEL_ROOT="$PROJECT_ROOT/build/models"
+    echo "Models not found locally; downloading to $MODEL_ROOT"
+    download_mathcraft_models "$PROJECT_ROOT" "$MODEL_ROOT"
+else
+    echo "Using existing models at $MODEL_ROOT"
+fi
+export MATHCRAFT_MODELS_ROOT="$MODEL_ROOT"
+echo "Models: $MATHCRAFT_MODELS_ROOT"
+
+log_step "2/7" "Preparing isolated Python runtime"
 BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
 install_python_requirements \
     "$BUILD_PYTHON" \
     "$PROJECT_ROOT/requirements-linux.txt" \
     "$PROJECT_ROOT/requirements-build.txt"
 
-log_step "2/5" "Running PyInstaller"
+log_step "3/7" "Running PyInstaller"
 rm -rf "$PROJECT_ROOT/build/pyinstaller_linux_offline" "$DIST_DIR"
 cd "$PROJECT_ROOT"
 "$BUILD_PYTHON" -m PyInstaller \
@@ -52,7 +60,7 @@ cd "$PROJECT_ROOT"
 
 [[ -d "$DIST_DIR" ]] || die "PyInstaller output was not created: $DIST_DIR"
 
-log_step "3/5" "Preparing Debian package tree"
+log_step "4/7" "Preparing Debian package tree"
 copy_debian_template "$PACKAGING_TEMPLATE" "$PACKAGE_ROOT"
 DEB_LIB_DIR="$PACKAGE_ROOT/usr/lib/latexsnipper-offline"
 mkdir -p "$DEB_LIB_DIR"
@@ -86,7 +94,7 @@ find "$DEB_LIB_DIR" -name "pyvenv.cfg" -delete 2>/dev/null || true
 export SOURCE_DATE_EPOCH
 find "$PACKAGE_ROOT" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} + 2>/dev/null || true
 
-log_step "4/5" "Updating Debian metadata"
+log_step "5/7" "Updating Debian metadata"
 INSTALLED_SIZE="$(du -sk "$PACKAGE_ROOT/usr" | cut -f1)"
 [[ -n "$INSTALLED_SIZE" && "$INSTALLED_SIZE" -gt 0 ]] || INSTALLED_SIZE=1
 update_debian_control \
@@ -96,10 +104,13 @@ update_debian_control \
     "$INSTALLED_SIZE" \
     "Desktop math workspace for capture, recognize, edit and compute (offline edition)"
 
-log_step "5/5" "Building .deb"
+log_step "6/7" "Building .deb"
 mkdir -p "$DEB_OUTPUT_DIR"
 dpkg-deb --root-owner-group --build "$PACKAGE_ROOT" "$DEB_PATH"
 write_sha256_file "$DEB_OUTPUT_DIR/SHA256SUMS-linux-offline.txt" "$DEB_PATH"
+
+log_step "7/7" "Verifying package contents"
+verify_deb_contains_models "$DEB_PATH" "latexsnipper-offline"
 
 echo ""
 echo "Package created: $DEB_PATH"

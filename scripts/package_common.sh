@@ -257,3 +257,78 @@ write_sha256_file() {
         printf '%s  %s\n' "$hash" "$(basename "$artifact")" >> "$output_file"
     done
 }
+
+# Download MathCraft model archives from GitHub Releases and verify SHA256.
+# Uses the manifest at mathcraft_ocr/manifests/models.v1.json to determine
+# download URLs and expected checksums.
+#
+# Usage: download_mathcraft_models <project_root> <target_dir>
+download_mathcraft_models() {
+    local project_root="$1"
+    local target_dir="$2"
+    local script="$project_root/scripts/download_mathcraft_models.py"
+
+    [[ -f "$script" ]] || die "model download script not found: $script"
+    python3 "$script" "$target_dir" || die "MathCraft model download failed"
+}
+
+# Verify that model files are present inside a built .deb package.
+# Extracts the .deb to a temporary directory and checks for the expected
+# model subdirectories under _internal/MathCraft/models/.
+#
+# Usage: verify_deb_contains_models <deb_path> [lib_subdir]
+#   lib_subdir defaults to "latexsnipper-offline"
+verify_deb_contains_models() {
+    local deb_path="$1"
+    local lib_subdir="${2:-latexsnipper-offline}"
+
+    [[ -f "$deb_path" ]] || die ".deb file not found for verification: $deb_path"
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    dpkg-deb -x "$deb_path" "$tmp_dir"
+
+    local internal="$tmp_dir/usr/lib/$lib_subdir/_internal/MathCraft/models"
+    if [[ ! -d "$internal" ]]; then
+        echo "[VERIFY] ERROR: MathCraft/models directory not found in .deb" >&2
+        return 1
+    fi
+
+    local expected_models=(
+        mathcraft-formula-det
+        mathcraft-formula-rec
+        mathcraft-text-det
+        mathcraft-text-rec
+    )
+    local found=0
+    local model_id
+    for model_id in "${expected_models[@]}"; do
+        local model_dir="$internal/$model_id"
+        if [[ -d "$model_dir" ]]; then
+            local file_count
+            file_count="$(find "$model_dir" -type f -print | wc -l)"
+            if [[ "$file_count" -gt 0 ]]; then
+                echo "[VERIFY] $model_id: $file_count file(s) present in .deb"
+                found=$((found + 1))
+            else
+                echo "[VERIFY] WARNING: $model_id directory exists but is empty" >&2
+            fi
+        else
+            echo "[VERIFY] WARNING: $model_id not found in .deb" >&2
+        fi
+    done
+
+    rm -rf "$tmp_dir"
+    trap - RETURN
+
+    if [[ "$found" -lt "${#expected_models[@]}" ]]; then
+        echo "[VERIFY] ERROR: only $found/${#expected_models[@]} models found in .deb" >&2
+        return 1
+    fi
+
+    echo "[VERIFY] all $found model directories verified in .deb"
+    return 0
+}
