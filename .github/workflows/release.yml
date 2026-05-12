@@ -192,9 +192,18 @@ jobs:
           python-version: "3.11"
 
       - name: Install Linux build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          set -euo pipefail
+          APT_OPTS=(
+            -o Acquire::Retries=5
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+            -o Dpkg::Use-Pty=0
+          )
+          sudo -E timeout 6m apt-get "${APT_OPTS[@]}" update
+          sudo -E timeout 12m apt-get "${APT_OPTS[@]}" install -y --no-install-recommends \
             dpkg-dev \
             libasound2 \
             libatk-bridge2.0-0 \
