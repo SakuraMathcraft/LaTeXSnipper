@@ -1203,7 +1203,7 @@ def _pandoc_data_dir() -> Path:
 
 def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
     """
-    安装完成后强制修复关键依赖版本。
+    Force-fix critical dependency versions after installation.
     """
     import subprocess
 
@@ -1937,7 +1937,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "being used by another process",
         "permissionerror",
         "winerror 5",
-        "winerror 32",  # 文件被另一进程使用
+        "winerror 32",  # File is in use by another process
         "errno 13",
     ]):
         return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
@@ -3282,7 +3282,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             deps_dir = fallback
 
     if not deps_dir:
-        parent = app.activeWindow()  # 没有也可为 None
+        parent = app.activeWindow()  # None is acceptable here
         _notify_before_show_ui()
         chosen = _select_existing_directory_with_icon(parent, "选择依赖安装/加载目录", str(Path.home()))
         if not chosen:
@@ -4054,7 +4054,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             except Exception:
                                 pass
                         worker.stop()
-                        worker.wait(5000)  # 等待最长 5 秒
+                        worker.wait(5000)  # Wait up to 5 seconds
                     except Exception as e:
                         print(f"[WARN] 关闭事件清理异常: {e}")
                     finally:
