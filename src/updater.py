@@ -585,7 +585,7 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
     headers: Dict[str, str] = {}
     _attach_auth_headers(headers)
     etag, _, cached_info = _load_cached_info()
-    # 如果缓存里的“最新版本”竟然低于当前程序版本，说明缓存明显过期，直接绕过 ETag 强制重取。
+    # If the cached latest version is older than the current app version, the cache is clearly stale; bypass ETag and force a refetch.
     if cached_info and _compare_versions(cached_info.latest, __version__) < 0:
         etag = None
         cached_info = None

@@ -588,6 +588,7 @@ class LaTeXRenderer:
     \end{{document}}
     """
 
+
 class LaTeXSettings:
     """Manage persisted LaTeX rendering settings."""
 
@@ -600,13 +601,13 @@ class LaTeXSettings:
         """Load settings from disk."""
         if self.config_file.exists():
             try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                print(f"[WARN] 加载 LaTeX 设置失败: {e}")
-        
+                print(f"[WARN] Failed to load LaTeX settings: {e}")
+
         return self._default_settings()
-    
+
     def _default_settings(self) -> Dict:
         """Return default settings."""
         return {
@@ -616,7 +617,7 @@ class LaTeXSettings:
             "cache_svg": True,
             "enable_offline": False,
         }
-    
+
     def save(self):
         """Save settings to disk."""
         try:
@@ -638,7 +639,7 @@ class LaTeXSettings:
     def set_render_mode(self, mode: str):
         """Set the formula rendering mode."""
         valid_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
-        
+
         if mode not in valid_modes:
             print(f"[WARN] Invalid render mode: {mode}")
             return
@@ -649,9 +650,9 @@ class LaTeXSettings:
             self.settings["use_xelatex"] = True
         elif mode == "latex_pdflatex":
             self.settings["use_xelatex"] = False
-        
+
         self.save()
-    
+
     def get_render_mode(self) -> str:
         """Return the configured render mode."""
         return self.settings.get("render_mode", "auto")

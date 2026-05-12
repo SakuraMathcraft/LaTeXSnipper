@@ -22,7 +22,7 @@ class LinuxHotkey(QObject):
 
     activated = pyqtSignal()
 
-    # Qt modifier to pynput key mapping
+# Qt modifier to pynput key mapping
     _MOD_MAP = {
         Qt.KeyboardModifier.ControlModifier: "ctrl",
         Qt.KeyboardModifier.ShiftModifier: "shift",

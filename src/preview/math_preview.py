@@ -1,4 +1,4 @@
-﻿"""MathJax preview HTML and theme tokens."""
+"""MathJax preview HTML and theme tokens."""
 
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ def dialog_theme_tokens() -> dict:
     }
 
 
-# 支持 SVG 渲染的简化模板（不需要 MathJax 脚本）
+# Simplified template for SVG rendering; MathJax scripts are not needed.
 MATHJAX_HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html>
@@ -267,8 +267,8 @@ def get_mathjax_base_url():
                         _MATHJAX_LOGGED_KEYS.add("cdn")
                     cdn_url = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/"
                     return QUrl(cdn_url)
-                # LaTeX 模式下主窗口/结果窗口仍可能包含 MathJax 内容（如混合文本、回退渲染），
-                # 这里继续返回本地 base_url，避免空 base 触发 CDN 回退。
+                # In LaTeX mode the main/result windows may still contain MathJax content such as mixed text or fallback rendering,
+                # so keep returning the local base_url to avoid an empty base triggering CDN fallback.
                 elif mode and mode.startswith("latex_"):
                     mode_key = f"latex:{mode}"
                     if mode_key not in _MATHJAX_LOGGED_KEYS:
@@ -277,7 +277,7 @@ def get_mathjax_base_url():
                     # continue: resolve local MathJax base URL below
         except Exception as e:
             print(f"[WARN] 获取渲染模式失败: {e}")
-
+        
         # Otherwise use local MathJax.
         # Step 1: resolve APP_DIR.
         actual_app_dir = None
@@ -286,7 +286,7 @@ def get_mathjax_base_url():
         if APP_DIR and str(APP_DIR).strip():
             actual_app_dir = Path(APP_DIR)
         
-        mathjax_source_desc = "local"
+        mathjax_source_desc = "本地资源"
 
         # Try alternate locations when APP_DIR is empty or unavailable.
         if not actual_app_dir or not str(actual_app_dir).strip():
@@ -301,13 +301,13 @@ def get_mathjax_base_url():
                 # Try assets in the PyInstaller onefile extraction directory.
                 elif (exe_dir / "assets").exists():
                     actual_app_dir = exe_dir
-                    mathjax_source_desc = "exe sibling"
+                    mathjax_source_desc = "exe 同级"
                 else:
                     # As a last attempt, walk upward from the executable directory.
                     parent = exe_dir.parent
                     if (parent / "src" / "assets").exists():
                         actual_app_dir = parent / "src"
-                        mathjax_source_desc = "parent src"
+                        mathjax_source_desc = "父目录 src"
             else:
                 # Development mode: use this script directory.
                 actual_app_dir = Path(__file__).parent
@@ -410,4 +410,3 @@ def build_math_html(latex_or_list, labels=None) -> str:
 <p><strong>错误信息:</strong> {str(e)}</p>
 <p>请检查 MathJax 资源是否正确打包</p>
 </body></html>'''
-

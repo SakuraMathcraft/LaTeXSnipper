@@ -78,8 +78,8 @@ class FavoritesWindow(QMainWindow):
         self.setCentralWidget(container)
 
         self.favorites = []
-        self._favorite_names = {}   # Favorite names: {content: name}
-        self._favorite_types = {}   # Favorite types: {content: content_type}
+        self._favorite_names = {}   # Favorite names: {content: name}.
+        self._favorite_types = {}   # Favorite types: {content: content_type}.
         favorites_path = resolve_user_data_file(self.cfg, "favorites_path", DEFAULT_FAVORITES_NAME)
         self.file_path = favorites_path
         self.load_favorites()
@@ -357,7 +357,7 @@ class FavoritesWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.value()
             if new and new != latex:
-                # 查找在 favorites 中的索引
+                # Find the index in favorites.
                 if latex in self.favorites:
                     idx = self.favorites.index(latex)
                     self.favorites[idx] = new

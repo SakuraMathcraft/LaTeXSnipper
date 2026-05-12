@@ -4,7 +4,6 @@ import builtins
 import ctypes
 import datetime
 import faulthandler
-import importlib
 import io
 import json
 import logging
@@ -18,167 +17,21 @@ import time
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 # Force UTF-8 encoding for all subprocess pipes on Windows (avoids gbk decode crashes)
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 os.environ.setdefault("PYTHONUTF8", "1")
 
-STABLE_GUI_PIP_SPECS = [
-    "PyQt6==6.10.0",
-    "PyQt6-Qt6==6.10.0",
-    "PyQt6-WebEngine==6.10.0",
-    "PyQt6-WebEngine-Qt6==6.10.0",
-    "PyQt6-Fluent-Widgets==1.11.2",
-]
-
-STABLE_GUI_VERSION_PINS = {
-    "PyQt6": "6.10.0",
-    "PyQt6-Qt6": "6.10.0",
-    "PyQt6-WebEngine": "6.10.0",
-    "PyQt6-WebEngine-Qt6": "6.10.0",
-    "PyQt6-Fluent-Widgets": "1.11.2",
-}
-
-
-def _gui_dep_version_mismatches():
-    try:
-        import importlib.metadata as metadata
-    except Exception:
-        return []
-
-    mismatches = []
-    for dist_name, expected in STABLE_GUI_VERSION_PINS.items():
-        try:
-            actual = metadata.version(dist_name)
-        except metadata.PackageNotFoundError:
-            actual = None
-        except Exception:
-            actual = None
-        if actual != expected:
-            shown = actual if actual is not None else "未安装"
-            mismatches.append(f"{dist_name}={shown}，期望 {expected}")
-    return mismatches
-
-
-def _install_stable_gui_deps(pyexe: str, reason: str):
-    print(f"[WARN] GUI 依赖需要修复：{reason}")
-    subprocess.check_call([pyexe, "-m", "pip", "install", "--force-reinstall", *STABLE_GUI_PIP_SPECS])
-    importlib.invalidate_caches()
-
-
-def _early_ensure_pyqt6_and_pywin32():
-    import importlib
-    import os
-    import subprocess
-    import sys
-    pyexe = sys.executable
-    exe_name = os.path.basename(pyexe).lower()
-    # Enable early pip self-repair only in source-interpreter mode; packaged executables do not support `-m pip` semantics.
-    can_pip_repair = (not getattr(sys, "frozen", False)) and exe_name.startswith("python")
-    if not can_pip_repair:
-        print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
-        return
-
-    mismatches = _gui_dep_version_mismatches()
-    if mismatches:
-        _install_stable_gui_deps(pyexe, "; ".join(mismatches))
-
-    # Check PyQt6
-    try:
-        import PyQt6 as _PyQt6
-        _ = _PyQt6
-    except ImportError:
-        print("[WARN] 未检测到 PyQt6，尝试自动安装...")
-        _install_stable_gui_deps(pyexe, "PyQt6 未安装")
-        importlib.invalidate_caches()
-        import PyQt6 as _PyQt6
-        _ = _PyQt6
-        print("[OK] PyQt6 安装成功。")
-    else:
-        # PyQt6 exists but WebEngine may be missing
-        try:
-            from PyQt6 import QtWebEngineWidgets as _QtWebEngineWidgets
-            _ = _QtWebEngineWidgets
-        except Exception:
-            print("[WARN] 未检测到 PyQt6-WebEngine，尝试自动安装...")
-            _install_stable_gui_deps(pyexe, "PyQt6-WebEngine 未安装")
-            importlib.invalidate_caches()
-
-    # Check qfluentwidgets (PyQt6-Fluent-Widgets)
-    try:
-        import qfluentwidgets as _qfluentwidgets
-        _ = _qfluentwidgets
-    except ImportError:
-        print("[WARN] 未检测到 PyQt6-Fluent-Widgets，尝试自动安装...")
-        _install_stable_gui_deps(pyexe, "PyQt6-Fluent-Widgets 未安装")
-        importlib.invalidate_caches()
-        import qfluentwidgets as _qfluentwidgets
-        _ = _qfluentwidgets
-        print("[OK] PyQt6-Fluent-Widgets 安装成功。")
-
-    # Check win32api
-    if os.name == "nt":
-        try:
-            import win32api as _win32api
-            _ = _win32api
-        except ImportError:
-            print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
-            importlib.invalidate_caches()
-            # Critical: prompt the user to restart immediately after install
-            print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
-            import time
-            time.sleep(2)
-            sys.exit(0)
-
-    # Check pyperclip
-    try:
-        import pyperclip as _pyperclip
-        _ = _pyperclip
-    except ImportError:
-        print("[WARN] 未检测到 pyperclip，尝试自动安装...")
-        try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "pyperclip"])
-            importlib.invalidate_caches()
-            import pyperclip as _pyperclip
-            _ = _pyperclip
-            print("[OK] pyperclip 安装成功。")
-        except Exception as e:
-            print(f"[WARN] pyperclip 自动安装失败: {e}")
-            # Fallback stub to avoid crash; clipboard copy will be no-op with warning.
-            import types
-            def _copy_stub(_text):
-                print("[WARN] pyperclip 不可用，无法复制到剪贴板。")
-            sys.modules.setdefault("pyperclip", types.SimpleNamespace(copy=_copy_stub))
-
-    # Check requests (used for update check)
-    try:
-        import requests as _requests
-        _ = _requests
-    except ImportError:
-        print("[WARN] 未检测到 requests，尝试自动安装...")
-        try:
-            subprocess.check_call([pyexe, "-m", "pip", "install", "requests"])
-            importlib.invalidate_caches()
-            import requests as _requests
-            _ = _requests
-            print("[OK] requests 安装成功。")
-        except Exception as e:
-            print(f"[WARN] requests 自动安装失败: {e}")
-            import types
-            def _requests_stub(*_args, **_kwargs):
-                raise RuntimeError("requests 不可用，更新检查已禁用。")
-            sys.modules.setdefault("requests", types.SimpleNamespace(get=_requests_stub, post=_requests_stub))
-
-_early_ensure_pyqt6_and_pywin32()
+early_ensure_pyqt6_and_pywin32()
 
 def resource_path(relative_path):
-    """获取打包后资源的绝对路径"""
+    """Return the absolute path for bundled resources."""
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
-# Global config filename (define once)
+
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
 _APP_LOG_DIR_CACHE = None
@@ -227,7 +80,7 @@ def _app_log_dir() -> pathlib.Path:
     _APP_LOG_DIR_CACHE = fallback
     return fallback
 
-# Keep the crash log file handle alive globally to avoid GC or premature close
+
 _CRASH_FH = None
 _LSN_CONSOLE_CTRL_HANDLER = None
 _LSN_DEBUG_CONSOLE_READY = False
@@ -241,26 +94,26 @@ _LSN_RUNTIME_LOG_CLEANUP_HOOKED = False
 def _pre_bootstrap_runtime():
     global _CRASH_FH
 
-    # 1) Prevent 0xC0000409 from duplicate OpenMP loading
+
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("MKL_THREADING_LAYER", "SEQUENTIAL")
 
-    # 2) Custom marker so onnxruntime uses CPU EP
+
     os.environ.setdefault("ORT_NO_AZURE_EP", "1")
 
-    # 3) Open a stable crash log file for faulthandler only; do not touch sys.stderr
+
     log_dir = pathlib.Path.home() / ".latexsnipper" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     crash_log = log_dir / "crash-native.log"
 
     try:
-        # Open the file and keep it referenced globally; do not close before process exit
+
         _CRASH_FH = open(crash_log, "a", encoding="utf-8", buffering=1)
         _CRASH_FH.write(f"\n=== LaTeXSnipper start {datetime.datetime.now().isoformat()} ===\n")
         faulthandler.enable(all_threads=True, file=_CRASH_FH)
     except Exception:
-        # Fall back to default stderr on failure, but do not rewrite sys.stderr
+
         try:
             faulthandler.enable(all_threads=True)
         except Exception:
@@ -376,7 +229,7 @@ def _load_qt_symbols():
     pyqtSignal,
 ) = _load_qt_symbols()
 
-# Must be set before creating QApplication (required by QtWebEngine context sharing)
+
 try:
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 except Exception:
@@ -735,7 +588,7 @@ from runtime.webengine_runtime import configure_default_webengine_profile  # noq
 configure_default_webengine_profile()
 
 class RuntimeLogDialog(QDialog):
-    """初始化/运行日志窗口（GUI 版，不使用系统控制台）。"""
+    """GUI runtime log window without using a system console."""
 
     def __init__(self, log_file: Path, parent=None):
         super().__init__(parent)
@@ -873,7 +726,7 @@ class RuntimeLogDialog(QDialog):
             pass
 
     def closeEvent(self, ev):
-        # Hide instead of destroy; avoid recreating windows and reconnecting signals.
+
         try:
             ev.ignore()
             self.hide()
@@ -909,10 +762,7 @@ _RUNTIME_SESSION_HANDLER = None
 _APP_LOGGING_INITIALIZED = False
 
 def init_app_logging() -> Path:
-    """
-    初始化应用日志：控制台 + 轮转文件(~/.latexsnipper/logs/app.log)。
-    多次调用会复用已存在的处理器。
-    """
+    """Initialize application logging and route output to the runtime log."""
     global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
     _ensure_startup_splash(_startup_status_message("初始化日志..."))
     log_dir = Path(_app_log_dir())
@@ -925,7 +775,7 @@ def init_app_logging() -> Path:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
-    # Avoid adding duplicate handlers
+
     has_file = any(
         isinstance(h, RotatingFileHandler)
         and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path))
@@ -970,14 +820,14 @@ def init_app_logging() -> Path:
                 active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
     if not has_stream:
-        # Write to the original stdout to avoid logging chain issues after stdout redirection.
+
         sh = logging.StreamHandler(sys.__stdout__)
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
     _RUNTIME_SESSION_HANDLER = None
 
-    # Bridge print output to app.log so the log file is more useful.
+
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
     if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
         _ORIGINAL_PRINT = builtins.print
@@ -989,11 +839,11 @@ def init_app_logging() -> Path:
             bridge_logger.addHandler(file_handler)
 
         def _print_bridge(*args, **kwargs):
-            # Keep the original print behavior first (terminal/GUI log window).
+
             _ORIGINAL_PRINT(*args, **kwargs)
             try:
                 target = kwargs.get("file", None)
-                # Only bridge standard output streams; avoid duplicate logging when writing to other file objects.
+
                 if target not in (None, sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
                     return
                 sep = kwargs.get("sep", " ")
@@ -1011,7 +861,7 @@ def init_app_logging() -> Path:
         logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, active_log_path)
         setattr(root, "_latexsnipper_session_logged", True)
 
-    # Initialize LaTeX settings
+
     _ensure_startup_splash(_startup_status_message("初始化 LaTeX 设置..."))
     try:
         config_dir = Path.home() / ".latexsnipper"
@@ -1025,10 +875,10 @@ def init_app_logging() -> Path:
 
     return active_log_path
 
-# AA_ShareOpenGLContexts was already set at the top of this file before QApplication creation
+
 
 def apply_theme(mode: str = "AUTO") -> bool:
-    """安全设置 QFluentWidgets 主题，避免 QConfig 已被销毁导致的 RuntimeError。"""
+    """Apply the QFluentWidgets theme safely even if QConfig has been destroyed."""
     try:
         import importlib
         import qfluentwidgets.common.config as cfg
@@ -1038,7 +888,7 @@ def apply_theme(mode: str = "AUTO") -> bool:
             ss.setTheme(theme)
             return True
         except RuntimeError:
-            # The wrapper may have been invalidated by a previous instance teardown; reload and retry
+
             cfg = importlib.reload(cfg)
             ss = importlib.reload(ss)
             theme = getattr(cfg.Theme, mode)
@@ -1077,30 +927,21 @@ def read_theme_mode_from_config() -> str:
         return "auto"
 
 def _get_app_root() -> Path:
-    """获取应用程序根目录
+    """Return the application root directory."""
 
-    在打包模式下（PyInstaller），返回 _internal 目录
-    在开发模式下，返回 src 目录所在的目录
-    """
-    # Compatible with both PyInstaller packaging and source runs
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        # PyInstaller packaged mode: sys._MEIPASS points to the _internal directory
+
         return Path(sys._MEIPASS)
-    # Development mode: return the directory containing main.py (the src directory)
+
     return Path(__file__).resolve().parent
 
 def _is_packaged_mode() -> bool:
-    """
-    检测是否在打包模式下运行。
-    打包模式特征：
-    1. sys._MEIPASS 存在
-    2. APP_DIR 包含 _internal 路径
-    """
-    # First try sys._MEIPASS (PyInstaller marker)
+    """Return True when running from a packaged PyInstaller build."""
+
     if hasattr(sys, '_MEIPASS'):
         return True
 
-    # Check if APP_DIR contains _internal (packaged marker)
+
     app_dir_str = str(_get_app_root()).lower()
     return '_internal' in app_dir_str
 
@@ -1108,7 +949,7 @@ APP_DIR = _get_app_root()
 
 print(f"[DEBUG] 主程序目录: {APP_DIR}")
 print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
-# Get the dependencies directory: first check env var, then config, fall back to default
+
 _deps_env = os.environ.get("LATEXSNIPPER_DEPS_DIR")
 DEPS_DIR = Path(_deps_env) if _deps_env else (APP_DIR / "deps")
 DEPS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1116,14 +957,14 @@ DEPS_DIR.mkdir(parents=True, exist_ok=True)
 print(f"[DEBUG] 依赖目录: {DEPS_DIR}")
 
 class TeeWriter(io.TextIOBase):
-    """把写入同时输出到两个流（保留 IDE 输出+新控制台），对 I/O 错误宽容处理。"""
+    """Write to two streams while tolerating I/O failures."""
 
     def __init__(self, a, b):
         self._a = a
         self._b = b
         self._closed = False
         self._b_line_buffer = ""
-        # Keep a reference to the original stream for restore
+
         self._original_a = a
         self._original_b = b
 
@@ -1135,7 +976,7 @@ class TeeWriter(io.TextIOBase):
         return True
 
     def _stream_ok(self, stream) -> bool:
-        """检查流是否可用"""
+        """Return whether the stream is usable."""
         if stream is None:
             return False
         if getattr(stream, "closed", False):
@@ -1176,7 +1017,7 @@ class TeeWriter(io.TextIOBase):
             except Exception:
                 pass
 
-        # Only flush after a successful write
+
         for stream in (self._a,):
             if not self._stream_ok(stream):
                 continue
@@ -1211,11 +1052,11 @@ class TeeWriter(io.TextIOBase):
                 pass
 
     def close(self):
-        # Do not close the underlying stream; only mark self as closed
+
         self._closed = True
 
     def fileno(self):
-        """返回主流的文件描述符（如果可用）"""
+        """Return the primary stream file descriptor when available."""
         for stream in (self._a, self._b):
             if self._stream_ok(stream) and hasattr(stream, "fileno"):
                 try:
@@ -1358,7 +1199,7 @@ def _show_runtime_log_window(parent=None):
 
 
 def open_debug_console(force: bool = False, tee: bool = True):
-    """GUI 日志窗口模式：可滚动/可复制"""
+    """Open the scrollable and copyable GUI log window."""
     global _LSN_DEBUG_CONSOLE_READY
 
     if getattr(sys, "frozen", False):
@@ -1423,7 +1264,7 @@ def _same_exe(a: str, b: str) -> bool:
         return False
 
 def _config_path() -> Path:
-    # Unified config path: ~/.latexsnipper/LaTeXSnipper_config.json
+
     return _app_state_dir() / CONFIG_FILENAME
 
 def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
@@ -1576,10 +1417,7 @@ def _read_install_base_dir() -> Path | None:
     return None
 
 def _get_bundled_deps_dir_for_packaged() -> Path | None:
-    """
-    打包模式首启时自动探测内置依赖目录:
-    期望目录结构: <_internal>/deps/<python*>/python.exe
-    """
+    """Return the bundled dependency directory for packaged builds."""
     if not _is_packaged_mode():
         return None
     candidates: list[Path] = []
@@ -1612,11 +1450,7 @@ def _get_bundled_deps_dir_for_packaged() -> Path | None:
     return None
 
 def _select_install_base_dir() -> Path:
-    """
-    弹出目录选择对话框。返回用户选择的目录。
-    - 如果用户取消，抛出 RuntimeError("user canceled")
-    - 不会自动写入配置文件（由调用者决定）
-    """
+    """Prompt for the dependency installation base directory."""
     from pathlib import Path
     try:
         from PyQt6.QtWidgets import QApplication
@@ -1633,7 +1467,7 @@ def _select_install_base_dir() -> Path:
             p.mkdir(parents=True, exist_ok=True)
             return p
         else:
-            # User cancelled
+
             raise RuntimeError("user canceled")
     except RuntimeError:
         raise
@@ -1696,19 +1530,8 @@ def _select_open_file_with_icon(parent, title: str, initial_path: str, filter_: 
     chosen_filter = dlg.selectedNameFilter()
     return (selected[0] if selected else ""), chosen_filter
 
-def _is_dir_writable(p: Path) -> bool:
-    """检查目录是否可写（包括尝试创建临时文件）。"""
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-        test = p / ".write_test"
-        test.write_text("ok", encoding="utf-8")
-        test.unlink()
-        return True
-    except (OSError, PermissionError):
-        return False
-
 def _save_install_base_dir(p: Path) -> None:
-    """保存依赖目录到配置文件。"""
+    """Save the dependency directory to the config file."""
     try:
         p = _normalize_install_base_dir(p)
         cfg = {}
@@ -1722,17 +1545,7 @@ def _save_install_base_dir(p: Path) -> None:
         print(f"[WARN] 保存配置失败: {e}")
 
 def resolve_install_base_dir() -> Path:
-    """
-    解析依赖安装目录。统一处理开发模式和打包模式。
-
-    流程：
-    1. 检查配置文件中的 install_base_dir
-    2. 打包模式首启时，若存在内置 `_internal/deps` 且其中已带可用 Python，自动采用并写入配置
-    3. 若仍为空，弹出目录选择对话框
-    4. 检查选定目录是否已有可复用 Python
-       - 有：使用该目录，保存配置，返回
-       - 无：仅保存目录并返回；是否初始化 python311 交给依赖向导内部处理
-    """
+    """Resolve the dependency installation base directory."""
     import time
 
     if not _is_packaged_mode():
@@ -1740,10 +1553,10 @@ def resolve_install_base_dir() -> Path:
         if current_dev_base is not None:
             return current_dev_base
 
-    # Step 1: read the dependency directory from config
+
     p = _read_install_base_dir()
 
-    # Packaged-mode first launch: auto-use the built-in deps when no config exists (avoids manual selection/install)
+
     if not p:
         bundled = _get_bundled_deps_dir_for_packaged()
         if bundled:
@@ -1751,19 +1564,11 @@ def resolve_install_base_dir() -> Path:
                 bundled.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            # Check whether the built-in directory is writable (system-level .deb installs usually are not)
-            if _is_dir_writable(bundled):
-                print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
-                _save_install_base_dir(bundled)
-                p = bundled
-            else:
-                fallback = Path.home() / ".latexsnipper" / "deps"
-                fallback.mkdir(parents=True, exist_ok=True)
-                print(f"[WARN] 内置目录不可写 ({bundled})，回退到用户目录: {fallback}")
-                _save_install_base_dir(fallback)
-                p = fallback
+            print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
+            _save_install_base_dir(bundled)
+            p = bundled
 
-    # Step 2: if still no directory, show the selection dialog
+
     if not p:
         print("[INFO] 首次启动，请选择依赖安装目录...")
         try:
@@ -1776,7 +1581,7 @@ def resolve_install_base_dir() -> Path:
 
     py_exe = _find_install_base_python(p)
 
-    # Step 3: check if Python is already present
+
     if py_exe is not None and py_exe.exists():
         print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
@@ -1787,7 +1592,7 @@ def resolve_install_base_dir() -> Path:
     return p
 
 def _current_runtime_roots() -> list[str]:
-    """收集当前进程解释器的根目录及标准库路径，净化时必须保留。"""
+    """Collect interpreter roots and standard-library paths that must survive cleanup."""
     bases: set[Path] = set()
     for b in (getattr(sys, "base_prefix", None),
               getattr(sys, "exec_prefix", None),
@@ -1806,7 +1611,7 @@ def _current_runtime_roots() -> list[str]:
             str(base / "Lib"),
             str(base / "Lib" / "site-packages"),
         })
-    # Preserve the pythonXY.zip currently in use by this process (supports 3.11/3.12 three-digit versions)
+
     try:
         for p in list(sys.path):
             try:
@@ -1820,7 +1625,7 @@ def _current_runtime_roots() -> list[str]:
     return list(roots)
 
 def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
-    """净化 sys.path：保留项目根、私有解释器、当前运行时标准库；仅清理 WindowsApps 等污染。"""
+    """Sanitize sys.path while preserving project, private interpreter, and runtime stdlib paths."""
     try:
         allowed = [Path(r).resolve() for r in _allowed_roots_for(pyexe, base_dir)]
         runtime_roots = [Path(r).resolve() for r in _current_runtime_roots()]
@@ -1839,15 +1644,15 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
             except Exception:
                 return False
             sl = str(q).lower()
-            # Only filter out system store pollution
+
             if "windowsapps\\python" in sl or "microsoft\\windowsapps" in sl:
                 return False
 
-            # Allow: project/private paths, current runtime stdlib paths, and stdlib zip
+
             if under_any(q, allowed) or under_any(q, runtime_roots):
                 return True
 
-            # Compat: match pythonXY (or XYY).zip using \d+ for 3.11/3.12
+
             try:
                 import re
                 if re.fullmatch(r"python\d+\.zip", q.name.lower()):
@@ -1857,7 +1662,7 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
             return False
         newp = [p for p in list(sys.path) if ok(p)]
 
-        # Ensure source directory is first
+
         try:
             src_dir = str(Path(__file__).resolve().parent)
             if src_dir not in newp:
@@ -1870,7 +1675,7 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
         pass
 
 def _in_ide() -> bool:
-    """检测是否在 IDE 中运行（PyCharm/调试主控台等）。"""
+    """Detect whether the app is running under an IDE or debugger console."""
     e = os.environ
     return any(k in e for k in ("PYCHARM_HOSTED", "PYCHARM_DISPLAY_PORT", "PYDEV_CONSOLE_ENCODING"))
 
@@ -1879,7 +1684,7 @@ def _python_base_from_exe(pyexe: str) -> Path:
     return p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
 
 def _stdlib_zip_versions(base: Path) -> list[tuple[int, int, str]]:
-    """返回该基目录下 pythonXY.zip 的 (X,Y,路径) 列表，兼容 3.11/3.12 等多位次版本。"""
+    """Return pythonXY.zip versions found under the base directory."""
     out: list[tuple[int, int, str]] = []
     try:
         for p in base.glob("python*.zip"):
@@ -1892,7 +1697,7 @@ def _stdlib_zip_versions(base: Path) -> list[tuple[int, int, str]]:
     return out
 
 def _same_runtime_version_as_current(pyexe: str | None) -> bool:
-    """判断私有解释器的 stdlib zip 是否包含与当前进程相同的主次版本。"""
+    """Return whether the private interpreter stdlib zip matches the current major/minor version."""
     if not pyexe or not os.path.exists(pyexe):
         return False
     base = _python_base_from_exe(pyexe)
@@ -1900,7 +1705,7 @@ def _same_runtime_version_as_current(pyexe: str | None) -> bool:
     return any((maj, minr) == cur for maj, minr, _ in _stdlib_zip_versions(base))
 
 def _scrub_path_inplace(env: dict | None = None):
-    """移除 Windows Store Python alias，避免源码模式重启后子进程解析到 WindowsApps。"""
+    """Remove Windows Store Python aliases from PATH."""
     e = env if env is not None else os.environ
     paths = (e.get("PATH") or "").split(";")
     bad_tokens = ("\\WindowsApps\\Python", "Microsoft\\WindowsApps")
@@ -1939,14 +1744,10 @@ def _append_private_site_packages(pyexe: str | None):
 
 
 def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
-    """
-    允许保留的路径前缀。
-    - 总是保留：项目根、当前运行时标准库根（含 pythonXY.zip）
-    - 私有解释器：总是保留 Lib、Lib/site-packages；仅在版本一致时保留 base、DLLs、python*.zip
-    """
+    """Return path roots allowed for the target interpreter."""
     roots: set[str] = set()
 
-    # Project source directory
+
     try:
         src_dir = Path(__file__).resolve().parent
         roots.add(str(src_dir))
@@ -1956,12 +1757,12 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     def add_private_base(b: Path, allow_core: bool):
         if not b.exists():
             return
-        # Always allow pure Python packages
+
         roots.update({
             str(b / "Lib"),
             str(b / "Lib" / "site-packages"),
         })
-        # Allow core, DLLs, and zip only when the version matches
+
         if allow_core:
             roots.update({
                 str(b),
@@ -1973,7 +1774,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
                         roots.add(z)
             except Exception:
                 pass
-    # The base directory of the specified interpreter (for precise version detection)
+
     try:
         allow_core = _same_runtime_version_as_current(pyexe) if (pyexe and os.path.exists(pyexe)) else False
         if pyexe and os.path.exists(pyexe):
@@ -1982,13 +1783,13 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     except Exception:
         pass
 
-    # Always preserve the current runtime's stdlib root and zip
+
     for r in _current_runtime_roots():
         roots.add(r)
     return list(roots)
 
 def _relaunch_with(pyexe: str):
-    """用私有解释器重启；Windows 下隐藏后台窗口，避免终端闪现。"""
+    """Relaunch with the private interpreter while hiding background windows on Windows."""
     import subprocess
     if not pyexe or not os.path.exists(pyexe):
         print("[ERROR] 无法重启：未找到目标解释器。")
@@ -2020,20 +1821,20 @@ def _norm_path(s: str | None) -> str | None:
 
 
 def _win_subprocess_flags() -> int:
-    """Windows 子进程窗口策略：后台任务始终隐藏窗口。"""
+    """Return Windows subprocess flags for background tasks."""
     if os.name != "nt":
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 def _clean_bad_env():
-    """移除/修复坏掉的 LATEXSNIPPER_PYEXE，避免污染后续检测。"""
+    """Remove or repair invalid LATEXSNIPPER_PYEXE values."""
     val = os.environ.get("LATEXSNIPPER_PYEXE")
     p = _norm_path(val)
     if not p or not os.path.exists(p):
         os.environ.pop("LATEXSNIPPER_PYEXE", None)
 
 def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
-    """确认目标解释器包含完整标准库启动模块；这里只检测，不创建 venv。"""
+    """Check whether the interpreter has the full bootstrap standard-library modules."""
     try:
         import subprocess
         r = subprocess.run([pyexe, "-c", "import ensurepip, venv;print('ok')"],
@@ -2043,7 +1844,7 @@ def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
         return False
 
 def _find_full_python(base_dir: Path) -> str | None:
-    """优先复用安装目录内已有 Python；仅在确实缺失时再安装 python311。"""
+    """Reuse an existing Python from the install directory before installing python311."""
     candidate = _find_install_base_python(base_dir)
     if candidate is not None:
         try:
@@ -2092,7 +1893,7 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         py = _find_full_python(base_dir)
         if py:
-            # Distinguish Python source in packaged mode to avoid mislabeling an external private environment as "built-in".
+
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
@@ -2102,13 +1903,13 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             return py
         print("[INFO] (打包模式) 依赖目录内未检测到可用 Python，先使用内置运行时启动依赖向导。")
         return sys.executable
-    # Development mode: keep the original multi-path lookup and install logic
+
     py = _find_full_python(base_dir)
     if py:
         print(f"[INFO] 使用依赖目录 Python: {py}")
         return py
 
-    # Installer fallback
+
     installer: Path | None = None
     for root in (base_dir, Path(__file__).resolve().parent, Path(os.getcwd())):
         try:
@@ -2143,11 +1944,11 @@ def _load_startup_modules():
 
 custom_warning_dialog, clear_deps_state, SettingsWindow = _load_startup_modules()
 
-# 1) Resolve/select the installation directory
+
 _ensure_startup_splash("定位依赖目录...")
 INSTALL_BASE_DIR = resolve_install_base_dir()
 
-# 3) In packaged mode: check whether to redirect to a private interpreter
+
 if _is_packaged_mode():
     py_exe_path = _find_install_base_python(INSTALL_BASE_DIR)
     py_exe = py_exe_path if py_exe_path is not None else (INSTALL_BASE_DIR / "python311" / "python.exe")
@@ -2160,7 +1961,7 @@ if _is_packaged_mode():
                 import subprocess
                 env = os.environ.copy()
                 env["LATEXSNIPPER_INNER_PY"] = "1"
-                # Terminal display preference: env var first, then config.
+
                 raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
                 if raw_pref in ("1", "true", "yes", "on", "0", "false", "no", "off"):
                     show_console = raw_pref in ("1", "true", "yes", "on")
@@ -2180,8 +1981,8 @@ if _is_packaged_mode():
                     except Exception:
                         pass
                 env["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if show_console else "0"
-                # Prefer pythonw.exe; open_debug_console decides whether to allocate a log terminal.
-                # This prevents python.exe's console window from flashing briefly at startup.
+
+
                 run_py = py_exe
                 pyw = py_exe.parent / "pythonw.exe"
                 if pyw.exists():
@@ -2206,7 +2007,7 @@ if not TARGET_PY:
     print("[ERROR] 未找到可用的完整 Python 3.11。")
     sys.exit(2)
 
-# Fixed environment; forbid external interference
+
 os.environ["LATEXSNIPPER_PYEXE"] = TARGET_PY
 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(BASE_DIR)
 os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
@@ -2215,23 +2016,23 @@ os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ.pop("MATHCRAFT_HOME", None)
 
-# 5) Path injection in IDE mode (non-packaged mode)
+
 if not _in_ide() and not _is_packaged_mode():
     if not _same_exe(sys.executable, TARGET_PY):
         _relaunch_with(TARGET_PY)
 elif _in_ide():
     print("[INFO] IDE 中运行，保持当前解释器，但使用私有依赖路径")
 
-# Only modify sys.path when NOT in BOOTSTRAPPED mode
+
 if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
     _ensure_startup_splash("挂载私有依赖环境...")
     _sanitize_sys_path(TARGET_PY, BASE_DIR)
     if _is_packaged_mode():
         _append_private_site_packages(TARGET_PY)
 
-    # Startup pre-check: in normal startup, only show the dependency wizard when essential feature layers are missing.
-    # When explicitly entering wizard mode, skip this silent precheck; __main__ does an interactive validation instead;
-    # Switching the dependency directory inside the wizard refreshes the current environment without a restart.
+
+
+
     _open_wizard_env = (os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1")
     if _open_wizard_env:
         print("[INFO] 依赖向导模式：跳过启动预检查，由向导统一验证。")
@@ -2256,12 +2057,12 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
             print(f"[WARN] deps wizard failed: {e}")
 
 def ensure_deps(*args, **kwargs):
-    # Return True immediately when already ready, to avoid triggering the dependency wizard again.
-    # But from the settings page this must execute validation and cannot be short-circuited
+
+
     from_settings = bool(kwargs.get("from_settings", False))
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not from_settings:
         return True
-    # Import on demand only when really needed (usually unused)
+
     import bootstrap.deps_bootstrap as _db
     prompt_ui = bool(kwargs.get("prompt_ui", True))
     if prompt_ui:
@@ -2276,12 +2077,12 @@ def ensure_deps(*args, **kwargs):
 
 
 def show_dependency_wizard(always_show_ui=False):
-    # Not shown by default; only shown when explicitly needed (always_show_ui=True)
+
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
         return True
     try:
         import bootstrap.deps_bootstrap as _db
-        # Dependency wizard funnels through ensure_deps; one place handles validation and display.
+
         ok = _db.ensure_deps(
             always_show_ui=always_show_ui,
             before_show_ui=_hide_startup_splash_for_modal,
@@ -2295,7 +2096,7 @@ def show_dependency_wizard(always_show_ui=False):
     except Exception as e:
         print(f"[WARN] 依赖向导不可用: {e}")
         return False
-# Fix paths
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
@@ -2441,7 +2242,7 @@ from ui.formula_export_menu import (  # noqa: E402
 configure_math_preview_runtime(APP_DIR)
 
 def _apply_close_only_window_flags(win):
-    """提示/工具窗口统一为仅保留右上角关闭按钮。"""
+    """Apply dialog flags that leave only the close button."""
     flags = (
         win.windowFlags()
         | Qt.WindowType.CustomizeWindowHint
@@ -2459,7 +2260,7 @@ def _apply_close_only_window_flags(win):
     win.setWindowFlags(flags)
 
 def _apply_no_minimize_window_flags(win):
-    """工具窗口保留最大化/关闭，去掉最小化按钮。"""
+    """Apply tool-window flags with maximize and close but no minimize button."""
     flags = (
         win.windowFlags()
         | Qt.WindowType.CustomizeWindowHint
@@ -2479,7 +2280,7 @@ def _apply_no_minimize_window_flags(win):
 
 def _show_formula_rename_dialog(parent, current_name: str = "", title: str = "重命名公式",
                                 prompt: str = "输入公式名称（留空则清除名称）："):
-    """统一的公式重命名弹窗：仅保留右上角关闭按钮，固定尺寸。"""
+    """Show the shared formula rename dialog."""
     from PyQt6.QtWidgets import QLineEdit
 
     dlg = QDialog(parent)
@@ -2545,7 +2346,7 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
 def _ensure_std_streams():
-    """防御式恢复 stdout/stderr：仅在缺失/不可写/已关闭时兜底，不覆盖正常对象。"""
+    """Restore stdout and stderr only when they are missing, closed, or unusable."""
 
     def _is_bad(f):
         if f is None:
@@ -2554,14 +2355,14 @@ def _ensure_std_streams():
             return True
         if getattr(f, "closed", False):
             return True
-        # For TeeWriter, only check its flag
+
         if isinstance(f, TeeWriter):
             return f._closed
         return False
 
     def _try_restore():
-        """尝试恢复流"""
-        # 1) Prefer restoring to the original __stdout__ / __stderr__
+        """Try to restore a stream."""
+
         if _is_bad(getattr(sys, "stdout", None)):
             if hasattr(sys, "__stdout__") and sys.__stdout__ is not None and not getattr(sys.__stdout__, "closed", False):
                 sys.stdout = sys.__stdout__
@@ -2570,7 +2371,7 @@ def _ensure_std_streams():
             if hasattr(sys, "__stderr__") and sys.__stderr__ is not None and not getattr(sys.__stderr__, "closed", False):
                 sys.stderr = sys.__stderr__
 
-        # 2) 若仍为空/不可写/已关闭，兜底到空设备
+
         if _is_bad(getattr(sys, "stdout", None)):
             try:
                 sys.stdout = open(os.devnull, "w", encoding="utf-8")
@@ -2578,7 +2379,7 @@ def _ensure_std_streams():
                 pass
 
         if _is_bad(getattr(sys, "stderr", None)):
-            # 复用 stdout 或创建新的
+
             if not _is_bad(getattr(sys, "stdout", None)):
                 sys.stderr = sys.stdout
             else:
@@ -2589,7 +2390,7 @@ def _ensure_std_streams():
 
     _try_restore()
 
-# 在程序启动早期调用一次
+
 _ensure_std_streams()
 try:
     from PyQt6 import sip  # PyQt6 bundled sip, preferred for type resolution
@@ -2614,14 +2415,14 @@ def _action_btn_style() -> str:
         "PrimaryPushButton:pressed{background:#319fd9;}"
         "PrimaryPushButton:disabled{background:#eef2f6;color:#8a94a3;border:1px solid #d0d7de;}"
     )
-# 样式常量
+
 HOVER_STYLE_BASE = "QWidget{background:#fefefe;border:1px solid #cfcfcf;border-radius:5px;padding:6px;}"
 HOVER_STYLE_ACTIVE = "QWidget{background:#ffffff;border:1px solid #999;border-radius:5px;padding:6px;}"
 
 MAX_HISTORY = 200
-ENABLE_ROW_ANIMATION = False    # 历史记录行动画开关
-SAFE_MINIMAL = True          # 第一步：最小化测试开关
-PLATFORM_DISABLE_GLOBAL_HOTKEY = False  # 若为 True 不注册全局热键
+ENABLE_ROW_ANIMATION = False
+SAFE_MINIMAL = True
+PLATFORM_DISABLE_GLOBAL_HOTKEY = False
 DEFAULT_FAVORITES_NAME = "favorites.json"
 DEFAULT_HISTORY_NAME = "history.json"
 
@@ -2669,7 +2470,7 @@ class PreviewLatexRenderWorker(QObject):
         self.finished.emit(str(cache_key or ""), svg)
 
 class MainWindow(QMainWindow):
-    """主窗口 - 使用 QMainWindow 以正确支持 setCentralWidget"""
+    """Main application window based on QMainWindow."""
     _model_warmup_result_signal = pyqtSignal()
     _preview_latex_render_request = pyqtSignal(str, str)
 
@@ -2688,7 +2489,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1280, 760)
 
         self._force_exit = False
-        # 状态字段
+
         self.model_status = "未加载"
         self.action_status = ""
         self._predict_busy = False
@@ -2733,7 +2534,7 @@ class MainWindow(QMainWindow):
         self._preview_render_worker = None
         self._model_warmup_callbacks = []
 
-        # 配置与模型
+
         self.cfg = ConfigManager()
         self._sanitize_model_config()
         self._theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
@@ -2748,22 +2549,22 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        # 设置图标
+
         icon_path = resource_path("assets/icon.ico")
         self.icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
         self.setWindowIcon(self.icon)
 
-        # 初始化识别运行时，但不在主线程做模型预热
+
         self._report_startup_progress("正在加载主窗口组件...")
         try:
             self._report_startup_progress("正在初始化识别运行时...")
-            # 在 ModelWrapper 初始化前先注入 MathCraft 运行环境变量
+
             self._apply_mathcraft_env()
             self.model = create_model_wrapper(self.current_model, auto_warmup=False)
             self.model.status_signal.connect(self.show_status_message)
             print("[DEBUG] ModelWrapper 初始化完成")
 
-            # 根据当前偏好模型和其真实状态设置状态文本
+
             self.model_status = "未加载"
             self._sync_current_model_status_from_preference()
             self._report_startup_progress("识别运行时已就绪，稍后后台预热")
@@ -2777,7 +2578,7 @@ class MainWindow(QMainWindow):
             font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
             app.setFont(font)
             if isinstance(e, ModuleNotFoundError):
-                # ====== 情况①：缺失依赖 ======
+
                 clear_deps_state()
                 QMsgBox.warning(
                     None, "依赖缺失",
@@ -2785,7 +2586,7 @@ class MainWindow(QMainWindow):
                 )
 
                 try:
-                    # 尝试修复依赖
+
                     result = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
                     if result == "_force_wizard":
                         print("[INFO] 检测到损坏环境，进入依赖修复向导。")
@@ -2799,7 +2600,7 @@ class MainWindow(QMainWindow):
                     return
 
             else:
-                # ====== 情况②：其他错误（比如模型文件损坏） ======
+
                 msg = MessageBox(
                     "错误",
                     f"模型初始化失败：{e}\n程序将进入依赖修复界面。",
@@ -2816,19 +2617,19 @@ class MainWindow(QMainWindow):
                     show_dependency_wizard(always_show_ui=True)
                     return
 
-        # 历史文件
+
         print("[DEBUG] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
         self.history_path = resolve_user_data_file(self.cfg, "history_path", DEFAULT_HISTORY_NAME)
         self.history = []
 
-        # 状态栏（注意不要与方法同名）
+
         print("[DEBUG] 开始初始化状态栏")
         self._report_startup_progress("正在初始化状态栏...")
         self.status_label = QLabel()
         self.refresh_status_label()
 
-        # 收藏窗口改为懒加载，降低首屏初始化耗时。
+
         self.favorites_window = None
         self._report_startup_progress("初始化平台能力与快捷键...")
         self.platform_registry = PlatformCapabilityRegistry(
@@ -2848,19 +2649,19 @@ class MainWindow(QMainWindow):
 
         self._report_startup_progress("构建主窗口界面...")
 
-        # ========== 左侧面板：历史记录 ==========
+
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(6, 6, 6, 6)
         left_layout.setSpacing(8)
 
-        # 截图识别按钮
+
         self.capture_button = PushButton(FluentIcon.SEARCH, "截图识别")
         self.capture_button.setFixedHeight(40)
         self.capture_button.clicked.connect(self.start_capture)
         left_layout.addWidget(self.capture_button)
 
-        # 历史记录标题与排序切换
+
         history_header = QHBoxLayout()
         history_header.setContentsMargins(0, 0, 0, 0)
         history_header.setSpacing(6)
@@ -2874,7 +2675,7 @@ class MainWindow(QMainWindow):
         history_header.addWidget(self.history_order_button)
         left_layout.addLayout(history_header)
 
-        # 历史记录滚动区域
+
         self.history_scroll = QScrollArea()
         self.history_scroll.setWidgetResizable(True)
         self.history_container = QWidget()
@@ -2885,7 +2686,7 @@ class MainWindow(QMainWindow):
         self.history_scroll.setWidget(self.history_container)
         left_layout.addWidget(self.history_scroll, 1)
 
-        # 底部按钮区
+
         btn_row = QHBoxLayout()
         self.clear_history_button = PushButton(FluentIcon.DELETE, "清空")
         self.change_key_button = PushButton(FluentIcon.CLIPPING_TOOL, "快捷键")
@@ -2903,13 +2704,13 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(self.status_label)
 
-        # ========== 右侧面板：编辑器 + 渲染区域 ==========
+
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(6, 6, 6, 6)
         right_layout.setSpacing(8)
 
-        # LaTeX 编辑区标题和工具栏
+
         editor_header = QHBoxLayout()
         editor_header.setContentsMargins(0, 0, 0, 0)
         editor_header.setSpacing(0)
@@ -2949,7 +2750,7 @@ class MainWindow(QMainWindow):
         editor_header.addLayout(editor_actions)
         right_layout.addLayout(editor_header)
 
-        # LaTeX 编辑器
+
         from qfluentwidgets import PlainTextEdit
         self.latex_editor = PlainTextEdit()
         self.latex_editor.setPlaceholderText("在此输入 LaTeX 公式，下方将实时渲染...")
@@ -2957,7 +2758,7 @@ class MainWindow(QMainWindow):
         self.latex_editor.setMaximumHeight(150)
         right_layout.addWidget(self.latex_editor)
 
-        # 渲染区域标题和清空按钮
+
         preview_header = QHBoxLayout()
         self.preview_title_label = QLabel("实时渲染预览")
         preview_header.addWidget(self.preview_title_label)
@@ -2967,32 +2768,32 @@ class MainWindow(QMainWindow):
         preview_header.addWidget(self.clear_preview_btn)
         right_layout.addLayout(preview_header)
 
-        # 初始化 WebEngine 渲染视图
+
         self._report_startup_progress("初始化公式预览引擎...")
         self.preview_view = None
         self._render_timer = None
         self._pending_latex = ""
-        self._rendered_formulas = []  # 存储已渲染的公式列表: [(formula, label), ...]
-        self._formula_names = {}  # 存储公式名称映射: {formula: name}
-        self._formula_types = {}  # 存储公式内容类型: {formula: content_type}
+        self._rendered_formulas = []
+        self._formula_names = {}
+        self._formula_types = {}
         if ensure_webengine_loaded():
             self.preview_view = QWebEngineView()
 
-            # 允许本地 MathJax 资源访问
+
             try:
                 from PyQt6.QtWebEngineCore import QWebEngineSettings
                 settings = self.preview_view.settings()
                 settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
                 settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
             except Exception:
-                pass  # 安全设置配置失败（可能是版本差异）
+                pass
 
             self.preview_view.setMinimumHeight(200)
             try:
                 self.preview_view.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
             except Exception:
                 pass
-            # 连接调试信号，定位渲染空白问题
+
             try:
                 pg = self.preview_view.page()
                 pg.loadStarted.connect(lambda: None)
@@ -3000,35 +2801,35 @@ class MainWindow(QMainWindow):
                 pg.renderProcessTerminated.connect(lambda status, code: print(f"[WebEngine] renderProcessTerminated status={status} code={code}"))
             except Exception:
                 pass
-            # 初始显示空白渲染
+
             html = build_math_html("")
             base_url = get_mathjax_base_url()
 
             try:
                 self.preview_view.setHtml(html, base_url)
             except Exception:
-                pass  # setHtml 异常
+                pass
             right_layout.addWidget(self.preview_view, 1)
 
-            # 设置渲染防抖定时器
+
             self._render_timer = QTimer(self)
             self._render_timer.setSingleShot(True)
             self._render_timer.timeout.connect(self._do_render_latex)
 
-            # 连接编辑器文本变化信号
+
             self.latex_editor.textChanged.connect(self._on_editor_text_changed)
         else:
-            # WebEngine 不可用时显示提示
+
             self.preview_fallback_label = QLabel("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
             self.preview_fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             right_layout.addWidget(self.preview_fallback_label, 1)
 
-        # ========== 主布局：左右分栏 ==========
+
         from PyQt6.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([420, 900])  # 初始宽度比例
+        splitter.setSizes([420, 900])
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
 
@@ -3047,10 +2848,10 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(splitter)
 
-        # 设置中心 widget
+
         self.setCentralWidget(container)
 
-        # 托盘
+
         self._report_startup_progress("初始化系统托盘与历史记录...")
         self.tray_icon = self.system_provider.create_tray(self.icon, self)
         self.update_tray_tooltip()
@@ -3063,12 +2864,12 @@ class MainWindow(QMainWindow):
                 qapp.screenRemoved.connect(lambda _screen: QTimer.singleShot(0, self.update_tray_menu))
         except Exception:
             pass
-        # 初始化界面
+
         self.load_history()
         self.update_history_ui()
         self.refresh_status_label()
 
-        # 收藏夹窗口按需创建，启动阶段不提前初始化。
+
 
         self.update_tray_menu()
 
@@ -3126,10 +2927,7 @@ class MainWindow(QMainWindow):
         return self.favorites_window
 
     def _apply_primary_buttons(self) -> None:
-        """
-        兼容方法：为窗口内的 PrimaryPushButton 应用统一样式。
-        若无按钮或 qfluentwidgets 版本差异导致失败，则安全忽略。
-        """
+        """Apply primary button styling."""
         try:
             btns = self.findChildren(PrimaryPushButton)
         except Exception:
@@ -3199,7 +2997,7 @@ class MainWindow(QMainWindow):
             return
         self._auto_theme_sync_in_progress = True
         try:
-            # 在 auto 模式下按 Qt 调色板强制落到 LIGHT/DARK，避免 isDarkTheme 状态滞后。
+
             dark_by_palette = False
             try:
                 app = QApplication.instance()
@@ -3273,7 +3071,7 @@ class MainWindow(QMainWindow):
         m.exec(global_pos)
 
     def _rename_history_row(self, row: QWidget):
-        """重命名公式"""
+        """Rename a formula history row."""
         latex = self._safe_row_text(row)
         if not latex:
             return
@@ -3303,8 +3101,8 @@ class MainWindow(QMainWindow):
                 self.favorites_window.refresh_list()
         self.save_history()
 
-        # 同步更新渲染列表中的标签
-        # 更新 _rendered_formulas 中的标签（保留原编号前缀）
+
+
         for i, (formula, label) in enumerate(self._rendered_formulas):
             if formula == latex:
                 s = (label or "").strip()
@@ -3317,7 +3115,7 @@ class MainWindow(QMainWindow):
                     new_label = prefix
                 self._rendered_formulas[i] = (formula, new_label)
 
-        # 刷新 UI
+
         self.rebuild_history_ui()
         self._refresh_preview()
         self.set_action_status(f"已命名: {new_name}" if new_name else "已清除名称")
@@ -3392,7 +3190,7 @@ class MainWindow(QMainWindow):
             print(f"[SlotError] {name}: {e}")
     def _defer(self, fn):
         QTimer.singleShot(0, fn)
-    # ---------- 状态管理 ----------
+
     def _get_status_model_display_name(self) -> str:
         current = str(getattr(self, "current_model", "") or "").strip()
         if current != "external_model":
@@ -3481,7 +3279,7 @@ class MainWindow(QMainWindow):
     def _refresh_history_rows_theme(self):
         if not hasattr(self, "history_layout"):
             return
-        row_count = max(0, self.history_layout.count() - 1)  # 最后一个是 stretch
+        row_count = max(0, self.history_layout.count() - 1)
         for i in range(row_count):
             item = self.history_layout.itemAt(i)
             row = item.widget() if item else None
@@ -3492,7 +3290,7 @@ class MainWindow(QMainWindow):
         actual_index = getattr(row, "_history_index", None)
         if isinstance(actual_index, int) and 0 <= actual_index < len(self.history):
             return actual_index
-        # layout 最后一个是 stretch, 所以有效行数 = count - 1
+
         total = self.history_layout.count() - 1
         for i in range(total):
             item = self.history_layout.itemAt(i)
@@ -3509,19 +3307,19 @@ class MainWindow(QMainWindow):
         if not new_latex or new_latex == old_latex:
             return
 
-        # 迁移名称和类型到新内容
+
         if old_latex in self._formula_names:
             self._formula_names[new_latex] = self._formula_names.pop(old_latex)
         if old_latex in self._formula_types:
             self._formula_types[new_latex] = self._formula_types.pop(old_latex)
 
-        # 更新 row 内部文本
+
         row._latex_text = new_latex
         lbl = getattr(row, "_content_label", None)
         if lbl:
             lbl.setText(new_latex)
             self._apply_formula_label_theme(lbl)
-        # 定位并更新 self.history
+
         idx = self._history_row_index(row)
         if idx is not None and 0 <= idx < len(self.history):
             self.history[idx] = new_latex
@@ -3530,7 +3328,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print("[WARN] 保存历史失败:", e)
 
-        # 更新渲染列表中的内容
+
         for i, (formula, label) in enumerate(self._rendered_formulas):
             if formula == old_latex:
                 self._rendered_formulas[i] = (new_latex, label)
@@ -3561,14 +3359,14 @@ class MainWindow(QMainWindow):
         )
 
     def show_status_message(self, msg: str):
-        # 模型后台线程回调
+
         text = str(msg or "").strip()
         if not text:
             return
         if text.startswith("[INFO] MathCraft model cache:"):
             self._show_mathcraft_cache_repair_infobar(text.split(":", 1)[-1].strip())
             return
-        # 技术日志保留在运行日志，不污染底部状态文案。
+
         if text.startswith("["):
             return
         self.set_model_status(text)
@@ -3638,15 +3436,15 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    # ---------- 实时渲染相关 ----------
+
     def _on_editor_text_changed(self):
-        """编辑器文本变化时触发，使用防抖延迟渲染"""
+        """Handle editor text changes with debounced rendering."""
         if self._render_timer:
             self._render_timer.stop()
-            self._render_timer.start(300)  # 300ms 防抖
+            self._render_timer.start(300)
 
     def _set_editor_text_silent(self, text: str) -> None:
-        """设置编辑器内容但不触发实时渲染（避免重复渲染）。"""
+        """Set editor text without triggering live rendering."""
         if not self.latex_editor:
             return
         if self._render_timer:
@@ -3661,7 +3459,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def _do_render_latex(self):
-        """执行实时渲染"""
+        """Run live rendering."""
         self._refresh_preview()
 
     def _build_preview_latex_cache_key(self, latex_code: str) -> str:
@@ -3724,7 +3522,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _copy_editor_content(self):
-        """复制编辑器内容到剪贴板"""
+        """Copy editor content to the clipboard."""
         text = self.latex_editor.toPlainText().strip()
         if not text:
             self.set_action_status("编辑器为空")
@@ -3741,7 +3539,7 @@ class MainWindow(QMainWindow):
                 self.set_action_status("复制失败")
 
     def _add_editor_to_fav(self):
-        """将编辑器内容添加到收藏夹"""
+        """Add editor content to favorites."""
         text = self.latex_editor.toPlainText().strip()
         if not text:
             self.set_action_status("编辑器为空")
@@ -3762,7 +3560,7 @@ class MainWindow(QMainWindow):
         self._ensure_favorites_window().add_favorite(text, content_type=content_type)
 
     def _show_export_menu(self):
-        """显示导出格式菜单"""
+        """Show the export format menu."""
         self._show_export_menu_for_source(
             self.export_btn,
             lambda: self.latex_editor.toPlainText(),
@@ -3770,7 +3568,7 @@ class MainWindow(QMainWindow):
         )
 
     def _show_export_menu_for_source(self, anchor_widget, text_source, empty_hint: str = "内容为空", info_parent=None):
-        """在指定控件下方显示导出菜单，支持编辑器和结果对话框复用。"""
+        """Show the export menu below a specific widget."""
         show_formula_export_menu(
             parent=self,
             menu_cls=CenterMenu,
@@ -3782,7 +3580,7 @@ class MainWindow(QMainWindow):
         )
 
     def _export_as(self, format_type: str, latex: str, info_parent=None):
-        """导出公式为指定格式（支持多种格式）"""
+        """Export the formula in the requested format."""
         try:
             _ok, message = export_formula_to_clipboard(
                 format_type,
@@ -3797,54 +3595,54 @@ class MainWindow(QMainWindow):
         self.set_action_status(message, parent=info_parent)
 
     def render_latex_in_preview(self, latex: str, label: str = None):
-        """渲染指定的 LaTeX 公式到预览区域（点击历史记录时添加到列表）"""
+        """Render a LaTeX formula in the preview area."""
         if not self.preview_view:
             return
         latex = latex.strip()
         if not latex:
             return
-        # 跳过重复渲染相同公式
+
         existing_formulas = [f for f, _ in self._rendered_formulas]
         if latex in existing_formulas:
             return
-        # 如果没有记录类型，使用当前模式作为默认类型
+
         if hasattr(self, "_formula_types") and latex not in self._formula_types:
             self._formula_types[latex] = getattr(self, "current_model", "mathcraft")
-        # 获取公式名称
+
         if label is None:
             label = self._formula_names.get(latex, "")
-        # 添加到已渲染列表最前面
+
         self._rendered_formulas.insert(0, (latex, label))
-        # 限制最多显示 20 个公式
+
         if len(self._rendered_formulas) > 20:
             self._rendered_formulas = self._rendered_formulas[:20]
 
-        # 渲染
+
         self._refresh_preview()
 
     def _refresh_preview(self):
-        """刷新预览区域 - 根据每条记录的类型进行智能渲染"""
+        """Refresh the preview area using each record type."""
         if not self.preview_view:
             return
 
-        # 构建公式列表、标签和类型
+
         all_items = []  # [(formula, label, content_type), ...]
 
-        # 编辑器内容（如果有且不在已渲染列表中）
+
         editor_text = self.latex_editor.toPlainText().strip()
         existing_formulas = [f for f, _ in self._rendered_formulas]
         if editor_text and editor_text not in existing_formulas:
-            # 编辑中的内容使用当前模式
+
             current_mode = getattr(self, "current_model", "mathcraft")
             all_items.append((editor_text, "编辑中", current_mode))
 
-        # 已渲染的公式列表 - 使用各自存储的类型
+
         for formula, label in self._rendered_formulas:
-            content_type = self._formula_types.get(formula, "mathcraft")  # 默认公式模式
+            content_type = self._formula_types.get(formula, "mathcraft")
             all_items.append((formula, label, content_type))
 
         try:
-            # 构建智能渲染的 HTML
+
             html = self._build_smart_preview_html(all_items)
             base_url = get_mathjax_base_url()
             self.preview_view.setHtml(html, base_url)
@@ -3852,7 +3650,7 @@ class MainWindow(QMainWindow):
             try:
                 self.preview_view.setHtml(build_preview_error_html(e), get_mathjax_base_url())
             except Exception:
-                pass  # 显示错误信息也失败了
+                pass
 
     def _render_formula_preview_content(self, content: str) -> str:
         render_mode = None
@@ -3885,13 +3683,13 @@ class MainWindow(QMainWindow):
 
 
     def _clear_preview(self):
-        """清空预览区域的公式列表"""
+        """Clear all formulas from the preview area."""
         self._rendered_formulas = []
         self._refresh_preview()
         self.set_action_status("已清空预览")
 
     def _add_preview_to_history(self):
-        """将预览中的公式添加到历史记录（继承标签）"""
+        """Add the preview formula to history while preserving its label."""
         if not self._rendered_formulas:
             self.set_action_status("预览中没有公式")
             return
@@ -3899,23 +3697,23 @@ class MainWindow(QMainWindow):
         added_count = 0
         for formula, label in self._rendered_formulas:
             if formula and formula not in self.history:
-                # 添加到历史
+
                 self.history.insert(0, formula)
-                # 继承或补充类型（避免默认成 mathcraft）
+
                 if hasattr(self, "_formula_types"):
                     if formula not in self._formula_types:
                         self._formula_types[formula] = getattr(self, "current_model", "mathcraft")
-                # 继承标签（提取名称部分）
+
                 if label:
-                    # 标签格式可能是 "#1 名称" 或纯名称
+
                     name = label.strip()
                     if name.startswith('#'):
-                        # 提取 # 后面的名称部分
+
                         parts = name.split(' ', 1)
                         if len(parts) > 1:
                             name = parts[1].strip()
                         else:
-                            name = ""  # 只有编号，没有名称
+                            name = ""
                     if name:
                         self._formula_names[formula] = name
                 added_count += 1
@@ -3976,7 +3774,7 @@ class MainWindow(QMainWindow):
         if sip and hasattr(sip, "isdeleted"):
             if sip.isdeleted(row):
                 return False
-        # 已被脱离父容器也视为无效
+
         if row.parent() is None:
             return False
         return True
@@ -4026,7 +3824,7 @@ class MainWindow(QMainWindow):
         if not txt:
             self.set_action_status("已删除（空）")
             return
-        # 不标记 _deleted，直接调用
+
         self.delete_history_item(row, txt)
 
     def create_history_row(self, t: str, index: int = 0, history_index: int | None = None):
@@ -4040,7 +3838,7 @@ class MainWindow(QMainWindow):
         hl.setContentsMargins(6, 4, 6, 4)
         hl.setSpacing(6)
 
-        # 编号标签
+
         if index > 0:
             num_lbl = QLabel(f"#{index}")
             num_lbl.setFixedWidth(35)
@@ -4052,7 +3850,7 @@ class MainWindow(QMainWindow):
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.setSpacing(2)
 
-        # 公式名称（如果有）
+
         formula_name = self._formula_names.get(t, "")
         if formula_name:
             name_lbl = QLabel(f"[{formula_name}]")
@@ -4069,7 +3867,7 @@ class MainWindow(QMainWindow):
         lbl.setMinimumWidth(0)
         lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-        # 优化字体显示
+
         from PyQt6.QtGui import QFont
         label_font = QFont("Consolas", 9)
         label_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
@@ -4079,12 +3877,12 @@ class MainWindow(QMainWindow):
         row._content_label = lbl
         self._apply_history_row_theme(row)
 
-        # 点击标签时加载到编辑器（仅左键）
+
         import weakref
         from PyQt6.QtCore import Qt as QtCore_Qt
         row_ref = weakref.ref(row)
         def _load_to_editor(event):
-            # 仅左键点击时触发加载和渲染
+
             if event.button() != QtCore_Qt.MouseButton.LeftButton:
                 return
             r = row_ref()
@@ -4093,7 +3891,7 @@ class MainWindow(QMainWindow):
             txt = self._safe_row_text(r)
             if txt:
                 self._set_editor_text_silent(txt)
-                # 获取编号和名称作为标签
+
                 idx = getattr(r, '_index', 0)
                 name = self._formula_names.get(txt, "")
                 if name:
@@ -4135,13 +3933,13 @@ class MainWindow(QMainWindow):
         t = (text or "").strip()
         if not t:
             return
-        # 确定内容类型（如果没指定，使用当前模型）
+
         if content_type is None:
             content_type = getattr(self, "current_model", "mathcraft")
         self._formula_types[t] = normalize_content_type(content_type)
-        # 允许重复；如需“去重并上浮”可替换为： if t in self.history: self.history.remove(t)
+
         self.history.append(t)
-        # 限制长度
+
         if len(self.history) > MAX_HISTORY:
             self.history = self.history[-MAX_HISTORY:]
         self.save_history()
@@ -4161,7 +3959,7 @@ class MainWindow(QMainWindow):
         if text in self.history:
             self.history.remove(text)
         if widget:
-            # 即使之前被标记 _deleted 也强制移除
+
             try:
                 if self.history_layout.indexOf(widget) != -1:
                     self.history_layout.removeWidget(widget)
@@ -4175,12 +3973,12 @@ class MainWindow(QMainWindow):
     def update_history_ui(self):
         self.clear_history_button.setText("清空历史记录")
         if self.history:
-            # 有历史
+
             self.clear_history_button.setToolTip("清空所有历史记录")
         else:
-            # 无历史但仍可点，点击会弹出提示（逻辑已在 clear_history 内）
+
             self.clear_history_button.setToolTip("当前无历史记录，点击会提示")
-        # 始终保持可点
+
         self.clear_history_button.setEnabled(True)
 
     def save_history(self):
@@ -4189,7 +3987,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print("历史保存失败:", e)
 
-    # ---------- 模型/预测 ----------
+
     def _get_infobar_parent(self):
         try:
             if self.settings_window and self.settings_window.isVisible():
@@ -4237,7 +4035,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def _sanitize_model_config(self):
-        """校验并收敛当前仍支持的模型配置。"""
+        """Validate and normalize the supported model configuration."""
         try:
             valid_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
             default_model = (self.cfg.get("default_model", "") or "").lower()
@@ -4502,7 +4300,7 @@ class MainWindow(QMainWindow):
         if m != prev_model and self.is_recognition_busy(source="mode_switch"):
             self._cancel_active_recognition_for_mode_switch()
 
-        # 同一目标模式重复触发时直接刷新状态，避免重复切换导致潜在竞态。
+
         if m == prev_model:
             if m == "external_model" and prev_desired == "external_model":
                 self.set_model_status(self._get_external_model_status_text())
@@ -4555,7 +4353,7 @@ class MainWindow(QMainWindow):
                 )
             return
 
-        # 根据模型实际状态设置状态文本
+
         if self.model:
             if self.model.is_model_ready(m):
                 self.set_model_status("已加载")
@@ -4564,12 +4362,12 @@ class MainWindow(QMainWindow):
         else:
             self.set_model_status(f"预热中 ({m})")
 
-        # 更新设置窗口选择状态
+
         if self.settings_window:
             self.settings_window.update_model_selection()
 
-        # mathcraft 模式切换统一延后到首次识别时加载，
-        # 避免在设置页频繁切换识别类型触发预热线程并造成不稳定。
+
+
         if m.startswith("mathcraft"):
             if self.model and self.model.is_model_ready(m):
                 self.set_model_status("已加载")
@@ -4578,7 +4376,7 @@ class MainWindow(QMainWindow):
             return
 
     def _get_supported_image_patterns(self):
-        """返回图片文件筛选格式列表（用于文件对话框）。"""
+        """Return image file dialog filter patterns."""
         try:
             exts = sorted({ext.lower().lstrip(".") for ext in Image.registered_extensions().keys()})
             common = {"png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff", "webp"}
@@ -4591,7 +4389,7 @@ class MainWindow(QMainWindow):
         return ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.tif", "*.tiff", "*.webp"]
 
     def _get_supported_image_extensions(self):
-        """返回可读的图片扩展名列表（用于提示）。"""
+        """Return readable image extensions for prompts."""
         return [p.replace("*.", "").upper() for p in self._get_supported_image_patterns()]
 
     def _get_supported_image_suffixes(self) -> set[str]:
@@ -4894,7 +4692,7 @@ class MainWindow(QMainWindow):
     def _apply_mathcraft_env(self):
         env_pyexe = ""
         try:
-            # MathCraft 与主依赖环境统一。
+
             pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
             if not pyexe or not os.path.exists(pyexe):
                 pyexe = sys.executable
@@ -4939,7 +4737,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _upload_image_recognition(self):
-        """上传图片并识别公式/文本。"""
+        """Upload an image and recognize formulas or text."""
         patterns = self._get_supported_image_patterns()
         filter_ = f"图片文件 ({' '.join(patterns)})"
         file_path, _ = _select_open_file_with_icon(
@@ -4983,7 +4781,7 @@ class MainWindow(QMainWindow):
         return m == "mathcraft_mixed" or m == "external_model"
 
     def _prompt_pdf_output_options(self):
-        """选择 PDF 识别的导出格式与 DPI。"""
+        """Prompt for PDF recognition output format and DPI."""
         def _pick_item(title: str, label: str, items: list[str], current: int = 0):
             dlg = QInputDialog(self)
             dlg.setWindowTitle(title)
@@ -5102,7 +4900,7 @@ class MainWindow(QMainWindow):
         return fmt_key, dpi, doc_mode
 
     def _upload_pdf_recognition(self):
-        """上传 PDF 并识别（输出 Markdown/LaTeX 文档）。"""
+        """Upload a PDF and recognize it as Markdown or LaTeX document output."""
         file_path, _ = _select_open_file_with_icon(
             self,
             "选择 PDF 文件",
@@ -5235,7 +5033,7 @@ class MainWindow(QMainWindow):
 
         progress_text = "正在解析 PDF 文档结构..." if doc_mode == "parse" else "正在识别 PDF..."
         self.pdf_progress = QProgressDialog(progress_text, "取消", 0, pages, self)
-        # 进度框改为非模态，避免父窗口被锁死后无法恢复交互
+
         self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
         self.pdf_progress.setMinimumDuration(0)
         self.pdf_progress.setWindowFlags(
@@ -5258,7 +5056,7 @@ class MainWindow(QMainWindow):
         def _cleanup():
             self._predict_busy = False
             self._release_pdf_progress()
-            # 线程收尾阶段避免 deleteLater 触发跨线程对象析构时序问题
+
             self.pdf_predict_worker = None
             self.pdf_predict_thread = None
 
@@ -5306,7 +5104,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         try:
-            # 防止 QProgressDialog 模态残留导致主窗口及其子窗口被禁用
+
             self.setEnabled(True)
         except Exception:
             pass
@@ -5401,7 +5199,7 @@ class MainWindow(QMainWindow):
         if not doc:
             custom_warning_dialog("提示", "识别结果为空", self)
             return
-        # 延迟到下一轮事件循环打开，确保线程 quit/cleanup 与模态释放先完成
+
         QTimer.singleShot(0, lambda d=doc, f=fmt_key, s=self._pdf_structured_result: self._show_document_dialog(d, f, s))
 
     def _on_pdf_predict_fail(self, msg: str):
@@ -5460,7 +5258,7 @@ class MainWindow(QMainWindow):
         self._prepare_predict_result_dialog_for_capture()
         pinned_dialog = getattr(self, "_restore_predict_result_dialog_after_capture", None)
         if not self.isVisible() and pinned_dialog is None:
-            self.showMinimized()  # 只最小化显示，不抢前台
+            self.showMinimized()
         if not self.model:
             self._restore_hidden_unpinned_predict_result_dialog()
             self._restore_predict_result_dialog_visibility()
@@ -5633,7 +5431,7 @@ class MainWindow(QMainWindow):
         return recognition_failure_user_message(msg, backend)
 
     def _clear_predict_result_dialog_ref(self, dialog_obj=None):
-        """仅在回调对象仍是当前窗口时，清理结果窗口引用，避免并发回调误清空。"""
+        """Clear the result dialog reference only when the callback still targets this window."""
         current = getattr(self, "_predict_result_dialog", None)
         if dialog_obj is None or current is dialog_obj:
             self._predict_result_dialog = None
@@ -5698,7 +5496,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _predict_result_pinned_size(self) -> tuple[int, int]:
-        """识别结果窗口置顶固定后的紧凑尺寸。"""
+        """Return the compact size for a pinned recognition result window."""
         return (320, 380)
 
     def _predict_result_mode_title(self, current_mode: str) -> str:
@@ -5979,7 +5777,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         if getattr(self, "tray_icon", None):
-            # 默认关闭识别完成系统托盘弹窗，避免连续识别场景刷屏。
+
             show_toast = bool(self.cfg.get("show_capture_success_toast", False))
             if show_toast:
                 try:
@@ -6002,7 +5800,7 @@ class MainWindow(QMainWindow):
         self._discard_hidden_unpinned_predict_result_dialog()
 
     def show_confirm_dialog(self, latex_code: str):
-        """显示识别结果确认对话框"""
+        """Show the recognition result confirmation dialog."""
         result_screen_index = self._next_predict_result_screen_index
         self._next_predict_result_screen_index = None
         code = (latex_code or "").strip()
@@ -6010,7 +5808,7 @@ class MainWindow(QMainWindow):
             _exec_close_only_message_box(self, "提示", "结果为空")
             return
 
-        # 获取当前识别模式（优先使用实际使用的模型，便于正确标注类型）
+
         current_mode = None
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -6022,7 +5820,7 @@ class MainWindow(QMainWindow):
         if not current_mode:
             current_mode = getattr(self, "current_model", "mathcraft")
 
-        # 识别结果窗口保持单实例：固定小窗时直接刷新内容，避免销毁重建。
+
         old_dialog = getattr(self, "_predict_result_dialog", None)
         if old_dialog is not None and self._try_refresh_predict_result_dialog(old_dialog, code, current_mode):
             return
@@ -6046,7 +5844,7 @@ class MainWindow(QMainWindow):
 
         lay = QVBoxLayout(dlg)
 
-        # 根据模式显示不同的标题
+
         info = BodyLabel(self._predict_result_mode_title(current_mode))
         dlg._predict_result_info_label = info
         header_row = QHBoxLayout()
@@ -6064,11 +5862,11 @@ class MainWindow(QMainWindow):
         dlg._predict_result_editor = te
         lay.addWidget(te)
 
-        # 根据模式选择不同的预览策略
+
         preview_label = None
         preview_view = None
 
-        # 公式模式：使用 MathJax 渲染
+
         if normalize_content_type(current_mode) == "mathcraft":
             preview_label = BodyLabel("公式预览：")
             lay.addWidget(preview_label)
@@ -6080,7 +5878,7 @@ class MainWindow(QMainWindow):
                 preview_view.setHtml(build_math_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
 
-                # 设置防抖定时器
+
                 render_timer = QTimer(dlg)
                 render_timer.setSingleShot(True)
 
@@ -6096,7 +5894,7 @@ class MainWindow(QMainWindow):
                 fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 10px;")
                 lay.addWidget(fallback)
 
-        # 混合模式：渲染文字和公式
+
         elif current_mode == "mathcraft_mixed":
             preview_label = BodyLabel("混合内容预览：")
             lay.addWidget(preview_label)
@@ -6105,7 +5903,7 @@ class MainWindow(QMainWindow):
                 from PyQt6.QtWebEngineWidgets import QWebEngineView
                 preview_view = QWebEngineView()
                 preview_view.setMinimumHeight(150)
-                # 混合模式使用特殊渲染
+
                 preview_view.setHtml(self._build_mixed_html(code), get_mathjax_base_url())
                 lay.addWidget(preview_view, 1)
 
@@ -6120,7 +5918,7 @@ class MainWindow(QMainWindow):
                 render_timer.timeout.connect(do_render_mixed)
                 te.textChanged.connect(lambda: render_timer.start(300))
 
-        # 纯文字模式：简单文本预览
+
         elif current_mode == "mathcraft_text":
             preview_label = BodyLabel("文本预览：")
             lay.addWidget(preview_label)
@@ -6131,7 +5929,7 @@ class MainWindow(QMainWindow):
             preview_text.setMinimumHeight(100)
             lay.addWidget(preview_text, 1)
 
-            # 同步更新预览
+
             def update_preview():
                 preview_text.setPlainText(te.toPlainText())
             te.textChanged.connect(update_preview)
@@ -6261,7 +6059,7 @@ class MainWindow(QMainWindow):
         dialog.accept()
 
     def clear_history(self):
-        # 若无记录给提示
+
         if not self.history:
             InfoBar.info(
                 title="提示",
@@ -6284,7 +6082,7 @@ class MainWindow(QMainWindow):
         self.history.clear()
         self.save_history()
         self.rebuild_history_ui()
-        self.update_history_ui()  # 确保按钮状态刷新
+        self.update_history_ui()
         self.set_action_status("已清空历史")
     def register_hotkey(self, seq: str):
         if not getattr(self, "hotkey_provider", None):
@@ -6341,7 +6139,7 @@ class MainWindow(QMainWindow):
             return
         self.start_capture()
 
-    # 设置快捷键窗口支持 ESC 关闭
+
     def set_shortcut(self):
         from PyQt6.QtWidgets import QLineEdit
         if self.shortcut_window and self.shortcut_window.isVisible():
@@ -6446,7 +6244,7 @@ QLineEdit:focus {{
         self.update_tray_menu()
 
     def apply_startup_console_preference(self, enabled: bool):
-        """应用“启动是否显示日志窗口”的偏好。"""
+        """Apply the startup log-window preference."""
         try:
             os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if enabled else "0"
             open_debug_console(force=False, tee=True)
@@ -6455,7 +6253,7 @@ QLineEdit:focus {{
 
     def prepare_restart(self):
         """Called by settings restart flow: close heavy resources and release app lock early."""
-        self._force_exit = True  # 跳过 closeEvent 中的确认对话框
+        self._force_exit = True
         try:
             self._graceful_shutdown()
         except Exception:
@@ -6474,7 +6272,7 @@ QLineEdit:focus {{
         except Exception:
             pass
 
-    # ---------- 其它 UI ----------
+
     def open_settings(self):
         if self.settings_window and self.settings_window.isVisible():
             try:
@@ -6615,22 +6413,22 @@ QLineEdit:focus {{
         self.system_provider.activate_window(self)
         self.set_action_status("主窗口已显示")
 
-    # ---------- 关闭 / 资源清理 ----------
+
 
     # python
     def _graceful_shutdown(self):
         if getattr(self, "_shutdown_done", False):
             return
-        self._shutdown_done = True  # 防止多次调用
+        self._shutdown_done = True
 
-        # 保存历史记录和公式名称
+
         try:
             self.save_history()
             print("[关闭] 历史记录已保存")
         except Exception as e:
             print(f"[关闭] 保存历史失败: {e}")
 
-        # 保存收藏夹
+
         try:
             if hasattr(self, 'favorites_window') and self.favorites_window:
                 self.favorites_window.save_favorites()
@@ -6638,14 +6436,14 @@ QLineEdit:focus {{
         except Exception as e:
             print(f"[关闭] 保存收藏夹失败: {e}")
 
-        # 保存配置
+
         try:
             self.cfg.save()
             print("[关闭] 配置已保存")
         except Exception as e:
             print(f"[关闭] 保存配置失败: {e}")
 
-        # 显式关闭模型子进程 worker，避免残留后台进程
+
         try:
             m = getattr(self, "model", None)
             if m:
@@ -6662,7 +6460,7 @@ QLineEdit:focus {{
             try:
                 if self.predict_thread.isRunning():
                     self.predict_thread.quit()
-                    self.predict_thread.wait(3000)  # 等待线程结束
+                    self.predict_thread.wait(3000)
             except Exception:
                 pass
         if self.predict_worker:
@@ -6724,11 +6522,11 @@ QLineEdit:focus {{
 
     def closeEvent(self, event):
         if self._force_exit:
-            # 真实退出
+
             self._graceful_shutdown()
             event.accept()
             return
-        # Linux：托盘图标支持不稳定，关闭窗口时弹出确认对话框
+
         if sys.platform == "linux":
             reply = QMessageBox.question(
                 self,
@@ -6747,10 +6545,10 @@ QLineEdit:focus {{
             else:
                 event.ignore()
             return
-        # Windows：普通关闭 = 最小化到托盘
+
         self.hide()
         if self.tray_icon:
-            # 只在第一次最小化时显示提示
+
             if not getattr(self, '_tray_msg_shown', False):
                 self.system_provider.show_notification(self.tray_icon, "LaTeXSnipper", "已最小化到系统托盘")
                 self._tray_msg_shown = True
@@ -6760,45 +6558,42 @@ QLineEdit:focus {{
         self._force_exit = True
         if self.tray_icon:
             self.tray_icon.hide()
-        # 先关闭窗口（触发 closeEvent 分支），再延迟真正退出
+
         try:
             self.close()
         except Exception:
             pass
         QTimer.singleShot(0, lambda: (self._graceful_shutdown(), QCoreApplication.quit()))
 
-# ==============================
-# 🧩 环境隔离保护（非常关键）
-# 防止 PyInstaller 或旧虚拟环境污染
-# ==============================
+# Runtime environment isolation guard. This runs before QApplication startup so
+# stale shell, PyInstaller, or private-runtime variables cannot leak into the app.
 for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
     if var in os.environ:
         print(f"[DEBUG] 清除环境变量 {var}")
         os.environ.pop(var)
 
-# 2) 先初始化日志，再打开 GUI 日志窗口，避免打包版 runtime-console.log 双写
 _ensure_startup_splash(_startup_status_message("初始化日志..."))
 init_app_logging()
 _ensure_startup_splash(_startup_status_message("检查日志窗口设置..."))
 open_debug_console(force=False, tee=True)
 
-# 文件: 'src/main.py'（入口关键片段）
+
 if __name__ == "__main__":
     import multiprocessing
     import os
     import sys
     multiprocessing.freeze_support()
-    # 判断是否为 PyInstaller 打包环境
+
     if getattr(sys, 'frozen', False):
-        # 打包环境，直接运行主程序，不再重启到私有解释器
+        # Packaged builds run directly from the frozen interpreter.
         from PyQt6.QtWidgets import QApplication
-        # 确保标准流可用
+
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
         splash = _take_startup_splash(app, _startup_status_message("初始化界面..."))
         open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
-        # 3) UI 主题（可选）
+
         try:
             from qfluentwidgets import setThemeColor
             apply_theme_mode(read_theme_mode_from_config())
@@ -6825,7 +6620,7 @@ if __name__ == "__main__":
         print("[DEBUG] win.show() 完成，进入事件循环")
         sys.exit(app.exec())
     else:
-        # 开发环境，保留原有依赖检测和私有解释器重启逻辑
+        # Development runs keep dependency checks and private-interpreter relaunch.
         from PyQt6.QtWidgets import QApplication
         _ensure_std_streams()
         app = QApplication.instance() or QApplication(sys.argv)
