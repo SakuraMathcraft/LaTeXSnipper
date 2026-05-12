@@ -233,6 +233,8 @@ jobs:
             zlib1g
 
       - name: Build .deb
+        env:
+          SOURCE_DATE_EPOCH: "1609459200"
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_deb.sh
@@ -309,6 +311,8 @@ jobs:
           echo "MATHCRAFT_MODELS_ROOT=$GITHUB_WORKSPACE/MathCraft-models" >> "$GITHUB_ENV"
 
       - name: Build offline .deb
+        env:
+          SOURCE_DATE_EPOCH: "1609459200"
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_deb_offline.sh

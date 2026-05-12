@@ -1696,6 +1696,17 @@ def _select_open_file_with_icon(parent, title: str, initial_path: str, filter_: 
     chosen_filter = dlg.selectedNameFilter()
     return (selected[0] if selected else ""), chosen_filter
 
+def _is_dir_writable(p: Path) -> bool:
+    """检查目录是否可写（包括尝试创建临时文件）。"""
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        test = p / ".write_test"
+        test.write_text("ok", encoding="utf-8")
+        test.unlink()
+        return True
+    except (OSError, PermissionError):
+        return False
+
 def _save_install_base_dir(p: Path) -> None:
     """保存依赖目录到配置文件。"""
     try:
@@ -1740,9 +1751,17 @@ def resolve_install_base_dir() -> Path:
                 bundled.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
-            _save_install_base_dir(bundled)
-            p = bundled
+            # 检查内置目录是否可写（系统级 .deb 安装通常不可写）
+            if _is_dir_writable(bundled):
+                print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
+                _save_install_base_dir(bundled)
+                p = bundled
+            else:
+                fallback = Path.home() / ".latexsnipper" / "deps"
+                fallback.mkdir(parents=True, exist_ok=True)
+                print(f"[WARN] 内置目录不可写 ({bundled})，回退到用户目录: {fallback}")
+                _save_install_base_dir(fallback)
+                p = fallback
 
     # 第2步：仍无目录则弹出选择框
     if not p:

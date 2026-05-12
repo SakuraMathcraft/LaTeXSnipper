@@ -75,6 +75,13 @@ find "$PACKAGE_ROOT/usr/share" -type f -exec chmod 644 {} \; 2>/dev/null || true
 # build-machine absolute paths into the .deb.
 find "$DEB_LIB_DIR" -name "pyvenv.cfg" -delete 2>/dev/null || true
 
+# Normalize file timestamps for reproducible builds.
+# Debian policy section 4.9: packages should be reproducible.
+# Use SOURCE_DATE_EPOCH if set, otherwise use a fixed epoch.
+: "${SOURCE_DATE_EPOCH:=1609459200}"
+export SOURCE_DATE_EPOCH
+find "$PACKAGE_ROOT" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} + 2>/dev/null || true
+
 log_step "4/5" "Updating Debian metadata"
 INSTALLED_SIZE="$(du -sk "$PACKAGE_ROOT/usr" | cut -f1)"
 [[ -n "$INSTALLED_SIZE" && "$INSTALLED_SIZE" -gt 0 ]] || INSTALLED_SIZE=1

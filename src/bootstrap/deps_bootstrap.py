@@ -3075,10 +3075,18 @@ def clear_deps_state():
             state_path.unlink()
             print(f"[OK] 已删除状态文件：{state_path}")
 
-        # 重建空状态文件
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
-        print(f"[OK] 已重新生成空状态文件：{state_path}")
+        # 重建空状态文件（如果目录不可写则回退到用户目录）
+        try:
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
+            print(f"[OK] 已重新生成空状态文件：{state_path}")
+        except (OSError, PermissionError):
+            fallback = str(Path.home() / ".latexsnipper" / "deps")
+            Path(fallback).mkdir(parents=True, exist_ok=True)
+            fallback_state = Path(fallback) / ".deps_state.json"
+            with open(fallback_state, "w", encoding="utf-8") as f:
+                json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
+            print(f"[WARN] 状态文件目录不可写，已回退到: {fallback_state}")
 
     except Exception as e:
         print(f"[ERR] 清除依赖状态文件失败: {e}")
@@ -3257,6 +3265,20 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     cfg_path = _load_config_path()
     if not deps_dir:
         deps_dir = _read_config_install_dir(cfg_path)
+
+    # 如果配置的目录不可写（系统级 .deb 安装），回退到用户目录
+    if deps_dir:
+        try:
+            _test = Path(deps_dir) / ".write_check"
+            Path(deps_dir).mkdir(parents=True, exist_ok=True)
+            _test.write_text("ok", encoding="utf-8")
+            _test.unlink()
+        except (OSError, PermissionError):
+            fallback = str(Path.home() / ".latexsnipper" / "deps")
+            Path(fallback).mkdir(parents=True, exist_ok=True)
+            print(f"[WARN] 依赖目录不可写 ({deps_dir})，回退到: {fallback}")
+            _write_config_install_dir(cfg_path, fallback)
+            deps_dir = fallback
 
     if not deps_dir:
         parent = app.activeWindow()  # 没有也可为 None
