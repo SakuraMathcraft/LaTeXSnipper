@@ -53,7 +53,7 @@ def _install_stable_gui_deps(pyexe: str, reason: str) -> None:
 def early_ensure_pyqt6_and_pywin32() -> None:
     pyexe = sys.executable
     exe_name = os.path.basename(pyexe).lower()
-    # 仅在源码解释器模式启用早期 pip 自修复；打包 exe 不支持 `-m pip` 语义。
+    # Enable early pip self-repair only in source-interpreter mode; packaged executables do not support `-m pip` semantics.
     can_pip_repair = (not getattr(sys, "frozen", False)) and exe_name.startswith("python")
     if not can_pip_repair:
         print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
@@ -93,17 +93,18 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         _ = _qfluentwidgets
         print("[OK] PyQt6-Fluent-Widgets 安装成功。")
 
-    try:
-        import win32api as _win32api
-        _ = _win32api
-    except ImportError:
-        print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
-        subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
-        importlib.invalidate_caches()
-        print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
-        import time
-        time.sleep(2)
-        sys.exit(0)
+    if os.name == "nt":
+        try:
+            import win32api as _win32api
+            _ = _win32api
+        except ImportError:
+            print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
+            subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
+            importlib.invalidate_caches()
+            print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
+            import time
+            time.sleep(2)
+            sys.exit(0)
 
     try:
         import pyperclip as _pyperclip

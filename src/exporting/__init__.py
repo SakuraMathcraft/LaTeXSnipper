@@ -2,7 +2,7 @@
 
 Submodules:
   - formula_export:   Core format registry and conversion dispatcher.
-  - pandoc_exporter:  Optional Pandoc-based export backend (docx, odt, epub, …).
+  - pandoc_exporter: Optional Pandoc-based export backend (docx, odt, epub, etc.).
   - formula_converters: Legacy converter stubs.
 """
 

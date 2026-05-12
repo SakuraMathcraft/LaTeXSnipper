@@ -6,13 +6,13 @@ from preview.math_preview import preview_theme_tokens
 
 
 def build_mixed_content_html(content: str) -> str:
-    """构建混合内容（文字+公式）的 HTML"""
+    """Build HTML for mixed text and formula content."""
     import html
     import re
     tokens = preview_theme_tokens()
 
-    # 提取并保护公式部分
-    # 先匹配块级公式 $$...$$，再匹配行内公式 $...$
+    # Extract and protect formula segments.
+    # Match block formulas $$...$$ first, then inline formulas $...$.
     formula_pattern = r'(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)'
 
     parts = re.split(formula_pattern, content)
@@ -20,13 +20,13 @@ def build_mixed_content_html(content: str) -> str:
 
     for part in parts:
         if part.startswith('$$') and part.endswith('$$'):
-            # 块级公式，保持原样
+            # Keep block formulas unchanged.
             result_parts.append(part)
         elif part.startswith('$') and part.endswith('$'):
-            # 行内公式，保持原样
+            # Keep inline formulas unchanged.
             result_parts.append(part)
         else:
-            # 普通文本，转义 HTML 特殊字符，保留换行
+            # Escape HTML special characters in plain text and preserve line breaks.
             escaped = html.escape(part)
             escaped = escaped.replace('\n', '<br>')
             result_parts.append(escaped)

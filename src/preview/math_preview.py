@@ -1,8 +1,7 @@
-﻿"""MathJax preview HTML, theme tokens, and formula export helpers."""
+﻿"""MathJax preview HTML and theme tokens."""
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
@@ -15,7 +14,7 @@ def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
     APP_DIR = Path(app_dir) if app_dir else None
 
 MATHJAX_CDN_URL = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
-# 备用CDN（如主CDN不可用）
+# Backup CDN used when the primary CDN is unavailable.
 MATHJAX_CDN_URL_BACKUP = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
 
 
@@ -250,24 +249,18 @@ _MATHJAX_LOGGED_KEYS = set()
 
 
 def get_mathjax_base_url():
-    """获取 MathJax 的 base URL (用于 setHtml)
-    
-    这个函数必须返回一个指向 es5 目录的 file:// URL，
-    这样 tex-mml-chtml.js 才能被正确加载。
-    
-    支持开发模式和 PyInstaller 打包后的两种运行环境。
-    """
+    """Return the MathJax base URL used by setHtml."""
     from PyQt6.QtCore import QUrl
     from pathlib import Path
     import sys
     
     try:
-        # 首先检查当前选择的渲染模式
+        # Check the currently selected render mode first.
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 mode = _latex_settings.get_render_mode()
-                # 如果选择了 CDN MathJax，返回 CDN URL
+                # Return the CDN URL when CDN MathJax is selected.
                 if mode == "mathjax_cdn":
                     if "cdn" not in _MATHJAX_LOGGED_KEYS:
                         print("[MathJax] 使用 CDN MathJax")
@@ -284,61 +277,61 @@ def get_mathjax_base_url():
                     # continue: resolve local MathJax base URL below
         except Exception as e:
             print(f"[WARN] 获取渲染模式失败: {e}")
-        
-        # 否则使用本地 MathJax
-        # 第1步：确定 APP_DIR
+
+        # Otherwise use local MathJax.
+        # Step 1: resolve APP_DIR.
         actual_app_dir = None
         
-        # 优先使用全局 APP_DIR（已初始化的情况）
+        # Prefer the global APP_DIR when it has already been initialized.
         if APP_DIR and str(APP_DIR).strip():
             actual_app_dir = Path(APP_DIR)
         
-        mathjax_source_desc = "本地资源"
+        mathjax_source_desc = "local"
 
-        # 如果 APP_DIR 为空或不可用，尝试其他方法
+        # Try alternate locations when APP_DIR is empty or unavailable.
         if not actual_app_dir or not str(actual_app_dir).strip():
-            # 打包模式检查：sys.frozen 表示 PyInstaller 打包
+            # Packaged-mode check: sys.frozen indicates a PyInstaller build.
             if getattr(sys, 'frozen', False):
-                # 打包后：exe 所在目录的 _internal 或同级 src
+                # After packaging, check _internal beside the executable or the sibling src directory.
                 exe_dir = Path(sys.executable).parent
-                # 尝试 _internal/assets (PyInstaller --onedir)
+                # Try _internal/assets for PyInstaller onedir builds.
                 if (exe_dir / "_internal" / "assets").exists():
                     actual_app_dir = exe_dir / "_internal"
                     mathjax_source_desc = "_internal"
-                # 尝试 assets (PyInstaller --onefile 解包目录)
+                # Try assets in the PyInstaller onefile extraction directory.
                 elif (exe_dir / "assets").exists():
                     actual_app_dir = exe_dir
-                    mathjax_source_desc = "exe 同级"
+                    mathjax_source_desc = "exe sibling"
                 else:
-                    # 最后尝试：还原到 exe 目录往上查找
+                    # As a last attempt, walk upward from the executable directory.
                     parent = exe_dir.parent
                     if (parent / "src" / "assets").exists():
                         actual_app_dir = parent / "src"
-                        mathjax_source_desc = "父目录 src"
+                        mathjax_source_desc = "parent src"
             else:
-                # 开发模式：使用当前脚本所在目录
+                # Development mode: use this script directory.
                 actual_app_dir = Path(__file__).parent
                 mathjax_source_desc = "__file__"
         
         if not actual_app_dir:
             actual_app_dir = Path(APP_DIR) if APP_DIR else Path.cwd()
         
-        # 第2步：检查 MathJax es5 目录
+        # Step 2: check the MathJax es5 directory.
         es5_dir = actual_app_dir / "assets" / "MathJax-3.2.2" / "es5"
         tex_chtml = es5_dir / "tex-mml-chtml.js"
         
         if not tex_chtml.exists():
             print(f"[WARN] MathJax 文件缺失: {tex_chtml}")
         
-        # 第3步：生成 file:// URL
-        # 在 Windows 上需要正确处理路径分隔符
-        # QUrl.fromLocalFile 需要规范化路径
-        url_path = str(es5_dir).replace("\\", "/")  # 转换为前向斜杠
+        # Step 3: build the file:// URL.
+        # Handle path separators correctly on Windows.
+        # QUrl.fromLocalFile needs a normalized path.
+        url_path = str(es5_dir).replace("\\", "/")  # Convert to forward slashes.
         if not url_path.endswith("/"):
             url_path += "/"
         
-        # 使用 QUrl.fromLocalFile() 
-        # 注意：QUrl.fromLocalFile() 自动处理 file:// 前缀
+        # Use QUrl.fromLocalFile().
+        # QUrl.fromLocalFile() automatically handles the file:// prefix.
         url = QUrl.fromLocalFile(str(es5_dir) + "/")
         url_str = url.toString()
         
@@ -357,179 +350,11 @@ def get_mathjax_base_url():
         print(f"[ERROR] get_mathjax_base_url 异常: {e}")
         import traceback
         traceback.print_exc()
-        # 返回临时路径作为后备方案
+        # Return a temporary path as a fallback.
         return QUrl.fromLocalFile("/")
 
-def latex_to_svg(latex: str) -> str:
-    """将 LaTeX 公式转换为 SVG 字符串（使用 matplotlib）
-    
-    Args:
-        latex: LaTeX 公式字符串，例如 "\\frac{1}{2}"
-        
-    Returns:
-        SVG 字符串，如果转换失败返回原始 LaTeX 文本
-    """
-    try:
-        import matplotlib
-        matplotlib.use('Agg')  # 使用无头后端
-        import matplotlib.pyplot as plt
-        from io import BytesIO
-        
-        # 创建图形并渲染公式
-        fig, ax = plt.subplots(figsize=(8, 1), dpi=150)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-        
-        # 使用 mathtext 渲染公式
-        ax.text(0.5, 0.5, f'${latex}$', ha='center', va='center', 
-            fontsize=16, transform=ax.transAxes)
-        
-        # 保存为 SVG
-        svg_buffer = BytesIO()
-        plt.savefig(svg_buffer, format='svg', bbox_inches='tight', pad_inches=0.1, 
-                   facecolor='white', edgecolor='none')
-        plt.close(fig)
-        
-        # 获取 SVG 内容
-        svg_buffer.seek(0)
-        svg_str = svg_buffer.getvalue().decode('utf-8')
-        
-        # 清理 SVG（移除 XML 声明和样式）
-        svg_str = svg_str.replace('<?xml version', '<!-- SVG from matplotlib -->\n<?xml version')
-        
-        return svg_str
-        
-    except Exception as e:
-        print(f"[ERROR] LaTeX to SVG conversion failed: {e}")
-        raise
-
-_MATHML_SUM = "\u2211"
-_MATHML_INF = "\u221E"
-
-def _strip_math_delimiters(latex: str) -> str:
-    t = (latex or "").strip()
-    if len(t) >= 4 and t.startswith("$$") and t.endswith("$$"):
-        return t[2:-2].strip()
-    if len(t) >= 2 and t.startswith("$") and t.endswith("$"):
-        return t[1:-1].strip()
-    return t
-
-def normalize_latex_for_export(latex: str) -> str:
-    """规范化导出用 LaTeX：简化单字符上下标、补充必要空格。"""
-    t = _strip_math_delimiters(latex)
-    if not t:
-        return ""
-    t = re.sub(r"\^\{([A-Za-z0-9])\}", r"^\1", t)
-    t = re.sub(r"_\{([A-Za-z0-9])\}", r"_\1", t)
-    t = t.replace(":=", " := ")
-    t = re.sub(r"(?<=\S)(\\(?:sum))", r" \1", t)
-    t = re.sub(r"(?<=\S)(\\(?:frac|dfrac|tfrac))", r" \1", t)
-    t = re.sub(r"[ \t]+", " ", t).strip()
-    return t
-
-def latex_inline(latex: str) -> str:
-    return f"${latex}$"
-
-def latex_display(latex: str) -> str:
-    return f"\\[\n{latex}\n\\]"
-
-def latex_equation(latex: str) -> str:
-    return f"\\begin{{equation}}\n{latex}\n\\end{{equation}}"
-
-def _ensure_mathml_block(mathml: str) -> str:
-    if not mathml:
-        return mathml
-    m = re.search(r"<math\b([^>]*)>", mathml)
-    if not m:
-        return mathml
-    attrs = m.group(1) or ""
-    if re.search(r"\bdisplay\s*=", attrs):
-        return mathml
-    sep = " " if attrs and not attrs.endswith(" ") else ""
-    new_tag = f"<math{attrs}{sep}display=\"block\">"
-    return mathml[:m.start()] + new_tag + mathml[m.end():]
-
-def mathml_standardize(mathml: str) -> str:
-    """标准 MathML：保证 display=block，统一无穷符号样式。"""
-    mathml = _ensure_mathml_block(mathml)
-    # 合并 := 到单个 <mo>
-    mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
-    mathml = re.sub(
-        r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
-        '<mi mathvariant="normal">&#x221E;</mi>',
-        mathml,
-    )
-    mathml = mathml.replace(_MATHML_SUM, "&#x2211;").replace(_MATHML_INF, "&#x221E;")
-    return mathml
-
-def _mathml_htmlize(mathml: str) -> str:
-    """HTML 用 MathML：display=block，sum 增加 data-mjx-texclass，符号转 Unicode。"""
-    mathml = _ensure_mathml_block(mathml)
-    # 合并 := 到单个 <mo>
-    mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
-    mathml = re.sub(
-        r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
-        f'<mi mathvariant="normal">{_MATHML_INF}</mi>',
-        mathml,
-    )
-
-    def _sum_repl(match):
-        attrs = match.group(1) or ""
-        if "data-mjx-texclass" in attrs:
-            return f"<mo{attrs}>{_MATHML_SUM}</mo>"
-        sep = "" if not attrs or attrs.endswith(" ") else " "
-        return f"<mo{attrs}{sep}data-mjx-texclass=\"OP\">{_MATHML_SUM}</mo>"
-
-    mathml = re.sub(
-        r"<mo([^>]*)>\s*(?:&#x2211;|&#X2211;|%s)\s*</mo>" % _MATHML_SUM,
-        _sum_repl,
-        mathml,
-        count=1,
-    )
-    mathml = mathml.replace("&#x2211;", _MATHML_SUM).replace("&#X2211;", _MATHML_SUM)
-    mathml = mathml.replace("&#x221E;", _MATHML_INF).replace("&#X221E;", _MATHML_INF)
-    return mathml
-
-def mathml_to_html_fragment(mathml: str) -> str:
-    """将 MathML 包装为可直接嵌入网页的 HTML 片段。"""
-    html_mathml = _mathml_htmlize(mathml)
-    return f'<span class="latexsnipper-math" data-format="mathml">{html_mathml}</span>'
-
-def mathml_with_prefix(mathml: str, prefix: str) -> str:
-    """将 MathML 标签统一加命名空间前缀，如 mml:, m:, attr:。"""
-    if not mathml:
-        return mathml
-    mathml = _ensure_mathml_block(mathml)
-
-    def _root_repl(match):
-        attrs = match.group(1) or ""
-        attrs = re.sub(r'\s+xmlns="[^"]*"', "", attrs)
-        if f"xmlns:{prefix}=" not in attrs:
-            sep = " " if attrs and not attrs.endswith(" ") else ""
-            attrs = f'{attrs}{sep}xmlns:{prefix}="http://www.w3.org/1998/Math/MathML"'
-        return f"<{prefix}:math{attrs}>"
-
-    mathml = re.sub(r"<math\b([^>]*)>", _root_repl, mathml, count=1)
-    mathml = re.sub(r"</math>", f"</{prefix}:math>", mathml)
-
-    def _tag_repl(match):
-        slash, name, rest = match.group(1), match.group(2), match.group(3)
-        if ":" in name:
-            return match.group(0)
-        return f"<{slash}{prefix}:{name}{rest}>"
-
-    return re.sub(r"<(/?)([A-Za-z][A-Za-z0-9:.-]*)(\b[^>]*)>", _tag_repl, mathml)
-
 def build_math_html(latex_or_list, labels=None) -> str:
-    """构建 MathJax 渲染 HTML，支持单个公式或公式列表
-    
-    Args:
-        latex_or_list: 单个公式字符串或公式列表
-        labels: 可选的标签列表，与公式一一对应
-    
-    注意：返回的 HTML 使用相对路径加载脚本，必须通过 setHtml(html, base_url) 使用！
-    """
+    """Build MathJax rendering HTML for a single formula or a formula list."""
     try:
         if isinstance(latex_or_list, str):
             formulas = [latex_or_list] if latex_or_list.strip() else []
@@ -541,13 +366,13 @@ def build_math_html(latex_or_list, labels=None) -> str:
         
         tokens = preview_theme_tokens()
 
-        # 生成每个公式的 MathJax HTML
+        # Generate MathJax HTML for each formula.
         formula_html = ""
         for i, latex in enumerate(formulas):
             label = labels[i] if i < len(labels) and labels[i] else ""
             label_html = f'<div class="formula-label">{label}</div>' if label else ""
             
-            # 使用 MathJax 渲染（不要 HTML 转义，保留 LaTeX）
+            # Render with MathJax; do not HTML-escape LaTeX.
             formula_html += f'<div class="math-container">{label_html}<div class="formula-content">$${latex}$$</div></div>\n'
         
         if not formula_html:
@@ -561,7 +386,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         except Exception:
             pass
         
-        # 使用 MathJax HTML 模板（使用相对路径）
+        # Use the MathJax HTML template with relative paths.
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         html = html.replace("__LOG_MATHJAX_LOCAL_FALLBACK__", "true" if log_local_fallback else "false")
         html = html.replace("__BODY_BG__", tokens["body_bg"])
@@ -576,7 +401,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         print(f"[ERROR] build_math_html 出错: {e}")
         import traceback
         traceback.print_exc()
-        # 返回错误提示 HTML
+        # Return error HTML.
         tokens = preview_theme_tokens()
         return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>

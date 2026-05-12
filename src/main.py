@@ -73,7 +73,7 @@ def _early_ensure_pyqt6_and_pywin32():
     import sys
     pyexe = sys.executable
     exe_name = os.path.basename(pyexe).lower()
-    # 仅在源码解释器模式启用早期 pip 自修复；打包 exe 不支持 `-m pip` 语义
+    # Enable early pip self-repair only in source-interpreter mode; packaged executables do not support `-m pip` semantics.
     can_pip_repair = (not getattr(sys, "frozen", False)) and exe_name.startswith("python")
     if not can_pip_repair:
         print("[INFO] 打包模式或非 python 解释器启动，跳过早期 pip 自修复。")
@@ -83,7 +83,7 @@ def _early_ensure_pyqt6_and_pywin32():
     if mismatches:
         _install_stable_gui_deps(pyexe, "; ".join(mismatches))
 
-    # 检查 PyQt6
+    # Check PyQt6
     try:
         import PyQt6 as _PyQt6
         _ = _PyQt6
@@ -95,7 +95,7 @@ def _early_ensure_pyqt6_and_pywin32():
         _ = _PyQt6
         print("[OK] PyQt6 安装成功。")
     else:
-        # PyQt6 已存在，但可能缺少 WebEngine
+        # PyQt6 exists but WebEngine may be missing
         try:
             from PyQt6 import QtWebEngineWidgets as _QtWebEngineWidgets
             _ = _QtWebEngineWidgets
@@ -104,7 +104,7 @@ def _early_ensure_pyqt6_and_pywin32():
             _install_stable_gui_deps(pyexe, "PyQt6-WebEngine 未安装")
             importlib.invalidate_caches()
 
-    # 检查 qfluentwidgets（PyQt6-Fluent-Widgets）
+    # Check qfluentwidgets (PyQt6-Fluent-Widgets)
     try:
         import qfluentwidgets as _qfluentwidgets
         _ = _qfluentwidgets
@@ -116,7 +116,7 @@ def _early_ensure_pyqt6_and_pywin32():
         _ = _qfluentwidgets
         print("[OK] PyQt6-Fluent-Widgets 安装成功。")
 
-    # 检查 win32api
+    # Check win32api
     if os.name == "nt":
         try:
             import win32api as _win32api
@@ -125,13 +125,13 @@ def _early_ensure_pyqt6_and_pywin32():
             print("[WARN] 未检测到 win32api，尝试自动安装 pywin32...")
             subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"])
             importlib.invalidate_caches()
-            # 关键：安装后直接提示用户重启
+            # Critical: prompt the user to restart immediately after install
             print("[OK] pywin32 安装成功。请关闭并重新启动本程序以完成初始化。")
             import time
             time.sleep(2)
             sys.exit(0)
 
-    # 检查 pyperclip
+    # Check pyperclip
     try:
         import pyperclip as _pyperclip
         _ = _pyperclip
@@ -151,7 +151,7 @@ def _early_ensure_pyqt6_and_pywin32():
                 print("[WARN] pyperclip 不可用，无法复制到剪贴板。")
             sys.modules.setdefault("pyperclip", types.SimpleNamespace(copy=_copy_stub))
 
-    # 检查 requests（用于更新检查）
+    # Check requests (used for update check)
     try:
         import requests as _requests
         _ = _requests
@@ -178,7 +178,7 @@ def resource_path(relative_path):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
-# 全局配置文件名（仅定义一次）
+# Global config filename (define once)
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
 _APP_LOG_DIR_CACHE = None
@@ -227,7 +227,7 @@ def _app_log_dir() -> pathlib.Path:
     _APP_LOG_DIR_CACHE = fallback
     return fallback
 
-# 全局持有 crash 日志文件句柄，避免被 GC 或提前关闭
+# Keep the crash log file handle alive globally to avoid GC or premature close
 _CRASH_FH = None
 _LSN_CONSOLE_CTRL_HANDLER = None
 _LSN_DEBUG_CONSOLE_READY = False
@@ -241,26 +241,26 @@ _LSN_RUNTIME_LOG_CLEANUP_HOOKED = False
 def _pre_bootstrap_runtime():
     global _CRASH_FH
 
-    # 1) 避免 OpenMP 重复加载导致的 0xC0000409
+    # 1) Prevent 0xC0000409 from duplicate OpenMP loading
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("MKL_THREADING_LAYER", "SEQUENTIAL")
 
-    # 2) 自定义标记，供 onnxruntime 使用 CPU EP
+    # 2) Custom marker so onnxruntime uses CPU EP
     os.environ.setdefault("ORT_NO_AZURE_EP", "1")
 
-    # 3) 仅为 faulthandler 打开一个稳定的 crash 日志文件，不动 sys.stderr
+    # 3) Open a stable crash log file for faulthandler only; do not touch sys.stderr
     log_dir = pathlib.Path.home() / ".latexsnipper" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     crash_log = log_dir / "crash-native.log"
 
     try:
-        # 打开文件并保持在全局变量中，进程退出前不主动关闭
+        # Open the file and keep it referenced globally; do not close before process exit
         _CRASH_FH = open(crash_log, "a", encoding="utf-8", buffering=1)
         _CRASH_FH.write(f"\n=== LaTeXSnipper start {datetime.datetime.now().isoformat()} ===\n")
         faulthandler.enable(all_threads=True, file=_CRASH_FH)
     except Exception:
-        # 如果失败，就退回到默认 stderr，但也不要再改写 sys.stderr
+        # Fall back to default stderr on failure, but do not rewrite sys.stderr
         try:
             faulthandler.enable(all_threads=True)
         except Exception:
@@ -376,7 +376,7 @@ def _load_qt_symbols():
     pyqtSignal,
 ) = _load_qt_symbols()
 
-# 必须在创建 QApplication 之前设置此属性（满足 QtWebEngine 的上下文共享要求）
+# Must be set before creating QApplication (required by QtWebEngine context sharing)
 try:
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 except Exception:
@@ -873,7 +873,7 @@ class RuntimeLogDialog(QDialog):
             pass
 
     def closeEvent(self, ev):
-        # 不销毁，只隐藏；避免重复创建窗口与信号连接。
+        # Hide instead of destroy; avoid recreating windows and reconnecting signals.
         try:
             ev.ignore()
             self.hide()
@@ -925,7 +925,7 @@ def init_app_logging() -> Path:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
-    # 避免重复添加处理器
+    # Avoid adding duplicate handlers
     has_file = any(
         isinstance(h, RotatingFileHandler)
         and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path))
@@ -970,14 +970,14 @@ def init_app_logging() -> Path:
                 active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
     if not has_stream:
-        # 固定写到原始 stdout，避免后续 stdout 重定向导致 logging 链路异常。
+        # Write to the original stdout to avoid logging chain issues after stdout redirection.
         sh = logging.StreamHandler(sys.__stdout__)
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
     _RUNTIME_SESSION_HANDLER = None
 
-    # 将 print 输出桥接到 app.log，提升日志文件可用性。
+    # Bridge print output to app.log so the log file is more useful.
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
     if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
         _ORIGINAL_PRINT = builtins.print
@@ -989,11 +989,11 @@ def init_app_logging() -> Path:
             bridge_logger.addHandler(file_handler)
 
         def _print_bridge(*args, **kwargs):
-            # 先保持原有 print 行为（终端/GUI 日志窗口）。
+            # Keep the original print behavior first (terminal/GUI log window).
             _ORIGINAL_PRINT(*args, **kwargs)
             try:
                 target = kwargs.get("file", None)
-                # 仅桥接标准输出流，避免写入到其它文件对象时重复记录。
+                # Only bridge standard output streams; avoid duplicate logging when writing to other file objects.
                 if target not in (None, sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
                     return
                 sep = kwargs.get("sep", " ")
@@ -1011,7 +1011,7 @@ def init_app_logging() -> Path:
         logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, active_log_path)
         setattr(root, "_latexsnipper_session_logged", True)
 
-    # 初始化 LaTeX 设置
+    # Initialize LaTeX settings
     _ensure_startup_splash(_startup_status_message("初始化 LaTeX 设置..."))
     try:
         config_dir = Path.home() / ".latexsnipper"
@@ -1025,7 +1025,7 @@ def init_app_logging() -> Path:
 
     return active_log_path
 
-# AA_ShareOpenGLContexts 已在文件顶部 QApplication 创建前设置
+# AA_ShareOpenGLContexts was already set at the top of this file before QApplication creation
 
 def apply_theme(mode: str = "AUTO") -> bool:
     """安全设置 QFluentWidgets 主题，避免 QConfig 已被销毁导致的 RuntimeError。"""
@@ -1038,7 +1038,7 @@ def apply_theme(mode: str = "AUTO") -> bool:
             ss.setTheme(theme)
             return True
         except RuntimeError:
-            # 可能因先前实例销毁导致的 wrapper 失效，尝试重载模块后重试
+            # The wrapper may have been invalidated by a previous instance teardown; reload and retry
             cfg = importlib.reload(cfg)
             ss = importlib.reload(ss)
             theme = getattr(cfg.Theme, mode)
@@ -1082,11 +1082,11 @@ def _get_app_root() -> Path:
     在打包模式下（PyInstaller），返回 _internal 目录
     在开发模式下，返回 src 目录所在的目录
     """
-    # 兼容 PyInstaller 打包与源码运行
+    # Compatible with both PyInstaller packaging and source runs
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        # PyInstaller 打包模式：sys._MEIPASS 指向 _internal 目录
+        # PyInstaller packaged mode: sys._MEIPASS points to the _internal directory
         return Path(sys._MEIPASS)
-    # 开发模式：返回 main.py 所在目录（即 src 目录）
+    # Development mode: return the directory containing main.py (the src directory)
     return Path(__file__).resolve().parent
 
 def _is_packaged_mode() -> bool:
@@ -1096,11 +1096,11 @@ def _is_packaged_mode() -> bool:
     1. sys._MEIPASS 存在
     2. APP_DIR 包含 _internal 路径
     """
-    # 首先检查 sys._MEIPASS（PyInstaller 标志）
+    # First try sys._MEIPASS (PyInstaller marker)
     if hasattr(sys, '_MEIPASS'):
         return True
 
-    # 检查 APP_DIR 路径中是否包含 _internal（打包后的标志）
+    # Check if APP_DIR contains _internal (packaged marker)
     app_dir_str = str(_get_app_root()).lower()
     return '_internal' in app_dir_str
 
@@ -1108,7 +1108,7 @@ APP_DIR = _get_app_root()
 
 print(f"[DEBUG] 主程序目录: {APP_DIR}")
 print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
-# 获取依赖目录，优先环境变量，其次配置文件，最后默认
+# Get the dependencies directory: first check env var, then config, fall back to default
 _deps_env = os.environ.get("LATEXSNIPPER_DEPS_DIR")
 DEPS_DIR = Path(_deps_env) if _deps_env else (APP_DIR / "deps")
 DEPS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1123,7 +1123,7 @@ class TeeWriter(io.TextIOBase):
         self._b = b
         self._closed = False
         self._b_line_buffer = ""
-        # 保存原始流的引用，用于恢复
+        # Keep a reference to the original stream for restore
         self._original_a = a
         self._original_b = b
 
@@ -1176,7 +1176,7 @@ class TeeWriter(io.TextIOBase):
             except Exception:
                 pass
 
-        # 只在写入成功后 flush
+        # Only flush after a successful write
         for stream in (self._a,):
             if not self._stream_ok(stream):
                 continue
@@ -1211,7 +1211,7 @@ class TeeWriter(io.TextIOBase):
                 pass
 
     def close(self):
-        # 不主动关闭底层流，只标记自身已关闭
+        # Do not close the underlying stream; only mark self as closed
         self._closed = True
 
     def fileno(self):
@@ -1423,7 +1423,7 @@ def _same_exe(a: str, b: str) -> bool:
         return False
 
 def _config_path() -> Path:
-    # 统一配置路径：~/.latexsnipper/LaTeXSnipper_config.json
+    # Unified config path: ~/.latexsnipper/LaTeXSnipper_config.json
     return _app_state_dir() / CONFIG_FILENAME
 
 def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
@@ -1633,7 +1633,7 @@ def _select_install_base_dir() -> Path:
             p.mkdir(parents=True, exist_ok=True)
             return p
         else:
-            # 用户取消
+            # User cancelled
             raise RuntimeError("user canceled")
     except RuntimeError:
         raise
@@ -1740,10 +1740,10 @@ def resolve_install_base_dir() -> Path:
         if current_dev_base is not None:
             return current_dev_base
 
-    # 第1步：读取配置中的依赖目录
+    # Step 1: read the dependency directory from config
     p = _read_install_base_dir()
 
-    # 打包模式首启：若无配置，自动使用内置 deps（免手动选择/安装）
+    # Packaged-mode first launch: auto-use the built-in deps when no config exists (avoids manual selection/install)
     if not p:
         bundled = _get_bundled_deps_dir_for_packaged()
         if bundled:
@@ -1751,7 +1751,7 @@ def resolve_install_base_dir() -> Path:
                 bundled.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            # 检查内置目录是否可写（系统级 .deb 安装通常不可写）
+            # Check whether the built-in directory is writable (system-level .deb installs usually are not)
             if _is_dir_writable(bundled):
                 print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
                 _save_install_base_dir(bundled)
@@ -1763,7 +1763,7 @@ def resolve_install_base_dir() -> Path:
                 _save_install_base_dir(fallback)
                 p = fallback
 
-    # 第2步：仍无目录则弹出选择框
+    # Step 2: if still no directory, show the selection dialog
     if not p:
         print("[INFO] 首次启动，请选择依赖安装目录...")
         try:
@@ -1776,7 +1776,7 @@ def resolve_install_base_dir() -> Path:
 
     py_exe = _find_install_base_python(p)
 
-    # 第3步：检查 Python 是否已存在
+    # Step 3: check if Python is already present
     if py_exe is not None and py_exe.exists():
         print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
@@ -1806,7 +1806,7 @@ def _current_runtime_roots() -> list[str]:
             str(base / "Lib"),
             str(base / "Lib" / "site-packages"),
         })
-    # 保留当前进程已在用的 pythonXY.zip（支持 3.11/3.12 等三位版本号）
+    # Preserve the pythonXY.zip currently in use by this process (supports 3.11/3.12 three-digit versions)
     try:
         for p in list(sys.path):
             try:
@@ -1839,15 +1839,15 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
             except Exception:
                 return False
             sl = str(q).lower()
-            # 只过滤系统商店污染
+            # Only filter out system store pollution
             if "windowsapps\\python" in sl or "microsoft\\windowsapps" in sl:
                 return False
 
-            # 允许：项目/私有路径、当前运行时标准库路径、以及标准库 zip
+            # Allow: project/private paths, current runtime stdlib paths, and stdlib zip
             if under_any(q, allowed) or under_any(q, runtime_roots):
                 return True
 
-            # 兼容：匹配 pythonXY(或XYY).zip —— 使用 \d+ 支持 3.11/3.12
+            # Compat: match pythonXY (or XYY).zip using \d+ for 3.11/3.12
             try:
                 import re
                 if re.fullmatch(r"python\d+\.zip", q.name.lower()):
@@ -1857,7 +1857,7 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
             return False
         newp = [p for p in list(sys.path) if ok(p)]
 
-        # 确保源码目录在最前
+        # Ensure source directory is first
         try:
             src_dir = str(Path(__file__).resolve().parent)
             if src_dir not in newp:
@@ -1946,7 +1946,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     """
     roots: set[str] = set()
 
-    # 项目源代码目录
+    # Project source directory
     try:
         src_dir = Path(__file__).resolve().parent
         roots.add(str(src_dir))
@@ -1956,12 +1956,12 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     def add_private_base(b: Path, allow_core: bool):
         if not b.exists():
             return
-        # 始终允许纯 Python 包
+        # Always allow pure Python packages
         roots.update({
             str(b / "Lib"),
             str(b / "Lib" / "site-packages"),
         })
-        # 版本一致时再允许核心与 DLLs、zip
+        # Allow core, DLLs, and zip only when the version matches
         if allow_core:
             roots.update({
                 str(b),
@@ -1973,7 +1973,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
                         roots.add(z)
             except Exception:
                 pass
-    # 指定解释器的基目录（可精确判断版本）
+    # The base directory of the specified interpreter (for precise version detection)
     try:
         allow_core = _same_runtime_version_as_current(pyexe) if (pyexe and os.path.exists(pyexe)) else False
         if pyexe and os.path.exists(pyexe):
@@ -1982,7 +1982,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     except Exception:
         pass
 
-    # 永远保留当前运行时的标准库根与 zip
+    # Always preserve the current runtime's stdlib root and zip
     for r in _current_runtime_roots():
         roots.add(r)
     return list(roots)
@@ -2092,7 +2092,7 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         py = _find_full_python(base_dir)
         if py:
-            # 打包模式下区分 Python 来源，避免把外部私有环境误标为“内置”。
+            # Distinguish Python source in packaged mode to avoid mislabeling an external private environment as "built-in".
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
@@ -2102,13 +2102,13 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             return py
         print("[INFO] (打包模式) 依赖目录内未检测到可用 Python，先使用内置运行时启动依赖向导。")
         return sys.executable
-    # 开发模式：保留原有多路径查找和安装逻辑
+    # Development mode: keep the original multi-path lookup and install logic
     py = _find_full_python(base_dir)
     if py:
         print(f"[INFO] 使用依赖目录 Python: {py}")
         return py
 
-    # 安装器兜底
+    # Installer fallback
     installer: Path | None = None
     for root in (base_dir, Path(__file__).resolve().parent, Path(os.getcwd())):
         try:
@@ -2143,11 +2143,11 @@ def _load_startup_modules():
 
 custom_warning_dialog, clear_deps_state, SettingsWindow = _load_startup_modules()
 
-# 1) 解析/选择安装目录
+# 1) Resolve/select the installation directory
 _ensure_startup_splash("定位依赖目录...")
 INSTALL_BASE_DIR = resolve_install_base_dir()
 
-# 3) 打包模式下：检查是否需要重定向到私有解释器
+# 3) In packaged mode: check whether to redirect to a private interpreter
 if _is_packaged_mode():
     py_exe_path = _find_install_base_python(INSTALL_BASE_DIR)
     py_exe = py_exe_path if py_exe_path is not None else (INSTALL_BASE_DIR / "python311" / "python.exe")
@@ -2160,7 +2160,7 @@ if _is_packaged_mode():
                 import subprocess
                 env = os.environ.copy()
                 env["LATEXSNIPPER_INNER_PY"] = "1"
-                # 终端显示偏好：优先环境变量，其次配置文件。
+                # Terminal display preference: env var first, then config.
                 raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
                 if raw_pref in ("1", "true", "yes", "on", "0", "false", "no", "off"):
                     show_console = raw_pref in ("1", "true", "yes", "on")
@@ -2180,8 +2180,8 @@ if _is_packaged_mode():
                     except Exception:
                         pass
                 env["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if show_console else "0"
-                # 统一优先 pythonw.exe，由 open_debug_console 决定是否分配日志终端。
-                # 这样可避免 python.exe 自带控制台在启动瞬间闪窗。
+                # Prefer pythonw.exe; open_debug_console decides whether to allocate a log terminal.
+                # This prevents python.exe's console window from flashing briefly at startup.
                 run_py = py_exe
                 pyw = py_exe.parent / "pythonw.exe"
                 if pyw.exists():
@@ -2206,7 +2206,7 @@ if not TARGET_PY:
     print("[ERROR] 未找到可用的完整 Python 3.11。")
     sys.exit(2)
 
-# 固定环境，禁止外部干扰
+# Fixed environment; forbid external interference
 os.environ["LATEXSNIPPER_PYEXE"] = TARGET_PY
 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(BASE_DIR)
 os.environ["LATEXSNIPPER_DEPS_DIR"] = str(BASE_DIR)
@@ -2215,23 +2215,23 @@ os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ.pop("MATHCRAFT_HOME", None)
 
-# 5) IDE 模式下的路径注入（非打包模式）
+# 5) Path injection in IDE mode (non-packaged mode)
 if not _in_ide() and not _is_packaged_mode():
     if not _same_exe(sys.executable, TARGET_PY):
         _relaunch_with(TARGET_PY)
 elif _in_ide():
     print("[INFO] IDE 中运行，保持当前解释器，但使用私有依赖路径")
 
-# 只有在非 BOOTSTRAPPED 模式下才修改 sys.path
+# Only modify sys.path when NOT in BOOTSTRAPPED mode
 if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
     _ensure_startup_splash("挂载私有依赖环境...")
     _sanitize_sys_path(TARGET_PY, BASE_DIR)
     if _is_packaged_mode():
         _append_private_site_packages(TARGET_PY)
 
-    # 启动预检：普通启动只在缺少必需功能层时显示依赖向导。
-    # 显式进入向导模式时跳过这里的静默预检，由 __main__ 执行一次交互式校验；
-    # 向导内切换依赖目录会直接刷新当前环境，不需要重启。
+    # Startup pre-check: in normal startup, only show the dependency wizard when essential feature layers are missing.
+    # When explicitly entering wizard mode, skip this silent precheck; __main__ does an interactive validation instead;
+    # Switching the dependency directory inside the wizard refreshes the current environment without a restart.
     _open_wizard_env = (os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1")
     if _open_wizard_env:
         print("[INFO] 依赖向导模式：跳过启动预检查，由向导统一验证。")
@@ -2256,12 +2256,12 @@ if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1":
             print(f"[WARN] deps wizard failed: {e}")
 
 def ensure_deps(*args, **kwargs):
-    # 已就绪则直接返回 True，避免重复触发依赖向导。
-    # 但从设置页进入时必须执行校验，不能被短路
+    # Return True immediately when already ready, to avoid triggering the dependency wizard again.
+    # But from the settings page this must execute validation and cannot be short-circuited
     from_settings = bool(kwargs.get("from_settings", False))
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not from_settings:
         return True
-    # 真需要时再按需引入并调用（通常用不到）
+    # Import on demand only when really needed (usually unused)
     import bootstrap.deps_bootstrap as _db
     prompt_ui = bool(kwargs.get("prompt_ui", True))
     if prompt_ui:
@@ -2276,12 +2276,12 @@ def ensure_deps(*args, **kwargs):
 
 
 def show_dependency_wizard(always_show_ui=False):
-    # 默认不展示；仅在明确需要时才展示（always_show_ui=True）
+    # Not shown by default; only shown when explicitly needed (always_show_ui=True)
     if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not always_show_ui:
         return True
     try:
         import bootstrap.deps_bootstrap as _db
-        # 依赖向导统一收口到 ensure_deps，一处负责校验与展示。
+        # Dependency wizard funnels through ensure_deps; one place handles validation and display.
         ok = _db.ensure_deps(
             always_show_ui=always_show_ui,
             before_show_ui=_hide_startup_splash_for_modal,
@@ -2295,7 +2295,7 @@ def show_dependency_wizard(always_show_ui=False):
     except Exception as e:
         print(f"[WARN] 依赖向导不可用: {e}")
         return False
-# 修正路径
+# Fix paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
@@ -2554,14 +2554,14 @@ def _ensure_std_streams():
             return True
         if getattr(f, "closed", False):
             return True
-        # 对于 TeeWriter，只检查其标志
+        # For TeeWriter, only check its flag
         if isinstance(f, TeeWriter):
             return f._closed
         return False
 
     def _try_restore():
         """尝试恢复流"""
-        # 1) 优先恢复到原始 __stdout__ / __stderr__
+        # 1) Prefer restoring to the original __stdout__ / __stderr__
         if _is_bad(getattr(sys, "stdout", None)):
             if hasattr(sys, "__stdout__") and sys.__stdout__ is not None and not getattr(sys.__stdout__, "closed", False):
                 sys.stdout = sys.__stdout__

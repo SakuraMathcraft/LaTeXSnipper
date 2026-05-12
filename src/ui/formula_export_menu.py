@@ -45,7 +45,7 @@ def export_formula_to_clipboard(
     if not result:
         return False, "复制失败"
 
-    # Handle Pandoc binary formats (docx, odt, epub) – need file save dialog
+    # Handle Pandoc binary formats (docx, odt, epub); these need a file save dialog
     if result.startswith("[BINARY:"):
         return _handle_pandoc_binary_export(format_type, latex, format_name)
 

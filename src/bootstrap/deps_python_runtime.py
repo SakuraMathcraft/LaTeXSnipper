@@ -171,7 +171,7 @@ def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | N
 def find_system_python3() -> Path | None:
     """Find a usable system Python 3 interpreter on Linux/macOS.
 
-    On Windows this always returns None — the .exe installer path is used instead.
+    On Windows this always returns None; the .exe installer path is used instead.
     """
     if os.name == "nt":
         return None
