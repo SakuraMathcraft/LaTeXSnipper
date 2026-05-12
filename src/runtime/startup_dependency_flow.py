@@ -44,7 +44,8 @@ def maybe_redirect_packaged_private_python(
         return
 
     py_exe_path = find_install_base_python(install_base_dir)
-    py_exe = py_exe_path if py_exe_path is not None else (install_base_dir / "python311" / "python.exe")
+    py_name = "python.exe" if os.name == "nt" else "python3"
+    py_exe = py_exe_path if py_exe_path is not None else (install_base_dir / "python311" / py_name)
 
     if not py_exe.exists():
         print(f"[WARN] packaged: private python not found: {py_exe}, keep bundled runtime")

@@ -161,9 +161,11 @@ extra_datas += collect_data_files("certifi")
 # ---------------------------------------------------------------------------
 BUNDLED_DEPS_ROOT = Path(BUNDLED_DEPS_DIR_ENV).expanduser() if BUNDLED_DEPS_DIR_ENV else ROOT / "src" / "deps"
 BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
-if BUNDLED_PY311.exists():
+if os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME", "0") == "1" and BUNDLED_PY311.exists():
     extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
     print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
+elif BUNDLED_PY311.exists():
+    print(f"[SPEC] skip non-relocatable build python runtime: {BUNDLED_PY311}")
 
 BUNDLED_DEPS_STATE = ROOT / "src" / "deps" / ".deps_state.json"
 if BUNDLED_DEPS_STATE.exists():

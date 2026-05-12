@@ -1274,7 +1274,33 @@ def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
         text = str(path.resolve()).lower()
     except Exception:
         text = str(path).lower()
-    return ("_internal" in text) and text.endswith("\\deps")
+    normalized = text.replace("\\", "/")
+    return ("_internal" in normalized) and normalized.endswith("/deps")
+
+
+def _default_python_exe_name() -> str:
+    return "python.exe" if os.name == "nt" else "python3"
+
+
+def _default_packaged_user_deps_dir() -> Path:
+    return _app_state_dir() / "deps"
+
+
+def _python_candidate_usable(pyexe: Path) -> bool:
+    """Return whether a Python executable can start with its own standard library."""
+    try:
+        if not pyexe.exists() or not pyexe.is_file():
+            return False
+        proc = subprocess.run(
+            [str(pyexe), "-c", "import encodings, sys; print(sys.version_info[:2])"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            creationflags=_win_subprocess_flags(),
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
 
 
 def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
@@ -1332,7 +1358,7 @@ def _find_install_base_python(base_dir: Path) -> Path | None:
     """Reuse any existing python.exe inside the dependency directory."""
     for candidate in _iter_install_base_python_candidates(base_dir):
         try:
-            if candidate.exists():
+            if candidate.exists() and _python_candidate_usable(candidate):
                 return candidate
         except Exception:
             continue
@@ -1409,8 +1435,12 @@ def _read_install_base_dir() -> Path | None:
             data = json.loads(cfg.read_text("utf-8"))
             p = _normalize_install_base_dir(Path(data.get("install_base_dir", "")).expanduser())
             if p and p.exists():
-                if (not _is_packaged_mode()) and _looks_like_packaged_deps_dir(p):
+                if _looks_like_packaged_deps_dir(p):
                     return None
+                if _is_packaged_mode() and os.name != "nt":
+                    existing_py = _find_install_base_python(p)
+                    if existing_py is None and str(p).startswith("/usr/"):
+                        return None
                 return p
         except Exception:
             pass
@@ -1556,8 +1586,13 @@ def resolve_install_base_dir() -> Path:
 
     p = _read_install_base_dir()
 
+    if not p and _is_packaged_mode() and os.name != "nt":
+        p = _default_packaged_user_deps_dir()
+        p.mkdir(parents=True, exist_ok=True)
+        print(f"[INFO] Packaged Linux/macOS dependency directory: {p}")
+        _save_install_base_dir(p)
 
-    if not p:
+    if not p and os.name == "nt":
         bundled = _get_bundled_deps_dir_for_packaged()
         if bundled:
             try:
@@ -1681,7 +1716,7 @@ def _in_ide() -> bool:
 
 def _python_base_from_exe(pyexe: str) -> Path:
     p = Path(pyexe)
-    return p.parent.parent if p.parent.name.lower() == "scripts" else p.parent
+    return p.parent.parent if p.parent.name.lower() in {"scripts", "bin"} else p.parent
 
 def _stdlib_zip_versions(base: Path) -> list[tuple[int, int, str]]:
     """Return pythonXY.zip versions found under the base directory."""
@@ -1852,11 +1887,7 @@ def _find_full_python(base_dir: Path) -> str | None:
                 return str(candidate)
         except Exception:
             pass
-        try:
-            if candidate.exists():
-                return str(candidate)
-        except Exception:
-            pass
+        print(f"[WARN] Ignoring Python without bootstrap modules: {candidate}")
     if getattr(sys, "frozen", False):
         installer = base_dir / "python-3.11.0-amd64.exe"
         if installer.exists():
@@ -1951,7 +1982,7 @@ INSTALL_BASE_DIR = resolve_install_base_dir()
 
 if _is_packaged_mode():
     py_exe_path = _find_install_base_python(INSTALL_BASE_DIR)
-    py_exe = py_exe_path if py_exe_path is not None else (INSTALL_BASE_DIR / "python311" / "python.exe")
+    py_exe = py_exe_path if py_exe_path is not None else (INSTALL_BASE_DIR / "python311" / _default_python_exe_name())
 
     if py_exe.exists():
         if os.environ.get("LATEXSNIPPER_FORCE_PRIVATE_PY") == "1":

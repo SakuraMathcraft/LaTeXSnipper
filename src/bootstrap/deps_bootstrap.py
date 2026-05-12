@@ -21,6 +21,7 @@ from bootstrap.deps_python_runtime import (
     find_local_python311_installer as _find_local_python311_installer_impl,
     find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
+    is_usable_python as _is_usable_python,
     normalize_deps_base_dir as _normalize_deps_base_dir,
     site_packages_root as _site_packages_root,
 )
@@ -3268,7 +3269,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 mismatch_reason = "未知原因导致环境不一致。"
             print(f"[DIAG] 环境不一致原因: {mismatch_reason}")
 
-        if use_bundled_python and not pyexe.exists():
+        if use_bundled_python and not _is_usable_python(pyexe):
             if from_settings:
                 print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
             else:
@@ -3308,7 +3309,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         print(f"[INFO] 未找到私有 Python，将调用本地安装器: {installer}")
                         _notify_before_show_ui()
                         ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                        if not ok or not pyexe.exists():
+                        if not ok or not _is_usable_python(pyexe):
                             _notify_before_show_ui()
                             _exec_close_only_message_box(
                                 None,
@@ -3525,7 +3526,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
         if need_install:
             if chosen_layers:
-                if use_bundled_python and not os.path.exists(str(pyexe)):
+                if use_bundled_python and not _is_usable_python(Path(pyexe)):
                     if os.name != "nt":
                         # Linux / macOS: use system python3 to create a venv
                         ok = _setup_python_venv_from_system(py_root)
@@ -3577,7 +3578,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                         _notify_before_show_ui()
                         ok = _run_local_python311_installer(installer, py_root, before_launch=_notify_before_show_ui)
-                        if not ok or not os.path.exists(str(pyexe)):
+                        if not ok or not _is_usable_python(Path(pyexe)):
                             _notify_before_show_ui()
                             _exec_close_only_message_box(
                                 None,
