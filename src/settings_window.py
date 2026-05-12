@@ -56,6 +56,20 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _subprocess_creationflags()}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def _existing_non_launcher_pyexe_from_env() -> str:
     pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
     if not pyexe or not os.path.exists(pyexe):
@@ -738,7 +752,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
             except subprocess.TimeoutExpired:
                 return False
@@ -812,7 +826,7 @@ class SettingsWindow(QDialog):
                 capture_output=True,
                 text=True,
                 timeout=6,
-                creationflags=_subprocess_creationflags(),
+                **_hidden_subprocess_kwargs(),
             )
             raw = (res.stdout or "").strip()
             if raw:
@@ -861,7 +875,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
                 return lines[0] if lines else ""
@@ -878,7 +892,7 @@ class SettingsWindow(QDialog):
                     capture_output=True,
                     text=True,
                     timeout=3,
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
                 gpu_name = names[0] if names else ""
@@ -1665,11 +1679,8 @@ class SettingsWindow(QDialog):
             except Exception:
                 pass
             spawn_flags = int(_subprocess_creationflags()) if getattr(sys, "frozen", False) else 0
-            subprocess.Popen(
-                [str(x) for x in spawn_argv],
-                env=env,
-                creationflags=spawn_flags,
-            )
+            popen_kwargs = _hidden_subprocess_kwargs() if spawn_flags else {}
+            subprocess.Popen([str(x) for x in spawn_argv], env=env, **popen_kwargs)
             # Close the current program.
             QApplication.instance().quit()
         except Exception as e:

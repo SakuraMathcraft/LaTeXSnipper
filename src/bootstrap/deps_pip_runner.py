@@ -451,11 +451,17 @@ class PipInstallRunner:
                 self._set_proc(None)
 
         try:
+            kwargs = {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "creationflags": self.flags,
+            }
+            startupinfo = _hidden_startupinfo()
+            if startupinfo is not None:
+                kwargs["startupinfo"] = startupinfo
             subprocess.check_call(
                 [str(pyexe), "-m", "pip", "--version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=self.flags,
+                **kwargs,
             )
         except Exception:
             self.log_q.put(f"[ERR] pip is unavailable; skipping {pkg}")

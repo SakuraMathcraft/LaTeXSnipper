@@ -163,6 +163,20 @@ def _subprocess_creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs = {"creationflags": _subprocess_creationflags()}
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    except Exception:
+        pass
+    return kwargs
+
+
 def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
     if not left or not right:
         return False
@@ -579,7 +593,7 @@ class ModelWrapper(QObject):
                     encoding="utf-8",
                     errors="replace",
                     env=self._build_subprocess_env(),
-                    creationflags=_subprocess_creationflags(),
+                    **_hidden_subprocess_kwargs(),
                 )
                 self._worker = proc
                 self._start_worker_stderr_pump(proc)

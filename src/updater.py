@@ -1268,7 +1268,7 @@ a{{color:{theme['accent']};}}
         except Exception as e:
             try:
                 _prepare_app_for_update_exit()
-                subprocess.Popen([path], close_fds=True)
+                subprocess.Popen([path], close_fds=True, **_hidden_subprocess_kwargs())
                 app = QApplication.instance()
                 if app is not None:
                     QTimer.singleShot(0, app.quit)
