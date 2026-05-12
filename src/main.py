@@ -947,14 +947,23 @@ def _is_packaged_mode() -> bool:
 
 APP_DIR = _get_app_root()
 
-print(f"[DEBUG] 主程序目录: {APP_DIR}")
-print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
+print(f"[DEBUG] Application root: {APP_DIR}")
+print(f"[DEBUG] Packaged mode: {_is_packaged_mode()}")
 
-_deps_env = os.environ.get("LATEXSNIPPER_DEPS_DIR")
-DEPS_DIR = Path(_deps_env) if _deps_env else (APP_DIR / "deps")
+
+def _initial_deps_dir() -> Path:
+    env_value = os.environ.get("LATEXSNIPPER_DEPS_DIR")
+    if env_value:
+        return Path(env_value)
+    if _is_packaged_mode() and os.name != "nt":
+        return _app_state_dir() / "deps"
+    return APP_DIR / "deps"
+
+
+DEPS_DIR = _initial_deps_dir()
 DEPS_DIR.mkdir(parents=True, exist_ok=True)
 
-print(f"[DEBUG] 依赖目录: {DEPS_DIR}")
+print(f"[DEBUG] Dependency directory: {DEPS_DIR}")
 
 class TeeWriter(io.TextIOBase):
     """Write to two streams while tolerating I/O failures."""
@@ -2030,6 +2039,7 @@ if _is_packaged_mode():
         print(f"[WARN] packaged: private python not found: {py_exe}, keep bundled runtime")
 
 BASE_DIR = Path(INSTALL_BASE_DIR)
+DEPS_DIR = BASE_DIR
 _clean_bad_env()
 
 _ensure_startup_splash("检查 Python 运行时...")
