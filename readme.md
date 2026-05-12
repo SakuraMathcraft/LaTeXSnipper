@@ -236,9 +236,17 @@ template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno installer, signed through SignPath for tag releases.
+- Windows: Inno installer, signed through SignPath before release publishing.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
 - macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
+
+The release workflow expects these GitHub Actions variables:
+`SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+`SIGNPATH_SIGNING_POLICY_SLUG`, and
+`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
+`SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
+`.signpath/artifact-configurations/windows-installer.xml`; copy that XML into
+the matching SignPath project artifact configuration.
 
 The Linux offline package script is kept for maintainer builds with local
 MathCraft model files and is not part of the default release workflow.

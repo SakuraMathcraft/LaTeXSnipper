@@ -22,7 +22,7 @@ class LinuxHotkey(QObject):
 
     activated = pyqtSignal()
 
-    # Qt modifier → pynput key mapping
+# Qt modifier to pynput key mapping
     _MOD_MAP = {
         Qt.KeyboardModifier.ControlModifier: "ctrl",
         Qt.KeyboardModifier.ShiftModifier: "shift",
@@ -74,7 +74,7 @@ class LinuxHotkey(QObject):
 
     @staticmethod
     def _parse(keyseq_str: str) -> tuple[set[str], str]:
-        """Parse "Ctrl+Shift+F" → ({'ctrl','shift'}, 'f')."""
+        """Parse "Ctrl+Shift+F" into ({'ctrl', 'shift'}, 'f')."""
         ks = keyseq_str.upper().replace(" ", "")
         parts = ks.split("+")
         mods = set()

@@ -16,7 +16,7 @@ from qfluentwidgets import BodyLabel, FluentIcon, InfoBar, InfoBarPosition, Push
 
 
 class PdfResultWindow(QMainWindow):
-    """PDF 识别结果独立窗口（非模态，避免阻塞主窗口）。"""
+    """Standalone PDF recognition result window; non-modal to avoid blocking the main window."""
 
     def __init__(
         self,

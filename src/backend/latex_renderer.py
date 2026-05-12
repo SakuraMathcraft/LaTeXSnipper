@@ -1,11 +1,4 @@
-"""
-LaTeX 公式渲染器 - 支持 pdflatex/xelatex 或 MathJax 备选
-
-用户可以在设置中指定 LaTeX 环境路径：
-- Windows: C:\Program Files\MiKTeX\miktex\bin\x64\pdflatex.exe
-- Linux: /usr/bin/pdflatex
-- macOS: /Library/TeX/texbin/pdflatex
-"""
+"""LaTeX rendering helpers for pdflatex, xelatex, and MathJax fallback modes."""
 
 import subprocess
 import tempfile
@@ -353,21 +346,6 @@ def compile_tex_document_detailed(
         )
 
 
-def compile_tex_document(
-    tex_content: str,
-    output_dir: Path,
-    jobname: str = "document_preview",
-    timeout: int = 25,
-) -> Tuple[Optional[Path], str]:
-    result = compile_tex_document_detailed(
-        tex_content=tex_content,
-        output_dir=output_dir,
-        jobname=jobname,
-        timeout=timeout,
-    )
-    return result.pdf_path if result.generated_pdf else None, result.summary
-
-
 def synctex_edit_from_pdf(
     *,
     pdf_file: Path,
@@ -481,36 +459,25 @@ def synctex_view_from_source(
 
 
 class LaTeXRenderer:
-    """LaTeX 公式渲染器"""
-    
+    """Render individual LaTeX formulas to SVG."""
+
     def __init__(self, latex_cmd: Optional[str] = None):
-        """
-        初始化渲染器
-        
-        Args:
-            latex_cmd: pdflatex 或 xelatex 的完整路径
-                      如果为 None，会尝试自动检测
-        """
         self.latex_cmd = latex_cmd
         self._validate_latex()
-    
+
     def _validate_latex(self):
-        """验证 LaTeX 命令是否可用"""
+        """Validate the configured LaTeX executable."""
         if self.latex_cmd is None:
-            # 尝试自动检测
             self.latex_cmd = self._detect_latex()
-        
+
         if self.latex_cmd and not Path(self.latex_cmd).exists():
-            print(f"[WARN] LaTeX 路径不存在: {self.latex_cmd}")
+            print(f"[WARN] LaTeX path does not exist: {self.latex_cmd}")
             self.latex_cmd = None
-    
+
     def _detect_latex(self) -> Optional[str]:
-        """自动检测系统中的 pdflatex"""
-        commands = ["pdflatex", "xelatex"]
-        
-        for cmd in commands:
+        """Detect pdflatex or xelatex from PATH."""
+        for cmd in ("pdflatex", "xelatex"):
             try:
-                # 尝试运行命令
                 result = subprocess.run(
                     [cmd, "--version"],
                     capture_output=True,
@@ -518,31 +485,22 @@ class LaTeXRenderer:
                     **_hidden_subprocess_kwargs(),
                 )
                 if result.returncode == 0:
-                    # 在 Windows 上，需要获取完整路径
                     full_path = shutil.which(cmd)
-                    print(f"[LaTeX] 检测到 {cmd}: {full_path}")
+                    print(f"[LaTeX] Detected {cmd}: {full_path}")
                     return full_path
             except Exception:
                 pass
-        
+
         return None
-    
+
     def is_available(self) -> bool:
-        """检查 LaTeX 是否可用"""
+        """Return whether the configured LaTeX executable is available."""
         return self.latex_cmd is not None and Path(self.latex_cmd).exists()
-    
+
     def render_to_svg(self, latex_code: str) -> Optional[str]:
-        """
-        将 LaTeX 公式渲染为 SVG
-        
-        Args:
-            latex_code: LaTeX 公式代码（如 \\frac{1}{2}）
-        
-        Returns:
-            SVG 字符串，或 None 表示失败
-        """
+        """Render a LaTeX formula to SVG, returning None on failure."""
         if not self.is_available():
-            print("[LaTeX] LaTeX 不可用，跳过渲染")
+            print("[LaTeX] LaTeX is unavailable; skip SVG rendering")
             return None
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -550,17 +508,18 @@ class LaTeXRenderer:
                 tex_file = tmp_dir / "formula.tex"
                 pdf_file = tmp_dir / "formula.pdf"
                 svg_file = tmp_dir / "formula.svg"
-                # 1. 创建 LaTeX 源文件
+
                 tex_content = self._create_tex_file(latex_code)
-                tex_file.write_text(tex_content, encoding='utf-8')
-                print(f"[LaTeX] 编译: {latex_code[:50]}")
-                # 2. 编译为 PDF
+                tex_file.write_text(tex_content, encoding="utf-8")
+                print(f"[LaTeX] Compile: {latex_code[:50]}")
+
                 compile_result = subprocess.run(
                     [
                         self.latex_cmd,
                         "-interaction=nonstopmode",
-                        "-output-directory", str(tmp_dir),
-                        str(tex_file)
+                        "-output-directory",
+                        str(tmp_dir),
+                        str(tex_file),
                     ],
                     capture_output=True,
                     timeout=10,
@@ -568,9 +527,9 @@ class LaTeXRenderer:
                     **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
-                    print(f"[ERROR] LaTeX 编译失败:\n{compile_result.stdout}")
+                    print(f"[ERROR] LaTeX compile failed:\n{compile_result.stdout}")
                     return None
-                # 3. 转换 PDF 到 SVG（使用 pdftocairo）
+
                 try:
                     pdftocairo_result = subprocess.run(
                         ["pdftocairo", "-svg", str(pdf_file), str(svg_file)],
@@ -579,30 +538,20 @@ class LaTeXRenderer:
                         **_hidden_subprocess_kwargs(),
                     )
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
-                        svg_content = svg_file.read_text(encoding='utf-8')
-                        print(f"[LaTeX] 渲染成功: {len(svg_content)} bytes")
-                        # 温和放大 SVG，避免与前端缩放叠加后显得过大
-                        svg_content = self._enlarge_svg(svg_content, scale=1.6)
-                        return svg_content
+                        svg_content = svg_file.read_text(encoding="utf-8")
+                        print(f"[LaTeX] Rendered SVG: {len(svg_content)} bytes")
+                        return self._enlarge_svg(svg_content, scale=1.6)
                 except FileNotFoundError:
-                    print("[WARN] pdftocairo 未找到，无法转换 PDF 到 SVG")
+                    print("[WARN] pdftocairo was not found; cannot convert PDF to SVG")
                     return None
         except subprocess.TimeoutExpired:
-            print("[ERROR] LaTeX 编译超时")
+            print("[ERROR] LaTeX compile timed out")
         except Exception as e:
-            print(f"[ERROR] LaTeX 渲染异常: {e}")
+            print(f"[ERROR] LaTeX render failed: {e}")
         return None
 
     def _enlarge_svg(self, svg_content: str, scale: float = 2.0) -> str:
-        """
-        自动放大 SVG 的 width/height/viewBox
-        Args:
-            svg_content: SVG 字符串
-            scale: 放大倍数
-        Returns:
-            修改后的 SVG 字符串
-        """
-        import re
+        """Scale width and height attributes in generated SVG output."""
 
         def _scale_attr(match):
             name = match.group(1)
@@ -614,18 +563,15 @@ class LaTeXRenderer:
             except Exception:
                 return match.group(0)
 
-        # 仅放大 width/height；不要改 viewBox，避免抵消放大效果。
-        # 兼容无单位和带单位（pt/px/cm/mm/in）的场景。
-        svg_content = re.sub(
+        return re.sub(
             r'\b(width|height)="([0-9]+(?:\.[0-9]+)?)(pt|px|cm|mm|in)?"',
             _scale_attr,
             svg_content,
             count=2,
         )
-        return svg_content
-    
+
     def _create_tex_file(self, latex_code: str) -> str:
-        """创建 LaTeX 源文件内容（使用 preview 紧裁剪公式边界）"""
+        """Create a tightly cropped LaTeX document for one formula."""
         return rf"""
     \documentclass{{article}}
     \usepackage{{amsmath}}
@@ -642,96 +588,82 @@ class LaTeXRenderer:
     \end{{document}}
     """
 
+
 class LaTeXSettings:
-    """LaTeX 渲染设置管理"""
-    
+    """Manage persisted LaTeX rendering settings."""
+
     def __init__(self, config_file: Path):
-        """
-        初始化设置
-        
-        Args:
-            config_file: 配置文件路径
-        """
         self.config_file = Path(config_file)
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         self.settings = self._load_settings()
-    
+
     def _load_settings(self) -> Dict:
-        """加载设置"""
+        """Load settings from disk."""
         if self.config_file.exists():
             try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                print(f"[WARN] 加载 LaTeX 设置失败: {e}")
-        
+                print(f"[WARN] Failed to load LaTeX settings: {e}")
+
         return self._default_settings()
-    
+
     def _default_settings(self) -> Dict:
-        """默认设置"""
+        """Return default settings."""
         return {
-            "render_mode": "auto",  # auto/mathjax/latex
-            "latex_path": None,  # pdflatex 路径
-            "use_xelatex": False,  # 是否使用 xelatex
-            "cache_svg": True,  # 是否缓存 SVG
-            "enable_offline": False  # 是否启用离线模式（仅 MathJax 本地）
+            "render_mode": "auto",
+            "latex_path": None,
+            "use_xelatex": False,
+            "cache_svg": True,
+            "enable_offline": False,
         }
-    
+
     def save(self):
-        """保存设置"""
+        """Save settings to disk."""
         try:
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
-            print(f"[LaTeX] 设置已保存: {self.config_file}")
+            print(f"[LaTeX] Settings saved: {self.config_file}")
         except Exception as e:
-            print(f"[ERROR] 保存 LaTeX 设置失败: {e}")
-    
+            print(f"[ERROR] Failed to save LaTeX settings: {e}")
+
     def set_latex_path(self, path: str):
-        """设置 LaTeX 路径"""
+        """Set the LaTeX executable path."""
         self.settings["latex_path"] = path
         self.save()
-    
+
     def get_latex_path(self) -> Optional[str]:
-        """获取 LaTeX 路径"""
+        """Return the configured LaTeX executable path."""
         return self.settings.get("latex_path")
-    
+
     def set_render_mode(self, mode: str):
-        """
-        设置渲染模式
-        
-        Args:
-            mode: 'auto' (自动检测), 'mathjax_local' (本地MathJax), 
-                  'mathjax_cdn' (CDN MathJax), 'latex_pdflatex' (LaTeX+pdflatex),
-                  'latex_xelatex' (LaTeX+xelatex)
-        """
+        """Set the formula rendering mode."""
         valid_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
-        
+
         if mode not in valid_modes:
-            print(f"[WARN] 无效的渲染模式: {mode}")
+            print(f"[WARN] Invalid render mode: {mode}")
             return
-        
+
         self.settings["render_mode"] = mode
-        
-        # 如果是 LaTeX 模式，记录是否使用 xelatex
+
         if mode == "latex_xelatex":
             self.settings["use_xelatex"] = True
         elif mode == "latex_pdflatex":
             self.settings["use_xelatex"] = False
-        
+
         self.save()
-    
+
     def get_render_mode(self) -> str:
-        """获取渲染模式"""
+        """Return the configured render mode."""
         return self.settings.get("render_mode", "auto")
 
 
-# 全局实例
 _latex_renderer = None
 _latex_settings = None
 
 
 def init_latex_settings(config_dir: Path) -> LaTeXSettings:
-    """初始化 LaTeX 设置"""
+    """Initialize LaTeX settings."""
     global _latex_settings
     config_file = config_dir / "latex_settings.json"
     _latex_settings = LaTeXSettings(config_file)
@@ -739,31 +671,11 @@ def init_latex_settings(config_dir: Path) -> LaTeXSettings:
 
 
 def get_latex_renderer() -> LaTeXRenderer:
-    """获取 LaTeX 渲染器单例"""
+    """Return the shared LaTeX renderer instance."""
     global _latex_renderer, _latex_settings
-    
+
     if _latex_renderer is None:
-        # 获取用户指定的路径
         latex_path = _latex_settings.get_latex_path() if _latex_settings else None
         _latex_renderer = LaTeXRenderer(latex_path)
-    
+
     return _latex_renderer
-
-
-def render_formula(latex_code: str, prefer_latex: bool = False) -> Optional[str]:
-    """
-    渲染公式
-    
-    Args:
-        latex_code: LaTeX 代码
-        prefer_latex: 是否优先使用 LaTeX 渲染
-    
-    Returns:
-        SVG 字符串或 None
-    """
-    renderer = get_latex_renderer()
-    
-    if prefer_latex and renderer.is_available():
-        return renderer.render_to_svg(latex_code)
-    
-    return None

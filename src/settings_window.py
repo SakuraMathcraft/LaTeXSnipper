@@ -167,7 +167,7 @@ class ExternalModelHelpWindow(QDialog):
 
 
 class SettingsWindow(QDialog):
-    """设置窗口 - 使用 QDialog 作为基类"""
+    """Settings window based on QDialog."""
     model_changed = pyqtSignal(str)
     compute_mode_probe_done = pyqtSignal(object, str)
     mathcraft_pkg_probe_done = pyqtSignal(bool)
@@ -199,7 +199,7 @@ class SettingsWindow(QDialog):
         )
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
-        # 默认宽度加大，避免 InfoBar 文案被截断
+        # Use a wider default size to avoid truncating InfoBar text.
         self.resize(550, 665)
         self.setMinimumWidth(550)
         self.setMinimumHeight(665)
@@ -218,7 +218,7 @@ class SettingsWindow(QDialog):
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
         self._mathcraft_pkg_ready = False
-        # 缓存慢探测结果，避免频繁点击时阻塞 UI
+        # Cache slow probe results to avoid blocking the UI on repeated clicks.
         self._probe_cache_ttl_sec = 45.0
         self._compute_mode_probe_py = ""
         self._compute_mode_probe_ts = 0.0
@@ -226,12 +226,12 @@ class SettingsWindow(QDialog):
         self._compute_mode_probe_running = False
         self._device_name_cache = {"gpu": "", "cpu": "", "ts": 0.0}
         self._theme_mode_values = ["light", "dark", "auto"]
-        # 模型选择区域
+        # Model selection area.
         lay.addWidget(QLabel("选择识别模型:"))
-        # 使用下拉框支持内置模型与外部模型入口
+        # Use a combo box for built-in and external model entries.
         self.model_combo = ComboBox()
         self.model_combo.setFixedHeight(36)
-        # 添加识别模型选项
+        # Add recognition model options.
         self._model_options = [
             ("mathcraft", "内置模型"),
             ("external_model", "外部模型"),
@@ -239,12 +239,12 @@ class SettingsWindow(QDialog):
         for key, label in self._model_options:
             self.model_combo.addItem(label, userData=key)
         lay.addWidget(self.model_combo)
-        # 模型说明
+        # Model description.
         self.lbl_model_desc = QLabel()
         self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         self.lbl_model_desc.setWordWrap(True)
         lay.addWidget(self.lbl_model_desc)
-        # MathCraft 环境选择
+        # MathCraft environment selection.
         self.mathcraft_env_widget = QWidget()
         mathcraft_env_layout = QHBoxLayout(self.mathcraft_env_widget)
         mathcraft_env_layout.setContentsMargins(0, 0, 0, 0)
@@ -260,11 +260,11 @@ class SettingsWindow(QDialog):
         self.mathcraft_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.mathcraft_env_hint.setWordWrap(True)
         lay.addWidget(self.mathcraft_env_hint)
-        # 安装/下载统一收敛到依赖向导，设置页不再提供模型下载/安装入口。
+        # Installation and downloads are handled by the dependency wizard; the settings page no longer exposes separate model install/download actions.
         self.mathcraft_dl_widget = None
         self.mathcraft_download_btn = None
         self.mathcraft_open_btn = None
-        # MathCraft 识别类型（仅在内置模型可用时显示）
+        # MathCraft recognition type; shown only when the built-in model is available.
         self.mathcraft_mode_widget = QWidget()
         mathcraft_mode_layout = QHBoxLayout(self.mathcraft_mode_widget)
         mathcraft_mode_layout.setContentsMargins(0, 0, 0, 0)
@@ -382,9 +382,9 @@ class SettingsWindow(QDialog):
         self.lbl_compute_mode.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         lay.addWidget(self.lbl_compute_mode)
         self._update_compute_mode_label()
-        # 分隔
+        # Separator.
         lay.addSpacing(12)
-        # ============ 外观主题设置 ============
+        # ============ Appearance Theme Settings ============
         lay.addWidget(QLabel("外观主题:"))
         self.theme_mode_combo = ComboBox()
         self.theme_mode_combo.setFixedHeight(36)
@@ -392,12 +392,12 @@ class SettingsWindow(QDialog):
         self.theme_mode_combo.addItem("深色", userData="dark")
         self.theme_mode_combo.addItem("跟随系统", userData="auto")
         lay.addWidget(self.theme_mode_combo)
-        # ============ 渲染引擎设置 ============
+        # ============ Rendering Engine Settings ============
         lay.addWidget(QLabel("公式渲染引擎:"))
-        # 渲染引擎选择 - 使用 qfluentwidgets ComboBox 保持一致的外观
+        # Render engine selector; use qfluentwidgets ComboBox for consistent styling.
         self.render_engine_combo = ComboBox()
         self.render_engine_combo.setFixedHeight(36)
-        # 添加项目
+        # Add items.
         self.render_engine_combo.addItems([
             "自动检测 (MathJax CDN 备选)",
             "本地 MathJax",
@@ -405,15 +405,15 @@ class SettingsWindow(QDialog):
             "LaTeX + pdflatex",
             "LaTeX + xelatex",
         ])
-        # 保存对应的数据
+        # Store the corresponding data.
         self._render_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
         lay.addWidget(self.render_engine_combo)
-        # LaTeX 选项容器（仅在选择 LaTeX 时显示）
+        # LaTeX options container; shown only when LaTeX is selected.
         self.latex_options_widget = QWidget()
         latex_layout = QVBoxLayout(self.latex_options_widget)
         latex_layout.setContentsMargins(0, 8, 0, 0)
         latex_layout.setSpacing(6)
-        # LaTeX 路径选择
+        # LaTeX path selector.
         latex_path_layout = QHBoxLayout()
         latex_path_layout.addWidget(QLabel("LaTeX 路径:"))
         self.latex_path_input = QLineEdit()
@@ -425,7 +425,7 @@ class SettingsWindow(QDialog):
         self.btn_browse_latex.setFixedHeight(32)
         latex_path_layout.addWidget(self.btn_browse_latex)
         latex_layout.addLayout(latex_path_layout)
-        # LaTeX 操作按钮
+        # LaTeX action buttons.
         latex_btn_layout = QHBoxLayout()
         self.btn_detect_latex = PushButton(FluentIcon.SEARCH, "自动检测")
         self.btn_detect_latex.setFixedHeight(32)
@@ -434,20 +434,20 @@ class SettingsWindow(QDialog):
         self.btn_test_latex.setFixedHeight(32)
         latex_btn_layout.addWidget(self.btn_test_latex)
         latex_layout.addLayout(latex_btn_layout)
-        # LaTeX 说明
+        # LaTeX description.
         self.lbl_latex_desc = QLabel("💡 需要本地安装 MiKTeX 或 TeX Live，验证通过后才能使用")
         self.lbl_latex_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
         self.lbl_latex_desc.setWordWrap(True)
         latex_layout.addWidget(self.lbl_latex_desc)
-        self.latex_options_widget.setVisible(False)  # 默认隐藏
+        self.latex_options_widget.setVisible(False)  # Hidden by default.
         lay.addWidget(self.latex_options_widget)
-        # 检查更新
+        # Check for updates.
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
         self.btn_update = PushButton(FluentIcon.UPDATE, update_text)
         self.btn_update.setFixedHeight(36)
         lay.addWidget(self.btn_update)
-        # 启动行为
+        # Startup behavior.
         lay.addWidget(QLabel("启动行为:"))
         self.startup_console_checkbox = QCheckBox("启动时显示日志窗口（调试）")
         startup_console_pref = False
@@ -459,9 +459,9 @@ class SettingsWindow(QDialog):
         self.startup_console_checkbox.setChecked(self._to_bool(startup_console_pref))
         self.startup_console_checkbox.setToolTip("默认关闭。开启后将显示初始化与运行日志窗口")
         lay.addWidget(self.startup_console_checkbox)
-        # 分隔
+        # Separator.
         lay.addSpacing(8)
-        # 高级功能：打开终端（慎用）
+        # Advanced action: open terminal; use carefully.
         lay.addWidget(QLabel("高级 (慎用):"))
         terminal_row = QWidget()
         terminal_layout = QHBoxLayout(terminal_row)
@@ -476,7 +476,7 @@ class SettingsWindow(QDialog):
         self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖。\n⚠️ 请谨慎操作，错误的命令可能损坏环境！")
         terminal_layout.addWidget(self.btn_terminal)
         lay.addWidget(terminal_row)
-        # 依赖管理向导 + 缓存目录
+        # Dependency management wizard and cache directory.
         deps_row = QWidget()
         deps_row_layout = QHBoxLayout(deps_row)
         deps_row_layout.setContentsMargins(0, 0, 0, 0)
@@ -490,9 +490,9 @@ class SettingsWindow(QDialog):
         self.btn_open_mathcraft_cache.setToolTip("打开 MathCraft 模型缓存目录（默认位于AppData\\Roaming\\MathCraft\\models）")
         deps_row_layout.addWidget(self.btn_open_mathcraft_cache, 1)
         lay.addWidget(deps_row)
-        # 弹性空间
+        # Stretch spacer.
         lay.addStretch()
-        # 连接信号
+        # Connect signals.
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
         self.mathcraft_pkg_probe_done.connect(self._set_mathcraft_pkg_ready)
@@ -504,7 +504,7 @@ class SettingsWindow(QDialog):
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
-        # 渲染引擎相关信号
+        # Render-engine related signals.
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
         self.latex_path_test_done.connect(self._on_latex_path_test_done)
         self.latex_auto_detect_done.connect(self._on_latex_auto_detect_done)
@@ -527,13 +527,13 @@ class SettingsWindow(QDialog):
         self.external_mineru_test_endpoint_input.textChanged.connect(self._on_external_config_changed)
         self.external_timeout_input.textChanged.connect(self._on_external_config_changed)
         self.external_custom_prompt_input.textChanged.connect(self._on_external_config_changed)
-        # 初始化选择状态
+        # Initialize selection state.
         self._init_model_combo()
         self._update_model_desc()
         self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
-        # 后台预热探测缓存，减少首次点击“终端/安装GPU”卡顿
+        # Warm probe caches in the background to reduce first-click stalls for terminal/GPU install actions.
         QTimer.singleShot(120, self._warm_probe_cache_async)
         self.apply_theme_styles(force=True)
 
@@ -693,7 +693,7 @@ class SettingsWindow(QDialog):
         return False
 
     def _on_startup_console_changed(self, _state: int):
-        # PyQt6 的 CheckState 不是可直接 int() 的枚举，直接读控件状态最稳妥。
+        # PyQt6 CheckState is not safely cast with int(); reading the widget state directly is safest.
         enabled = bool(self.startup_console_checkbox.isChecked())
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
@@ -898,7 +898,7 @@ class SettingsWindow(QDialog):
             return ""
 
     def _init_model_combo(self):
-        # 初始化模型下拉框的选择状态
+        # Initialize the model combo-box selection.
         current = "mathcraft"
         if self.parent() and hasattr(self.parent(), "desired_model"):
             current = self.parent().desired_model
@@ -920,7 +920,7 @@ class SettingsWindow(QDialog):
         self._init_external_model_config()
         self._update_mathcraft_visibility()
     def _on_model_combo_changed(self, index: int):
-        # 模型下拉框选择变化
+        # Model combo-box selection changed.
         if getattr(self, "_model_selection_syncing", False):
             return
         if index < 0 or index >= len(self._model_options):
@@ -932,7 +932,7 @@ class SettingsWindow(QDialog):
             mode_key = self._get_mathcraft_mode_key()
             self.select_model(self._mathcraft_mode_to_model(mode_key))
         else:
-            # 触发加载/提示，但保持 UI 选择在 mathcraft
+            # Trigger loading or hints while keeping the UI selection on mathcraft.
             self.select_model("mathcraft")
         self._update_model_desc()
         self._update_mathcraft_visibility()
@@ -1099,7 +1099,7 @@ class SettingsWindow(QDialog):
             self.mathcraft_env_hint.setVisible(visible)
             if self.mathcraft_dl_widget is not None:
                 self.mathcraft_dl_widget.setVisible(visible)
-            # 识别类型始终可见（便于用户预先选择）
+            # Keep recognition type visible so users can preselect it.
             self.mathcraft_mode_widget.setVisible(visible)
             self.external_model_widget.setVisible(external_visible)
             if visible:
@@ -1114,18 +1114,18 @@ class SettingsWindow(QDialog):
         except Exception:
             pass
     def _init_render_engine(self):
-        """初始化渲染引擎选择"""
+        """Initialize render-engine selection."""
         try:
             from backend.latex_renderer import _latex_settings, LaTeXRenderer
             if _latex_settings:
                 mode = _latex_settings.get_render_mode()
                 self.render_engine_combo.currentIndexChanged.disconnect(self._on_render_engine_changed)
-                # 根据 _render_modes 查找对应的索引
+                # Find the matching index from _render_modes.
                 if mode in self._render_modes:
                     index = self._render_modes.index(mode)
                     self.render_engine_combo.setCurrentIndex(index)
                 else:
-                    # 默认选择自动检测
+                    # Default to auto detection.
                     self.render_engine_combo.setCurrentIndex(0)
                 self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
                 current_index = self.render_engine_combo.currentIndex()
@@ -1133,7 +1133,7 @@ class SettingsWindow(QDialog):
                     engine = self._render_modes[current_index]
                     is_latex = engine.startswith("latex_")
                     self.latex_options_widget.setVisible(is_latex)
-                    # LaTeX 模式时尝试自动检测
+                    # Try auto detection in LaTeX mode.
                     if is_latex and not _latex_settings.get_latex_path():
                         renderer = LaTeXRenderer()
                         if renderer.is_available():
@@ -1143,15 +1143,15 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[WARN] 初始化渲染引擎失败: {e}")
     def _on_render_engine_changed(self, index: int):
-        """渲染引擎改变 - 立即切换，不在主线程做重型验证。"""
+        """Handle render-engine changes immediately without heavy validation on the UI thread."""
         if index < 0:
             return
-        # 从 _render_modes 列表获取对应的引擎数据
+        # Read the engine data from _render_modes.
         if index < 0 or index >= len(self._render_modes):
             print(f"[WARN] 渲染引擎索引无效: {index}")
             return
         engine = self._render_modes[index]
-        # 显示/隐藏 LaTeX 选项
+        # Show or hide LaTeX options.
         is_latex = engine.startswith("latex_")
         self.latex_options_widget.setVisible(is_latex)
         if is_latex:
@@ -1160,10 +1160,10 @@ class SettingsWindow(QDialog):
             if not latex_path:
                 self._show_notification("warning", "LaTeX 路径未配置", "已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。")
 
-        # 无论是否 LaTeX，引擎切换都立即保存；耗时验证由“验证路径”按钮触发。
+        # Save engine changes immediately; expensive validation is triggered by the path validation button.
         self._save_render_mode(engine)
     def _load_latex_settings(self):
-        """加载 LaTeX 设置"""
+        """Load LaTeX settings."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
@@ -1173,13 +1173,13 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[WARN] 加载 LaTeX 设置失败: {e}")
     def _on_latex_path_changed(self):
-        """LaTeX 路径改变 - 清除验证状态"""
+        """Handle LaTeX path changes by clearing validation state."""
         if getattr(self, "_latex_test_in_progress", False):
             return
         self.btn_test_latex.setText("验证路径")
         self.btn_test_latex.setEnabled(True)
     def _browse_latex_path(self):
-        """浏览 LaTeX 路径"""
+        """Browse for a LaTeX executable path."""
         file_path, _ = _select_open_file_with_icon(
             self,
             "选择 pdflatex 或 xelatex 可执行文件",
@@ -1190,7 +1190,7 @@ class SettingsWindow(QDialog):
             self.latex_path_input.setText(file_path)
             self._save_latex_settings()
     def _detect_latex(self):
-        """异步自动检测 LaTeX（同时检测 pdflatex/xelatex）。"""
+        """Detect LaTeX asynchronously, checking both pdflatex and xelatex."""
         if getattr(self, "_latex_detect_in_progress", False):
             return
 
@@ -1198,7 +1198,7 @@ class SettingsWindow(QDialog):
         self.btn_detect_latex.setText("检测中...")
         self.btn_detect_latex.setEnabled(False)
 
-        # 检测偏好以“当前渲染引擎选择”为准；非 LaTeX 模式时按当前路径推断。
+        # Use the current render-engine selection as the detection preference; infer from the current path outside LaTeX mode.
         current_engine = ""
         idx = self.render_engine_combo.currentIndex()
         if 0 <= idx < len(self._render_modes):
@@ -1218,7 +1218,7 @@ class SettingsWindow(QDialog):
                 "xelatex": (shutil.which("xelatex") or "").strip(),
             }
 
-            # 若 PATH 未命中，尝试从当前路径目录推断同级编译器。
+            # If PATH misses, infer the sibling compiler from the current path directory.
             try:
                 if current:
                     base_dir = os.path.dirname(current)
@@ -1260,7 +1260,7 @@ class SettingsWindow(QDialog):
         else:
             self._show_notification("warning", "检测失败", f"未检测到 LaTeX。\n\n{detail}")
     def _save_latex_settings(self):
-        """保存 LaTeX 设置"""
+        """Save LaTeX settings."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
@@ -1282,7 +1282,7 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
     def _test_latex_path(self):
-        """异步测试 LaTeX 路径，避免阻塞主线程 UI。"""
+        """Test the LaTeX path asynchronously to avoid blocking the UI thread."""
         latex_path = self.latex_path_input.text().strip()
         if not latex_path:
             self._show_notification("error", "路径为空", "请输入 LaTeX 路径或点击自动检测")
@@ -1330,7 +1330,7 @@ class SettingsWindow(QDialog):
         if ok:
             self.btn_test_latex.setText("✓ 已验证")
             self.btn_test_latex.setEnabled(False)
-            # 若用户在验证期间未改路径，则直接保存；改过也保持显示验证成功状态。
+            # Save directly if the path was unchanged during validation; otherwise keep the success state visible.
             try:
                 if self.latex_path_input.text().strip() == (tested_path or "").strip():
                     self._save_latex_settings()
@@ -1343,15 +1343,10 @@ class SettingsWindow(QDialog):
         self.btn_test_latex.setEnabled(True)
         self._show_notification("error", title or "验证失败", message or "无法用该路径渲染公式，请检查安装")
     def _show_notification(self, level: str, title: str, message: str):
-        """显示浮动通知
-        Args:
-            level: 'success', 'warning', 'error', 'info'
-            title: 标题
-            message: 消息内容
-        """
+        """Show a floating notification."""
         try:
             from qfluentwidgets import InfoBar, InfoBarPosition
-            # 根据等级调用对应的方法
+            # Call the matching method for the requested level.
             if level == "success":
                 InfoBar.success(
                     title=title,
@@ -1396,13 +1391,13 @@ class SettingsWindow(QDialog):
             print(f"[WARN] 显示通知失败: {e}")
             print(f"[INFO] {title}: {message}")
     def _save_render_mode(self, engine: str):
-        """保存渲染引擎选择"""
+        """Save the render-engine selection."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
                 print(f"[Render] 已切换渲染引擎: {engine}")
-                # 显示成功信息（InfoBar 浮动提示，替代 MessageBox）
+                # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（MathJax + CDN）",
                     "mathjax_local": "本地 MathJax",
@@ -1419,7 +1414,7 @@ class SettingsWindow(QDialog):
         except Exception as e:
             print(f"[ERROR] 保存渲染模式失败: {e}")
     def _update_model_desc(self):
-        # 更新模型说明
+        # Update model description.
         index = self.model_combo.currentIndex()
         if index < 0:
             return
@@ -1441,7 +1436,7 @@ class SettingsWindow(QDialog):
         import os
         if env_key is None:
             env_key = self._get_terminal_env_key()
-        # 统一只打开主环境终端。
+        # Always open only the main environment terminal.
         env_key = "main"
         try:
             _dbg_text = self.terminal_env_combo.currentText()
@@ -1565,11 +1560,12 @@ class SettingsWindow(QDialog):
         try:
             if as_admin:
                 import tempfile
-                batch_content = "@echo off\n" \
-                    + f'cd /d "{venv_dir}"\n' \
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + python_bind_lines \
+                batch_content = ("@echo off\n"
+                    + f'cd /d "{venv_dir}"\n'
+                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
+                    + python_bind_lines
                     + help_text
+                )
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content)
                     batch_path = f.name
@@ -1580,11 +1576,12 @@ class SettingsWindow(QDialog):
                 self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
             else:
                 import tempfile
-                batch_content_normal = "@echo off\n" \
-                    + f'cd /d "{venv_dir}"\n' \
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n' \
-                    + python_bind_lines \
+                batch_content_normal = ("@echo off\n"
+                    + f'cd /d "{venv_dir}"\n'
+                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
+                    + python_bind_lines
                     + help_text
+                )
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content_normal)
                     batch_path = f.name
@@ -1618,7 +1615,7 @@ class SettingsWindow(QDialog):
             self._show_info("打开失败", f"无法打开缓存目录: {e}", "error")
 
     def _open_deps_wizard(self):
-        """打开依赖管理向导"""
+        """Open the dependency management wizard."""
         msg = MessageBox(
             "打开依赖向导",
             "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC取消操作",
@@ -1646,7 +1643,7 @@ class SettingsWindow(QDialog):
             return
         self._restart_with_wizard()
     def _restart_with_wizard(self):
-        """重启程序并打开依赖向导"""
+        """Restart the app and open the dependency wizard."""
         import sys
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import QCoreApplication
@@ -1666,7 +1663,7 @@ class SettingsWindow(QDialog):
             base_env=os.environ.copy(),
         )
         try:
-            # 先释放重资源和实例锁，减少“新进程抢锁失败”概率
+            # Release heavy resources and the instance lock first to reduce the chance that the new process cannot acquire the lock.
             parent = self.parent()
             if parent and hasattr(parent, "prepare_restart"):
                 try:
@@ -1685,7 +1682,7 @@ class SettingsWindow(QDialog):
                 env=env,
                 creationflags=spawn_flags,
             )
-            # 关闭当前程序
+            # Close the current program.
             QApplication.instance().quit()
         except Exception as e:
             from qfluentwidgets import InfoBar, InfoBarPosition
@@ -1697,9 +1694,9 @@ class SettingsWindow(QDialog):
                 position=InfoBarPosition.TOP
             )
     def _show_info(self, title: str, content: str, level: str = "info"):
-        """显示 Fluent 浮动提示"""
+        """Show a Fluent floating notification."""
         from qfluentwidgets import InfoBar, InfoBarPosition
-        # 始终浮在设置窗口，避免遮挡主窗口
+        # Anchor to the settings window to avoid covering the main window.
         parent = self
         func = getattr(InfoBar, level, InfoBar.info)
         func(
@@ -1976,7 +1973,7 @@ class SettingsWindow(QDialog):
             status = f"{status}\n最近一次测试：{saved_message}"
         self.external_status.setText(status)
     def select_model(self, model_name: str):
-        # 只发射信号，由信号连接的 on_model_changed 处理
+        # Only emit the signal; the connected on_model_changed handler processes it.
         self.model_changed.emit(model_name)
         self._update_compute_mode_label()
 
@@ -2081,7 +2078,7 @@ class SettingsWindow(QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     def _update_compute_mode_label(self):
-        """更新计算模式状态标签（缓存优先，后台探测）"""
+        """Update the compute-mode status label, preferring cache and probing in the background."""
         self._schedule_compute_mode_probe()
     def update_model_selection(self):
         # sync model combo selection state
@@ -2111,4 +2108,4 @@ class SettingsWindow(QDialog):
         finally:
             self._model_selection_syncing = False
 
-# ---------------- 主窗口 ----------------
+# ---------------- Main Window ----------------

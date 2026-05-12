@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from preview.math_preview import (
+from exporting.formula_format_helpers import (
     latex_display,
     latex_equation,
     latex_inline,
@@ -152,7 +152,7 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
         return f"[Pandoc 转换失败] {exc}", label
 
     if isinstance(result, bytes):
-        # Binary format – return a marker; caller should handle file saving
+        # Binary format: return a marker; caller should handle file saving
         return f"[BINARY:{format_key}]", label
 
     return result, label

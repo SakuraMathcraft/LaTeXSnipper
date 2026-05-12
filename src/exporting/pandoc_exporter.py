@@ -53,17 +53,17 @@ class PandocFormat:
     label: str
     pandoc_format: str  # pandoc output format name
     extension: str  # file extension (with dot)
-    needs_file: bool = False  # True → pandoc writes to a file (binary output)
+    needs_file: bool = False  # True when pandoc writes to a file (binary output)
 
 
 # All supported Pandoc target formats.
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
-    # --- 文档交换格式（二进制） ---
+    # --- Document exchange formats (binary) ---
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
     PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_icml", "InDesign (.icml)", "icml", ".icml"),
-    # --- 标记/文本格式 ---
+    # --- Markup/text formats ---
     PandocFormat("pandoc_rtf", "RTF (.rtf)", "rtf", ".rtf"),
     PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
     PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
@@ -277,7 +277,7 @@ def convert_latex_to(
     args = extra_args or []
 
     if fmt.needs_file:
-        # Binary output → write to a temp file, then read back
+        # Binary output: write to a temp file, then read back
         with tempfile.NamedTemporaryFile(
             suffix=fmt.extension, delete=False
         ) as tmp:
