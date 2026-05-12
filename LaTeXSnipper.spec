@@ -390,6 +390,7 @@ a = Analysis(
         "exporting",
         "exporting.formula_converters",
         "exporting.formula_export",
+        "exporting.formula_format_helpers",
         "exporting.pandoc_exporter",
         "preview",
         "preview.content_preview",

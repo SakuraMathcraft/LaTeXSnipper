@@ -42,6 +42,48 @@ jobs:
       - name: Byte-compile key entry files
         run: python -m py_compile src/main.py src/bootstrap/deps_bootstrap.py src/updater.py LaTeXSnipper.spec
 
+      - name: Validate Python comment language
+        shell: pwsh
+        run: |
+          @'
+          import ast
+          import io
+          import pathlib
+          import tokenize
+
+          roots = [pathlib.Path("src"), pathlib.Path("mathcraft_ocr"), pathlib.Path("scripts")]
+          violations = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in sorted(root.rglob("*.py")):
+                  if "deps" in path.parts:
+                      continue
+                  text = path.read_text(encoding="utf-8", errors="replace")
+                  for token in tokenize.generate_tokens(io.StringIO(text).readline):
+                      if token.type == tokenize.COMMENT and any(ord(ch) > 127 for ch in token.string):
+                          violations.append(f"{path}:{token.start[0]} non-ASCII comment")
+                  try:
+                      tree = ast.parse(text)
+                  except SyntaxError:
+                      continue
+                  for node in ast.walk(tree):
+                      if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                          continue
+                      if not node.body:
+                          continue
+                      first = node.body[0]
+                      if (
+                          isinstance(first, ast.Expr)
+                          and isinstance(first.value, ast.Constant)
+                          and isinstance(first.value.value, str)
+                          and any(ord(ch) > 127 for ch in first.value.value)
+                      ):
+                          violations.append(f"{path}:{first.lineno} non-ASCII docstring")
+          if violations:
+              raise SystemExit("\n".join(violations))
+          '@ | python -
+
       - name: Validate cross-platform packaging metadata
         shell: pwsh
         run: |

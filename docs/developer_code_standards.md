@@ -45,6 +45,8 @@ path while allowing Linux and macOS support to evolve cleanly.
 
 ## Language And Encoding Rules
 
+- All source-code comments and docstrings must be written in English. User-facing
+  application strings may remain localized, but explanatory code text must not.
 - Packaging and automation files must be English-only and ASCII-only. This
   includes `.github/workflows/*`, `scripts/*.sh`, `*.spec`, `requirements*.txt`,
   and `packaging/debian/DEBIAN/*`.
@@ -55,6 +57,8 @@ path while allowing Linux and macOS support to evolve cleanly.
   localization is intentional and encoded as UTF-8.
 - Do not add mixed-encoding text, garbled comments, or copied terminal prose to
   source files. If a comment is needed, keep it short, technical, and readable.
+- Python source must be UTF-8 without BOM. Do not rewrite files with UTF-8 BOM,
+  locale-specific encodings, or mixed line endings.
 
 ## Clean Code Rules
 
@@ -65,6 +69,30 @@ path while allowing Linux and macOS support to evolve cleanly.
 - No broad refactors mixed into platform support PRs.
 - Keep comments short and technical. Avoid PR narrative, changelog prose, or
   long descriptive banners inside source files.
+- Comments must explain durable implementation constraints, not historical
+  decisions that no longer affect the code.
+
+## Release Signing Rules
+
+- Windows GitHub Release installers must be signed through SignPath before they
+  are uploaded to a GitHub Release.
+- Release workflows must publish the signed installer artifact only. Unsigned
+  Windows installer artifacts are build intermediates for SignPath and must not
+  be matched by release upload globs.
+- Keep the SignPath artifact configuration in
+  `.signpath/artifact-configurations/windows-installer.xml` synchronized with
+  the SignPath project configuration. The GitHub artifact uploaded for signing
+  is a zip file whose root contains `LaTeXSnipperSetup-*.exe`.
+- Store `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+  `SIGNPATH_SIGNING_POLICY_SLUG`, and
+  `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` as GitHub Actions variables.
+- Store `SIGNPATH_API_TOKEN` as a GitHub Actions secret. SignPath identifiers,
+  tokens, certificate material, and private organization values must never be
+  committed to source files.
+- Follow the SignPath GitHub trusted build system documentation and artifact
+  configuration schema:
+  `https://docs.signpath.io/trusted-build-systems/github` and
+  `https://about.signpath.io/documentation/artifact-configuration`.
 
 ## Required Validation
 

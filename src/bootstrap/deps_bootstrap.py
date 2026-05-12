@@ -52,19 +52,19 @@ subprocess_lock = threading.Lock()
 
 def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """
-    启动子进程并返回 Popen 对象，不预先读取/关闭 stdout。
-    透传一切 Popen 参数（如 stdout/stderr/text/encoding/env/bufsize/creationflags 等），
-    让调用方（例如 _pip_install）自己控制读取和等待。
+    Start a subprocess and return the Popen object without pre-reading stdout.
+    All Popen arguments (stdout/stderr/text/encoding/env/bufsize/creationflags, etc.) are passed through
+    so callers like _pip_install can control reading and waiting.
     """
     print(f"[RUN] {' '.join(cmd)}")
-    # 默认按行读取：如果调用方没指定，给个合理的默认
+    # Sensible default: line-buffered text output with combined stdout/stderr.
     popen_kwargs.setdefault("stdout", subprocess.PIPE)
     popen_kwargs.setdefault("stderr", subprocess.STDOUT)
     popen_kwargs.setdefault("text", True)
     if sys.platform == "win32":
         popen_kwargs.setdefault("creationflags", flags)
 
-    # 直接 Popen，剩下的读取/等待由调用方处理
+    # Spawn directly; the caller is responsible for reading and waiting.
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
@@ -78,7 +78,7 @@ class InstallWorker(QThread):
     progress_updated = pyqtSignal(int)
     status_updated = pyqtSignal(str)
     busy_state_changed = pyqtSignal(bool)
-    done = pyqtSignal(bool)  # True=全部成功
+    done = pyqtSignal(bool)  # True = all succeeded
 
     def __init__(self, pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path, chosen_layers, log_q,
                  mirror=False, force_reinstall=False, no_cache=False):
@@ -96,7 +96,7 @@ class InstallWorker(QThread):
         self.state = state
         self.state_path = state_path
         self.chosen_layers = chosen_layers
-        self.log_q = log_q  # 新增
+        self.log_q = log_q  # Added
 
     def _emit_done_safe(self, ok: bool):
         if not self._done_emitted:
@@ -111,7 +111,7 @@ class InstallWorker(QThread):
                 pass
 
     def stop(self):
-        """用于从UI触发中断下载"""
+        """Signal cancellation from the UI to abort download."""
         self.stop_event.set()
         if hasattr(self, "proc") and self.proc and self.proc.poll() is None:
             try:
@@ -123,7 +123,7 @@ class InstallWorker(QThread):
 
 
     def run(self):
-        """依赖安装线程主函数：MathCraft v1 只管理 ONNX Runtime 后端。"""
+        """Dependency installation worker entry point: MathCraft v1 manages only the ONNX Runtime backend."""
         try:
             self.log_updated.emit(f"[INFO] 开始检查 {len(self.pkgs)} 个包...")
             self.log_updated.emit(f"[DEBUG] 使用 Python: {self.pyexe}")

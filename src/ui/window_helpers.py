@@ -15,7 +15,7 @@ def apply_app_window_icon(win) -> None:
 
 
 def apply_close_only_window_flags(win):
-    """提示/工具窗口统一为仅保留右上角关闭按钮。"""
+    """Keep only the top-right close button for prompt/tool windows."""
     flags = (
         win.windowFlags()
         | Qt.WindowType.CustomizeWindowHint
@@ -34,7 +34,7 @@ def apply_close_only_window_flags(win):
 
 
 def apply_no_minimize_window_flags(win):
-    """工具窗口保留最大化/关闭，去掉最小化按钮。"""
+    """Keep maximize and close buttons for tool windows, and remove minimize."""
     flags = (
         win.windowFlags()
         | Qt.WindowType.CustomizeWindowHint
@@ -59,7 +59,7 @@ def show_formula_rename_dialog(
     title: str = "重命名公式",
     prompt: str = "输入公式名称（留空则清除名称）：",
 ):
-    """统一的公式重命名弹窗：仅保留右上角关闭按钮，固定尺寸。"""
+    """Shared formula rename dialog with only the top-right close button and fixed size."""
     from PyQt6.QtWidgets import QLineEdit
 
     dlg = QDialog(parent)
