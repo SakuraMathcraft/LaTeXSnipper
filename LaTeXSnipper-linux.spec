@@ -24,7 +24,6 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
 
@@ -118,46 +117,9 @@ if MATHCRAFT_OCR_SRC.exists():
     print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
 
 # ---------------------------------------------------------------------------
-# Optional MathCraft model bundle
-# ---------------------------------------------------------------------------
-def _resolve_mathcraft_models_root() -> Path | None:
-    """Locate local MathCraft model files for the offline build variant."""
-    env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
-    candidates = []
-    if env_root:
-        candidates.append(Path(env_root))
-    candidates.append(ROOT / "MathCraft" / "models")
-    # Linux: check ~/.MathCraft/models and ~/.mathcraft/models
-    home = Path.home()
-    candidates.append(home / ".MathCraft" / "models")
-    candidates.append(home / ".mathcraft" / "models")
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
-if BUNDLE_MATHCRAFT_MODELS:
-    mathcraft_models_root = _resolve_mathcraft_models_root()
-    if mathcraft_models_root is None:
-        raise SystemExit("[SPEC] MathCraft offline build: no model root found.")
-    extra_datas += _collect_tree_as_datas(mathcraft_models_root, "MathCraft/models")
-    print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
-
-# ---------------------------------------------------------------------------
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
-
-# ---------------------------------------------------------------------------
-# Optional bundled Python runtime
-# ---------------------------------------------------------------------------
-BUNDLED_PY311 = ROOT / "src" / "deps" / "python311"
-if os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME", "0") == "1" and BUNDLED_PY311.exists():
-    extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
-    print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
-elif BUNDLED_PY311.exists():
-    print(f"[SPEC] skip non-relocatable build python runtime: {BUNDLED_PY311}")
 
 BUNDLED_DEPS_STATE = ROOT / "src" / "deps" / ".deps_state.json"
 if BUNDLED_DEPS_STATE.exists():

@@ -14,7 +14,7 @@ case "$1" in
         fi
 
         if [[ "$1" == "purge" ]]; then
-            rm -rf /usr/lib/latexsnipper /usr/lib/latexsnipper-offline
+            rm -rf /usr/lib/latexsnipper
             rm -f /usr/bin/latexsnipper
             echo "User configuration is preserved. Remove ~/.latexsnipper, ~/.MathCraft, or ~/.mathcraft manually if needed."
         fi

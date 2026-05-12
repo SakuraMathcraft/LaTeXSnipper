@@ -1,10 +1,9 @@
-﻿# -*- mode: python ; coding: utf-8 -*-
+# -*- mode: python ; coding: utf-8 -*-
 """
 LaTeXSnipper PyInstaller spec.
 
 Build command:
     pyinstaller LaTeXSnipper.spec
-    pyinstaller LaTeXSnipper.offline.spec
 
 This spec bundles required resources/dependencies so the app can run on target machines.
 """
@@ -119,7 +118,7 @@ else:
 
 
 def _resolve_mathcraft_models_root() -> Path | None:
-    """Locate local MathCraft model files for the offline build variant."""
+    """Locate local MathCraft model files for builds that explicitly bundle models."""
     env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
     candidates = []
     if env_root:
@@ -138,7 +137,7 @@ if BUNDLE_MATHCRAFT_MODELS:
     mathcraft_models_root = _resolve_mathcraft_models_root()
     if mathcraft_models_root is None:
         raise SystemExit(
-            "[SPEC] MathCraft offline build requested, but no model root was found. "
+            "[SPEC] MathCraft model bundling was requested, but no model root was found. "
             "Set MATHCRAFT_MODELS_ROOT or place models under MathCraft/models."
         )
     else:
@@ -303,8 +302,8 @@ if BUNDLED_DEPS_STATE.exists():
 else:
     print(f"[SPEC] bundled deps state not found, skip: {BUNDLED_DEPS_STATE}")
 
-# Optional offline Python installer. Store packages carry a complete CPU runtime
-# and should not include a nested Python installer.
+# Optional bundled Python installer. Store packages carry a complete CPU runtime
+# and do not include a nested Python installer.
 BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-amd64.exe"
 optional_root_datas = []
 if BUILD_CHANNEL != "store" and BUNDLE_PYTHON_INSTALLER and BUNDLED_PY_INSTALLER.exists():

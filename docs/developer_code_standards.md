@@ -24,6 +24,9 @@ path while allowing Linux and macOS support to evolve cleanly.
 - The root `python311` directory is a template runtime. Build scripts must not
   write dependencies into it. Build/runtime dependencies belong under
   `src/deps/python311`.
+- Linux and macOS release specs must never collect `src/deps/python311` or any
+  build-machine virtual environment into the packaged app. Packaged Linux/macOS
+  installs create dependency environments in the user's app state directory.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
 - Keep build tools pinned in `requirements-build.txt` unless the PR explicitly
@@ -39,6 +42,9 @@ path while allowing Linux and macOS support to evolve cleanly.
   the script targets macOS.
 - README references to packaging scripts or spec files must point to files that
   exist in the repository.
+- Offline installer/package entry points are not maintained. Do not restore
+  offline PyInstaller specs, Inno scripts, Debian scripts, or release workflow
+  paths.
 - GitHub Actions release builds must keep Windows, Linux, macOS, and release
   publishing jobs in one workflow unless the PR explicitly changes release
   policy and documents the replacement.
