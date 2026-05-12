@@ -26,7 +26,7 @@ from qfluentwidgets import PushButton, FluentIcon, InfoBar, InfoBarPosition
 
 from runtime.distribution import APP_VERSION, is_store_distribution, store_update_uri
 
-# ---------------- 常量 ----------------
+# ---------------- Constants ----------------
 _ETAG_PATH = os.path.join(os.path.dirname(__file__), ".release_etag_cache.json")
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
 _RELEASES_PAGE = "https://github.com/SakuraMathcraft/LaTeXSnipper/releases"
@@ -209,7 +209,7 @@ def _configure_tls_verify():
 
 _configure_tls_verify()
 
-# ---------------- 数据结构 ----------------
+# ---------------- Data Structures ----------------
 @dataclass
 class ReleaseInfo:
     latest: str
@@ -222,7 +222,7 @@ class ReleaseInfo:
     asset_updated_at: str = ""
     asset_sha256: str = ""
 
-# ---------------- 辅助函数 ----------------
+# ---------------- Helpers ----------------
 def _load_cached_info():
     try:
         with open(_ETAG_PATH, "r", encoding="utf-8") as f:
@@ -579,13 +579,13 @@ def _clear_installer_meta() -> None:
     except Exception:
         pass
 
-# ---------------- 主获取 ----------------
+# ---------------- Main Fetch ----------------
 def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[str, str]]]:
     diagnostics: List[Tuple[str, str]] = []
     headers: Dict[str, str] = {}
     _attach_auth_headers(headers)
     etag, _, cached_info = _load_cached_info()
-    # 如果缓存里的“最新版本”竟然低于当前程序版本，说明缓存明显过期，直接绕过 ETag 强制重取。
+    # If the cached latest version is older than the current app version, the cache is clearly stale; bypass ETag and force a refetch.
     if cached_info and _compare_versions(cached_info.latest, __version__) < 0:
         etag = None
         cached_info = None
@@ -594,12 +594,12 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
     try:
         resp = _session.get(_API_RELEASES, headers=headers, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
 
-        # 速率即将重置提醒（Remaining=0 即视为限额耗尽）
+        # Rate-limit reset hint; Remaining=0 is treated as exhausted.
         remain_header = resp.headers.get("X-RateLimit-Remaining")
         if resp.status_code == 200 and remain_header == "0":
             reset = resp.headers.get("X-RateLimit-Reset")
             msg = f"GitHub 限频: 剩余=0 重置≈{_fmt_reset(reset)}"
-            diagnostics.append(("RATE_LIMIT", msg))  # 哨兵
+            diagnostics.append(("RATE_LIMIT", msg))  # Sentinel.
 
         if resp.status_code == 304:
             if cached_info:
@@ -612,7 +612,7 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
             reset = resp.headers.get("X-RateLimit-Reset")
             msg = f"GitHub 限频: 剩余={remain} 重置≈{_fmt_reset(reset)}"
             diagnostics.append((_API_RELEASES, msg))
-            diagnostics.append(("RATE_LIMIT", msg))  # 哨兵
+            diagnostics.append(("RATE_LIMIT", msg))  # Sentinel.
             return None, "GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。", diagnostics
 
         resp.raise_for_status()
@@ -655,7 +655,7 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         diagnostics.append((_API_RELEASES, _brief_error_message(e)))
         return None, _brief_error_message(e), diagnostics
 
-# ---------------- 图文浏览器 ----------------
+# ---------------- Rich Text Browser ----------------
 _GITHUB_RAW_PREFIX = "https://raw.githubusercontent.com/SakuraMathcraft/LaTeXSnipper/main/"
 _REL_IMG_PATTERN = re.compile(r'!\[([^\]]*)\]\((?!https?://|data:)([^)]+)\)')
 _MARK_TAG_PATTERN = re.compile(r"</?mark\b[^>]*>", re.IGNORECASE)
@@ -715,7 +715,7 @@ class RemoteImageBrowser(QTextBrowser):
                 reply = self._manager.get(QNetworkRequest(url))
                 reply._gen = self._generation  # type: ignore
                 self._pending[key] = reply
-            # 透明 1x1 占位
+            # Transparent 1x1 placeholder.
             return base64.b64decode("R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==")
         return super().loadResource(rtype, url)
 
@@ -730,7 +730,7 @@ class RemoteImageBrowser(QTextBrowser):
             self.viewport().update()
         reply.deleteLater()
 
-# ---------------- 主对话框 ----------------
+# ---------------- Main Dialog ----------------
 def _show_existing_update_dialog():
     if _UPDATE_DIALOG is None:
         return None
@@ -910,7 +910,7 @@ def check_update_dialog(parent=None):
         done = pyqtSignal(object, object, object)
         download_progress = pyqtSignal(int, int, object)
         download_done = pyqtSignal(object, object)
-    emitter = _ResultEmitter(dlg)  # 绑定父对象，销毁后自动断开
+    emitter = _ResultEmitter(dlg)  # Bind to the parent object so it disconnects automatically on destruction.
 
     def _question_close_only(
         title: str,
@@ -1046,7 +1046,7 @@ a{{color:{theme['accent']};}}
             lbl_status.setText(f"当前版本高于线上稳定版本: {info.latest} (当前 {__version__})")
         render_changelog(info.changelog)
 
-        # 限频提示
+        # Rate-limit hint.
         rate_msg = next(
             (m for k, m in diag if k == "RATE_LIMIT" or "GitHub 限频" in m),
             None
@@ -1345,7 +1345,7 @@ a{{color:{theme['accent']};}}
 
     def worker():
         info, err, diag = _fetch_release()
-        # 线程结束后发信号；若对话框已销毁，emitter 也随父销毁，直接跳过。
+        # Emit after the thread finishes; if the dialog was destroyed, the emitter was destroyed too, so skip.
         safe_emit_signal(emitter, "done", info, err, diag)
 
     def start_fetch():
@@ -1494,7 +1494,7 @@ a{{color:{theme['accent']};}}
         _clear_global()
         dlg.close()
 
-    # 自定义 ESC：中止而非崩
+    # Custom ESC handling: abort instead of crashing.
     orig_key = dlg.keyPressEvent
     def _keyPress(ev):
         if ev.key() == Qt.Key.Key_Escape:

@@ -129,11 +129,11 @@ jobs:
             Write-Host "SignPath is configured."
           }
 
-      - name: Require SignPath for tag releases
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && steps.signpath-config.outputs.enabled != 'true' }}
+      - name: Require SignPath for release publishing
+        if: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && steps.signpath-config.outputs.enabled != 'true' }}
         shell: pwsh
         run: |
-          throw "Tag releases require SignPath. Missing: ${{ steps.signpath-config.outputs.missing }}"
+          throw "Release publishing requires SignPath. Missing: ${{ steps.signpath-config.outputs.missing }}"
 
       - name: Submit installer to SignPath
         id: signpath
@@ -298,6 +298,26 @@ jobs:
       - name: List release assets
         run: find release-assets -maxdepth 3 -type f -print
 
+      - name: Prepare release upload directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf publish-assets
+          mkdir -p publish-assets
+
+          signed_count="$(find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' 2>/dev/null | wc -l | tr -d ' ')"
+          if [[ "${signed_count}" == "0" ]]; then
+            echo "Signed Windows installer is missing. Refusing to publish unsigned installer assets." >&2
+            find release-assets -maxdepth 4 -type f -print >&2
+            exit 1
+          fi
+          find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' -exec cp -v {} publish-assets/ \;
+          find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
+          find release-assets/latexsnipper-macos -type f \( -name '*.dmg' -o -name '*.app.zip' \) -exec cp -v {} publish-assets/ \;
+
+          echo "Release upload assets:"
+          find publish-assets -maxdepth 1 -type f -print
+
       - name: Resolve release tag
         id: release
         shell: bash
@@ -320,8 +340,4 @@ jobs:
           tag_name: ${{ steps.release.outputs.tag }}
           generate_release_notes: ${{ github.event_name != 'workflow_dispatch' }}
           overwrite_files: true
-          files: |
-            release-assets/**/*.exe
-            release-assets/**/*.deb
-            release-assets/**/*.dmg
-            release-assets/**/*.zip
+          files: publish-assets/*

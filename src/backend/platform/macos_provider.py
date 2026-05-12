@@ -18,7 +18,7 @@ class MacOSHotkeyProvider(QObject):
     """macOS hotkey provider using pynput for global hotkeys.
 
     Note: pynput on macOS requires Accessibility permission in
-    System Settings → Privacy & Security → Accessibility.
+    System Settings > Privacy & Security > Accessibility.
     """
 
     def __init__(self, parent=None, global_enabled: bool = True):

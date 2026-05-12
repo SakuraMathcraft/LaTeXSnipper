@@ -637,7 +637,7 @@ class ScreenCaptureOverlay(QWidget):
             for snap in self._screen_snapshots
         )
         if is_wayland() and _has_valid_snapshots:
-            # 用预截图填充背景，使桌面内容可见
+            # Use the pre-captured screenshot as the visible desktop background.
             for snap in self._screen_snapshots:
                 if not snap.image.isNull():
                     target_rect = QRect(
@@ -647,7 +647,7 @@ class ScreenCaptureOverlay(QWidget):
                         snap.geometry.height(),
                     )
                     painter.drawImage(target_rect, snap.image)
-            # 叠加半透明遮罩
+            # Draw the translucent overlay mask.
             painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
         else:
             painter.fillRect(self.rect(), QColor(0, 0, 0, 125))
@@ -873,8 +873,8 @@ class ScreenCaptureOverlay(QWidget):
 
         _is_wayland = is_wayland()
 
-        # Wayland: grabWindow(0) 的快照为全黑图，裁剪结果也是黑的但 .isNull()=False，
-        # 会阻止后续 CLI/portal 回退。因此显式检测全黑像素并丢弃。
+        # Wayland: grabWindow(0) can return an all-black snapshot; the crop is also black but .isNull() is False,
+        # which blocks CLI/portal fallback. Explicitly detect all-black pixels and discard them.
         if _is_wayland and not pixmap.isNull() and is_image_effectively_black(pixmap.toImage()):
             print("[Overlay] Wayland: 预截图裁剪结果为全黑（grabWindow 无效），跳过并尝试 CLI/portal")
             pixmap = QPixmap()
@@ -897,7 +897,7 @@ class ScreenCaptureOverlay(QWidget):
             else:
                 print("[Overlay] Wayland CLI/portal 截图均失败")
 
-        # X11 / 非 Wayland：传统 grabWindow 回退
+        # X11 or non-Wayland: traditional grabWindow fallback.
         if pixmap.isNull() and not _is_wayland:
             nx, ny, nw, nh = native_rect
             if os.name != "nt":
@@ -920,7 +920,7 @@ class ScreenCaptureOverlay(QWidget):
                     except Exception:
                         pass
 
-        # X11 通用 CLI fallback
+        # Generic X11 CLI fallback.
         if pixmap.isNull() and not _is_wayland and os.name != "nt":
             image, source = capture_region_with_tools(
                 global_x,

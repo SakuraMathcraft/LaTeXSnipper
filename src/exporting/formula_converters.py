@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import os
 
-from preview.math_preview import (
+from exporting.formula_format_helpers import (
+    latex_to_svg,
     mathml_standardize,
     normalize_latex_for_export,
-    latex_to_svg,
 )
 
 

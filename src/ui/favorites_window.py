@@ -25,7 +25,7 @@ from ui.window_helpers import (
 DEFAULT_FAVORITES_NAME = "favorites.json"
 
 class FavoritesWindow(QMainWindow):
-    """收藏夹窗口 - 简化版，只保留列表功能"""
+    """Favorites window with list-only functionality."""
     def __init__(self, cfg, parent=None, select_save_file=None):
         super().__init__(parent)
         self.cfg = cfg
@@ -41,7 +41,7 @@ class FavoritesWindow(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        # 使用容器 widget
+        # Use a container widget.
         container = QWidget()
         main_lay = QVBoxLayout(container)
         main_lay.setContentsMargins(6, 6, 6, 6)
@@ -49,7 +49,7 @@ class FavoritesWindow(QMainWindow):
         
         from qfluentwidgets import PushButton, FluentIcon
         
-        # 顶部按钮行
+        # Top button row.
         top_btn_layout = QHBoxLayout()
         btn_save_path = PushButton(FluentIcon.FOLDER, "保存路径")
         btn_save_path.clicked.connect(self.select_file)
@@ -74,23 +74,23 @@ class FavoritesWindow(QMainWindow):
         close_btn.clicked.connect(self.close)
         main_lay.addWidget(close_btn, 0)
 
-        # 将容器设置为中心 widget
+        # Set the container as the central widget.
         self.setCentralWidget(container)
 
         self.favorites = []
-        self._favorite_names = {}   # 收藏名称: {content: name}
-        self._favorite_types = {}   # 收藏类型: {content: content_type}
+        self._favorite_names = {}   # Favorite names: {content: name}.
+        self._favorite_types = {}   # Favorite types: {content: content_type}.
         favorites_path = resolve_user_data_file(self.cfg, "favorites_path", DEFAULT_FAVORITES_NAME)
         self.file_path = favorites_path
         self.load_favorites()
 
-        # --- 新增: ESC 快捷关闭（备用方案，防止某些子控件截获按键） ---
+        # --- ESC shortcut close; fallback when child widgets intercept key events ---
         from PyQt6.QtGui import QShortcut, QKeySequence
         self._esc_shortcut = QShortcut(QKeySequence("Esc"), self)
         self._esc_shortcut.activated.connect(self.close)
         self.apply_theme_styles(force=True)
 
-    # --- 新增: 捕获 ESC 按键 ---
+    # --- Capture the ESC key ---
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
             self.close()
@@ -174,14 +174,14 @@ class FavoritesWindow(QMainWindow):
             pass
         return result
 
-    # ---------- 状态 ----------
+    # ---------- Status ----------
     def _set_status(self, msg: str):
         p = self.parent()
         if p and hasattr(p, "set_action_status"):
             p.set_action_status(msg)
     
     def _on_item_double_clicked(self, item):
-        """双击加载公式到编辑器并渲染"""
+        """Load the formula into the editor and render it on double-click."""
         latex = item.data(Qt.ItemDataRole.UserRole)
         if not latex:
             latex = item.text()
@@ -193,12 +193,12 @@ class FavoritesWindow(QMainWindow):
             else:
                 p.latex_editor.setPlainText(latex)
             
-            # 确保父窗口有这个内容的类型信息
+            # Ensure the parent window has type metadata for this content.
             content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
             if hasattr(p, '_formula_types'):
                 p._formula_types[latex] = content_type
             
-            # 获取编号和名称（优先使用收藏夹的名称）
+            # Get the index and name, preferring the favorites name.
             idx = self.list_widget.row(item) + 1
             name = self._favorite_names.get(latex, "")
             if not name and hasattr(p, '_formula_names'):
@@ -211,7 +211,7 @@ class FavoritesWindow(QMainWindow):
             p.render_latex_in_preview(latex, label)
             self._set_status("已加载到编辑器")
 
-    # ---------- 菜单 ----------
+    # ---------- Menu ----------
     def show_context_menu(self, pos):
         item = self.list_widget.itemAt(pos)
         if not item:
@@ -236,7 +236,7 @@ class FavoritesWindow(QMainWindow):
         menu.exec(self.list_widget.mapToGlobal(pos))
     
     def _add_to_history(self, latex: str):
-        """将收藏夹公式添加到历史记录（继承标签和类型）"""
+        """Add a favorite formula to history, inheriting label and type."""
         p = self.parent()
         if not p or not hasattr(p, 'history'):
             self._set_status("无法添加到历史")
@@ -246,18 +246,18 @@ class FavoritesWindow(QMainWindow):
             self._set_status("公式已在历史中")
             return
         
-        # 获取收藏的类型
+        # Get the favorite type.
         content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
-        # 继承名称（先写入历史名称映射，确保新插入行立即显示标签）
+        # Inherit the name; write the history-name mapping first so the new row shows its label immediately.
         name = self._favorite_names.get(latex, "")
         if name and hasattr(p, '_formula_names'):
             p._formula_names[latex] = name
         
-        # 使用 add_history_record 方法添加（会自动处理类型）
+        # Add through add_history_record so the type is handled automatically.
         if hasattr(p, 'add_history_record'):
             p.add_history_record(latex, content_type)
         else:
-            # 回退方式
+            # Fallback path.
             p.history.insert(0, latex)
             if hasattr(p, '_formula_types'):
                 p._formula_types[latex] = content_type
@@ -268,7 +268,7 @@ class FavoritesWindow(QMainWindow):
             self._set_status("已添加到历史记录")
 
     def _export_as(self, format_type: str, latex: str):
-        """导出公式为指定格式。"""
+        """Export the formula to the requested format."""
         try:
             _ok, message = export_formula_to_clipboard(
                 format_type,
@@ -283,16 +283,16 @@ class FavoritesWindow(QMainWindow):
         self._set_status(message)
 
     def _copy_item(self, latex: str):
-        """复制公式到剪贴板"""
+        """Copy the formula to the clipboard."""
         import pyperclip
         if latex:
             pyperclip.copy(latex)
             self._set_status("已复制到剪贴板")
 
     def _rename_item(self, latex: str):
-        """重命名收藏夹中的公式"""
+        """Rename a formula in favorites."""
         p = self.parent()
-        # 使用收藏夹自己的名称字典
+        # Use the favorites window name dictionary.
         current_name = self._favorite_names.get(latex, "")
         if not current_name:
             if p and hasattr(p, "_formula_names"):
@@ -320,15 +320,15 @@ class FavoritesWindow(QMainWindow):
                     p.save_history()
             self._set_status("已清除名称")
 
-        # 保存收藏夹
+        # Save favorites.
         self.save_favorites()
 
-        # 刷新列表显示
+        # Refresh the list display.
         self.refresh_list()
-        # 同步刷新主窗口历史记录（否则历史中的同公式名称不会立即更新）
+        # Refresh main-window history so names for the same formula update immediately.
         if p and hasattr(p, "rebuild_history_ui"):
             p.rebuild_history_ui()
-        # 同步刷新主窗口预览中的标签（否则预览标签可能保持旧名称）
+        # Refresh the main-window preview label so it does not keep the old name.
         if p and hasattr(p, "_rendered_formulas"):
             updated = False
             new_rendered = []
@@ -352,17 +352,17 @@ class FavoritesWindow(QMainWindow):
                     p._refresh_preview()
 
     def _edit_item(self, item, latex: str):
-        """编辑公式内容"""
+        """Edit formula content."""
         dlg = EditFormulaDialog(latex, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.value()
             if new and new != latex:
-                # 查找在 favorites 中的索引
+                # Find the index in favorites.
                 if latex in self.favorites:
                     idx = self.favorites.index(latex)
                     self.favorites[idx] = new
 
-                    # 更新收藏夹自己的名称和类型映射
+                    # Update the favorites window name and type mappings.
                     if latex in self._favorite_names:
                         self._favorite_names[new] = self._favorite_names.pop(latex)
                     if latex in self._favorite_types:
@@ -373,21 +373,21 @@ class FavoritesWindow(QMainWindow):
                     self._set_status("已更新")
 
     def _delete_item(self, latex: str):
-        """删除收藏项"""
+        """Delete a favorite item."""
         if latex in self.favorites:
             self.favorites.remove(latex)
-            # 清理名称和类型映射
+            # Clean up name and type mappings.
             self._favorite_names.pop(latex, None)
             self._favorite_types.pop(latex, None)
             self.refresh_list()
             self.save_favorites()
             self._set_status("已删除")
 
-    # ---------- 列表/文件 ----------
+    # ---------- List/File ----------
     def refresh_list(self):
         self.list_widget.clear()
 
-        # 类型显示名称
+        # Type display names.
         type_names = {
             "mathcraft": "公式",
             "mathcraft_text": "文字",
@@ -395,11 +395,11 @@ class FavoritesWindow(QMainWindow):
         }
 
         for idx, formula in enumerate(self.favorites, start=1):
-            # 创建带样式的列表项
+            # Create a styled list item.
             item = QListWidgetItem()
-            item.setData(Qt.ItemDataRole.UserRole, formula)  # 存储原始公式
+            item.setData(Qt.ItemDataRole.UserRole, formula)  # Store the original formula.
 
-            # 获取名称和类型（优先使用收藏夹自己的）
+            # Get name and type, preferring favorites-owned metadata.
             name = self._favorite_names.get(formula, "")
             if not name:
                 p = self.parent()
@@ -408,20 +408,20 @@ class FavoritesWindow(QMainWindow):
             content_type = normalize_content_type(self._favorite_types.get(formula, "mathcraft"))
             type_display = type_names.get(content_type, "")
 
-            # 构建显示文本
+            # Build display text.
             parts = [f"#{idx}"]
             if name:
                 parts.append(f"[{name}]")
-            if type_display and type_display != "公式":  # 公式是默认，不显示
+            if type_display and type_display != "公式":  # Formula is the default and is not shown.
                 parts.append(f"<{type_display}>")
             display_text = " ".join(parts) + f"\n{formula}"
 
             item.setText(display_text)
             item.setToolTip(formula)
 
-            # 设置项目大小和样式
+            # Set item size and style.
             from PyQt6.QtCore import QSize
-            item.setSizeHint(QSize(0, 50))  # 最小高度
+            item.setSizeHint(QSize(0, 50))  # Minimum height.
 
             self.list_widget.addItem(item)
 
@@ -446,14 +446,14 @@ class FavoritesWindow(QMainWindow):
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
-                    # 新格式：包含收藏列表、名称和类型
+                    # New format: favorites list, names, and types.
                     fav_list = data.get("favorites", [])
                     self.favorites = [str(x) for x in fav_list]
-                    # 加载名称
+                    # Load names.
                     names = data.get("names", {})
                     if isinstance(names, dict):
                         self._favorite_names = {str(k): str(v) for k, v in names.items()}
-                    # 加载类型
+                    # Load types.
                     types = data.get("types", {})
                     if isinstance(types, dict):
                         self._favorite_types = {
@@ -466,7 +466,7 @@ class FavoritesWindow(QMainWindow):
 
     def save_favorites(self):
         try:
-            # 保存收藏列表、名称和类型
+            # Save favorites list, names, and types.
             data = {
                 "favorites": self.favorites,
                 "names": self._favorite_names,
@@ -478,7 +478,7 @@ class FavoritesWindow(QMainWindow):
             print("[Favorites] 保存失败:", e)
 
     def _clear_all_favorites(self):
-        """清空所有收藏"""
+        """Clear all favorites."""
         if not self.favorites:
             info_parent = self.parent() if self.parent() is not None else self
             InfoBar.info(
@@ -508,15 +508,9 @@ class FavoritesWindow(QMainWindow):
         self.refresh_list()
         self._set_status("已清空收藏夹")
 
-    # ---------- 对外 ----------
+    # ---------- Public API ----------
     def add_favorite(self, text: str, content_type: str = None, name: str = None):
-        """添加收藏
-
-        Args:
-            text: 内容文本
-            content_type: 内容类型 (mathcraft, mathcraft_mixed 等)
-            name: 自定义名称
-        """
+        """Add a favorite item."""
         t = (text or "").strip()
         if not t:
             self._set_status("空公式，忽略")
@@ -527,7 +521,7 @@ class FavoritesWindow(QMainWindow):
 
         self.favorites.append(t)
 
-        # 存储类型（如果没指定，从父窗口获取当前模式）
+        # Store type; when missing, read the current mode from the parent window.
         if content_type is None:
             p = self.parent()
             if p and hasattr(p, "_formula_types") and t in p._formula_types:
@@ -543,7 +537,7 @@ class FavoritesWindow(QMainWindow):
                 content_type = "mathcraft"
         self._favorite_types[t] = normalize_content_type(content_type)
 
-        # 存储名称（如果没指定，从父窗口获取）
+        # Store name; when missing, read it from the parent window.
         if name is None:
             p = self.parent()
             if p and hasattr(p, "_formula_names"):
