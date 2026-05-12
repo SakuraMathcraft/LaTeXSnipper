@@ -176,6 +176,195 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  build-windows-offline-installer:
+    name: Build Windows Offline Installer
+    runs-on: windows-2025
+    env:
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-build.txt
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Prepare bundled Python seed
+        shell: pwsh
+        run: |
+          $installer = Join-Path $PWD "python-3.11.0-amd64.exe"
+          $target = Join-Path $PWD "python311"
+          Invoke-WebRequest `
+            -Uri "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe" `
+            -OutFile $installer
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*Python Software Foundation*") {
+            throw "Downloaded Python installer signature is not trusted: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          $process = Start-Process `
+            -FilePath $installer `
+            -ArgumentList @(
+              "/quiet",
+              "InstallAllUsers=0",
+              "TargetDir=$target",
+              "Include_pip=1",
+              "Include_tcltk=1",
+              "Include_launcher=0",
+              "Include_test=0",
+              "Include_doc=0",
+              "PrependPath=0",
+              "Shortcuts=0"
+            ) `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Python installer failed with exit code $($process.ExitCode)"
+          }
+          if (-not (Test-Path (Join-Path $target "python.exe"))) {
+            throw "Bundled Python seed was not created: $target"
+          }
+          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel setuptools
+
+      - name: Download MathCraft models
+        shell: pwsh
+        run: |
+          $modelDir = Join-Path $PWD "build\models"
+          python scripts\download_mathcraft_models.py $modelDir
+          "MATHCRAFT_MODELS_ROOT=$modelDir" >> $env:GITHUB_ENV
+
+      - name: Build unsigned offline installer
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -Flavor offline -PythonPath python
+
+      - name: Verify bundled MathCraft models
+        shell: pwsh
+        run: |
+          $distDir = Join-Path $PWD "dist\LaTeXSnipperOffline"
+          $modelsDir = Join-Path $distDir "_internal\MathCraft\models"
+          if (-not (Test-Path $modelsDir)) {
+            throw "MathCraft models directory not found in PyInstaller output: $modelsDir"
+          }
+          $expectedModels = @(
+            "mathcraft-formula-det",
+            "mathcraft-formula-rec",
+            "mathcraft-text-det",
+            "mathcraft-text-rec"
+          )
+          foreach ($model in $expectedModels) {
+            $modelPath = Join-Path $modelsDir $model
+            if (-not (Test-Path $modelPath)) {
+              throw "Model directory not found: $modelPath"
+            }
+            $fileCount = (Get-ChildItem -Path $modelPath -Recurse -File).Count
+            if ($fileCount -eq 0) {
+              throw "Model directory is empty: $modelPath"
+            }
+            Write-Host "${model}: ${fileCount} file(s) present in PyInstaller output"
+          }
+          Write-Host "All MathCraft models verified in offline build output"
+
+      - name: Upload unsigned offline installer artifact
+        id: upload-unsigned-offline
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-latexsnipper-offline-installer
+          path: dist/installer/LaTeXSnipperOfflineSetup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Check SignPath configuration
+        id: signpath-config
+        shell: pwsh
+        run: |
+          $missing = @()
+          foreach ($name in @(
+            "SIGNPATH_ORGANIZATION_ID",
+            "SIGNPATH_PROJECT_SLUG",
+            "SIGNPATH_SIGNING_POLICY_SLUG",
+            "SIGNPATH_ARTIFACT_CONFIGURATION_SLUG",
+            "SIGNPATH_API_TOKEN"
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              $missing += $name
+            }
+          }
+          if ($missing.Count -gt 0) {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            "missing=$($missing -join ', ')" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath is not configured: $($missing -join ', ')"
+          }
+          else {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            "missing=" >> $env:GITHUB_OUTPUT
+            Write-Host "SignPath is configured."
+          }
+
+      - name: Require SignPath for tag releases
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && steps.signpath-config.outputs.enabled != 'true' }}
+        shell: pwsh
+        run: |
+          throw "Tag releases require SignPath. Missing: ${{ steps.signpath-config.outputs.missing }}"
+
+      - name: Submit offline installer to SignPath
+        id: signpath
+        if: ${{ steps.signpath-config.outputs.enabled == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-offline.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Write signed offline installer SHA256
+        if: ${{ steps.signpath.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path signed -Filter *.exe -Recurse
+          if ($files.Count -eq 0) {
+            throw "SignPath completed, but no signed offline installer was found."
+          }
+          foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $shaPath = "$($file.FullName).sha256"
+            [System.IO.File]::WriteAllText(
+              $shaPath,
+              "$hash  $($file.Name)`n",
+              [System.Text.UTF8Encoding]::new($false)
+            )
+          }
+
+      - name: Upload signed offline installer artifact
+        if: ${{ steps.signpath.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-latexsnipper-offline-installer
+          path: signed/**
+          if-no-files-found: error
+          retention-days: 30
+
   build-linux-deb:
     name: Build Linux .deb
     runs-on: ubuntu-22.04
@@ -362,6 +551,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build-windows-installer
+      - build-windows-offline-installer
       - build-linux-deb
       - build-linux-deb-offline
       - build-macos-app
