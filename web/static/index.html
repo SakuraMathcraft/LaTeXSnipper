@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathCraft OCR - 数学公式识别</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 40px 0 32px;
+  }
+  header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-size: 0.95rem;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 20px;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .tab.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  .tab:hover:not(.active) {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.04);
+  }
+  .upload-zone.has-image {
+    border-style: solid;
+    border-color: var(--border);
+    padding: 16px;
+  }
+  .upload-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    opacity: 0.6;
+  }
+  .upload-text {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+  .upload-text strong { color: var(--accent); }
+
+  /* Preview */
+  .preview-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    position: relative;
+  }
+  .preview-img {
+    max-height: 200px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .clear-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: var(--surface);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .clear-btn:hover { color: var(--red); }
+
+  /* Recognize button */
+  .recognize-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 16px;
+  }
+  .recognize-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .recognize-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Results */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .result-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .result-score {
+    font-size: 0.8rem;
+    color: var(--green);
+    background: rgba(63,185,80,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .latex-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 12px;
+    color: #e6edf3;
+  }
+  .rendered-block {
+    min-height: 40px;
+    padding: 12px 0;
+    font-size: 1.1rem;
+    overflow-x: auto;
+  }
+  .rendered-block .katex { font-size: 1.2rem; }
+
+  .copy-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .copy-btn.copied {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  /* Blocks list */
+  .blocks-list {
+    margin-top: 16px;
+  }
+  .block-item {
+    border-top: 1px solid var(--border);
+    padding: 12px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .block-kind {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .block-kind.formula {
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+  }
+  .block-kind.text {
+    background: rgba(139,148,158,0.15);
+    color: var(--text-dim);
+  }
+  .block-text {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--text-dim);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error */
+  .error-msg {
+    background: rgba(248,81,73,0.1);
+    border: 1px solid rgba(248,81,73,0.3);
+    color: var(--red);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.warn { background: #d2991d; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .container { padding: 16px 12px 40px; }
+    header h1 { font-size: 1.5rem; }
+    .upload-zone { padding: 40px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>MathCraft <span>OCR</span></h1>
+    <p>上传图片，自动识别数学公式与文字，输出 LaTeX / 纯文本</p>
+  </header>
+
+  <!-- Status -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">正在初始化...</span>
+  </div>
+
+  <!-- Mode tabs -->
+  <div class="tabs">
+    <button class="tab active" data-mode="mixed">混合识别 (公式+文字)</button>
+    <button class="tab" data-mode="formula">仅公式</button>
+    <button class="tab" data-mode="text">仅文字</button>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone">
+    <div id="uploadPlaceholder">
+      <div class="upload-icon">🖼️</div>
+      <p class="upload-text">拖拽图片到此处，或 <strong>点击选择文件</strong></p>
+      <p style="color:var(--text-dim);font-size:0.8rem;margin-top:6px;">支持 PNG / JPG / BMP / TIFF</p>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+  </div>
+
+  <button class="recognize-btn" id="recognizeBtn" disabled>开始识别</button>
+
+  <!-- Results container -->
+  <div id="results"></div>
+
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────
+let selectedFile = null;
+let currentMode = "mixed";
+
+// ── DOM refs ─────────────────────────────────────────────────────
+const uploadZone   = document.getElementById("uploadZone");
+const fileInput    = document.getElementById("fileInput");
+const placeholder  = document.getElementById("uploadPlaceholder");
+const recognizeBtn = document.getElementById("recognizeBtn");
+const resultsEl    = document.getElementById("results");
+const statusDot    = document.getElementById("statusDot");
+const statusText   = document.getElementById("statusText");
+
+// ── Health check ─────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const res = await fetch("/api/health");
+    if (res.ok) {
+      statusDot.className = "status-dot ok";
+      statusText.textContent = "服务就绪";
+    } else {
+      throw new Error("unhealthy");
+    }
+  } catch {
+    statusDot.className = "status-dot warn";
+    statusText.textContent = "服务未连接，请确认服务器已启动";
+  }
+}
+checkHealth();
+
+// ── Tabs ─────────────────────────────────────────────────────────
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    currentMode = tab.dataset.mode;
+  });
+});
+
+// ── Upload / Drag & Drop ─────────────────────────────────────────
+uploadZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+uploadZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  uploadZone.classList.add("dragover");
+});
+uploadZone.addEventListener("dragleave", () => {
+  uploadZone.classList.remove("dragover");
+});
+uploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file.type.startsWith("image/")) {
+    showError("请选择图片文件");
+    return;
+  }
+  selectedFile = file;
+  recognizeBtn.disabled = false;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    placeholder.innerHTML = `
+      <div class="preview-row">
+        <img class="preview-img" src="${reader.result}" alt="preview">
+        <div style="flex:1;min-width:0">
+          <p style="font-weight:600;margin-bottom:4px;">${escapeHtml(file.name)}</p>
+          <p style="color:var(--text-dim);font-size:0.85rem;">${formatSize(file.size)}</p>
+        </div>
+        <button class="clear-btn" onclick="clearImage(event)" title="移除">✕</button>
+      </div>`;
+    uploadZone.classList.add("has-image");
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  fileInput.value = "";
+  placeholder.innerHTML = `
+    <div class="upload-icon">🖼️</div>
+    <p class="upload-text">拖拽图片到此处，或 <strong>点击选择文件</strong></p>
+    <p style="color:var(--text-dim);font-size:0.8rem;margin-top:6px;">支持 PNG / JPG / BMP / TIFF</p>`;
+  uploadZone.classList.remove("has-image");
+  recognizeBtn.disabled = true;
+}
+
+// ── Recognize ────────────────────────────────────────────────────
+recognizeBtn.addEventListener("click", doRecognize);
+
+async function doRecognize() {
+  if (!selectedFile) return;
+
+  recognizeBtn.disabled = true;
+  recognizeBtn.innerHTML = '<span class="spinner"></span>识别中...';
+  resultsEl.innerHTML = "";
+
+  const form = new FormData();
+  form.append("image", selectedFile);
+
+  let endpoint;
+  if (currentMode === "formula") endpoint = "/api/ocr/formula";
+  else if (currentMode === "text") endpoint = "/api/ocr/text";
+  else endpoint = "/api/ocr/mixed";
+
+  try {
+    const res = await fetch(endpoint, { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderResults(data);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    recognizeBtn.disabled = false;
+    recognizeBtn.textContent = "开始识别";
+  }
+}
+
+// ── Render results ───────────────────────────────────────────────
+function renderResults(data) {
+  let html = "";
+
+  if (currentMode === "formula") {
+    // Formula-only result
+    html += buildResultCard("LaTeX", data.text, data.score);
+  } else {
+    // Mixed / Text result
+    html += buildResultCard("识别文本", data.text, null);
+
+    if (data.blocks && data.blocks.length) {
+      html += `<div class="result-card"><div class="result-label" style="margin-bottom:8px;">识别块 (${data.blocks.length})</div><div class="blocks-list">`;
+      for (const b of data.blocks) {
+        const kindClass = b.kind === "formula" ? "formula" : "text";
+        html += `<div class="block-item">
+          <span class="block-kind ${kindClass}">${b.kind}</span>
+          <span class="block-text">${escapeHtml(b.text)}</span>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+  }
+
+  if (data.provider) {
+    html += `<p style="color:var(--text-dim);font-size:0.8rem;text-align:center;">Provider: ${escapeHtml(data.provider)}</p>`;
+  }
+
+  resultsEl.innerHTML = html;
+
+  // Render LaTeX in results
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".rendered[data-latex]").forEach(el => {
+      try {
+        katex.render(el.dataset.latex, el, { throwOnError: false, displayMode: true });
+      } catch (e) {
+        el.textContent = el.dataset.latex;
+      }
+    });
+  });
+}
+
+function buildResultCard(label, text, score) {
+  const scoreHtml = score != null
+    ? `<span class="result-score">置信度 ${(score * 100).toFixed(1)}%</span>`
+    : "";
+
+  return `
+    <div class="result-card">
+      <div class="result-header">
+        <span class="result-label">${label}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          ${scoreHtml}
+          <button class="copy-btn" onclick="copyText(this, '${escapeAttr(text)}')">复制</button>
+        </div>
+      </div>
+      <div class="latex-block">${escapeHtml(text)}</div>
+      <div class="rendered-block rendered" data-latex="${escapeAttr(text)}"></div>
+    </div>`;
+}
+
+// ── Utilities ────────────────────────────────────────────────────
+function showError(msg) {
+  resultsEl.innerHTML = `<div class="error-msg">⚠️ ${escapeHtml(msg)}</div>`;
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "已复制!";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "复制";
+      btn.classList.remove("copied");
+    }, 2000);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    btn.textContent = "已复制!";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "复制";
+      btn.classList.remove("copied");
+    }, 2000);
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escapeAttr(s) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+          .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+</script>
+</body>
+</html>

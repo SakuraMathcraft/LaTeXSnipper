@@ -1,0 +1,16 @@
+# docker-compose.yml for MathCraft OCR Web Server
+# Usage: docker compose up -d
+
+services:
+  mathcraft-ocr:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - mathcraft-models:/root/.mathcraft
+    restart: unless-stopped
+
+volumes:
+  mathcraft-models:
