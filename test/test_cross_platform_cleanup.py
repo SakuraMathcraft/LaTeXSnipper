@@ -46,7 +46,6 @@ def test_cross_platform_packaging_docs_do_not_reference_missing_scripts() -> Non
 def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     script_paths = (
         ROOT / "scripts" / "build_deb.sh",
-        ROOT / "scripts" / "build_deb_offline.sh",
         ROOT / "scripts" / "build_macos.sh",
         ROOT / "scripts" / "package_common.sh",
     )
@@ -56,7 +55,9 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     assert "grep -oP" not in sources
 
     macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
-    assert 'else ROOT / "src" / "deps"' in macos_spec
+    assert "src/deps/python311" not in macos_spec
+    assert "BUNDLED_PY311" not in macos_spec
+    assert "LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME" not in macos_spec
 
 
 def test_macos_spec_bundles_collected_dependencies() -> None:
@@ -69,28 +70,30 @@ def test_macos_spec_bundles_collected_dependencies() -> None:
     assert "app_bundle = BUNDLE(\n    exe," not in macos_spec
 
 
-def test_cross_platform_changes_do_not_expand_windows_dependency_surface() -> None:
+def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
     requirements = [line.strip() for line in requirements if line.strip() and not line.startswith("#")]
-    assert requirements == [
+    assert requirements[:5] == [
         "PyQt6==6.10.0",
         "PyQt6-Qt6==6.10.0",
         "PyQt6-WebEngine==6.10.0",
         "PyQt6-WebEngine-Qt6==6.10.0",
         "PyQt6-Fluent-Widgets==1.11.2",
     ]
+    assert "pywin32==311; sys_platform == \"win32\"" in requirements
+    assert not any("linux" in spec.lower() for spec in requirements)
 
     build_requirements = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
-    assert "pywin32==311" in build_requirements
-    assert "pypandoc==1.17" in build_requirements
+    assert "pywin32==311" not in build_requirements
+    assert "pypandoc==1.17" not in build_requirements
     assert "pypandoc>=1.15" not in build_requirements
 
-    for rel_path in ("Inno/latexsnipper.iss", "Inno/latexsnipper_offline.iss"):
-        inno = (ROOT / rel_path).read_text(encoding="utf-8")
-        assert r"DefaultDirName={localappdata}\{#MyAppName}" in inno
-        assert "PrivilegesRequired=lowest" in inno
-        assert "PrivilegesRequired=admin" not in inno
-        assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
+    assert not (ROOT / "Inno" / "latexsnipper_offline.iss").exists()
+    inno = (ROOT / "Inno" / "latexsnipper.iss").read_text(encoding="utf-8")
+    assert r"DefaultDirName={localappdata}\{#MyAppName}" in inno
+    assert "PrivilegesRequired=lowest" in inno
+    assert "PrivilegesRequired=admin" not in inno
+    assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
     assert (ROOT / "Inno" / "ChineseSimplified.isl").exists()
 
 
