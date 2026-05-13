@@ -1396,7 +1396,7 @@ class SettingsWindow(QDialog):
                 print(f"[Render] 已切换渲染引擎: {engine}")
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
-                    "auto": "自动检测（MathJax + CDN）",
+                    "auto": "自动检测（推荐）",
                     "mathjax_local": "本地 MathJax",
                     "mathjax_cdn": "CDN MathJax",
                     "latex_pdflatex": "LaTeX + pdflatex",
