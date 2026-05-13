@@ -109,14 +109,25 @@ path while allowing Linux and macOS support to evolve cleanly.
 
 ## Required Validation
 
-Run all checks with the project dependency Python:
+First install the validation tools into the project dependency Python:
 
 ```powershell
-.\src\deps\python311\python.exe -m ruff check .
-.\src\deps\python311\python.exe -m pytest test
-.\src\deps\python311\python.exe -m pyright
-.\src\deps\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+.\python311\python.exe -m pip install ruff pytest pyright
 ```
+
+Run all checks with the project dependency Python (located at the repository
+root `python311\`, not under `src\deps\`):
+
+```powershell
+.\python311\python.exe -m ruff check .
+.\python311\python.exe -m pytest test
+.\python311\python.exe -m pyright
+.\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+```
+
+The `src\deps\` directory is created at build time by Linux/macOS packaging
+scripts (`package_common.sh`). In a fresh clone, use the repository-root
+`python311\` (Windows) or a developer venv (Linux/macOS) for validation.
 
 For packaging changes, also validate the relevant script/spec on the target
 platform and include the command and result in the PR description.

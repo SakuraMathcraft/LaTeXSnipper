@@ -6,15 +6,13 @@
     ],
     "extraPaths": [
         ".",
-        "src/deps/python311/Lib/site-packages"
+        "python311/Lib/site-packages"
     ],
     "exclude": [
         "**/__pycache__",
         "build",
         "python311",
-        "apps",
-        "src/deps/python311",
-        "src/deps/translation_env"
+        "apps"
     ],
     "reportUnusedImport": "warning",
     "reportUnusedVariable": "warning",
@@ -30,7 +28,7 @@
             "root": "src",
             "extraPaths": [
                 ".",
-                "src/deps/python311/Lib/site-packages"
+                "python311/Lib/site-packages"
             ]
         }
     ]

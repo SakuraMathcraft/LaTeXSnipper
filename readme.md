@@ -253,7 +253,6 @@ LaTeXSnipper/
 |-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
 |-- src/
 |   |-- main.py                    # Main desktop application entry
-|   |-- distribution.py            # GitHub / Microsoft Store channel policy
 |   |-- backend/                   # OCR wrapper, CUDA diagnostics, capture, platform services
 |   |-- bootstrap/                 # Dependency wizard and runtime verification
 |   |-- core/                      # Document composition, export contracts, restart contracts
@@ -263,7 +262,8 @@ LaTeXSnipper/
 |   |-- runtime/                   # Config, history, and runtime helpers
 |   |-- ui/                        # Extracted desktop dialogs and window helpers
 |   |-- assets/                    # Icons and bundled web/math resources
-|   `-- deps/                      # Bundled/local Python dependency environment
+|   `-- deps/ (build-time)         # Created by packaging scripts; not in repo
+|-- python311/                     # Windows template embedded Python runtime
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/msix/                # Microsoft Store MSIX manifest and notes
 |-- scripts/                       # Build, release, and regression utilities
