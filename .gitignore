@@ -55,7 +55,6 @@ test_pdf/tex_compile_outputs*/
 test_pdf/*.pdf
 test_samples/
 理论论文/
-pix2text/
 release_assets/
 user_manual/
 
@@ -65,17 +64,4 @@ RELEASE_NOTES*.md
 release_v*.md
 release*.md
 packaging/msix/image/
-
-# Android signing
-*.jks
-*.keystore
-apps/android-client/android/keystore.properties
-apps/android-client/android/*.keystore
-apps/android-client/android/*.jks
-
-# Android/Web client generated files
-apps/android-client/node_modules/
-apps/android-client/android/.idea/
-apps/android-client/*.tsbuildinfo
-deps/pandoc/pandoc
 
