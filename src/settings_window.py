@@ -426,7 +426,7 @@ class SettingsWindow(QDialog):
         self.render_engine_combo.setFixedHeight(36)
         # Add items.
         self.render_engine_combo.addItems([
-            "自动检测 (MathJax CDN 备选)",
+            "自动检测（推荐）",
             "本地 MathJax",
             "CDN MathJax",
             "LaTeX + pdflatex",
@@ -476,7 +476,7 @@ class SettingsWindow(QDialog):
         lay.addWidget(self.btn_update)
         # Startup behavior.
         lay.addWidget(QLabel("启动行为:"))
-        self.startup_console_checkbox = QCheckBox("启动时显示日志窗口（调试）")
+        self.startup_console_checkbox = QCheckBox("启动时显示日志窗口")
         startup_console_pref = False
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
@@ -484,24 +484,24 @@ class SettingsWindow(QDialog):
         except Exception:
             startup_console_pref = False
         self.startup_console_checkbox.setChecked(self._to_bool(startup_console_pref))
-        self.startup_console_checkbox.setToolTip("默认关闭。开启后将显示初始化与运行日志窗口")
+        self.startup_console_checkbox.setToolTip("开启后将显示初始化与运行日志窗口")
         lay.addWidget(self.startup_console_checkbox)
         # Separator.
         lay.addSpacing(8)
         # Advanced action: open terminal; use carefully.
-        lay.addWidget(QLabel("高级 (慎用):"))
+        lay.addWidget(QLabel("高级设置:"))
         terminal_row = QWidget()
         terminal_layout = QHBoxLayout(terminal_row)
         terminal_layout.setContentsMargins(0, 0, 0, 0)
         terminal_layout.setSpacing(6)
-        self.terminal_env_combo = ComboBox()
-        self.terminal_env_combo.setFixedHeight(36)
-        self.terminal_env_combo.addItem("主环境（程序 / MathCraft）", userData="main")
-        terminal_layout.addWidget(self.terminal_env_combo)
+        self.terminal_env_button = PushButton(FluentIcon.APPLICATION, "主环境")
+        self.terminal_env_button.setFixedHeight(36)
+        self.terminal_env_button.setToolTip("当前唯一可管理的依赖环境")
+        terminal_layout.addWidget(self.terminal_env_button, 1)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
         self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖。\n⚠️ 请谨慎操作，错误的命令可能损坏环境！")
-        terminal_layout.addWidget(self.btn_terminal)
+        terminal_layout.addWidget(self.btn_terminal, 1)
         lay.addWidget(terminal_row)
         # Dependency management wizard and cache directory.
         deps_row = QWidget()
@@ -510,7 +510,7 @@ class SettingsWindow(QDialog):
         deps_row_layout.setSpacing(6)
         self.btn_deps_wizard = PushButton(FluentIcon.DEVELOPER_TOOLS, "依赖管理向导")
         self.btn_deps_wizard.setFixedHeight(36)
-        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/升级 GPU 加速层、模型依赖等。\n从设置页进入会执行真实依赖校验。")
+        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/修复依赖。\n从设置页进入会执行真实依赖校验。")
         deps_row_layout.addWidget(self.btn_deps_wizard, 1)
         self.btn_open_mathcraft_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
         self.btn_open_mathcraft_cache.setFixedHeight(36)
@@ -526,7 +526,6 @@ class SettingsWindow(QDialog):
         self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
-        self.terminal_env_combo.currentIndexChanged.connect(self._on_terminal_env_changed)
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
         self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
@@ -706,10 +705,6 @@ class SettingsWindow(QDialog):
         candidate = shutil.which(target) or target_exe
         if candidate:
             self.latex_path_input.setText(candidate)
-    def _on_terminal_env_changed(self, index: int):
-        mapping = {0: "main"}
-        self._terminal_env_key = mapping.get(index, "main")
-
     def _to_bool(self, value) -> bool:
         if isinstance(value, bool):
             return value
@@ -1401,7 +1396,7 @@ class SettingsWindow(QDialog):
                 print(f"[Render] 已切换渲染引擎: {engine}")
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
-                    "auto": "自动检测（MathJax + CDN）",
+                    "auto": "自动检测（推荐）",
                     "mathjax_local": "本地 MathJax",
                     "mathjax_cdn": "CDN MathJax",
                     "latex_pdflatex": "LaTeX + pdflatex",
@@ -1440,14 +1435,8 @@ class SettingsWindow(QDialog):
             env_key = self._get_terminal_env_key()
         # Always open only the main environment terminal.
         env_key = "main"
-        try:
-            _dbg_text = self.terminal_env_combo.currentText()
-        except Exception:
-            _dbg_text = ""
-        try:
-            _dbg_idx = self.terminal_env_combo.currentIndex()
-        except Exception:
-            _dbg_idx = -1
+        _dbg_text = "主环境"
+        _dbg_idx = 0
         print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
         
         pyexe = self._resolve_dynamic_main_pyexe()

@@ -18,11 +18,11 @@ def test_pandoc_optional_dependency_uses_pypandoc() -> None:
     assert not any(spec.startswith("pandoc") for spec in specs)
 
 
-def test_build_requirements_use_pypandoc_wrapper() -> None:
+def test_build_requirements_do_not_force_pandoc_runtime() -> None:
     lines = (ROOT / "requirements-build.txt").read_text(encoding="utf-8").splitlines()
     specs = [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
 
-    assert any(spec.startswith("pypandoc") for spec in specs)
+    assert not any(spec.startswith("pypandoc") for spec in specs)
     assert not any(spec.startswith("pandoc") for spec in specs)
 
 
