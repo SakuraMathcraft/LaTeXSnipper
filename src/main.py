@@ -17,12 +17,14 @@ import time
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 # Force UTF-8 encoding for all subprocess pipes on Windows (avoids gbk decode crashes)
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 os.environ.setdefault("PYTHONUTF8", "1")
 
+apply_linux_graphics_fallbacks()
 early_ensure_pyqt6_and_pywin32()
 
 def resource_path(relative_path):
