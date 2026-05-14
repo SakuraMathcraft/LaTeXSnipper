@@ -94,6 +94,11 @@ class LinuxHotkey(QObject):
             raise ValueError(f"Invalid hotkey: {keyseq_str}")
         return mods, key_part.lower()
 
+    @staticmethod
+    def _pynput_combo(mods: set[str], key: str) -> str:
+        """Return the GlobalHotKeys combo syntax, e.g. '<ctrl>+<shift>+f'."""
+        return "+".join([*(f"<{mod}>" for mod in sorted(mods)), key])
+
     def register(self, seq: Union[QKeySequence, str, None] = None) -> None:
         if seq is not None:
             if isinstance(seq, str):
@@ -109,7 +114,7 @@ class LinuxHotkey(QObject):
             return
 
         mods, key = self._parse(self._seq_str)
-        combo = "<" + "+".join(sorted(mods)) + "+" + key + ">"
+        combo = self._pynput_combo(mods, key)
 
         try:
             def on_activate():
