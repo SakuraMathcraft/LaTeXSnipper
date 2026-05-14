@@ -3128,6 +3128,28 @@ def _find_local_python311_installer(deps_dir: Path) -> Path | None:
     return _find_local_python311_installer_impl(deps_dir, __file__)
 
 
+def _system_python_install_hint(reason: str) -> str:
+    """Return platform-specific instructions for creating the dependency venv."""
+    lines = [
+        reason,
+        "",
+        "Please install Python 3.10+ with venv and pip support, then retry.",
+    ]
+    if sys.platform == "darwin":
+        lines.extend([
+            "  Homebrew: brew install python",
+            "  python.org: install the latest macOS Python 3 package",
+            "  After installation, reopen LaTeXSnipper.",
+        ])
+    else:
+        lines.extend([
+            "  Debian/Ubuntu: sudo apt install python3 python3-venv",
+            "  Fedora:         sudo dnf install python3",
+            "  Arch:           sudo pacman -S python",
+        ])
+    return "\n".join(lines)
+
+
 def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool:
     """Create a Python venv at target_dir using the system python3 interpreter.
 
@@ -3375,11 +3397,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _exec_close_only_message_box(
                                 None,
                                 "未找到 Python 3",
-                                "未检测到可复用的 Python 环境，且系统中未找到 python3。\n\n"
-                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
-                                "  Fedora:         sudo dnf install python3\n"
-                                "  Arch:           sudo pacman -S python",
+                                _system_python_install_hint(
+                                    "No reusable Python environment was detected, and no usable system python3 was found."
+                                ),
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -3628,11 +3648,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _exec_close_only_message_box(
                                 None,
                                 "未找到 Python 3",
-                                "系统中未找到 python3，无法初始化依赖环境。\n\n"
-                                "请通过包管理器安装 Python 3.10+ 后重试。\n"
-                                "  Debian/Ubuntu: sudo apt install python3 python3-venv\n"
-                                "  Fedora:         sudo dnf install python3\n"
-                                "  Arch:           sudo pacman -S python",
+                                _system_python_install_hint(
+                                    "No usable system python3 was found, so the dependency environment cannot be initialized."
+                                ),
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

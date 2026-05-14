@@ -37,6 +37,10 @@ path while allowing Linux and macOS support to evolve cleanly.
 - Linux and macOS release specs must never collect `src/deps/python311` or any
   build-machine virtual environment into the packaged app. Packaged Linux/macOS
   installs create dependency environments in the user's app state directory.
+- Linux and macOS dependency bootstrap behavior must stay aligned. Both
+  platforms use a system Python 3.10+ only to create the user-writable venv, and
+  runtime messages/docs must declare the platform-specific way to install that
+  prerequisite.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
 - Keep build tools pinned in `requirements-build.txt` unless the PR explicitly
