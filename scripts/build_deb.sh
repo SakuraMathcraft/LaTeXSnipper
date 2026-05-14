@@ -59,6 +59,7 @@ MAIN_BIN="$DEB_LIB_DIR/LaTeXSnipper"
 chmod 755 "$MAIN_BIN"
 write_debian_launcher "$PACKAGE_ROOT" "/usr/lib/latexsnipper/LaTeXSnipper"
 write_debian_desktop_file "$PACKAGE_ROOT"
+install_debian_icons "$PACKAGE_ROOT" "$PROJECT_ROOT/src/assets/icon.ico" "$BUILD_PYTHON"
 
 find "$DEB_LIB_DIR" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
 find "$DEB_LIB_DIR" -type f -name "*.so*" -exec chmod 755 {} \; 2>/dev/null || true

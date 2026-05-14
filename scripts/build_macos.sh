@@ -46,12 +46,13 @@ DMG_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.dmg"
 APP_ZIP_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.app.zip"
 BUILD_WORK_DIR="$PROJECT_ROOT/build/pyinstaller_macos"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-macos.spec"
-ICNS_PATH="$PROJECT_ROOT/src/assets/icon.icns"
+ICON_SOURCE="$PROJECT_ROOT/src/assets/icon.ico"
+ICNS_PATH=""
 
 log_step "0/6" "Checking build tools"
 [[ -f "$SPEC_FILE" ]] || die "missing spec file: $SPEC_FILE"
-if [[ ! -f "$ICNS_PATH" ]]; then
-    echo "warning: icon.icns was not found; the app will use the default icon"
+if [[ ! -f "$ICON_SOURCE" && ! -f "$PROJECT_ROOT/src/assets/icon.icns" ]]; then
+    echo "warning: no application icon source was found; the app will use the default icon"
 fi
 
 log_step "1/6" "Preparing isolated Python runtime"
@@ -60,6 +61,11 @@ install_python_requirements \
     "$BUILD_PYTHON" \
     "$PROJECT_ROOT/requirements-macos.txt" \
     "$PROJECT_ROOT/requirements-build.txt"
+
+ICNS_PATH="$(prepare_macos_icns "$PROJECT_ROOT" "$BUILD_PYTHON")"
+if [[ -n "$ICNS_PATH" ]]; then
+    export LATEXSNIPPER_ICON_ICNS="$ICNS_PATH"
+fi
 
 log_step "2/6" "Cleaning previous outputs"
 rm -rf "$BUILD_WORK_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"

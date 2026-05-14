@@ -19,3 +19,7 @@ Core editing and local recognition workflows are designed to work locally after 
 ## Where are models and dependency files stored?
 
 Windows uses the packaged dependency environment. Linux and macOS store runtime dependency files under the user's application state directory, such as `~/.latexsnipper/deps`.
+
+## Why do Linux and macOS need Python 3?
+
+The packaged app itself does not run on the user's system Python. Linux and macOS use system Python 3.10+ only to create the isolated optional dependency environment under `~/.latexsnipper/deps`. Linux `.deb` installs declare `python3` and `python3-venv`; macOS users should install Python with Homebrew (`brew install python`) or the official python.org macOS installer if no usable `python3` is available.

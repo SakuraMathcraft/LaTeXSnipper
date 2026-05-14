@@ -1,3 +1,6 @@
+from pathlib import Path
+from types import SimpleNamespace
+
 from bootstrap import deps_python_runtime
 
 
@@ -38,3 +41,19 @@ def test_find_local_python311_installer_checks_pyinstaller_internal_dir(tmp_path
     found = deps_python_runtime.find_local_python311_installer(deps_dir, __file__)
 
     assert found == installer
+
+
+def test_find_system_python3_prefers_macos_python_with_ensurepip(monkeypatch):
+    monkeypatch.setattr(deps_python_runtime, "os", SimpleNamespace(name="posix"))
+    monkeypatch.setattr(deps_python_runtime.sys, "platform", "darwin")
+    monkeypatch.setattr(deps_python_runtime, "which", lambda name: "/usr/bin/python3")
+
+    scores = {
+        Path("/usr/bin/python3"): 1,
+        Path("/opt/homebrew/bin/python3"): 2,
+    }
+    monkeypatch.setattr(deps_python_runtime, "_system_python3_score", lambda p: scores.get(p, 0))
+
+    found = deps_python_runtime.find_system_python3()
+
+    assert found == Path("/opt/homebrew/bin/python3")

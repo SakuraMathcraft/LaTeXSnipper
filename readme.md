@@ -208,6 +208,12 @@ The dependency wizard manages Python dependency layers only. It does not install
 or uninstall system packages. On Linux, tools such as `grim`, `maim`, and
 `gnome-screenshot` can improve screenshot fallback behavior, but they are
 installed by the user or distribution package manager, not by LaTeXSnipper.
+Linux and macOS both create optional runtime dependency environments in the
+user state directory, so they need a usable system Python 3.10+ with venv/pip
+support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
+macOS users should install Python through Homebrew (`brew install python`) or
+the official python.org macOS installer when the system does not provide a
+usable `python3`.
 
 ### Packaging
 
