@@ -1659,24 +1659,96 @@ def _ensure_pip(main_python: Path) -> bool:
         pass
 
 
-    try:
-        subprocess.check_call([str(main_python), "-m", "pip", "--version"],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
-        pip_ready_event.set()
+    def _pip_version_tuple(raw: str) -> tuple[int, ...]:
+        parts: list[int] = []
+        current = ""
+        for ch in raw:
+            if ch.isdigit():
+                current += ch
+            elif current:
+                parts.append(int(current))
+                current = ""
+                if len(parts) >= 3:
+                    break
+        if current and len(parts) < 3:
+            parts.append(int(current))
+        return tuple(parts)
+
+    def _query_pip_version() -> tuple[int, ...] | None:
+        code = "import pip; print(pip.__version__)"
+        proc = subprocess.run(
+            [str(main_python), "-c", code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=flags,
+        )
+        if proc.returncode != 0:
+            return None
+        return _pip_version_tuple(proc.stdout.strip())
+
+    def _has_packaging_toolchain() -> bool:
+        proc = subprocess.run(
+            [str(main_python), "-c", "import setuptools, wheel"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+        )
+        return proc.returncode == 0
+
+    def _upgrade_packaging_toolchain() -> bool:
+        cmd = [
+            str(main_python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+            "--no-cache-dir",
+            *PIP_INSTALL_SUPPRESS_ARGS,
+        ]
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=flags,
+        )
+        if res.returncode != 0:
+            print(f"[WARN] pip toolchain upgrade failed: {res.stdout[-1000:]}")
+            return False
         return True
-    except Exception:
-        pass
 
+    pip_version = _query_pip_version()
+    if pip_version is None:
+        try:
+            subprocess.check_call(
+                [str(main_python), "-m", "ensurepip", "--upgrade"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=flags,
+            )
+            pip_version = _query_pip_version()
+        except Exception:
+            pip_version = None
 
-    gp_url = "https://bootstrap.pypa.io/get-pip.py"
-    gp_path = main_python.parent / "get-pip.py"
-    urllib.request.urlretrieve(gp_url, gp_path)
-    subprocess.check_call([str(main_python), str(gp_path)], timeout=180, creationflags=flags)
+    if pip_version is None:
+        gp_url = "https://bootstrap.pypa.io/get-pip.py"
+        gp_path = main_python.parent / "get-pip.py"
+        urllib.request.urlretrieve(gp_url, gp_path)
+        subprocess.check_call([str(main_python), str(gp_path)], timeout=180, creationflags=flags)
+        pip_version = _query_pip_version()
 
-
-    cmd = [str(main_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel", "--no-cache-dir", *PIP_INSTALL_SUPPRESS_ARGS]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=flags)
-    ok = res.returncode == 0
+    needs_upgrade = pip_version is None or pip_version < (23, 0) or not _has_packaging_toolchain()
+    ok = True
+    if needs_upgrade:
+        ok = _upgrade_packaging_toolchain()
     if ok:
         pip_ready_event.set()
     return ok
@@ -3074,26 +3146,32 @@ def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool
     target_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
     try:
-        proc = subprocess.Popen(
-            [str(system_python), "-m", "venv", "--without-pip", str(target_dir)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        deadline = time.monotonic() + timeout
-        while True:
-            ret = proc.poll()
-            if ret is not None:
-                break
-            if time.monotonic() >= deadline:
-                raise subprocess.TimeoutExpired([str(system_python), "-m", "venv"], timeout)
-            time.sleep(0.2)
-        if ret != 0:
-            out = proc.stdout.read() if proc.stdout else ""
-            print(f"[WARN] venv 创建失败（返回码 {ret}）: {out[-500:]}")
-            return False
-        print(f"[OK] venv 创建成功: {target_dir}")
-        return True
+        commands = [
+            [str(system_python), "-m", "venv", "--copies", str(target_dir)],
+            [str(system_python), "-m", "venv", "--copies", "--without-pip", str(target_dir)],
+        ]
+        last_output = ""
+        for cmd in commands:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            deadline = time.monotonic() + timeout
+            while True:
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+                time.sleep(0.2)
+            if ret == 0:
+                print(f"[OK] venv 创建成功: {target_dir}")
+                return True
+            last_output = proc.stdout.read() if proc.stdout else ""
+        print(f"[WARN] venv 创建失败: {last_output[-500:]}")
+        return False
     except subprocess.TimeoutExpired:
         print(f"[WARN] venv 创建超时（{timeout} 秒）")
         try:

@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
 
 _PY311_INSTALLER_NAME = "python-3.11.0-amd64.exe"
@@ -183,6 +184,37 @@ def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | N
     return None
 
 
+def _system_python3_score(pyexe: Path) -> int:
+    """Return a suitability score for a system Python used to create a venv."""
+    try:
+        if not pyexe.exists() or not pyexe.is_file():
+            return 0
+        base_check = (
+            "import sys, venv; "
+            "raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
+        )
+        proc = subprocess.run(
+            [str(pyexe), "-c", base_check],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            **_hidden_subprocess_kwargs(),
+        )
+        if proc.returncode != 0:
+            return 0
+
+        ensurepip_proc = subprocess.run(
+            [str(pyexe), "-c", "import ensurepip"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            **_hidden_subprocess_kwargs(),
+        )
+        return 2 if ensurepip_proc.returncode == 0 else 1
+    except Exception:
+        return 0
+
+
 def find_system_python3() -> Path | None:
     """Find a usable system Python 3 interpreter on Linux/macOS.
 
@@ -190,22 +222,47 @@ def find_system_python3() -> Path | None:
     """
     if os.name == "nt":
         return None
-    # Common system paths in order of preference
-    candidates = [
-        "/usr/bin/python3",
-        "/usr/local/bin/python3",
-        "/opt/homebrew/bin/python3",
-        "/home/linuxbrew/.linuxbrew/bin/python3",
-    ]
+    path_python = which("python3")
+    if sys.platform == "darwin":
+        candidates = [
+            path_python,
+            "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
+            "/usr/bin/python3",
+        ]
+    else:
+        candidates = [
+            "/usr/bin/python3",
+            "/usr/local/bin/python3",
+            "/opt/homebrew/bin/python3",
+            "/home/linuxbrew/.linuxbrew/bin/python3",
+            path_python,
+        ]
+
+    seen: set[str] = set()
+    fallback: Path | None = None
     for candidate in candidates:
+        if not candidate:
+            continue
         p = Path(candidate)
-        if p.exists() and p.is_file():
+        try:
+            key = str(p.resolve())
+        except Exception:
+            key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        score = _system_python3_score(p)
+        if score >= 2:
             return p
-    # Fallback: search PATH
-    import shutil as _shutil
-    which = _shutil.which("python3")
-    if which:
-        return Path(which)
+        if score == 1 and fallback is None:
+            fallback = p
+    if fallback is not None:
+        return fallback
     return None
 
 
