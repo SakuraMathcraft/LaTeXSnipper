@@ -136,6 +136,9 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         log_info(f"[WebEngine] locales_dir={_fmt(ldir)} pak_count={pak_count}")
 
 
+_QWEBENGINE_VIEW = None
+
+
 def load_webengine_view(app_dir: Path | None = None):
     """Import and return QWebEngineView, or None if the runtime is unavailable."""
     try:
@@ -152,3 +155,18 @@ def load_webengine_view(app_dir: Path | None = None):
         traceback.print_exc()
         log_webengine_diagnostics("import-failed", e, app_dir=app_dir)
         return None
+
+
+def ensure_webengine_loaded(app_dir: Path | None = None) -> bool:
+    """Delay-load and cache QWebEngineView for all UI controllers."""
+    global _QWEBENGINE_VIEW
+    if _QWEBENGINE_VIEW is not None:
+        print("[DEBUG] WebEngine 已加载")
+        return True
+    _QWEBENGINE_VIEW = load_webengine_view(app_dir)
+    return _QWEBENGINE_VIEW is not None
+
+
+def get_webengine_view_class():
+    """Return the cached QWebEngineView class, or None if unavailable."""
+    return _QWEBENGINE_VIEW

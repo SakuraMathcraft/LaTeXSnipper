@@ -71,7 +71,7 @@ def get_app_root() -> pathlib.Path:
     """Return the PyInstaller internal root or the source directory."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return pathlib.Path(sys._MEIPASS)
-    return pathlib.Path(__file__).resolve().parent
+    return pathlib.Path(__file__).resolve().parent.parent
 
 
 def is_packaged_mode() -> bool:
