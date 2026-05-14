@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QGraphicsOpacityEf
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
+from .handwriting_layout import group_strokes_into_lines, classify_line_roles, lines_to_article_text
 from .ink_canvas import InkCanvas
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
@@ -1064,20 +1065,26 @@ class HandwritingWindow(QDialog):
 
     def _build_math_document_prompt(self, recognized_text: str) -> str:
         base = (
-            "你是一个数学文档排版助手。"
-            "请根据图片中的手写数学内容，整理为一份完整、可编译、结构清晰的 XeLaTeX 文档源码。"
-            "输出必须是完整的 .tex 文档，不要解释，不要添加说明，不要输出 markdown 代码块。"
-            "文档类固定使用 \\documentclass[UTF8]{ctexart}。"
-            "默认只使用 amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow。"
-            "只有在图片中明确存在示意图且无法用普通公式表达时，才允许额外使用 tikz。"
-            "必须包含导言区与 \\begin{document}...\\end{document}。"
-            "严格保持原始数学含义，不要擅自补充证明、解释、例子。"
-            "不确定内容可用 TeX 注释 % TODO: ... 标记。"
+            "You are a mathematical document typesetting assistant. "
+            "Based on the handwritten mathematical content in the image, produce a complete, compilable, "
+            "clearly structured XeLaTeX document source. "
+            "Output must be a complete .tex document — no explanations, no notes, no markdown code blocks. "
+            "Use \\documentclass{article} as the document class. "
+            "By default, only use: amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow. "
+            "Only allow additional use of tikz when the image clearly contains diagrams that cannot be expressed with ordinary formulas. "
+            "Must include a preamble and \\begin{document}...\\end{document}. "
+            "Strictly preserve the original mathematical meaning; do not add proofs, explanations, or examples on your own. "
+            "Mark uncertain content with a TeX comment % TODO: ..."
         )
         draft = str(recognized_text or "").strip()
         if not draft:
             return base
-        return base + "\n\n以下是当前识别草稿文本，请优先参考它修正文档结构，但图片仍是最终依据：\n" + draft
+        return (
+            base
+            + "\n\nBelow is the current recognized draft text. Use it as a reference to correct "
+            "the document structure, but the image remains the final authority:\n"
+            + draft
+        )
 
     def _auto_layout_document(self) -> None:
         if self._closing:
@@ -1101,7 +1108,10 @@ class HandwritingWindow(QDialog):
                 self.status_label.setText("没有可排版内容")
                 self._show_warning("没有可排版内容", "请先写入笔迹并完成识别，或补充可编辑的 TeX 草稿。")
                 return
-            self._open_document_preview(draft)
+
+            # 本地模式：利用笔迹空间分析辅助格式化文章
+            formatted = self._apply_stroke_layout_to_draft(draft)
+            self._open_document_preview(formatted)
             self.status_label.setText("已打开文档编辑")
             self._show_info("已打开文档编辑", "当前为本地模型模式，可继续编辑源码并编译 PDF。")
             return
@@ -1137,6 +1147,39 @@ class HandwritingWindow(QDialog):
         thread.finished.connect(self._teardown_layout)
         thread.start()
         self._update_layout_button_state()
+
+    def _apply_stroke_layout_to_draft(self, draft: str) -> str:
+        """Use canvas stroke spatial information to analyze paragraph/heading structure
+        and assist in formatting the draft text."""
+        strokes = self.canvas.store.strokes
+        if not strokes:
+            return draft
+
+        # Get canvas dimensions
+        export = self.canvas.export_image()
+        canvas_w = export.bounds.width() if export.bounds and not export.bounds.isEmpty() else None
+        canvas_h = export.bounds.height() if export.bounds and not export.bounds.isEmpty() else None
+
+        # Step 1: Group strokes into lines
+        stroke_lines = group_strokes_into_lines(strokes, image_height=canvas_h)
+
+        # Step 2: Classify line roles
+        stroke_lines = classify_line_roles(stroke_lines, image_width=canvas_w)
+
+        # Step 3: Split draft text into lines and align with stroke_lines
+        draft_lines = [l.strip() for l in draft.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+        draft_lines = [l for l in draft_lines if l]  # remove blank lines
+
+        n = min(len(stroke_lines), len(draft_lines))
+        if n == 0:
+            return draft
+
+        stroke_lines = stroke_lines[:n]
+        draft_lines = draft_lines[:n]
+
+        # Step 4: Format using lines_to_article_text
+        result = lines_to_article_text(stroke_lines, draft_lines)
+        return result if result.strip() else draft
 
     def _open_document_preview(self, doc_text: str) -> None:
         if self._document_preview_window is None:

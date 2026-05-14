@@ -17,6 +17,13 @@ import time
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+# Ensure src/ is at the front of sys.path so our runtime/ package is found
+# before any site-packages module named "runtime" (avoids namespace collision).
+_src_dir = os.path.dirname(os.path.abspath(__file__))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.hotkey_config import HOTKEY_HELP_TEXT, normalize_hotkey, normalize_hotkey_or_default
 from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
