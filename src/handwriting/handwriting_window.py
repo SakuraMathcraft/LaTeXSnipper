@@ -1109,7 +1109,7 @@ class HandwritingWindow(QDialog):
                 self._show_warning("没有可排版内容", "请先写入笔迹并完成识别，或补充可编辑的 TeX 草稿。")
                 return
 
-            # 本地模式：利用笔迹空间分析辅助格式化文章
+            # Local mode: use stroke spatial analysis to assist article formatting
             formatted = self._apply_stroke_layout_to_draft(draft)
             self._open_document_preview(formatted)
             self.status_label.setText("已打开文档编辑")

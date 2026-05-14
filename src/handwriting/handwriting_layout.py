@@ -1,12 +1,12 @@
 # coding: utf-8
 """
-Layout analysis module: handwriting strokes → typeset article.
+Layout analysis module: handwriting strokes -> typeset article.
 
 Leverages precise stroke coordinates (instead of OCR boxes inferred from pixels) to:
-1. Spatial clustering → line grouping
-2. Line-spacing analysis → paragraph segmentation
-3. Line feature analysis → heading/list/body classification
-4. Merge recognition results → formatted plain-text article
+1. Spatial clustering -> line grouping
+2. Line-spacing analysis -> paragraph segmentation
+3. Line feature analysis -> heading/list/body classification
+4. Merge recognition results -> formatted plain-text article
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ def group_strokes_into_lines(
     ----------
     y_gap_ratio:
         Line-gap threshold. Two strokes start a new line when their Y gap
-        exceeds this ratio × median line height.
+        exceeds this ratio * median line height.
     image_height:
         Canvas / image height, used to estimate median line height.
         When None, inferred automatically from stroke sizes.
@@ -81,14 +81,14 @@ def group_strokes_into_lines(
 
     gap_threshold = median_height * y_gap_ratio
 
-    # Greedy clustering: if stroke Y-overlaps current line enough → merge, else start new line
+    # Greedy clustering: if stroke Y-overlaps current line enough -> merge, else start new line
     lines: list[list[InkStroke]] = []
     for stroke in sorted_strokes:
         added = False
         for line in lines:
             line_top, line_bottom = _line_y_range(line)
             s_top, s_bottom = _stroke_y_range(stroke)
-            # Y overlap exceeds threshold → same line
+            # Y overlap exceeds threshold -> same line
             overlap = max(0.0, min(line_bottom, s_bottom) - max(line_top, s_top))
             s_height = s_bottom - s_top
             if s_height > 0 and overlap >= s_height * 0.35:
@@ -154,7 +154,7 @@ def detect_paragraphs_from_lines(
         is_new_paragraph = (
             gap > paragraph_boundary_threshold
             or (line.indent_ratio >= indent_ratio_threshold and prev.role == "paragraph")
-            or prev.role != line.role  # role change → new block
+            or prev.role != line.role  # role change -> new block
         )
 
         if is_new_paragraph:
@@ -234,12 +234,12 @@ def classify_line_roles(
         h = _line_height(line)
         w = _line_width(line)
 
-        # Very small lines → noise
+        # Very small lines -> noise
         if h <= 3.0 or w <= 4.0:
             line.role = "noise"
             continue
 
-        # Significantly taller than median → likely a heading
+        # Significantly taller than median -> likely a heading
         if h >= median_height * 1.35 and w <= image_w * 0.75:
             line.role = "heading"
             continue
@@ -247,7 +247,7 @@ def classify_line_roles(
         # List-item detection: first-line indent + short line (or starts with -/*)
         # (Geometry-only judgment here; content checks happen in the merge stage)
         if line.indent_ratio >= 0.05:
-            # Short indented line → likely a list item
+            # Short indented line -> likely a list item
             if w <= image_w * 0.6 and h <= median_height * 1.15:
                 line.role = "list"
                 continue
@@ -271,7 +271,7 @@ def strokes_to_article_text(
     image_height: float | None = None,
 ) -> HandwritingArticle:
     """
-    End-to-end: strokes + per-line recognition results → typeset article.
+    End-to-end: strokes + per-line recognition results -> typeset article.
 
     Parameters
     ----------
@@ -324,7 +324,7 @@ def lines_to_article_text(
     line_texts: list[str],
 ) -> str:
     """
-    Simplified entry point: pre-grouped lines + line texts → formatted article.
+    Simplified entry point: pre-grouped lines + line texts -> formatted article.
     Useful when you already have line groupings or a custom grouping strategy.
     """
     if not lines or not line_texts:
@@ -336,7 +336,7 @@ def lines_to_article_text(
 
     paragraphs = split_into_paragraphs(lines)
 
-    # Build line → text mapping
+    # Build line -> text mapping
     text_map: dict[int, str] = {}
     # Flatten all paragraphs and find each line's index in the original list
     all_lines_flat: list[StrokeLine] = []
