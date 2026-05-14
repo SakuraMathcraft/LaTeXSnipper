@@ -131,17 +131,29 @@ write_debian_desktop_file() {
     local package_root="$1"
 
     mkdir -p "$package_root/usr/share/applications"
-    cat > "$package_root/usr/share/applications/latexsnipper.desktop" <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=LaTeXSnipper
-Comment=截图、识别、编辑和计算数学内容
-Exec=latexsnipper
-Icon=latexsnipper
-Terminal=false
-Categories=Utility;Education;Science;
-StartupNotify=true
-EOF
+    python3 - "$package_root/usr/share/applications/latexsnipper.desktop" <<'PY'
+from pathlib import Path
+import sys
+
+desktop_file = Path(sys.argv[1])
+desktop_file.write_text(
+    "\n".join(
+        [
+            "[Desktop Entry]",
+            "Type=Application",
+            "Name=LaTeXSnipper",
+            "Comment=\u622a\u56fe\u3001\u8bc6\u522b\u3001\u7f16\u8f91\u548c\u8ba1\u7b97\u6570\u5b66\u5185\u5bb9",
+            "Exec=latexsnipper",
+            "Icon=latexsnipper",
+            "Terminal=false",
+            "Categories=Utility;Education;Science;",
+            "StartupNotify=true",
+        ]
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
 }
 
 install_debian_icons() {
