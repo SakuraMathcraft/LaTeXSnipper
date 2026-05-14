@@ -3133,19 +3133,19 @@ def _system_python_install_hint(reason: str) -> str:
     lines = [
         reason,
         "",
-        "Please install Python 3.10+ with venv and pip support, then retry.",
+        "请安装带 venv/pip 支持的 Python 3.10+ 后重试。",
     ]
     if sys.platform == "darwin":
         lines.extend([
-            "  Homebrew: brew install python",
-            "  python.org: install the latest macOS Python 3 package",
-            "  After installation, reopen LaTeXSnipper.",
+            "  Homebrew：brew install python",
+            "  python.org：安装最新版 macOS Python 3 安装包",
+            "  安装后请重新打开 LaTeXSnipper。",
         ])
     else:
         lines.extend([
-            "  Debian/Ubuntu: sudo apt install python3 python3-venv",
-            "  Fedora:         sudo dnf install python3",
-            "  Arch:           sudo pacman -S python",
+            "  Debian/Ubuntu：sudo apt install python3 python3-venv",
+            "  Fedora：        sudo dnf install python3",
+            "  Arch：          sudo pacman -S python",
         ])
     return "\n".join(lines)
 
@@ -3398,7 +3398,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 _system_python_install_hint(
-                                    "No reusable Python environment was detected, and no usable system python3 was found."
+                                    "未检测到可复用的 Python 环境，且系统中未找到可用的 python3。"
                                 ),
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
@@ -3649,7 +3649,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                                 None,
                                 "未找到 Python 3",
                                 _system_python_install_hint(
-                                    "No usable system python3 was found, so the dependency environment cannot be initialized."
+                                    "系统中未找到可用的 python3，无法初始化依赖环境。"
                                 ),
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,

@@ -26,6 +26,10 @@ SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
+ICON_ICNS_ENV = os.environ.get("LATEXSNIPPER_ICON_ICNS", "").strip()
+ICON_ICNS = Path(ICON_ICNS_ENV).expanduser() if ICON_ICNS_ENV else SRC / "assets" / "icon.icns"
+if not ICON_ICNS.exists():
+    ICON_ICNS = None
 
 if BUILD_CHANNEL not in {"github", "store"}:
     raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
@@ -316,7 +320,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(SRC / "assets" / "icon.icns") if (SRC / "assets" / "icon.icns").exists() else None,
+    icon=str(ICON_ICNS) if ICON_ICNS is not None else None,
 )
 
 # ---------------------------------------------------------------------------
@@ -338,7 +342,7 @@ coll = COLLECT(
 app_bundle = BUNDLE(
     coll,
     name=APP_NAME + ".app",
-    icon=str(SRC / "assets" / "icon.icns") if (SRC / "assets" / "icon.icns").exists() else None,
+    icon=str(ICON_ICNS) if ICON_ICNS is not None else None,
     bundle_identifier="com.mathcraft.latexsnipper",
     info_plist={
         "NSPrincipalClass": "NSApplication",
