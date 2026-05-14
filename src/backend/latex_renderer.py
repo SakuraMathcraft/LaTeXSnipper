@@ -654,7 +654,7 @@ class TypstRenderer:
             print("[Typst] Typst is unavailable; skip SVG rendering")
             return None
         try:
-            # Step 1: Convert LaTeX → Typst math syntax
+            # Step 1: Convert LaTeX to Typst math syntax
             typst_math = self._convert_latex_to_typst(latex_code)
 
             with tempfile.TemporaryDirectory() as tmpdir:
