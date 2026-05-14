@@ -135,17 +135,47 @@ class _TexDocumentCompileWorker(QObject):
     finished = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, tex_content: str, output_dir: str):
+    def __init__(self, tex_content: str, output_dir: str, *, use_typst: bool = False):
         super().__init__()
         self.tex_content = tex_content
         self.output_dir = output_dir
+        self.use_typst = use_typst
 
     def run(self) -> None:
         try:
-            from backend.latex_renderer import compile_tex_document_detailed
+            if self.use_typst:
+                from backend.latex_renderer import get_typst_renderer
 
-            result = compile_tex_document_detailed(self.tex_content, Path(self.output_dir))
-            self.finished.emit(result)
+                renderer = get_typst_renderer()
+                if not renderer or not renderer.is_available():
+                    self.failed.emit("Typst 不可用，请检查 Typst 安装和路径配置。")
+                    return
+                typst_content = renderer.convert_latex_document_to_typst(self.tex_content)
+                pdf_path = renderer.compile_document_to_pdf(
+                    typst_content, Path(self.output_dir), timeout=60
+                )
+                if pdf_path:
+                    # Create a simple result object compatible with the LaTeX path
+                    class TypstCompileResult:
+                        def __init__(self, pdf, summary=""):
+                            self.pdf_path = pdf
+                            self.summary = summary
+                            self.log_text = ""
+                            self.errors = []
+                            self.warnings = []
+                            self.return_code = 0
+                            self.engine = "typst"
+                            self.generated_pdf = True
+                            self.timed_out = False
+                            self.log_path = None
+                    self.finished.emit(TypstCompileResult(pdf_path, "Typst 编译完成"))
+                else:
+                    self.failed.emit("Typst 编译失败，请检查文档内容和 Typst 安装。")
+            else:
+                from backend.latex_renderer import compile_tex_document_detailed
+
+                result = compile_tex_document_detailed(self.tex_content, Path(self.output_dir))
+                self.finished.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -1344,23 +1374,24 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _compile_preview(self) -> None:
         self._update_compile_button_state()
         mode = self._current_render_mode()
-        if mode not in {"latex_pdflatex", "latex_xelatex"}:
-            InfoBar.info(title="暂不可用", content="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。", parent=self, position=InfoBarPosition.TOP, duration=3200)
+        if mode not in {"latex_pdflatex", "latex_xelatex", "typst"}:
+            InfoBar.info(title="暂不可用", content="请先在设置中选择 LaTeX + pdflatex、LaTeX + xelatex 或 Typst。", parent=self, position=InfoBarPosition.TOP, duration=3200)
             return
         if self._compile_thread is not None and self._compile_thread.isRunning():
             InfoBar.info(title="正在编译", content="当前文档正在编译，请稍候。", parent=self, position=InfoBarPosition.TOP, duration=2500)
             return
         compile_text = self.document_text()
-        validation_error = validate_tex_document(compile_text)
-        if validation_error:
-            InfoBar.warning(title="文档未完成", content=validation_error, parent=self, position=InfoBarPosition.TOP, duration=3200)
-            return
+        if mode != "typst":
+            validation_error = validate_tex_document(compile_text)
+            if validation_error:
+                InfoBar.warning(title="文档未完成", content=validation_error, parent=self, position=InfoBarPosition.TOP, duration=3200)
+                return
         output_dir = self._prepare_preview_output_dir()
         self._set_compile_log_text("正在编译...\n")
         self.compile_btn.setText("编译中...")
         self.compile_btn.setEnabled(False)
         self._compile_thread = QThread(self)
-        self._compile_worker = _TexDocumentCompileWorker(compile_text, str(output_dir))
+        self._compile_worker = _TexDocumentCompileWorker(compile_text, str(output_dir), use_typst=(mode == "typst"))
         worker = self._compile_worker
         thread = self._compile_thread
         worker.moveToThread(thread)

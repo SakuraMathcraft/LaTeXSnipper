@@ -18,7 +18,9 @@ from backend.external_model import (
     load_config_from_mapping,
 )
 from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
+from backend.platform.windows_provider import probe_local_device_names
 from core.restart_contract import build_restart_with_wizard_launch
+from cross_platform.open_in_os import open_directory, open_terminal as _open_os_terminal
 
 
 def _resource_path(relative_path: str) -> str:
@@ -200,6 +202,8 @@ class SettingsWindow(QDialog):
     mathcraft_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)
     latex_auto_detect_done = pyqtSignal(bool, str, str)
+    typst_path_test_done = pyqtSignal(bool, str, str)
+    typst_auto_detect_done = pyqtSignal(bool, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -431,9 +435,10 @@ class SettingsWindow(QDialog):
             "CDN MathJax",
             "LaTeX + pdflatex",
             "LaTeX + xelatex",
+            "Typst",
         ])
         # Store the corresponding data.
-        self._render_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
+        self._render_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex", "typst"]
         lay.addWidget(self.render_engine_combo)
         # LaTeX options container; shown only when LaTeX is selected.
         self.latex_options_widget = QWidget()
@@ -468,6 +473,39 @@ class SettingsWindow(QDialog):
         latex_layout.addWidget(self.lbl_latex_desc)
         self.latex_options_widget.setVisible(False)  # Hidden by default.
         lay.addWidget(self.latex_options_widget)
+        # Typst options container; shown only when Typst is selected.
+        self.typst_options_widget = QWidget()
+        typst_layout = QVBoxLayout(self.typst_options_widget)
+        typst_layout.setContentsMargins(0, 8, 0, 0)
+        typst_layout.setSpacing(6)
+        # Typst path selector.
+        typst_path_layout = QHBoxLayout()
+        typst_path_layout.addWidget(QLabel("Typst 路径:"))
+        self.typst_path_input = QLineEdit()
+        self.typst_path_input.setPlaceholderText("例：C:\\Users\\...\\typst.exe 或自动检测")
+        self.typst_path_input.setFixedHeight(32)
+        typst_path_layout.addWidget(self.typst_path_input)
+        self.btn_browse_typst = PushButton(FluentIcon.FOLDER, "浏览")
+        self.btn_browse_typst.setFixedWidth(80)
+        self.btn_browse_typst.setFixedHeight(32)
+        typst_path_layout.addWidget(self.btn_browse_typst)
+        typst_layout.addLayout(typst_path_layout)
+        # Typst action buttons.
+        typst_btn_layout = QHBoxLayout()
+        self.btn_detect_typst = PushButton(FluentIcon.SEARCH, "自动检测")
+        self.btn_detect_typst.setFixedHeight(32)
+        typst_btn_layout.addWidget(self.btn_detect_typst)
+        self.btn_test_typst = PrimaryPushButton("验证路径")
+        self.btn_test_typst.setFixedHeight(32)
+        typst_btn_layout.addWidget(self.btn_test_typst)
+        typst_layout.addLayout(typst_btn_layout)
+        # Typst description.
+        self.lbl_typst_desc = QLabel("💡 需要安装 Typst CLI（https://github.com/typst/typst），公式将通过 pandoc 转为 Typst 后编译")
+        self.lbl_typst_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
+        self.lbl_typst_desc.setWordWrap(True)
+        typst_layout.addWidget(self.lbl_typst_desc)
+        self.typst_options_widget.setVisible(False)  # Hidden by default.
+        lay.addWidget(self.typst_options_widget)
         # Check for updates.
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -538,6 +576,13 @@ class SettingsWindow(QDialog):
         self.btn_detect_latex.clicked.connect(self._detect_latex)
         self.btn_test_latex.clicked.connect(self._test_latex_path)
         self.latex_path_input.textChanged.connect(self._on_latex_path_changed)
+        # Typst signals (declared at class level above).
+        self.btn_browse_typst.clicked.connect(self._browse_typst_path)
+        self.btn_detect_typst.clicked.connect(self._detect_typst)
+        self.btn_test_typst.clicked.connect(self._test_typst_path)
+        self.typst_path_input.textChanged.connect(self._on_typst_path_changed)
+        self.typst_path_test_done.connect(self._on_typst_path_test_done)
+        self.typst_auto_detect_done.connect(self._on_typst_auto_detect_done)
         self.external_apply_preset_btn.clicked.connect(self._apply_external_preset)
         self.external_test_btn.clicked.connect(self._test_external_model_connection)
         self.external_help_btn.clicked.connect(self._show_external_model_help)
@@ -857,47 +902,13 @@ class SettingsWindow(QDialog):
             return {"present": False, "error": str(e)}
 
     def _probe_local_device_names(self) -> tuple[str, str]:
+        """Probe GPU and CPU names (cached, delegates to platform provider)."""
         now = time.monotonic()
         cached = getattr(self, "_device_name_cache", {}) or {}
         ttl = 300.0
         if (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl:
             return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
-
-        def _run_ps(cmd: str) -> str:
-            try:
-                res = subprocess.run(
-                    ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    **_hidden_subprocess_kwargs(),
-                )
-                lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
-                return lines[0] if lines else ""
-            except Exception:
-                return ""
-
-        gpu_name = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-        if not gpu_name:
-            gpu_name = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-        if not gpu_name:
-            try:
-                res = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
-                    **_hidden_subprocess_kwargs(),
-                )
-                names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
-                gpu_name = names[0] if names else ""
-            except Exception:
-                gpu_name = ""
-
-        cpu_name = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
-        if not cpu_name:
-            cpu_name = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
-
+        gpu_name, cpu_name = probe_local_device_names()
         self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
         return gpu_name, cpu_name
 
@@ -1130,6 +1141,8 @@ class SettingsWindow(QDialog):
                     engine = self._render_modes[current_index]
                     is_latex = engine.startswith("latex_")
                     self.latex_options_widget.setVisible(is_latex)
+                    is_typst = engine == "typst"
+                    self.typst_options_widget.setVisible(is_typst)
                     # Try auto detection in LaTeX mode.
                     if is_latex and not _latex_settings.get_latex_path():
                         renderer = LaTeXRenderer()
@@ -1137,38 +1150,57 @@ class SettingsWindow(QDialog):
                             self.latex_path_input.setText(renderer.latex_cmd)
                             _latex_settings.set_latex_path(renderer.latex_cmd)
                             _latex_settings.save()
+                    # Try auto detection in Typst mode.
+                    if is_typst:
+                        from backend.latex_renderer import TypstRenderer
+                        typst_path = _latex_settings.get_typst_path()
+                        if not typst_path:
+                            r = TypstRenderer()
+                            if r.is_available():
+                                self.typst_path_input.setText(r.typst_cmd)
+                                _latex_settings.set_typst_path(r.typst_cmd)
+                                _latex_settings.save()
         except Exception as e:
-            print(f"[WARN] 初始化渲染引擎失败: {e}")
+            print(f"[WARN] Failed to init render engine: {e}")
     def _on_render_engine_changed(self, index: int):
         """Handle render-engine changes immediately without heavy validation on the UI thread."""
         if index < 0:
             return
         # Read the engine data from _render_modes.
         if index < 0 or index >= len(self._render_modes):
-            print(f"[WARN] 渲染引擎索引无效: {index}")
+            print(f"[WARN] Invalid render engine index: {index}")
             return
         engine = self._render_modes[index]
-        # Show or hide LaTeX options.
+        # Show or hide LaTeX/Typst options.
         is_latex = engine.startswith("latex_")
         self.latex_options_widget.setVisible(is_latex)
+        is_typst = engine == "typst"
+        self.typst_options_widget.setVisible(is_typst)
         if is_latex:
             self._sync_latex_path_for_engine(engine)
             latex_path = self.latex_path_input.text().strip()
             if not latex_path:
                 self._show_notification("warning", "LaTeX 路径未配置", "已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。")
+        elif is_typst:
+            typst_path = self.typst_path_input.text().strip()
+            if not typst_path:
+                self._detect_typst()
 
         # Save engine changes immediately; expensive validation is triggered by the path validation button.
         self._save_render_mode(engine)
     def _load_latex_settings(self):
-        """Load LaTeX settings."""
+        """Load LaTeX and Typst settings."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 latex_path = _latex_settings.get_latex_path()
                 if latex_path:
                     self.latex_path_input.setText(latex_path)
+                typst_path = _latex_settings.get_typst_path()
+                if typst_path:
+                    self.typst_path_input.setText(typst_path)
         except Exception as e:
-            print(f"[WARN] 加载 LaTeX 设置失败: {e}")
+            print(f"[WARN] Failed to load render settings: {e}")
     def _on_latex_path_changed(self):
         """Handle LaTeX path changes by clearing validation state."""
         if getattr(self, "_latex_test_in_progress", False):
@@ -1275,9 +1307,9 @@ class SettingsWindow(QDialog):
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
                     _latex_settings.settings["use_xelatex"] = use_xelatex
-                    print(f"[LaTeX] 设置已保存: {latex_path}")
+                    print(f"[LaTeX] Settings saved: {latex_path}")
         except Exception as e:
-            print(f"[WARN] 保存 LaTeX 设置失败: {e}")
+            print(f"[WARN] Failed to save LaTeX settings: {e}")
     def _test_latex_path(self):
         """Test the LaTeX path asynchronously to avoid blocking the UI thread."""
         latex_path = self.latex_path_input.text().strip()
@@ -1305,14 +1337,14 @@ class SettingsWindow(QDialog):
                     title = "路径无效"
                     message = "找不到 LaTeX 可执行文件"
                 else:
-                    print(f"[LaTeX] 测试路径: {path_value}")
+                    print(f"[LaTeX] Testing path: {path_value}")
                     test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
                     if test_svg and len(test_svg) > 100:
                         ok = True
                         title = "验证成功"
                         message = "LaTeX 环境已就绪"
             except Exception as e:
-                print(f"[ERROR] LaTeX 验证失败: {e}")
+                print(f"[ERROR] LaTeX validation failed: {e}")
                 title = "验证出错"
                 message = str(e)[:100]
             self.latex_path_test_done.emit(bool(ok), str(title), str(message), str(engine_value), str(path_value))
@@ -1339,6 +1371,130 @@ class SettingsWindow(QDialog):
         self.btn_test_latex.setText("验证路径")
         self.btn_test_latex.setEnabled(True)
         self._show_notification("error", title or "验证失败", message or "无法用该路径渲染公式，请检查安装")
+
+    # ------------------------------------------------------------------
+    # Typst path management
+    # ------------------------------------------------------------------
+
+    def _on_typst_path_changed(self):
+        """Handle Typst path changes by clearing validation state."""
+        if getattr(self, "_typst_test_in_progress", False):
+            return
+        self.btn_test_typst.setText("验证路径")
+        self.btn_test_typst.setEnabled(True)
+
+    def _browse_typst_path(self):
+        """Browse for a Typst executable path."""
+        file_path, _ = _select_open_file_with_icon(
+            self,
+            "选择 typst 可执行文件",
+            "",
+            "可执行文件 (typst.exe typst);;所有文件 (*.*)"
+        )
+        if file_path:
+            self.typst_path_input.setText(file_path)
+            self._save_typst_settings()
+
+    def _detect_typst(self):
+        """Detect Typst asynchronously."""
+        if getattr(self, "_typst_detect_in_progress", False):
+            return
+
+        self._typst_detect_in_progress = True
+        self.btn_detect_typst.setText("检测中...")
+        self.btn_detect_typst.setEnabled(False)
+
+        def worker():
+            from backend.latex_renderer import TypstRenderer
+            r = TypstRenderer()
+            if r.is_available():
+                detail = f"typst: {r.typst_cmd}"
+                self.typst_auto_detect_done.emit(True, r.typst_cmd, detail)
+            else:
+                detail = "typst: 未找到 (请安装 https://github.com/typst/typst)"
+                self.typst_auto_detect_done.emit(False, "", detail)
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_typst_auto_detect_done(self, ok: bool, typst_path: str, detail: str):
+        self._typst_detect_in_progress = False
+        self.btn_detect_typst.setText("自动检测")
+        self.btn_detect_typst.setEnabled(True)
+        if ok and typst_path:
+            self.typst_path_input.setText(typst_path)
+            self._save_typst_settings()
+            self._show_notification("success", "检测成功", f"已找到 Typst: {typst_path}")
+        else:
+            self._show_notification("warning", "未找到 Typst", detail)
+
+    def _test_typst_path(self):
+        """Test the Typst path asynchronously."""
+        typst_path = self.typst_path_input.text().strip()
+        if not typst_path:
+            self._show_notification("error", "路径为空", "请输入 Typst 路径或点击自动检测")
+            return False
+        if getattr(self, "_typst_test_in_progress", False):
+            return False
+
+        self._typst_test_in_progress = True
+        self.btn_test_typst.setText("验证中...")
+        self.btn_test_typst.setEnabled(False)
+
+        def worker(path_value: str):
+            from backend.latex_renderer import TypstRenderer
+
+            ok = False
+            title = "验证失败"
+            message = "无法用该路径渲染公式，请检查安装"
+            try:
+                renderer = TypstRenderer(path_value)
+                if not renderer.is_available():
+                    title = "路径无效"
+                    message = "找不到 Typst 可执行文件"
+                else:
+                    print(f"[Typst] Testing path: {path_value}")
+                    test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
+                    if test_svg and len(test_svg) > 50:
+                        ok = True
+                        title = "验证成功"
+                        message = "Typst 环境已就绪（含 pandoc 转换）"
+                    else:
+                        title = "编译失败"
+                        message = "Typst 编译测试公式失败，请检查 pandoc 和 Typst 安装"
+            except Exception as e:
+                print(f"[ERROR] Typst validation failed: {e}")
+                title = "验证出错"
+                message = str(e)[:100]
+            self.typst_path_test_done.emit(bool(ok), str(title), str(message))
+
+        import threading
+        threading.Thread(target=worker, args=(typst_path,), daemon=True).start()
+        return True
+
+    def _on_typst_path_test_done(self, ok: bool, title: str, message: str):
+        self._typst_test_in_progress = False
+        if ok:
+            self.btn_test_typst.setText("\u2713 已验证")
+            self.btn_test_typst.setEnabled(False)
+            self._save_typst_settings()
+            self._show_notification("success", title or "验证成功", message or "Typst 环境已就绪")
+            return
+        self.btn_test_typst.setText("验证路径")
+        self.btn_test_typst.setEnabled(True)
+        self._show_notification("error", title or "验证失败", message or "无法渲染公式")
+
+    def _save_typst_settings(self):
+        """Save Typst path to settings."""
+        try:
+            from backend.latex_renderer import _latex_settings
+            if _latex_settings:
+                typst_path = self.typst_path_input.text().strip()
+                _latex_settings.set_typst_path(typst_path)
+                print(f"[Typst] Settings saved: {typst_path}")
+        except Exception as e:
+            print(f"[WARN] Failed to save Typst settings: {e}")
+
     def _show_notification(self, level: str, title: str, message: str):
         """Show a floating notification."""
         try:
@@ -1385,7 +1541,7 @@ class SettingsWindow(QDialog):
                     parent=self
                 )
         except Exception as e:
-            print(f"[WARN] 显示通知失败: {e}")
+            print(f"[WARN] Failed to show notification: {e}")
             print(f"[INFO] {title}: {message}")
     def _save_render_mode(self, engine: str):
         """Save the render-engine selection."""
@@ -1393,14 +1549,15 @@ class SettingsWindow(QDialog):
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
-                print(f"[Render] 已切换渲染引擎: {engine}")
+                print(f"[Render] Switched render engine: {engine}")
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（推荐）",
                     "mathjax_local": "本地 MathJax",
                     "mathjax_cdn": "CDN MathJax",
                     "latex_pdflatex": "LaTeX + pdflatex",
-                    "latex_xelatex": "LaTeX + xelatex"
+                    "latex_xelatex": "LaTeX + xelatex",
+                    "typst": "Typst",
                 }
                 if engine in mode_names:
                     self._show_notification(
@@ -1409,7 +1566,7 @@ class SettingsWindow(QDialog):
                         f"已切换到: {mode_names[engine]}"
                     )
         except Exception as e:
-            print(f"[ERROR] 保存渲染模式失败: {e}")
+            print(f"[ERROR] Failed to save render mode: {e}")
     def _update_model_desc(self):
         # Update model description.
         index = self.model_combo.currentIndex()
@@ -1539,49 +1696,16 @@ class SettingsWindow(QDialog):
             "echo.",
         ]
         help_text = "\n".join(help_lines) + "\n"
-        python_bind_lines = (
-            f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
-            f'doskey python="{pyexe}" $*\n'
-            f'doskey py="{pyexe}" $*\n'
-            f'doskey pip="{pyexe}" -m pip $*\n'
-            "echo [*] python macro : %LATEXSNIPPER_PYEXE%\n"
-            "echo [*] pip macro    : %LATEXSNIPPER_PYEXE% -m pip\n"
-            "echo.\n"
-        )
         try:
-            if as_admin:
-                import tempfile
-                batch_content = ("@echo off\n"
-                    + f'cd /d "{venv_dir}"\n'
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
-                    + python_bind_lines
-                    + help_text
-                )
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content)
-                    batch_path = f.name
-                import ctypes
-                ctypes.windll.shell32.ShellExecuteW(
-                    None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
-                )
-                self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
-            else:
-                import tempfile
-                batch_content_normal = ("@echo off\n"
-                    + f'cd /d "{venv_dir}"\n'
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
-                    + python_bind_lines
-                    + help_text
-                )
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content_normal)
-                    batch_path = f.name
-                subprocess.Popen(
-                    ["cmd.exe", "/k", batch_path],
-                    cwd=venv_dir,
-                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
-                )
-                self._show_info("终端已打开", "已以普通模式打开。", "success")
+            _open_os_terminal(
+                pyexe_dir=pyexe_dir,
+                scripts_dir=scripts_dir,
+                working_dir=venv_dir,
+                python_exe_path=pyexe,
+                help_text=help_text,
+                as_admin=as_admin,
+            )
+            self._show_info("终端已打开", "已打开环境终端。", "success")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 
@@ -1594,13 +1718,7 @@ class SettingsWindow(QDialog):
     def _open_mathcraft_cache_dir(self):
         path = self._resolve_mathcraft_cache_dir()
         try:
-            os.makedirs(path, exist_ok=True)
-            if os.name == "nt":
-                os.startfile(path)  # type: ignore[attr-defined]
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", path])
-            else:
-                subprocess.Popen(["xdg-open", path])
+            open_directory(path)
             self._show_info("已打开", f"MathCraft 缓存目录: {path}", "success")
         except Exception as e:
             self._show_info("打开失败", f"无法打开缓存目录: {e}", "error")
