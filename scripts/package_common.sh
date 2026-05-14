@@ -135,7 +135,7 @@ write_debian_desktop_file() {
 [Desktop Entry]
 Type=Application
 Name=LaTeXSnipper
-Comment=Capture, recognize, edit, and compute mathematical content
+Comment=截图、识别、编辑和计算数学内容
 Exec=latexsnipper
 Icon=latexsnipper
 Terminal=false
