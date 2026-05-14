@@ -18,6 +18,7 @@ from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
+from runtime.hotkey_config import HOTKEY_HELP_TEXT, normalize_hotkey, normalize_hotkey_or_default
 from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 # Force UTF-8 encoding for all subprocess pipes on Windows (avoids gbk decode crashes)
@@ -2709,9 +2710,7 @@ class MainWindow(QMainWindow):
         self.system_provider = self.platform_providers.system
         if self.hotkey_provider.activated is not None:
             self.hotkey_provider.activated.connect(self.on_hotkey_triggered)
-        seq = self.cfg.get("hotkey", "Ctrl+F")
-        if not (seq.startswith("Ctrl+") and len(seq) == 6):
-            seq = "Ctrl+F"
+        seq = normalize_hotkey_or_default(self.cfg.get("hotkey", "Ctrl+F"))
         self._pending_hotkey_seq = seq
 
         self._report_startup_progress("构建主窗口界面...")
@@ -6217,13 +6216,21 @@ class MainWindow(QMainWindow):
         dlg = QDialog(self)
         _apply_close_only_window_flags(dlg)
         dlg.setWindowTitle("设置快捷键")
-        dlg.setFixedSize(320, 120)
+        dlg.setFixedSize(300, 148)
         dlg.setModal(False)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.destroyed.connect(lambda: setattr(self, "shortcut_window", None))
         t = dialog_theme_tokens()
         lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel(f"当前: {self.cfg.get('hotkey', 'Ctrl+F')} 按下新的 Ctrl+字母以创建，或按 Esc 取消"))
+        lay.setContentsMargins(14, 12, 14, 12)
+        lay.setSpacing(6)
+        current_hotkey = normalize_hotkey_or_default(self.cfg.get("hotkey", "Ctrl+F"))
+        current_label = QLabel(f"当前快捷键：{current_hotkey}")
+        current_label.setStyleSheet(f"color: {t['text']}; font-weight: 600;")
+        hint_label = QLabel(f"按下新的：{HOTKEY_HELP_TEXT}")
+        hint_label.setStyleSheet(f"color: {t['muted']};")
+        lay.addWidget(current_label)
+        lay.addWidget(hint_label)
         edit = QLineEdit(dlg)
         edit.setReadOnly(True)
         edit.setFixedHeight(34)
@@ -6250,8 +6257,19 @@ QLineEdit:focus {{
                 dlg.reject()
                 return
             k = ev.key()
-            if ev.modifiers() & Qt.KeyboardModifier.ControlModifier and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
-                edit.setText(f"Ctrl+{chr(k)}")
+            mods = ev.modifiers()
+            has_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+            has_shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+            has_extra = bool(
+                mods
+                & (
+                    Qt.KeyboardModifier.AltModifier
+                    | Qt.KeyboardModifier.MetaModifier
+                    | Qt.KeyboardModifier.GroupSwitchModifier
+                )
+            )
+            if has_ctrl and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
+                edit.setText(f"Ctrl+Shift+{chr(k)}" if has_shift else f"Ctrl+{chr(k)}")
                 edit.setFocus()
                 edit.selectAll()
             else:
@@ -6260,6 +6278,7 @@ QLineEdit:focus {{
 
         edit.keyPressEvent = keyPressEvent
         lay.addWidget(edit)
+        lay.addSpacing(8)
         btn = PushButton(FluentIcon.ACCEPT, "确定")
         btn.setFixedHeight(32)
         btn.clicked.connect(lambda: self.update_hotkey(edit.text().strip(), dlg))
@@ -6273,36 +6292,37 @@ QLineEdit:focus {{
     def update_hotkey(self, text: str, dialog: QDialog):
         from qfluentwidgets import InfoBar, InfoBarPosition
 
-        if not (text.startswith("Ctrl+") and len(text) == 6 and text[-1].isalpha()):
+        normalized_hotkey = normalize_hotkey(text)
+        if normalized_hotkey is None:
             InfoBar.error(
                 title="快捷键格式错误",
-                content="格式必须为 Ctrl+字母",
+                content=f"格式必须为 {HOTKEY_HELP_TEXT}",
                 parent=self._get_infobar_parent(),
                 duration=3000,
                 position=InfoBarPosition.TOP,
             )
             return
-        self.register_hotkey(text)
+        self.register_hotkey(normalized_hotkey)
         if (
             getattr(self, "hotkey_provider", None)
             and (not self.hotkey_provider.is_registered())
         ):
             InfoBar.error(
                 title="快捷键注册失败",
-                content="请更换其他 Ctrl+字母组合后重试",
+                content=f"请更换其他 {HOTKEY_HELP_TEXT} 组合后重试",
                 parent=self._get_infobar_parent(),
                 duration=3500,
                 position=InfoBarPosition.TOP,
             )
             return
-        self.cfg.set("hotkey", text)
+        self.cfg.set("hotkey", normalized_hotkey)
         try:
             dialog.close()
         except Exception:
             pass
         InfoBar.success(
             title="快捷键已更新",
-            content=f"已更新为 {text}",
+            content=f"已更新为 {normalized_hotkey}",
             parent=self._get_infobar_parent(),
             duration=2500,
             position=InfoBarPosition.TOP,
