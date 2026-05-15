@@ -262,18 +262,24 @@ LaTeXSnipper/
 |-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
 |-- src/
 |   |-- main.py                    # Main desktop application entry
-|   |-- distribution.py            # GitHub / Microsoft Store channel policy
 |   |-- backend/                   # OCR wrapper, CUDA diagnostics, capture, platform services
 |   |-- bootstrap/                 # Dependency wizard and runtime verification
+|   |-- capture/                   # Screenshot capture controllers
 |   |-- core/                      # Document composition, export contracts, restart contracts
+|   |-- cross_platform/            # OS-specific screenshot and platform helpers
 |   |-- editor/                    # Math workbench and formula editing UI
+|   |-- exporting/                 # Formula, Markdown, Pandoc, and document export helpers
 |   |-- handwriting/               # Handwriting canvas, PDF preview, document tools
 |   |-- preview/                   # MathJax preview and render helpers
-|   |-- runtime/                   # Config, history, and runtime helpers
-|   |-- ui/                        # Extracted desktop dialogs and window helpers
+|   |-- recognition/               # OCR and PDF recognition controllers
+|   |-- runtime/                   # Startup, config, history, logging, distribution, runtime helpers
+|   |-- ui/                        # Main window, settings, dialogs, and UI controllers
+|   |-- update/                    # GitHub release update checks and installer launch flow
+|   |-- workers/                   # Background worker helpers
 |   `-- assets/                    # Icons and bundled web/math resources
 |-- tools/
 |   `-- deps/                      # Local developer/build dependency environment
+|-- user_manual/                   # Manual source and locally generated PDF
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/msix/                # Microsoft Store MSIX manifest and notes
 |-- scripts/                       # Build, release, and regression utilities
