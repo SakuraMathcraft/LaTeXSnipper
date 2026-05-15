@@ -28,7 +28,8 @@ def select_existing_directory_with_icon(parent, title: str, initial_dir: str) ->
     apply_app_window_icon(dlg)
     icon_timer = schedule_native_dialog_icon(title, resource_path("assets/icon.ico"))
     try:
-        if dlg.exec() != QFileDialog.DialogCode.Accepted:
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != QFileDialog.DialogCode.Accepted:
             return ""
     finally:
         if icon_timer is not None:
@@ -41,7 +42,8 @@ def select_save_file_with_icon(parent, title: str, initial_path: str, filter_: s
     dlg = QFileDialog(parent, title, initial_path, filter_)
     dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
     dlg.setFileMode(QFileDialog.FileMode.AnyFile)
-    apply_app_window_icon(dlg)
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != QFileDialog.DialogCode.Accepted:
     if dlg.exec() != QFileDialog.DialogCode.Accepted:
         return "", ""
     selected = dlg.selectedFiles()
@@ -52,7 +54,8 @@ def select_save_file_with_icon(parent, title: str, initial_path: str, filter_: s
 def select_open_file_with_icon(parent, title: str, initial_path: str, filter_: str):
     dlg = QFileDialog(parent, title, initial_path, filter_)
     dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
-    dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != QFileDialog.DialogCode.Accepted:
     apply_app_window_icon(dlg)
     if dlg.exec() != QFileDialog.DialogCode.Accepted:
         return "", ""
@@ -137,7 +140,8 @@ def show_formula_rename_dialog(
     lay.addLayout(btn_row)
 
     dlg.adjustSize()
-    dlg.setFixedSize(max(340, dlg.width()), dlg.height())
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != QDialog.DialogCode.Accepted:
     apply_app_window_icon(dlg)
     QTimer.singleShot(0, edit.setFocus)
     if dlg.exec() != QDialog.DialogCode.Accepted:

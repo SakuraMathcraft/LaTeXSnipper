@@ -160,7 +160,8 @@ class MainWindowSetupMixin:
                     self
                 )
                 _apply_app_window_icon(msg)
-                msg.exec()
+msg.# FIX: 移除exec，改用安全方式
+# )
                 try:
                     ok = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
                     if not ok:

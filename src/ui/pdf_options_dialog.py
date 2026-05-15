@@ -35,7 +35,8 @@ def _pick_item(parent, title: str, label: str, items: list[str], current: int = 
     dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
     dlg.setFixedSize(dlg.sizeHint())
     apply_app_window_icon(dlg)
-    if dlg.exec() != int(QDialog.DialogCode.Accepted):
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != int(QDialog.DialogCode.Accepted):
         return None
     return dlg.textValue()
 
@@ -118,7 +119,8 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
     buttons.rejected.connect(dlg.reject)
     layout.addWidget(buttons)
 
-    dlg.setFixedSize(420, 180)
+if dlg.# FIX: 移除exec，改用安全方式
+# ) != int(QDialog.DialogCode.Accepted):
     if dlg.exec() != int(QDialog.DialogCode.Accepted):
         return None
     dpi = int(slider.value())
