@@ -174,7 +174,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
                 os.environ["MATHCRAFT_PROVIDER"] = old
 
     def test_settings_probe_covers_packaged_internal_root(self):
-        source = (SRC / "settings_window.py").read_text(encoding="utf-8")
+        source = (SRC / "ui" / "settings_dialog_helpers.py").read_text(encoding="utf-8")
 
         self.assertIn("def _mathcraft_code_roots", source)
         self.assertIn('parent / "_internal"', source)
@@ -407,7 +407,11 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn('(str(SRC / "editor"), "editor")', spec)
 
     def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
-        source = (SRC / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
+        source = (
+            (SRC / "bootstrap" / "deps_runtime_verify.py").read_text(encoding="utf-8")
+            + "\n"
+            + (SRC / "bootstrap" / "deps_workers.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("ONNX Runtime 支撑依赖导入检查通过", source)
         self.assertNotIn("onnxruntime-gpu runtime check passed", source)

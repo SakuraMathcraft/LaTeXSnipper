@@ -137,16 +137,16 @@ From the repository root:
 
 ```cmd
 set PYTHONPATH=E:\LaTexSnipper
-src\deps\python311\python.exe -m mathcraft_ocr.cli models check
-src\deps\python311\python.exe -m mathcraft_ocr.cli doctor --provider cpu
-src\deps\python311\python.exe -m mathcraft_ocr.cli warmup --profile formula --provider cpu
-src\deps\python311\python.exe -m mathcraft_ocr.cli warmup --profile mixed --provider cpu
+tools\deps\python311\python.exe -m mathcraft_ocr.cli models check
+tools\deps\python311\python.exe -m mathcraft_ocr.cli doctor --provider cpu
+tools\deps\python311\python.exe -m mathcraft_ocr.cli warmup --profile formula --provider cpu
+tools\deps\python311\python.exe -m mathcraft_ocr.cli warmup --profile mixed --provider cpu
 ```
 
 When running from a shell that does not honor `PYTHONPATH`, use:
 
 ```cmd
-src\deps\python311\python.exe -c "import sys; sys.path.insert(0, r'E:\LaTexSnipper'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))"
+tools\deps\python311\python.exe -c "import sys; sys.path.insert(0, r'E:\LaTexSnipper'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))"
 ```
 
 ## Maintenance Rules

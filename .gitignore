@@ -25,18 +25,16 @@ packaging/debian/usr
 *.gz
 
 # Embedded runtime (do not version)
-src/deps/python311/
-src/deps/translation_env/
-src/models/
+tools/deps/python311/
+tools/deps/python311-*/
+tools/deps/translation_env/
+tools/deps/pandoc/
 
 # Local runtime components (do not version)
 python311/
 Store_CPU/
 python-*.exe
-wix*-binaries.zip
-nsis_tauri_utils.dll
 crash_log.txt
-tauri_stderr.log
 
 # Logs
 *.log
@@ -44,8 +42,7 @@ tauri_stderr.log
 .tmp/
 
 # Local app state
-src/.release_etag_cache.json
-src/deps/.deps_state.json
+tools/deps/.deps_state.json
 
 # Local OCR/PDF regression outputs
 test_pdf/outputs/**

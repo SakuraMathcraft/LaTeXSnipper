@@ -16,7 +16,7 @@ from backend.external_model import ExternalModelClient
 from .ink_canvas import InkCanvas
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
-from utils import resource_path
+from runtime.app_paths import resource_path
 
 try:
     from PyQt6.QtWebEngineCore import QWebEngineSettings

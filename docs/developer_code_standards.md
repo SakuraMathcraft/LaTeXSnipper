@@ -1,4 +1,4 @@
-# Developer Code Standards
+                         # Developer Code Standards
 
 These rules are mandatory for pull requests. They protect the Windows release
 path while allowing Linux and macOS support to evolve cleanly.
@@ -8,7 +8,7 @@ path while allowing Linux and macOS support to evolve cleanly.
 - Keep platform code behind `backend/platform/*` providers and shared protocols.
 - Keep screenshot fallback details in `cross_platform/screenshot_tools.py`.
 - Do not put Linux/macOS branching, package-manager calls, or platform-specific
-  setup UI directly in `main.py`, `settings_window.py`, or the dependency wizard.
+  setup UI directly in `main.py`, `ui/settings_window.py`, or the dependency wizard.
 - Do not change Windows installer files, Windows dependency pins, or Windows
   startup behavior as part of a Linux/macOS PR unless the PR explicitly targets
   Windows and includes separate Windows validation.
@@ -31,10 +31,13 @@ path while allowing Linux and macOS support to evolve cleanly.
 - Empty or first-run dependency configuration must still resolve the intended
   internal Python environment automatically when that platform intentionally
   bundles one.
-- The project dependency/build environment belongs under `src/deps/python311`.
-  It may be used to run PyInstaller and collect required runtime files, but it
-  must never be copied as an embedded Python runtime.
-- Linux and macOS release specs must never collect `src/deps/python311` or any
+- Project dependency/build environments belong under `tools/deps/`, never under
+  `src/`. The Windows developer interpreter is `tools/deps/python311`; Linux and
+  macOS build scripts create platform-scoped venvs such as
+  `tools/deps/python311-linux-x86_64`. These environments may be used to run
+  PyInstaller and collect required runtime files, but must never be copied as an
+  embedded Python runtime.
+- Linux and macOS release specs must never collect `tools/deps/` or any
   build-machine virtual environment into the packaged app. Packaged Linux/macOS
   installs create dependency environments in the user's app state directory.
 - Linux and macOS dependency bootstrap behavior must stay aligned. Both
@@ -116,10 +119,10 @@ path while allowing Linux and macOS support to evolve cleanly.
 Run all checks with the project dependency Python:
 
 ```powershell
-.\src\deps\python311\python.exe -m ruff check .
-.\src\deps\python311\python.exe -m pytest test
-.\src\deps\python311\python.exe -m pyright
-.\src\deps\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+.\tools\deps\python311\python.exe -m ruff check .
+.\tools\deps\python311\python.exe -m pytest test
+.\tools\deps\python311\python.exe -m pyright
+.\tools\deps\python311\python.exe -m compileall -q src mathcraft_ocr test
 ```
 
 For packaging changes, also validate the relevant script/spec on the target

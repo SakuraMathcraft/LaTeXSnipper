@@ -13,7 +13,7 @@ from runtime.startup_splash import (
 
 def load_startup_modules():
     from bootstrap.deps_bootstrap import clear_deps_state, custom_warning_dialog
-    from settings_window import SettingsWindow
+    from ui.settings_window import SettingsWindow
 
     return custom_warning_dialog, clear_deps_state, SettingsWindow
 
