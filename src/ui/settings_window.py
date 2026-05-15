@@ -27,3 +27,5 @@ class SettingsWindow(
     mathcraft_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)
     latex_auto_detect_done = pyqtSignal(bool, str, str)
+    typst_path_test_done = pyqtSignal(bool, str, str, str)
+    typst_auto_detect_done = pyqtSignal(bool, str, str)
