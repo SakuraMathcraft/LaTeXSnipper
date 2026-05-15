@@ -224,12 +224,12 @@ def bootstrap_application() -> BootstrapContext:
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    print(f"[DEBUG] Application root: {APP_DIR}")
-    print(f"[DEBUG] Packaged mode: {_is_packaged_mode()}")
+    print(f"[DEBUG] 应用根目录: {APP_DIR}")
+    print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
 
     deps_dir = _initial_deps_dir()
     deps_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[DEBUG] Dependency directory: {deps_dir}")
+    print(f"[DEBUG] 依赖目录: {deps_dir}")
 
     ensure_startup_splash("加载依赖向导模块...")
     ensure_startup_splash("加载设置模块...")
