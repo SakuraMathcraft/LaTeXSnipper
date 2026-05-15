@@ -80,7 +80,7 @@ function Resolve-BuildPython {
         $candidates += $RequestedPython
     }
 
-    $candidates += (Join-Path $Root "src\deps\python311\python.exe")
+    $candidates += (Join-Path $Root "tools\deps\python311\python.exe")
 
     foreach ($candidate in $candidates) {
         if ([string]::IsNullOrWhiteSpace($candidate)) {

@@ -50,12 +50,13 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
         ROOT / "scripts" / "package_common.sh",
     )
     sources = "\n".join(path.read_text(encoding="utf-8") for path in script_paths)
-    assert "src/deps/python311" in sources
+    assert "tools/deps/" in sources
+    assert "python311-" in sources
     assert "PROJECT_ROOT/python311" not in sources
     assert "grep -oP" not in sources
 
     macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
-    assert "src/deps/python311" not in macos_spec
+    assert "tools/deps/" not in macos_spec
     assert "BUNDLED_PY311" not in macos_spec
     assert "LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME" not in macos_spec
 

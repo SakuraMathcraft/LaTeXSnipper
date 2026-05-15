@@ -14,7 +14,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
-from utils import resource_path
+from runtime.app_paths import resource_path
 
 try:
     import fitz

@@ -46,7 +46,7 @@ def test_pyinstaller_spec_keeps_pandoc_runtime_backend() -> None:
 
 
 def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy() -> None:
-    source = (ROOT / "src" / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
+    source = (ROOT / "src" / "bootstrap" / "deps_pandoc.py").read_text(encoding="utf-8")
 
     assert "mirror.ghproxy.com" not in source
     assert "pandoc-*.msi" not in source
@@ -54,7 +54,7 @@ def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy(
 
 
 def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
-    source = (ROOT / "src" / "settings_window.py").read_text(encoding="utf-8")
+    source = (ROOT / "src" / "ui" / "settings_window.py").read_text(encoding="utf-8")
 
     assert "_detect_pandoc" not in source
     assert "pandoc_detect_btn" not in source
@@ -63,7 +63,7 @@ def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
 
 
 def test_dependency_progress_close_reuses_post_install_verify_result() -> None:
-    source = (ROOT / "src" / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
+    source = (ROOT / "src" / "bootstrap" / "deps_entry.py").read_text(encoding="utf-8")
 
     assert 'install_verified_in_progress_ui = bool(post_install_verify_passed.get("value", False))' in source
     assert "skip_next_ui_runtime_verify = install_verified_in_progress_ui" in source

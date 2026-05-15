@@ -39,7 +39,7 @@ function Resolve-PythonExecutable {
     )
 
     if ([string]::IsNullOrWhiteSpace($RequestedPath)) {
-        $candidate = Join-Path $Root "src\deps\python311\python.exe"
+        $candidate = Join-Path $Root "tools\deps\python311\python.exe"
     }
     elseif ([System.IO.Path]::IsPathRooted($RequestedPath)) {
         $candidate = $RequestedPath

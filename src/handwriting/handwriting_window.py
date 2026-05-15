@@ -17,7 +17,7 @@ from .handwriting_layout import group_strokes_into_lines, classify_line_roles, l
 from .ink_canvas import InkCanvas
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
-from utils import resource_path
+from runtime.app_paths import resource_path
 
 try:
     from PyQt6.QtWebEngineCore import QWebEngineSettings

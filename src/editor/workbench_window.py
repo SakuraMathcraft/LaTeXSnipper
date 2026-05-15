@@ -12,7 +12,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 
 from editor.latex_snippet_panel import LATEX_SNIPPETS, LaTeXSnippetPanel
 from editor.workbench_bridge import WorkbenchBridge
-from utils import resource_path
+from runtime.app_paths import resource_path
 
 
 class WorkbenchWindow(QWidget):

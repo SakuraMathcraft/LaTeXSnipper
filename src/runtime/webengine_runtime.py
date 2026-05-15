@@ -19,7 +19,7 @@ def configure_default_webengine_profile() -> None:
         settings = profile.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
-        print("[MathJax] QWebEngine 配置已应用（支持本地文件+CDN 备选）")
+        print("[MathJax] QWebEngine 配置已应用")
     except Exception as e:
         print(f"[WARN] QWebEngine 配置失败: {e}")
 

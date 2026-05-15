@@ -13,7 +13,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, Prima
 
 from editor.latex_snippet_panel import LaTeXSnippetPanel, insert_snippet_into_editor
 from editor.workbench_bridge import WorkbenchBridge
-from utils import resource_path
+from runtime.app_paths import resource_path
 
 from .tex_document_utils import WRAP_ENVIRONMENTS, validate_tex_document, wrap_tex_document
 

@@ -234,9 +234,10 @@ macOS packaging:
 - `LaTeXSnipper-macos.spec`
 - `scripts/build_macos.sh`
 
-Linux/macOS build scripts prepare their isolated build runtime under
-`src/deps/python311`. The repository-root `python311` directory is treated as a
-template runtime and must not be mutated by packaging scripts.
+Linux/macOS build scripts prepare isolated, platform-scoped build runtimes under
+`tools/deps/`, for example `tools/deps/python311-linux-x86_64`. The Windows IDE
+interpreter is `tools/deps/python311`. The repository-root `python311` directory
+is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
@@ -261,17 +262,24 @@ LaTeXSnipper/
 |-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
 |-- src/
 |   |-- main.py                    # Main desktop application entry
-|   |-- distribution.py            # GitHub / Microsoft Store channel policy
 |   |-- backend/                   # OCR wrapper, CUDA diagnostics, capture, platform services
 |   |-- bootstrap/                 # Dependency wizard and runtime verification
+|   |-- capture/                   # Screenshot capture controllers
 |   |-- core/                      # Document composition, export contracts, restart contracts
+|   |-- cross_platform/            # OS-specific screenshot and platform helpers
 |   |-- editor/                    # Math workbench and formula editing UI
+|   |-- exporting/                 # Formula, Markdown, Pandoc, and document export helpers
 |   |-- handwriting/               # Handwriting canvas, PDF preview, document tools
 |   |-- preview/                   # MathJax preview and render helpers
-|   |-- runtime/                   # Config, history, and runtime helpers
-|   |-- ui/                        # Extracted desktop dialogs and window helpers
-|   |-- assets/                    # Icons and bundled web/math resources
-|   `-- deps/                      # Bundled/local Python dependency environment
+|   |-- recognition/               # OCR and PDF recognition controllers
+|   |-- runtime/                   # Startup, config, history, logging, distribution, runtime helpers
+|   |-- ui/                        # Main window, settings, dialogs, and UI controllers
+|   |-- update/                    # GitHub release update checks and installer launch flow
+|   |-- workers/                   # Background worker helpers
+|   `-- assets/                    # Icons and bundled web/math resources
+|-- tools/
+|   `-- deps/                      # Local developer/build dependency environment
+|-- user_manual/                   # Manual source and locally generated PDF
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/msix/                # Microsoft Store MSIX manifest and notes
 |-- scripts/                       # Build, release, and regression utilities
@@ -304,10 +312,10 @@ All pull requests must follow [Developer Code Standards](docs/developer_code_sta
 Before requesting review, run:
 
 ```powershell
-.\src\deps\python311\python.exe -m ruff check .
-.\src\deps\python311\python.exe -m pytest test
-.\src\deps\python311\python.exe -m pyright
-.\src\deps\python311\python.exe -m compileall -q -x "src[\\/]+deps" src mathcraft_ocr test
+.\tools\deps\python311\python.exe -m ruff check .
+.\tools\deps\python311\python.exe -m pytest test
+.\tools\deps\python311\python.exe -m pyright
+.\tools\deps\python311\python.exe -m compileall -q src mathcraft_ocr test
 ```
 
 Cross-platform PRs must not change the Windows dependency surface or installer
