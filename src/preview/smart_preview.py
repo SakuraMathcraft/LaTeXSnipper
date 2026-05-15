@@ -251,7 +251,8 @@ def render_formula_content_html(
     schedule_render: Callable[[str], None],
 ) -> str:
     try:
-        if render_mode and render_mode.startswith("latex_"):
+        is_svg_mode = render_mode and (render_mode.startswith("latex_") or render_mode == "typst")
+        if is_svg_mode:
             if has_cached_svg:
                 if cached_svg:
                     safe_svg = namespace_svg_ids(cached_svg, cache_key)

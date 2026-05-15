@@ -1,4 +1,4 @@
-"""LaTeX rendering helpers for pdflatex, xelatex, and MathJax fallback modes."""
+"""LaTeX rendering helpers for pdflatex, xelatex, Typst, and MathJax fallback modes."""
 
 import subprocess
 import tempfile
@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 import json
+
+try:
+    import pypandoc
+except ImportError:  # pragma: no cover
+    pypandoc = None
 
 
 @dataclass
@@ -109,7 +114,7 @@ def _resolve_synctex_command_for_latex(latex_cmd: Optional[str]) -> Optional[str
 
 
 def is_supported_document_render_mode(mode: Optional[str]) -> bool:
-    return str(mode or "").strip() in {"latex_pdflatex", "latex_xelatex"}
+    return str(mode or "").strip() in {"latex_pdflatex", "latex_xelatex", "typst"}
 
 
 def get_document_render_mode() -> str:
@@ -589,6 +594,177 @@ class LaTeXRenderer:
     """
 
 
+class TypstRenderer:
+    """Render LaTeX formulas to SVG or Typst documents to PDF via Typst CLI."""
+
+    def __init__(self, typst_cmd: Optional[str] = None):
+        self.typst_cmd = typst_cmd
+        self._validate_typst()
+
+    def _validate_typst(self):
+        """Validate the configured Typst executable."""
+        if self.typst_cmd is None:
+            self.typst_cmd = self._detect_typst()
+
+        if self.typst_cmd and not Path(self.typst_cmd).exists():
+            print(f"[WARN] Typst path does not exist: {self.typst_cmd}")
+            self.typst_cmd = None
+
+    def _detect_typst(self) -> Optional[str]:
+        """Detect typst from PATH."""
+        try:
+            result = subprocess.run(
+                ["typst", "--version"],
+                capture_output=True,
+                timeout=5,
+                **_hidden_subprocess_kwargs(),
+            )
+            if result.returncode == 0:
+                full_path = shutil.which("typst")
+                print(f"[Typst] Detected typst: {full_path}")
+                return full_path
+        except Exception:
+            pass
+        return None
+
+    def is_available(self) -> bool:
+        """Return whether Typst CLI is available."""
+        return self.typst_cmd is not None and Path(self.typst_cmd).exists()
+
+    def _convert_latex_to_typst(self, latex_code: str) -> str:
+        """Convert a LaTeX formula string to Typst math syntax via pypandoc."""
+        if pypandoc is None:
+            return latex_code
+        try:
+            result = str(pypandoc.convert_text(str(latex_code), "typst", format="latex")).strip()
+            print(f"[Typst] Pandoc conversion: {latex_code[:50]} -> {result[:50]}")
+            return result
+        except Exception as e:
+            print(f"[Typst] Pandoc conversion failed: {e}, using raw LaTeX")
+            return str(latex_code)
+
+    def _create_typst_formula_doc(self, typst_math: str) -> str:
+        """Create a minimal Typst document wrapping a single formula."""
+        escaped = str(typst_math).replace('"', '\\"')
+        return f'#set page(width: auto, height: auto, margin: 3pt)\n$ {escaped} $'
+
+    def render_to_svg(self, latex_code: str) -> Optional[str]:
+        """Render a LaTeX formula to SVG via Typst. Returns SVG string or None."""
+        if not self.is_available():
+            print("[Typst] Typst is unavailable; skip SVG rendering")
+            return None
+        try:
+            # Step 1: Convert LaTeX to Typst math syntax
+            typst_math = self._convert_latex_to_typst(latex_code)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp_dir = Path(tmpdir)
+                typ_file = tmp_dir / "formula.typ"
+                svg_file = tmp_dir / "formula.svg"
+
+                typ_content = self._create_typst_formula_doc(typst_math)
+                typ_file.write_text(typ_content, encoding="utf-8")
+                print(f"[Typst] Compile formula: {typst_math[:50]}")
+
+                compile_result = subprocess.run(
+                    [
+                        self.typst_cmd,
+                        "compile",
+                        "--format", "svg",
+                        "--root", str(tmp_dir),
+                        str(typ_file),
+                        str(svg_file),
+                    ],
+                    capture_output=True,
+                    timeout=15,
+                    text=True,
+                    **_hidden_subprocess_kwargs(),
+                )
+                if compile_result.returncode != 0:
+                    print(f"[ERROR] Typst compile failed:\n{compile_result.stderr}")
+                    return None
+
+                if svg_file.exists():
+                    svg_content = svg_file.read_text(encoding="utf-8")
+                    print(f"[Typst] Rendered SVG: {len(svg_content)} bytes")
+                    return self._clean_typst_svg(svg_content)
+        except subprocess.TimeoutExpired:
+            print("[ERROR] Typst compile timed out")
+        except Exception as e:
+            print(f"[ERROR] Typst render failed: {e}")
+        return None
+
+    def _clean_typst_svg(self, svg_content: str) -> str:
+        """Remove XML declaration from Typst SVG output and scale if needed."""
+        # Typst outputs SVG with XML declaration; remove it for embedding.
+        content = str(svg_content).strip()
+        if content.startswith("<?xml"):
+            idx = content.find(">")
+            if idx >= 0:
+                content = content[idx + 1:].strip()
+        return content
+
+    def compile_document_to_pdf(
+        self,
+        typst_content: str,
+        output_dir: Path,
+        jobname: str = "document_preview",
+        timeout: int = 30,
+    ) -> Optional[Path]:
+        """Compile a full Typst document to PDF. Returns PDF path or None."""
+        if not self.is_available():
+            print("[Typst] Typst is unavailable; skip PDF compilation")
+            return None
+        try:
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            typ_file = output_path / f"{jobname}.typ"
+            pdf_file = output_path / f"{jobname}.pdf"
+
+            typ_file.write_text(str(typst_content), encoding="utf-8")
+            print(f"[Typst] Compile document: {typ_file}")
+
+            result = subprocess.run(
+                [
+                    self.typst_cmd,
+                    "compile",
+                    "--root", str(output_path),
+                    str(typ_file),
+                    str(pdf_file),
+                ],
+                capture_output=True,
+                timeout=timeout,
+                text=True,
+                **_hidden_subprocess_kwargs(),
+            )
+            if result.returncode != 0:
+                print(f"[ERROR] Typst document compile failed:\n{result.stderr}")
+                return None
+
+            if pdf_file.exists():
+                print(f"[Typst] PDF compiled: {pdf_file}")
+                return pdf_file
+        except subprocess.TimeoutExpired:
+            print("[ERROR] Typst document compile timed out")
+        except Exception as e:
+            print(f"[ERROR] Typst document compile failed: {e}")
+        return None
+
+    def convert_latex_document_to_typst(self, latex_document: str) -> str:
+        """Convert a full LaTeX document to Typst via pypandoc."""
+        if pypandoc is None:
+            return str(latex_document)
+        try:
+            result = str(pypandoc.convert_text(
+                str(latex_document), "typst", format="latex"
+            )).strip()
+            print(f"[Typst] Document conversion: {len(latex_document)} -> {len(result)} chars")
+            return result
+        except Exception as e:
+            print(f"[Typst] Document conversion failed: {e}")
+            return str(latex_document)
+
+
 class LaTeXSettings:
     """Manage persisted LaTeX rendering settings."""
 
@@ -613,6 +789,7 @@ class LaTeXSettings:
         return {
             "render_mode": "auto",
             "latex_path": None,
+            "typst_path": None,
             "use_xelatex": False,
             "cache_svg": True,
             "enable_offline": False,
@@ -638,7 +815,7 @@ class LaTeXSettings:
 
     def set_render_mode(self, mode: str):
         """Set the formula rendering mode."""
-        valid_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
+        valid_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex", "typst"]
 
         if mode not in valid_modes:
             print(f"[WARN] Invalid render mode: {mode}")
@@ -657,8 +834,18 @@ class LaTeXSettings:
         """Return the configured render mode."""
         return self.settings.get("render_mode", "auto")
 
+    def get_typst_path(self) -> Optional[str]:
+        """Return the configured Typst executable path."""
+        return self.settings.get("typst_path")
+
+    def set_typst_path(self, path: str):
+        """Set the Typst executable path."""
+        self.settings["typst_path"] = path
+        self.save()
+
 
 _latex_renderer = None
+_typst_renderer = None
 _latex_settings = None
 
 
@@ -679,3 +866,14 @@ def get_latex_renderer() -> LaTeXRenderer:
         _latex_renderer = LaTeXRenderer(latex_path)
 
     return _latex_renderer
+
+
+def get_typst_renderer() -> TypstRenderer:
+    """Return the shared Typst renderer instance."""
+    global _typst_renderer, _latex_settings
+
+    if _typst_renderer is None:
+        typst_path = _latex_settings.get_typst_path() if _latex_settings else None
+        _typst_renderer = TypstRenderer(typst_path)
+
+    return _typst_renderer

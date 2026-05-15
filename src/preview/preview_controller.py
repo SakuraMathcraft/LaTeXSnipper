@@ -7,7 +7,7 @@ import sys
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from backend.latex_renderer import get_latex_renderer
+from backend.latex_renderer import get_latex_renderer, get_typst_renderer, _latex_settings
 from preview.math_preview import get_mathjax_base_url
 from preview.smart_preview import build_preview_error_html, build_smart_preview_html, render_formula_content_html
 
@@ -18,9 +18,15 @@ class PreviewLatexRenderWorker(QObject):
     def render_formula(self, cache_key: str, latex_code: str):
         svg = None
         try:
-            renderer = get_latex_renderer()
-            if renderer and renderer.is_available():
-                svg = renderer.render_to_svg(str(latex_code or ""))
+            mode = _latex_settings.get_render_mode() if _latex_settings else "auto"
+            if mode == "typst":
+                renderer = get_typst_renderer()
+                if renderer and renderer.is_available():
+                    svg = renderer.render_to_svg(str(latex_code or ""))
+            else:
+                renderer = get_latex_renderer()
+                if renderer and renderer.is_available():
+                    svg = renderer.render_to_svg(str(latex_code or ""))
         except Exception:
             svg = None
         self.finished.emit(str(cache_key or ""), svg)
@@ -172,7 +178,8 @@ class PreviewControllerMixin:
         except Exception:
             render_mode = None
 
-        cache_key = self._build_preview_latex_cache_key(content) if render_mode and render_mode.startswith("latex_") else ""
+        use_svg_cache = render_mode and (render_mode.startswith("latex_") or render_mode == "typst")
+        cache_key = self._build_preview_latex_cache_key(content) if use_svg_cache else ""
         has_cached_svg = bool(cache_key) and cache_key in self._preview_svg_cache
         cached_svg = self._preview_svg_cache.get(cache_key, "") if has_cached_svg else ""
         return render_formula_content_html(
