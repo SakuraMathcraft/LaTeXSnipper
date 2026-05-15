@@ -27,7 +27,7 @@ Core editing and local recognition workflows are designed to work locally after 
 - Windows packaged builds use the bundled dependency environment.
 - Linux and macOS create runtime dependency files under `~/.latexsnipper/deps/python311`.
 
-Linux/macOS release packages do not bundle the build-machine `src/deps/python311` environment.
+Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
 ## Why do Linux and macOS need Python 3?
 

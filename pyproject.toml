@@ -82,14 +82,14 @@ mathcraft_ocr = ["manifests/*.json"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["test"]
-addopts = ["--ignore=python311", "--ignore=src/deps", "--ignore=.venv", "--ignore=build", "--ignore=dist"]
+addopts = ["--ignore=python311", "--ignore=tools/deps", "--ignore=.venv", "--ignore=build", "--ignore=dist"]
 
 [tool.vulture]
 paths = ["src"]
 exclude = [
   "build/",
   "python311/",
-  "src/deps/python311/"
+  "tools/deps/python311/"
 ]
 min_confidence = 70
 sort_by_size = true

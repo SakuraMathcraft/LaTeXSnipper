@@ -6,7 +6,7 @@ from bootstrap.deps_bootstrap import custom_warning_dialog
 from editor.workbench_window import WorkbenchWindow
 from handwriting import HandwritingWindow
 from handwriting.bilingual_pdf_window import BilingualPdfWindow
-from settings_window import SettingsWindow
+from ui.settings_window import SettingsWindow
 
 
 class WindowOpenersMixin:
@@ -157,4 +157,3 @@ class WindowOpenersMixin:
             self.settings_window._open_terminal(env_key=env_key)
         except Exception as e:
             custom_warning_dialog("错误", f"打开终端失败: {e}", self)
-

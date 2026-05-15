@@ -46,7 +46,10 @@ PY
 
 prepare_python_runtime() {
     local project_root="$1"
-    local runtime_dir="$project_root/src/deps/python311"
+    local platform arch runtime_dir
+    platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch="$(uname -m | tr '[:upper:]' '[:lower:]')"
+    runtime_dir="$project_root/tools/deps/python311-$platform-$arch"
     local runtime_python="$runtime_dir/bin/python3"
 
     mkdir -p "$(dirname "$runtime_dir")"
