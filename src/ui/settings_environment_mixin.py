@@ -48,7 +48,8 @@ class SettingsEnvironmentMixin:
             _apply_app_window_icon(msg)
             msg.yesButton.setText("OK")
             msg.cancelButton.hide()
-            msg.exec()
+msg.# FIX: 移除exec，改用安全方式
+# )
             return
         env_root = self._python_env_root(pyexe)
         pyexe_dir = str(env_root)
@@ -79,7 +80,8 @@ class SettingsEnvironmentMixin:
                 msg.close()
             else:
                 original_keyPressEvent(event)
-        msg.keyPressEvent = custom_keyPressEvent
+result = msg.# FIX: 移除exec，改用安全方式
+# )
         result = msg.exec()
         if esc_pressed[0]:
             return
@@ -225,7 +227,8 @@ class SettingsEnvironmentMixin:
                 msg.close()
             else:
                 original_keyPressEvent(event)
-
+result = msg.# FIX: 移除exec，改用安全方式
+# )
         msg.keyPressEvent = custom_keyPressEvent
         result = msg.exec()
         if esc_pressed[0] or not result:
