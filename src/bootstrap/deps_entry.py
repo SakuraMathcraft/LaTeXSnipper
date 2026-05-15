@@ -480,7 +480,19 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
         mode_str = "打包模式" if is_packaged else "开发模式"
 
-        if current_site and deps_dir and str(current_site).startswith(deps_dir_resolved):
+        def _path_is_under(child: str | None, parent: str) -> bool:
+            if not child:
+                return False
+            try:
+                child_norm = os.path.normcase(os.path.abspath(child))
+                parent_norm = os.path.normcase(os.path.abspath(parent))
+                return os.path.commonpath([child_norm, parent_norm]) == parent_norm
+            except Exception:
+                return str(child).lower().startswith(str(parent).lower())
+
+        current_site_in_deps = _path_is_under(current_site, deps_dir_resolved)
+
+        if current_site_in_deps:
             print(f"[INFO] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
             print(f"[DIAG] 当前 site-packages 路径: {current_site}")
             print(f"[DIAG] 依赖目录路径: {deps_dir_resolved}")
@@ -499,7 +511,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             print(f"[DIAG] 依赖目录路径: {deps_dir_resolved}")
             if not current_site:
                 mismatch_reason = "未能定位当前 Python 的 site-packages 路径。"
-            elif not str(current_site).startswith(deps_dir_resolved):
+            elif not current_site_in_deps:
                 mismatch_reason = "当前 Python 的 site-packages 不在依赖目录下。"
             else:
                 mismatch_reason = "未知原因导致环境不一致。"

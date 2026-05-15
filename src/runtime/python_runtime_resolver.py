@@ -31,13 +31,25 @@ def _get_app_root() -> Path:
 def _is_packaged_mode() -> bool:
     return is_packaged_mode()
 
+
+def _project_root() -> Path:
+    return APP_DIR.parent if APP_DIR.name.lower() == "src" else APP_DIR
+
+
+def _developer_deps_dir() -> Path:
+    return _project_root() / "tools" / "deps"
+
+
 def _initial_deps_dir() -> Path:
     env_value = os.environ.get("LATEXSNIPPER_DEPS_DIR")
     if env_value:
         return Path(env_value)
     if _is_packaged_mode() and os.name != "nt":
         return _app_state_dir() / "deps"
-    return APP_DIR / "deps"
+    current_dev_base = _current_dev_install_base_dir()
+    if current_dev_base is not None:
+        return current_dev_base
+    return _developer_deps_dir()
 
 
 def _same_exe(a: str, b: str) -> bool:
@@ -205,7 +217,7 @@ def _current_dev_install_base_dir() -> Path | None:
     except Exception:
         pass
     try:
-        base = (APP_DIR / "deps").resolve()
+        base = _developer_deps_dir().resolve()
         pyexe = _find_install_base_python(base)
         if pyexe is not None and _same_exe(str(pyexe), sys.executable):
             return base

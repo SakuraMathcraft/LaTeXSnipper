@@ -6,6 +6,7 @@
     ],
     "extraPaths": [
         ".",
+        "src",
         "tools/deps/python311/Lib/site-packages"
     ],
     "exclude": [

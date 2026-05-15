@@ -4,8 +4,10 @@ import sys
 from pathlib import Path
 
 _SRC_DIR = Path(__file__).resolve().parent
-if str(_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_SRC_DIR))
+_ROOT_DIR = _SRC_DIR.parent
+for _path in (_ROOT_DIR, _SRC_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from runtime.main_preflight import pre_bootstrap_runtime  # noqa: E402
 
