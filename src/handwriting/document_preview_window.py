@@ -489,7 +489,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
         btn_row.addStretch(1)
         self.copy_btn = PushButton(FluentIcon.COPY, "复制")
         self.export_pdf_btn = PushButton(FluentIcon.DOCUMENT, "导出 PDF")
-        self.export_btn = PushButton(FluentIcon.SHARE, "导出 .tex")
+        self.export_btn = PushButton(FluentIcon.SHARE, self._export_button_label())
         self.close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
         for btn in (self.copy_btn, self.export_pdf_btn, self.export_btn, self.close_btn):
             btn.setFixedHeight(34)
@@ -1236,11 +1236,12 @@ class HandwritingDocumentPreviewWindow(QDialog):
 
     def _copy_all(self) -> None:
         text = self.document_text()
+        ext_label = "Typst" if self._is_typst_mode() else "TeX"
         if not text:
-            InfoBar.warning(title="当前无内容", content="没有可复制的 TeX 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(title="当前无内容", content=f"没有可复制的 {ext_label} 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
             return
         QApplication.clipboard().setText(text)
-        InfoBar.success(title="已复制", content="TeX 文档已复制到剪贴板。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+        InfoBar.success(title="已复制", content=f"{ext_label} 文档已复制到剪贴板。", parent=self, position=InfoBarPosition.TOP, duration=2500)
 
     def _current_preview_source_path(self) -> Path | None:
         pdf_path = Path(self._preview_pdf_path) if self._preview_pdf_path else None
@@ -1251,10 +1252,15 @@ class HandwritingDocumentPreviewWindow(QDialog):
 
     def _export_tex(self) -> None:
         text = self.document_text()
+        is_typst = self._is_typst_mode()
+        ext_label = "Typst" if is_typst else "TeX"
+        ext = ".typ" if is_typst else ".tex"
+        filter_str = f"{ext_label} 文档 (*{ext})"
+        default_name = f"handwriting_layout{ext}"
         if not text:
-            InfoBar.warning(title="当前无内容", content="没有可导出的 TeX 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(title="当前无内容", content=f"没有可导出的 {ext_label} 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
             return
-        path, _ = QFileDialog.getSaveFileName(self, "导出 TeX 文档", "handwriting_layout.tex", "TeX 文档 (*.tex)")
+        path, _ = QFileDialog.getSaveFileName(self, f"导出 {ext_label} 文档", default_name, filter_str)
         if not path:
             return
         try:
@@ -1362,6 +1368,12 @@ class HandwritingDocumentPreviewWindow(QDialog):
             return get_document_render_mode()
         except Exception:
             return "auto"
+
+    def _is_typst_mode(self) -> bool:
+        return self._current_render_mode() == "typst"
+
+    def _export_button_label(self) -> str:
+        return "导出 .typ" if self._is_typst_mode() else "导出 .tex"
 
     def _update_compile_button_state(self) -> None:
         if self._compile_thread is not None and self._compile_thread.isRunning():

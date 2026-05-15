@@ -172,7 +172,7 @@ class HandwritingWindow(QDialog):
         result_header = QHBoxLayout()
         result_header.setContentsMargins(0, 0, 0, 0)
         result_header.setSpacing(8)
-        self.result_title = QLabel("LaTeX 结果")
+        self.result_title = QLabel(self._result_format_name() + " 结果")
         self.result_title.setObjectName("handwritingSectionTitle")
         result_header.addWidget(self.result_title)
         result_header.addStretch(1)
@@ -221,7 +221,7 @@ class HandwritingWindow(QDialog):
         self.status_label.setObjectName("handwritingStatus")
         bottom.addWidget(self.status_label)
         bottom.addStretch(1)
-        self.copy_btn = PushButton(FluentIcon.COPY, "复制 LaTeX")
+        self.copy_btn = PushButton(FluentIcon.COPY, f"复制 {self._result_format_name()}")
         layout_icon = getattr(FluentIcon, "HIGHLIGHT", None) or getattr(FluentIcon, "HIGHTLIGHT", FluentIcon.ALIGNMENT)
         self.layout_btn = PushButton(layout_icon, "自动排版")
         self.insert_btn = PrimaryPushButton(FluentIcon.ACCEPT, "插入")
@@ -969,6 +969,17 @@ class HandwritingWindow(QDialog):
         except Exception:
             return "latex"
 
+    @staticmethod
+    def _is_typst_document_mode() -> bool:
+        try:
+            from backend.latex_renderer import get_document_render_mode
+            return get_document_render_mode() == "typst"
+        except Exception:
+            return False
+
+    def _result_format_name(self) -> str:
+        return "Typst" if self._is_typst_document_mode() else "LaTeX"
+
     def _build_preview_body(self, content: str) -> str:
         mode = self._preview_output_mode()
         if mode != "latex":
@@ -1044,9 +1055,10 @@ class HandwritingWindow(QDialog):
 
     def _insert_result(self) -> None:
         text = self.result_editor.toPlainText().strip()
+        fmt_name = self._result_format_name()
         if not text:
             self.status_label.setText("没有可插入的内容")
-            self._show_warning("当前无内容", "请先识别或手动编辑 LaTeX 后再插入。")
+            self._show_warning("当前无内容", f"请先识别或手动编辑 {fmt_name} 后再插入。")
             return
         self.latexInserted.emit(text)
         self.status_label.setText("已插入主窗口，当前内容已保留")
@@ -1054,13 +1066,14 @@ class HandwritingWindow(QDialog):
 
     def _copy_result(self) -> None:
         text = self.result_editor.toPlainText().strip()
+        fmt_name = self._result_format_name()
         if not text:
             self.status_label.setText("没有可复制的内容")
-            self._show_warning("当前无内容", "请先识别或手动编辑 LaTeX 后再复制。")
+            self._show_warning("当前无内容", f"请先识别或手动编辑 {fmt_name} 后再复制。")
             return
         QApplication.clipboard().setText(text)
-        self.status_label.setText("已复制 LaTeX")
-        self._show_info("已复制", "LaTeX 已复制到剪贴板。")
+        self.status_label.setText(f"已复制 {fmt_name}")
+        self._show_info("已复制", f"{fmt_name} 已复制到剪贴板。")
 
     def _build_math_document_prompt(self, recognized_text: str) -> str:
         base = (

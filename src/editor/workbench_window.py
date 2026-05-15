@@ -46,6 +46,20 @@ class WorkbenchWindow(QWidget):
         "复制 MathJSON": "mathjson",
     }
 
+    @staticmethod
+    def _is_typst_mode() -> bool:
+        try:
+            from backend.latex_renderer import get_document_render_mode
+            return get_document_render_mode() == "typst"
+        except Exception:
+            return False
+
+    @classmethod
+    def _copy_actions(cls) -> dict:
+        if cls._is_typst_mode():
+            return {"复制 Typst": "latex", "复制 MathJSON": "mathjson"}
+        return {"复制 LaTeX": "latex", "复制 MathJSON": "mathjson"}
+
     def __init__(self, parent=None, on_insert_latex=None):
         # Keep a logical owner, but create a true top-level desktop window.
         super().__init__(None)
@@ -96,7 +110,7 @@ class WorkbenchWindow(QWidget):
         self.multiline_combo.addItem("displaylines", userData="displaylines")
         self.multiline_combo.addItem("multline", userData="multline")
         self.multiline_combo.addItem("align", userData="align")
-        for label, key in self.COPY_ACTIONS.items():
+        for label, key in self._copy_actions().items():
             self.copy_combo.addItem(label, userData=key)
         for name in self.EXAMPLES:
             self.example_combo.addItem(name)
