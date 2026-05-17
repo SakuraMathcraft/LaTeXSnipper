@@ -95,22 +95,31 @@ class WorkbenchBridge(QObject):
             return
         self.insertRequested.emit(text)
 
+    @staticmethod
+    def _format_name() -> str:
+        try:
+            from backend.latex_renderer import get_document_render_mode
+            return "Typst" if get_document_render_mode() == "typst" else "LaTeX"
+        except Exception:
+            return "LaTeX"
+
     @pyqtSlot(str)
     def copyLatexToClipboard(self, latex: str) -> None:
         text = latex or ""
+        fmt = self._format_name()
         try:
             clipboard = QGuiApplication.clipboard()
             if clipboard is not None:
                 clipboard.setText(text)
-            self.statusChanged.emit("已复制 LaTeX")
+            self.statusChanged.emit(f"已复制 {fmt}")
         except Exception:
             try:
                 import pyperclip
 
                 pyperclip.copy(text)
-                self.statusChanged.emit("已复制 LaTeX")
+                self.statusChanged.emit(f"已复制 {fmt}")
             except Exception as e:
-                self.statusChanged.emit(f"LaTeX 复制失败：{e}")
+                self.statusChanged.emit(f"{fmt} 复制失败：{e}")
 
     @pyqtSlot(str)
     def copyMathJsonToClipboard(self, payload: str) -> None:

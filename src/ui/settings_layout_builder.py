@@ -14,6 +14,8 @@ class SettingsLayoutMixin:
         self._model_selection_syncing = False
         self._latex_test_in_progress = False
         self._latex_detect_in_progress = False
+        self._typst_test_in_progress = False
+        self._typst_detect_in_progress = False
         self._external_test_thread = None
         self._external_test_worker = None
         self._external_help_window = None
@@ -239,9 +241,10 @@ class SettingsLayoutMixin:
             "CDN MathJax",
             "LaTeX + pdflatex",
             "LaTeX + xelatex",
+            "Typst",
         ])
         # Store the corresponding data.
-        self._render_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
+        self._render_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex", "typst"]
         lay.addWidget(self.render_engine_combo)
         # LaTeX options container; shown only when LaTeX is selected.
         self.latex_options_widget = QWidget()
@@ -276,6 +279,39 @@ class SettingsLayoutMixin:
         latex_layout.addWidget(self.lbl_latex_desc)
         self.latex_options_widget.setVisible(False)  # Hidden by default.
         lay.addWidget(self.latex_options_widget)
+        # Typst options container; shown only when Typst is selected.
+        self.typst_options_widget = QWidget()
+        typst_layout = QVBoxLayout(self.typst_options_widget)
+        typst_layout.setContentsMargins(0, 8, 0, 0)
+        typst_layout.setSpacing(6)
+        # Typst path selector.
+        typst_path_layout = QHBoxLayout()
+        typst_path_layout.addWidget(QLabel("Typst 路径:"))
+        self.typst_path_input = QLineEdit()
+        self.typst_path_input.setPlaceholderText("例：C:\\Users\\user\\.cargo\\bin\\typst.exe（留空自动检测）")
+        self.typst_path_input.setFixedHeight(32)
+        typst_path_layout.addWidget(self.typst_path_input)
+        self.btn_browse_typst = PushButton(FluentIcon.FOLDER, "浏览")
+        self.btn_browse_typst.setFixedWidth(80)
+        self.btn_browse_typst.setFixedHeight(32)
+        typst_path_layout.addWidget(self.btn_browse_typst)
+        typst_layout.addLayout(typst_path_layout)
+        # Typst action buttons.
+        typst_btn_layout = QHBoxLayout()
+        self.btn_detect_typst = PushButton(FluentIcon.SEARCH, "自动检测")
+        self.btn_detect_typst.setFixedHeight(32)
+        typst_btn_layout.addWidget(self.btn_detect_typst)
+        self.btn_test_typst = PrimaryPushButton("验证路径")
+        self.btn_test_typst.setFixedHeight(32)
+        typst_btn_layout.addWidget(self.btn_test_typst)
+        typst_layout.addLayout(typst_btn_layout)
+        # Typst description.
+        self.lbl_typst_desc = QLabel("💡 需要安装 Typst CLI（https://github.com/typst/typst），并可选安装 pypandoc 实现 LaTeX→Typst 转换")
+        self.lbl_typst_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
+        self.lbl_typst_desc.setWordWrap(True)
+        typst_layout.addWidget(self.lbl_typst_desc)
+        self.typst_options_widget.setVisible(False)  # Hidden by default.
+        lay.addWidget(self.typst_options_widget)
         # Check for updates.
         lay.addWidget(QLabel("检查更新:"))
         update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
@@ -342,10 +378,16 @@ class SettingsLayoutMixin:
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
         self.latex_path_test_done.connect(self._on_latex_path_test_done)
         self.latex_auto_detect_done.connect(self._on_latex_auto_detect_done)
+        self.typst_path_test_done.connect(self._on_typst_path_test_done)
+        self.typst_auto_detect_done.connect(self._on_typst_auto_detect_done)
         self.btn_browse_latex.clicked.connect(self._browse_latex_path)
         self.btn_detect_latex.clicked.connect(self._detect_latex)
         self.btn_test_latex.clicked.connect(self._test_latex_path)
         self.latex_path_input.textChanged.connect(self._on_latex_path_changed)
+        self.btn_browse_typst.clicked.connect(self._browse_typst_path)
+        self.btn_detect_typst.clicked.connect(self._detect_typst)
+        self.btn_test_typst.clicked.connect(self._test_typst_path)
+        self.typst_path_input.textChanged.connect(self._on_typst_path_changed)
         self.external_apply_preset_btn.clicked.connect(self._apply_external_preset)
         self.external_test_btn.clicked.connect(self._test_external_model_connection)
         self.external_help_btn.clicked.connect(self._show_external_model_help)

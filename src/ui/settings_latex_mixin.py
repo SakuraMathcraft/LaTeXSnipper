@@ -28,7 +28,7 @@ class SettingsLatexMixin:
     def _init_render_engine(self):
         """Initialize render-engine selection."""
         try:
-            from backend.latex_renderer import _latex_settings, LaTeXRenderer
+            from backend.latex_renderer import _latex_settings, LaTeXRenderer, TypstRenderer
             if _latex_settings:
                 mode = _latex_settings.get_render_mode()
                 self.render_engine_combo.currentIndexChanged.disconnect(self._on_render_engine_changed)
@@ -44,13 +44,22 @@ class SettingsLatexMixin:
                 if current_index >= 0 and current_index < len(self._render_modes):
                     engine = self._render_modes[current_index]
                     is_latex = engine.startswith("latex_")
+                    is_typst = engine == "typst"
                     self.latex_options_widget.setVisible(is_latex)
+                    self.typst_options_widget.setVisible(is_typst)
                     # Try auto detection in LaTeX mode.
                     if is_latex and not _latex_settings.get_latex_path():
                         renderer = LaTeXRenderer()
                         if renderer.is_available():
                             self.latex_path_input.setText(renderer.latex_cmd)
                             _latex_settings.set_latex_path(renderer.latex_cmd)
+                            _latex_settings.save()
+                    # Try auto detection in Typst mode.
+                    if is_typst and not _latex_settings.get_typst_path():
+                        renderer = TypstRenderer()
+                        if renderer.is_available():
+                            self.typst_path_input.setText(renderer.typst_cmd)
+                            _latex_settings.set_typst_path(renderer.typst_cmd)
                             _latex_settings.save()
         except Exception as e:
             print(f"[WARN] 初始化渲染引擎失败: {e}")
@@ -64,26 +73,44 @@ class SettingsLatexMixin:
             print(f"[WARN] 渲染引擎索引无效: {index}")
             return
         engine = self._render_modes[index]
-        # Show or hide LaTeX options.
+        # Show or hide LaTeX/Typst options.
         is_latex = engine.startswith("latex_")
+        is_typst = engine == "typst"
         self.latex_options_widget.setVisible(is_latex)
+        self.typst_options_widget.setVisible(is_typst)
         if is_latex:
             self._sync_latex_path_for_engine(engine)
             latex_path = self.latex_path_input.text().strip()
             if not latex_path:
-                self._show_notification("warning", "LaTeX 路径未配置", "已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。")
+                self._show_notification("warning", "LaTeX 路径未配置", '已切换引擎。请点击"自动检测"或手动选择路径，再点"验证路径"。')
+        if is_typst:
+            typst_path = self.typst_path_input.text().strip()
+            if not typst_path:
+                # Try auto-detect on switch
+                try:
+                    from backend.latex_renderer import TypstRenderer
+                    renderer = TypstRenderer()
+                    if renderer.is_available():
+                        self.typst_path_input.setText(renderer.typst_cmd)
+                except Exception:
+                    pass
+            if not self.typst_path_input.text().strip():
+                self._show_notification("warning", "Typst 路径未配置", '已切换引擎。请点击"自动检测"或手动选择路径，再点"验证路径"。')
 
         # Save engine changes immediately; expensive validation is triggered by the path validation button.
         self._save_render_mode(engine)
 
     def _load_latex_settings(self):
-        """Load LaTeX settings."""
+        """Load LaTeX and Typst settings."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 latex_path = _latex_settings.get_latex_path()
                 if latex_path:
                     self.latex_path_input.setText(latex_path)
+                typst_path = _latex_settings.get_typst_path()
+                if typst_path:
+                    self.typst_path_input.setText(typst_path)
         except Exception as e:
             print(f"[WARN] 加载 LaTeX 设置失败: {e}")
 
@@ -178,11 +205,12 @@ class SettingsLatexMixin:
             self._show_notification("warning", "检测失败", f"未检测到 LaTeX。\n\n{detail}")
 
     def _save_latex_settings(self):
-        """Save LaTeX settings."""
+        """Save LaTeX and Typst settings."""
         try:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 latex_path = self.latex_path_input.text().strip()
+                typst_path = self.typst_path_input.text().strip()
                 mode = "auto"
                 idx = self.render_engine_combo.currentIndex()
                 if 0 <= idx < len(self._render_modes):
@@ -197,6 +225,9 @@ class SettingsLatexMixin:
                     _latex_settings.set_latex_path(latex_path)
                     _latex_settings.settings["use_xelatex"] = use_xelatex
                     print(f"[LaTeX] 设置已保存: {latex_path}")
+                if typst_path:
+                    _latex_settings.set_typst_path(typst_path)
+                    print(f"[Typst] 设置已保存: {typst_path}")
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
 
@@ -318,13 +349,19 @@ class SettingsLatexMixin:
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
                 print(f"[Render] 已切换渲染引擎: {engine}")
+                # Notify main window of render mode change.
+                try:
+                    self.render_mode_changed.emit(engine)
+                except Exception:
+                    pass
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（推荐）",
                     "mathjax_local": "本地 MathJax",
                     "mathjax_cdn": "CDN MathJax",
                     "latex_pdflatex": "LaTeX + pdflatex",
-                    "latex_xelatex": "LaTeX + xelatex"
+                    "latex_xelatex": "LaTeX + xelatex",
+                    "typst": "Typst",
                 }
                 if engine in mode_names:
                     self._show_notification(
@@ -334,3 +371,152 @@ class SettingsLatexMixin:
                     )
         except Exception as e:
             print(f"[ERROR] 保存渲染模式失败: {e}")
+
+    # ------------------------------------------------------------------
+    # Typst path & validation methods
+    # ------------------------------------------------------------------
+
+    def _on_typst_path_changed(self):
+        """Handle Typst path changes by clearing validation state."""
+        if getattr(self, "_typst_test_in_progress", False):
+            return
+        self.btn_test_typst.setText("验证路径")
+        self.btn_test_typst.setEnabled(True)
+
+    def _browse_typst_path(self):
+        """Browse for a Typst executable path."""
+        import sys
+        if sys.platform == "win32":
+            file_filter = "可执行文件 (typst.exe);;所有文件 (*.*)"
+        else:
+            file_filter = "所有文件 (*)"
+        file_path, _ = _select_open_file_with_icon(
+            self,
+            "选择 Typst 可执行文件",
+            "",
+            file_filter,
+        )
+        if file_path:
+            self.typst_path_input.setText(file_path)
+            self._save_latex_settings()
+
+    def _detect_typst(self):
+        """Detect Typst asynchronously."""
+        if getattr(self, "_typst_detect_in_progress", False):
+            return
+
+        self._typst_detect_in_progress = True
+        self.btn_detect_typst.setText("检测中...")
+        self.btn_detect_typst.setEnabled(False)
+
+        def worker():
+            import shutil as _shutil
+            import subprocess as _subprocess
+            import os as _os
+
+            found_path = ""
+            detail = ""
+            try:
+                # Try shutil.which first (cross-platform)
+                found_path = (_shutil.which("typst") or "").strip()
+                if found_path:
+                    detail = f"在 PATH 中找到: {found_path}"
+                else:
+                    # Try common install locations
+                    home = _os.path.expanduser("~")
+                    candidates = [
+                        _os.path.join(home, ".cargo", "bin", "typst"),
+                        _os.path.join(home, ".cargo", "bin", "typst.exe"),
+                    ]
+                    if _os.name == "nt":
+                        import platform
+                        if platform.machine().endswith("64"):
+                            candidates.append(_os.path.join(
+                                _os.environ.get("ProgramFiles", "C:\\Program Files"),
+                                "typst", "typst.exe"
+                            ))
+                    for c in candidates:
+                        if _os.path.isfile(c):
+                            found_path = c
+                            detail = f"在常见路径中找到: {c}"
+                            break
+                    if not found_path:
+                        detail = "未找到 Typst。请安装: https://github.com/typst/typst/releases"
+            except Exception as e:
+                detail = f"检测出错: {e}"
+
+            self.typst_auto_detect_done.emit(bool(found_path), found_path, detail)
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_typst_auto_detect_done(self, ok: bool, typst_path: str, detail: str):
+        self._typst_detect_in_progress = False
+        self.btn_detect_typst.setText("自动检测")
+        self.btn_detect_typst.setEnabled(True)
+
+        if ok:
+            self.typst_path_input.setText(str(typst_path or ""))
+            self._save_latex_settings()
+            self._show_notification("success", "检测成功", detail)
+        else:
+            self._show_notification("warning", "检测失败", detail)
+
+    def _test_typst_path(self):
+        """Test the Typst path asynchronously."""
+        typst_path = self.typst_path_input.text().strip()
+        if not typst_path:
+            self._show_notification("error", "路径为空", "请输入 Typst 路径或点击自动检测")
+            return False
+        if getattr(self, "_typst_test_in_progress", False):
+            return False
+
+        self._typst_test_in_progress = True
+        self.btn_test_typst.setText("验证中...")
+        self.btn_test_typst.setEnabled(False)
+
+        def worker(path_value: str):
+            from backend.latex_renderer import TypstRenderer
+
+            ok = False
+            title = "验证失败"
+            message = "无法用该路径渲染公式，请检查安装"
+            try:
+                renderer = TypstRenderer(path_value)
+                if not renderer.is_available():
+                    title = "路径无效"
+                    message = "找不到 Typst 可执行文件"
+                else:
+                    print(f"[Typst] 测试路径: {path_value}")
+                    test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
+                    if test_svg and len(test_svg) > 100:
+                        ok = True
+                        title = "验证成功"
+                        message = "Typst 环境已就绪"
+                    else:
+                        message = "Typst 渲染失败，请检查 Typst 安装和 pypandoc 是否可用"
+            except Exception as e:
+                print(f"[ERROR] Typst 验证失败: {e}")
+                title = "验证出错"
+                message = str(e)[:100]
+            self.typst_path_test_done.emit(bool(ok), str(title), str(message), str(path_value))
+
+        import threading
+        threading.Thread(target=worker, args=(typst_path,), daemon=True).start()
+        return True
+
+    def _on_typst_path_test_done(self, ok: bool, title: str, message: str, tested_path: str):
+        self._typst_test_in_progress = False
+        if ok:
+            self.btn_test_typst.setText("✓ 已验证")
+            self.btn_test_typst.setEnabled(False)
+            try:
+                if self.typst_path_input.text().strip() == (tested_path or "").strip():
+                    self._save_latex_settings()
+            except Exception:
+                pass
+            self._show_notification("success", title or "验证成功", f"Typst 环境已就绪\n路径: {tested_path or ''}")
+            return
+        self.btn_test_typst.setText("验证路径")
+        self.btn_test_typst.setEnabled(True)
+        self._show_notification("error", title or "验证失败", message or "无法用该路径渲染公式，请检查安装")

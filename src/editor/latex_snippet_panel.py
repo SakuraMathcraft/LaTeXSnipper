@@ -31,7 +31,48 @@ COMPACT_LATEX_SNIPPETS = {
     "换行": ("newline", r" \\ "),
 }
 
+# Typst math syntax snippets (for use inside Typst math mode $...$)
+TYPST_SNIPPETS = {
+    "分式  (/)": ("fraction", r"#? / #?"),
+    "上标  (Shift+^)": ("superscript", r"x^#?"),
+    "下标  (Shift+_)": ("subscript", r"x_#?"),
+    "上下标  (Shift+_ + Shift+^)": ("subsuperscript", r"x_#?^#?"),
+    "根号  (sqrt)": ("sqrt", r"sqrt(#?)"),
+    "求和  (sum)": ("sum", r"sum_(n=1)^oo #?"),
+    "连乘  (prod)": ("product", r"product_(n=1)^oo #?"),
+    "积分  (int)": ("integral", r"integral_a^b #? dif x"),
+    "矩阵  (matrix)": ("matrix2", r"mat(#?, #?; #?, #?)"),
+    "换行  (Shift+Enter)": ("newline", r"\\ "),
+}
+
+COMPACT_TYPST_SNIPPETS = {
+    "分式": ("fraction", r"#? / #?"),
+    "上标": ("superscript", r"x^#?"),
+    "下标": ("subscript", r"x_#?"),
+    "上下标": ("subsuperscript", r"x_#?^#?"),
+    "根号": ("sqrt", r"sqrt(#?)"),
+    "求和": ("sum", r"sum_(n=1)^oo #?"),
+    "连乘": ("product", r"product_(n=1)^oo #?"),
+    "积分": ("integral", r"integral_a^b #? dif x"),
+    "矩阵": ("matrix2", r"mat(#?, #?; #?, #?)"),
+    "换行": ("newline", r"\\ "),
+}
+
 SNIPPET_TEMPLATES = {key: template for key, template in (value for value in LATEX_SNIPPETS.values())}
+# Also merge Typst templates so insert_snippet_into_editor can resolve both.
+for _key, _template in TYPST_SNIPPETS.values():
+    SNIPPET_TEMPLATES.setdefault(_key, _template)
+
+
+def _get_snippets_for_mode(compact: bool) -> dict:
+    """Return the appropriate snippet dictionary based on current render mode."""
+    try:
+        from exporting.formula_converters import get_current_render_mode
+        if get_current_render_mode() == "typst":
+            return COMPACT_TYPST_SNIPPETS if compact else TYPST_SNIPPETS
+    except Exception:
+        pass
+    return COMPACT_LATEX_SNIPPETS if compact else LATEX_SNIPPETS
 
 
 def insert_snippet_into_editor(editor, key: str) -> bool:
@@ -76,7 +117,8 @@ class LaTeXSnippetPanel(QWidget):
     def __init__(self, parent=None, *, insert_button_text: str = "插入", on_insert_key=None, compact: bool = False):
         super().__init__(parent)
         self._on_insert_key = on_insert_key
-        self._snippet_items = COMPACT_LATEX_SNIPPETS if compact else LATEX_SNIPPETS
+        self._compact = compact
+        self._snippet_items = _get_snippets_for_mode(compact)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -89,8 +131,7 @@ class LaTeXSnippetPanel(QWidget):
         self.button.setFixedHeight(30)
         self.button.setMinimumWidth(0)
 
-        for label, (key, _template) in self._snippet_items.items():
-            self.combo.addItem(label, userData=key)
+        self._rebuild_combo_items()
 
         try:
             self.combo.view().setVerticalScrollMode(self.combo.view().ScrollMode.ScrollPerPixel)
@@ -101,6 +142,19 @@ class LaTeXSnippetPanel(QWidget):
         layout.addWidget(self.button)
 
         self.button.clicked.connect(self._emit_insert)
+
+    def _rebuild_combo_items(self):
+        """Rebuild combo box items from the current snippet set."""
+        self.combo.clear()
+        for label, (key, _template) in self._snippet_items.items():
+            self.combo.addItem(label, userData=key)
+
+    def refresh_snippets(self) -> None:
+        """Refresh snippets based on the current render mode."""
+        new_items = _get_snippets_for_mode(self._compact)
+        if new_items is not self._snippet_items:
+            self._snippet_items = new_items
+            self._rebuild_combo_items()
 
     def current_key(self) -> str:
         return str(self.combo.currentData() or self.combo.currentText().strip())

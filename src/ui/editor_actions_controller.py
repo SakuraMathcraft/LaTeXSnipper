@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QApplication
-from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
+from exporting.formula_converters import (
+    convert_typst_to_latex,
+    get_current_render_mode,
+    latex_to_mathml,
+    latex_to_omml,
+    latex_to_svg_code,
+)
 from ui.favorites_window import FavoritesWindow
 from ui.formula_export_menu import export_formula_to_clipboard, show_formula_export_menu
 from ui.menu_helpers import CenterMenu
@@ -78,6 +84,10 @@ class EditorActionsControllerMixin:
     def _export_as(self, format_type: str, latex: str, info_parent=None):
         """Export the formula in the requested format."""
         try:
+            # When the render engine is Typst, the editor content is Typst syntax.
+            # Convert Typst to LaTeX so latex2mathml / matplotlib mathtext can process it.
+            if get_current_render_mode() == "typst":
+                latex = convert_typst_to_latex(latex)
             _ok, message = export_formula_to_clipboard(
                 format_type,
                 latex,

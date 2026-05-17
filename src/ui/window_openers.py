@@ -23,6 +23,7 @@ class WindowOpenersMixin:
         if not self.settings_window:
             self.settings_window = SettingsWindow(self)
             self.settings_window.model_changed.connect(self.on_model_changed)
+            self.settings_window.render_mode_changed.connect(self._on_render_mode_changed)
             self.settings_window.destroyed.connect(lambda: setattr(self, "settings_window", None))
         self.settings_window.show()
         try:

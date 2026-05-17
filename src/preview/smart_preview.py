@@ -131,6 +131,19 @@ body {{
     transform: scale(1.25);
     transform-origin: center center;
 }}
+.typst-raw-content {{
+    display: block;
+    padding: 8px 12px;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 13px;
+    color: {tokens['muted_text']};
+    background: {tokens['pre_bg']};
+    border-radius: 4px;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border: 1px dashed {tokens['table_border']};
+}}
 .formula-content.latex-svg {{
     color: {tokens['latex_formula_text']};
     padding-top: 0.25em;
@@ -203,7 +216,7 @@ def render_content_block(
         content_type = normalize_content_type(str(content_type or "mathcraft"))
 
         if debug:
-            print(f"[RenderBlock] 处理内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
+            print(f"[RenderBlock] Processing block: type={content_type}, label_len={len(label)}, content_len={len(content)}")
 
         type_name, type_class = {
             "mathcraft": ("公式", ""),
@@ -228,10 +241,10 @@ def render_content_block(
     <div class="block-content">{rendered_content}</div>
 </div>'''
         if debug:
-            print(f"[RenderBlock] 渲染成功，输出长度: {len(result)}")
+            print(f"[RenderBlock] Render succeeded, output length: {len(result)}")
         return result
     except Exception as exc:
-        print(f"[RenderBlock] 处理内容块失败: {exc}")
+        print(f"[RenderBlock] Block render failed: {exc}")
         tokens = preview_theme_tokens()
         error_msg = f"内容块渲染失败: {exc}"
         return (
@@ -251,13 +264,23 @@ def render_formula_content_html(
     schedule_render: Callable[[str], None],
 ) -> str:
     try:
-        if render_mode and render_mode.startswith("latex_"):
+        is_svg_mode = render_mode and (render_mode.startswith("latex_") or render_mode == "typst")
+        is_typst = render_mode == "typst"
+        if is_svg_mode:
             if has_cached_svg:
                 if cached_svg:
                     safe_svg = namespace_svg_ids(cached_svg, cache_key)
                     return f'<div class="formula-content latex-svg">{safe_svg}</div>'
+                # Cached but empty: render failed previously.
+                if is_typst:
+                    # Typst render failed: show raw code (not MathJax, which can't parse Typst).
+                    return f'<div class="typst-raw-content">{html_module.escape(content)}</div>'
                 return f'<div class="formula-content">$${content}$$</div>'
+            # No cache yet: schedule async render.
             schedule_render(content)
+            if is_typst:
+                # Typst: show raw code as placeholder while SVG renders (MathJax can't parse Typst).
+                return f'<div class="typst-raw-content">{html_module.escape(content)}</div>'
         return f'<div class="formula-content">$${content}$$</div>'
     except Exception:
         return f'<div class="formula-content">$${content}$$</div>'
@@ -284,6 +307,6 @@ def render_mixed_content(content: str) -> str:
 
         return "".join(result_parts)
     except Exception as exc:
-        print(f"[RenderMixed] 混合内容渲染失败: {exc}")
+        print(f"[RenderMixed] Mixed content render failed: {exc}")
         return f'<div style="color: red;">{html_module.escape(f"混合内容渲染失败: {exc}")}</div>'
 
