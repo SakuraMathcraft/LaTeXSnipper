@@ -349,6 +349,11 @@ class SettingsLatexMixin:
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
                 print(f"[Render] 已切换渲染引擎: {engine}")
+                # Notify main window of render mode change.
+                try:
+                    self.render_mode_changed.emit(engine)
+                except Exception:
+                    pass
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（推荐）",

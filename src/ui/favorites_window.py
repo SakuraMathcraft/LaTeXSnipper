@@ -10,7 +10,13 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 
-from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
+from exporting.formula_converters import (
+    convert_typst_to_latex,
+    get_current_render_mode,
+    latex_to_mathml,
+    latex_to_omml,
+    latex_to_svg_code,
+)
 from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
 from runtime.config_manager import normalize_content_type, resolve_user_data_file
@@ -270,6 +276,10 @@ class FavoritesWindow(QMainWindow):
     def _export_as(self, format_type: str, latex: str):
         """Export the formula to the requested format."""
         try:
+            # When the render engine is Typst, the editor content may be Typst syntax.
+            # Convert Typst to LaTeX so latex2mathml / matplotlib mathtext can process it.
+            if get_current_render_mode() == "typst":
+                latex = convert_typst_to_latex(latex)
             _ok, message = export_formula_to_clipboard(
                 format_type,
                 latex,

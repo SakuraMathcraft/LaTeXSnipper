@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout
 
 from runtime.app_paths import resource_path
 
@@ -15,50 +15,26 @@ def apply_app_window_icon(win) -> None:
 
 
 def select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
+    # Use QFileDialog.getExistingDirectory() static method (safer than manual .exec())
+    # but keep the native-dialog icon hack via schedule_native_dialog_icon.
     from core.window_icons import schedule_native_dialog_icon
 
-    owner = parent
-    if owner is None:
-        owner = QWidget()
-        owner.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
-        apply_app_window_icon(owner)
-    dlg = QFileDialog(owner, title, initial_dir)
-    dlg.setFileMode(QFileDialog.FileMode.Directory)
-    dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
-    apply_app_window_icon(dlg)
     icon_timer = schedule_native_dialog_icon(title, resource_path("assets/icon.ico"))
     try:
-        if dlg.exec() != QFileDialog.DialogCode.Accepted:
-            return ""
+        return QFileDialog.getExistingDirectory(parent, title, initial_dir)
     finally:
         if icon_timer is not None:
             icon_timer.stop()
-    selected = dlg.selectedFiles()
-    return selected[0] if selected else ""
 
 
 def select_save_file_with_icon(parent, title: str, initial_path: str, filter_: str):
-    dlg = QFileDialog(parent, title, initial_path, filter_)
-    dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-    dlg.setFileMode(QFileDialog.FileMode.AnyFile)
-    apply_app_window_icon(dlg)
-    if dlg.exec() != QFileDialog.DialogCode.Accepted:
-        return "", ""
-    selected = dlg.selectedFiles()
-    chosen_filter = dlg.selectedNameFilter()
-    return (selected[0] if selected else ""), chosen_filter
+    # Use QFileDialog.getSaveFileName() static method — safer than manual .exec()
+    return QFileDialog.getSaveFileName(parent, title, initial_path, filter_)
 
 
 def select_open_file_with_icon(parent, title: str, initial_path: str, filter_: str):
-    dlg = QFileDialog(parent, title, initial_path, filter_)
-    dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
-    dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
-    apply_app_window_icon(dlg)
-    if dlg.exec() != QFileDialog.DialogCode.Accepted:
-        return "", ""
-    selected = dlg.selectedFiles()
-    chosen_filter = dlg.selectedNameFilter()
-    return (selected[0] if selected else ""), chosen_filter
+    # Use QFileDialog.getOpenFileName() static method — safer than manual .exec()
+    return QFileDialog.getOpenFileName(parent, title, initial_path, filter_)
 
 
 def apply_close_only_window_flags(win):
@@ -154,15 +130,16 @@ def exec_close_only_message_box(
     default_button=None,
     informative_text: str | None = None,
 ):
-    msg = QMessageBox(parent)
-    apply_app_window_icon(msg)
-    msg.setWindowTitle(title)
-    msg.setText(text)
-    msg.setIcon(icon)
-    msg.setStandardButtons(buttons)
-    if default_button is not None:
-        msg.setDefaultButton(default_button)
-    if informative_text:
-        msg.setInformativeText(informative_text)
-    apply_close_only_window_flags(msg)
-    return QMessageBox.StandardButton(msg.exec())
+    """Show a modal message box using PyQt6 static methods (safer than manual .exec())."""
+    full_text = f"{text}\n\n{informative_text}" if informative_text else text
+    if default_button is None:
+        default_button = buttons
+
+    if icon == QMessageBox.Icon.Question:
+        return QMessageBox.question(parent, title, full_text, buttons, default_button)
+    elif icon == QMessageBox.Icon.Warning:
+        return QMessageBox.warning(parent, title, full_text, buttons, default_button)
+    elif icon == QMessageBox.Icon.Critical:
+        return QMessageBox.critical(parent, title, full_text, buttons, default_button)
+    else:
+        return QMessageBox.information(parent, title, full_text, buttons, default_button)

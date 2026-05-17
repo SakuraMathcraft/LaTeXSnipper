@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 
 from exporting.formula_format_helpers import (
@@ -9,6 +10,48 @@ from exporting.formula_format_helpers import (
     mathml_standardize,
     normalize_latex_for_export,
 )
+
+
+def _pypandoc_available() -> bool:
+    """Check whether pypandoc can be imported."""
+    try:
+        return importlib.util.find_spec("pypandoc") is not None
+    except Exception:
+        return False
+
+
+def convert_typst_to_latex(typst: str) -> str:
+    """Convert Typst math formula to LaTeX via pypandoc.
+
+    Returns the original Typst string if pypandoc is unavailable or
+    the conversion fails.
+    """
+    if not typst or not typst.strip():
+        return ""
+    if not _pypandoc_available():
+        return typst
+    try:
+        import pypandoc
+        result = str(pypandoc.convert_text(typst.strip(), "latex", format="typst")).strip()
+        if result:
+            return result
+    except Exception:
+        pass
+    return typst
+
+
+def get_current_render_mode() -> str:
+    """Return the current formula render mode ('typst', 'latex_pdflatex', etc.).
+
+    Returns 'auto' if settings are unavailable.
+    """
+    try:
+        from backend.latex_renderer import _latex_settings
+        if _latex_settings:
+            return _latex_settings.get_render_mode()
+    except Exception:
+        pass
+    return "auto"
 
 
 def latex_to_svg_code(latex: str) -> str:

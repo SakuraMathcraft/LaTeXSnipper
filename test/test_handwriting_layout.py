@@ -199,7 +199,7 @@ def test_paragraph_detection():
         SimpleLine(MockRectF(60, 100, 400, 36)),
         SimpleLine(MockRectF(60, 146, 390, 36)),
         SimpleLine(MockRectF(60, 192, 350, 36)),     # short line, paragraph end
-        SimpleLine(MockRectF(60, 268, 400, 36)),     # large gap → new paragraph
+        SimpleLine(MockRectF(60, 268, 400, 36)),     # large gap to new paragraph
         SimpleLine(MockRectF(60, 314, 380, 36)),
     ]
 
@@ -241,9 +241,9 @@ def test_line_role_classification():
         indent_ratio: float = 0.0
 
     lines = [
-        SimpleLine(MockRectF(300, 50, 200, 52), indent_ratio=0.0),   # centered, large → heading
+        SimpleLine(MockRectF(300, 50, 200, 52), indent_ratio=0.0),   # centered, large to heading
         SimpleLine(MockRectF(60, 130, 400, 36), indent_ratio=0.0),    # body text
-        SimpleLine(MockRectF(80, 176, 230, 34), indent_ratio=0.05),   # indented short → list
+        SimpleLine(MockRectF(80, 176, 230, 34), indent_ratio=0.05),   # indented short to list
         SimpleLine(MockRectF(60, 220, 400, 36), indent_ratio=0.0),    # body text
     ]
 

@@ -10,34 +10,11 @@ from ui.window_helpers import apply_app_window_icon
 
 
 def _pick_item(parent, title: str, label: str, items: list[str], current: int = 0):
-    dlg = QInputDialog(parent)
-    dlg.setWindowTitle(title)
-    dlg.setLabelText(label)
-    dlg.setComboBoxItems(items)
-    dlg.setComboBoxEditable(False)
-    if 0 <= current < len(items):
-        dlg.setTextValue(items[current])
-    dlg.setWindowFlags(
-        (
-            dlg.windowFlags()
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowSystemMenuHint
-        )
-        & ~Qt.WindowType.WindowMinimizeButtonHint
-        & ~Qt.WindowType.WindowMaximizeButtonHint
-        & ~Qt.WindowType.WindowMinMaxButtonsHint
-        & ~Qt.WindowType.WindowContextHelpButtonHint
-    )
-    dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
-    dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
-    dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-    dlg.setFixedSize(dlg.sizeHint())
-    apply_app_window_icon(dlg)
-    if dlg.exec() != int(QDialog.DialogCode.Accepted):
+    # Use QInputDialog.getItem() static method — safer than manual .exec()
+    text, ok = QInputDialog.getItem(parent, title, label, items, current, False)
+    if not ok:
         return None
-    return dlg.textValue()
+    return text
 
 
 def prompt_pdf_output_options(parent, current_model: str, external_config=None):

@@ -48,7 +48,7 @@ class SettingsEnvironmentMixin:
             _apply_app_window_icon(msg)
             msg.yesButton.setText("OK")
             msg.cancelButton.hide()
-            msg.exec()
+            msg.show()
             return
         env_root = self._python_env_root(pyexe)
         pyexe_dir = str(env_root)

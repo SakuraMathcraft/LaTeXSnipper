@@ -9,6 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QTimer, QUrl
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 
+from exporting.formula_converters import convert_typst_to_latex, get_current_render_mode
 from preview.math_preview import dialog_theme_tokens, is_dark_ui, build_math_html
 from runtime.app_paths import get_app_root
 from ui.window_helpers import apply_no_minimize_window_flags
@@ -110,6 +111,15 @@ class EditFormulaDialog(QDialog):
 
     def _build_preview_payload(self, latex: str):
         text = str(latex or "").strip()
+        # When the render engine is Typst, the dialog content is Typst syntax.
+        # Convert Typst → LaTeX so MathJax can render it as a preview.
+        if get_current_render_mode() == "typst" and text:
+            converted = convert_typst_to_latex(text)
+            # If conversion produced a different result, use it; otherwise
+            # pass the original (MathJax will show the raw text which is
+            # better than nothing).
+            if converted and converted != text:
+                text = converted
         return build_math_html(text), self._fallback_local_mathjax_base_url()
 
     def event(self, event):

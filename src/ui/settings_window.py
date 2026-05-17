@@ -23,6 +23,7 @@ class SettingsWindow(
     """Settings window."""
 
     model_changed = pyqtSignal(str)
+    render_mode_changed = pyqtSignal(str)
     compute_mode_probe_done = pyqtSignal(object, str)
     mathcraft_pkg_probe_done = pyqtSignal(bool)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)

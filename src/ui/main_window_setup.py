@@ -160,7 +160,7 @@ class MainWindowSetupMixin:
                     self
                 )
                 _apply_app_window_icon(msg)
-                msg.exec()
+                msg.show()
                 try:
                     ok = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
                     if not ok:
@@ -428,3 +428,25 @@ class MainWindowSetupMixin:
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
+
+        self._update_editor_labels_for_render_mode()
+
+    def _on_render_mode_changed(self, mode: str) -> None:
+        """Handle render mode changes from the settings window."""
+        self._update_editor_labels_for_render_mode()
+
+    def _update_editor_labels_for_render_mode(self) -> None:
+        """Update editor title label and placeholder based on the current render mode."""
+        try:
+            from backend.latex_renderer import get_document_render_mode
+
+            is_typst = get_document_render_mode() == "typst"
+        except Exception:
+            is_typst = False
+
+        if is_typst:
+            self.editor_title_label.setText("Typst 编辑器")
+            self.latex_editor.setPlaceholderText("在此输入 Typst 公式，下方将实时渲染...")
+        else:
+            self.editor_title_label.setText("LaTeX 编辑器")
+            self.latex_editor.setPlaceholderText("在此输入 LaTeX 公式，下方将实时渲染...")
