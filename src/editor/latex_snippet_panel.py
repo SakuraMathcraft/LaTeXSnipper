@@ -31,7 +31,7 @@ COMPACT_LATEX_SNIPPETS = {
     "换行": ("newline", r" \\ "),
 }
 
-# Typst math syntax snippets (Typst 数学模式 $...$ 内使用)
+# Typst math syntax snippets (for use inside Typst math mode $...$)
 TYPST_SNIPPETS = {
     "分式  (/)": ("fraction", r"#? / #?"),
     "上标  (Shift+^)": ("superscript", r"x^#?"),

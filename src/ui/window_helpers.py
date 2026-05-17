@@ -28,12 +28,12 @@ def select_existing_directory_with_icon(parent, title: str, initial_dir: str) ->
 
 
 def select_save_file_with_icon(parent, title: str, initial_path: str, filter_: str):
-    # Use QFileDialog.getSaveFileName() static method — safer than manual .exec()
+    # Use QFileDialog.getSaveFileName() static method -- safer than manual .exec()
     return QFileDialog.getSaveFileName(parent, title, initial_path, filter_)
 
 
 def select_open_file_with_icon(parent, title: str, initial_path: str, filter_: str):
-    # Use QFileDialog.getOpenFileName() static method — safer than manual .exec()
+    # Use QFileDialog.getOpenFileName() static method -- safer than manual .exec()
     return QFileDialog.getOpenFileName(parent, title, initial_path, filter_)
 
 

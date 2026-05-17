@@ -112,7 +112,7 @@ class EditFormulaDialog(QDialog):
     def _build_preview_payload(self, latex: str):
         text = str(latex or "").strip()
         # When the render engine is Typst, the dialog content is Typst syntax.
-        # Convert Typst → LaTeX so MathJax can render it as a preview.
+        # Convert Typst -> LaTeX so MathJax can render it as a preview.
         if get_current_render_mode() == "typst" and text:
             converted = convert_typst_to_latex(text)
             # If conversion produced a different result, use it; otherwise

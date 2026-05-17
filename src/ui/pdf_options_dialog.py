@@ -10,7 +10,7 @@ from ui.window_helpers import apply_app_window_icon
 
 
 def _pick_item(parent, title: str, label: str, items: list[str], current: int = 0):
-    # Use QInputDialog.getItem() static method — safer than manual .exec()
+    # Use QInputDialog.getItem() static method -- safer than manual .exec()
     text, ok = QInputDialog.getItem(parent, title, label, items, current, False)
     if not ok:
         return None
