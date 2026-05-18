@@ -602,16 +602,43 @@ def _clean_pandoc_typst_artifacts(typst: str) -> str:
     Typst parsing and must be repaired.
 
     >>> _clean_pandoc_typst_artifacts('sum_(n {= 1)^oo 1 / n^2}')
-    'sum_(n = 1)^oo 1 / n^2'
+    'sum_(n = 1)^infinity 1 / n^2'
     """
     # Fix pandoc artifact: {= X)  ->  = X)
     # The closing ) is preserved so it acts as the limit-group close.
     text = re.sub(r'\{=\s*([^}{)]*)\)', r'= \1)', typst)
+    # Fix pandoc converting \infty to "oo" (should be "infinity" in Typst).
+    # Use word-boundary match so we don't touch "oo" inside identifiers.
+    text = re.sub(r'\boo\b', 'infinity', text)
     # Strip orphaned trailing } left over from pandoc conversion
     # (e.g. pandoc may wrap fraction bodies producing an extra }).
     while text.endswith('}') and text.count('{') < text.count('}'):
         text = text[:-1]
     return text
+
+
+def _has_top_level_binary_op(body: str) -> bool:
+    r"""Check whether *body* contains + - * / at the top level.
+
+    Operators nested inside ``()`` or ``{}`` are ignored because the
+    surrounding delimiters already provide correct grouping for Typst.
+
+    >>> _has_top_level_binary_op('x + y')
+    True
+    >>> _has_top_level_binary_op('(1 / 2)^n')
+    False
+    >>> _has_top_level_binary_op('a / b')
+    True
+    """
+    depth = 0
+    for ch in body:
+        if ch in '({':
+            depth += 1
+        elif ch in ')}':
+            depth -= 1
+        elif depth == 0 and ch in '+-*/':
+            return True
+    return False
 
 
 def _ensure_typst_math_grouping(typst: str) -> str:
@@ -631,11 +658,10 @@ def _ensure_typst_math_grouping(typst: str) -> str:
     _OP = r'(?:integral|sum|prod|lim)'
     _BODY = r'([^}]+?)'
     _SENTINEL = r'(dif\s+\S+)'
-    _HAS_OP = r'[+\-*/](?!=)'
 
     def _maybe_wrap(m: re.Match) -> str:
         body = (m.group('body') or '').strip()
-        if not body or not re.search(_HAS_OP, body):
+        if not body or not _has_top_level_binary_op(body):
             return m.group(0)
         # Skip wrapping only when the body is already properly wrapped
         # in a balanced {} pair (the closing } is consumed by the lookahead).
@@ -757,8 +783,11 @@ class TypstRenderer:
         # appear inside the rendered formula.
         body = body.replace('$', '')
         body = body.strip()
-        escaped = body.replace('"', '\\"')
-        return f'#set page(width: auto, height: auto, margin: 3pt)\n$ {escaped} $'
+        # NOTE: Do NOT escape double-quote inside Typst math mode.
+        # In Typst, " is the standard string delimiter inside $...$
+        # (used for named arguments like mat(delim: "[", ...)).
+        # Escaping " to \" breaks that syntax.
+        return f'#set page(width: auto, height: auto, margin: 3pt)\n$ {body} $'
 
     def render_to_svg(self, latex_code: str, input_is_typst: bool = False) -> Optional[str]:
         """Render a formula to SVG via Typst.
