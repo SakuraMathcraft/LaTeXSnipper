@@ -820,6 +820,20 @@ function insertToMain() {
   bridge?.requestInsertToMain?.(latex);
 }
 
+function showConversionWarning(message) {
+  const el = document.getElementById('conversion-warning');
+  if (!el) return;
+  el.textContent = String(message ?? '');
+  el.classList.add('visible');
+  // Auto-dismiss after 8 seconds; click also dismisses.
+  clearTimeout(el._dismissTimer);
+  el._dismissTimer = setTimeout(() => el.classList.remove('visible'), 8000);
+  el.onclick = () => {
+    el.classList.remove('visible');
+    clearTimeout(el._dismissTimer);
+  };
+}
+
 window.workbenchApi = {
   setLatex,
   setThemeMode,
@@ -836,6 +850,7 @@ window.workbenchApi = {
   insertToMain,
   applyMultilineLayout,
   insertSnippet,
+  showConversionWarning,
 };
 
 function setupBridge() {

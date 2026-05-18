@@ -239,6 +239,40 @@ pre {
   max-height: 96px;
 }
 
+.conversion-warning {
+  display: none;
+  margin: 0 0 8px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  font-size: 11px;
+  line-height: 1.45;
+  cursor: pointer;
+  user-select: none;
+  animation: warningFadeIn 220ms ease;
+}
+
+.conversion-warning.visible {
+  display: block;
+}
+
+.conversion-warning:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+@keyframes warningFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 #result-render-host {
   min-height: 72px;
   max-height: 118px;

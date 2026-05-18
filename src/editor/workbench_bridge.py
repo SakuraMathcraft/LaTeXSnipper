@@ -37,6 +37,7 @@ class WorkbenchBridge(QObject):
     statusChanged = pyqtSignal(str)
     insertRequested = pyqtSignal(str)
     typstDisplayReady = pyqtSignal(str)
+    conversionWarning = pyqtSignal(str)
     advancedComputeFinished = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
@@ -149,8 +150,71 @@ class WorkbenchBridge(QObject):
             from core.mathcraft_document_engine import convert_latex_to_typst
             typst = convert_latex_to_typst(text)
             self.typstDisplayReady.emit(typst)
+            # Verify the conversion didn't lose structural content.
+            warning = self._verify_typst_conversion(text, typst)
+            if warning:
+                self.conversionWarning.emit(warning)
         except Exception:
             self.typstDisplayReady.emit(text)
+
+    @staticmethod
+    def _count_latex_structures(latex: str) -> dict:
+        """Count key LaTeX structural elements for comparison."""
+        import re
+        return {
+            'frac': len(re.findall(r'\\frac\{', latex)),
+            'sqrt': len(re.findall(r'\\sqrt\b', latex)),
+            'sum': len(re.findall(r'\\sum\b', latex)),
+            'prod': len(re.findall(r'\\prod\b', latex)),
+            'int': len(re.findall(r'\\int\b', latex)),
+            'lim': len(re.findall(r'\\lim\b', latex)),
+            'sin': len(re.findall(r'\\sin\b', latex)),
+            'cos': len(re.findall(r'\\cos\b', latex)),
+            'tan': len(re.findall(r'\\tan\b', latex)),
+            'log': len(re.findall(r'\\log\b', latex)),
+            'ln': len(re.findall(r'\\ln\b', latex)),
+            'exp': len(re.findall(r'\\exp\b', latex)),
+            'matrix': len(re.findall(r'\\begin\{[a-zA-Z]*matrix\}', latex)),
+            'cases': len(re.findall(r'\\begin\{cases\}', latex)),
+            'binom': len(re.findall(r'\\binom\{', latex)),
+            # Count superscripts (^{...} or ^single-char, excluding ^\prime etc)
+            'sup': len(re.findall(r'\^(?:\{[^}]*\}|[a-zA-Z0-9])', latex)),
+            'sub': len(re.findall(r'_(?:\{[^}]*\}|[a-zA-Z0-9])', latex)),
+        }
+
+    @classmethod
+    def _verify_typst_conversion(cls, original_latex: str, converted_typst: str) -> str | None:
+        """Verify Typst conversion by round-tripping and comparing structure counts.
+
+        Returns a warning message if structural elements were lost, or None
+        if the conversion looks good.
+        """
+        if not original_latex or not converted_typst:
+            return None
+        try:
+            from exporting.formula_converters import convert_typst_to_latex
+            back_latex = convert_typst_to_latex(converted_typst)
+            if not back_latex or not back_latex.strip():
+                return None
+
+            orig_counts = cls._count_latex_structures(original_latex)
+            back_counts = cls._count_latex_structures(back_latex)
+
+            # Check for structural losses: any key where orig > back
+            lost = []
+            for key in orig_counts:
+                if orig_counts[key] > back_counts[key]:
+                    lost.append((key, orig_counts[key] - back_counts[key]))
+
+            if lost:
+                lost_desc = ', '.join(
+                    f"{key}(-{diff})" for key, diff in lost
+                )
+                return f"Typst 转换校验: 以下结构可能丢失 → {lost_desc}"
+
+            return None
+        except Exception:
+            return None
 
     @pyqtSlot(result=str)
     def readClipboardText(self) -> str:

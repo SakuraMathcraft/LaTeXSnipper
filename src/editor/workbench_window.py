@@ -213,6 +213,7 @@ class WorkbenchWindow(QWidget):
         self.bridge.statusChanged.connect(self._on_bridge_status)
         self.bridge.insertRequested.connect(self._emit_insert_request)
         self.bridge.typstDisplayReady.connect(self._on_typst_display_ready)
+        self.bridge.conversionWarning.connect(self._on_conversion_warning)
 
         self.load_btn.clicked.connect(lambda: self._emit_insert_request("__LOAD_FROM_MAIN__"))
         self.eval_btn.clicked.connect(lambda: self._run_compute_action("evaluate"))
@@ -310,6 +311,10 @@ class WorkbenchWindow(QWidget):
 
     def _on_typst_display_ready(self, typst: str) -> None:
         self._run_js(f"window.workbenchApi?.updateTypstSource({self._json_arg(typst)});")
+
+    def _on_conversion_warning(self, message: str) -> None:
+        self._set_status(message)
+        self._run_js(f"window.workbenchApi?.showConversionWarning({self._json_arg(message)});")
 
     def _on_bridge_status(self, text: str) -> None:
         message = (text or "").strip()
