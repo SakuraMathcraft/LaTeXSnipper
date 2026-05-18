@@ -241,7 +241,22 @@ class HistoryControllerMixin:
     def _load_history_row_to_editor(self, row):
         txt = self._safe_row_text(row)
         if txt:
-            self._set_editor_text_silent(txt)
+            # In Typst mode, convert LaTeX-stored content to Typst on load
+            # and always wrap in $$...$$ for display-math rendering.
+            text_to_set = txt
+            try:
+                from exporting.formula_converters import get_current_render_mode
+                from core.mathcraft_document_engine import convert_latex_to_typst
+                stored_tag = self._history_render_tags.get(txt, "")
+                if get_current_render_mode() == "typst":
+                    if stored_tag != "typst":
+                        text_to_set = convert_latex_to_typst(txt)
+                    # Always wrap Typst content in $$ for the main editor
+                    if text_to_set and not text_to_set.startswith("$"):
+                        text_to_set = "$$ " + text_to_set + " $$"
+            except Exception:
+                pass
+            self._set_editor_text_silent(text_to_set)
             idx = getattr(row, '_index', 0)
             name = self._formula_names.get(txt, "")
             if name:
@@ -250,7 +265,7 @@ class HistoryControllerMixin:
                 label = f"#{idx}"
             else:
                 label = ""
-            self.render_latex_in_preview(txt, label)
+            self.render_latex_in_preview(text_to_set, label)
             self.set_action_status("已加载到编辑器")
 
     def create_history_row(self, t: str, index: int = 0, history_index: int | None = None):
@@ -261,6 +276,7 @@ class HistoryControllerMixin:
             index=index,
             history_index=history_index,
             formula_names=self._formula_names,
+            render_tags=getattr(self, "_history_render_tags", None),
             apply_row_theme=self._apply_history_row_theme,
             row_is_alive=self._row_is_alive,
             on_load_to_editor=self._load_history_row_to_editor,
@@ -268,7 +284,7 @@ class HistoryControllerMixin:
             on_context_menu=self._show_history_context_menu,
         )
 
-    def add_history_record(self, text: str, content_type: str = None):
+    def add_history_record(self, text: str, content_type: str = None, *, render_tag: str = ""):
         t = (text or "").strip()
         if not t:
             return
@@ -276,6 +292,16 @@ class HistoryControllerMixin:
         if content_type is None:
             content_type = getattr(self, "current_model", "mathcraft")
         self._formula_types[t] = normalize_content_type(content_type)
+
+        # Record which render engine format this was stored as
+        tag = str(render_tag or "").strip().lower()
+        if tag in ("latex", "typst"):
+            if not hasattr(self, "_history_render_tags"):
+                self._history_render_tags = {}
+            self._history_render_tags[t] = tag
+        elif hasattr(self, "_history_render_tags") and t in self._history_render_tags:
+            # Keep existing tag if no new tag specified
+            pass
 
         self.history.append(t)
 
@@ -288,10 +314,11 @@ class HistoryControllerMixin:
 
     def load_history(self):
         try:
-            self.history, self._formula_names, self._formula_types = load_history_store(self.history_path)
+            self.history, self._formula_names, self._formula_types, self._history_render_tags = load_history_store(self.history_path)
         except Exception as e:
             print("加载历史失败:", e)
             self.history = []
+            self._history_render_tags = {}
         self.rebuild_history_ui()
 
     def delete_history_item(self, widget, text):
@@ -324,7 +351,13 @@ class HistoryControllerMixin:
 
     def save_history(self):
         try:
-            save_history_store(self.history_path, self.history, self._formula_names, self._formula_types)
+            save_history_store(
+                self.history_path,
+                self.history,
+                self._formula_names,
+                self._formula_types,
+                getattr(self, "_history_render_tags", None),
+            )
         except Exception as e:
             print("历史保存失败:", e)
 

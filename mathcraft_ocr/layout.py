@@ -791,7 +791,7 @@ def _is_heading_text(text: str) -> bool:
 
 
 def _is_list_text(text: str) -> bool:
-    return text.strip().startswith(("-", "*", "•", "·", "鈥?", "路", "銉?"))
+    return text.strip().startswith(("-", "*", "•", "·"))
 
 
 def _looks_like_running_header_fragment(text: str) -> bool:

@@ -60,13 +60,117 @@ class _StructuredBlock:
 
 
 def convert_latex_to_typst(latex_code: str) -> str:
-    """Convert LaTeX formula text to Typst when pypandoc is available."""
+    """Convert LaTeX formula text to Typst (math content only, no delimiters).
+
+    Uses pypandoc when available.  Falls back to returning the raw text
+    (with LaTeX delimiters stripped) when pypandoc is unavailable.
+
+    If the input does not look like LaTeX (no backslash-commands), it is
+    returned unchanged to avoid double-conversion of already-Typst content.
+    """
+    text = str(latex_code or "").strip()
+    if not text:
+        return ""
+    body = re.sub(r'^\$\$?\s*', '', text)
+    body = re.sub(r'\s*\$\$?$', '', body)
+    # Also strip LaTeX display/inline math delimiters \[...\] and \(...\)
+    # that pypandoc may add when converting Typst → LaTeX → Typst again.
+    body = re.sub(r'^\\\[\s*', '', body)
+    body = re.sub(r'\s*\\\]\s*$', '', body)
+    body = re.sub(r'^\\\(\s*', '', body)
+    body = re.sub(r'\s*\\\)\s*$', '', body)
+    body = body.strip()
+    if not body:
+        return text
+    # Safety: if the content doesn't look like LaTeX, return as-is to
+    # avoid pypandoc mangling already-Typst or plain-text content.
+    if not re.search(r'\\[a-zA-Z]', body):
+        return body
     if pypandoc is None:
-        return latex_code
+        return body
     try:
-        return str(pypandoc.convert_text(latex_code, "typst", format="latex")).strip()
+        # Pandoc requires math content to be wrapped in $...$ delimiters
+        # to recognize it as LaTeX math mode.  Without the wrapper bare
+        # LaTeX commands like \alpha or \frac are treated as unknown
+        # control sequences and produce garbage output.
+        wrapped = "$ " + body + " $"
+        converted = str(pypandoc.convert_text(wrapped, "typst", format="latex")).strip()
+        if not converted:
+            return body
+        # Pandoc may wrap output in $...$; strip ALL $ characters from
+        # the formula body.  $ is only a math delimiter and must never
+        # appear inside a Typst formula.
+        converted = converted.replace('$', '')
+        converted = converted.strip()
+        converted = _ensure_typst_math_grouping(converted)
+        return converted.strip() or converted
     except Exception:
-        return latex_code
+        return body
+
+
+def _clean_pandoc_typst_artifacts(typst: str) -> str:
+    r"""Clean up pandoc conversion artifacts in Typst math output.
+
+    Pandoc may produce malformed patterns like ``{= 1)`` when converting
+    LaTeX subscripts such as ``_{n=1}``.  These unbalanced braces break
+    Typst parsing and must be repaired.
+
+    >>> _clean_pandoc_typst_artifacts('sum_(n {= 1)^oo 1 / n^2}')
+    'sum_(n = 1)^oo 1 / n^2'
+    """
+    # Fix pandoc artifact: {= X)  ->  = X)
+    # The closing ) is preserved so it acts as the limit-group close.
+    text = re.sub(r'\{=\s*([^}{)]*)\)', r'= \1)', typst)
+    # Strip orphaned trailing } left over from pandoc conversion
+    # (e.g. pandoc may wrap fraction bodies producing an extra }).
+    while text.endswith('}') and text.count('{') < text.count('}'):
+        text = text[:-1]
+    return text
+
+
+def _ensure_typst_math_grouping(typst: str) -> str:
+    r"""Wrap compound bodies of Typst big-operators in {} for correct grouping.
+
+    Typst functions like integral, sum, prod, lim need their body
+    wrapped in ``{}`` when the body contains binary operators (+, -, *, /).
+    Otherwise only the first term is treated as the body.
+
+    >>> _ensure_typst_math_grouping('integral_a^b x+2 dif x')
+    'integral_a^b {x+2} dif x'
+    """
+    text = _clean_pandoc_typst_artifacts(typst.strip())
+    # Match limit attachments that may include parenthesised content
+    # like _(n = 1) or ^(k + 1).  Also match plain limits like _n or ^oo.
+    _LIMIT_ATOM = r'(?:[^\s{}()]+|\([^)]*\))'
+    _LIMITS = rf'(?:_{_LIMIT_ATOM})?(?:\^{_LIMIT_ATOM})?'
+    _OP = r'(?:integral|sum|prod|lim)'
+    _BODY = r'([^}]+?)'
+    _SENTINEL = r'(dif\s+\S+)'
+    _HAS_OP = r'[+\-*/](?!=)'
+
+    def _maybe_wrap(m: re.Match) -> str:
+        body = (m.group('body') or '').strip()
+        if not body or not re.search(_HAS_OP, body):
+            return m.group(0)
+        # Skip wrapping only when the body is already properly wrapped
+        # in a balanced {} pair (the closing } is consumed by the lookahead).
+        if body.startswith('{'):
+            return m.group(0)
+        prefix = m.group(0)[:m.start('body') - m.start(0)]
+        suffix = m.group(0)[m.end('body') - m.start(0):]
+        return f'{prefix}{{{body}}}{suffix}'
+
+    text = re.sub(
+        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})\s+{_SENTINEL}',
+        _maybe_wrap,
+        text,
+    )
+    text = re.sub(
+        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})(?=\s*$|\s*\}})',
+        _maybe_wrap,
+        text,
+    )
+    return text
 
 
 def compose_mathcraft_markdown_pages(page_results: list[dict[str, Any]] | tuple[dict[str, Any], ...], *, typst_formulas: bool = False) -> str:
@@ -320,7 +424,14 @@ def _render_blocks(blocks: list[_Block], *, typst_formulas: bool = False) -> str
             chunks.append(_render_section_heading(text))
         elif block.kind == "formula":
             if typst_formulas:
-                chunks.append(convert_latex_to_typst(text))
+                converted = convert_latex_to_typst(text)
+                # Typst uses single $ for math, not $$.
+                # Display math in Typst is achieved by placing $...$
+                # on its own line with blank lines around it, which
+                # _render_blocks already ensures via \n\n joining.
+                if not converted.startswith('$'):
+                    converted = f'$ {converted} $'
+                chunks.append(converted)
             else:
                 chunks.append(_normalize_display_math(text))
         elif block.kind == "list_item":

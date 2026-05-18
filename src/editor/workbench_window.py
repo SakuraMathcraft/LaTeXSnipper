@@ -212,6 +212,7 @@ class WorkbenchWindow(QWidget):
         self.bridge.readyChanged.connect(self._on_editor_ready)
         self.bridge.statusChanged.connect(self._on_bridge_status)
         self.bridge.insertRequested.connect(self._emit_insert_request)
+        self.bridge.typstDisplayReady.connect(self._on_typst_display_ready)
 
         self.load_btn.clicked.connect(lambda: self._emit_insert_request("__LOAD_FROM_MAIN__"))
         self.eval_btn.clicked.connect(lambda: self._run_compute_action("evaluate"))
@@ -298,12 +299,17 @@ class WorkbenchWindow(QWidget):
 
     def _on_editor_ready(self, _ready: bool) -> None:
         self.apply_theme_styles(force=True)
+        if self._is_typst_mode():
+            self._run_js("window.workbenchApi?.setEditorMode('typst');")
         self._set_status("已就绪")
         if self._pending_latex:
             self.set_latex(self._pending_latex)
 
     def _set_status(self, text: str) -> None:
         self.status_label.setText(text or "")
+
+    def _on_typst_display_ready(self, typst: str) -> None:
+        self._run_js(f"window.workbenchApi?.updateTypstSource({self._json_arg(typst)});")
 
     def _on_bridge_status(self, text: str) -> None:
         message = (text or "").strip()

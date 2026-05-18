@@ -18,15 +18,31 @@ class PreviewLatexRenderWorker(QObject):
     def render_formula(self, cache_key: str, latex_code: str):
         svg = None
         try:
+            code = str(latex_code or "").strip()
+            # Strip outer $$ / $ delimiters so the renderer receives clean content.
+            code = re.sub(r'^\$\$?\s*', '', code)
+            code = re.sub(r'\s*\$\$?\s*$', '', code)
+            code = code.strip()
+            if not code:
+                self.finished.emit(str(cache_key or ""), None)
+                return
+            content_is_typst = bool(not re.search(r'\\[a-zA-Z]', code))
             mode = _latex_settings.get_render_mode() if _latex_settings else "auto"
             if mode == "typst":
                 renderer = get_typst_renderer()
                 if renderer and renderer.is_available():
-                    svg = renderer.render_to_svg(str(latex_code or ""))
+                    svg = renderer.render_to_svg(code, input_is_typst=content_is_typst)
+            elif content_is_typst:
+                # Content is Typst but mode is not "typst"; do NOT send
+                # Typst syntax to LaTeX (pdflatex), which would fail.
+                # Try Typst renderer anyway if available, else skip.
+                renderer = get_typst_renderer()
+                if renderer and renderer.is_available():
+                    svg = renderer.render_to_svg(code, input_is_typst=True)
             else:
                 renderer = get_latex_renderer()
                 if renderer and renderer.is_available():
-                    svg = renderer.render_to_svg(str(latex_code or ""))
+                    svg = renderer.render_to_svg(code)
         except Exception:
             svg = None
         self.finished.emit(str(cache_key or ""), svg)
@@ -115,8 +131,8 @@ class PreviewControllerMixin:
         self._preview_svg_cache[key] = str(svg) if svg else ""
         try:
             self._refresh_preview()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[Preview] _refresh_preview failed after render: {exc}")
 
     def render_latex_in_preview(self, latex: str, label: str = None):
         """Render a LaTeX formula in the preview area."""
@@ -150,8 +166,17 @@ class PreviewControllerMixin:
 
         all_items = []
         editor_text = self.latex_editor.toPlainText().strip()
-        existing_formulas = [f for f, _ in self._rendered_formulas]
-        if editor_text and editor_text not in existing_formulas:
+
+        # Build a dedup set with $$ / $ stripped so formulas don't
+        # duplicate when they differ only in delimiters.
+        def _normalize_for_dedup(s: str) -> str:
+            t = s.strip()
+            t = re.sub(r'^\$\$?\s*', '', t)
+            t = re.sub(r'\s*\$\$?\s*$', '', t)
+            return t.strip()
+
+        dedup_set = {_normalize_for_dedup(f) for f, _ in self._rendered_formulas}
+        if editor_text and _normalize_for_dedup(editor_text) not in dedup_set:
             current_mode = getattr(self, "current_model", "mathcraft")
             all_items.append((editor_text, "编辑中", current_mode))
 

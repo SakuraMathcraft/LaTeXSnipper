@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from typing import List
 
 # ---------------------------------------------------------------------------
 # Lightweight mocks: simulate InkStroke and QRectF, avoiding PyQt6 dependency
@@ -63,7 +61,7 @@ class MockInkStroke:
 # ---------------------------------------------------------------------------
 
 # Import handwriting_layout, then replace its type references
-import importlib.util
+import importlib.util  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     "handwriting_layout",
@@ -177,15 +175,15 @@ def test_group_strokes_into_lines():
         print(f"  Line {i + 1}: {len(line)} strokes, Y range [{min(ys):.0f}, {max(ys) + 40:.0f}]")
 
     assert len(lines) == 3, f"Expected 3 lines, got {len(lines)}"
-    assert len(lines[0]) == 3, f"Line 1 expected 3 strokes"
-    assert len(lines[1]) == 2, f"Line 2 expected 2 strokes"
-    assert len(lines[2]) == 4, f"Line 3 expected 4 strokes"
+    assert len(lines[0]) == 3, "Line 1 expected 3 strokes"
+    assert len(lines[1]) == 2, "Line 2 expected 2 strokes"
+    assert len(lines[2]) == 4, "Line 3 expected 4 strokes"
     print("  OK line grouping test passed")
 
 
 def test_paragraph_detection():
     """Simulate line spacing to detect paragraph boundaries."""
-    from dataclasses import dataclass as dc, field
+    from dataclasses import dataclass as dc
 
     @dc
     class SimpleLine:
@@ -247,8 +245,8 @@ def test_line_role_classification():
         SimpleLine(MockRectF(60, 220, 400, 36), indent_ratio=0.0),    # body text
     ]
 
-    heights = [max(1.0, l.box.height()) for l in lines]
-    widths = [max(1.0, l.box.width()) for l in lines]
+    heights = [max(1.0, ln.box.height()) for ln in lines]
+    widths = [max(1.0, ln.box.width()) for ln in lines]
     median_height = _safe_median(heights)
     image_w = max(widths)
 
@@ -262,7 +260,7 @@ def test_line_role_classification():
         else:
             line.role = "paragraph"
 
-    roles = [l.role for l in lines]
+    roles = [ln.role for ln in lines]
     print(f"Role classification: {roles}")
     assert roles == ["heading", "paragraph", "list", "paragraph"], f"Unexpected: {roles}"
     print("  OK role classification test passed")
@@ -276,14 +274,6 @@ def test_format_paragraph():
     class SimpleLine:
         role: str = "paragraph"
 
-    lines = [
-        SimpleLine("heading"),
-        SimpleLine("paragraph"),
-        SimpleLine("paragraph"),
-        SimpleLine("paragraph"),  # new paragraph
-        SimpleLine("paragraph"),
-        SimpleLine("list"),
-    ]
     texts = [
         "Introduction",
         "This is the first sentence of paragraph one",

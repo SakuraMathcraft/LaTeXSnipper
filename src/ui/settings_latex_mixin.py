@@ -411,7 +411,6 @@ class SettingsLatexMixin:
 
         def worker():
             import shutil as _shutil
-            import subprocess as _subprocess
             import os as _os
 
             found_path = ""

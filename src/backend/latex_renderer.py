@@ -594,6 +594,70 @@ class LaTeXRenderer:
     """
 
 
+def _clean_pandoc_typst_artifacts(typst: str) -> str:
+    r"""Clean up pandoc conversion artifacts in Typst math output.
+
+    Pandoc may produce malformed patterns like ``{= 1)`` when converting
+    LaTeX subscripts such as ``_{n=1}``.  These unbalanced braces break
+    Typst parsing and must be repaired.
+
+    >>> _clean_pandoc_typst_artifacts('sum_(n {= 1)^oo 1 / n^2}')
+    'sum_(n = 1)^oo 1 / n^2'
+    """
+    # Fix pandoc artifact: {= X)  ->  = X)
+    # The closing ) is preserved so it acts as the limit-group close.
+    text = re.sub(r'\{=\s*([^}{)]*)\)', r'= \1)', typst)
+    # Strip orphaned trailing } left over from pandoc conversion
+    # (e.g. pandoc may wrap fraction bodies producing an extra }).
+    while text.endswith('}') and text.count('{') < text.count('}'):
+        text = text[:-1]
+    return text
+
+
+def _ensure_typst_math_grouping(typst: str) -> str:
+    r"""Wrap compound bodies of Typst big-operators in {} for correct grouping.
+
+    Typst functions like integral, sum, prod, lim need their body
+    wrapped in ``{}`` when the body contains binary operators (+, -, *, /).
+    Otherwise only the first term is treated as the body.
+
+    Shared with mathcraft_document_engine._ensure_typst_math_grouping.
+    """
+    text = _clean_pandoc_typst_artifacts(typst.strip())
+    # Match limit attachments that may include parenthesised content
+    # like _(n = 1) or ^(k + 1).  Also match plain limits like _n or ^oo.
+    _LIMIT_ATOM = r'(?:[^\s{}()]+|\([^)]*\))'
+    _LIMITS = rf'(?:_{_LIMIT_ATOM})?(?:\^{_LIMIT_ATOM})?'
+    _OP = r'(?:integral|sum|prod|lim)'
+    _BODY = r'([^}]+?)'
+    _SENTINEL = r'(dif\s+\S+)'
+    _HAS_OP = r'[+\-*/](?!=)'
+
+    def _maybe_wrap(m: re.Match) -> str:
+        body = (m.group('body') or '').strip()
+        if not body or not re.search(_HAS_OP, body):
+            return m.group(0)
+        # Skip wrapping only when the body is already properly wrapped
+        # in a balanced {} pair (the closing } is consumed by the lookahead).
+        if body.startswith('{'):
+            return m.group(0)
+        prefix = m.group(0)[:m.start('body') - m.start(0)]
+        suffix = m.group(0)[m.end('body') - m.start(0):]
+        return f'{prefix}{{{body}}}{suffix}'
+
+    text = re.sub(
+        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})\s+{_SENTINEL}',
+        _maybe_wrap,
+        text,
+    )
+    text = re.sub(
+        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})(?=\s*$|\s*\}})',
+        _maybe_wrap,
+        text,
+    )
+    return text
+
+
 class TypstRenderer:
     """Render LaTeX formulas to SVG or Typst documents to PDF via Typst CLI."""
 
@@ -632,30 +696,84 @@ class TypstRenderer:
         return self.typst_cmd is not None and Path(self.typst_cmd).exists()
 
     def _convert_latex_to_typst(self, latex_code: str) -> str:
-        """Convert a LaTeX formula string to Typst math syntax via pypandoc."""
+        """Convert a LaTeX formula string to Typst math syntax via pypandoc.
+
+        Pandoc requires math content to be wrapped in ``$...$`` delimiters
+        to recognize it as LaTeX math mode.
+        """
         if pypandoc is None:
             return latex_code
         try:
-            result = str(pypandoc.convert_text(str(latex_code), "typst", format="latex")).strip()
-            print(f"[Typst] Pandoc conversion: {latex_code[:50]} -> {result[:50]}")
-            return result
+            text = str(latex_code or "").strip()
+            if not text:
+                return text
+            # Strip any outer $$ or $ delimiters the caller may have included,
+            # and also \[...\] / \(...\) that pypandoc may add on round-trips.
+            import re
+            body = re.sub(r'^\$\$?\s*', '', text)
+            body = re.sub(r'\s*\$\$?\s*$', '', body)
+            body = re.sub(r'^\\\[\s*', '', body)
+            body = re.sub(r'\s*\\\]\s*$', '', body)
+            body = re.sub(r'^\\\(\s*', '', body)
+            body = re.sub(r'\s*\\\)\s*$', '', body)
+            body = body.strip()
+            if not body:
+                return text
+            # Wrap in $...$ so pandoc's LaTeX reader recognises math mode
+            wrapped = "$ " + body + " $"
+            result = str(pypandoc.convert_text(wrapped, "typst", format="latex")).strip()
+            if result:
+                # Pandoc may wrap output in $...$; strip ALL $ characters
+                # from the formula body.  $ is only a math delimiter and
+                # must never appear inside a Typst formula (pandoc may add
+                # trailing $ even after newlines, which simple end-anchor
+                # regexes can miss).
+                result = result.replace('$', '')
+                result = result.strip()
+                # Ensure proper grouping for big-operators like integral/sum/prod/lim.
+                # Shared logic with mathcraft_document_engine._ensure_typst_math_grouping.
+                result = _ensure_typst_math_grouping(result)
+            print(f"[Typst] Pandoc conversion: {body[:50]} -> {result[:50]}")
+            return result.strip() or body
         except Exception as e:
             print(f"[Typst] Pandoc conversion failed: {e}, using raw LaTeX")
             return str(latex_code)
 
     def _create_typst_formula_doc(self, typst_math: str) -> str:
-        """Create a minimal Typst document wrapping a single formula."""
-        escaped = str(typst_math).replace('"', '\\"')
+        """Create a minimal Typst document wrapping a single formula.
+
+        Strips any ``$`` / ``$$`` user-facing delimiters and wraps the
+        body in Typst's native ``$…$`` display-math delimiters before
+        compilation.
+        """
+        body = str(typst_math or "").strip()
+        if not body:
+            body = ""
+        import re
+        body = re.sub(r'^\$\$?\s*', '', body)
+        body = re.sub(r'\s*\$\$?\s*$', '', body)
+        # Remove any stray $ that may be trapped inside {} or elsewhere,
+        # since $ is only a math delimiter in Typst and should never
+        # appear inside the rendered formula.
+        body = body.replace('$', '')
+        body = body.strip()
+        escaped = body.replace('"', '\\"')
         return f'#set page(width: auto, height: auto, margin: 3pt)\n$ {escaped} $'
 
-    def render_to_svg(self, latex_code: str) -> Optional[str]:
-        """Render a LaTeX formula to SVG via Typst. Returns SVG string or None."""
+    def render_to_svg(self, latex_code: str, input_is_typst: bool = False) -> Optional[str]:
+        """Render a formula to SVG via Typst.
+
+        If *input_is_typst* is True the content is already Typst math syntax
+        and the internal LaTeX→Typst conversion step is skipped, sending the
+        text straight to the Typst CLI.
+        """
         if not self.is_available():
             print("[Typst] Typst is unavailable; skip SVG rendering")
             return None
         try:
-            # Step 1: Convert LaTeX to Typst math syntax
-            typst_math = self._convert_latex_to_typst(latex_code)
+            typst_math = str(latex_code or "")
+            if not input_is_typst:
+                typst_math = self._convert_latex_to_typst(typst_math)
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmp_dir = Path(tmpdir)
@@ -678,6 +796,8 @@ class TypstRenderer:
                     capture_output=True,
                     timeout=15,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
@@ -695,13 +815,65 @@ class TypstRenderer:
         return None
 
     def _clean_typst_svg(self, svg_content: str) -> str:
-        """Remove XML declaration from Typst SVG output and scale if needed."""
-        # Typst outputs SVG with XML declaration; remove it for embedding.
+        """Remove XML declaration from Typst SVG output, strip hardcoded
+        fill/stroke colours, and remove the opaque background rect so the
+        theme CSS can control glyph colours via ``currentColor``.
+
+        Typst emits inline presentation attributes such as ``fill=\"#000000\"``
+        that cannot reliably be overridden from external CSS in every
+        WebEngine version.  We therefore strip those attributes at the SVG
+        source level while preserving ``none``, ``url(#…)`` references,
+        ``currentColor`` and other non-colour values.
+        """
         content = str(svg_content).strip()
         if content.startswith("<?xml"):
             idx = content.find(">")
             if idx >= 0:
                 content = content[idx + 1:].strip()
+
+        # ---- strip fill / stroke presentation attributes -------------------
+        # Match:  fill="hex" | fill="rgb(…)" | fill="namedColor"
+        # Keep:   fill="none" | fill="url(#…)" | fill="currentColor"
+        _color_value = (
+            r'#[0-9a-fA-F]{3,8}'
+            r'|rgb\s*\([^)]*\)'
+            r'|rgba\s*\([^)]*\)'
+            r'|hsl\s*\([^)]*\)'
+            r'|hsla\s*\([^)]*\)'
+            r'|(?!none\b|currentColor\b|inherit\b|transparent\b|url\()'
+            r'[a-zA-Z_][a-zA-Z0-9_]*'
+        )
+        content = re.sub(
+            rf'\s+(fill|stroke)="(?:{_color_value})"',
+            '',
+            content,
+        )
+
+        # ---- strip fill-opacity / stroke-opacity ---------------------------
+        content = re.sub(r'\s+(fill-opacity|stroke-opacity)="[^"]*"', '', content)
+
+        # ---- remove the opaque background <path> that Typst adds -----------
+        # Typst always emits a viewport-covering <path> as its first child:
+        #   <path class="typst-shape" fill="#ffffff" ... d="M 0 0v H W v -H Z"/>
+        # After stripping fill above it would default to black — remove it.
+        content = re.sub(
+            r'\s*<path\b[^>]*\bd="M\s*0[\s,]+0[^"]*"\s*/>',
+            '',
+            content,
+            count=1,
+        )
+
+        # ---- inject an internal style so colour inherits -------------------
+        # Target the rendering elements Typst actually uses: <path>, <text>,
+        # <use> (glyph references), and <g> groups.  Leave <defs> untouched.
+        style_block = (
+            '<style>'
+            'svg path,svg text,svg use,svg g'
+            '{fill:currentColor!important;stroke:currentColor!important}'
+            '</style>'
+        )
+        content = re.sub(r'(<svg\b[^>]*>)', rf'\1{style_block}', content, count=1)
+
         return content
 
     def compile_document_to_pdf(
@@ -735,6 +907,8 @@ class TypstRenderer:
                 capture_output=True,
                 timeout=timeout,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 **_hidden_subprocess_kwargs(),
             )
             if result.returncode != 0:

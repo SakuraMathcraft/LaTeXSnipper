@@ -41,7 +41,7 @@ TYPST_SNIPPETS = {
     "求和  (sum)": ("sum", r"sum_(n=1)^oo #?"),
     "连乘  (prod)": ("product", r"product_(n=1)^oo #?"),
     "积分  (int)": ("integral", r"integral_a^b #? dif x"),
-    "矩阵  (matrix)": ("matrix2", r"mat(#?, #?; #?, #?)"),
+    "矩阵  (matrix)": ("matrix2", r"[#?, #?; #?, #?]"),
     "换行  (Shift+Enter)": ("newline", r"\\ "),
 }
 
@@ -54,7 +54,7 @@ COMPACT_TYPST_SNIPPETS = {
     "求和": ("sum", r"sum_(n=1)^oo #?"),
     "连乘": ("product", r"product_(n=1)^oo #?"),
     "积分": ("integral", r"integral_a^b #? dif x"),
-    "矩阵": ("matrix2", r"mat(#?, #?; #?, #?)"),
+    "矩阵": ("matrix2", r"[#?, #?; #?, #?]"),
     "换行": ("newline", r"\\ "),
 }
 

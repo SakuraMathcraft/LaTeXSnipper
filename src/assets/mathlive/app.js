@@ -5,6 +5,7 @@ let ce = null;
 let mathJsonFormatted = '';
 let computeHelpers = {};
 let advancedComputeSeq = 0;
+let _editorMode = 'latex';
 const pendingAdvancedRequests = new Map();
 
 const latexOutput = document.getElementById('latex-output');
@@ -12,6 +13,7 @@ const mathjsonOutput = document.getElementById('mathjson-output');
 const resultOutput = document.getElementById('result-output');
 const host = document.getElementById('mathfield-host');
 const resultRenderHost = document.getElementById('result-render-host');
+const sourceLabel = document.getElementById('source-label');
 
 const RESERVED_SOLVE_TOKENS = new Set([
   'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'sqrt', 'frac', 'left', 'right',
@@ -23,7 +25,21 @@ function setThemeMode(mode) {
   document.body.dataset.theme = mode === 'light' ? 'light' : 'dark';
 }
 
+function setEditorMode(mode) {
+  _editorMode = mode === 'typst' ? 'typst' : 'latex';
+  if (sourceLabel) {
+    sourceLabel.textContent = _editorMode === 'typst' ? 'Typst 源码' : 'LaTeX 源码';
+  }
+}
+
+function updateTypstSource(text) {
+  latexOutput.textContent = String(text ?? '');
+}
+
+let _skipResultClear = false;
+
 function clearRenderedResult() {
+  if (_skipResultClear) return;
   if (resultView) resultView.setValue('', { silenceNotifications: true });
   document.body.classList.add('result-empty');
 }
@@ -185,6 +201,17 @@ function applyMultilineLayout(kind = 'displaylines') {
   }
   const normalizedLatex = unwrapMultilineLatex(latex);
   const lines = splitIntoMultilineSegments(normalizedLatex);
+  if (_editorMode === 'typst') {
+    let wrapped;
+    if (kind === 'align') {
+      wrapped = lines.map(decorateAlignSegment).join(' \\\\ ');
+    } else {
+      wrapped = lines.join(' \\\\ ');
+    }
+    setLatex(wrapped);
+    setStatus(`已应用 ${kind} 多行排版（Typst）`);
+    return;
+  }
   let wrapped = latex;
   if (kind === 'multline') {
     wrapped = `\\begin{multline}\n${lines.join(' \\\\\n')}\n\\end{multline}`;
@@ -228,9 +255,11 @@ function applyMultilineLayout(kind = 'displaylines') {
           return;
         }
       }
+      _skipResultClear = true;
       mathfield.insert(template, { format: 'latex' });
       mathfield.focus();
       syncOutputs();
+      _skipResultClear = false;
     setStatus(`已插入${kind === 'newline' ? '换行' : '快捷模板'}`);
   } catch (err) {
     setStatus(`快捷插入失败：${String(err)}`);
@@ -560,7 +589,11 @@ function syncOutputs() {
   const latex = mathfield.getValue('latex-expanded') || '';
   document.body.classList.toggle('editor-empty', !latex.trim());
   document.body.classList.toggle('workspace-empty', !latex.trim());
-  latexOutput.textContent = latex;
+  if (_editorMode === 'typst' && latex.trim()) {
+    bridge?.convertLatexForDisplay?.(latex);
+  } else {
+    latexOutput.textContent = latex;
+  }
   bridge?.onLatexChanged?.(latex);
 
   try {
@@ -760,13 +793,16 @@ function setLatex(value) {
 }
 
 function copyLatex() {
-  const text = latexOutput.textContent || '';
+  const text = _editorMode === 'typst'
+    ? (latexOutput.textContent || '')
+    : (mathfield?.getValue('latex-expanded') || '');
+  if (!text) return;
   if (bridge?.copyLatexToClipboard) {
     bridge.copyLatexToClipboard(text);
     return;
   }
   navigator.clipboard?.writeText(text);
-  setStatus('已复制 LaTeX');
+  setStatus('已复制 ' + (_editorMode === 'typst' ? 'Typst' : 'LaTeX'));
 }
 
 function copyMathJson() {
@@ -787,6 +823,8 @@ function insertToMain() {
 window.workbenchApi = {
   setLatex,
   setThemeMode,
+  setEditorMode,
+  updateTypstSource,
   evaluateExpression,
   simplifyExpression,
   numericEvaluate,

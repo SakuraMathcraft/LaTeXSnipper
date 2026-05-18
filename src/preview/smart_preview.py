@@ -103,6 +103,14 @@ body {{
 .type-badge.text {{ background: {tokens['badge_text_bg']}; color: {tokens['badge_text_text']}; }}
 .type-badge.table {{ background: {tokens['badge_table_bg']}; color: {tokens['badge_table_text']}; }}
 .type-badge.mixed {{ background: {tokens['badge_mixed_bg']}; color: {tokens['badge_mixed_text']}; }}
+.render-mode-badge {{
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: {tokens['label_bg']};
+    color: {tokens['label_text']};
+    font-weight: 600;
+}}
 .block-content {{
     font-size: 14px;
     text-align: center;
@@ -149,20 +157,27 @@ body {{
     padding-top: 0.25em;
     padding-bottom: 0.25em;
 }}
-.formula-content.latex-svg svg[fill]:not([fill="none"]),
-.formula-content.latex-svg svg *[fill]:not([fill="none"]) {{
-    fill: currentColor !important;
+/* Make Typst/LaTeX SVG glyphs inherit the theme text colour.  The
+   Python-side _clean_typst_svg() already strips hardcoded fill/stroke
+   attributes; these rules are defence-in-depth for any remaining cases. */
+.formula-content.latex-svg svg {{
+    color: inherit;
+    background: transparent;
 }}
-.formula-content.latex-svg svg[stroke]:not([stroke="none"]),
-.formula-content.latex-svg svg *[stroke]:not([stroke="none"]) {{
+.formula-content.latex-svg svg path {{
+    fill: currentColor !important;
     stroke: currentColor !important;
 }}
-.formula-content.latex-svg svg[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]),
-.formula-content.latex-svg svg *[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]) {{
+.formula-content.latex-svg svg text {{
     fill: currentColor !important;
+    stroke: currentColor !important;
 }}
-.formula-content.latex-svg svg[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]),
-.formula-content.latex-svg svg *[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]) {{
+.formula-content.latex-svg svg use {{
+    fill: currentColor !important;
+    stroke: currentColor !important;
+}}
+.formula-content.latex-svg svg g {{
+    fill: currentColor !important;
     stroke: currentColor !important;
 }}
 .text-content {{
@@ -202,6 +217,21 @@ def build_html_build_error(error: Exception | str) -> str:
 </body></html>'''
 
 
+def _resolve_render_mode_name() -> str:
+    """Return the current render mode display name (Typst / LaTeX / MathJax)."""
+    try:
+        from backend.latex_renderer import _latex_settings
+        if _latex_settings:
+            mode = _latex_settings.get_render_mode()
+            if mode == "typst":
+                return "Typst"
+            if mode in ("latex_pdflatex", "latex_xelatex"):
+                return "LaTeX SVG"
+    except Exception:
+        pass
+    return "MathJax"
+
+
 def render_content_block(
     content: str,
     label: str,
@@ -224,19 +254,35 @@ def render_content_block(
             "mathcraft_mixed": ("混合", "mixed"),
         }.get(content_type, ("内容", ""))
 
-        if content_type == "mathcraft":
+        # When the content is a pure formula (wrapped in $$…$$), always
+        # use the formula renderer regardless of the content-type tag,
+        # so that Typst SVG rendering works for all formula content.
+        stripped = content.strip()
+        is_pure_formula = stripped.startswith("$$") and stripped.endswith("$$")
+        # Content typed as mathcraft_mixed but with NO $ delimiters is
+        # a bare formula (e.g. Typst output or raw LaTeX).  Route through
+        # the formula renderer so SVG / MathJax can render it.
+        # Only treat PROPERLY PAIRED $...$ or $$...$$ as MathJax delimiters;
+        # a stray $ (e.g. in Typst pypandoc output) is not a delimiter.
+        has_dollar_delim = bool(re.search(r'\$\$(?:[^$]|\$(?!\$))+\$\$|\$(?:[^$]|\$(?!\$))+\$', stripped))
+
+        if content_type == "mathcraft" or is_pure_formula:
+            rendered_content = formula_renderer(content)
+        elif content_type == "mathcraft_mixed" and not has_dollar_delim:
             rendered_content = formula_renderer(content)
         elif content_type == "mathcraft_mixed":
             rendered_content = render_mixed_content(content)
         else:
             rendered_content = f'<div class="text-content">{html_module.escape(content)}</div>'
 
+        render_mode_name = _resolve_render_mode_name()
         block_class = f"content-block {type_class}-type" if type_class else "content-block"
         badge_class = f"type-badge {type_class}" if type_class else "type-badge"
         result = f'''<div class="{block_class}">
     <div class="block-label">
         <span>{html_module.escape(label or "")}</span>
         <span class="{badge_class}">{type_name}</span>
+        <span class="render-mode-badge">{render_mode_name}</span>
     </div>
     <div class="block-content">{rendered_content}</div>
 </div>'''
@@ -266,6 +312,20 @@ def render_formula_content_html(
     try:
         is_svg_mode = render_mode and (render_mode.startswith("latex_") or render_mode == "typst")
         is_typst = render_mode == "typst"
+        content_is_typst = bool(not re.search(r'\\[a-zA-Z]', content))
+
+        # Strip outer $$ / $ delimiters so we never double-wrap.
+        inner = content.strip()
+        inner = re.sub(r'^\$\$?\s*', '', inner)
+        inner = re.sub(r'\s*\$\$?\s*$', '', inner)
+        # Safety: remove any stray $ characters that remain after
+        # stripping (e.g. pypandoc artifacts).  $ is only a MathJax
+        # delimiter and must never appear in Typst formula body text.
+        inner = inner.replace('$', '')
+        inner = inner.strip()
+        if not inner:
+            inner = content.strip()
+
         if is_svg_mode:
             if has_cached_svg:
                 if cached_svg:
@@ -274,14 +334,20 @@ def render_formula_content_html(
                 # Cached but empty: render failed previously.
                 if is_typst:
                     # Typst render failed: show raw code (not MathJax, which can't parse Typst).
-                    return f'<div class="typst-raw-content">{html_module.escape(content)}</div>'
-                return f'<div class="formula-content">$${content}$$</div>'
+                    return f'<div class="typst-raw-content">{html_module.escape(inner)}</div>'
+                return f'<div class="formula-content">$${inner}$$</div>'
             # No cache yet: schedule async render.
             schedule_render(content)
             if is_typst:
                 # Typst: show raw code as placeholder while SVG renders (MathJax can't parse Typst).
-                return f'<div class="typst-raw-content">{html_module.escape(content)}</div>'
-        return f'<div class="formula-content">$${content}$$</div>'
+                return f'<div class="typst-raw-content">{html_module.escape(inner)}</div>'
+            return f'<div class="formula-content">$${inner}$$</div>'
+
+        # Non-SVG fallback (MathJax).  If the content looks like Typst
+        # (no LaTeX commands) it cannot be rendered by MathJax; show raw.
+        if content_is_typst:
+            return f'<div class="typst-raw-content">{html_module.escape(inner)}</div>'
+        return f'<div class="formula-content">$${inner}$$</div>'
     except Exception:
         return f'<div class="formula-content">$${content}$$</div>'
 

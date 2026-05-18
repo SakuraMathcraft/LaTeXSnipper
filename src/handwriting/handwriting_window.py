@@ -763,6 +763,17 @@ class HandwritingWindow(QDialog):
         if self._closing:
             return
         text = self._normalize_result_display_text((latex or "").strip())
+        # In Typst document mode, convert the OCR LaTeX result to Typst
+        # for display in the result editor, but keep LaTeX for MathJax preview.
+        self._last_result_original_latex = text
+        if self._is_typst_document_mode() and text:
+            try:
+                from core.mathcraft_document_engine import convert_latex_to_typst
+                converted = convert_latex_to_typst(text)
+                if converted and converted.strip():
+                    text = converted.strip()
+            except Exception:
+                pass
         self._last_result = text
         self.result_editor.blockSignals(True)
         self.result_editor.setPlainText(text)
@@ -985,8 +996,19 @@ class HandwritingWindow(QDialog):
         mode = self._preview_output_mode()
         if mode != "latex":
             return f'<div class="content"><div class="text-block">{html.escape(content)}</div></div>'
+        # In Typst document mode, the result editor shows Typst; convert to
+        # LaTeX for MathJax preview rendering.
+        source_content = content
+        if self._is_typst_document_mode() and content:
+            try:
+                from exporting.formula_converters import convert_typst_to_latex
+                latex = convert_typst_to_latex(content)
+                if latex and latex.strip():
+                    source_content = latex.strip()
+            except Exception:
+                pass
         parts: list[str] = ['<div class="content">']
-        for raw_line in content.split("\n"):
+        for raw_line in source_content.split("\n"):
             line = raw_line.strip()
             if not line:
                 parts.append('<div class="spacer"></div>')
@@ -1180,8 +1202,8 @@ class HandwritingWindow(QDialog):
         stroke_lines = classify_line_roles(stroke_lines, image_width=canvas_w)
 
         # Step 3: Split draft text into lines and align with stroke_lines
-        draft_lines = [l.strip() for l in draft.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-        draft_lines = [l for l in draft_lines if l]  # remove blank lines
+        draft_lines = [ln.strip() for ln in draft.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+        draft_lines = [ln for ln in draft_lines if ln]  # remove blank lines
 
         n = min(len(stroke_lines), len(draft_lines))
         if n == 0:

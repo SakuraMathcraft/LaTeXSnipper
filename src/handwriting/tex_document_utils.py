@@ -160,3 +160,158 @@ def validate_tex_document(text: str) -> str | None:
     if "placeholder{}" in content or "\\placeholder{}" in content:
         return "文档中仍有未填写的模板占位符，请先补全后再编译。"
     return None
+
+
+# ---------------------------------------------------------------------------
+# LaTeX document → Typst document conversion
+# ---------------------------------------------------------------------------
+
+# Patterns for LaTeX math environments that need conversion
+_LATEX_DISPLAY_MATH_RE = re.compile(
+    r'(?<!\\)\$\$\s*(.+?)\s*(?<!\\)\$\$',
+    re.DOTALL,
+)
+_LATEX_INLINE_MATH_RE = re.compile(
+    r'(?<!\\)\$\s*(.+?)\s*(?<!\\)\$',
+)
+_LATEX_DISPLAY_BRACKET_RE = re.compile(
+    r'(?<!\\)\\\[\s*(.+?)\s*(?<!\\)\\\]',
+    re.DOTALL,
+)
+_LATEX_ENV_RE = re.compile(
+    r'\\begin\{(equation\*?|align\*?|multline\*?|gather\*?)\}\s*(.+?)\s*\\end\{\1\}',
+    re.DOTALL,
+)
+
+# Typst document template.
+# Uses Typst's default A4 page size (matching LaTeX a4paper) for PDF output.
+# Note: width:auto/height:auto only work for SVG, not PDF.
+_TYPST_DOC_TEMPLATE = """\
+#set page(margin: (x: 2.2cm, y: 2.2cm))
+#set text(font: ("Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", "SimHei", "Noto Sans", "Helvetica"), size: 12pt)
+#set par(leading: 0.6em, justify: true)
+
+#show math.equation: set text(size: 12pt)
+
+{body}\
+"""
+
+
+def convert_latex_doc_to_typst_doc(latex_doc: str) -> str:
+    """Convert a full LaTeX document to a Typst document.
+
+    Extracts the document body (between ``\\begin{document}`` and
+    ``\\end{document}``), converts LaTeX math formulas to Typst math
+    syntax, and wraps the result in a clean Typst document template.
+
+    Falls back to the raw body text wrapped in a Typst template if
+    pypandoc is unavailable.
+    """
+    content = str(latex_doc or "").strip()
+    if not content:
+        return _TYPST_DOC_TEMPLATE.format(body="")
+
+    # Extract body from LaTeX document
+    body = _extract_latex_body(content)
+
+    # Convert math formulas from LaTeX to Typst
+    body = _convert_body_math_to_typst(body)
+
+    return _TYPST_DOC_TEMPLATE.format(body=body)
+
+
+def _extract_latex_body(latex_doc: str) -> str:
+    """Extract the document body from a LaTeX document string."""
+    begin_marker = "\\begin{document}"
+    end_marker = "\\end{document}"
+
+    begin_idx = latex_doc.find(begin_marker)
+    if begin_idx >= 0:
+        body_start = begin_idx + len(begin_marker)
+        end_idx = latex_doc.find(end_marker, body_start)
+        if end_idx >= 0:
+            return latex_doc[body_start:end_idx].strip()
+
+    # No document environment found - treat entire content as body,
+    # but strip preamble commands
+    return _strip_latex_preamble(latex_doc)
+
+
+def _strip_latex_preamble(text: str) -> str:
+    """Strip LaTeX preamble commands, keeping only body content."""
+    lines = text.splitlines()
+    body_lines: list[str] = []
+    in_preamble = True
+    for line in lines:
+        stripped = line.strip()
+        if in_preamble and (
+            not stripped
+            or stripped.startswith("%")
+            or stripped.startswith("\\documentclass")
+            or stripped.startswith("\\usepackage")
+            or stripped.startswith("\\geometry")
+            or stripped.startswith("\\set")
+            or stripped.startswith("\\title")
+            or stripped.startswith("\\author")
+            or stripped.startswith("\\date")
+            or stripped.startswith("\\new")
+            or stripped.startswith("\\Declare")
+            or stripped.startswith("\\makeatletter")
+            or stripped.startswith("\\makeatother")
+        ):
+            continue
+        in_preamble = False
+        body_lines.append(line)
+    return "\n".join(body_lines).strip()
+
+
+def _convert_body_math_to_typst(body: str) -> str:
+    """Convert LaTeX math formulas in document body to Typst math syntax."""
+    try:
+        from core.mathcraft_document_engine import convert_latex_to_typst as _formula_to_typst
+    except ImportError:
+        return body
+
+    text = body
+
+    # Order matters: handle environments before display/inline math
+    # to avoid double-processing nested content.
+
+    # 1. Convert \begin{equation}...\end{equation} etc.
+    def _env_replacer(m: re.Match) -> str:
+        inner = m.group(2).strip()
+        converted = _formula_to_typst(inner)
+        # Typst uses $ ... $ for display math equations
+        if converted:
+            return f"$ {converted} $"
+        return m.group(0)
+
+    text = _LATEX_ENV_RE.sub(_env_replacer, text)
+
+    # 2. Convert $$...$$ display math
+    def _display_math_replacer(m: re.Match) -> str:
+        inner = m.group(1).strip()
+        converted = _formula_to_typst(inner)
+        if converted:
+            return f"$ {converted} $"
+        return m.group(0)
+
+    text = _LATEX_DISPLAY_MATH_RE.sub(_display_math_replacer, text)
+
+    # 3. Convert \[...\] display math
+    text = _LATEX_DISPLAY_BRACKET_RE.sub(_display_math_replacer, text)
+
+    # 4. Convert $...$ inline math
+    def _inline_math_replacer(m: re.Match) -> str:
+        inner = m.group(1).strip()
+        # Skip if it looks like a currency amount
+        if re.match(r'^[\d,.]+$', inner):
+            return m.group(0)
+        converted = _formula_to_typst(inner)
+        if converted:
+            return f"$ {converted} $"
+        return m.group(0)
+
+    text = _LATEX_INLINE_MATH_RE.sub(_inline_math_replacer, text)
+
+    return text

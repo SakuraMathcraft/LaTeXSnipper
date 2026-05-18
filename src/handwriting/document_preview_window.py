@@ -135,11 +135,12 @@ class _TexDocumentCompileWorker(QObject):
     finished = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, tex_content: str, output_dir: str, *, use_typst: bool = False):
+    def __init__(self, tex_content: str, output_dir: str, *, use_typst: bool = False, is_already_typst: bool = False):
         super().__init__()
         self.tex_content = tex_content
         self.output_dir = output_dir
         self.use_typst = use_typst
+        self.is_already_typst = is_already_typst
 
     def run(self) -> None:
         try:
@@ -150,7 +151,15 @@ class _TexDocumentCompileWorker(QObject):
                 if not renderer or not renderer.is_available():
                     self.failed.emit("Typst 不可用，请检查 Typst 安装和路径配置。")
                     return
-                typst_content = renderer.convert_latex_document_to_typst(self.tex_content)
+
+                # If the editor already contains Typst (set_document converted on load),
+                # compile it directly.  Otherwise convert from LaTeX first (e.g. mode was
+                # switched after loading, or content was pasted in LaTeX form).
+                if self.is_already_typst:
+                    typst_content = self.tex_content
+                else:
+                    from handwriting.tex_document_utils import convert_latex_doc_to_typst_doc
+                    typst_content = convert_latex_doc_to_typst_doc(self.tex_content)
                 pdf_path = renderer.compile_document_to_pdf(
                     typst_content, Path(self.output_dir), timeout=60
                 )
@@ -235,6 +244,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self._mathlive_splitter_last_sizes = [1000, self._mathlive_expand_height]
         self._editor_log_splitter_sizes = [640, 180]
         self._mathlive_anchor_pos = None
+        self._editor_is_typst = False
         self._mathlive_bridge = None
         self._mathlive_channel = None
         self._mathlive_layout_timer = QTimer(self)
@@ -530,17 +540,29 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self._rebuild_pdf_backend_view(show_feedback=False)
 
     def set_document(self, text: str) -> None:
-        wrapped = wrap_tex_document(text)
-        self.editor.setPlainText(wrapped)
-        begin_token = r"\begin{document}"
-        begin_idx = wrapped.find(begin_token)
-        if begin_idx >= 0:
-            line_start = wrapped.find("\n", begin_idx + len(begin_token))
-            if line_start >= 0:
-                cursor = self.editor.textCursor()
-                cursor.setPosition(line_start + 1)
-                self.editor.setTextCursor(cursor)
-                self._focus_editor_cursor()
+        if self._is_typst_mode():
+            # In Typst mode the editor shows Typst content directly,
+            # so the user always sees the same format that will be compiled.
+            # First wrap the raw OCR text as a LaTeX document (handles
+            # missing \documentclass etc.), then convert the whole thing to Typst.
+            latex_doc = wrap_tex_document(text)
+            from handwriting.tex_document_utils import convert_latex_doc_to_typst_doc
+            typst_doc = convert_latex_doc_to_typst_doc(latex_doc)
+            self.editor.setPlainText(typst_doc)
+            self._editor_is_typst = True
+        else:
+            wrapped = wrap_tex_document(text)
+            self.editor.setPlainText(wrapped)
+            self._editor_is_typst = False
+            begin_token = r"\begin{document}"
+            begin_idx = wrapped.find(begin_token)
+            if begin_idx >= 0:
+                line_start = wrapped.find("\n", begin_idx + len(begin_token))
+                if line_start >= 0:
+                    cursor = self.editor.textCursor()
+                    cursor.setPosition(line_start + 1)
+                    self.editor.setTextCursor(cursor)
+                    self._focus_editor_cursor()
         self._update_compile_button_state()
 
     def document_text(self) -> str:
@@ -1001,6 +1023,12 @@ class HandwritingDocumentPreviewWindow(QDialog):
         latex = str(result or "").strip()
         anchor = self._mathlive_anchor_pos
         if latex and anchor is not None:
+            # Do NOT pre-convert LaTeX to Typst here even in typst mode.
+            # The document body is always stored as LaTeX in the editor,
+            # and convert_latex_doc_to_typst_doc handles the math conversion
+            # at compile time via _convert_body_math_to_typst.
+            # Pre-converting would insert bare Typst math without $ delimiters,
+            # causing it to be treated as plain text instead of a formula.
             cursor = self.editor.textCursor()
             cursor.setPosition(int(anchor))
             cursor.insertText(latex)
@@ -1403,7 +1431,11 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self.compile_btn.setText("编译中...")
         self.compile_btn.setEnabled(False)
         self._compile_thread = QThread(self)
-        self._compile_worker = _TexDocumentCompileWorker(compile_text, str(output_dir), use_typst=(mode == "typst"))
+        self._compile_worker = _TexDocumentCompileWorker(
+            compile_text, str(output_dir),
+            use_typst=(mode == "typst"),
+            is_already_typst=self._editor_is_typst,
+        )
         worker = self._compile_worker
         thread = self._compile_thread
         worker.moveToThread(thread)

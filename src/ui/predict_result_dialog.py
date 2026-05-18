@@ -13,10 +13,31 @@ from runtime.config_manager import normalize_content_type
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
+def _preview_math_source(editor_text: str, fallback_preview_code: str) -> str:
+    """Return LaTeX source suitable for MathJax preview.
+
+    When the editor shows Typst, convert back to LaTeX for MathJax;
+    otherwise return the editor text directly.
+    """
+    text = (editor_text or "").strip()
+    if not text:
+        return fallback_preview_code
+    try:
+        from exporting.formula_converters import get_current_render_mode, convert_typst_to_latex
+        if get_current_render_mode() == "typst":
+            latex = convert_typst_to_latex(text)
+            if latex and latex.strip():
+                return latex.strip()
+    except Exception:
+        pass
+    return text
+
+
 def show_predict_result_dialog(
     *,
     parent,
     code: str,
+    preview_code: str | None = None,
     current_mode: str,
     result_screen_index: int | None,
     mode_title: Callable[[str], str],
@@ -29,6 +50,9 @@ def show_predict_result_dialog(
     move_to_screen: Callable[[QDialog, int | None], None],
     clear_dialog_ref: Callable[[QDialog], None],
 ) -> QDialog:
+    # preview_code: if given, use this for MathJax preview (e.g. original LaTeX
+    # when code has been converted to Typst for the editor).
+    _preview_src = preview_code if preview_code else code
     dlg = QDialog(parent)
     apply_no_minimize_window_flags(dlg)
     dlg.setWindowTitle("识别结果")
@@ -67,14 +91,14 @@ def show_predict_result_dialog(
 
             preview_view = QWebEngineView()
             preview_view.setMinimumHeight(150)
-            preview_view.setHtml(build_math_html(code), get_mathjax_base_url())
+            preview_view.setHtml(build_math_html(_preview_src), get_mathjax_base_url())
             lay.addWidget(preview_view, 1)
 
             render_timer = QTimer(dlg)
             render_timer.setSingleShot(True)
 
             def do_render():
-                latex = te.toPlainText().strip()
+                latex = _preview_math_source(te.toPlainText().strip(), _preview_src)
                 if latex and preview_view:
                     preview_view.setHtml(build_math_html(latex), get_mathjax_base_url())
 
@@ -94,14 +118,14 @@ def show_predict_result_dialog(
 
             preview_view = QWebEngineView()
             preview_view.setMinimumHeight(150)
-            preview_view.setHtml(build_mixed_html(code), get_mathjax_base_url())
+            preview_view.setHtml(build_mixed_html(_preview_src), get_mathjax_base_url())
             lay.addWidget(preview_view, 1)
 
             render_timer = QTimer(dlg)
             render_timer.setSingleShot(True)
 
             def do_render_mixed():
-                content = te.toPlainText().strip()
+                content = _preview_math_source(te.toPlainText().strip(), _preview_src)
                 if content and preview_view:
                     preview_view.setHtml(build_mixed_html(content), get_mathjax_base_url())
 
@@ -114,7 +138,7 @@ def show_predict_result_dialog(
 
         preview_text = QTextEdit()
         preview_text.setReadOnly(True)
-        preview_text.setPlainText(code)
+        preview_text.setPlainText(_preview_src)
         preview_text.setMinimumHeight(100)
         lay.addWidget(preview_text, 1)
 

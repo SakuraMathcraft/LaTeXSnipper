@@ -12,7 +12,6 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 
 def open_directory(path: str) -> None:

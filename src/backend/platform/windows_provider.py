@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QIcon, QKeySequence

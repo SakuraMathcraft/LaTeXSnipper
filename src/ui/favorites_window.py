@@ -191,18 +191,38 @@ class FavoritesWindow(QMainWindow):
         latex = item.data(Qt.ItemDataRole.UserRole)
         if not latex:
             latex = item.text()
+
+        # In Typst mode, convert LaTeX-stored content to Typst on load
+        # and always wrap in $$...$$ for display-math rendering.
+        text_to_set = latex
+        try:
+            from exporting.formula_converters import get_current_render_mode
+            from core.mathcraft_document_engine import convert_latex_to_typst
+            if get_current_render_mode() == "typst":
+                stored_tag = ""
+                if hasattr(self, "_favorite_render_tags"):
+                    stored_tag = self._favorite_render_tags.get(latex, "")
+                if stored_tag != "typst":
+                    converted = convert_latex_to_typst(latex)
+                    if converted and converted.strip():
+                        text_to_set = converted.strip()
+                # Always wrap Typst content in $$ for the main editor
+                if text_to_set and not text_to_set.startswith("$"):
+                    text_to_set = "$$ " + text_to_set + " $$"
+        except Exception:
+            pass
         
         p = self.parent()
         if p and hasattr(p, 'latex_editor') and hasattr(p, 'render_latex_in_preview'):
             if hasattr(p, "_set_editor_text_silent"):
-                p._set_editor_text_silent(latex)
+                p._set_editor_text_silent(text_to_set)
             else:
-                p.latex_editor.setPlainText(latex)
+                p.latex_editor.setPlainText(text_to_set)
             
             # Ensure the parent window has type metadata for this content.
             content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
             if hasattr(p, '_formula_types'):
-                p._formula_types[latex] = content_type
+                p._formula_types[text_to_set] = content_type
             
             # Get the index and name, preferring the favorites name.
             idx = self.list_widget.row(item) + 1
@@ -214,7 +234,7 @@ class FavoritesWindow(QMainWindow):
                 label = f"#{idx} {name}"
             else:
                 label = f"#{idx}"
-            p.render_latex_in_preview(latex, label)
+            p.render_latex_in_preview(text_to_set, label)
             self._set_status("已加载到编辑器")
 
     # ---------- Menu ----------

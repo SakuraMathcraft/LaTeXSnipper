@@ -155,7 +155,13 @@ class PdfPredictWorker(QObject):
             for page in page_results
             if isinstance(page, dict) and (str(page.get("text") or "").strip() or page.get("blocks"))
         ]
-        content = compose_mathcraft_markdown_pages(clean_results)
+        use_typst = False
+        try:
+            from backend.latex_renderer import get_document_render_mode
+            use_typst = get_document_render_mode() == "typst"
+        except Exception:
+            pass
+        content = compose_mathcraft_markdown_pages(clean_results, typst_formulas=use_typst)
         if not content.strip():
             _set_elapsed()
             self.failed.emit("识别结果为空")

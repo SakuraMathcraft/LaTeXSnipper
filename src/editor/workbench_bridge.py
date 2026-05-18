@@ -36,6 +36,7 @@ class WorkbenchBridge(QObject):
     resultChanged = pyqtSignal(str)
     statusChanged = pyqtSignal(str)
     insertRequested = pyqtSignal(str)
+    typstDisplayReady = pyqtSignal(str)
     advancedComputeFinished = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
@@ -137,6 +138,19 @@ class WorkbenchBridge(QObject):
                 self.statusChanged.emit("已复制 MathJSON")
             except Exception as e:
                 self.statusChanged.emit(f"MathJSON 复制失败：{e}")
+
+    @pyqtSlot(str)
+    def convertLatexForDisplay(self, latex: str) -> None:
+        text = (latex or "").strip()
+        if not text:
+            self.typstDisplayReady.emit("")
+            return
+        try:
+            from core.mathcraft_document_engine import convert_latex_to_typst
+            typst = convert_latex_to_typst(text)
+            self.typstDisplayReady.emit(typst)
+        except Exception:
+            self.typstDisplayReady.emit(text)
 
     @pyqtSlot(result=str)
     def readClipboardText(self) -> str:

@@ -405,6 +405,18 @@ class PredictResultControllerMixin:
             _exec_close_only_message_box(self, "提示", "结果为空")
             return
 
+        # In Typst mode, convert the OCR LaTeX result to Typst for display
+        # but keep the original LaTeX for MathJax preview rendering.
+        preview_code = code
+        try:
+            from exporting.formula_converters import get_current_render_mode
+            from core.mathcraft_document_engine import convert_latex_to_typst
+            if get_current_render_mode() == "typst":
+                converted = convert_latex_to_typst(code)
+                if converted and converted.strip():
+                    code = converted.strip()
+        except Exception:
+            pass
 
         current_mode = None
         try:
@@ -431,6 +443,7 @@ class PredictResultControllerMixin:
         self._predict_result_dialog = show_predict_result_dialog(
             parent=self,
             code=code,
+            preview_code=preview_code if preview_code != code else None,
             current_mode=current_mode,
             result_screen_index=result_screen_index,
             mode_title=self._predict_result_mode_title,
@@ -515,6 +528,31 @@ class PredictResultControllerMixin:
                 return
             dialog.reject()
             return
+
+        # In Typst mode, convert the OCR LaTeX result to Typst before
+        # copying to clipboard / saving to history.  The stored render_tag
+        # lets us show a format badge and convert back when loading.
+        #
+        # Guard: if the dialog editor already shows Typst (converted by
+        # show_confirm_dialog), skip conversion to avoid pypandoc mangling.
+        render_tag = "latex"
+        try:
+            from exporting.formula_converters import get_current_render_mode
+            from core.mathcraft_document_engine import convert_latex_to_typst
+            if get_current_render_mode() == "typst":
+                import re
+                looks_latex = bool(re.search(r'\\[a-zA-Z]', t))
+                if looks_latex:
+                    converted = convert_latex_to_typst(t)
+                    if converted and converted.strip():
+                        t = converted.strip()
+                        render_tag = "typst"
+                else:
+                    # Already Typst (dialog editor was pre-converted)
+                    render_tag = "typst"
+        except Exception:
+            pass
+
         try:
             try:
                 pyperclip.copy(t)
@@ -530,7 +568,7 @@ class PredictResultControllerMixin:
                 content_type = None
             if not content_type:
                 content_type = getattr(self, "current_model", "mathcraft")
-            self.add_history_record(t, content_type=content_type)
+            self.add_history_record(t, content_type=content_type, render_tag=render_tag)
         except Exception as e:
             custom_warning_dialog("错误", f"写入历史失败: {e}", self)
         if bool(getattr(dialog, "_predict_result_pinned", False)):

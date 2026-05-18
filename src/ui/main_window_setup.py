@@ -327,6 +327,7 @@ class MainWindowSetupMixin:
         self._rendered_formulas = []
         self._formula_names = {}
         self._formula_types = {}
+        self._history_render_tags = {}
         webengine_view_cls = get_webengine_view_class() if ensure_webengine_loaded() else None
         if webengine_view_cls is not None:
             self.preview_view = webengine_view_cls()
@@ -434,6 +435,98 @@ class MainWindowSetupMixin:
     def _on_render_mode_changed(self, mode: str) -> None:
         """Handle render mode changes from the settings window."""
         self._update_editor_labels_for_render_mode()
+        # Clear SVG render caches so previews re-render with the new engine.
+        if hasattr(self, "_preview_svg_cache"):
+            self._preview_svg_cache.clear()
+        if hasattr(self, "_preview_svg_pending"):
+            self._preview_svg_pending.clear()
+        # Convert stored formulas between Typst / LaTeX when the engine changes.
+        self._convert_formulas_for_render_mode(mode)
+        # Convert current editor text to match the new render mode.
+        self._convert_editor_text_for_render_mode(mode)
+        # Refresh the preview so the user sees results immediately.
+        if hasattr(self, "_refresh_preview"):
+            self._refresh_preview()
+
+    def _convert_editor_text_for_render_mode(self, mode: str) -> None:
+        """Convert the current editor text to match the new render mode."""
+        try:
+            editor_text = self.latex_editor.toPlainText().strip()
+            if not editor_text:
+                return
+            is_typst_mode = mode == "typst"
+            converted = self._convert_single_formula(editor_text, to_typst=is_typst_mode)
+            if converted and converted != editor_text:
+                if hasattr(self, "_set_editor_text_silent"):
+                    self._set_editor_text_silent(converted)
+                else:
+                    self.latex_editor.setPlainText(converted)
+        except Exception as exc:
+            print(f"[RenderMode] Editor text conversion failed: {exc}")
+
+    def _convert_formulas_for_render_mode(self, mode: str) -> None:
+        """Convert _rendered_formulas and history between Typst and LaTeX."""
+        is_typst_mode = mode == "typst"
+        updated = False
+        # Convert _rendered_formulas (currently displayed formulas).
+        if hasattr(self, "_rendered_formulas"):
+            new_rendered = []
+            for formula, label in self._rendered_formulas:
+                new_formula = self._convert_single_formula(formula, to_typst=is_typst_mode)
+                if new_formula != formula:
+                    updated = True
+                    # Migrate metadata to the new key.
+                    if hasattr(self, "_formula_names") and formula in self._formula_names:
+                        self._formula_names[new_formula] = self._formula_names.pop(formula)
+                    if hasattr(self, "_formula_types") and formula in self._formula_types:
+                        self._formula_types[new_formula] = self._formula_types.pop(formula)
+                new_rendered.append((new_formula, label))
+            if updated:
+                self._rendered_formulas = new_rendered
+        # Convert history entries.
+        if hasattr(self, "history") and self.history:
+            new_history = []
+            history_updated = False
+            for formula in self.history:
+                new_formula = self._convert_single_formula(formula, to_typst=is_typst_mode)
+                if new_formula != formula:
+                    history_updated = True
+                    if hasattr(self, "_formula_names") and formula in self._formula_names:
+                        self._formula_names[new_formula] = self._formula_names.pop(formula)
+                    if hasattr(self, "_formula_types") and formula in self._formula_types:
+                        self._formula_types[new_formula] = self._formula_types.pop(formula)
+                    if hasattr(self, "_history_render_tags") and formula in self._history_render_tags:
+                        self._history_render_tags[new_formula] = self._history_render_tags.pop(formula)
+                new_history.append(new_formula)
+            if history_updated:
+                self.history = new_history
+                if hasattr(self, "save_history"):
+                    self.save_history()
+                if hasattr(self, "rebuild_history_ui"):
+                    self.rebuild_history_ui()
+
+    @staticmethod
+    def _convert_single_formula(formula: str, *, to_typst: bool) -> str:
+        """Convert a single formula between LaTeX and Typst."""
+        text = (formula or "").strip()
+        if not text:
+            return text
+        import re
+        has_latex = bool(re.search(r'\\[a-zA-Z]', text))
+        try:
+            if to_typst and has_latex:
+                from core.mathcraft_document_engine import convert_latex_to_typst
+                converted = convert_latex_to_typst(text)
+                if converted and converted.strip():
+                    return converted.strip()
+            elif not to_typst and not has_latex:
+                from exporting.formula_converters import convert_typst_to_latex
+                converted = convert_typst_to_latex(text)
+                if converted and converted.strip():
+                    return converted.strip()
+        except Exception:
+            pass
+        return text
 
     def _update_editor_labels_for_render_mode(self) -> None:
         """Update editor title label and placeholder based on the current render mode."""

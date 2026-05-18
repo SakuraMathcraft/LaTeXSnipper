@@ -8,14 +8,14 @@ from pathlib import Path
 from runtime.config_manager import normalize_content_type
 
 
-def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dict[str, str]]:
+def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dict[str, str], dict[str, str]]:
     target = Path(path)
     if not target.exists():
-        return [], {}, {}
+        return [], {}, {}, {}
 
     data = json.loads(target.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        return [], {}, {}
+        return [], {}, {}, {}
 
     raw_history = data.get("history", [])
     history = [str(x) for x in raw_history if isinstance(x, (str, int, float))]
@@ -30,7 +30,14 @@ def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dic
         else {}
     )
 
-    return history, formula_names, formula_types
+    raw_tags = data.get("render_tags", {})
+    render_tags = (
+        {str(k): str(v) for k, v in raw_tags.items() if str(v) in ("latex", "typst")}
+        if isinstance(raw_tags, dict)
+        else {}
+    )
+
+    return history, formula_names, formula_types, render_tags
 
 
 def save_history_store(
@@ -38,6 +45,7 @@ def save_history_store(
     history: list[str],
     formula_names: dict[str, str],
     formula_types: dict[str, str],
+    render_tags: dict[str, str] | None = None,
 ) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -46,4 +54,6 @@ def save_history_store(
         "formula_names": formula_names,
         "formula_types": formula_types,
     }
+    if render_tags:
+        data["render_tags"] = render_tags
     target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

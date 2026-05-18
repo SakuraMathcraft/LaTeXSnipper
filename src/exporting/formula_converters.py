@@ -23,21 +23,44 @@ def _pypandoc_available() -> bool:
 def convert_typst_to_latex(typst: str) -> str:
     """Convert Typst math formula to LaTeX via pypandoc.
 
+    Automatically strips ``$$..$$`` user-facing delimiters before
+    conversion and wraps the body in Typst math delimiters so that
+    pypandoc recognises it as a math expression.
     Returns the original Typst string if pypandoc is unavailable or
     the conversion fails.
     """
-    if not typst or not typst.strip():
+    text = typst or ""
+    if not text.strip():
         return ""
+    body = text.strip()
+    import re
+    body = re.sub(r'^\$\$\s*', '', body)
+    body = re.sub(r'\s*\$\$\s*$', '', body)
+    # Safety: remove any stray $ characters (pypandoc artifacts).
+    body = body.replace('$', '')
+    body = body.strip()
+    if not body:
+        return text
     if not _pypandoc_available():
-        return typst
+        return text if text != body else body
     try:
         import pypandoc
-        result = str(pypandoc.convert_text(typst.strip(), "latex", format="typst")).strip()
+        wrapped = "$ " + body + " $"
+        result = str(pypandoc.convert_text(wrapped, "latex", format="typst")).strip()
         if result:
-            return result
+            result = re.sub(r'^\$\$\s*', '', result)
+            result = re.sub(r'\s*\$\$\s*$', '', result)
+            # Also strip \[...\] that pypandoc may add.
+            result = re.sub(r'^\\\[\s*', '', result)
+            result = re.sub(r'\s*\\\]\s*$', '', result)
+            # Remove any $ delimiters pypandoc may have added.
+            result = result.replace('$', '')
+            result = result.strip()
+            if result:
+                return result
     except Exception:
         pass
-    return typst
+    return body
 
 
 def get_current_render_mode() -> str:

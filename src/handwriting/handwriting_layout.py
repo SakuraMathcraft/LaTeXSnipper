@@ -11,10 +11,10 @@ Leverages precise stroke coordinates (instead of OCR boxes inferred from pixels)
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import List
 
-from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtCore import QRectF
 
 from .types import InkStroke
 
@@ -225,8 +225,8 @@ def classify_line_roles(
     if not lines:
         return lines
 
-    heights = [max(1.0, _line_height(l)) for l in lines]
-    widths = [max(1.0, _line_width(l)) for l in lines]
+    heights = [max(1.0, _line_height(ln)) for ln in lines]
+    widths = [max(1.0, _line_width(ln)) for ln in lines]
     median_height = _safe_median(heights) if heights else 24.0
     image_w = image_width or max(widths)
 
@@ -314,7 +314,7 @@ def strokes_to_article_text(
         plain_text="\n\n".join(article_parts),
         lines=lines,
         paragraph_count=len(paragraphs),
-        heading_count=sum(1 for l in lines if l.role == "heading"),
+        heading_count=sum(1 for ln in lines if ln.role == "heading"),
     )
     return result
 

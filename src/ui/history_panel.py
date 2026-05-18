@@ -50,6 +50,7 @@ def create_history_row(
     index: int = 0,
     history_index: int | None = None,
     formula_names: dict[str, str],
+    render_tags: dict[str, str] | None = None,
     apply_row_theme: Callable[[QWidget], None],
     row_is_alive: Callable[[QWidget | None], bool],
     on_load_to_editor: Callable[[QWidget], None],
@@ -87,6 +88,23 @@ def create_history_row(
         row._name_label = name_lbl
     else:
         row._name_label = None
+
+    # Format badge: show [Typst] or [LaTeX] tag
+    tag = (render_tags or {}).get(text, "")
+    if tag in ("latex", "typst"):
+        tag_lbl = QLabel(f"[{tag.title()}]")
+        tag_lbl.setWordWrap(False)
+        tag_lbl.setMaximumWidth(60)
+        tag_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        tag_lbl.setStyleSheet(
+            "color: #8ec5ff; font-size: 10px; font-weight: 500;"
+            if tag == "typst"
+            else "color: #a0a8b8; font-size: 10px;"
+        )
+        text_col.addWidget(tag_lbl)
+        row._tag_label = tag_lbl
+    else:
+        row._tag_label = None
 
     lbl = QLabel(text)
     lbl.setWordWrap(True)

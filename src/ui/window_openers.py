@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from bootstrap.deps_bootstrap import custom_warning_dialog
+from core.mathcraft_document_engine import convert_latex_to_typst
 from editor.workbench_window import WorkbenchWindow
+from exporting.formula_converters import get_current_render_mode
 from handwriting import HandwritingWindow
 from handwriting.bilingual_pdf_window import BilingualPdfWindow
 from ui.settings_window import SettingsWindow
@@ -55,6 +57,14 @@ class WindowOpenersMixin:
             if getattr(self, "workbench_window", None):
                 self.workbench_window.show_info("当前无内容", "数学工作台为空，没有可写回的内容")
             return
+        if get_current_render_mode() == "typst":
+            # Only convert if the content still looks like LaTeX.
+            import re
+            looks_latex = bool(re.search(r'\\[a-zA-Z]+', text))
+            if looks_latex:
+                text = convert_latex_to_typst(text)
+            if text and not text.startswith("$"):
+                text = "$$ " + text + " $$"
         self.latex_editor.setPlainText(text)
         self.render_latex_in_preview(text)
         self.set_action_status("工作台内容已回填到主编辑器")
@@ -65,6 +75,15 @@ class WindowOpenersMixin:
         text = (latex or "").strip()
         if not text:
             return
+        if get_current_render_mode() == "typst":
+            # Only convert if the content still looks like LaTeX.
+            # The handwriting window may have already converted it to Typst.
+            import re
+            looks_latex = bool(re.search(r'\\[a-zA-Z]+', text))
+            if looks_latex:
+                text = convert_latex_to_typst(text)
+            if text and not text.startswith("$"):
+                text = "$$ " + text + " $$"
         self._set_editor_text_silent(text)
         try:
             ctype = self._get_preferred_model_for_predict()
