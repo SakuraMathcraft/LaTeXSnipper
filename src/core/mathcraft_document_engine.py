@@ -74,7 +74,7 @@ def convert_latex_to_typst(latex_code: str) -> str:
     body = re.sub(r'^\$\$?\s*', '', text)
     body = re.sub(r'\s*\$\$?$', '', body)
     # Also strip LaTeX display/inline math delimiters \[...\] and \(...\)
-    # that pypandoc may add when converting Typst → LaTeX → Typst again.
+    # that pypandoc may add when converting Typst -> LaTeX -> Typst again.
     body = re.sub(r'^\\\[\s*', '', body)
     body = re.sub(r'\s*\\\]\s*$', '', body)
     body = re.sub(r'^\\\(\s*', '', body)

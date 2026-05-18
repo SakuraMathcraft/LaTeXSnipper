@@ -743,7 +743,7 @@ class TypstRenderer:
         """Create a minimal Typst document wrapping a single formula.
 
         Strips any ``$`` / ``$$`` user-facing delimiters and wraps the
-        body in Typst's native ``$…$`` display-math delimiters before
+        body in Typst's native ``$...$`` display-math delimiters before
         compilation.
         """
         body = str(typst_math or "").strip()
@@ -764,7 +764,7 @@ class TypstRenderer:
         """Render a formula to SVG via Typst.
 
         If *input_is_typst* is True the content is already Typst math syntax
-        and the internal LaTeX→Typst conversion step is skipped, sending the
+        and the internal LaTeX->Typst conversion step is skipped, sending the
         text straight to the Typst CLI.
         """
         if not self.is_available():
@@ -822,7 +822,7 @@ class TypstRenderer:
         Typst emits inline presentation attributes such as ``fill=\"#000000\"``
         that cannot reliably be overridden from external CSS in every
         WebEngine version.  We therefore strip those attributes at the SVG
-        source level while preserving ``none``, ``url(#…)`` references,
+        source level while preserving ``none``, ``url(#...)`` references,
         ``currentColor`` and other non-colour values.
         """
         content = str(svg_content).strip()
@@ -832,8 +832,8 @@ class TypstRenderer:
                 content = content[idx + 1:].strip()
 
         # ---- strip fill / stroke presentation attributes -------------------
-        # Match:  fill="hex" | fill="rgb(…)" | fill="namedColor"
-        # Keep:   fill="none" | fill="url(#…)" | fill="currentColor"
+        # Match:  fill="hex" | fill="rgb(...)" | fill="namedColor"
+        # Keep:   fill="none" | fill="url(#...)" | fill="currentColor"
         _color_value = (
             r'#[0-9a-fA-F]{3,8}'
             r'|rgb\s*\([^)]*\)'
@@ -855,7 +855,7 @@ class TypstRenderer:
         # ---- remove the opaque background <path> that Typst adds -----------
         # Typst always emits a viewport-covering <path> as its first child:
         #   <path class="typst-shape" fill="#ffffff" ... d="M 0 0v H W v -H Z"/>
-        # After stripping fill above it would default to black — remove it.
+        # After stripping fill above it would default to black -- remove it.
         content = re.sub(
             r'\s*<path\b[^>]*\bd="M\s*0[\s,]+0[^"]*"\s*/>',
             '',

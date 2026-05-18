@@ -254,7 +254,7 @@ def render_content_block(
             "mathcraft_mixed": ("混合", "mixed"),
         }.get(content_type, ("内容", ""))
 
-        # When the content is a pure formula (wrapped in $$…$$), always
+        # When the content is a pure formula (wrapped in $$...$$), always
         # use the formula renderer regardless of the content-type tag,
         # so that Typst SVG rendering works for all formula content.
         stripped = content.strip()

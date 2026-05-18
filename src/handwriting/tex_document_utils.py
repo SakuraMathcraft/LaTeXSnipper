@@ -163,7 +163,7 @@ def validate_tex_document(text: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# LaTeX document → Typst document conversion
+# LaTeX document -> Typst document conversion
 # ---------------------------------------------------------------------------
 
 # Patterns for LaTeX math environments that need conversion
