@@ -1121,7 +1121,7 @@ class HandwritingWindow(QDialog):
             "Based on the handwritten mathematical content in the image, produce a complete, compilable, "
             "clearly structured XeLaTeX document source. "
             "Output must be a complete .tex document — no explanations, no notes, no markdown code blocks. "
-            "Use \\documentclass{article} as the document class. "
+            "Use \\documentclass[UTF8]{ctexart} as the document class. "
             "By default, only use: amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow. "
             "Only allow additional use of tikz when the image clearly contains diagrams that cannot be expressed with ordinary formulas. "
             "Must include a preamble and \\begin{document}...\\end{document}. "

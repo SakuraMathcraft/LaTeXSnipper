@@ -74,7 +74,7 @@ PROMPTS = {
         "You are a mathematical document typesetting assistant. "
         "Based on the handwritten mathematical content in the image and the user's draft recognized text, produce a complete, compilable, clearly structured XeLaTeX document source. "
         "The output must be a complete .tex document — no explanations, no extra notes, no markdown code blocks. "
-        "Always use \\documentclass{article} as the document class. "
+        "Always use \\documentclass[UTF8]{ctexart} as the document class. "
         "By default, only use the following packages: amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow. "
         "Only allow additional use of tikz when the image clearly contains geometric diagrams, illustrative figures, or flow/relationship diagrams that cannot be expressed with ordinary formulas. "
         "Must include a preamble and \\begin{document} ... \\end{document}. "
