@@ -124,6 +124,10 @@ def _clean_pandoc_typst_artifacts(typst: str) -> str:
     # Fix pandoc converting \infty to "oo" (should be "infinity" in Typst).
     # Use word-boundary match so we don't touch "oo" inside identifiers.
     text = re.sub(r'\boo\b', 'infinity', text)
+    # Fix pandoc escaping \, (, ), / in Typst output
+    text = text.replace(r'\(', '(')
+    text = text.replace(r'\)', ')')
+    text = text.replace(r'\/', '/')
     # Strip orphaned trailing } left over from pandoc conversion
     # (e.g. pandoc may wrap fraction bodies producing an extra }).
     while text.endswith('}') and text.count('{') < text.count('}'):
