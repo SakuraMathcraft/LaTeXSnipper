@@ -298,7 +298,9 @@ class FavoritesWindow(QMainWindow):
         try:
             # When the render engine is Typst, the editor content may be Typst syntax.
             # Convert Typst to LaTeX so latex2mathml / matplotlib mathtext can process it.
-            if get_current_render_mode() == "typst":
+            # Exception: pandoc_typst already targets Typst; skip conversion to avoid
+            # a lossy Typst -> LaTeX -> Typst round-trip.
+            if get_current_render_mode() == "typst" and format_type != "pandoc_typst":
                 latex = convert_typst_to_latex(latex)
             _ok, message = export_formula_to_clipboard(
                 format_type,

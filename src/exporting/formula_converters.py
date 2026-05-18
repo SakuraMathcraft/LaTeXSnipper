@@ -36,7 +36,9 @@ def convert_typst_to_latex(typst: str) -> str:
     import re
     body = re.sub(r'^\$\$\s*', '', body)
     body = re.sub(r'\s*\$\$\s*$', '', body)
-    # Safety: remove any stray $ characters (pypandoc artifacts).
+    # Strip Typst math delimiters ($...$) from the body so pypandoc only
+    # sees the raw math content.  $ is never valid inside a Typst math
+    # expression, so stripping all occurrences here is safe.
     body = body.replace('$', '')
     body = body.strip()
     if not body:
