@@ -76,6 +76,7 @@ class HandwritingWindow(QDialog):
         self._pending_zoom_anchor = None
         self._active_zoom_anchor = None
         self._last_busy_notice_ts = 0.0
+        self._last_stroke_ts = 0.0
         self._document_preview_window = None
         self._build_ui()
         self._wire_events()
@@ -302,6 +303,7 @@ class HandwritingWindow(QDialog):
         self.insert_btn.clicked.connect(self._insert_result)
         self.auto_focus_checkbox.toggled.connect(self._apply_auto_focus_state)
         self.canvas.contentChanged.connect(self._on_canvas_changed)
+        self.canvas.strokeFinished.connect(self._on_stroke_finished)
         self.canvas.viewportFollowRequested.connect(self._reposition_viewport_to_point)
         self.canvas.contentFocusRequested.connect(self._schedule_soft_focus)
         self.canvas.panRequested.connect(self._pan_canvas_view)
@@ -607,7 +609,7 @@ class HandwritingWindow(QDialog):
             except Exception:
                 model_key = ""
         valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
-        return model_key if model_key in valid else "mathcraft"
+        return model_key if model_key in valid else "mathcraft_mixed"
 
     def _get_active_model_label(self) -> str:
         labels = {
@@ -680,12 +682,27 @@ class HandwritingWindow(QDialog):
             return
         self._schedule_recognition()
 
+    def _on_stroke_finished(self) -> None:
+        self._last_stroke_ts = time.monotonic()
+
+    def _ms_since_last_stroke(self) -> float:
+        return (time.monotonic() - self._last_stroke_ts) * 1000.0
+
     def _schedule_recognition(self) -> None:
         if self._recognizing:
             self._recognize_pending = True
             self.status_label.setText("更新中，等待当前识别完成...")
             return
-        self.recognize_timer.start(700)
+        # Adaptive debounce: short delay when paused, longer during active writing
+        stroke_count = len(self.canvas.store.strokes)
+        since_last = self._ms_since_last_stroke()
+        if since_last < 300 and stroke_count > 3:
+            delay = 700  # actively writing, wait for pause
+        elif stroke_count <= 2:
+            delay = 250  # few strokes, respond quickly
+        else:
+            delay = 350  # paused after writing, quick recognition
+        self.recognize_timer.start(delay)
         self.status_label.setText("书写中")
 
     def _run_recognition(self) -> None:

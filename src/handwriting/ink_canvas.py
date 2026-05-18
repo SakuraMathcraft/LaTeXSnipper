@@ -203,7 +203,7 @@ class InkCanvas(QWidget):
         painter = QPainter(image)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.translate(-padded.left(), -padded.top())
-        self._paint_grid(painter, padded, export_mode=True)
+        # Skip grid lines in export mode for cleaner OCR input
         for stroke in self.store.strokes:
             self._paint_stroke(painter, stroke, export_mode=True)
         painter.end()
