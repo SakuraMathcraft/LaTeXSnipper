@@ -273,6 +273,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("onnxruntime", all_specs)
         self.assertIn("numpy", all_specs)
         self.assertIn("protobuf", all_specs)
+        self.assertNotIn("sentencepiece", all_specs)
         self.assertNotIn("argostranslate", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):

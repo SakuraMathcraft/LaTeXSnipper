@@ -75,9 +75,10 @@ The `v2.1` handwriting window supports the following flow:
 
 1. Open "Handwriting Recognition" from the main window
 2. Write formulas directly on an isolated canvas
-3. Trigger MathCraft OCR automatically after pen-up
+3. Trigger MathCraft mixed OCR automatically after pen-up, so handwritten text and formulas can be kept together
 4. See live `LaTeX output` and rendered preview on the right
-5. Copy LaTeX directly or insert it back into the main editor
+5. Use "Auto Typesetting" when handwritten notes contain document text, Chinese or English labels, and multi-line formulas
+6. Copy LaTeX directly or insert it back into the main editor
 
 ---
 

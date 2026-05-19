@@ -26,7 +26,6 @@ LAYER_MAP = {
     "CORE": [
         "transformers==4.55.4",
         "tokenizers==0.21.4",
-        "sentencepiece==0.2.0",
         "opencv-python==4.13.0.92",
         "rapidocr==3.5.0",
         "numpy>=1.26,<3",

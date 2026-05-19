@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-
 from PIL import Image, ImageFilter
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
@@ -33,9 +31,15 @@ def qimage_to_pil(image: QImage) -> Image.Image:
         height = fmt_image.height()
         ptr = fmt_image.bits()
         ptr.setsize(height * fmt_image.bytesPerLine())
-        arr = np.frombuffer(ptr, dtype=np.uint8).copy().reshape(height, fmt_image.bytesPerLine())
-        arr = arr[:, : width * 3].reshape(height, width, 3)
-        pil = Image.fromarray(arr, "RGB")
+        pil = Image.frombytes(
+            "RGB",
+            (width, height),
+            bytes(ptr),
+            "raw",
+            "RGB",
+            fmt_image.bytesPerLine(),
+            1,
+        )
     except Exception:
         pil = _qimage_to_pil_via_png(image)
 

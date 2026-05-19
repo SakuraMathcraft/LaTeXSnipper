@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import threading
+
 from bootstrap.deps_bootstrap import custom_warning_dialog
-from editor.workbench_window import WorkbenchWindow
 from handwriting import HandwritingWindow
 from handwriting.bilingual_pdf_window import BilingualPdfWindow
+from handwriting.model_policy import is_internal_handwriting_model, resolve_handwriting_recognition_model
 from ui.settings_window import SettingsWindow
 
 
@@ -86,19 +88,19 @@ class WindowOpenersMixin:
 
     def open_handwriting_window(self):
         preferred = self._get_preferred_model_for_predict()
+        handwriting_model = resolve_handwriting_recognition_model(preferred)
         self._sync_current_model_status_from_preference()
-        if not self.model and preferred != "external_model":
+        if not self.model and handwriting_model != "external_model":
             custom_warning_dialog("错误", "模型未初始化", self)
             return
-        if preferred == "external_model" and not self._is_external_model_configured():
+        if handwriting_model == "external_model" and not self._is_external_model_configured():
             custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
             self.open_settings()
             return
         if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
             self.handwriting_window.raise_()
             self.handwriting_window.activateWindow()
-            if preferred.startswith("mathcraft"):
-                self._ensure_model_warmup_async(preferred_model=preferred)
+            self._warmup_handwriting_model_async(handwriting_model)
             return
         self.handwriting_window = HandwritingWindow(self.model, owner=self, parent=None)
         self.handwriting_window.latexInserted.connect(self._on_handwriting_insert)
@@ -106,14 +108,36 @@ class WindowOpenersMixin:
         self.handwriting_window.show()
         self.handwriting_window.raise_()
         self.handwriting_window.activateWindow()
-        if preferred.startswith("mathcraft"):
-            self._ensure_model_warmup_async(preferred_model=preferred)
+        self._warmup_handwriting_model_async(handwriting_model)
+
+    def _warmup_handwriting_model_async(self, handwriting_model: str) -> None:
+        if not is_internal_handwriting_model(handwriting_model) or not self.model:
+            return
+        try:
+            if self.model.is_model_ready(handwriting_model):
+                return
+        except Exception:
+            pass
+
+        def worker() -> None:
+            try:
+                self._apply_mathcraft_env()
+                self.model._lazy_load_mathcraft(handwriting_model)
+            except Exception as exc:
+                try:
+                    print(f"[WARN] Handwriting MathCraft warmup failed: {exc}", flush=True)
+                except Exception:
+                    pass
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def open_workbench(self):
         if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
             self.workbench_window.raise_()
             self.workbench_window.activateWindow()
         else:
+            from editor.workbench_window import WorkbenchWindow
+
             self.workbench_window = WorkbenchWindow(None, on_insert_latex=self._on_workbench_insert)
             self.workbench_window.destroyed.connect(lambda: setattr(self, "workbench_window", None))
             self.workbench_window.apply_theme_styles(force=True)

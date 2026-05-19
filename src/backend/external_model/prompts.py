@@ -38,6 +38,18 @@ PROMPTS = {
         "If formulas, chemical expressions, tables, commutative diagrams, or other special symbols appear, express them faithfully in readable text; do not omit them. "
         "If ordinary pictures, illustrations, or diagrams exist, keep a concise placeholder at the original position; do not fabricate content."
     ),
+    "ocr_handwriting_mixed_v1": (
+        "You are a rigorous handwriting OCR assistant for mathematical notes. "
+        "Recognize every visible handwritten item in the image, including ordinary words, Chinese text, English text, titles, labels, annotations, and mathematical formulas. "
+        "Do not treat ordinary text near formulas as noise; preserve it in the original reading order. "
+        "Output editable Markdown with LaTeX math: ordinary text stays as text, inline formulas use $...$, and display formulas use $$...$$. "
+        "If the page contains separate lines, preserve line breaks and line order. "
+        "If text and formulas are on separate lines, output them on separate lines. "
+        "If text and formulas are mixed on one line, keep their original order in one readable line. "
+        "Do not output a complete TeX document, explanations, notes, prefixes, suffixes, or markdown code fences. "
+        "Accurately preserve subscripts, superscripts, fractions, integrals, sums, radicals, Greek letters, brackets, and alignment structures. "
+        "For uncertain handwriting, keep a conservative placeholder such as [unclear] rather than deleting surrounding content."
+    ),
     "ocr_document_page_v1": (
         "You are a PDF page parsing assistant. "
         "Restore the page as clearly structured, editable Markdown or LaTeX text that stays as faithful as possible to the original. "
@@ -80,9 +92,11 @@ PROMPTS = {
         "Must include a preamble and \\begin{document} ... \\end{document}. "
         "If the output you are about to produce does not contain a complete preamble, \\documentclass, or \\begin{document}/\\end{document}, it is invalid; complete it before outputting. "
         "Strictly preserve the original mathematical meaning; do not add proofs, examples, conclusions, or explanations on your own. "
+        "Preserve ordinary handwritten text, Chinese text, English text, titles, labels, annotations, and short phrases as document text; do not drop them because formulas are present. "
         "If recognition is uncertain, mark it in the source with a TeX comment % TODO: ..., but do not fabricate content. "
         "Organize paragraphs, headings, lists, theorems, proofs, and formula environments reasonably, but faithful reproduction is the top priority. "
         "For display formulas, prefer standard environments such as equation, align, gather, cases, pmatrix, etc. "
+        "When formulas are visually long or multi-line, use align, aligned, split, gathered, or multline to keep them readable; never insert arbitrary line breaks inside a TeX command, group, fraction, radical, subscript, or superscript. "
         "If a draft text is provided, use it as a reference to correct the document structure; the image is always the final authority."
     ),
 }
