@@ -65,6 +65,8 @@ MODEL_MODES = {
     "mathcraft_mixed": "mixed",
 }
 
+FORMULA_RECOGNITION_MAX_NEW_TOKENS = 512
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -776,10 +778,14 @@ class ModelWrapper(QObject):
             image_rgb = pil_img.convert("RGB")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 tmp_path = tmp.name
-                image_rgb.save(tmp, format="PNG")
+                image_rgb.save(tmp, format="PNG", compress_level=1)
             if mode == "formula":
                 result = self._send_worker_request(
-                    {"action": "recognize_formula", "image": tmp_path},
+                    {
+                        "action": "recognize_formula",
+                        "image": tmp_path,
+                        "max_new_tokens": FORMULA_RECOGNITION_MAX_NEW_TOKENS,
+                    },
                     timeout_sec=300.0,
                 )
             elif mode == "text":
@@ -795,6 +801,7 @@ class ModelWrapper(QObject):
                     {
                         "action": "recognize_mixed",
                         "image": tmp_path,
+                        "max_formula_new_tokens": FORMULA_RECOGNITION_MAX_NEW_TOKENS,
                     },
                     timeout_sec=600.0,
                 )

@@ -279,9 +279,9 @@ LaTeXSnipper/
 |   `-- assets/                    # Icons and bundled web/math resources
 |-- tools/
 |   `-- deps/                      # Local developer/build dependency environment
-|-- user_manual/                   # Manual source and locally generated PDF
+|-- user_manual/                   # Local manual source and generated PDF
 |-- Inno/                          # GitHub Release installer scripts
-|-- packaging/msix/                # Microsoft Store MSIX manifest and notes
+|-- packaging/                     # Debian and MSIX packaging resources
 |-- scripts/                       # Build, release, and regression utilities
 |-- docs/                          # Design and architecture notes
 |-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)

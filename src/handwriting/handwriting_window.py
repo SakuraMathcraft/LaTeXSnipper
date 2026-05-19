@@ -75,6 +75,7 @@ class HandwritingWindow(QDialog):
         self._pending_zoom_anchor = None
         self._active_zoom_anchor = None
         self._last_busy_notice_ts = 0.0
+        self._last_stroke_ts = 0.0
         self._document_preview_window = None
         self._build_ui()
         self._wire_events()
@@ -176,9 +177,6 @@ class HandwritingWindow(QDialog):
         self.result_title.setObjectName("handwritingSectionTitle")
         result_header.addWidget(self.result_title)
         result_header.addStretch(1)
-        self.recognition_type_label = QLabel("")
-        self.recognition_type_label.setObjectName("handwritingHint")
-        result_header.addWidget(self.recognition_type_label)
         result_layout.addLayout(result_header)
         self.result_editor = PreviewPlainTextEdit(self)
         self.result_editor.setPlaceholderText("手写识别结果会显示在这里，可直接手动修正。")
@@ -301,6 +299,7 @@ class HandwritingWindow(QDialog):
         self.insert_btn.clicked.connect(self._insert_result)
         self.auto_focus_checkbox.toggled.connect(self._apply_auto_focus_state)
         self.canvas.contentChanged.connect(self._on_canvas_changed)
+        self.canvas.strokeFinished.connect(self._on_stroke_finished)
         self.canvas.viewportFollowRequested.connect(self._reposition_viewport_to_point)
         self.canvas.contentFocusRequested.connect(self._schedule_soft_focus)
         self.canvas.panRequested.connect(self._pan_canvas_view)
@@ -606,36 +605,7 @@ class HandwritingWindow(QDialog):
             except Exception:
                 model_key = ""
         valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
-        return model_key if model_key in valid else "mathcraft"
-
-    def _get_active_model_label(self) -> str:
-        labels = {
-            "mathcraft": "公式",
-            "mathcraft_text": "文字",
-            "mathcraft_mixed": "混合",
-        }
-        model_key = self._get_active_model_key()
-        if model_key == "external_model":
-            owner = self.owner
-            if owner is not None and hasattr(owner, "_get_status_model_display_name"):
-                try:
-                    display = str(owner._get_status_model_display_name() or "").strip()
-                    if display:
-                        return display
-                except Exception:
-                    pass
-            cfg = self._get_external_model_config()
-            if cfg is not None:
-                try:
-                    if cfg.normalized_provider() == "mineru":
-                        return "MinerU"
-                    model_name = cfg.normalized_model_name()
-                    if model_name:
-                        return model_name
-                except Exception:
-                    pass
-            return "外部模型"
-        return labels.get(model_key, "公式")
+        return model_key if model_key in valid else "mathcraft_mixed"
 
     def _get_external_model_config(self):
         owner = self.owner
@@ -656,8 +626,6 @@ class HandwritingWindow(QDialog):
             return False
 
     def _refresh_recognition_context(self) -> None:
-        if hasattr(self, "recognition_type_label"):
-            self.recognition_type_label.setText(f"当前识别类型：{self._get_active_model_label()}")
         self._update_layout_button_state()
 
     def _update_layout_button_state(self) -> None:
@@ -679,12 +647,26 @@ class HandwritingWindow(QDialog):
             return
         self._schedule_recognition()
 
+    def _on_stroke_finished(self) -> None:
+        self._last_stroke_ts = time.monotonic()
+
+    def _ms_since_last_stroke(self) -> float:
+        return (time.monotonic() - self._last_stroke_ts) * 1000.0
+
     def _schedule_recognition(self) -> None:
         if self._recognizing:
             self._recognize_pending = True
             self.status_label.setText("更新中，等待当前识别完成...")
             return
-        self.recognize_timer.start(700)
+        stroke_count = len(self.canvas.store.strokes)
+        since_last = self._ms_since_last_stroke()
+        if since_last < 300 and stroke_count > 3:
+            delay = 700
+        elif stroke_count <= 2:
+            delay = 250
+        else:
+            delay = 350
+        self.recognize_timer.start(delay)
         self.status_label.setText("书写中")
 
     def _run_recognition(self) -> None:
@@ -1064,20 +1046,26 @@ class HandwritingWindow(QDialog):
 
     def _build_math_document_prompt(self, recognized_text: str) -> str:
         base = (
-            "你是一个数学文档排版助手。"
-            "请根据图片中的手写数学内容，整理为一份完整、可编译、结构清晰的 XeLaTeX 文档源码。"
-            "输出必须是完整的 .tex 文档，不要解释，不要添加说明，不要输出 markdown 代码块。"
-            "文档类固定使用 \\documentclass[UTF8]{ctexart}。"
-            "默认只使用 amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow。"
-            "只有在图片中明确存在示意图且无法用普通公式表达时，才允许额外使用 tikz。"
-            "必须包含导言区与 \\begin{document}...\\end{document}。"
-            "严格保持原始数学含义，不要擅自补充证明、解释、例子。"
-            "不确定内容可用 TeX 注释 % TODO: ... 标记。"
+            "You are a mathematical document typesetting assistant. "
+            "Based on the handwritten mathematical content in the image, produce a complete, compilable, "
+            "clearly structured XeLaTeX document source. "
+            "Output must be a complete .tex document: no explanations, no notes, no markdown code blocks. "
+            "Use \\documentclass[UTF8]{ctexart} as the document class. "
+            "By default, only use: amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow. "
+            "Only allow additional use of tikz when the image clearly contains diagrams that cannot be expressed with ordinary formulas. "
+            "Must include a preamble and \\begin{document}...\\end{document}. "
+            "Strictly preserve the original mathematical meaning; do not add proofs, explanations, or examples on your own. "
+            "Mark uncertain content with a TeX comment % TODO: ..."
         )
         draft = str(recognized_text or "").strip()
         if not draft:
             return base
-        return base + "\n\n以下是当前识别草稿文本，请优先参考它修正文档结构，但图片仍是最终依据：\n" + draft
+        return (
+            base
+            + "\n\nBelow is the current recognized draft text. Use it as a reference to correct "
+            "the document structure, but the image remains the final authority:\n"
+            + draft
+        )
 
     def _auto_layout_document(self) -> None:
         if self._closing:

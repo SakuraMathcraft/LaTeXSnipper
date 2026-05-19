@@ -867,6 +867,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 timer_holder = {"log": None, "speed": None}
                 verify_worker_holder = {"obj": None}
                 post_install_verify_passed = {"value": False}
+                completion_state = {
+                    "install_done_handled": False,
+                    "verify_done_handled": False,
+                    "final_ui_applied": False,
+                }
                 paused = False
                 net_speed_state = {
                     "busy": False,
@@ -1045,6 +1050,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 worker.busy_state_changed.connect(_set_network_speed_busy)
 
                 def _finalize_done_ui():
+                    if completion_state["final_ui_applied"]:
+                        return
+                    completion_state["final_ui_applied"] = True
                     _set_network_speed_busy(False)
                     if _is_alive(progress):
                         _set_progress(progress.maximum())
@@ -1067,6 +1075,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         print(f"[WARN] refresh ui failed: {e}")
 
                 def on_install_done(success: bool):
+                    if completion_state["install_done_handled"]:
+                        return
+                    completion_state["install_done_handled"] = True
+                    try:
+                        worker.done.disconnect(on_install_done)
+                    except Exception:
+                        pass
                     if ui_closed["value"] or stop_event.is_set() or (not _is_alive(dlg)):
                         return
 
@@ -1091,6 +1106,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     verify_worker.log_updated.connect(_append_log)
 
                     def on_verify_done(_ok_layers: list, fail_layers: list):
+                        if completion_state["verify_done_handled"]:
+                            return
+                        completion_state["verify_done_handled"] = True
+                        try:
+                            verify_worker.done.disconnect(on_verify_done)
+                        except Exception:
+                            pass
                         if ui_closed["value"] or (not _is_alive(dlg)):
                             return
                         post_install_verify_passed["value"] = not bool(fail_layers)

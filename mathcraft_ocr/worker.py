@@ -8,7 +8,7 @@ import json
 import sys
 from typing import TextIO
 
-from .runtime import MathCraftRuntime
+from .runtime import FORMULA_MAX_NEW_TOKENS, MathCraftRuntime
 from .serialization import doctor_report_to_json, formula_result_to_json, mixed_result_to_json, warmup_plan_to_json
 
 
@@ -45,7 +45,7 @@ class MathCraftWorker:
             return warmup_plan_to_json(self.runtime.warmup(profile))
         if action == "recognize_formula":
             image = _require_image(request)
-            max_new_tokens = int(request.get("max_new_tokens", 256))
+            max_new_tokens = int(request.get("max_new_tokens", FORMULA_MAX_NEW_TOKENS))
             return formula_result_to_json(
                 self.runtime.recognize_formula(image, max_new_tokens=max_new_tokens)
             )
@@ -61,10 +61,12 @@ class MathCraftWorker:
         if action == "recognize_mixed":
             image = _require_image(request)
             min_text_score = float(request.get("min_text_score", 0.45))
+            max_formula_new_tokens = int(request.get("max_formula_new_tokens", FORMULA_MAX_NEW_TOKENS))
             return mixed_result_to_json(
                 self.runtime.recognize_mixed(
                     image,
                     min_text_score=min_text_score,
+                    max_formula_new_tokens=max_formula_new_tokens,
                 )
             )
         if action == "shutdown":

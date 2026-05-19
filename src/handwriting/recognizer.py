@@ -1,26 +1,55 @@
 from __future__ import annotations
 
-from io import BytesIO
+import numpy as np
 
-from PIL import Image
-from PyQt6.QtCore import QBuffer, QIODevice, QObject, pyqtSignal
+from PIL import Image, ImageFilter
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 
 from backend.external_model import ExternalModelClient, ExternalModelConfig
 
+_UPSCALE_MIN_DIM = 120
+_UPSCALE_TARGET_DIM = 220
 
-def qimage_to_pil(image: QImage) -> Image.Image:
+
+def _qimage_to_pil_via_png(image: QImage) -> Image.Image:
+    from io import BytesIO
+
+    from PyQt6.QtCore import QBuffer, QIODevice
+
     buffer = QBuffer()
     buffer.open(QIODevice.OpenModeFlag.ReadWrite)
     image.save(buffer, "PNG")
     data = bytes(buffer.data())
     buffer.close()
-    pil = Image.open(BytesIO(data)).convert("RGB")
-    if pil.width < 32 or pil.height < 32:
-        pil = pil.resize((max(32, pil.width * 2), max(32, pil.height * 2)), Image.Resampling.LANCZOS)
-    else:
-        pil = pil.resize((pil.width * 2, pil.height * 2), Image.Resampling.LANCZOS)
+    return Image.open(BytesIO(data)).convert("RGB")
+
+
+def qimage_to_pil(image: QImage) -> Image.Image:
+    """Convert QImage to PIL RGB without PNG encode/decode on the common path."""
+    try:
+        fmt_image = image.convertToFormat(QImage.Format.Format_RGB888)
+        width = fmt_image.width()
+        height = fmt_image.height()
+        ptr = fmt_image.bits()
+        ptr.setsize(height * fmt_image.bytesPerLine())
+        arr = np.frombuffer(ptr, dtype=np.uint8).copy().reshape(height, fmt_image.bytesPerLine())
+        arr = arr[:, : width * 3].reshape(height, width, 3)
+        pil = Image.fromarray(arr, "RGB")
+    except Exception:
+        pil = _qimage_to_pil_via_png(image)
+
+    if pil.width < _UPSCALE_MIN_DIM or pil.height < _UPSCALE_MIN_DIM:
+        scale = max(2.0, _UPSCALE_TARGET_DIM / max(1, min(pil.width, pil.height)))
+        pil = pil.resize(
+            (max(1, int(pil.width * scale)), max(1, int(pil.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
     return pil
+
+
+def enhance_stroke_image(pil: Image.Image) -> Image.Image:
+    return pil.filter(ImageFilter.UnsharpMask(radius=0.8, percent=60, threshold=2))
 
 
 class HandwritingRecognitionWorker(QObject):
@@ -43,6 +72,7 @@ class HandwritingRecognitionWorker(QObject):
     def run(self) -> None:
         try:
             pil_img = qimage_to_pil(self.image)
+            pil_img = enhance_stroke_image(pil_img)
             model_name = str(self.model_name or "mathcraft").strip().lower()
             if model_name == "external_model":
                 if self.external_config is None:

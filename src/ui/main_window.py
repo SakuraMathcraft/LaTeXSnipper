@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from io import BytesIO
-
-from PIL import Image
-from PyQt6.QtCore import QBuffer, QIODevice, QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow
 from qfluentwidgets import PrimaryPushButton
 
 from capture.capture_controller import CaptureControllerMixin
 from preview.preview_controller import PreviewControllerMixin
 from recognition.pdf_controller import PdfRecognitionControllerMixin
+from recognition.image_preprocess import qpixmap_to_rgb_pil
 from recognition.recognition_controller import RecognitionControllerMixin
 from ui.app_lifecycle_controller import AppLifecycleMixin
 from ui.editor_actions_controller import EditorActionsControllerMixin
@@ -117,11 +115,4 @@ class MainWindow(
         QTimer.singleShot(0, fn)
 
     def _qpixmap_to_pil(self, pixmap):
-        buf = QBuffer()
-        if not buf.open(QIODevice.OpenModeFlag.ReadWrite):
-            raise RuntimeError("QBuffer 打开失败")
-        if not pixmap.save(buf, "PNG"):
-            raise RuntimeError("QPixmap 保存失败")
-        data = bytes(buf.data())
-        buf.close()
-        return Image.open(BytesIO(data)).convert("RGB")
+        return qpixmap_to_rgb_pil(pixmap)
