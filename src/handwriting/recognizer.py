@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-
 from PIL import Image, ImageFilter
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
@@ -37,6 +35,8 @@ def qimage_to_pil(image: QImage) -> Image.Image:
         buffer.close()
         pil = Image.open(BytesIO(data)).convert("RGB")
     else:
+        import numpy as np
+
         ptr.setsize(height * fmt_image.bytesPerLine())
         arr = np.array(ptr, copy=True).reshape(height, fmt_image.bytesPerLine())
         # ARGB32: bytesPerLine may have padding; strip to width * 4
