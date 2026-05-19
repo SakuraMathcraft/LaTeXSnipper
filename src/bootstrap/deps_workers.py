@@ -10,6 +10,7 @@ from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_sp
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
+    MATHCRAFT_RUNTIME_LAYERS,
     _normalize_chosen_layers,
     _reorder_mathcraft_install_specs,
     _version_satisfies_spec,
@@ -255,7 +256,8 @@ class InstallWorker(QThread):
                     progress_fn=_pandoc_progress,
                 )
 
-            _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
+            if "CORE" in chosen_layers or any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
+                _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
 
             runtime_ort_ok = True
             runtime_ort_err = ""

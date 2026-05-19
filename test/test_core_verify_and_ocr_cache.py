@@ -12,6 +12,8 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+from PIL import Image
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -143,6 +145,41 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         wrapper = ModelWrapper(auto_warmup=False)
         self.assertEqual(wrapper._mode_for_model("unknown_mode"), "formula")
+
+    def test_model_wrapper_uses_extended_formula_decode_budget(self):
+        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+        requests = []
+
+        def _fake_request(payload, timeout_sec=300.0):
+            requests.append(dict(payload))
+            return {"text": "x", "score": 0.9}
+
+        wrapper._send_worker_request = _fake_request
+        wrapper.predict_result(Image.new("RGB", (16, 16), "white"), model_name="mathcraft")
+
+        self.assertEqual(requests[-1]["max_new_tokens"], FORMULA_RECOGNITION_MAX_NEW_TOKENS)
+
+    def test_model_wrapper_uses_extended_mixed_formula_decode_budget(self):
+        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("mixed")
+        requests = []
+
+        def _fake_request(payload, timeout_sec=600.0):
+            requests.append(dict(payload))
+            return {"text": "x"}
+
+        wrapper._send_worker_request = _fake_request
+        wrapper.predict_result(Image.new("RGB", (16, 16), "white"), model_name="mathcraft_mixed")
+
+        self.assertEqual(
+            requests[-1]["max_formula_new_tokens"],
+            FORMULA_RECOGNITION_MAX_NEW_TOKENS,
+        )
 
     def test_mathcraft_provider_prefers_installed_gpu_layer(self):
         from backend.model import _infer_provider_preference_from_deps_state

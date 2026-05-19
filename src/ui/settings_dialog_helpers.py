@@ -66,6 +66,13 @@ def _existing_non_launcher_pyexe_from_env() -> str:
     return pyexe
 
 
+def _normalize_windows_drive_letter(path: str | Path) -> str:
+    text = str(path or "")
+    if os.name == "nt" and len(text) >= 2 and text[1] == ":":
+        return text[0].upper() + text[1:]
+    return text
+
+
 def _mathcraft_code_roots() -> list[str]:
     roots: list[Path] = []
 
