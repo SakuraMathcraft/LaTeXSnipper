@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from math import sqrt
 
-import numpy as np
 from PIL import Image
 from PyQt6.QtGui import QImage
 
@@ -18,9 +17,15 @@ def qimage_to_rgb_pil(image: QImage) -> Image.Image:
     height = fmt_image.height()
     ptr = fmt_image.bits()
     ptr.setsize(height * fmt_image.bytesPerLine())
-    arr = np.frombuffer(ptr, dtype=np.uint8).copy().reshape(height, fmt_image.bytesPerLine())
-    arr = arr[:, : width * 3].reshape(height, width, 3)
-    return Image.fromarray(arr, "RGB")
+    return Image.frombytes(
+        "RGB",
+        (width, height),
+        bytes(ptr),
+        "raw",
+        "RGB",
+        fmt_image.bytesPerLine(),
+        1,
+    )
 
 
 def qpixmap_to_rgb_pil(pixmap) -> Image.Image:
