@@ -14,6 +14,7 @@ import threading
 from typing import Any
 
 from PIL import Image
+from runtime.dependency_python import clean_path_value, find_dependency_python
 
 try:
     from PyQt6.QtCore import QObject, pyqtSignal
@@ -188,48 +189,17 @@ def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
         return str(left) == str(right)
 
 
-def _find_install_base_python(base_dir: str | Path | None) -> Path | None:
-    if not base_dir:
-        return None
-    base = Path(base_dir)
-    candidates = [
-        base / "python.exe",
-        base / "Scripts" / "python.exe",
-        base / "python311" / "python.exe",
-        base / "python311" / "Scripts" / "python.exe",
-        base / "Python311" / "python.exe",
-        base / "Python311" / "Scripts" / "python.exe",
-        base / "venv" / "Scripts" / "python.exe",
-        base / ".venv" / "Scripts" / "python.exe",
-        base / "python_full" / "python.exe",
-    ]
-    try:
-        for child in sorted(base.glob("python*")):
-            if child.is_dir():
-                candidates.append(child / "python.exe")
-                candidates.append(child / "Scripts" / "python.exe")
-    except Exception:
-        pass
-    for candidate in candidates:
-        try:
-            if candidate.exists() and candidate.is_file():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
 def _configured_install_base_python() -> Path | None:
     raw_values: list[str] = []
     for key in ("LATEXSNIPPER_DEPS_DIR", "LATEXSNIPPER_INSTALL_BASE_DIR"):
-        raw = (os.environ.get(key, "") or "").strip()
+        raw = clean_path_value(os.environ.get(key, ""))
         if raw:
             raw_values.append(raw)
     try:
         cfg = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
         if cfg.exists():
             data = json.loads(cfg.read_text(encoding="utf-8"))
-            raw = str(data.get("install_base_dir", "") or "").strip() if isinstance(data, dict) else ""
+            raw = clean_path_value(data.get("install_base_dir", "")) if isinstance(data, dict) else ""
             if raw:
                 raw_values.append(raw)
     except Exception:
@@ -243,7 +213,7 @@ def _configured_install_base_python() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
-        pyexe = _find_install_base_python(raw)
+        pyexe = find_dependency_python(raw)
         if pyexe is not None:
             return pyexe
     return None
@@ -260,7 +230,7 @@ def _looks_like_packaged_template_python(pyexe: str | Path | None) -> bool:
 
 
 def get_deps_python() -> str:
-    pyexe = os.environ.get("LATEXSNIPPER_PYEXE", "")
+    pyexe = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE", ""))
     configured_py = _configured_install_base_python()
     if configured_py is not None and pyexe and os.path.exists(pyexe):
         if _looks_like_packaged_template_python(pyexe) and not _same_path(pyexe, configured_py):

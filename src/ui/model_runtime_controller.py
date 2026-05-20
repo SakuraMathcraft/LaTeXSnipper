@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import threading
 import os
-import sys
 
 from PyQt6.QtCore import QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.external_model import load_config_from_mapping
 from backend.model import classify_mathcraft_failure
+from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
 
 
@@ -378,9 +378,12 @@ class ModelRuntimeControllerMixin:
         env_pyexe = ""
         try:
 
-            pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-            if not pyexe or not os.path.exists(pyexe):
-                pyexe = sys.executable
+            configured_base = ""
+            try:
+                configured_base = self.cfg.get("install_base_dir", "") or ""
+            except Exception:
+                configured_base = ""
+            pyexe = resolve_dependency_python((configured_base,), fallback_to_current=True)
             if pyexe and os.path.exists(pyexe):
                 env_pyexe = pyexe
         except Exception:
@@ -391,7 +394,7 @@ class ModelRuntimeControllerMixin:
             pass
         try:
             new_state = (
-                (env_pyexe or os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip(),
+                env_pyexe,
             )
             old_state = getattr(self, "_mathcraft_env_state", None)
             self._mathcraft_env_state = new_state

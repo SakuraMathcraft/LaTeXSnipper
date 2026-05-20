@@ -7,6 +7,8 @@ import os
 import sys
 from pathlib import Path
 
+from runtime.dependency_python import clean_path_value
+
 
 def configure_default_webengine_profile() -> None:
     """Apply MathJax-friendly WebEngine settings after QApplication exists."""
@@ -69,7 +71,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             exe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
             exe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
         ])
-        pyexe_env = os.environ.get("LATEXSNIPPER_PYEXE", "")
+        pyexe_env = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE", ""))
         if pyexe_env:
             pyexe_dir = Path(pyexe_env).parent
             candidates.extend([

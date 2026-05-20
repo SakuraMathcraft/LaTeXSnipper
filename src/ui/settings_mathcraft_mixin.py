@@ -4,6 +4,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from runtime.dependency_python import clean_path_value
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
     _hidden_subprocess_kwargs,
@@ -332,7 +333,7 @@ class SettingsMathCraftMixin:
             raw = ""
         if not raw:
             raw = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "") or ""
-        raw = str(raw).strip()
+        raw = clean_path_value(raw)
         if not raw:
             return None
         try:
