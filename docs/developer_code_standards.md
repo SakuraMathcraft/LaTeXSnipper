@@ -1,4 +1,4 @@
-                         # Developer Code Standards
+# Developer Code Standards
 
 These rules are mandatory for pull requests. They protect the Windows release
 path while allowing Linux and macOS support to evolve cleanly.
