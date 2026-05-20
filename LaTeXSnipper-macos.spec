@@ -192,11 +192,6 @@ a = Analysis(
         "urllib.request",
         "subprocess",
 
-        # macOS global hotkeys
-        "pynput",
-        "pynput.keyboard",
-        "pynput.mouse",
-
         # Application submodules
         "editor",
         "editor.workbench_bridge",
