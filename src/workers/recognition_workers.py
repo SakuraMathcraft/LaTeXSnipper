@@ -13,6 +13,13 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from recognition.image_preprocess import optimize_mathcraft_input_image
 
 
+def _empty_recognition_message(result: dict[str, Any] | None = None) -> str:
+    mode = str((result or {}).get("mode") or "").strip().lower()
+    if mode == "mixed":
+        return "未检测到可识别内容"
+    return "未识别到公式内容"
+
+
 class PredictionWorker(QObject):
     finished = pyqtSignal(str)
     failed = pyqtSignal(str)
@@ -36,7 +43,15 @@ class PredictionWorker(QObject):
                 self.failed.emit("已取消")
                 return
             image = optimize_mathcraft_input_image(self.image)
-            result = self.model_wrapper.predict(image, model_name=self.model_name)
+            if hasattr(self.model_wrapper, "predict_result"):
+                result_obj = self.model_wrapper.predict_result(image, model_name=self.model_name)
+                result = str(result_obj.get("text", "") or "").strip()
+                if result_obj.get("empty_reason") or not result:
+                    self.elapsed = time.perf_counter() - t0
+                    self.failed.emit(_empty_recognition_message(result_obj))
+                    return
+            else:
+                result = self.model_wrapper.predict(image, model_name=self.model_name)
             self.elapsed = time.perf_counter() - t0
             if self._cancel_requested():
                 self.failed.emit("已取消")

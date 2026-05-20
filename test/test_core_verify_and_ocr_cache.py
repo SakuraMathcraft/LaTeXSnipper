@@ -106,6 +106,14 @@ class InternalModelMathCraftTests(unittest.TestCase):
         message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
         self.assertIn("CUDA", message)
 
+    def test_empty_recognition_failure_message_is_preserved(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        self.assertEqual(
+            recognition_failure_user_message("未识别到公式内容", "mathcraft"),
+            "未识别到公式内容",
+        )
+
     def test_provider_reports_incomplete_onnxruntime_namespace(self):
         from mathcraft_ocr.errors import ProviderError
         from mathcraft_ocr.providers import detect_providers
@@ -239,6 +247,17 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         self.assertEqual(result["text"], r"\int _ { 0 } ^ { 1 } x ^ { 2 } dx")
         self.assertNotIn("empty_reason", result)
+
+    def test_model_wrapper_predict_empty_hint_has_no_render_brackets(self):
+        from backend.model import ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+
+        self.assertEqual(
+            wrapper.predict(Image.new("RGB", (128, 64), "white"), model_name="mathcraft"),
+            "未识别到公式内容",
+        )
 
     def test_mathcraft_provider_prefers_installed_gpu_layer(self):
         from backend.model import _infer_provider_preference_from_deps_state

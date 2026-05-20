@@ -859,11 +859,11 @@ class ModelWrapper(QObject):
         score = result.get("score")
         if isinstance(score, (int, float)) and float(score) < 0.2:
             if not text:
-                return "[未识别到公式内容]"
-            return f"[低置信度] {text}"
+                return "未识别到公式内容"
+            return f"低置信度: {text}"
         # Mixed mode has no score field; empty text means nothing recognizable was detected.
         if not text:
-            return "[未检测到可识别内容]"
+            return "未检测到可识别内容"
         return text
 
     def __del__(self):
