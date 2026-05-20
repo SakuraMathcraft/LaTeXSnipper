@@ -26,6 +26,9 @@ except Exception:
     except Exception:
         sip = None
 
+RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS = 10.0
+
+
 class PredictResultControllerMixin:
     def _clear_predict_result_dialog_ref(self, dialog_obj=None):
         """Clear the result dialog reference only when the callback still targets this window."""
@@ -447,6 +450,17 @@ class PredictResultControllerMixin:
     def _build_mixed_html(self, content: str) -> str:
         return build_mixed_content_html(content)
 
+    def _should_show_recognition_failure_tray_notification(self, now_ts: float | None = None) -> bool:
+        try:
+            current = float(now_ts if now_ts is not None else datetime.datetime.now().timestamp())
+            last = float(getattr(self, "_last_recognition_failure_toast_ts", 0.0) or 0.0)
+            if current - last < RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS:
+                return False
+            self._last_recognition_failure_toast_ts = current
+            return True
+        except Exception:
+            return True
+
     def on_predict_fail(self, msg: str, external_model: bool | None = None):
         self._next_predict_result_screen_index = None
         self._restore_hidden_unpinned_predict_result_dialog()
@@ -478,23 +492,23 @@ class PredictResultControllerMixin:
                 print(f"[INFO] 识别失败 model={used} err={msg}")
         except Exception:
             pass
-        if getattr(self, "tray_icon", None):
-            hk = self.cfg.get("hotkey", "Ctrl+F")
-            try:
-                self.system_provider.show_notification(
-                    self.tray_icon,
-                    "识别失败",
-                    f"{msg}\n可使用快捷键 {hk} 重试。",
-                    critical=True,
-                    timeout_ms=4000,
-                )
-            except Exception:
-                pass
         content = self._recognition_failure_content(
             msg,
             worker_attr="predict_worker",
             external_model=external_model,
         )
+        if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
+            hk = self.cfg.get("hotkey", "Ctrl+F")
+            try:
+                self.system_provider.show_notification(
+                    self.tray_icon,
+                    "识别失败",
+                    f"{content}\n可使用快捷键 {hk} 重试。",
+                    critical=True,
+                    timeout_ms=4000,
+                )
+            except Exception:
+                pass
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
