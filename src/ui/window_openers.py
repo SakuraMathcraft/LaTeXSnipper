@@ -6,7 +6,6 @@ import threading
 
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from handwriting import HandwritingWindow
-from handwriting.bilingual_pdf_window import BilingualPdfWindow
 from handwriting.model_policy import is_internal_handwriting_model, resolve_handwriting_recognition_model
 from ui.settings_window import SettingsWindow
 
@@ -160,6 +159,8 @@ class WindowOpenersMixin:
                 pass
             self.bilingual_pdf_window = None
         try:
+            from handwriting.bilingual_pdf_window import BilingualPdfWindow
+
             window = BilingualPdfWindow(cfg=self.cfg, parent=None)
         except Exception as exc:
             custom_warning_dialog("错误", f"双语阅读窗口初始化失败: {exc}", self)

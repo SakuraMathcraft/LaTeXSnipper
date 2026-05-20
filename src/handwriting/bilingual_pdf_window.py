@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 import json
 import os
 import subprocess
 import sys
+from types import ModuleType
 
 from PyQt6.QtCore import QEvent, QProcess, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
@@ -15,11 +17,6 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
 from runtime.app_paths import resource_path
-
-try:
-    import fitz
-except Exception:  # pragma: no cover
-    fitz = None
 
 @dataclass(frozen=True)
 class _PagePayload:
@@ -48,6 +45,13 @@ def _hidden_subprocess_kwargs() -> dict:
     except Exception:
         pass
     return kwargs
+
+
+def _load_fitz_module() -> ModuleType | None:
+    try:
+        return import_module("fitz")
+    except Exception:
+        return None
 
 
 class _ArgosModelInstallWorker(QThread):
@@ -854,6 +858,7 @@ class BilingualPdfWindow(QDialog):
             self.set_pdf(path)
 
     def set_pdf(self, pdf_path: str) -> None:
+        fitz = _load_fitz_module()
         if fitz is None:
             InfoBar.error(title="缺少依赖", content="当前环境未安装 PyMuPDF，无法打开 PDF。", parent=self, position=InfoBarPosition.TOP, duration=3200)
             return
