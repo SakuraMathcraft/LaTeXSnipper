@@ -100,6 +100,26 @@ def test_bilingual_reader_loads_pymupdf_on_demand() -> None:
     assert 'import_module("fitz")' in source
 
 
+def test_bilingual_reader_uses_shared_dependency_python_resolver() -> None:
+    source = (SRC / "handwriting" / "bilingual_pdf_window.py").read_text(encoding="utf-8")
+
+    assert "from runtime.dependency_python import" in source
+    assert "resolve_dependency_python((configured_base,), fallback_to_current=True)" in source
+    assert '"--clear"' in source
+
+
+def test_dependency_python_cleans_legacy_quoted_paths() -> None:
+    from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
+
+    assert clean_path_value('"E:\\LaTexSnipper\\src\\deps\\python311\\python.exe') == (
+        "E:\\LaTexSnipper\\src\\deps\\python311\\python.exe"
+    )
+    assert clean_path_value("'E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe'") == (
+        "E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe"
+    )
+    assert normalize_deps_base_dir("E:\\LaTexSnipper\\src\\deps\\python311") == Path("E:\\LaTexSnipper\\src\\deps")
+
+
 def test_handwriting_window_uses_dedicated_external_ocr_defaults() -> None:
     source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
 

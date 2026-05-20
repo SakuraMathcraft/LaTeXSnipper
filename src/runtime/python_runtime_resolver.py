@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from runtime.app_paths import app_config_path, app_state_dir, get_app_root, is_packaged_mode
+from runtime.dependency_python import clean_path_value
 from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
 from ui.window_helpers import (
     apply_app_window_icon as _apply_app_window_icon,
@@ -41,7 +42,7 @@ def _developer_deps_dir() -> Path:
 
 
 def _initial_deps_dir() -> Path:
-    env_value = os.environ.get("LATEXSNIPPER_DEPS_DIR")
+    env_value = clean_path_value(os.environ.get("LATEXSNIPPER_DEPS_DIR"))
     if env_value:
         return Path(env_value)
     if _is_packaged_mode() and os.name != "nt":
@@ -231,7 +232,7 @@ def _read_install_base_dir() -> Path | None:
     if cfg.exists():
         try:
             data = json.loads(cfg.read_text("utf-8"))
-            p = _normalize_install_base_dir(Path(data.get("install_base_dir", "")).expanduser())
+            p = _normalize_install_base_dir(Path(clean_path_value(data.get("install_base_dir", ""))).expanduser())
             if p and p.exists():
                 if _looks_like_packaged_deps_dir(p):
                     return None
@@ -645,10 +646,12 @@ def _win_subprocess_kwargs() -> dict:
 
 def _clean_bad_env():
     """Remove or repair invalid LATEXSNIPPER_PYEXE values."""
-    val = os.environ.get("LATEXSNIPPER_PYEXE")
+    val = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE"))
     p = _norm_path(val)
     if not p or not os.path.exists(p):
         os.environ.pop("LATEXSNIPPER_PYEXE", None)
+    else:
+        os.environ["LATEXSNIPPER_PYEXE"] = p
 
 
 def _has_full_python_bootstrap_modules(pyexe: str) -> bool:

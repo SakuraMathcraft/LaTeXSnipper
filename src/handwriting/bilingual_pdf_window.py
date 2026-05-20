@@ -6,7 +6,6 @@ from pathlib import Path
 import json
 import os
 import subprocess
-import sys
 from types import ModuleType
 
 from PyQt6.QtCore import QEvent, QProcess, Qt, QThread, QTimer, pyqtSignal
@@ -17,6 +16,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
 from runtime.app_paths import resource_path
+from runtime.dependency_python import clean_path_value, python_env_root, resolve_dependency_python
 
 @dataclass(frozen=True)
 class _PagePayload:
@@ -87,6 +87,30 @@ class _ArgosModelInstallWorker(QThread):
         err = (result.stderr or result.stdout or "").strip() or fallback
         raise RuntimeError(err)
 
+    def _python_can_start(self, pyexe: Path) -> bool:
+        if not pyexe.exists():
+            return False
+        try:
+            result = self._run_step([str(pyexe), "-c", "import sys; print(sys.executable)"], timeout=30)
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _create_or_repair_env(self, bootstrap_pyexe: str, env_py: Path) -> None:
+        if env_py.exists() and self._python_can_start(env_py):
+            return
+        self._env_dir.mkdir(parents=True, exist_ok=True)
+        if env_py.exists():
+            self.progress.emit("Argos 独立翻译环境已损坏，正在重建...")
+            args = [bootstrap_pyexe, "-m", "venv", "--clear", str(self._env_dir)]
+        else:
+            self.progress.emit("正在创建 Argos 独立翻译环境...")
+            args = [bootstrap_pyexe, "-m", "venv", str(self._env_dir)]
+        result = self._run_step(args, timeout=900)
+        self._require_ok(result, "Argos 独立翻译环境创建失败。")
+        if not self._python_can_start(env_py):
+            raise RuntimeError(f"Argos 翻译环境解释器不可用: {env_py}")
+
     def run(self) -> None:
         bootstrap_pyexe = self._bootstrap_pyexe
         if not bootstrap_pyexe or (not os.path.exists(bootstrap_pyexe)):
@@ -94,11 +118,7 @@ class _ArgosModelInstallWorker(QThread):
             return
         try:
             env_py = _translation_env_python(self._env_dir)
-            if not env_py.exists():
-                self.progress.emit("正在创建 Argos 独立翻译环境...")
-                self._env_dir.mkdir(parents=True, exist_ok=True)
-                result = self._run_step([bootstrap_pyexe, "-m", "venv", str(self._env_dir)], timeout=900)
-                self._require_ok(result, "Argos 独立翻译环境创建失败。")
+            self._create_or_repair_env(bootstrap_pyexe, env_py)
 
             if not env_py.exists():
                 raise RuntimeError(f"Argos 翻译环境解释器不存在: {env_py}")
@@ -1300,10 +1320,12 @@ class BilingualPdfWindow(QDialog):
             InfoBar.success(title="开始翻译", content="已重新翻译当前页。", parent=self, position=InfoBarPosition.TOP, duration=1600)
 
     def _resolve_dependency_python(self) -> str:
-        candidate = str(os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-        if candidate and os.path.exists(candidate):
-            return candidate
-        return sys.executable
+        configured_base = None
+        try:
+            configured_base = self.cfg.get("install_base_dir", "") if self.cfg else ""
+        except Exception:
+            configured_base = ""
+        return resolve_dependency_python((configured_base,), fallback_to_current=True)
 
     def _resolve_argos_env_dir(self) -> Path:
         try:
@@ -1311,15 +1333,13 @@ class BilingualPdfWindow(QDialog):
         except Exception:
             raw = ""
         if raw:
-            return Path(raw).expanduser()
+            return Path(clean_path_value(raw)).expanduser()
 
         pyexe = Path(self._resolve_dependency_python()).resolve()
-        base = pyexe.parent
-        if base.name.lower() in {"scripts", "bin"}:
-            base = base.parent.parent
-        elif base.name.lower().startswith("python"):
-            base = base.parent
-        return base / "translation_env"
+        env_root = python_env_root(pyexe)
+        if env_root.name.lower() in {"venv", ".venv", "python_full"} or env_root.name.lower().startswith("python"):
+            return env_root.parent / "translation_env"
+        return env_root / "translation_env"
 
     def _resolve_argos_python(self) -> str:
         env_py = _translation_env_python(self._resolve_argos_env_dir())
