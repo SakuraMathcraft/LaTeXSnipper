@@ -3,9 +3,6 @@
 
 -r requirements.txt
 
-# Global hotkey support. The app may need Accessibility permission.
-pynput>=1.7.6
-
 # The screenshot fallback uses the built-in screencapture command.
 # Optional external tools:
 #   LaTeX renderer: MacTeX or BasicTeX

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import subprocess
 import sys
 import tempfile
@@ -67,6 +68,8 @@ MODEL_MODES = {
 }
 
 FORMULA_RECOGNITION_MAX_NEW_TOKENS = 512
+EMPTY_IMAGE_STD_THRESHOLD = 2.5
+EMPTY_IMAGE_FOREGROUND_RATIO_THRESHOLD = 0.0015
 
 
 def _repo_root() -> Path:
@@ -187,6 +190,62 @@ def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
         return os.path.normcase(os.path.abspath(str(left))) == os.path.normcase(os.path.abspath(str(right)))
     except Exception:
         return str(left) == str(right)
+
+
+def _looks_like_empty_ocr_input(image: Image.Image) -> bool:
+    """Return True for near-uniform images with no meaningful foreground."""
+    if image.width <= 0 or image.height <= 0:
+        return True
+    sample = image.convert("L")
+    max_edge = 384
+    if max(sample.size) > max_edge:
+        scale = max_edge / max(sample.size)
+        sample = sample.resize(
+            (max(1, int(sample.width * scale)), max(1, int(sample.height * scale))),
+            Image.Resampling.BILINEAR,
+        )
+    pixels = list(sample.getdata())
+    if not pixels:
+        return True
+    mean = sum(pixels) / len(pixels)
+    variance = sum((value - mean) ** 2 for value in pixels) / len(pixels)
+    std = variance**0.5
+    if std <= EMPTY_IMAGE_STD_THRESHOLD:
+        return True
+    foreground = sum(1 for value in pixels if abs(value - mean) >= 32)
+    return (foreground / len(pixels)) < EMPTY_IMAGE_FOREGROUND_RATIO_THRESHOLD
+
+
+_LATEX_ATOM_RE = re.compile(
+    r"(\\[A-Za-z]+(?:\s*_\s*\{[^{}]{1,24}\})?|[A-Za-z0-9]+(?:\s*_\s*\{[^{}]{1,24}\})?)"
+)
+
+
+def _looks_like_degenerate_formula_text(text: str) -> bool:
+    """Detect decoder loops such as the same LaTeX atom repeated many times."""
+    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(normalized) < 80:
+        return False
+    atoms = _LATEX_ATOM_RE.findall(normalized)
+    if len(atoms) < 24:
+        return False
+    counts: dict[str, int] = {}
+    for atom in atoms:
+        key = re.sub(r"\s+", "", atom)
+        counts[key] = counts.get(key, 0) + 1
+    most_common = max(counts.values(), default=0)
+    return most_common >= 16 and most_common / max(1, len(atoms)) >= 0.45
+
+
+def _empty_recognition_result(model: str, mode: str, image: Image.Image, reason: str) -> dict[str, Any]:
+    return {
+        "text": "",
+        "score": 0.0,
+        "model": model,
+        "mode": mode,
+        "image_size": [int(image.width), int(image.height)],
+        "empty_reason": reason,
+    }
 
 
 def _configured_install_base_python() -> Path | None:
@@ -746,6 +805,9 @@ class ModelWrapper(QObject):
         tmp_path = ""
         try:
             image_rgb = pil_img.convert("RGB")
+            if _looks_like_empty_ocr_input(image_rgb):
+                self.last_used_model = model
+                return _empty_recognition_result(model, mode, image_rgb, "empty_image")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 tmp_path = tmp.name
                 image_rgb.save(tmp, format="PNG", compress_level=1)
@@ -780,6 +842,8 @@ class ModelWrapper(QObject):
             result["mode"] = mode
             result["image_size"] = [int(image_rgb.width), int(image_rgb.height)]
             result["text"] = str(result.get("text", "") or "").strip()
+            if mode == "formula" and _looks_like_degenerate_formula_text(result["text"]):
+                return _empty_recognition_result(model, mode, image_rgb, "degenerate_formula_output")
             return result
         finally:
             if tmp_path:
@@ -795,11 +859,11 @@ class ModelWrapper(QObject):
         score = result.get("score")
         if isinstance(score, (int, float)) and float(score) < 0.2:
             if not text:
-                return "[未识别到公式内容]"
-            return f"[低置信度] {text}"
+                return "未识别到公式内容"
+            return f"低置信度: {text}"
         # Mixed mode has no score field; empty text means nothing recognizable was detected.
         if not text:
-            return "[未检测到可识别内容]"
+            return "未检测到可识别内容"
         return text
 
     def __del__(self):
