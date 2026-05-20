@@ -108,16 +108,16 @@ def test_bilingual_reader_uses_shared_dependency_python_resolver() -> None:
     assert '"--clear"' in source
 
 
-def test_dependency_python_cleans_legacy_quoted_paths() -> None:
+def test_dependency_python_cleans_quoted_paths() -> None:
     from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 
-    assert clean_path_value('"E:\\LaTexSnipper\\src\\deps\\python311\\python.exe') == (
-        "E:\\LaTexSnipper\\src\\deps\\python311\\python.exe"
+    assert clean_path_value('"E:\\LaTexSnipper\\broken\\python311\\python.exe') == (
+        "E:\\LaTexSnipper\\broken\\python311\\python.exe"
     )
     assert clean_path_value("'E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe'") == (
         "E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe"
     )
-    assert normalize_deps_base_dir("E:\\LaTexSnipper\\src\\deps\\python311") == Path("E:\\LaTexSnipper\\src\\deps")
+    assert normalize_deps_base_dir("E:\\LaTexSnipper\\deps\\python311") == Path("E:\\LaTexSnipper\\deps")
 
 
 def test_handwriting_window_uses_dedicated_external_ocr_defaults() -> None:

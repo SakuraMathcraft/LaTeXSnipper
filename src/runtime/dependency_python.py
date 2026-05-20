@@ -54,28 +54,7 @@ def find_dependency_python(base_dir: str | Path | None) -> Path | None:
 
         return find_existing_python(base)
     except Exception:
-        candidates = [
-            base / "python.exe",
-            base / "Scripts" / "python.exe",
-            base / "python311" / "python.exe",
-            base / "python311" / "Scripts" / "python.exe",
-            base / "Python311" / "python.exe",
-            base / "Python311" / "Scripts" / "python.exe",
-            base / "venv" / "Scripts" / "python.exe",
-            base / ".venv" / "Scripts" / "python.exe",
-            base / "python_full" / "python.exe",
-            base / "python3",
-            base / "bin" / "python3",
-            base / "python311" / "bin" / "python3",
-            base / "venv" / "bin" / "python3",
-            base / ".venv" / "bin" / "python3",
-        ]
-        for candidate in candidates:
-            try:
-                if candidate.exists() and candidate.is_file():
-                    return candidate
-            except Exception:
-                continue
+        return None
     return None
 
 

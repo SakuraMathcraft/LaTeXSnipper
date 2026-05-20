@@ -189,37 +189,6 @@ def _same_path(left: str | Path | None, right: str | Path | None) -> bool:
         return str(left) == str(right)
 
 
-def _find_install_base_python(base_dir: str | Path | None) -> Path | None:
-    if not base_dir:
-        return None
-    base = Path(base_dir)
-    candidates = [
-        base / "python.exe",
-        base / "Scripts" / "python.exe",
-        base / "python311" / "python.exe",
-        base / "python311" / "Scripts" / "python.exe",
-        base / "Python311" / "python.exe",
-        base / "Python311" / "Scripts" / "python.exe",
-        base / "venv" / "Scripts" / "python.exe",
-        base / ".venv" / "Scripts" / "python.exe",
-        base / "python_full" / "python.exe",
-    ]
-    try:
-        for child in sorted(base.glob("python*")):
-            if child.is_dir():
-                candidates.append(child / "python.exe")
-                candidates.append(child / "Scripts" / "python.exe")
-    except Exception:
-        pass
-    for candidate in candidates:
-        try:
-            if candidate.exists() and candidate.is_file():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
 def _configured_install_base_python() -> Path | None:
     raw_values: list[str] = []
     for key in ("LATEXSNIPPER_DEPS_DIR", "LATEXSNIPPER_INSTALL_BASE_DIR"):
@@ -244,7 +213,7 @@ def _configured_install_base_python() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
-        pyexe = find_dependency_python(raw) or _find_install_base_python(raw)
+        pyexe = find_dependency_python(raw)
         if pyexe is not None:
             return pyexe
     return None
