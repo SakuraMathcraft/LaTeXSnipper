@@ -1,6 +1,6 @@
 """macOS platform providers for LaTeXSnipper.
 
-Provides hotkey, screenshot, and system integration using Qt and pynput.
+Provides hotkey, screenshot, and system integration using Qt and native macOS APIs.
 """
 
 from __future__ import annotations
@@ -15,11 +15,7 @@ from backend.qhotkey import QHotkey
 
 
 class MacOSHotkeyProvider(QObject):
-    """macOS hotkey provider using pynput for global hotkeys.
-
-    Note: pynput on macOS requires Accessibility permission in
-    System Settings > Privacy & Security > Accessibility.
-    """
+    """macOS hotkey provider using a native global hotkey backend."""
 
     def __init__(self, parent=None, global_enabled: bool = True):
         super().__init__(parent)
