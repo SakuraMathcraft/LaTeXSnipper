@@ -53,7 +53,12 @@ test_pdf/*.pdf
 test_samples/
 理论论文/
 release_assets/
-user_manual/
+user_manual/*
+!user_manual/
+!user_manual/*.typ
+!user_manual/*.md
+!user_manual/*.png
+!user_manual/tinymist.lock
 
 # Local publishing drafts
 WECHAT_ARTICLE.md

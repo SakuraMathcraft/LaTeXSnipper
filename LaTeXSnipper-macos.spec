@@ -34,7 +34,7 @@ if not ICON_ICNS.exists():
 if BUILD_CHANNEL not in {"github", "store"}:
     raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
 
-print(f"[SPEC] platform: macOS")
+print("[SPEC] platform: macOS")
 print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
 print(f"[SPEC] output name: {APP_NAME}")
 
@@ -137,10 +137,6 @@ if MATHCRAFT_OCR_SRC.exists():
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
-
-BUNDLED_DEPS_STATE = ROOT / "src" / "deps" / ".deps_state.json"
-if BUNDLED_DEPS_STATE.exists():
-    extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
 
 # ---------------------------------------------------------------------------
 # Static assets
