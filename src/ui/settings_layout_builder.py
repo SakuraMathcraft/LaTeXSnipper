@@ -190,6 +190,7 @@ class SettingsLayoutMixin:
         self.external_prompt_combo.addItem("公式 OCR", userData="ocr_formula_v1")
         self.external_prompt_combo.addItem("Markdown OCR", userData="ocr_markdown_v1")
         self.external_prompt_combo.addItem("纯文本 OCR", userData="ocr_text_v1")
+        self.external_prompt_combo.addItem("手写混合 OCR", userData="ocr_handwriting_mixed_v1")
         prompt_row.addWidget(self.external_prompt_combo, 1)
         external_layout.addLayout(prompt_row)
         self.external_custom_prompt_input = QLineEdit()

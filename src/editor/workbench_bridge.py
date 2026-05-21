@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import threading
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from editor.advanced_cas import CasResult
+from runtime.dependency_python import resolve_dependency_python
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -316,7 +316,4 @@ class WorkbenchBridge(QObject):
         return env
 
     def _resolve_worker_python(self) -> str:
-        pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
-        if pyexe and os.path.exists(pyexe):
-            return pyexe
-        return sys.executable
+        return resolve_dependency_python(fallback_to_current=True)

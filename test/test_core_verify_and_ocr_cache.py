@@ -12,6 +12,8 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+from PIL import Image
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -19,6 +21,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+
+def _nonblank_test_image() -> Image.Image:
+    image = Image.new("RGB", (64, 32), "white")
+    for x in range(8, 56):
+        image.putpixel((x, 16), (0, 0, 0))
+    return image
 
 
 class InternalModelMathCraftTests(unittest.TestCase):
@@ -97,6 +106,14 @@ class InternalModelMathCraftTests(unittest.TestCase):
         message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
         self.assertIn("CUDA", message)
 
+    def test_empty_recognition_failure_message_is_preserved(self):
+        from backend.recognition_errors import recognition_failure_user_message
+
+        self.assertEqual(
+            recognition_failure_user_message("未识别到公式内容", "mathcraft"),
+            "未识别到公式内容",
+        )
+
     def test_provider_reports_incomplete_onnxruntime_namespace(self):
         from mathcraft_ocr.errors import ProviderError
         from mathcraft_ocr.providers import detect_providers
@@ -143,6 +160,104 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         wrapper = ModelWrapper(auto_warmup=False)
         self.assertEqual(wrapper._mode_for_model("unknown_mode"), "formula")
+
+    def test_model_wrapper_uses_extended_formula_decode_budget(self):
+        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+        requests = []
+
+        def _fake_request(payload, timeout_sec=300.0):
+            requests.append(dict(payload))
+            return {"text": "x", "score": 0.9}
+
+        wrapper._send_worker_request = _fake_request
+        wrapper.predict_result(_nonblank_test_image(), model_name="mathcraft")
+
+        self.assertEqual(requests[-1]["max_new_tokens"], FORMULA_RECOGNITION_MAX_NEW_TOKENS)
+
+    def test_model_wrapper_uses_extended_mixed_formula_decode_budget(self):
+        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("mixed")
+        requests = []
+
+        def _fake_request(payload, timeout_sec=600.0):
+            requests.append(dict(payload))
+            return {"text": "x"}
+
+        wrapper._send_worker_request = _fake_request
+        wrapper.predict_result(_nonblank_test_image(), model_name="mathcraft_mixed")
+
+        self.assertEqual(
+            requests[-1]["max_formula_new_tokens"],
+            FORMULA_RECOGNITION_MAX_NEW_TOKENS,
+        )
+
+    def test_model_wrapper_skips_near_blank_images_before_worker_request(self):
+        from backend.model import ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+
+        def _fail_request(*_args, **_kwargs):
+            raise AssertionError("blank images should not be sent to MathCraft worker")
+
+        wrapper._send_worker_request = _fail_request
+        result = wrapper.predict_result(Image.new("RGB", (128, 64), "white"), model_name="mathcraft")
+
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["empty_reason"], "empty_image")
+
+    def test_model_wrapper_filters_degenerate_formula_decoder_loop(self):
+        from backend.model import ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+        repeated = r"\fbox { \displaystyle \partial _ { \phi } " + (
+            r"\chi _ { \pm } " * 30
+        ) + "}"
+
+        def _fake_request(_payload, timeout_sec=300.0):
+            return {"text": repeated, "score": 0.91}
+
+        image = _nonblank_test_image()
+        wrapper._send_worker_request = _fake_request
+        result = wrapper.predict_result(image, model_name="mathcraft")
+
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["empty_reason"], "degenerate_formula_output")
+
+    def test_model_wrapper_keeps_non_degenerate_formula_text(self):
+        from backend.model import ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+
+        def _fake_request(_payload, timeout_sec=300.0):
+            return {"text": r"\int _ { 0 } ^ { 1 } x ^ { 2 } dx", "score": 0.91}
+
+        image = _nonblank_test_image()
+        wrapper._send_worker_request = _fake_request
+        result = wrapper.predict_result(image, model_name="mathcraft")
+
+        self.assertEqual(result["text"], r"\int _ { 0 } ^ { 1 } x ^ { 2 } dx")
+        self.assertNotIn("empty_reason", result)
+
+    def test_model_wrapper_predict_empty_hint_has_no_render_brackets(self):
+        from backend.model import ModelWrapper
+
+        wrapper = ModelWrapper(auto_warmup=False)
+        wrapper._ready_modes.add("formula")
+
+        self.assertEqual(
+            wrapper.predict(Image.new("RGB", (128, 64), "white"), model_name="mathcraft"),
+            "未识别到公式内容",
+        )
 
     def test_mathcraft_provider_prefers_installed_gpu_layer(self):
         from backend.model import _infer_provider_preference_from_deps_state
@@ -236,6 +351,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("onnxruntime", all_specs)
         self.assertIn("numpy", all_specs)
         self.assertIn("protobuf", all_specs)
+        self.assertNotIn("sentencepiece", all_specs)
         self.assertNotIn("argostranslate", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):

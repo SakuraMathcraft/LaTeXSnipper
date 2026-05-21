@@ -4,10 +4,12 @@ import subprocess
 import time
 from pathlib import Path
 
+from runtime.dependency_python import clean_path_value
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
     _hidden_subprocess_kwargs,
     _mathcraft_code_roots,
+    _normalize_windows_drive_letter,
 )
 
 
@@ -251,7 +253,7 @@ class SettingsMathCraftMixin:
 
     def _init_mathcraft_pyexe(self):
         pyexe = self._resolve_dynamic_main_pyexe()
-        self.mathcraft_pyexe_input.setText(pyexe)
+        self.mathcraft_pyexe_input.setText(_normalize_windows_drive_letter(pyexe))
         cfg = self._settings_cfg()
         if cfg:
             cfg.set("mathcraft_pyexe", pyexe)
@@ -331,7 +333,7 @@ class SettingsMathCraftMixin:
             raw = ""
         if not raw:
             raw = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "") or ""
-        raw = str(raw).strip()
+        raw = clean_path_value(raw)
         if not raw:
             return None
         try:

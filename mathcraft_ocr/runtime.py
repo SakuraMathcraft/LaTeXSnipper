@@ -24,6 +24,7 @@ from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
 from .error_patterns import looks_like_cuda_runtime_error
 from .errors import ModelCacheError
+from .formula_lines import compose_aligned_formula, compose_formula_line, split_formula_line_groups
 from .hardware import choose_rec_batch_num, detect_hardware_info
 from .image import load_image_rgb, rgb_to_bgr
 from .layout import (
@@ -73,6 +74,8 @@ ONNX_WARMUP_HANDLERS = {
     TEXT_DETECTOR_ID: warmup_text_detector,
     TEXT_RECOGNIZER_ID: warmup_pp_text_recognizer,
 }
+
+FORMULA_MAX_NEW_TOKENS = 512
 
 
 class MathCraftRuntime:
@@ -222,7 +225,7 @@ class MathCraftRuntime:
         self,
         image,
         *,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = FORMULA_MAX_NEW_TOKENS,
     ) -> FormulaRecognitionResult:
         plan = self.warmup("formula")
         if not plan.ready:
@@ -230,9 +233,8 @@ class MathCraftRuntime:
                 f"formula runtime is not ready: missing={plan.missing_models}, unsupported={plan.unsupported_models}"
             )
         rgb = load_image_rgb(image)
-        text, score = recognize_formula_image(
+        text, score = self._recognize_formula_rgb(
             rgb,
-            self._resolve_model_dir(FORMULA_RECOGNIZER_ID),
             plan.provider_info,
             max_new_tokens=max_new_tokens,
         )
@@ -306,6 +308,7 @@ class MathCraftRuntime:
         image,
         *,
         min_text_score: float = 0.45,
+        max_formula_new_tokens: int = FORMULA_MAX_NEW_TOKENS,
     ) -> MixedRecognitionResult:
         plan = self._warmup_selected_models(
             "mixed",
@@ -384,16 +387,34 @@ class MathCraftRuntime:
                         source="text_rec",
                     )
                 )
-        formula_crops = [
-            get_rotate_crop_image(rgb, box_to_points(formula_box.box))
-            for formula_box in formula_boxes
-        ]
-        formula_results = recognize_formula_images(
-            formula_crops,
+        formula_jobs: list[tuple[int, int, object]] = []
+        grouped_formula_results: list[list[list[tuple[str, float]]]] = []
+        for index, formula_box in enumerate(formula_boxes):
+            crop = get_rotate_crop_image(rgb, box_to_points(formula_box.box))
+            line_groups = split_formula_line_groups(crop)
+            if line_groups:
+                grouped_formula_results.append([[] for _line_group in line_groups])
+                for line_index, line_group in enumerate(line_groups):
+                    formula_jobs.extend(
+                        (index, line_index, segment.image) for segment in line_group.crops
+                    )
+            else:
+                grouped_formula_results.append([[]])
+                formula_jobs.append((index, 0, crop))
+
+        formula_job_results = recognize_formula_images(
+            [image for _index, _line_index, image in formula_jobs],
             self._resolve_model_dir(FORMULA_RECOGNIZER_ID),
             plan.provider_info,
+            max_new_tokens=max_formula_new_tokens,
         )
-        for formula_box, (formula_text, formula_score) in zip(formula_boxes, formula_results):
+        for (index, line_index, _image), result in zip(formula_jobs, formula_job_results):
+            grouped_formula_results[index][line_index].append(result)
+
+        for formula_box, formula_results in zip(formula_boxes, grouped_formula_results):
+            if not formula_results:
+                continue
+            formula_text, formula_score = _merge_formula_group_results(formula_results)
             blocks.append(
                 MathCraftBlock(
                     kind=formula_box.label,
@@ -423,6 +444,43 @@ class MathCraftRuntime:
             regions=regions,
             blocks=ordered_blocks,
             provider=plan.provider_info.active_provider,
+        )
+
+    def _recognize_formula_rgb(
+        self,
+        rgb,
+        provider_info: ProviderInfo,
+        *,
+        max_new_tokens: int,
+    ) -> tuple[str, float]:
+        model_dir = self._resolve_model_dir(FORMULA_RECOGNIZER_ID)
+        line_groups = split_formula_line_groups(rgb)
+        if line_groups:
+            flat_crops = [
+                segment.image
+                for line_group in line_groups
+                for segment in line_group.crops
+            ]
+            flat_results = (
+                recognize_formula_images(
+                    flat_crops,
+                    model_dir,
+                    provider_info,
+                    max_new_tokens=max_new_tokens,
+                )
+            )
+            grouped_results: list[list[tuple[str, float]]] = []
+            offset = 0
+            for line_group in line_groups:
+                count = len(line_group.crops)
+                grouped_results.append(flat_results[offset : offset + count])
+                offset += count
+            return _merge_formula_group_results(grouped_results)
+        return recognize_formula_image(
+            rgb,
+            model_dir,
+            provider_info,
+            max_new_tokens=max_new_tokens,
         )
 
     def _warmup_selected_models(
@@ -523,6 +581,14 @@ class MathCraftRuntime:
 def _full_image_box(image) -> Box4P:
     height, width = image.shape[:2]
     return ((0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height)))
+
+
+def _merge_formula_group_results(results: list[list[tuple[str, float]]]) -> tuple[str, float]:
+    lines = [compose_formula_line([text for text, _score in line]) for line in results]
+    text = compose_aligned_formula(lines)
+    scores = [float(score) for line in results for _text, score in line]
+    score = float(sum(scores) / len(scores)) if scores else 0.0
+    return text, score
 
 
 def _formula_mask_margin(width: int, height: int) -> int:

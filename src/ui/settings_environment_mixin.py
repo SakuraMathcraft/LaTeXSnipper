@@ -9,6 +9,7 @@ from core.restart_contract import build_restart_with_wizard_launch
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
     _hidden_subprocess_kwargs,
+    _normalize_windows_drive_letter,
     _subprocess_creationflags,
 )
 
@@ -50,6 +51,7 @@ class SettingsEnvironmentMixin:
             msg.cancelButton.hide()
             msg.show()
             return
+        pyexe = _normalize_windows_drive_letter(pyexe)
         env_root = self._python_env_root(pyexe)
         pyexe_dir = str(env_root)
         scripts_dir = os.path.join(pyexe_dir, "Scripts")

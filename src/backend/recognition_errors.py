@@ -14,6 +14,8 @@ def is_external_model_backend(backend: str | None) -> bool:
 
 def recognition_failure_user_message(detail: object, backend: str | None = "mathcraft") -> str:
     raw = str(detail or "").strip()
+    if raw in {"未识别到公式内容", "未检测到可识别内容", "识别结果为空"}:
+        return raw
     if is_external_model_backend(backend):
         return raw or "外部模型运行异常，请检查外部服务配置和连接状态。"
     info = classify_mathcraft_failure(raw)

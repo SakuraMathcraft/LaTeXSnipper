@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from runtime.dependency_python import clean_path_value
+
 
 def _resource_path(relative_path: str) -> str:
     if hasattr(sys, "_MEIPASS"):
@@ -54,7 +56,7 @@ def _hidden_subprocess_kwargs() -> dict:
 
 
 def _existing_non_launcher_pyexe_from_env() -> str:
-    pyexe = (os.environ.get("LATEXSNIPPER_PYEXE", "") or "").strip()
+    pyexe = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE", ""))
     if not pyexe or not os.path.exists(pyexe):
         return ""
     if getattr(sys, "frozen", False):
@@ -64,6 +66,13 @@ def _existing_non_launcher_pyexe_from_env() -> str:
         except Exception:
             return ""
     return pyexe
+
+
+def _normalize_windows_drive_letter(path: str | Path) -> str:
+    text = str(path or "")
+    if os.name == "nt" and len(text) >= 2 and text[1] == ":":
+        return text[0].upper() + text[1:]
+    return text
 
 
 def _mathcraft_code_roots() -> list[str]:

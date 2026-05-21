@@ -18,6 +18,13 @@ from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
 import mathcraft_ocr.runtime as runtime_mod
 from mathcraft_ocr.errors import ModelCacheError
+from mathcraft_ocr.adapters.formula_detector import FormulaBox
+from mathcraft_ocr.formula_lines import (
+    compose_aligned_formula,
+    compose_formula_line,
+    split_formula_line_crops,
+    split_formula_line_groups,
+)
 from mathcraft_ocr.hardware import HardwareInfo, choose_rec_batch_num
 from mathcraft_ocr.layout import (
     annotate_blocks,
@@ -31,6 +38,7 @@ from mathcraft_ocr.results import FormulaRecognitionResult, MathCraftBlock, Mixe
 from mathcraft_ocr.serialization import block_to_json
 from mathcraft_ocr.cache import resolve_model_roots
 from mathcraft_ocr.runtime import (
+    FORMULA_MAX_NEW_TOKENS,
     FORMULA_DETECTOR_ID,
     FORMULA_RECOGNIZER_ID,
     MathCraftRuntime,
@@ -341,6 +349,120 @@ def test_env_bundled_models_root_precedes_user_cache() -> None:
         assert roots[1] == user_root
 
 
+def test_formula_line_splitter_detects_visual_rows() -> None:
+    image = np.full((140, 220, 3), 255, dtype=np.uint8)
+    image[14:25, 20:190] = 0
+    image[62:73, 34:180] = 0
+    image[110:121, 48:168] = 0
+
+    crops = split_formula_line_crops(image)
+
+    assert len(crops) == 3
+    assert crops[0].box[1] < crops[1].box[1] < crops[2].box[1]
+
+
+def test_compose_aligned_formula_cleans_wrappers() -> None:
+    text = compose_aligned_formula(
+        (
+            r"\begin{array}{l} x = y",
+            r"{ = z } \end{array}",
+        )
+    )
+
+    assert text == "\\begin{aligned}\nx = y \\\\\n= z\n\\end{aligned}"
+
+
+def test_compose_aligned_formula_downgrades_unbalanced_left_right() -> None:
+    text = compose_aligned_formula(
+        (
+            r"\left(\left\{\frac{1}{x}\right\}\right. + \left\{\frac{1}{1-x}\right\}\right)",
+            r"\left(\frac{1}{x}\right)",
+        )
+    )
+
+    assert r"\left" not in text.splitlines()[1]
+    assert r"\right" not in text.splitlines()[1]
+    assert r"\left(\frac{1}{x}\right)" in text
+
+
+def test_compose_aligned_formula_closes_unfinished_groups_before_line_breaks() -> None:
+    text = compose_aligned_formula(
+        (
+            r"\mathrm { d y",
+            r"\bigg \vert _ { 2 p } ^ { 2 p + 1",
+            r"\{ y \}",
+        )
+    )
+
+    lines = text.splitlines()
+    assert lines[1] == r"\mathrm { d y} \\"
+    assert lines[2] == r"\bigg \vert _ { 2 p } ^ { 2 p + 1} \\"
+    assert lines[3] == r"\{ y \}"
+
+
+def test_compose_aligned_formula_removes_unmatched_group_closers() -> None:
+    text = compose_aligned_formula(
+        (
+            r"} } \quad { { } }",
+            r"x = y }",
+        )
+    )
+
+    lines = text.splitlines()
+    assert lines[1] == r"\quad { { } } \\"
+    assert lines[2] == r"x = y"
+
+
+def test_compose_aligned_formula_groups_repeated_scripts() -> None:
+    text = compose_aligned_formula(
+        (
+            r"e ^ { - u } ^ { 2 } + x _ { 1 } _ { 2 }",
+            r"y _ { 1 } ^ { 2 }",
+        )
+    )
+
+    assert r"{e ^ { - u }}^ { 2 }" in text
+    assert r"{x _ { 1 }}_ { 2 }" in text
+    assert r"y _ { 1 } ^ { 2 }" in text
+
+
+def test_compose_aligned_formula_neutralizes_stray_alignment_tabs() -> None:
+    text = compose_aligned_formula(
+        (
+            r"\left\{ a & {\mathrm {if}} & p \\\\ b & {\mathrm {if}} & q \right.",
+        )
+    )
+
+    body = text
+    assert "&" not in body
+    assert r"\left" not in body
+    assert r"\right" not in body
+    assert r"\quad" in body
+    assert r"\\\\" in body
+
+
+def test_formula_line_groups_split_extra_wide_single_row_into_segments() -> None:
+    image = np.full((38, 360, 3), 255, dtype=np.uint8)
+    image[12:24, 12:92] = 0
+    image[12:24, 146:224] = 0
+    image[12:24, 276:346] = 0
+
+    groups = split_formula_line_groups(image)
+
+    assert len(groups) == 1
+    assert len(groups[0].crops) == 3
+    assert compose_formula_line((r"\begin{aligned} x", "=", r"y \end{aligned}")) == "x = y"
+
+
+def test_formula_line_splitter_ignores_script_like_annotation_rows() -> None:
+    image = np.full((92, 420, 3), 255, dtype=np.uint8)
+    image[28:42, 18:392] = 0
+    image[66:76, 50:118] = 0
+    image[66:76, 320:344] = 0
+
+    assert split_formula_line_crops(image) == ()
+
+
 def test_recognize_formula_uses_formula_adapter() -> None:
     manifest = load_manifest()
     old_warmup = MathCraftRuntime.warmup
@@ -371,6 +493,96 @@ def test_recognize_formula_uses_formula_adapter() -> None:
     finally:
         MathCraftRuntime.warmup = old_warmup
         runtime_mod.recognize_formula_image = old_recognize
+
+
+def test_recognize_formula_splits_multiline_image_before_generation() -> None:
+    manifest = load_manifest()
+    old_warmup = MathCraftRuntime.warmup
+    old_recognize = runtime_mod.recognize_formula_image
+    old_recognize_images = runtime_mod.recognize_formula_images
+    calls: list[int] = []
+    try:
+        def _fake_warmup(self, profile: str = "formula"):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        def _fake_recognize_images(images, model_dir, provider_info, max_new_tokens=256):
+            calls.append(len(images))
+            return [(f"line{index + 1}", 0.9) for index, _image in enumerate(images)]
+
+        MathCraftRuntime.warmup = _fake_warmup
+        runtime_mod.recognize_formula_image = (
+            lambda image, model_dir, provider_info, max_new_tokens=256: ("single", 0.1)
+        )
+        runtime_mod.recognize_formula_images = _fake_recognize_images
+
+        image = np.full((120, 200, 3), 255, dtype=np.uint8)
+        image[12:24, 20:180] = 0
+        image[60:72, 24:176] = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_formula(image)
+
+        assert calls == [2]
+        assert result.text == "\\begin{aligned}\nline1 \\\\\nline2\n\\end{aligned}"
+        assert result.score == 0.9
+    finally:
+        MathCraftRuntime.warmup = old_warmup
+        runtime_mod.recognize_formula_image = old_recognize
+        runtime_mod.recognize_formula_images = old_recognize_images
+
+
+def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
+    manifest = load_manifest()
+    old_warmup = MathCraftRuntime.warmup
+    old_recognize = runtime_mod.recognize_formula_image
+    old_recognize_images = runtime_mod.recognize_formula_images
+    calls: list[int] = []
+    try:
+        def _fake_warmup(self, profile: str = "formula"):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        def _fake_recognize_images(images, model_dir, provider_info, max_new_tokens=256):
+            calls.append(len(images))
+            return [(f"part{index + 1}", 0.9) for index, _image in enumerate(images)]
+
+        MathCraftRuntime.warmup = _fake_warmup
+        runtime_mod.recognize_formula_image = (
+            lambda image, model_dir, provider_info, max_new_tokens=256: ("single", 0.1)
+        )
+        runtime_mod.recognize_formula_images = _fake_recognize_images
+
+        image = np.full((38, 360, 3), 255, dtype=np.uint8)
+        image[12:24, 12:92] = 0
+        image[12:24, 146:224] = 0
+        image[12:24, 276:346] = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_formula(image)
+
+        assert calls == [3]
+        assert result.text == "part1 part2 part3"
+    finally:
+        MathCraftRuntime.warmup = old_warmup
+        runtime_mod.recognize_formula_image = old_recognize
+        runtime_mod.recognize_formula_images = old_recognize_images
 
 
 def test_recognize_mixed_uses_text_pipeline() -> None:
@@ -437,6 +649,63 @@ def test_recognize_mixed_uses_text_pipeline() -> None:
         runtime_mod.detect_text_boxes = old_detect
         runtime_mod.detect_formula_boxes = old_detect_formula
         runtime_mod.recognize_pp_text_lines = old_recognize_lines
+        runtime_mod.get_rotate_crop_image = old_crop
+
+
+def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
+    manifest = load_manifest()
+    old_warmup_selected = MathCraftRuntime._warmup_selected_models
+    old_detect = runtime_mod.detect_text_boxes
+    old_detect_formula = runtime_mod.detect_formula_boxes
+    old_recognize_lines = runtime_mod.recognize_pp_text_lines
+    old_recognize_formulas = runtime_mod.recognize_formula_images
+    old_crop = runtime_mod.get_rotate_crop_image
+    try:
+        def _fake_warmup_selected(self, profile: str, model_ids):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=tuple(model_ids),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        formula_image = np.full((130, 220, 3), 255, dtype=np.uint8)
+        formula_image[12:24, 18:188] = 0
+        formula_image[60:72, 22:184] = 0
+        formula_image[106:118, 28:176] = 0
+
+        MathCraftRuntime._warmup_selected_models = _fake_warmup_selected
+        runtime_mod.detect_text_boxes = (
+            lambda image, model_dir, provider_info: (np.zeros((0, 4, 2), dtype=np.float32), ())
+        )
+        runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: (
+            FormulaBox(box=((0.0, 0.0), (220.0, 0.0), (220.0, 130.0), (0.0, 130.0)), score=0.95, label="formula"),
+        )
+        runtime_mod.get_rotate_crop_image = lambda image, box: formula_image
+        runtime_mod.recognize_pp_text_lines = lambda crops, model_dir, provider_info, **kwargs: []
+        runtime_mod.recognize_formula_images = (
+            lambda images, model_dir, provider_info, **kwargs: [
+                (f"row{index + 1}", 0.8) for index, _image in enumerate(images)
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_mixed(np.zeros((140, 240, 3), dtype=np.uint8))
+
+        assert len(result.blocks) == 1
+        assert result.blocks[0].text == "\\begin{aligned}\nrow1 \\\\\nrow2 \\\\\nrow3\n\\end{aligned}"
+        assert result.blocks[0].text in result.text
+    finally:
+        MathCraftRuntime._warmup_selected_models = old_warmup_selected
+        runtime_mod.detect_text_boxes = old_detect
+        runtime_mod.detect_formula_boxes = old_detect_formula
+        runtime_mod.recognize_pp_text_lines = old_recognize_lines
+        runtime_mod.recognize_formula_images = old_recognize_formulas
         runtime_mod.get_rotate_crop_image = old_crop
 
 
@@ -898,6 +1167,26 @@ def test_worker_serializes_formula_result() -> None:
     assert response["result"]["provider"] == "CPUExecutionProvider"
 
 
+def test_worker_passes_extended_formula_budget_to_mixed_runtime() -> None:
+    class _FakeRuntime:
+        def recognize_mixed(self, image, *, min_text_score=0.45, max_formula_new_tokens=256):
+            assert image == "sample.png"
+            assert max_formula_new_tokens == FORMULA_MAX_NEW_TOKENS
+            return MixedRecognitionResult(text="x", regions=(), blocks=(), provider="CPUExecutionProvider")
+
+    worker = MathCraftWorker(runtime=_FakeRuntime())
+    response = worker.handle(
+        {
+            "id": "mixed",
+            "action": "recognize_mixed",
+            "image": "sample.png",
+        }
+    )
+
+    assert response["ok"] is True
+    assert response["result"]["text"] == "x"
+
+
 def test_worker_reports_unsupported_action() -> None:
     worker = MathCraftWorker(runtime=object())  # type: ignore[arg-type]
     response = worker.handle({"id": "bad", "action": "missing"})
@@ -920,8 +1209,20 @@ def main() -> None:
         test_failed_warmup_plan_is_not_cached,
         test_cuda_warmup_failure_does_not_repair_model_cache,
         test_runtime_prefers_complete_bundled_models_over_empty_user_cache,
+        test_formula_line_splitter_detects_visual_rows,
+        test_compose_aligned_formula_cleans_wrappers,
+        test_compose_aligned_formula_downgrades_unbalanced_left_right,
+        test_compose_aligned_formula_closes_unfinished_groups_before_line_breaks,
+        test_compose_aligned_formula_removes_unmatched_group_closers,
+        test_compose_aligned_formula_groups_repeated_scripts,
+        test_compose_aligned_formula_neutralizes_stray_alignment_tabs,
+        test_formula_line_groups_split_extra_wide_single_row_into_segments,
+        test_formula_line_splitter_ignores_script_like_annotation_rows,
         test_recognize_formula_uses_formula_adapter,
+        test_recognize_formula_splits_multiline_image_before_generation,
+        test_recognize_formula_rejoins_extra_wide_single_row_segments,
         test_recognize_mixed_uses_text_pipeline,
+        test_recognize_mixed_splits_multiline_formula_blocks,
         test_recognize_text_skips_formula_pipeline,
         test_layout_splits_text_box_around_formula,
         test_layout_merges_inline_formula_with_text,
@@ -939,6 +1240,7 @@ def main() -> None:
         test_hardware_video_controller_payload_parser,
         test_hardware_batch_policy_keeps_cpu_batches_moderate,
         test_worker_serializes_formula_result,
+        test_worker_passes_extended_formula_budget_to_mixed_runtime,
         test_worker_reports_unsupported_action,
     ]
     for test in tests:

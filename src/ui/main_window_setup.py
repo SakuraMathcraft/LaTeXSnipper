@@ -68,6 +68,7 @@ class MainWindowSetupMixin:
         self._hidden_unpinned_predict_result_dialog_for_capture = None
         self._mathcraft_env_state = None
         self._last_capture_toast_ts = 0.0
+        self._last_recognition_failure_toast_ts = 0.0
         self.settings_window = None
         self.shortcut_window = None
         self.handwriting_window = None

@@ -121,10 +121,6 @@ if MATHCRAFT_OCR_SRC.exists():
 # ---------------------------------------------------------------------------
 extra_datas += collect_data_files("certifi")
 
-BUNDLED_DEPS_STATE = ROOT / "src" / "deps" / ".deps_state.json"
-if BUNDLED_DEPS_STATE.exists():
-    extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
-
 # ---------------------------------------------------------------------------
 # Static assets
 # ---------------------------------------------------------------------------

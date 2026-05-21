@@ -63,12 +63,15 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
 
 def test_macos_spec_bundles_collected_dependencies() -> None:
     macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
+    macos_requirements = (ROOT / "requirements-macos.txt").read_text(encoding="utf-8")
 
     assert "coll = COLLECT(" in macos_spec
     assert "a.binaries" in macos_spec
     assert "a.datas" in macos_spec
     assert "app_bundle = BUNDLE(\n    coll," in macos_spec
     assert "app_bundle = BUNDLE(\n    exe," not in macos_spec
+    assert "pynput" not in macos_spec
+    assert "pynput" not in macos_requirements
 
 
 def test_runtime_requirements_are_unified_and_windows_safe() -> None:

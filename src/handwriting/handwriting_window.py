@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-import html
 import math
-import re
 import time
 from dataclasses import replace
-from pathlib import Path
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, QUrl, Qt, pyqtSignal
+from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
+from .editor_widgets import HandwritingPlainTextEdit
 from .handwriting_layout import group_strokes_into_lines, classify_line_roles, lines_to_article_text
 from .ink_canvas import InkCanvas
+from .latex_preview import build_handwriting_preview_html, normalize_latex_preview_source
+from .model_policy import resolve_handwriting_recognition_model
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
+from preview.math_preview import get_mathjax_base_url
 from runtime.app_paths import resource_path
 
 try:
@@ -24,11 +25,12 @@ try:
 except Exception:  # pragma: no cover
     QWebEngineSettings = None
 
-from .document_preview_window import (
-    HandwritingDocumentPreviewWindow as DocumentPreviewWindow,
-    SlowZoomPlainTextEdit as PreviewPlainTextEdit,
-    SlowZoomWebView as PreviewWebView,
-)
+try:
+    from PyQt6.QtWebEngineWidgets import QWebEngineView as PreviewWebView
+except Exception:  # pragma: no cover
+    PreviewWebView = None
+
+PreviewPlainTextEdit = HandwritingPlainTextEdit
 
 
 class _HandwritingDocumentLayoutWorker(QObject):
@@ -70,6 +72,8 @@ class HandwritingWindow(QDialog):
         self._layout_worker = None
         self._closing = False
         self._last_result = ""
+        self._last_external_output_mode = ""
+        self._pending_layout_draft = ""
         self._theme_is_dark_cached = None
         self._ui_ready = False
         self._soft_focus_target = None
@@ -178,9 +182,6 @@ class HandwritingWindow(QDialog):
         self.result_title.setObjectName("handwritingSectionTitle")
         result_header.addWidget(self.result_title)
         result_header.addStretch(1)
-        self.recognition_type_label = QLabel("")
-        self.recognition_type_label.setObjectName("handwritingHint")
-        result_header.addWidget(self.recognition_type_label)
         result_layout.addLayout(result_header)
         self.result_editor = PreviewPlainTextEdit(self)
         self.result_editor.setPlaceholderText("手写识别结果会显示在这里，可直接手动修正。")
@@ -649,6 +650,21 @@ class HandwritingWindow(QDialog):
         except Exception:
             return None
 
+    def _get_handwriting_external_model_config(self):
+        cfg = self._get_external_model_config()
+        if cfg is None:
+            return None
+        try:
+            if str(getattr(cfg, "custom_prompt", "") or "").strip():
+                return cfg
+            return replace(
+                cfg,
+                output_mode="markdown",
+                prompt_template="ocr_handwriting_mixed_v1",
+            )
+        except Exception:
+            return cfg
+
     def _is_external_model_ready(self) -> bool:
         owner = self.owner
         if owner is None or not hasattr(owner, "_is_external_model_configured"):
@@ -659,8 +675,6 @@ class HandwritingWindow(QDialog):
             return False
 
     def _refresh_recognition_context(self) -> None:
-        if hasattr(self, "recognition_type_label"):
-            self.recognition_type_label.setText(f"当前识别类型：{self._get_active_model_label()}")
         self._update_layout_button_state()
 
     def _update_layout_button_state(self) -> None:
@@ -741,7 +755,15 @@ class HandwritingWindow(QDialog):
                     except Exception:
                         pass
                 return
-            external_config = self._get_external_model_config()
+            external_config = self._get_handwriting_external_model_config()
+            if external_config is None:
+                self.status_label.setText("外部模型未配置")
+                self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+                return
+            try:
+                self._last_external_output_mode = external_config.normalized_output_mode()
+            except Exception:
+                self._last_external_output_mode = "latex"
 
         self._recognizing = True
         self._recognize_pending = False
@@ -896,72 +918,12 @@ class HandwritingWindow(QDialog):
             if self.preview_fallback is not None:
                 self.preview_fallback.setText("WebEngine 不可用。\n\n当前内容:\n" + (preview_text or "<empty>"))
             return
-        html_text = self._build_math_html(preview_text, dark=bool(isDarkTheme()))
-        base_url = self._mathjax_base_url()
+        html_text = build_handwriting_preview_html(preview_text, self._preview_output_mode())
+        base_url = get_mathjax_base_url()
         try:
             self.preview_view.setHtml(html_text, base_url)
         except Exception:
             pass
-
-    def _build_math_html(self, latex: str, dark: bool) -> str:
-        content = latex.strip()
-        if dark:
-            body_bg = "#11161d"
-            body_text = "#edf2f7"
-            empty_border = "#3c4757"
-            empty_text = "#9ca7b7"
-            text_bg = "rgba(255,255,255,0.03)"
-            math_bg = "rgba(255,255,255,0.02)"
-        else:
-            body_bg = "#ffffff"
-            body_text = "#111827"
-            empty_border = "#d1d5db"
-            empty_text = "#6b7280"
-            text_bg = "#f8fafc"
-            math_bg = "#ffffff"
-        if content:
-            body = self._build_preview_body(content)
-        else:
-            body = '<div class="empty">写完后会在这里看到预览</div>'
-        return f"""
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset=\"utf-8\" />
-  <style>
-    html, body {{ margin: 0; padding: 0; min-height: 100%; background: {body_bg}; color: {body_text}; overflow: auto; }}
-    body {{ box-sizing: border-box; padding: 16px; font-family: 'Segoe UI', sans-serif; }}
-    .content {{ display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-height: 100%; }}
-    .text-block {{
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      line-height: 1.55;
-      font-size: 18px;
-      padding: 4px 6px;
-      border-radius: 10px;
-      background: {text_bg};
-    }}
-    .math-block {{
-      padding: 8px 4px;
-      border-radius: 10px;
-      background: {math_bg};
-      overflow-x: auto;
-      overflow-y: hidden;
-    }}
-    .spacer {{ height: 4px; flex: 0 0 auto; }}
-    .empty {{ color: {empty_text}; min-height: 220px; display: flex; align-items: center; justify-content: center; border: 1px dashed {empty_border}; border-radius: 12px; }}
-  </style>
-  <script>
-    window.MathJax = {{ tex: {{ inlineMath: [['$', '$'], ['\\(', '\\)']] }}, svg: {{ fontCache: 'global' }} }};
-  </script>
-  <script src=\"MathJax-3.2.2/es5/tex-svg.js\"></script>
-</head>
-<body>
-{body}
-</body>
-</html>
-"""
 
     def _normalize_preview_source_text(self, text: str) -> str:
         content = str(text or "").replace("\r\n", "\n").strip()
@@ -969,15 +931,7 @@ class HandwritingWindow(QDialog):
             return ""
         if self._preview_output_mode() != "latex":
             return content
-        lines: list[str] = []
-        for raw_line in content.split("\n"):
-            stripped = raw_line.strip()
-            if not stripped:
-                if lines and lines[-1] != "":
-                    lines.append("")
-                continue
-            lines.append(self._unwrap_math_delimiters(stripped))
-        return "\n".join(lines).strip()
+        return normalize_latex_preview_source(content)
 
     def _normalize_result_display_text(self, text: str) -> str:
         content = str(text or "").replace("\r\n", "\n").strip()
@@ -990,7 +944,9 @@ class HandwritingWindow(QDialog):
     def _preview_output_mode(self) -> str:
         if self._get_active_model_key() != "external_model":
             return "latex"
-        cfg = self._get_external_model_config()
+        if self._last_external_output_mode:
+            return self._last_external_output_mode
+        cfg = self._get_handwriting_external_model_config()
         if cfg is None:
             return "latex"
         try:
@@ -1076,7 +1032,6 @@ class HandwritingWindow(QDialog):
     def _mathjax_base_url(self) -> QUrl:
         assets_dir = Path(resource_path("assets")).resolve()
         return QUrl.fromLocalFile(str(assets_dir) + "/")
-
     def _clear_all(self) -> None:
         self.canvas.clear_canvas()
         self.result_editor.blockSignals(True)
@@ -1126,6 +1081,9 @@ class HandwritingWindow(QDialog):
             "Only allow additional use of tikz when the image clearly contains diagrams that cannot be expressed with ordinary formulas. "
             "Must include a preamble and \\begin{document}...\\end{document}. "
             "Strictly preserve the original mathematical meaning; do not add proofs, explanations, or examples on your own. "
+            "Preserve ordinary handwritten text, Chinese text, English text, titles, labels, annotations, and short phrases as document text; do not drop them because formulas are present. "
+            "For long or multi-line formulas, choose readable environments such as align, aligned, split, gathered, or multline. "
+            "Never insert arbitrary line breaks inside a TeX command, group, fraction, radical, subscript, or superscript. "
             "Mark uncertain content with a TeX comment % TODO: ..."
         )
         draft = str(recognized_text or "").strip()
@@ -1177,11 +1135,13 @@ class HandwritingWindow(QDialog):
             self.status_label.setText("外部模型未配置")
             self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
             return
+        layout_draft = self.result_editor.toPlainText().strip()
+        self._pending_layout_draft = layout_draft
         runtime_cfg = replace(
             cfg,
             output_mode="text",
             prompt_template="math_document_layout_v1",
-            custom_prompt=self._build_math_document_prompt(self.result_editor.toPlainText().strip()),
+            custom_prompt=self._build_math_document_prompt(layout_draft),
         )
         self.status_label.setText("自动排版中")
         self._layout_thread = QThread()
@@ -1235,6 +1195,8 @@ class HandwritingWindow(QDialog):
 
     def _open_document_preview(self, doc_text: str) -> None:
         if self._document_preview_window is None:
+            from .document_preview_window import HandwritingDocumentPreviewWindow as DocumentPreviewWindow
+
             self._document_preview_window = DocumentPreviewWindow()
         self._document_preview_window.set_document(doc_text)
         self._document_preview_window.show()
@@ -1256,6 +1218,12 @@ class HandwritingWindow(QDialog):
             self.status_label.setText("排版结果为空")
             self._show_warning("排版结果为空", "外部模型未返回可用的 TeX 文档。")
             return
+        try:
+            from .tex_document_utils import merge_layout_with_recognized_draft
+
+            doc_text = merge_layout_with_recognized_draft(doc_text, self._pending_layout_draft)
+        except Exception:
+            pass
         self._open_document_preview(doc_text)
         self.status_label.setText("自动排版完成")
         self._show_info("自动排版完成", "外部模型已生成可编辑的 TeX 文档窗口。")
