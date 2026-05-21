@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v2.3.2_Final_Stable | 持续更新中*
+*适用于 v2.3.2 | 持续更新中*
 
 ---
 
@@ -644,6 +644,23 @@ https://www.python.org/downloads/macos/
 
 ## 平台特定问题（Linux / macOS）
 
+### 三端主要差异速查
+
+LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识别、图片识别、PDF 识别、手写识别、双语阅读、导出、历史记录、收藏夹和数学工作台使用同一套业务逻辑。
+
+主要差异集中在系统集成层：
+
+| 项目 | Windows | Linux | macOS |
+|---|---|---|---|
+| 截图快捷键 | Win32 原生全局快捷键 | `pynput` 全局快捷键，X11 最稳定；Wayland 可能受桌面环境策略限制 | Carbon 原生全局快捷键 |
+| 可设置快捷键 | `Ctrl+字母`、`Ctrl+Shift+字母` | 同 Windows | 同 Windows |
+| 默认快捷键 | `Ctrl+F` | `Ctrl+F` | `Ctrl+F` |
+| 截图实现 | Qt 框选截图 | Qt 优先，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退 | Qt 优先，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限 |
+| 依赖环境 | GitHub 安装包内置规范化依赖环境；Store 包内置 CPU 运行时和模型 | 运行时在 `~/.latexsnipper/deps/python311` 创建依赖环境，需要系统 Python 3.10+ | 同 Linux |
+| 安装包 | Inno 安装包 / Store MSIX | Debian/Ubuntu `.deb` | `.dmg` / `.app.zip` |
+
+当前快捷键设置入口只接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`，因此默认快捷键和用户可设置快捷键都落在三端共同支持范围内。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。
+
 ### Linux: Wayland 下截图功能异常
 
 **现象：** 在 Wayland 会话下截图黑屏、部分窗口无法截取或快捷键无响应。
@@ -1044,6 +1061,6 @@ python -m mathcraft_ocr run --image formula.png
 
 <div align="center">
 
-*LaTeXSnipper FAQ · 版本 2.3.2_Final_Stable · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
+*LaTeXSnipper FAQ · 版本 2.3.2 · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
 
 </div>

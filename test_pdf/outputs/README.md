@@ -13,12 +13,11 @@ outputs/
       structured.json
 ```
 
-Comparable baselines:
+Comparable baseline:
 
 | Directory | Purpose |
 | --- | --- |
-| `block_layout_regression_v3` | Current block/layout regression after role/column/paragraph annotations, OCR crop filtering, and structured document-engine consumption. |
-| `block_layout_regression_v2` | Previous structured page result baseline used for v3 comparison. |
+| `block_layout_regression_v4` | Current block/layout regression baseline for role, column, paragraph, OCR crop filtering, and structured document-engine output. |
 
 Rules:
 
@@ -26,3 +25,4 @@ Rules:
 - Case folders should include the source PDF name/page in either the folder name or the summary entry.
 - Temporary smoke outputs should be deleted after inspection or recreated on demand.
 - Do not use timestamp-only folders as baselines; include the feature area and version number.
+- Retain older generated output folders only when actively comparing a regression. They are ignored by git and should not be documented as current baselines.
