@@ -1,7 +1,8 @@
 # Developer Code Standards
 
-These rules are mandatory for pull requests. They protect the Windows release
-path while allowing Linux and macOS support to evolve cleanly.
+These rules are mandatory for pull requests. They keep the desktop app,
+MathCraft OCR package, dependency bootstrap flow, and platform packaging paths
+clean and reproducible.
 
 ## Scope
 
@@ -9,9 +10,9 @@ path while allowing Linux and macOS support to evolve cleanly.
 - Keep screenshot fallback details in `cross_platform/screenshot_tools.py`.
 - Do not put Linux/macOS branching, package-manager calls, or platform-specific
   setup UI directly in `main.py`, `ui/settings_window.py`, or the dependency wizard.
-- Do not change Windows installer files, Windows dependency pins, or Windows
-  startup behavior as part of a Linux/macOS PR unless the PR explicitly targets
-  Windows and includes separate Windows validation.
+- Do not change installer files, dependency pins, startup behavior, or platform
+  provider behavior outside the requested scope. Platform-specific changes need
+  validation on that platform.
 
 ## Dependency Rules
 
@@ -37,6 +38,10 @@ path while allowing Linux and macOS support to evolve cleanly.
   `tools/deps/python311-linux-x86_64`. These environments may be used to run
   PyInstaller and collect required runtime files, but must never be copied as an
   embedded Python runtime.
+- Generated or downloaded dependency artifacts must not be stored in source
+  package directories. In particular, keep local binaries out of `src/`, keep
+  `*.egg-info/` out of commits, and use `tools/deps/`, build directories, or the
+  app-managed user state directory for generated dependency state.
 - Linux and macOS release specs must never collect `tools/deps/` or any
   build-machine virtual environment into the packaged app. Packaged Linux/macOS
   installs create dependency environments in the user's app state directory.
@@ -87,10 +92,26 @@ path while allowing Linux and macOS support to evolve cleanly.
 - No settings UI for behavior already owned by the dependency wizard or provider
   layer.
 - No broad refactors mixed into platform support PRs.
+- Keep large UI windows and worker flows split by responsibility. New features
+  should add focused controllers/helpers instead of growing already-large
+  window modules.
 - Keep comments short and technical. Avoid PR narrative, changelog prose, or
   long descriptive banners inside source files.
 - Comments must explain durable implementation constraints, not historical
   decisions that no longer affect the code.
+
+## Documentation Rules
+
+- Keep Markdown documentation aligned with current code and packaging behavior.
+  Do not keep retired setup paths, hidden feature flags, removed model IDs, or
+  stale release artifact names.
+- When user-facing behavior changes, update `readme.md`, `docs/faq.md`, and
+  `user_manual/user_manual.md` when those documents mention the affected flow.
+- Keep `user_manual/user_manual.md` and `user_manual/user_manual.typ` in sync
+  when changing manual content, then rebuild the PDF when the user manual is the
+  requested deliverable.
+- Historical notes belong in release notes, not in current architecture,
+  onboarding, or FAQ documents.
 
 ## Release Signing Rules
 
