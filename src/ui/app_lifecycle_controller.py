@@ -42,11 +42,116 @@ class AppLifecycleMixin:
         except Exception:
             pass
 
+    def _stop_timer_attr(self, attr_name: str) -> None:
+        timer = getattr(self, attr_name, None)
+        if timer is None:
+            return
+        try:
+            timer.stop()
+        except Exception:
+            pass
+
+    def _close_capture_overlay_for_shutdown(self) -> None:
+        self._capture_start_pending = False
+        self._capture_waiting_for_hidden_result_window = False
+        overlay = getattr(self, "overlay", None)
+        if overlay is None:
+            return
+        try:
+            overlay.removeEventFilter(self)
+        except Exception:
+            pass
+        try:
+            overlay.close()
+        except Exception:
+            pass
+        self.overlay = None
+
+    def _stop_worker_thread(self, thread_attr: str, worker_attr: str, timeout_ms: int = 3000) -> None:
+        thread = getattr(self, thread_attr, None)
+        worker = getattr(self, worker_attr, None)
+
+        if worker is not None:
+            cancel = getattr(worker, "cancel", None)
+            if callable(cancel):
+                try:
+                    cancel()
+                except Exception:
+                    pass
+
+        stopped = True
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+            except Exception:
+                pass
+            try:
+                if thread.isRunning():
+                    thread.quit()
+                    stopped = bool(thread.wait(timeout_ms))
+            except Exception:
+                stopped = False
+
+        if worker is not None and stopped:
+            try:
+                worker.deleteLater()
+            except Exception:
+                pass
+            setattr(self, worker_attr, None)
+        elif worker is not None:
+            print(f"[关闭] {worker_attr} 仍在运行，跳过 deleteLater")
+
+        if stopped:
+            setattr(self, thread_attr, None)
+
     def _graceful_shutdown(self):
         if getattr(self, "_shutdown_done", False):
             return
         self._shutdown_done = True
 
+        self._close_capture_overlay_for_shutdown()
+
+        try:
+            if getattr(self, "hotkey_provider", None):
+                self.hotkey_provider.cleanup()
+                print("[关闭] 全局快捷键已清理")
+        except Exception as e:
+            print(f"[关闭] 清理全局快捷键失败: {e}")
+
+        self._stop_timer_attr("_auto_theme_refresh_timer")
+        self._stop_timer_attr("_render_timer")
+
+        try:
+            m = getattr(self, "model", None)
+            if m:
+                fn = getattr(m, "_stop_mathcraft_worker", None)
+                if callable(fn):
+                    fn()
+        except Exception:
+            pass
+
+        self._stop_worker_thread("predict_thread", "predict_worker")
+        self._predict_busy = False
+        self._stop_worker_thread("pdf_predict_thread", "pdf_predict_worker")
+        self._stop_worker_thread("_preview_render_thread", "_preview_render_worker")
+
+        if self.pdf_progress:
+            try:
+                self.pdf_progress.close()
+            except Exception:
+                pass
+            self.pdf_progress = None
+        if self._pdf_result_window:
+            try:
+                self._pdf_result_window.close()
+            except Exception:
+                pass
+
+        try:
+            if self.tray_icon:
+                self.tray_icon.hide()
+        except Exception as e:
+            print(f"[关闭] 隐藏托盘图标失败: {e}")
 
         try:
             self.save_history()
@@ -71,73 +176,6 @@ class AppLifecycleMixin:
 
 
         try:
-            m = getattr(self, "model", None)
-            if m:
-                fn = getattr(m, "_stop_mathcraft_worker", None)
-                if callable(fn):
-                    try:
-                        fn()
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-        if self.predict_thread:
-            try:
-                if self.predict_thread.isRunning():
-                    self.predict_thread.quit()
-                    self.predict_thread.wait(3000)
-            except Exception:
-                pass
-        if self.predict_worker:
-            try:
-                self.predict_worker.deleteLater()
-            except Exception:
-                pass
-        self.predict_thread = None
-        self.predict_worker = None
-        self._predict_busy = False
-
-        if self.pdf_predict_thread:
-            try:
-                if self.pdf_predict_thread.isRunning():
-                    self.pdf_predict_thread.quit()
-                    self.pdf_predict_thread.wait(3000)
-            except Exception:
-                pass
-        if self.pdf_predict_worker:
-            try:
-                self.pdf_predict_worker.deleteLater()
-            except Exception:
-                pass
-        self.pdf_predict_thread = None
-        self.pdf_predict_worker = None
-        if self.pdf_progress:
-            try:
-                self.pdf_progress.close()
-            except Exception:
-                pass
-            self.pdf_progress = None
-        if self._pdf_result_window:
-            try:
-                self._pdf_result_window.close()
-            except Exception:
-                pass
-        if self._preview_render_thread:
-            try:
-                if self._preview_render_thread.isRunning():
-                    self._preview_render_thread.quit()
-                    self._preview_render_thread.wait(3000)
-            except Exception:
-                pass
-        if self._preview_render_worker:
-            try:
-                self._preview_render_worker.deleteLater()
-            except Exception:
-                pass
-        self._preview_render_thread = None
-        self._preview_render_worker = None
-        try:
             cleanup_runtime_log_session()
         except Exception:
             pass
@@ -145,6 +183,13 @@ class AppLifecycleMixin:
             _release_single_instance_lock()
         except Exception:
             pass
+
+    def request_quit(self):
+        self._force_exit = True
+        try:
+            self._graceful_shutdown()
+        finally:
+            QTimer.singleShot(0, QCoreApplication.quit)
 
     def closeEvent(self, event):
         if self._force_exit:
@@ -163,11 +208,8 @@ class AppLifecycleMixin:
                 QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
-                self._force_exit = True
-                if self.tray_icon:
-                    self.tray_icon.hide()
-                self.close()
-                QTimer.singleShot(0, QCoreApplication.quit)
+                self.request_quit()
+                event.accept()
             else:
                 event.ignore()
             return
@@ -181,12 +223,4 @@ class AppLifecycleMixin:
         event.ignore()
 
     def truly_exit(self):
-        self._force_exit = True
-        if self.tray_icon:
-            self.tray_icon.hide()
-
-        try:
-            self.close()
-        except Exception:
-            pass
-        QTimer.singleShot(0, lambda: (self._graceful_shutdown(), QCoreApplication.quit()))
+        self.request_quit()

@@ -51,6 +51,7 @@ class MainWindowSetupMixin:
         self.overlay = None
         self._capture_start_pending = False
         self._capture_waiting_for_hidden_result_window = False
+        self._screenshot_permission_notice_shown = False
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self.predict_thread = None

@@ -4,7 +4,7 @@ import multiprocessing
 import os
 import sys
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QEvent, QObject, QTimer, Qt
 from PyQt6.QtWidgets import QApplication
 
 from runtime.dependency_bootstrap_controller import ensure_deps
@@ -32,6 +32,59 @@ def _apply_startup_theme() -> None:
         pass
 
 
+class _MacOSApplicationLifecycleBridge(QObject):
+    def __init__(self, app: QApplication, window):
+        super().__init__(app)
+        self._window = window
+        try:
+            app.applicationStateChanged.connect(self._on_application_state_changed)
+        except Exception:
+            pass
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.ApplicationActivate:
+            self._schedule_restore_window()
+        return False
+
+    def _on_application_state_changed(self, state) -> None:
+        if state == Qt.ApplicationState.ApplicationActive:
+            self._schedule_restore_window()
+
+    def _schedule_restore_window(self) -> None:
+        QTimer.singleShot(0, self._restore_window_if_hidden)
+
+    def _restore_window_if_hidden(self) -> None:
+        window = self._window
+        if window is None:
+            return
+        if getattr(window, "_force_exit", False) or getattr(window, "_shutdown_done", False):
+            return
+        try:
+            if window.isVisible():
+                return
+        except RuntimeError:
+            return
+        show_window = getattr(window, "show_window", None)
+        if callable(show_window):
+            show_window()
+            return
+        window.show()
+        try:
+            window.showNormal()
+        except Exception:
+            pass
+        window.raise_()
+        window.activateWindow()
+
+
+def _install_macos_lifecycle_bridge(app: QApplication, window) -> None:
+    if sys.platform != "darwin":
+        return
+    bridge = _MacOSApplicationLifecycleBridge(app, window)
+    app.installEventFilter(bridge)
+    app._latexsnipper_macos_lifecycle_bridge = bridge
+
+
 def _create_window(main_window_cls, splash):
     update_startup_splash(splash, "初始化运行环境...")
     update_startup_splash(splash, "加载主窗口...")
@@ -39,6 +92,10 @@ def _create_window(main_window_cls, splash):
     print("[DEBUG] MainWindow 创建完成，准备显示窗口")
     update_startup_splash(splash, "主窗口已加载，正在显示...")
     win.show()
+    app = QApplication.instance()
+    if app is not None:
+        app._latexsnipper_main_window = win
+        _install_macos_lifecycle_bridge(app, win)
     win.start_post_show_tasks()
     QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
     finish_startup_splash(splash, win)

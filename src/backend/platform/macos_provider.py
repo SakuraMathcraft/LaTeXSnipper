@@ -5,6 +5,9 @@ Provides hotkey, screenshot, and system integration using Qt and native macOS AP
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
+
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
@@ -12,6 +15,48 @@ from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 from backend.capture_overlay import ScreenCaptureOverlay
 from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
 from backend.qhotkey import QHotkey
+
+
+def _load_core_graphics():
+    path = ctypes.util.find_library("CoreGraphics")
+    if not path:
+        return None
+    try:
+        return ctypes.CDLL(path)
+    except Exception:
+        return None
+
+
+def _preflight_screen_capture_access() -> bool | None:
+    core_graphics = _load_core_graphics()
+    if core_graphics is None:
+        return None
+    try:
+        fn = core_graphics.CGPreflightScreenCaptureAccess
+    except AttributeError:
+        return None
+    fn.restype = ctypes.c_bool
+    fn.argtypes = []
+    try:
+        return bool(fn())
+    except Exception:
+        return None
+
+
+def _request_screen_capture_access() -> bool | None:
+    core_graphics = _load_core_graphics()
+    if core_graphics is None:
+        return None
+    try:
+        fn = core_graphics.CGRequestScreenCaptureAccess
+    except AttributeError:
+        return None
+    fn.restype = ctypes.c_bool
+    fn.argtypes = []
+    try:
+        return bool(fn())
+    except Exception:
+        return None
 
 
 class MacOSHotkeyProvider(QObject):
@@ -51,9 +96,33 @@ class MacOSHotkeyProvider(QObject):
 class MacOSScreenshotProvider:
     """macOS screenshot provider using native screencapture CLI + Qt overlay."""
 
+    _DENIED_MESSAGE = (
+        "LaTeXSnipper 需要屏幕录制权限才能截图识别。\n\n"
+        "请在 macOS 系统设置 > 隐私与安全性 > 屏幕录制"
+        "（或“屏幕与系统音频录制”）中允许 LaTeXSnipper，"
+        "然后重新启动应用。"
+    )
+
+    def __init__(self):
+        self._permission_request_attempted = False
+
     def request_permission(self) -> PermissionResult:
-        # macOS requires Screen Recording permission in System Settings
-        return PermissionResult(PermissionState.ALLOWED, "macos-default-allowed")
+        # Preflight does not trigger the system prompt. The explicit request
+        # below is only reached from a user-initiated screenshot action.
+        allowed = _preflight_screen_capture_access()
+        if allowed is True:
+            return PermissionResult(PermissionState.ALLOWED, "macos-screen-capture-allowed")
+        if allowed is None:
+            return PermissionResult(PermissionState.ALLOWED, "macos-screen-capture-api-unavailable")
+
+        if self._permission_request_attempted:
+            return PermissionResult(PermissionState.DENIED, self._DENIED_MESSAGE)
+
+        self._permission_request_attempted = True
+        requested = _request_screen_capture_access()
+        if requested is True:
+            return PermissionResult(PermissionState.ALLOWED, "macos-screen-capture-request-granted")
+        return PermissionResult(PermissionState.DENIED, self._DENIED_MESSAGE)
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
         return ScreenCaptureOverlay(
@@ -107,5 +176,9 @@ class MacOSSystemProvider:
 
     def activate_window(self, window) -> None:
         window.show()
+        try:
+            window.showNormal()
+        except Exception:
+            pass
         window.raise_()
         window.activateWindow()

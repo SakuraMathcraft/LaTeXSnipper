@@ -10,6 +10,14 @@ from bootstrap.deps_bootstrap import custom_warning_dialog
 
 
 class CaptureControllerMixin:
+    def _show_screenshot_permission_denied(self, message: str) -> None:
+        text = str(message or "截图权限被拒绝").strip()
+        if getattr(self, "_screenshot_permission_notice_shown", False):
+            self.set_action_status("截图权限未开启", auto_clear_ms=4000)
+            return
+        self._screenshot_permission_notice_shown = True
+        custom_warning_dialog("权限不足", text, self)
+
     def start_capture(self):
         if self._capture_start_pending or self.overlay is not None:
             try:
@@ -33,7 +41,7 @@ class CaptureControllerMixin:
         if getattr(perm, "state", None) == "denied":
             self._restore_hidden_unpinned_predict_result_dialog()
             self._restore_predict_result_dialog_visibility()
-            custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
+            self._show_screenshot_permission_denied(getattr(perm, "message", "截图权限被拒绝"))
             return
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),
