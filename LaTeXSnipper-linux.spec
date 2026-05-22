@@ -227,35 +227,27 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
-
-        # Dynamic imports used by mathcraft_ocr / rapidocr
-        "onnxruntime",
-        "onnxruntime.capi",
-        "onnx",
-        "shapely",
-        "pyclipper",
-        "omegaconf",
-        "yaml",
-        "cv2",
-        "numpy",
-        "lxml",
-        "fitz",
-        "matplotlib",
-        "latex2mathml",
-        "pydantic_core",
-        "markupsafe",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Heavy ML frameworks managed outside the main process
+        # Runtime deps are managed by the user dependency environment.
+        "_polars_runtime_32",
+        "_polars_runtime_64",
+        "_polars_runtime_compat",
         "transformers",
+        "onnxruntime",
         "onnxruntime-gpu",
         "tensorflow",
         "keras",
         "scipy",
         "pandas",
+        "numpy",
+        "numpy.distutils",
+        "onnx",
+        "cv2",
+        "rapidocr",
         "google",
         "google.protobuf",
         "aiohttp",
@@ -264,6 +256,23 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
+        "lxml",
+        "fitz",
+        "matplotlib",
+        "latex2mathml",
+        "contourpy",
+        "fontTools",
+        "kiwisolver",
+        "shapely",
+        "pyclipper",
+        "yaml",
+        "markupsafe",
+        "pydantic_core",
+        "regex",
+        "safetensors",
+        "sentencepiece",
+        "Pythonwin",
+        "win32ui",
         "setuptools",
         "pkg_resources",
 
@@ -328,8 +337,13 @@ def _prune_collect_tree_linux(dist_root: Path):
     remove_names = {"Pythonwin", "setuptools", "google"}
     remove_prefixes = (
         "aiohttp", "frozenlist", "multidict", "propcache", "yarl",
-        "ctranslate2", "regex",
-        "safetensors", "sentencepiece",
+        "ctranslate2", "cv2", "rapidocr",
+        "numpy", "numpy.libs", "lxml", "fitz",
+        "matplotlib", "latex2mathml",
+        "contourpy", "fontTools", "kiwisolver",
+        "shapely", "pyclipper",
+        "yaml", "markupsafe", "pydantic_core",
+        "regex", "safetensors", "sentencepiece",
     )
     for child in dist_root.iterdir():
         try:
@@ -343,6 +357,39 @@ def _prune_collect_tree_linux(dist_root: Path):
                 print(f"[SPEC] pruned: {child.name}")
         except Exception as exc:
             print(f"[SPEC] prune skip {child}: {exc}")
+
+    _prune_qt_webengine_payload(dist_root)
+
+
+def _prune_qt_webengine_payload(dist_root: Path):
+    """Trim optional Qt WebEngine payload while keeping runtime-critical files."""
+    qt_roots = [
+        dist_root / "PyQt6" / "Qt6",
+        dist_root / "Qt6",
+    ]
+    for qt_root in qt_roots:
+        if not qt_root.exists():
+            continue
+
+        resources_dir = qt_root / "resources"
+        if resources_dir.exists():
+            for pattern in ("*.debug.pak", "*.debug.bin"):
+                for child in resources_dir.glob(pattern):
+                    try:
+                        child.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+        locales_dir = qt_root / "translations" / "qtwebengine_locales"
+        if locales_dir.exists():
+            keep_locales = {"en-US.pak", "en-GB.pak", "zh-CN.pak", "zh-TW.pak"}
+            for child in locales_dir.glob("*.pak"):
+                if child.name in keep_locales:
+                    continue
+                try:
+                    child.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
 
 _prune_collect_tree_linux(Path(DISTPATH) / APP_NAME / "_internal")
