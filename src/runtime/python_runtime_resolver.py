@@ -569,6 +569,15 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
             str(b / "Lib"),
             str(b / "Lib" / "site-packages"),
         })
+        try:
+            lib_dir = b / "lib"
+            if lib_dir.exists():
+                for child in lib_dir.iterdir():
+                    if child.is_dir() and child.name.startswith("python"):
+                        roots.add(str(child))
+                        roots.add(str(child / "site-packages"))
+        except Exception:
+            pass
 
         if allow_core:
             roots.update({
