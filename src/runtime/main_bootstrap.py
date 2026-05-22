@@ -179,6 +179,26 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     return base_dir, target_py
 
 
+def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, str]:
+    """Prepare only the minimum runtime state needed before showing the wizard."""
+    base_dir = Path(install_base_dir)
+    _clean_bad_env()
+
+    py_exe_path = _find_install_base_python(base_dir)
+    target_py = str(py_exe_path) if py_exe_path is not None and py_exe_path.exists() else sys.executable
+
+    os.environ["LATEXSNIPPER_PYEXE"] = target_py
+    os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
+    os.environ["LATEXSNIPPER_DEPS_DIR"] = str(base_dir)
+    os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
+    os.environ.pop("PYTHONHOME", None)
+    os.environ.pop("PYTHONPATH", None)
+    os.environ.pop("MATHCRAFT_HOME", None)
+
+    print("[INFO] packaged dependency wizard mode: defer full Python preparation until install action.")
+    return base_dir, target_py
+
+
 def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
     if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") == "1":
         return
@@ -237,8 +257,12 @@ def bootstrap_application() -> BootstrapContext:
 
     ensure_startup_splash("定位依赖目录...")
     install_base_dir = resolve_install_base_dir()
-    _maybe_redirect_to_private_python(install_base_dir)
-    base_dir, target_py = _prepare_python_runtime(install_base_dir)
+    open_wizard_env = os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1"
+    if _is_packaged_mode() and open_wizard_env:
+        base_dir, target_py = _prepare_python_runtime_for_wizard(install_base_dir)
+    else:
+        _maybe_redirect_to_private_python(install_base_dir)
+        base_dir, target_py = _prepare_python_runtime(install_base_dir)
     _bootstrap_dependencies(base_dir, target_py)
 
     configure_math_preview_runtime(APP_DIR)

@@ -277,10 +277,11 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
 
 
 _CORE_VERIFY_CODE = """
-import importlib
+import importlib.util
 
 for mod in ("transformers", "rapidocr", "cv2", "PIL", "latex2mathml.converter", "matplotlib", "fitz"):
-    importlib.import_module(mod)
+    if importlib.util.find_spec(mod) is None:
+        raise RuntimeError(f"{mod} not installed")
 
 print("CORE OK")
 """
