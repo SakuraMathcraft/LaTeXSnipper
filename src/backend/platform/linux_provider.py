@@ -116,6 +116,9 @@ class LinuxSystemProvider:
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
-        window.show()
+        if hasattr(window, "isMinimized") and window.isMinimized():
+            window.showNormal()
+        else:
+            window.show()
         window.raise_()
         window.activateWindow()

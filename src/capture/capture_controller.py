@@ -140,7 +140,7 @@ class CaptureControllerMixin:
             except Exception:
                 pass
         InfoBar.warning(
-            title="截图屏幕不匹配",
+            title="截图失败",
             content=text,
             parent=self,
             duration=6200,

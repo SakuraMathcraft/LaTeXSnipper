@@ -6,17 +6,37 @@ Download the latest installers from the [GitHub Releases](https://github.com/Sak
 
 ## Where is the full user manual?
 
-The full PDF user manual is distributed as a release asset when available. The source manual is kept in `user_manual/` in this repository, but that directory is not part of the normal source release workflow.
+The source manual is kept in `user_manual/` as Markdown and Typst. The generated PDF is rebuilt from `user_manual/user_manual.typ` and may be distributed as a release asset.
 
 ## Which platforms are supported?
 
 LaTeXSnipper provides release builds for Windows, Linux, and macOS.
 
+## What differs between Windows, Linux, and macOS?
+
+The main application behavior is intentionally aligned across all three platforms: screenshot recognition, image recognition, PDF recognition, handwriting recognition, bilingual reading, export, history, favorites, and the math workbench use the same UI flow.
+
+The main differences are platform integration details:
+
+| Area | Windows | Linux | macOS |
+|---|---|---|---|
+| Global screenshot hotkey | Native Win32 global hotkey. | `pynput` global hotkey; X11 is the most reliable path, while Wayland/compositor policy can block global shortcuts. | Native Carbon global hotkey. |
+| User-configurable hotkeys | `Ctrl+letter` and `Ctrl+Shift+letter`. | Same user-facing policy. | Same user-facing policy. |
+| Default hotkey | `Ctrl+F`. | `Ctrl+F`. | `Ctrl+F`. |
+| Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
+| Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
+| Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
+| Dependency runtime | GitHub builds bundle the normalized dependency runtime; Store builds bundle CPU-only runtime and models. | Creates `~/.latexsnipper/deps/python311` with system Python 3.10+ and venv/pip support. | Creates `~/.latexsnipper/deps/python311` with system Python 3.10+ and venv/pip support. |
+| Packaging | Inno installer and Store/MSIX channel; GitHub Release prefers signed installer but can publish unsigned fallback with the same final filename. | Debian/Ubuntu `.deb`. | `.dmg` and `.app.zip`. |
+
+The current shortcut UI only accepts `Ctrl+letter` and `Ctrl+Shift+letter`, so the default and user-configurable shortcuts stay within the supported intersection of the three backends.
+
 ## Which installer should I use?
 
-- Windows: use the signed Inno installer from GitHub Releases.
+- Windows: use `LaTeXSnipperSetup-<version>.exe` from GitHub Releases. The release workflow prefers the signed installer; if signing is unavailable, the same filename may be published as an unsigned fallback.
 - Linux: use the `.deb` package on Debian/Ubuntu-compatible systems.
 - macOS: use the `.dmg` or `.app.zip` artifact.
+- Microsoft Store channel: use the Store package/update flow when installed from Store.
 
 ## Does LaTeXSnipper require an internet connection?
 
@@ -24,10 +44,17 @@ Core editing and local recognition workflows are designed to work locally after 
 
 ## Where are dependency files stored?
 
-- Windows packaged builds use the bundled dependency environment.
+- Windows GitHub builds use the bundled dependency environment.
+- Microsoft Store builds bundle a CPU-only dependency runtime and MathCraft models.
 - Linux and macOS create runtime dependency files under `~/.latexsnipper/deps/python311`.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
+
+## When does the dependency wizard initialize pip?
+
+The dependency wizard opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
+
+If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. If no usable Python environment exists, Windows initializes the local `python311` template through the bundled `python-3.11.0-amd64.exe`, while Linux/macOS use system Python 3.10+ to create the isolated environment.
 
 ## Why do Linux and macOS need Python 3?
 
@@ -87,9 +114,31 @@ Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture
 
 Pandoc is only needed for optional export formats such as `.docx`, `.odt`, `.epub`, `.typ`, `.tex`, and wiki formats. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
+The dependency wizard manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; local developer/build tools belong under `tools/deps/` or the app-managed dependency directory.
+
+## How does PDF recognition work?
+
+Use the main window's PDF recognition button and choose the page count, output format, and render DPI. Built-in MathCraft PDF recognition uses mixed mode because PDF pages need both text and formula recovery. External providers must be configured first; MinerU native mode uses document parsing and returns Markdown.
+
+The PDF result window lets you edit, copy, and save the recognized document. Markdown saves also copy structured image assets when the provider returns them.
+
+## What is Bilingual Reading?
+
+Bilingual Reading is a PDF reading and translation window, not OCR. It reads the PDF text layer with PyMuPDF, shows the current page beside the extracted source text, and translates with one of these engines:
+
+- source text only
+- Argos Translate
+- Azure Translator
+- Google Cloud Translation
+- DeepL API Free
+
+Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses an optional independent translation environment. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
+
 ## Which external model protocols are supported?
 
-LaTeXSnipper supports the built-in MathCraft OCR path and external providers such as Ollama, OpenAI-compatible APIs, and MinerU-style services. For external providers, configure the protocol, base URL, model name, and API key when required.
+LaTeXSnipper supports the built-in MathCraft OCR path and external providers such as Ollama, OpenAI-compatible APIs, and MinerU-style services. Recommended presets include GLM-OCR, PaddleOCR-VL, Qwen2.5/Qwen3-VL, Ollama Vision, and MinerU Native. For external providers, configure the protocol, base URL, model name, API key when required, output preference, timeout, and prompt template.
+
+External output preference affects normal image, screenshot, and handwriting recognition. PDF recognition asks for output format and DPI at the PDF entry point.
 
 ## Why does Ollama fail when I use `/v1`?
 
@@ -107,3 +156,7 @@ Open a GitHub Issue with:
 - External model configuration details if the issue involves an external provider
 
 Issues without logs are usually not actionable.
+
+## Which Python environment should contributors use?
+
+Use `tools/deps/python311` for local development, checks, packaging helpers, and IDE integration. The repository-root `python311/` is the Windows template runtime and must not be polluted with development packages or used for ruff, pyright, pytest, or builds.

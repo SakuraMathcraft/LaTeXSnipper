@@ -9,7 +9,7 @@
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
 ![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Version](https://img.shields.io/badge/version-v2.3.2-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-v2.3.2_Final_Stable-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
@@ -45,7 +45,7 @@ It is a desktop workspace built for end-to-end math content workflows:
 
 <img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
 
-The `v2.0` Math Workbench supports a complete workflow:
+The Math Workbench supports a complete workflow:
 
 1. Capture and recognize formulas from the main window
 2. Load results into the workbench in one click
@@ -58,7 +58,7 @@ The `v2.0` Math Workbench supports a complete workflow:
 
 <img width="1919" height="1014" alt="v2 3深色" src="https://github.com/user-attachments/assets/c6dffd39-26d9-4e54-aba9-a4b010d3603e" />
 
-The `v2.3.2` Auto Typesetting Document Window supports source-level editing with synchronized preview:
+The Auto Typesetting Document Window supports source-level editing with synchronized preview:
 
 1. Open "Auto Typesetting" from the handwriting window
 2. Edit full source in the left `TeX Document` pane
@@ -71,7 +71,7 @@ The `v2.3.2` Auto Typesetting Document Window supports source-level editing with
 
 <img width="1408" height="916" alt="手写识别readme" src="https://github.com/user-attachments/assets/3fe98e41-218e-452c-96c1-cc805ab3e0f2" />
 
-The `v2.1` handwriting window supports the following flow:
+The handwriting window supports the following flow:
 
 1. Open "Handwriting Recognition" from the main window
 2. Write formulas directly on an isolated canvas
@@ -80,6 +80,16 @@ The `v2.1` handwriting window supports the following flow:
 5. Use "Auto Typesetting" when handwritten notes contain document text, Chinese or English labels, and multi-line formulas
 6. Copy LaTeX directly or insert it back into the main editor
 
+### PDF Recognition and Bilingual Reading
+
+The main window includes PDF recognition and a separate bilingual reading tool:
+
+1. Use "PDF Recognition" to select page count, output format, and render DPI
+2. Built-in MathCraft PDF recognition uses mixed mode for text and formula recovery
+3. External PDF recognition supports OpenAI-compatible, Ollama, and MinerU providers
+4. Save editable Markdown or LaTeX results from the PDF result window
+5. Use "Bilingual Reading" to open a text-layer PDF, view the current page, and translate with Argos, Azure, Google Cloud, or DeepL
+
 ---
 
 ## Core Features
@@ -87,6 +97,8 @@ The `v2.1` handwriting window supports the following flow:
 | Feature | Description |
 |------|------|
 | 📸 Formula recognition | MathCraft OCR for formulas, text, and mixed content |
+| 📄 PDF recognition | Page-based PDF recognition with Markdown/LaTeX output and DPI control |
+| 🌐 Bilingual reading | PDF text-layer reading with local Argos or remote translation engines |
 | ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
 | 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
 | ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
@@ -149,7 +161,7 @@ Pandoc is optional. If it is not installed, the core recognition, editing, handw
 ### Option 1: Download the executable
 
 1. Visit the [Releases page](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. Download the latest `LaTeXSnipper Final Stable.exe`
+2. Download the latest `LaTeXSnipperSetup-<version>.exe`
 3. Run the installer
 4. Complete environment setup via the dependency wizard on first launch
 5. Start capturing, handwriting, or using the math workbench
@@ -201,20 +213,35 @@ python src/main.py
 
 | Platform | Status | Notes |
 |------|------|------|
-| Windows | Primary release target | GitHub/Inno and Store/MSIX packaging are maintained. |
-| Linux | Supported via provider layer | Qt capture is primary; Wayland/X11 CLI tools are optional fallbacks. |
-| macOS | Supported via provider layer | Uses the same Qt overlay flow with native screenshot fallback support. |
+| Windows | Primary release target | Native global hotkey, Qt capture, GitHub/Inno and Store/MSIX packaging. |
+| Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
+| macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
+
+Close/background behavior follows each desktop platform. Windows hides the main
+window to the system tray when it is closed. Linux does the same when a system
+tray is available, and asks before exiting if no tray is available. macOS keeps
+the app running when the main window is closed/minimized; Dock or menu Quit is
+the explicit exit path. The macOS global hotkey uses Carbon and normally does
+not require Accessibility permission, while screenshot capture requires Screen
+Recording permission.
 
 The dependency wizard manages Python dependency layers only. It does not install
 or uninstall system packages. On Linux, tools such as `grim`, `maim`, and
 `gnome-screenshot` can improve screenshot fallback behavior, but they are
 installed by the user or distribution package manager, not by LaTeXSnipper.
+The default screenshot shortcut is `Ctrl+F` on all three platforms. The shortcut
+setting currently accepts `Ctrl+letter` and `Ctrl+Shift+letter` combinations so
+custom shortcuts remain inside the cross-platform supported set. Linux global
+shortcuts are still subject to desktop environment and Wayland compositor policy.
 Linux and macOS both create optional runtime dependency environments in the
 user state directory, so they need a usable system Python 3.10+ with venv/pip
 support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
 macOS users should install Python through Homebrew (`brew install python`) or
 the official python.org macOS installer when the system does not provide a
 usable `python3`.
+The dependency wizard shows its UI before running `ensurepip`, `pip` upgrade,
+or `setuptools`/`wheel` repair; those steps run after the user starts dependency
+installation.
 
 ### Packaging
 
@@ -242,7 +269,7 @@ is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno installer, signed through SignPath before release publishing.
+- Windows: Inno installer; SignPath-signed artifact is preferred, with an unsigned fallback when signing is unavailable.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
 - macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
 

@@ -579,7 +579,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
 
     try:
-        _ensure_pip(pyexe)
+        if is_frozen and from_settings and always_show_ui:
+            print("[INFO] packaged settings wizard: defer pip bootstrap until user starts installation.")
+        else:
+            _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
         if not state_path.exists():
             _save_json(state_path, {"installed_layers": []})

@@ -1,7 +1,8 @@
 # Developer Code Standards
 
-These rules are mandatory for pull requests. They protect the Windows release
-path while allowing Linux and macOS support to evolve cleanly.
+These rules are mandatory for pull requests. They keep the desktop app,
+MathCraft OCR package, dependency bootstrap flow, and platform packaging paths
+clean and reproducible.
 
 ## Scope
 
@@ -9,9 +10,47 @@ path while allowing Linux and macOS support to evolve cleanly.
 - Keep screenshot fallback details in `cross_platform/screenshot_tools.py`.
 - Do not put Linux/macOS branching, package-manager calls, or platform-specific
   setup UI directly in `main.py`, `ui/settings_window.py`, or the dependency wizard.
-- Do not change Windows installer files, Windows dependency pins, or Windows
-  startup behavior as part of a Linux/macOS PR unless the PR explicitly targets
-  Windows and includes separate Windows validation.
+- Do not change installer files, dependency pins, startup behavior, or platform
+  provider behavior outside the requested scope. Platform-specific changes need
+  validation on that platform.
+
+## Collaboration Workflow
+
+- `main` is the release source of truth. Release packages should be built by
+  GitHub Actions from `main` or from the final release tag, not from a local
+  branch whose freshness is unknown.
+- Feature work must be done on a branch and merged by pull request. Do not push
+  direct feature commits to `main`.
+- Before opening or updating a PR, sync the feature branch with the latest
+  `main` and resolve conflicts locally:
+
+```powershell
+git fetch origin
+git merge --ff-only origin/main
+```
+
+  If fast-forward is not possible, rebase or merge intentionally and document
+  the conflict resolution in the PR.
+- Repository branch protection or rulesets for `main` should require PR review,
+  required status checks, and "require branches to be up to date before
+  merging". This prevents merging a PR that has not been tested against the
+  current `main`.
+- After a PR is merged into `main`, any long-lived working branch such as
+  `MathCraft` must be refreshed from `origin/main` before further development or
+  packaging work:
+
+```powershell
+git fetch origin
+git merge --ff-only origin/main
+git push origin MathCraft
+```
+
+- If a local branch shows commits behind `origin/main`, do not create release
+  artifacts from it. Update the branch first, then rely on the Actions release
+  workflow for platform packages.
+- If a PR changes packaging, dependency bootstrap, platform providers, or
+  release workflows, the PR description must say which platform package jobs or
+  local target-platform checks were run.
 
 ## Dependency Rules
 
@@ -37,6 +76,10 @@ path while allowing Linux and macOS support to evolve cleanly.
   `tools/deps/python311-linux-x86_64`. These environments may be used to run
   PyInstaller and collect required runtime files, but must never be copied as an
   embedded Python runtime.
+- Generated or downloaded dependency artifacts must not be stored in source
+  package directories. In particular, keep local binaries out of `src/`, keep
+  `*.egg-info/` out of commits, and use `tools/deps/`, build directories, or the
+  app-managed user state directory for generated dependency state.
 - Linux and macOS release specs must never collect `tools/deps/` or any
   build-machine virtual environment into the packaged app. Packaged Linux/macOS
   installs create dependency environments in the user's app state directory.
@@ -87,18 +130,37 @@ path while allowing Linux and macOS support to evolve cleanly.
 - No settings UI for behavior already owned by the dependency wizard or provider
   layer.
 - No broad refactors mixed into platform support PRs.
+- Keep large UI windows and worker flows split by responsibility. New features
+  should add focused controllers/helpers instead of growing already-large
+  window modules.
 - Keep comments short and technical. Avoid PR narrative, changelog prose, or
   long descriptive banners inside source files.
 - Comments must explain durable implementation constraints, not historical
   decisions that no longer affect the code.
 
+## Documentation Rules
+
+- Keep Markdown documentation aligned with current code and packaging behavior.
+  Do not keep retired setup paths, hidden feature flags, removed model IDs, or
+  stale release artifact names.
+- When user-facing behavior changes, update `readme.md`, `docs/faq.md`, and
+  `user_manual/user_manual.md` when those documents mention the affected flow.
+- Keep `user_manual/user_manual.md` and `user_manual/user_manual.typ` in sync
+  when changing manual content, then rebuild the PDF when the user manual is the
+  requested deliverable.
+- Historical notes belong in release notes, not in current architecture,
+  onboarding, or FAQ documents.
+
 ## Release Signing Rules
 
-- Windows GitHub Release installers must be signed through SignPath before they
-  are uploaded to a GitHub Release.
-- Release workflows must publish the signed installer artifact only. Unsigned
-  Windows installer artifacts are build intermediates for SignPath and must not
-  be matched by release upload globs.
+- Windows GitHub Release installers should be signed through SignPath when
+  SignPath is configured and available.
+- Release workflows must prefer the signed Windows installer artifact. If
+  SignPath is unavailable or signing fails, the workflow may publish the
+  unsigned Windows installer artifact so the final release still contains a
+  Windows package.
+- The Windows installer filename remains `LaTeXSnipperSetup-2.3.2.exe` for both
+  signed and unsigned release assets.
 - Keep the SignPath artifact configuration in
   `.signpath/artifact-configurations/windows-installer.xml` synchronized with
   the SignPath project configuration. The GitHub artifact uploaded for signing

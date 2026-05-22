@@ -45,6 +45,7 @@ APP_BUNDLE="${APP_NAME}.app"
 DMG_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.dmg"
 APP_ZIP_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.app.zip"
 BUILD_WORK_DIR="$PROJECT_ROOT/build/pyinstaller_macos"
+DMG_STAGING_DIR="$PROJECT_ROOT/build/dmg_staging_macos"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-macos.spec"
 ICON_SOURCE="$PROJECT_ROOT/src/assets/icon.ico"
 ICNS_PATH=""
@@ -68,7 +69,7 @@ if [[ -n "$ICNS_PATH" ]]; then
 fi
 
 log_step "2/6" "Cleaning previous outputs"
-rm -rf "$BUILD_WORK_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"
+rm -rf "$BUILD_WORK_DIR" "$DMG_STAGING_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"
 
 log_step "3/6" "Running PyInstaller"
 cd "$PROJECT_ROOT"
@@ -118,16 +119,20 @@ log_step "6/6" "Packaging app artifacts"
 ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
 
 if command -v create-dmg >/dev/null 2>&1; then
+    rm -rf "$DMG_STAGING_DIR"
+    mkdir -p "$DMG_STAGING_DIR"
+    ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"
+
     CREATE_DMG_ARGS=(
         --volname "LaTeXSnipper ${VERSION}"
         --window-pos 200 120
         --window-size 600 400
         --icon-size 100
-        --icon "$APP_NAME.app" 150 190
-        --hide-extension "$APP_NAME.app"
+        --icon "$APP_BUNDLE" 150 190
+        --hide-extension "$APP_BUNDLE"
         --app-drop-link 450 185
         "$DMG_PATH"
-        "$(dirname "$APP_PATH")"
+        "$DMG_STAGING_DIR"
     )
     if [[ -f "$ICNS_PATH" ]]; then
         CREATE_DMG_ARGS=(--volicon "$ICNS_PATH" "${CREATE_DMG_ARGS[@]}")

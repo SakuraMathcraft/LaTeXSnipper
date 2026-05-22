@@ -91,7 +91,7 @@ jobs:
 
       - name: Build unsigned installer
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -Flavor normal -PythonPath python
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -PythonPath python
 
       - name: Upload unsigned installer artifact
         id: upload-unsigned
@@ -133,7 +133,7 @@ jobs:
         if: ${{ steps.signpath-config.outputs.enabled != 'true' }}
         shell: pwsh
         run: |
-          Write-Host "SignPath is not configured. Windows installer will not be published. Missing: ${{ steps.signpath-config.outputs.missing }}"
+          Write-Host "SignPath is not configured. The unsigned Windows installer will be published instead. Missing: ${{ steps.signpath-config.outputs.missing }}"
 
       - name: Submit installer to SignPath
         id: signpath
@@ -322,9 +322,18 @@ jobs:
           fi
 
           if [[ "${signed_count}" != "0" ]]; then
+            echo "Using signed Windows installer."
             find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' -exec cp -v {} publish-assets/ \;
+          elif [[ -d release-assets/unsigned-latexsnipper-installer ]]; then
+            unsigned_count="$(find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' | wc -l | tr -d ' ')"
+            if [[ "${unsigned_count}" != "0" ]]; then
+              echo "Signed Windows installer is missing; using unsigned Windows installer."
+              find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' -exec cp -v {} publish-assets/ \;
+            else
+              echo "Unsigned Windows installer artifact exists but contains no LaTeXSnipperSetup-*.exe; skipping Windows release asset."
+            fi
           else
-            echo "Signed Windows installer is missing; skipping Windows release asset."
+            echo "No signed or unsigned Windows installer artifact found; skipping Windows release asset."
           fi
 
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
