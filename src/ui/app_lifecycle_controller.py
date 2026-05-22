@@ -82,6 +82,23 @@ class AppLifecycleMixin:
         except Exception:
             pass
 
+        try:
+            if getattr(self, "hotkey_provider", None):
+                self.hotkey_provider.cleanup()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "tray_icon", None):
+                self.tray_icon.hide()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "overlay", None):
+                self.overlay.close()
+                self.overlay = None
+        except Exception:
+            pass
+
         if self.predict_thread:
             try:
                 if self.predict_thread.isRunning():
@@ -170,6 +187,11 @@ class AppLifecycleMixin:
                 QTimer.singleShot(0, QCoreApplication.quit)
             else:
                 event.ignore()
+            return
+
+        if sys.platform == "darwin":
+            self.showMinimized()
+            event.ignore()
             return
 
         self.hide()

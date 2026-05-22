@@ -523,12 +523,28 @@ def _append_private_site_packages(pyexe: str | None):
     except Exception:
         return
 
-    for p in (base / "Lib", base / "Lib" / "site-packages"):
+    candidates = [base / "Lib", base / "Lib" / "site-packages"]
+    try:
+        lib_dir = base / "lib"
+        if lib_dir.exists():
+            for child in sorted(lib_dir.iterdir(), reverse=True):
+                if child.is_dir() and child.name.startswith("python"):
+                    candidates.append(child)
+                    candidates.append(child / "site-packages")
+    except Exception:
+        pass
+
+    for p in candidates:
         try:
             if p.exists():
                 pstr = str(p)
                 if pstr not in sys.path:
-                    sys.path.append(pstr)
+                    if p.name == "site-packages":
+                        import site
+
+                        site.addsitedir(pstr)
+                    else:
+                        sys.path.append(pstr)
         except Exception:
             pass
     print(f"[INFO] packaged: appended dependency runtime path: {base}")
