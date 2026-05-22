@@ -1,5 +1,5 @@
 // LaTeXSnipper 用户手册
-// 版本: v2.3.2 | 更新: 2026-05
+// 版本: v2.3.2_Final_Stable | 最终稳定版
 #set page(paper: "a4", margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm))
 #set text(
   font: ("Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", "SimHei", "Noto Sans", "Helvetica"),
@@ -98,7 +98,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.3.2 | 持续更新中]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.3.2_Final_Stable | 最终稳定版]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -1351,6 +1351,6 @@ Linux / macOS（仅当前终端）：
 #v(1.5em)
 #align(center)[
   #text(size: 8pt, fill: rgb("#9E9E9E"))[
-    LaTeXSnipper FAQ · 版本 2.3.2 · https://github.com/SakuraMathcraft/LaTeXSnipper
+    LaTeXSnipper FAQ · 版本 v2.3.2_Final_Stable · https://github.com/SakuraMathcraft/LaTeXSnipper
   ]
 ]

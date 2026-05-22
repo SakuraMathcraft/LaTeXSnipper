@@ -1,5 +1,5 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v2.3.2 | 更新: 2026-05 -->
+<!-- 版本: v2.3.2_Final_Stable | 最终稳定版 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v2.3.2 | 持续更新中*
+*适用于 v2.3.2_Final_Stable | 最终稳定版*
 
 ---
 
@@ -1061,6 +1061,6 @@ python -m mathcraft_ocr run --image formula.png
 
 <div align="center">
 
-*LaTeXSnipper FAQ · 版本 2.3.2 · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
+*LaTeXSnipper FAQ · 版本 v2.3.2_Final_Stable · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
 
 </div>
