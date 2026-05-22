@@ -91,7 +91,7 @@ jobs:
 
       - name: Build unsigned installer
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -Flavor normal -PythonPath python
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -PythonPath python
 
       - name: Upload unsigned installer artifact
         id: upload-unsigned
