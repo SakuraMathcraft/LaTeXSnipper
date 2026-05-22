@@ -42,6 +42,7 @@ from bootstrap.deps_ui import (
     _exec_close_only_message_box,
     _progress_dialog,
     _select_existing_directory_with_icon,
+    activate_dependency_dialog,
     custom_warning_dialog,
 )
 from bootstrap.deps_workers import InstallWorker, LayerVerifyWorker
@@ -720,6 +721,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             )
             skip_next_ui_runtime_verify = False
             _notify_before_show_ui()
+            activate_dependency_dialog(dlg)
             result = dlg.exec()
             if result != dlg.DialogCode.Accepted:
 
