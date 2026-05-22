@@ -14,6 +14,44 @@ clean and reproducible.
   provider behavior outside the requested scope. Platform-specific changes need
   validation on that platform.
 
+## Collaboration Workflow
+
+- `main` is the release source of truth. Release packages should be built by
+  GitHub Actions from `main` or from the final release tag, not from a local
+  branch whose freshness is unknown.
+- Feature work must be done on a branch and merged by pull request. Do not push
+  direct feature commits to `main`.
+- Before opening or updating a PR, sync the feature branch with the latest
+  `main` and resolve conflicts locally:
+
+```powershell
+git fetch origin
+git merge --ff-only origin/main
+```
+
+  If fast-forward is not possible, rebase or merge intentionally and document
+  the conflict resolution in the PR.
+- Repository branch protection or rulesets for `main` should require PR review,
+  required status checks, and "require branches to be up to date before
+  merging". This prevents merging a PR that has not been tested against the
+  current `main`.
+- After a PR is merged into `main`, any long-lived working branch such as
+  `MathCraft` must be refreshed from `origin/main` before further development or
+  packaging work:
+
+```powershell
+git fetch origin
+git merge --ff-only origin/main
+git push origin MathCraft
+```
+
+- If a local branch shows commits behind `origin/main`, do not create release
+  artifacts from it. Update the branch first, then rely on the Actions release
+  workflow for platform packages.
+- If a PR changes packaging, dependency bootstrap, platform providers, or
+  release workflows, the PR description must say which platform package jobs or
+  local target-platform checks were run.
+
 ## Dependency Rules
 
 - The dependency wizard must only manage the app's Python dependency layers.
@@ -115,11 +153,14 @@ clean and reproducible.
 
 ## Release Signing Rules
 
-- Windows GitHub Release installers must be signed through SignPath before they
-  are uploaded to a GitHub Release.
-- Release workflows must publish the signed installer artifact only. Unsigned
-  Windows installer artifacts are build intermediates for SignPath and must not
-  be matched by release upload globs.
+- Windows GitHub Release installers should be signed through SignPath when
+  SignPath is configured and available.
+- Release workflows must prefer the signed Windows installer artifact. If
+  SignPath is unavailable or signing fails, the workflow may publish the
+  unsigned Windows installer artifact so the final release still contains a
+  Windows package.
+- The Windows installer filename remains `LaTeXSnipperSetup-2.3.2.exe` for both
+  signed and unsigned release assets.
 - Keep the SignPath artifact configuration in
   `.signpath/artifact-configurations/windows-installer.xml` synchronized with
   the SignPath project configuration. The GitHub artifact uploaded for signing
