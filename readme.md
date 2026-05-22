@@ -217,6 +217,14 @@ python src/main.py
 | Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
 | macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
 
+Close/background behavior follows each desktop platform. Windows hides the main
+window to the system tray when it is closed. Linux does the same when a system
+tray is available, and asks before exiting if no tray is available. macOS keeps
+the app running when the main window is closed/minimized; Dock or menu Quit is
+the explicit exit path. The macOS global hotkey uses Carbon and normally does
+not require Accessibility permission, while screenshot capture requires Screen
+Recording permission.
+
 The dependency wizard manages Python dependency layers only. It does not install
 or uninstall system packages. On Linux, tools such as `grim`, `maim`, and
 `gnome-screenshot` can improve screenshot fallback behavior, but they are
@@ -231,6 +239,9 @@ support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
 macOS users should install Python through Homebrew (`brew install python`) or
 the official python.org macOS installer when the system does not provide a
 usable `python3`.
+The dependency wizard shows its UI before running `ensurepip`, `pip` upgrade,
+or `setuptools`/`wheel` repair; those steps run after the user starts dependency
+installation.
 
 ### Packaging
 
@@ -258,7 +269,7 @@ is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno installer, signed through SignPath before release publishing.
+- Windows: Inno installer; SignPath-signed artifact is preferred, with an unsigned fallback when signing is unavailable.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
 - macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
 

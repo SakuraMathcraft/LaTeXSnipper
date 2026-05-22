@@ -80,6 +80,7 @@ class MainWindowSetupMixin:
         self._auto_theme_refresh_timer.setInterval(160)
         self._auto_theme_refresh_timer.timeout.connect(self._on_auto_theme_refresh_timeout)
         self._model_warmup_in_progress = False
+        self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False
         self._model_cache_repair_notice_shown = False
         self._preview_svg_cache = {}
@@ -428,4 +429,5 @@ class MainWindowSetupMixin:
 
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
+        self.install_platform_lifecycle_hooks()
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)
