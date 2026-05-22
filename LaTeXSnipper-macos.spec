@@ -239,6 +239,9 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         # ML runtimes are managed outside the main process
+        "_polars_runtime_32",
+        "_polars_runtime_64",
+        "_polars_runtime_compat",
         "transformers",
         "onnxruntime",
         "onnxruntime-gpu",
@@ -274,6 +277,8 @@ a = Analysis(
         "regex",
         "safetensors",
         "sentencepiece",
+        "Pythonwin",
+        "win32ui",
         "setuptools",
         "pkg_resources",
 

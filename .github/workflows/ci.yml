@@ -120,6 +120,25 @@ jobs:
             if ($specText -match "deps/python311|LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME|BUNDLED_PY311|BUNDLED_DEPS_DIR_ENV") {
               throw "Linux/macOS release specs must not bundle build-machine Python runtimes: $specPath"
             }
+            $hidden = [regex]::Match($specText, '(?s)hiddenimports=\[(.*?)\],\s*hookspath=').Groups[1].Value
+            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz", "matplotlib", "latex2mathml")) {
+              if ($hidden -match '"' + [regex]::Escape($module) + '"') {
+                throw "Linux/macOS specs must not hidden-import dependency-runtime module ${module}: $specPath"
+              }
+            }
+            $excludes = [regex]::Match($specText, '(?s)excludes=\[(.*?)\],\s*noarchive=').Groups[1].Value
+            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz", "matplotlib", "latex2mathml", "setuptools", "pkg_resources")) {
+              if ($excludes -notmatch '"' + [regex]::Escape($module) + '"') {
+                throw "Linux/macOS specs must exclude dependency-runtime module ${module}: $specPath"
+              }
+            }
+          }
+          $macosScript = Get-Content -LiteralPath "scripts\build_macos.sh" -Raw
+          if ($macosScript -notmatch "DMG_STAGING_DIR") {
+            throw "macOS DMG packaging must use a staging directory."
+          }
+          if ($macosScript -match '\$\(dirname "\$APP_PATH"\)') {
+            throw "macOS DMG packaging must not use the app parent directory as the DMG source."
           }
           $release = Get-Content -LiteralPath ".github\workflows\release.yml" -Raw
           foreach ($job in @("build-windows-installer", "build-linux-deb", "build-macos-app", "publish-release-assets")) {
