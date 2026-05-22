@@ -59,7 +59,7 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
         "env": "wayland",
     },
     "screencapture": {
-        "cmds": [["screencapture", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
+        "cmds": [["screencapture", "-x", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
         "desc": "screencapture (macOS 内置)",
         "env": "macos",
     },

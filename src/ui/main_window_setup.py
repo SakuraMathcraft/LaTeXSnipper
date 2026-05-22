@@ -428,4 +428,5 @@ class MainWindowSetupMixin:
 
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
+        self.install_platform_lifecycle_hooks()
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)

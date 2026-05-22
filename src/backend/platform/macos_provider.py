@@ -95,7 +95,7 @@ class MacOSScreenshotProvider:
                 return PermissionResult(PermissionState.ALLOWED, "macos-screen-recording-allowed")
 
         return PermissionResult(
-            PermissionState.DENIED,
+            PermissionState.UNKNOWN,
             "请在系统设置 > 隐私与安全性 > 录屏中允许 LaTeXSnipper。授权后如仍无法截图，请重启应用。",
         )
 

@@ -5,14 +5,39 @@ from __future__ import annotations
 import os
 import sys
 
-from PyQt6.QtCore import QCoreApplication, QTimer
+from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QMessageBox
 
 from runtime.runtime_logging import cleanup_runtime_log_session, open_debug_console
 from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
 
 
+class _MacApplicationQuitFilter(QObject):
+    def __init__(self, window):
+        super().__init__(window)
+        self._window = window
+
+    def eventFilter(self, obj, event):
+        if sys.platform == "darwin" and event.type() == QEvent.Type.Quit:
+            window = self._window
+            try:
+                window._force_exit = True
+                window._graceful_shutdown()
+            except Exception:
+                pass
+        return False
+
+
 class AppLifecycleMixin:
+    def install_platform_lifecycle_hooks(self):
+        if sys.platform != "darwin":
+            return
+        app = QCoreApplication.instance()
+        if app is None or getattr(self, "_mac_quit_filter", None) is not None:
+            return
+        self._mac_quit_filter = _MacApplicationQuitFilter(self)
+        app.installEventFilter(self._mac_quit_filter)
+
     def apply_startup_console_preference(self, enabled: bool):
         """Apply the startup log-window preference."""
         try:
@@ -190,6 +215,11 @@ class AppLifecycleMixin:
             return
 
         if sys.platform == "darwin":
+            if not event.spontaneous():
+                self._force_exit = True
+                self._graceful_shutdown()
+                event.accept()
+                return
             self.showMinimized()
             event.ignore()
             return

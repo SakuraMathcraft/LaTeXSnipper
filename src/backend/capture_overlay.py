@@ -1,6 +1,7 @@
 # backend/capture_overlay.py
 import math
 import os
+import sys
 import time
 from dataclasses import dataclass
 
@@ -260,6 +261,35 @@ class ScreenCaptureOverlay(QWidget):
                 continue
 
         if not snapshots:
+            if sys.platform == "darwin":
+                for screen in QGuiApplication.screens():
+                    try:
+                        geo = QRect(screen.geometry())
+                        if geo.width() <= 0 or geo.height() <= 0:
+                            continue
+                        image, source = capture_region_with_tools(
+                            geo.x(),
+                            geo.y(),
+                            geo.width(),
+                            geo.height(),
+                            preferred_tool=self.screenshot_tool,
+                            screen_geometry=_rect_to_tuple(geo),
+                        )
+                        if image is None or image.isNull():
+                            continue
+                        snapshots.append(
+                            _ScreenSnapshot(
+                                geometry=geo,
+                                image=image.copy(),
+                                scale_x=float(image.width()) / max(1, int(geo.width())),
+                                scale_y=float(image.height()) / max(1, int(geo.height())),
+                            )
+                        )
+                        print(f"[Overlay] macOS: overlay background captured via {source}")
+                    except Exception as e:
+                        print(f"[Overlay] macOS CLI background capture failed: {e}")
+                if snapshots:
+                    return snapshots
             print("[Overlay] 警告：未能捕获任何屏幕快照，overlay 背景将为纯色遮罩")
 
         return snapshots
@@ -920,7 +950,7 @@ class ScreenCaptureOverlay(QWidget):
                     except Exception:
                         pass
 
-        # Generic X11 CLI fallback.
+        # Generic Unix CLI fallback.
         if pixmap.isNull() and not _is_wayland and os.name != "nt":
             image, source = capture_region_with_tools(
                 global_x,
@@ -931,12 +961,19 @@ class ScreenCaptureOverlay(QWidget):
             )
             if image is not None and not image.isNull():
                 pixmap = QPixmap.fromImage(image)
-                print(f"[Overlay] Linux: 使用 {source} 截图")
+                platform_label = "macOS" if sys.platform == "darwin" else "Linux"
+                print(f"[Overlay] {platform_label}: 使用 {source} 截图")
             else:
-                print("[Overlay] Linux CLI 截图也失败")
+                platform_label = "macOS" if sys.platform == "darwin" else "Linux"
+                print(f"[Overlay] {platform_label} CLI 截图也失败")
 
         if pixmap.isNull():
             print("[Overlay] 所有截图方式均失败！pixmap 为空")
+        if pixmap.isNull() and sys.platform == "darwin":
+            self.last_capture_failure_message = (
+                "无法获取屏幕内容。请确认系统设置 > 隐私与安全性 > 录屏中已允许 LaTeXSnipper，"
+                "授权变更后请完全退出并重新打开应用。"
+            )
         self.last_capture_screen_index = int(target_idx)
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 
