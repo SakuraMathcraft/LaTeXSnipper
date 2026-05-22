@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import os
 
+from PyQt6 import sip
 from PyQt6.QtCore import QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -174,6 +175,8 @@ class ModelRuntimeControllerMixin:
             ok = False
             err = ""
             try:
+                if getattr(self, "_model_warmup_cancelled", False) or getattr(self, "_shutdown_done", False):
+                    return
                 self._apply_mathcraft_env()
                 ok = bool(self.model._lazy_load_mathcraft())
                 if (not ok) and not err:
@@ -183,20 +186,31 @@ class ModelRuntimeControllerMixin:
             except Exception as e:
                 ok = False
                 err = str(e)
-            self._pending_model_warmup_result = {
-                "ok": ok,
-                "err": err,
-                "preferred": preferred,
-                "announce_success": bool(announce_success),
-                "success_message": str(success_message or ""),
-                "on_ready": on_ready,
-                "on_fail": on_fail,
-            }
-            self._model_warmup_result_signal.emit()
+            try:
+                if (
+                    getattr(self, "_model_warmup_cancelled", False)
+                    or getattr(self, "_shutdown_done", False)
+                    or sip.isdeleted(self)
+                ):
+                    return
+                self._pending_model_warmup_result = {
+                    "ok": ok,
+                    "err": err,
+                    "preferred": preferred,
+                    "announce_success": bool(announce_success),
+                    "success_message": str(success_message or ""),
+                    "on_ready": on_ready,
+                    "on_fail": on_fail,
+                }
+                self._model_warmup_result_signal.emit()
+            except RuntimeError as e:
+                print(f"[WARN] Skip model warmup callback during shutdown: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
 
     def _apply_model_warmup_result(self):
+        if getattr(self, "_model_warmup_cancelled", False) or getattr(self, "_shutdown_done", False):
+            return
         data = getattr(self, "_pending_model_warmup_result", None)
         self._pending_model_warmup_result = None
         if not isinstance(data, dict):

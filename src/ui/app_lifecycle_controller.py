@@ -6,7 +6,7 @@ import os
 import sys
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox, QSystemTrayIcon
 
 from runtime.runtime_logging import cleanup_runtime_log_session, open_debug_console
 from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
@@ -71,6 +71,7 @@ class AppLifecycleMixin:
         if getattr(self, "_shutdown_done", False):
             return
         self._shutdown_done = True
+        self._model_warmup_cancelled = True
 
 
         try:
@@ -196,6 +197,22 @@ class AppLifecycleMixin:
             return
 
         if sys.platform == "linux":
+            tray_available = False
+            try:
+                tray_available = bool(
+                    getattr(self, "tray_icon", None)
+                    and QSystemTrayIcon.isSystemTrayAvailable()
+                    and self.tray_icon.isVisible()
+                )
+            except Exception:
+                tray_available = bool(getattr(self, "tray_icon", None))
+            if tray_available:
+                self.hide()
+                if not getattr(self, "_tray_msg_shown", False):
+                    self.system_provider.show_notification(self.tray_icon, "LaTeXSnipper", "已最小化到系统托盘")
+                    self._tray_msg_shown = True
+                event.ignore()
+                return
             reply = QMessageBox.question(
                 self,
                 "确认退出",
