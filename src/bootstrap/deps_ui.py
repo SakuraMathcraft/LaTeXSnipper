@@ -23,6 +23,41 @@ from bootstrap.deps_state import load_json as _load_json, save_json as _save_jso
 from bootstrap.deps_workers import UninstallLayerWorker
 
 
+def activate_dependency_dialog(dlg) -> None:
+    """Make the dependency wizard a visible foreground window before exec()."""
+    try:
+        from PyQt6.QtCore import QTimer, Qt
+        from PyQt6.QtWidgets import QApplication
+    except Exception as e:
+        print(f"[WARN] dependency wizard activation unavailable: {e}")
+        return
+
+    try:
+        dlg.setWindowFlag(Qt.WindowType.Window, True)
+        dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+    except Exception as e:
+        print(f"[WARN] dependency wizard window flag failed: {e}")
+
+    def _raise_dialog() -> None:
+        try:
+            if not dlg.isVisible():
+                dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
+            app = QApplication.instance()
+            if app is not None:
+                app.alert(dlg, 0)
+                app.processEvents()
+        except RuntimeError:
+            pass
+        except Exception as e:
+            print(f"[WARN] dependency wizard foreground failed: {e}")
+
+    _raise_dialog()
+    QTimer.singleShot(0, _raise_dialog)
+    QTimer.singleShot(250, _raise_dialog)
+
+
 def _load_config_path():
     from bootstrap.deps_entry import _load_config_path as _entry_load_config_path
 

@@ -8,9 +8,7 @@ from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_po
 from core.restart_contract import build_restart_with_wizard_launch
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
-    _hidden_subprocess_kwargs,
     _normalize_windows_drive_letter,
-    _subprocess_creationflags,
 )
 
 
@@ -268,9 +266,9 @@ class SettingsEnvironmentMixin:
                     app.processEvents()
             except Exception:
                 pass
-            spawn_flags = int(_subprocess_creationflags()) if getattr(sys, "frozen", False) else 0
-            popen_kwargs = _hidden_subprocess_kwargs() if spawn_flags else {}
-            subprocess.Popen([str(x) for x in spawn_argv], env=env, **popen_kwargs)
+            # This launches the GUI app itself.  Passing SW_HIDE here can hide the
+            # child process' first Qt window, which is the dependency wizard.
+            subprocess.Popen([str(x) for x in spawn_argv], env=env)
             # Close the current program.
             QApplication.instance().quit()
         except Exception as e:
