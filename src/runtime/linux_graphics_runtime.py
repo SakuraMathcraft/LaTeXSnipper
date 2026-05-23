@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
 from collections.abc import MutableMapping
@@ -15,6 +16,8 @@ _CHROMIUM_SOFTWARE_FLAGS = (
     "--disable-accelerated-video-decode",
     "--disable-vulkan",
     "--disable-features=UseOzonePlatform,Vulkan",
+    "--in-process-gpu",
+    "--use-gl=swiftshader",
 )
 
 
@@ -46,6 +49,22 @@ def _read_text(path: str) -> str:
         return ""
 
 
+def _glx_is_available() -> bool:
+    """Check whether GLX (libGL.so) can be loaded at all.
+
+    On headless / GPU-less systems (e.g. VMs, containers, WSL)
+    libGL.so may be missing entirely, in which case Qt6 xcb will
+    abort during GLX initialisation even when QT_OPENGL=software.
+    """
+    for soname in ("libGL.so.1", "libGL.so", "libGLX.so.0", "libGLX.so"):
+        try:
+            ctypes.CDLL(soname, mode=ctypes.RTLD_LAZY | ctypes.RTLD_LOCAL)
+            return True
+        except OSError:
+            continue
+    return False
+
+
 def _looks_virtualized() -> bool:
     marker_text = "\n".join(
         [
@@ -73,7 +92,16 @@ def _looks_virtualized() -> bool:
 def _needs_graphics_fallback(env: MutableMapping[str, str]) -> bool:
     if env.get("LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS") == "1":
         return True
-    return _env_is_wayland(env) or _looks_virtualized() or not _has_dri_render_node()
+    if _env_is_wayland(env):
+        return True
+    if _looks_virtualized():
+        return True
+    if not _has_dri_render_node():
+        return True
+    # Even with a DRI node, if GLX itself is missing Qt6 xcb will abort.
+    if env.get("DISPLAY") and not _glx_is_available():
+        return True
+    return False
 
 
 def apply_linux_graphics_fallbacks(env: MutableMapping[str, str] | None = None) -> None:
@@ -90,6 +118,12 @@ def apply_linux_graphics_fallbacks(env: MutableMapping[str, str] | None = None) 
 
     if "QT_QPA_PLATFORM" not in target and target.get("DISPLAY"):
         target["QT_QPA_PLATFORM"] = "xcb"
+
+    # When GLX is absent, tell the xcb platform plugin to skip GL
+    # initialisation entirely, otherwise Qt6 will abort even with
+    # QT_OPENGL=software set.
+    if not _glx_is_available():
+        target.setdefault("QT_XCB_GL_INTEGRATION", "none")
 
     target.setdefault("QT_OPENGL", "software")
     target.setdefault("QSG_RHI_BACKEND", "software")
