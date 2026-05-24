@@ -145,15 +145,27 @@ class InternalModelMathCraftTests(unittest.TestCase):
             self.assertEqual(removed, 1)
             self.assertFalse(orphan.exists())
 
-    def test_subprocess_env_points_worker_at_repo_root(self):
-        from backend.model import ModelWrapper
+    def test_subprocess_env_isolates_dependency_python_runtime(self):
+        from backend.model import ModelWrapper, _worker_code_roots, get_deps_python
+        from runtime.dependency_python import python_env_root
 
         wrapper = ModelWrapper(auto_warmup=False)
         env = wrapper._build_subprocess_env()
 
-        pythonpath_roots = {Path(item) for item in env["PYTHONPATH"].split(os.pathsep) if item}
-        self.assertIn(ROOT, pythonpath_roots)
+        self.assertNotIn("PYTHONPATH", env)
         self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+        self.assertIn(ROOT, _worker_code_roots())
+
+        if os.name == "nt":
+            path_entries = [Path(item) for item in env["PATH"].split(os.pathsep) if item]
+            self.assertGreaterEqual(len(path_entries), 2)
+            deps_root = python_env_root(get_deps_python())
+            self.assertEqual(path_entries[0], deps_root)
+            self.assertEqual(path_entries[1], deps_root / "DLLs")
+
+        worker_code = wrapper._worker_argv()[-1]
+        self.assertIn("HTTPSHandler", worker_code)
+        self.assertIn("site-packages", worker_code)
 
     def test_unknown_modes_fall_back_to_formula(self):
         from backend.model import ModelWrapper
@@ -294,6 +306,16 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("def _mathcraft_code_roots", source)
         self.assertIn('parent / "_internal"', source)
         self.assertIn("sys._MEIPASS", source)
+
+    def test_packaged_windows_initial_deps_dir_uses_bundled_deps(self):
+        import runtime.python_runtime_resolver as resolver
+
+        bundled = ROOT / "_internal" / "deps"
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(resolver, "_is_packaged_mode", return_value=True):
+                with mock.patch.object(resolver.os, "name", "nt"):
+                    with mock.patch.object(resolver, "_get_bundled_deps_dir_for_packaged", return_value=bundled):
+                        self.assertEqual(resolver._initial_deps_dir(), bundled)
 
 
 class DependencyBootstrapMathCraftTests(unittest.TestCase):

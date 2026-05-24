@@ -20,7 +20,7 @@ LAYER_MAP = {
         "lxml~=4.9.3",
         "pillow~=11.0.0", "pyperclip~=1.11.0",
         "requests~=2.32.5",
-        "certifi~=2026.2.25",
+        "certifi>=2024.8.30",
         "psutil~=7.1.0",
     ],
     "CORE": [

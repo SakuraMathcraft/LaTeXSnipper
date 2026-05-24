@@ -45,7 +45,11 @@ def _initial_deps_dir() -> Path:
     env_value = clean_path_value(os.environ.get("LATEXSNIPPER_DEPS_DIR"))
     if env_value:
         return Path(env_value)
-    if _is_packaged_mode() and os.name != "nt":
+    if _is_packaged_mode() and os.name == "nt":
+        bundled = _get_bundled_deps_dir_for_packaged()
+        if bundled is not None:
+            return bundled
+    if _is_packaged_mode():
         return _app_state_dir() / "deps"
     current_dev_base = _current_dev_install_base_dir()
     if current_dev_base is not None:
@@ -84,12 +88,18 @@ def _default_packaged_user_deps_dir() -> Path:
 
 
 def _python_candidate_usable(pyexe: Path) -> bool:
-    """Return whether a Python executable can start with its own standard library."""
+    """Return whether a Python executable can start and handle HTTPS downloads."""
     try:
         if not pyexe.exists() or not pyexe.is_file():
             return False
+        code = (
+            "import encodings, ssl, sys, urllib.request; "
+            "assert any(type(h).__name__ == 'HTTPSHandler' "
+            "for h in urllib.request.build_opener().handlers); "
+            "print(sys.version_info[:2], ssl.OPENSSL_VERSION)"
+        )
         proc = subprocess.run(
-            [str(pyexe), "-c", "import encodings, sys; print(sys.version_info[:2])"],
+            [str(pyexe), "-c", code],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
@@ -680,10 +690,16 @@ def _clean_bad_env():
 
 
 def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
-    """Check whether the interpreter has the full bootstrap standard-library modules."""
+    """Check whether the interpreter has bootstrap modules and HTTPS support."""
     try:
         import subprocess
-        r = subprocess.run([pyexe, "-c", "import ensurepip, venv;print('ok')"],
+        code = (
+            "import ensurepip, ssl, urllib.request, venv; "
+            "assert any(type(h).__name__ == 'HTTPSHandler' "
+            "for h in urllib.request.build_opener().handlers); "
+            "print('ok', ssl.OPENSSL_VERSION)"
+        )
+        r = subprocess.run([pyexe, "-c", code],
                            capture_output=True, text=True, timeout=20, **_win_subprocess_kwargs())
         return r.returncode == 0
     except Exception:

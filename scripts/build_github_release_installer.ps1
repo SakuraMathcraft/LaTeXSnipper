@@ -140,6 +140,50 @@ function Write-Sha256File {
     return $hash
 }
 
+function Test-PythonHttpsRuntime {
+    param([string]$PythonExe)
+
+    if (-not (Test-Path $PythonExe)) {
+        throw "Python HTTPS verification target is missing: $PythonExe"
+    }
+
+    $code = @'
+import json
+import pathlib
+import ssl
+import sys
+import urllib.request
+
+handlers = [type(h).__name__ for h in urllib.request.build_opener().handlers]
+result = {
+    "executable": str(pathlib.Path(sys.executable).resolve()),
+    "openssl": ssl.OPENSSL_VERSION,
+    "handlers": handlers,
+}
+print(json.dumps(result, ensure_ascii=False))
+if "HTTPSHandler" not in handlers:
+    raise SystemExit("urllib HTTPSHandler is unavailable")
+'@
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_https_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
+    try {
+        [System.IO.File]::WriteAllText($verifyScript, $code, $utf8NoBom)
+        $verifyJson = & $PythonExe $verifyScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python HTTPS verification failed for $PythonExe"
+        }
+        $verify = $verifyJson | ConvertFrom-Json
+        Write-Host "Python HTTPS runtime verified:"
+        Write-Host "  executable: $($verify.executable)"
+        Write-Host "  openssl: $($verify.openssl)"
+    }
+    finally {
+        if (Test-Path $verifyScript) {
+            Remove-Item -LiteralPath $verifyScript -Force
+        }
+    }
+}
+
 function Normalize-BundledPythonSeed {
     param([string]$Root)
 
@@ -256,6 +300,7 @@ if bad:
     Write-Host "Bundled Python seed normalized:"
     Write-Host "  executable: $($verify.executable)"
     Write-Host "  prefix: $($verify.prefix)"
+    Test-PythonHttpsRuntime -PythonExe $pythonExe
 }
 
 $root = Resolve-RepoRoot
@@ -301,6 +346,8 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
+    $distPython = Join-Path $root "dist\$buildName\_internal\deps\python311\python.exe"
+    Test-PythonHttpsRuntime -PythonExe $distPython
 }
 finally {
     $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = $oldChannel
