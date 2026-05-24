@@ -307,6 +307,16 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn('parent / "_internal"', source)
         self.assertIn("sys._MEIPASS", source)
 
+    def test_packaged_windows_initial_deps_dir_uses_bundled_deps(self):
+        import runtime.python_runtime_resolver as resolver
+
+        bundled = ROOT / "_internal" / "deps"
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(resolver, "_is_packaged_mode", return_value=True):
+                with mock.patch.object(resolver.os, "name", "nt"):
+                    with mock.patch.object(resolver, "_get_bundled_deps_dir_for_packaged", return_value=bundled):
+                        self.assertEqual(resolver._initial_deps_dir(), bundled)
+
 
 class DependencyBootstrapMathCraftTests(unittest.TestCase):
     def test_mathcraft_package_version_matches_public_init(self):

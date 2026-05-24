@@ -45,7 +45,11 @@ def _initial_deps_dir() -> Path:
     env_value = clean_path_value(os.environ.get("LATEXSNIPPER_DEPS_DIR"))
     if env_value:
         return Path(env_value)
-    if _is_packaged_mode() and os.name != "nt":
+    if _is_packaged_mode() and os.name == "nt":
+        bundled = _get_bundled_deps_dir_for_packaged()
+        if bundled is not None:
+            return bundled
+    if _is_packaged_mode():
         return _app_state_dir() / "deps"
     current_dev_base = _current_dev_install_base_dir()
     if current_dev_base is not None:
