@@ -1214,7 +1214,7 @@ python -m mathcraft_ocr run --image formula.png
 
 == 模型集与识别配置
 
-当前 `mathcraft-ocr` PyPI 包版本为 `0.2.0`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+当前 `mathcraft-ocr` PyPI 包版本线为 `0.2.x`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
 
 #block(
   inset: 12pt,
