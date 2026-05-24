@@ -1,5 +1,5 @@
 include LICENSE
-include readme.md
+include README_MATHCRAFT_OCR.md
 include pyproject.toml
 graft mathcraft_ocr
 prune build
