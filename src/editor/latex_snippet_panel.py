@@ -114,11 +114,12 @@ def insert_snippet_into_editor(editor, key: str) -> bool:
 
 
 class LaTeXSnippetPanel(QWidget):
-    def __init__(self, parent=None, *, insert_button_text: str = "插入", on_insert_key=None, compact: bool = False):
+    def __init__(self, parent=None, *, insert_button_text: str = "插入", on_insert_key=None, compact: bool = False, force_latex: bool = False):
         super().__init__(parent)
         self._on_insert_key = on_insert_key
         self._compact = compact
-        self._snippet_items = _get_snippets_for_mode(compact)
+        self._force_latex = force_latex
+        self._snippet_items = LATEX_SNIPPETS if force_latex else _get_snippets_for_mode(compact)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -151,6 +152,8 @@ class LaTeXSnippetPanel(QWidget):
 
     def refresh_snippets(self) -> None:
         """Refresh snippets based on the current render mode."""
+        if self._force_latex:
+            return  # always LaTeX, no mode switching
         new_items = _get_snippets_for_mode(self._compact)
         if new_items is not self._snippet_items:
             self._snippet_items = new_items

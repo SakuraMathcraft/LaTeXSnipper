@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import os
 
+from backend.typst_utils import clean_typst_to_latex_output, _strip_typst_grouping_for_reverse
 from exporting.formula_format_helpers import (
     latex_to_svg,
     mathml_standardize,
@@ -47,17 +48,14 @@ def convert_typst_to_latex(typst: str) -> str:
         return text if text != body else body
     try:
         import pypandoc
+        # Strip {} grouping added by forward conversion, which pandoc's
+        # Typst reader cannot handle inside function arguments like
+        # sqrt(sum_(...)^(...) {body}).
+        body = _strip_typst_grouping_for_reverse(body)
         wrapped = "$ " + body + " $"
         result = str(pypandoc.convert_text(wrapped, "latex", format="typst")).strip()
         if result:
-            result = re.sub(r'^\$\$\s*', '', result)
-            result = re.sub(r'\s*\$\$\s*$', '', result)
-            # Also strip \[...\] that pypandoc may add.
-            result = re.sub(r'^\\\[\s*', '', result)
-            result = re.sub(r'\s*\\\]\s*$', '', result)
-            # Remove any $ delimiters pypandoc may have added.
-            result = result.replace('$', '')
-            result = result.strip()
+            result = clean_typst_to_latex_output(result)
             if result:
                 return result
     except Exception:

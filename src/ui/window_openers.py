@@ -8,7 +8,7 @@ from backend.typst_utils import looks_like_latex_math
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from core.mathcraft_document_engine import convert_latex_to_typst
 from editor.workbench_window import WorkbenchWindow
-from exporting.formula_converters import get_current_render_mode
+from exporting.formula_converters import get_current_render_mode, convert_typst_to_latex
 from handwriting import HandwritingWindow
 from handwriting.model_policy import is_internal_handwriting_model, resolve_handwriting_recognition_model
 from ui.settings_window import SettingsWindow
@@ -53,6 +53,10 @@ class WindowOpenersMixin:
                 if getattr(self, "workbench_window", None):
                     self.workbench_window.show_info("当前无内容", "主编辑器为空，没有可载入的公式")
                 return
+            # If the main editor contains Typst (Typst mode), convert back
+            # to LaTeX so MathLive can understand it.
+            if get_current_render_mode() == "typst":
+                text = self._normalize_editor_text_for_workbench(text)
             self.workbench_window.set_latex(text)
             self.workbench_window.show_success("已载入", "主编辑器内容已载入数学工作台")
             return
@@ -150,6 +154,24 @@ class WindowOpenersMixin:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    @staticmethod
+    def _normalize_editor_text_for_workbench(text: str) -> str:
+        """Convert editor text (possibly Typst) to LaTeX for MathLive workbench."""
+        import re
+        body = text.strip()
+        # Strip $$ or $ delimiters
+        body = re.sub(r'^\$\$?\s*', '', body)
+        body = re.sub(r'\s*\$\$?\s*$', '', body)
+        body = body.strip()
+        if not body:
+            return text
+        # If content is already LaTeX, return as-is
+        if looks_like_latex_math(body):
+            return body
+        # Content is Typst — convert back to LaTeX for MathLive
+        converted = convert_typst_to_latex(body)
+        return converted if converted and converted.strip() else body
+
     def open_workbench(self):
         if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
             self.workbench_window.raise_()
@@ -163,6 +185,10 @@ class WindowOpenersMixin:
             self.workbench_window.show()
         current = self.latex_editor.toPlainText().strip()
         if current:
+            # If the main editor contains Typst, convert to LaTeX so
+            # MathLive can understand it on initial load.
+            if get_current_render_mode() == "typst":
+                current = self._normalize_editor_text_for_workbench(current)
             self.workbench_window.set_latex(current)
         self.workbench_window.raise_()
         self.workbench_window.activateWindow()

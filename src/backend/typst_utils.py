@@ -4,12 +4,12 @@
 These are imported by latex_renderer, mathcraft_document_engine, and
 formula_export to avoid duplicated (and diverging) implementations.
 
-The pipeline for LaTeX→Typst conversion is:
+The pipeline for LaTeX->Typst conversion is:
 
-    1. preprocess_latex_for_typst()   — fix known-broken LaTeX before pandoc
-    2. pypandoc.convert_text()        — actual conversion
-    3. clean_pandoc_typst_artifacts() — fix pandoc artifacts in Typst output
-    4. ensure_typst_math_grouping()   — add {} around big-operator bodies
+    1. preprocess_latex_for_typst()   - fix known-broken LaTeX before pandoc
+    2. pypandoc.convert_text()        - actual conversion
+    3. clean_pandoc_typst_artifacts() - fix pandoc artifacts in Typst output
+    4. ensure_typst_math_grouping()   - add {} around big-operator bodies
 """
 
 import re
@@ -62,20 +62,20 @@ def preprocess_latex_for_typst(latex: str) -> str:
 
     Fixes applied before pandoc:
 
-    - ``\textcolor{color}{content}`` → content extracted (color info lost,
+    - ``\\textcolor{color}{content}`` -> content extracted (color info lost,
       but math/text preserved instead of raw-TeX passthrough)
-    - ``\color{color}`` → stripped (stateful color lost)
-    - ``\stackrel{text}{sym}`` → ``\stackrel{\text{text}}{sym}``
-    - ``\cfrac`` → ``\frac`` (degraded)
-    - ``\varnothing`` → ``\emptyset``
-    - ``\sideset{pre}{post}\sum`` → ``\sum`` (simplified)
+    - ``\\color{color}`` -> stripped (stateful color lost)
+    - ``\\stackrel{text}{sym}`` -> ``\\stackrel{\\text{text}}{sym}``
+    - ``\\cfrac`` -> ``\\frac`` (degraded)
+    - ``\\varnothing`` -> ``\\emptyset``
+    - ``\\sideset{pre}{post}\\sum`` -> ``\\sum`` (simplified)
 
     >>> preprocess_latex_for_typst(r'\textcolor{red}{x^2} + \textcolor{blue}{text}')
     '{x^2} + \\text{text}'
     """
     text = str(latex or "")
 
-    # 1. \textcolor{color}{content} — extract content, preserving math/text
+    # 1. \textcolor{color}{content} - extract content, preserving math/text
     def _fix_textcolor(m: re.Match) -> str:
         content = m.group(2)
         if _is_text_like_content(content):
@@ -88,10 +88,10 @@ def preprocess_latex_for_typst(latex: str) -> str:
         text,
     )
 
-    # 2. \color{color} — strip the stateful command (can't preserve color)
+    # 2. \color{color} - strip the stateful command (can't preserve color)
     text = re.sub(r'\\color\s*\{[^}]*\}\s*', '', text)
 
-    # 3. \stackrel{text}{sym} — wrap text in \text{} so pandoc handles it
+    # 3. \stackrel{text}{sym} - wrap text in \text{} so pandoc handles it
     def _fix_stackrel(m: re.Match) -> str:
         above = m.group(1)
         below = m.group(2)
@@ -105,7 +105,47 @@ def preprocess_latex_for_typst(latex: str) -> str:
         text,
     )
 
-    # 4. Simple pattern replacements
+    # Replace \displaylines{...} content with simple \\-separated form
+    # so pandoc can convert the individual lines to Typst.
+    _RE_DISPLAYLINES = re.compile(r'\\displaylines\s*\{')
+
+    def _fix_displaylines(text: str) -> str:
+        result = []
+        pos = 0
+        while True:
+            m = _RE_DISPLAYLINES.search(text, pos)
+            if not m:
+                result.append(text[pos:])
+                break
+            result.append(text[pos:m.start()])
+            # Brace-count to find the matching closing }
+            brace_start = m.end() - 1  # position of the opening {
+            depth = 1
+            i = m.end()
+            while i < len(text) and depth > 0:
+                if text[i] == '{':
+                    depth += 1
+                elif text[i] == '}':
+                    depth -= 1
+                i += 1
+            if depth != 0:
+                # Unmatched brace, keep original
+                result.append(text[m.start():])
+                pos = len(text)
+                break
+            inner = text[m.end():i - 1]
+            lines = [line.strip() for line in inner.split(r'\\') if line.strip()]
+            result.append(r' \\ '.join(lines))
+            pos = i
+        return ''.join(result)
+
+    text = _fix_displaylines(text)
+
+    # 4. Replace snippet placeholders #? with \Box so pandoc can handle them.
+    # \Box renders as a visible placeholder (square.stroked in Typst).
+    text = text.replace('#?', r'\Box')
+
+    # 5. Simple pattern replacements
     for pattern, replacement in _PANDOC_UNSUPPORTED_PATTERNS:
         text = re.sub(pattern, replacement, text)
 
@@ -124,9 +164,9 @@ def clean_pandoc_typst_artifacts(typst: str) -> str:
     Typst parsing and must be repaired.
 
     Also fixes semantic errors in pandoc's Typst output:
-    - ``compose`` → ``circle`` (pandoc maps \\circ incorrectly)
-    - ``^compose`` → ``^degree`` (superscript \\circ means degrees)
-    - ``diameter`` → ``emptyset`` (pandoc maps \\varnothing incorrectly)
+    - ``compose`` -> ``circle`` (pandoc maps \\circ incorrectly)
+    - ``^compose`` -> ``^degree`` (superscript \\circ means degrees)
+    - ``diameter`` -> ``emptyset`` (pandoc maps \\varnothing incorrectly)
 
     >>> clean_pandoc_typst_artifacts('sum_(n {= 1)^oo 1 / n^2')
     'sum_(n = 1)^infinity 1 / n^2'
@@ -145,11 +185,11 @@ def clean_pandoc_typst_artifacts(typst: str) -> str:
     # Fix pandoc escaping | to \| in Typst (| is a math fence in Typst,
     # no escaping needed; \| would render as a literal backslash+pipe).
     text = text.replace(r'\|', '|')
-    # Fix pandoc mapping: \circ → compose (should be circle in Typst)
+    # Fix pandoc mapping: \circ -> compose (should be circle in Typst)
     # But ^compose (degree symbol) should become ^degree
     text = re.sub(r'\^compose\b', '^degree', text)
     text = re.sub(r'\bcompose\b', 'circle', text)
-    # Fix pandoc mapping: \varnothing → diameter (should be emptyset)
+    # Fix pandoc mapping: \varnothing -> diameter (should be emptyset)
     text = re.sub(r'\bdiameter\b', 'emptyset', text)
     # Strip orphaned trailing } left over from pandoc conversion
     # (e.g. pandoc may wrap fraction bodies producing an extra }).
@@ -243,3 +283,76 @@ def clean_pandoc_typst_output(typst: str) -> str:
     text = (typst or "").strip()
     text = text.replace('$', '')
     return clean_pandoc_typst_artifacts(text)
+
+
+# ---------------------------------------------------------------------------
+# Reverse conversion: Typst -> LaTeX cleanup
+# ---------------------------------------------------------------------------
+
+def _strip_typst_grouping_for_reverse(typst: str) -> str:
+    r"""Remove {} grouping added by ensure_typst_math_grouping before reverse.
+
+    Pandoc's Typst reader cannot parse ``{body}`` groups attached to
+    big-operators when they appear inside function arguments like
+    ``sqrt(sum_(...)^(...) {body})``.  LaTeX doesn't need the grouping
+    (its \sum naturally takes everything), so stripping the braces
+    before reverse conversion is safe.
+
+    >>> _strip_typst_grouping_for_reverse('sum_(n=1)^infinity {1 / n^2}')
+    'sum_(n=1)^infinity 1 / n^2'
+    """
+    text = str(typst or "")
+    _OP = r'(?:integral|sum|prod|lim)'
+    # Limit atom: either (parenthesised) or a simple token (no spaces/braces).
+    _ATOM = r'(?:\([^)]*\)|[^\s^{}]+)'
+    _LIMITS = rf'(?:_{_ATOM})?(?:\^{_ATOM})?'
+    # Match {body} after a big-operator with optional limits.
+    # Body may contain nested braces (e.g. \frac-like expressions).
+    text = re.sub(
+        rf'\b({_OP})({_LIMITS})\s+\{{([^{{}}]*(?:\{{[^{{}}]*\}}[^{{}}]*)*)\}}',
+        r'\1\2 \3',
+        text,
+    )
+    return text
+
+
+def clean_typst_to_latex_output(latex: str) -> str:
+    r"""Clean up pandoc artifacts in Typst->LaTeX reverse conversion.
+
+    Pandoc converts Typst row separator ``med`` to ``\:`` (a LaTeX spacing
+    command) instead of ``\\`` (a newline).  Inside ``\begin{...}`` /
+    ``\end{...}`` environments this must be ``\\`` to separate rows.
+
+    Also strips ``\[...\]`` display-math wrappers and ``\[\]`` artifacts
+    left over from ``$$`` delimiters in the Typst input.
+
+    >>> clean_typst_to_latex_output(r'\[\begin{pmatrix} a & b\: c & d \end{pmatrix}\]')
+    '\\begin{pmatrix} a & b\\\\ c & d \\end{pmatrix}'
+    """
+    text = str(latex or "").strip()
+
+    # Strip pandoc's \[...\] display-math wrapping.
+    text = re.sub(r'^\\\[\s*', '', text)
+    text = re.sub(r'\s*\\\]\s*$', '', text)
+    # Strip orphaned \[\] artifacts from $$ in Typst input.
+    text = re.sub(r'\\\[\]', '', text)
+    text = text.strip()
+
+    # Pandoc converts Typst "med" (row separator) -> "\:" (LaTeX spacing).
+    # Inside matrix/array/cases environments this is always a row break.
+    # \: is extremely rare in real LaTeX output from Typst conversion,
+    # so a targeted fix inside \begin..\end blocks is safe.
+    def _fix_row_sep_in_env(m: re.Match) -> str:
+        return m.group(0).replace(r'\:', r'\\')
+
+    text = re.sub(
+        r'\\begin\{[^}]*\}.*?\\end\{[^}]*\}',
+        _fix_row_sep_in_env,
+        text,
+        flags=re.DOTALL,
+    )
+
+    # Remove any $ delimiters pandoc may have added.
+    text = text.replace('$', '')
+
+    return text.strip()

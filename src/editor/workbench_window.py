@@ -55,6 +55,17 @@ class WorkbenchWindow(QWidget):
             return False
 
     @classmethod
+    def _window_title(cls) -> str:
+        if cls._is_typst_mode():
+            return "LaTeXSnipper 数学工作台 (Typst)"
+        return "LaTeXSnipper 数学工作台"
+
+    def _update_window_title(self) -> None:
+        self.setWindowTitle(self._window_title())
+        mode_text = "Typst 模式" if self._is_typst_mode() else "数学工作台"
+        self.title_label.setText(mode_text)
+
+    @classmethod
     def _copy_actions(cls) -> dict:
         if cls._is_typst_mode():
             return {"复制 Typst": "latex", "复制 MathJSON": "mathjson"}
@@ -87,6 +98,7 @@ class WorkbenchWindow(QWidget):
         top_bar = QHBoxLayout()
         top_bar.setSpacing(8)
         self.title_label = QLabel("数学工作台")
+        self._update_window_title()
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
 
@@ -99,7 +111,7 @@ class WorkbenchWindow(QWidget):
         self.factor_btn = PushButton(FluentIcon.TILES, "因式分解")
         self.multiline_combo = ComboBox()
         self.multiline_apply_btn = PushButton(FluentIcon.APPLICATION, "应用")
-        self.snippet_panel = LaTeXSnippetPanel(self, on_insert_key=self._insert_snippet_key)
+        self.snippet_panel = LaTeXSnippetPanel(self, on_insert_key=self._insert_snippet_key, force_latex=True)
         self.snippet_combo = self.snippet_panel.combo
         self.snippet_insert_btn = self.snippet_panel.button
         self.copy_combo = ComboBox()

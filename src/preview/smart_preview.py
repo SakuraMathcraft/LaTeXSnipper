@@ -6,7 +6,7 @@ import html as html_module
 import re
 from collections.abc import Callable
 
-from backend.typst_utils import looks_like_latex_math
+from backend.typst_utils import looks_like_latex_math, clean_pandoc_typst_artifacts
 from preview.math_preview import preview_theme_tokens, build_math_html
 from runtime.config_manager import normalize_content_type
 
@@ -324,6 +324,11 @@ def render_formula_content_html(
         # delimiter and must never appear in Typst formula body text.
         inner = inner.replace('$', '')
         inner = inner.strip()
+        # Clean up any escaped parens/slashes/etc left over from older
+        # buggy conversions (defense-in-depth: the main pipeline already
+        # prevents these, but history may contain pre-fix data).
+        if is_typst:
+            inner = clean_pandoc_typst_artifacts(inner)
         if not inner:
             inner = content.strip()
 

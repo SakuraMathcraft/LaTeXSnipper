@@ -154,7 +154,7 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
         clean_body = (latex or "").strip()
         if not looks_like_latex_math(clean_body):
             return clean_body, label
-        # Pre-process to fix known LaTeX→Typst conversion losses
+        # Pre-process to fix known LaTeX->Typst conversion losses
         latex = preprocess_latex_for_typst(clean_body)
 
     try:

@@ -90,11 +90,15 @@ def convert_latex_to_typst(latex_code: str) -> str:
     body = body.strip()
     if not body:
         return text
+    # Replace snippet placeholders before the LaTeX-detection check
+    # so that content like x_{#?}^{#?} (no backslash commands) still
+    # gets processed correctly.
+    body = body.replace('#?', r'\Box')
     # Safety: if the content doesn't look like LaTeX, return as-is to
     # avoid pypandoc mangling already-Typst or plain-text content.
     if not looks_like_latex_math(body):
         return body
-    # Pre-process to fix known LaTeX→Typst conversion losses
+    # Pre-process to fix known LaTeX->Typst conversion losses
     body = preprocess_latex_for_typst(body)
     if pypandoc is None:
         return body

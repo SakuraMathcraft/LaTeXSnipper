@@ -668,7 +668,7 @@ class TypstRenderer:
             body = body.strip()
             if not body:
                 return text
-            # Pre-process to fix known LaTeX→Typst conversion losses
+            # Pre-process to fix known LaTeX->Typst conversion losses
             # (color commands, stackrel, cfrac, varnothing, etc.)
             body = preprocess_latex_for_typst(body)
             # Wrap in $...$ so pandoc's LaTeX reader recognises math mode
