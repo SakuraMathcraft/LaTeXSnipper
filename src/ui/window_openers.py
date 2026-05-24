@@ -168,7 +168,7 @@ class WindowOpenersMixin:
         # If content is already LaTeX, return as-is
         if looks_like_latex_math(body):
             return body
-        # Content is Typst — convert back to LaTeX for MathLive
+        # Content is Typst - convert back to LaTeX for MathLive
         converted = convert_typst_to_latex(body)
         return converted if converted and converted.strip() else body
 
