@@ -27,6 +27,11 @@ from .errors import ModelCacheError
 from .formula_lines import compose_aligned_formula, compose_formula_line, split_formula_line_groups
 from .hardware import choose_rec_batch_num, detect_hardware_info
 from .image import load_image_rgb, rgb_to_bgr
+from .latex_quality import (
+    SEVERE_LATEX_QUALITY_FLAGS,
+    has_severe_latex_quality_issue,
+    latex_quality_flags,
+)
 from .layout import (
     annotate_blocks,
     box_to_points,
@@ -422,6 +427,7 @@ class MathCraftRuntime:
                     text=formula_text,
                     score=min(formula_box.score, formula_score),
                     source="formula_rec",
+                    confidence_flags=latex_quality_flags(formula_text),
                 )
             )
         if not blocks:
@@ -433,6 +439,7 @@ class MathCraftRuntime:
                     text=formula.text,
                     score=formula.score,
                     source="formula_fallback",
+                    confidence_flags=latex_quality_flags(formula.text),
                 )
             )
         blocks = list(resolve_formula_text_conflicts(blocks, image_size=(int(width), int(height))))
@@ -475,7 +482,30 @@ class MathCraftRuntime:
                 count = len(line_group.crops)
                 grouped_results.append(flat_results[offset : offset + count])
                 offset += count
-            return _merge_formula_group_results(grouped_results)
+            grouped_results = _repair_severe_segmented_lines(
+                rgb,
+                line_groups,
+                grouped_results,
+                model_dir,
+                provider_info,
+                max_new_tokens=max_new_tokens,
+            )
+            merged_text, merged_score = _merge_formula_group_results(grouped_results)
+            if has_severe_latex_quality_issue(merged_text):
+                fallback_text, fallback_score = recognize_formula_image(
+                    rgb,
+                    model_dir,
+                    provider_info,
+                    max_new_tokens=max_new_tokens,
+                )
+                if _prefer_formula_fallback(
+                    merged_text,
+                    merged_score,
+                    fallback_text,
+                    fallback_score,
+                ):
+                    return fallback_text, fallback_score
+            return merged_text, merged_score
         return recognize_formula_image(
             rgb,
             model_dir,
@@ -589,6 +619,65 @@ def _merge_formula_group_results(results: list[list[tuple[str, float]]]) -> tupl
     scores = [float(score) for line in results for _text, score in line]
     score = float(sum(scores) / len(scores)) if scores else 0.0
     return text, score
+
+
+def _repair_severe_segmented_lines(
+    rgb,
+    line_groups,
+    grouped_results: list[list[tuple[str, float]]],
+    model_dir: Path,
+    provider_info: ProviderInfo,
+    *,
+    max_new_tokens: int,
+) -> list[list[tuple[str, float]]]:
+    repaired = [list(line_results) for line_results in grouped_results]
+    for index, (line_group, line_results) in enumerate(zip(line_groups, grouped_results)):
+        if len(line_group.crops) <= 1:
+            continue
+        line_text = compose_formula_line([text for text, _score in line_results])
+        if not has_severe_latex_quality_issue(line_text):
+            continue
+        fallback_text, fallback_score = recognize_formula_image(
+            _crop_formula_line_group(rgb, line_group),
+            model_dir,
+            provider_info,
+            max_new_tokens=max_new_tokens,
+        )
+        line_score = _mean_score(line_results)
+        if _prefer_formula_fallback(line_text, line_score, fallback_text, fallback_score):
+            repaired[index] = [(fallback_text, fallback_score)]
+    return repaired
+
+
+def _crop_formula_line_group(rgb, line_group) -> object:
+    left = min(crop.box[0] for crop in line_group.crops)
+    top = min(crop.box[1] for crop in line_group.crops)
+    right = max(crop.box[2] for crop in line_group.crops)
+    bottom = max(crop.box[3] for crop in line_group.crops)
+    return rgb[top:bottom, left:right].copy()
+
+
+def _mean_score(results: list[tuple[str, float]]) -> float:
+    if not results:
+        return 0.0
+    return float(sum(score for _text, score in results) / len(results))
+
+
+def _prefer_formula_fallback(
+    candidate_text: str,
+    candidate_score: float,
+    fallback_text: str,
+    fallback_score: float,
+) -> bool:
+    candidate_flags = set(latex_quality_flags(candidate_text))
+    fallback_flags = set(latex_quality_flags(fallback_text))
+    candidate_severe = candidate_flags & SEVERE_LATEX_QUALITY_FLAGS
+    fallback_severe = fallback_flags & SEVERE_LATEX_QUALITY_FLAGS
+    if len(fallback_severe) < len(candidate_severe):
+        return fallback_score >= candidate_score * 0.78
+    if fallback_severe == candidate_severe:
+        return fallback_score > candidate_score + 0.04
+    return False
 
 
 def _formula_mask_margin(width: int, height: int) -> int:
