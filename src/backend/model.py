@@ -15,7 +15,7 @@ import threading
 from typing import Any
 
 from PIL import Image
-from runtime.dependency_python import clean_path_value, find_dependency_python
+from runtime.dependency_python import clean_path_value, find_dependency_python, python_env_root
 
 try:
     from PyQt6.QtCore import QObject, pyqtSignal
@@ -112,8 +112,80 @@ def _worker_code_roots() -> list[Path]:
     return [root for root in candidates if root.is_dir()]
 
 
-def _worker_pythonpath() -> str:
-    return os.pathsep.join(str(root) for root in _worker_code_roots())
+def _path_key(path: str | Path | None) -> str:
+    if not path:
+        return ""
+    try:
+        return os.path.normcase(os.path.abspath(str(path)))
+    except Exception:
+        return os.path.normcase(str(path))
+
+
+def _path_entries(value: str | None) -> list[str]:
+    entries: list[str] = []
+    seen: set[str] = set()
+    for raw in str(value or "").split(os.pathsep):
+        text = clean_path_value(raw)
+        if not text:
+            continue
+        key = _path_key(text)
+        if key and key not in seen:
+            entries.append(text)
+            seen.add(key)
+    return entries
+
+
+def _dependency_python_path_prefix(pyexe: str | Path) -> list[str]:
+    try:
+        root = python_env_root(pyexe).resolve()
+    except Exception:
+        return []
+    candidates = [
+        root,
+        root / "DLLs",
+        root / "Library" / "bin",
+        root / "Scripts",
+    ]
+    return [str(path) for path in candidates if path.exists()]
+
+
+def _packaged_runtime_path_roots() -> set[str]:
+    roots: set[str] = set()
+
+    def add(path: str | Path | None) -> None:
+        key = _path_key(path)
+        if key:
+            roots.add(key)
+
+    try:
+        add(getattr(sys, "_MEIPASS", None))
+    except Exception:
+        pass
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        add(exe_dir)
+        add(exe_dir / "_internal")
+    except Exception:
+        pass
+    try:
+        add(_repo_root() / "_internal")
+    except Exception:
+        pass
+    return roots
+
+
+def _worker_path_value(pyexe: str | Path, inherited_path: str | None) -> str:
+    prefix = _dependency_python_path_prefix(pyexe)
+    blocked = _packaged_runtime_path_roots()
+    entries = [entry for entry in _path_entries(inherited_path) if _path_key(entry) not in blocked]
+    merged: list[str] = []
+    seen: set[str] = set()
+    for entry in [*prefix, *entries]:
+        key = _path_key(entry)
+        if key and key not in seen:
+            merged.append(entry)
+            seen.add(key)
+    return os.pathsep.join(merged)
 
 
 def _failed_warmup_component_details(result: dict[str, Any]) -> list[str]:
@@ -528,8 +600,10 @@ class ModelWrapper(QObject):
         env = os.environ.copy()
         for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
+        pyexe = get_deps_python()
         env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
-        env["PYTHONPATH"] = _worker_pythonpath()
+        if os.name == "nt":
+            env["PATH"] = _worker_path_value(pyexe, env.get("PATH"))
         env["ORT_DISABLE_AZURE"] = "1"
         bundled_models = _bundled_mathcraft_models_dir()
         if bundled_models is not None:
@@ -558,8 +632,12 @@ class ModelWrapper(QObject):
     def _worker_argv(self) -> list[str]:
         roots = [str(root) for root in _worker_code_roots()]
         code = (
-            "import sys; "
-            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]; "
+            "import ssl, sys, urllib.request; "
+            "assert any(type(h).__name__ == 'HTTPSHandler' "
+            "for h in urllib.request.build_opener().handlers), 'dependency Python HTTPS support unavailable'; "
+            f"roots={roots!r}; "
+            "insert_at=next((i for i,p in enumerate(sys.path) if 'site-packages' in p.lower()), len(sys.path)); "
+            "[sys.path.insert(insert_at, p) for p in reversed(roots) if p not in sys.path]; "
             "from mathcraft_ocr.cli import main; "
             f"raise SystemExit(main(['worker', '--provider', {self._provider!r}]))"
         )
