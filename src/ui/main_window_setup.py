@@ -12,6 +12,7 @@ from qfluentwidgets import FluentIcon, MessageBox, PushButton
 
 from backend.model_factory import create_model_wrapper
 from backend.platform import PlatformCapabilityRegistry
+from backend.typst_utils import looks_like_latex_math
 from bootstrap.deps_bootstrap import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
@@ -514,8 +515,7 @@ class MainWindowSetupMixin:
         text = (formula or "").strip()
         if not text:
             return text
-        import re
-        has_latex = bool(re.search(r'\\[a-zA-Z]', text))
+        has_latex = looks_like_latex_math(text)
         try:
             if to_typst and has_latex:
                 from core.mathcraft_document_engine import convert_latex_to_typst

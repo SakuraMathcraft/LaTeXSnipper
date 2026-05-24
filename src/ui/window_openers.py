@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 
+from backend.typst_utils import looks_like_latex_math
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from core.mathcraft_document_engine import convert_latex_to_typst
 from editor.workbench_window import WorkbenchWindow
@@ -61,8 +62,7 @@ class WindowOpenersMixin:
             return
         if get_current_render_mode() == "typst":
             # Only convert if the content still looks like LaTeX.
-            import re
-            looks_latex = bool(re.search(r'\\[a-zA-Z]+', text))
+            looks_latex = looks_like_latex_math(text)
             if looks_latex:
                 text = convert_latex_to_typst(text)
             if text and not text.startswith("$"):
@@ -80,8 +80,7 @@ class WindowOpenersMixin:
         if get_current_render_mode() == "typst":
             # Only convert if the content still looks like LaTeX.
             # The handwriting window may have already converted it to Typst.
-            import re
-            looks_latex = bool(re.search(r'\\[a-zA-Z]+', text))
+            looks_latex = looks_like_latex_math(text)
             if looks_latex:
                 text = convert_latex_to_typst(text)
             if text and not text.startswith("$"):

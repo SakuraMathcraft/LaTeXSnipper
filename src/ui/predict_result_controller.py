@@ -11,6 +11,7 @@ from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
+from backend.typst_utils import looks_like_latex_math
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
@@ -554,8 +555,7 @@ class PredictResultControllerMixin:
             from exporting.formula_converters import get_current_render_mode
             from core.mathcraft_document_engine import convert_latex_to_typst
             if get_current_render_mode() == "typst":
-                import re
-                looks_latex = bool(re.search(r'\\[a-zA-Z]', t))
+                looks_latex = looks_like_latex_math(t)
                 if looks_latex:
                     converted = convert_latex_to_typst(t)
                     if converted and converted.strip():

@@ -8,6 +8,7 @@ import sys
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from backend.latex_renderer import get_latex_renderer, get_typst_renderer, _latex_settings
+from backend.typst_utils import looks_like_latex_math
 from preview.math_preview import get_mathjax_base_url
 from preview.smart_preview import build_preview_error_html, build_smart_preview_html, render_formula_content_html
 
@@ -26,7 +27,7 @@ class PreviewLatexRenderWorker(QObject):
             if not code:
                 self.finished.emit(str(cache_key or ""), None)
                 return
-            content_is_typst = bool(not re.search(r'\\[a-zA-Z]', code))
+            content_is_typst = not looks_like_latex_math(code)
             mode = _latex_settings.get_render_mode() if _latex_settings else "auto"
             if mode == "typst":
                 renderer = get_typst_renderer()

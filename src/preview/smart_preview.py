@@ -6,6 +6,7 @@ import html as html_module
 import re
 from collections.abc import Callable
 
+from backend.typst_utils import looks_like_latex_math
 from preview.math_preview import preview_theme_tokens, build_math_html
 from runtime.config_manager import normalize_content_type
 
@@ -312,7 +313,7 @@ def render_formula_content_html(
     try:
         is_svg_mode = render_mode and (render_mode.startswith("latex_") or render_mode == "typst")
         is_typst = render_mode == "typst"
-        content_is_typst = bool(not re.search(r'\\[a-zA-Z]', content))
+        content_is_typst = not looks_like_latex_math(content)
 
         # Strip outer $$ / $ delimiters so we never double-wrap.
         inner = content.strip()

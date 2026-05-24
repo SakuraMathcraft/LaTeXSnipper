@@ -12,6 +12,14 @@ try:
 except ImportError:  # pragma: no cover
     pypandoc = None
 
+from backend.typst_utils import (
+    clean_pandoc_typst_artifacts,
+    has_top_level_binary_op,
+    ensure_typst_math_grouping,
+    looks_like_latex_math,
+    preprocess_latex_for_typst,
+)
+
 
 _SECTION_RE = re.compile(r"^(\d+(?:\.\d+)*)\s+(.+?)\s*$")
 _COMPACT_SECTION_RE = re.compile(r"^(\d+(?:\.\d+)+)(?!\.)(\S.+?)\s*$")
@@ -84,8 +92,10 @@ def convert_latex_to_typst(latex_code: str) -> str:
         return text
     # Safety: if the content doesn't look like LaTeX, return as-is to
     # avoid pypandoc mangling already-Typst or plain-text content.
-    if not re.search(r'\\[a-zA-Z]', body):
+    if not looks_like_latex_math(body):
         return body
+    # Pre-process to fix known LaTeX→Typst conversion losses
+    body = preprocess_latex_for_typst(body)
     if pypandoc is None:
         return body
     try:
@@ -102,105 +112,16 @@ def convert_latex_to_typst(latex_code: str) -> str:
         # appear inside a Typst formula.
         converted = converted.replace('$', '')
         converted = converted.strip()
-        converted = _ensure_typst_math_grouping(converted)
+        converted = ensure_typst_math_grouping(converted)
         return converted.strip() or converted
     except Exception:
         return body
 
 
-def _clean_pandoc_typst_artifacts(typst: str) -> str:
-    r"""Clean up pandoc conversion artifacts in Typst math output.
-
-    Pandoc may produce malformed patterns like ``{= 1)`` when converting
-    LaTeX subscripts such as ``_{n=1}``.  These unbalanced braces break
-    Typst parsing and must be repaired.
-
-    >>> _clean_pandoc_typst_artifacts('sum_(n {= 1)^oo 1 / n^2}')
-    'sum_(n = 1)^infinity 1 / n^2'
-    """
-    # Fix pandoc artifact: {= X)  ->  = X)
-    # The closing ) is preserved so it acts as the limit-group close.
-    text = re.sub(r'\{=\s*([^}{)]*)\)', r'= \1)', typst)
-    # Fix pandoc converting \infty to "oo" (should be "infinity" in Typst).
-    # Use word-boundary match so we don't touch "oo" inside identifiers.
-    text = re.sub(r'\boo\b', 'infinity', text)
-    # Fix pandoc escaping \, (, ), / in Typst output
-    text = text.replace(r'\(', '(')
-    text = text.replace(r'\)', ')')
-    text = text.replace(r'\/', '/')
-    # Strip orphaned trailing } left over from pandoc conversion
-    # (e.g. pandoc may wrap fraction bodies producing an extra }).
-    while text.endswith('}') and text.count('{') < text.count('}'):
-        text = text[:-1]
-    return text
-
-
-def _has_top_level_binary_op(body: str) -> bool:
-    r"""Check whether *body* contains + - * / at the top level.
-
-    Operators nested inside ``()`` or ``{}`` are ignored because the
-    surrounding delimiters already provide correct grouping for Typst.
-
-    >>> _has_top_level_binary_op('x + y')
-    True
-    >>> _has_top_level_binary_op('(1 / 2)^n')
-    False
-    >>> _has_top_level_binary_op('a / b')
-    True
-    """
-    depth = 0
-    for ch in body:
-        if ch in '({':
-            depth += 1
-        elif ch in ')}':
-            depth -= 1
-        elif depth == 0 and ch in '+-*/':
-            return True
-    return False
-
-
-def _ensure_typst_math_grouping(typst: str) -> str:
-    r"""Wrap compound bodies of Typst big-operators in {} for correct grouping.
-
-    Typst functions like integral, sum, prod, lim need their body
-    wrapped in ``{}`` when the body contains binary operators (+, -, *, /).
-    Otherwise only the first term is treated as the body.
-
-    >>> _ensure_typst_math_grouping('integral_a^b x+2 dif x')
-    'integral_a^b {x+2} dif x'
-    """
-    text = _clean_pandoc_typst_artifacts(typst.strip())
-    # Match limit attachments that may include parenthesised content
-    # like _(n = 1) or ^(k + 1).  Also match plain limits like _n or ^oo.
-    _LIMIT_ATOM = r'(?:[^\s{}()]+|\([^)]*\))'
-    _LIMITS = rf'(?:_{_LIMIT_ATOM})?(?:\^{_LIMIT_ATOM})?'
-    _OP = r'(?:integral|sum|prod|lim)'
-    _BODY = r'([^}]+?)'
-    _SENTINEL = r'(dif\s+\S+)'
-
-    def _maybe_wrap(m: re.Match) -> str:
-        body = (m.group('body') or '').strip()
-        if not body or not _has_top_level_binary_op(body):
-            return m.group(0)
-        # Skip wrapping only when the body is already properly wrapped
-        # in a balanced {} pair (the closing } is consumed by the lookahead).
-        if body.startswith('{'):
-            return m.group(0)
-        prefix = m.group(0)[:m.start('body') - m.start(0)]
-        suffix = m.group(0)[m.end('body') - m.start(0):]
-        return f'{prefix}{{{body}}}{suffix}'
-
-    text = re.sub(
-        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})\s+{_SENTINEL}',
-        _maybe_wrap,
-        text,
-    )
-    text = re.sub(
-        rf'\b({_OP})({_LIMITS})\s+(?P<body>{_BODY})(?=\s*$|\s*\}})',
-        _maybe_wrap,
-        text,
-    )
-    return text
+# ---- shared Typst helpers (re-exported for backward compatibility) --------
+_clean_pandoc_typst_artifacts = clean_pandoc_typst_artifacts
+_has_top_level_binary_op = has_top_level_binary_op
+_ensure_typst_math_grouping = ensure_typst_math_grouping
 
 
 def compose_mathcraft_markdown_pages(page_results: list[dict[str, Any]] | tuple[dict[str, Any], ...], *, typst_formulas: bool = False) -> str:

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Callable
 
+from backend.typst_utils import looks_like_latex_math, clean_pandoc_typst_output, preprocess_latex_for_typst
 from exporting.formula_format_helpers import (
     latex_display,
     latex_equation,
@@ -152,8 +152,10 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
     # insert spaces between every character.
     if format_key == "pandoc_typst":
         clean_body = (latex or "").strip()
-        if not _looks_like_latex_math(clean_body):
+        if not looks_like_latex_math(clean_body):
             return clean_body, label
+        # Pre-process to fix known LaTeX→Typst conversion losses
+        latex = preprocess_latex_for_typst(clean_body)
 
     try:
         result = convert_latex_to(format_key, latex, as_document=True)
@@ -169,42 +171,6 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
     # Clean up pandoc artifacts for Typst output: pandoc converts \\infty
     # to "oo", escapes parentheses and slashes, and wraps in $ delimiters.
     if format_key == "pandoc_typst" and isinstance(result, str):
-        result = _clean_pandoc_typst_output(result)
+        result = clean_pandoc_typst_output(result)
 
     return result, label
-
-
-def _looks_like_latex_math(text: str) -> bool:
-    """Return True if *text* contains LaTeX backslash commands."""
-    return bool(text and re.search(r'\\[a-zA-Z]', text))
-
-
-def _clean_pandoc_typst_output(typst: str) -> str:
-    r"""Clean up pandoc conversion artifacts in Typst math output.
-
-    Pandoc may produce artifacts such as:
-    - ``\\infty`` converted to ``oo`` (should be ``infinity``)
-    - Escaped parentheses ``\\(`` ``\\)``
-    - Escaped slashes ``\\/``
-    - ``{= X)`` malformed patterns from subscript conversion
-    - Orphaned trailing ``}`` braces
-    - ``$`` delimiters
-
-    >>> _clean_pandoc_typst_output('$ sum_(n {= 1)^oo 1 / n^2 $')
-    'sum_(n = 1)^infinity 1 / n^2'
-    """
-    text = (typst or "").strip()
-    # Strip $ math delimiters pandoc may add
-    text = text.replace('$', '')
-    # Fix pandoc artifact: {= X)  ->  = X)
-    text = re.sub(r'\{=\s*([^}{)]*)\)', r'= \1)', text)
-    # Fix pandoc converting \infty to "oo" (should be "infinity" in Typst).
-    text = re.sub(r'\boo\b', 'infinity', text)
-    # Fix pandoc escaping \, (, ), / in Typst output
-    text = text.replace(r'\(', '(')
-    text = text.replace(r'\)', ')')
-    text = text.replace(r'\/', '/')
-    # Strip orphaned trailing } left over from pandoc conversion
-    while text.endswith('}') and text.count('{') < text.count('}'):
-        text = text[:-1]
-    return text.strip()
