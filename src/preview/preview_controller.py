@@ -8,7 +8,7 @@ import sys
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from backend.latex_renderer import get_latex_renderer, get_typst_renderer, _latex_settings
-from backend.typst_utils import looks_like_latex_math
+from backend.typst_utils import looks_like_latex_math, clean_pandoc_typst_artifacts
 from preview.math_preview import get_mathjax_base_url
 from preview.smart_preview import build_preview_error_html, build_smart_preview_html, render_formula_content_html
 
@@ -30,6 +30,9 @@ class PreviewLatexRenderWorker(QObject):
             content_is_typst = not looks_like_latex_math(code)
             mode = _latex_settings.get_render_mode() if _latex_settings else "auto"
             if mode == "typst":
+                # Defense-in-depth: clean up any escaped parens/slashes from
+                # older buggy conversions that may linger in history data.
+                code = clean_pandoc_typst_artifacts(code)
                 renderer = get_typst_renderer()
                 if renderer and renderer.is_available():
                     svg = renderer.render_to_svg(code, input_is_typst=content_is_typst)
