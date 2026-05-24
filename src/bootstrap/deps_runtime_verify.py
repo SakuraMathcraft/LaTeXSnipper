@@ -366,6 +366,7 @@ LAYER_VERIFY_CODE = {
     "BASIC": """
 import PIL
 import requests
+import certifi
 import lxml
 print("BASIC OK")
 """,
