@@ -26,6 +26,8 @@ from mathcraft_ocr.formula_lines import (
     split_formula_line_groups,
 )
 from mathcraft_ocr.hardware import HardwareInfo, choose_rec_batch_num
+from mathcraft_ocr.image import load_image_rgb
+from mathcraft_ocr.latex_quality import latex_quality_flags
 from mathcraft_ocr.layout import (
     annotate_blocks,
     is_informative_ocr_box,
@@ -369,7 +371,19 @@ def test_compose_aligned_formula_cleans_wrappers() -> None:
         )
     )
 
-    assert text == "\\begin{aligned}\nx = y \\\\\n= z\n\\end{aligned}"
+    assert text == "\\begin{aligned}\nx &= y \\\\\n&= z\n\\end{aligned}"
+
+
+def test_compose_aligned_formula_aligns_relation_operators() -> None:
+    text = compose_aligned_formula(
+        (
+            r"x = y",
+            r"\leq z",
+            r"+ r",
+        )
+    )
+
+    assert text == "\\begin{aligned}\nx &= y \\\\\n&\\leq z \\\\\n&\\quad + r\n\\end{aligned}"
 
 
 def test_compose_aligned_formula_downgrades_unbalanced_left_right() -> None:
@@ -410,7 +424,7 @@ def test_compose_aligned_formula_removes_unmatched_group_closers() -> None:
 
     lines = text.splitlines()
     assert lines[1] == r"\quad { { } } \\"
-    assert lines[2] == r"x = y"
+    assert lines[2] == r"x &= y"
 
 
 def test_compose_aligned_formula_groups_repeated_scripts() -> None:
@@ -454,6 +468,39 @@ def test_formula_line_groups_split_extra_wide_single_row_into_segments() -> None
     assert compose_formula_line((r"\begin{aligned} x", "=", r"y \end{aligned}")) == "x = y"
 
 
+def test_formula_line_groups_keep_compact_fraction_expression_whole() -> None:
+    image = load_image_rgb(ROOT / "test_samples" / "\u5206\u53f7-\u7b49\u53f7\u516c\u5f0f.png")
+
+    assert split_formula_line_groups(image) == ()
+
+
+def test_formula_line_groups_keep_synthetic_compact_fraction_expression_whole() -> None:
+    image = np.full((120, 260, 3), 255, dtype=np.uint8)
+    image[24:44, 58:210] = 0
+    image[56:104, 4:256] = 0
+
+    assert split_formula_line_groups(image) == ()
+
+
+def test_formula_line_groups_still_split_regular_multiline_equations() -> None:
+    image = np.full((180, 360, 3), 255, dtype=np.uint8)
+    image[22:38, 12:348] = 0
+    image[82:98, 90:330] = 0
+    image[138:154, 90:330] = 0
+
+    groups = split_formula_line_groups(image)
+
+    assert len(groups) == 3
+
+
+def test_formula_line_groups_keep_matrix_like_wide_line_whole() -> None:
+    image = load_image_rgb(ROOT / "test_samples" / "\u77e9\u96352.png")
+
+    groups = split_formula_line_groups(image)
+
+    assert groups == ()
+
+
 def test_formula_line_splitter_ignores_script_like_annotation_rows() -> None:
     image = np.full((92, 420, 3), 255, dtype=np.uint8)
     image[28:42, 18:392] = 0
@@ -461,6 +508,13 @@ def test_formula_line_splitter_ignores_script_like_annotation_rows() -> None:
     image[66:76, 320:344] = 0
 
     assert split_formula_line_crops(image) == ()
+
+
+def test_latex_quality_flags_detect_repeated_and_duplicate_relation_artifacts() -> None:
+    assert "duplicate_relation" in latex_quality_flags("x = = y")
+    assert "repeated_token_run" in latex_quality_flags(
+        r"x " + " ".join([r"\qquad"] * 30)
+    )
 
 
 def test_recognize_formula_uses_formula_adapter() -> None:
@@ -579,6 +633,50 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
 
         assert calls == [3]
         assert result.text == "part1 part2 part3"
+    finally:
+        MathCraftRuntime.warmup = old_warmup
+        runtime_mod.recognize_formula_image = old_recognize
+        runtime_mod.recognize_formula_images = old_recognize_images
+
+
+def test_recognize_formula_retries_whole_image_for_severe_split_artifacts() -> None:
+    manifest = load_manifest()
+    old_warmup = MathCraftRuntime.warmup
+    old_recognize = runtime_mod.recognize_formula_image
+    old_recognize_images = runtime_mod.recognize_formula_images
+    try:
+        def _fake_warmup(self, profile: str = "formula"):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        MathCraftRuntime.warmup = _fake_warmup
+        runtime_mod.recognize_formula_images = (
+            lambda images, model_dir, provider_info, max_new_tokens=256: [
+                ("x = = y", 0.91),
+                ("z", 0.91),
+            ]
+        )
+        runtime_mod.recognize_formula_image = (
+            lambda image, model_dir, provider_info, max_new_tokens=256: ("x = y", 0.82)
+        )
+
+        image = np.full((120, 220, 3), 255, dtype=np.uint8)
+        image[12:24, 20:190] = 0
+        image[62:74, 30:180] = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_formula(image)
+
+        assert result.text == "x = y"
+        assert result.score == 0.82
     finally:
         MathCraftRuntime.warmup = old_warmup
         runtime_mod.recognize_formula_image = old_recognize
@@ -1211,16 +1309,23 @@ def main() -> None:
         test_runtime_prefers_complete_bundled_models_over_empty_user_cache,
         test_formula_line_splitter_detects_visual_rows,
         test_compose_aligned_formula_cleans_wrappers,
+        test_compose_aligned_formula_aligns_relation_operators,
         test_compose_aligned_formula_downgrades_unbalanced_left_right,
         test_compose_aligned_formula_closes_unfinished_groups_before_line_breaks,
         test_compose_aligned_formula_removes_unmatched_group_closers,
         test_compose_aligned_formula_groups_repeated_scripts,
         test_compose_aligned_formula_neutralizes_stray_alignment_tabs,
         test_formula_line_groups_split_extra_wide_single_row_into_segments,
+        test_formula_line_groups_keep_compact_fraction_expression_whole,
+        test_formula_line_groups_keep_synthetic_compact_fraction_expression_whole,
+        test_formula_line_groups_still_split_regular_multiline_equations,
+        test_formula_line_groups_keep_matrix_like_wide_line_whole,
         test_formula_line_splitter_ignores_script_like_annotation_rows,
+        test_latex_quality_flags_detect_repeated_and_duplicate_relation_artifacts,
         test_recognize_formula_uses_formula_adapter,
         test_recognize_formula_splits_multiline_image_before_generation,
         test_recognize_formula_rejoins_extra_wide_single_row_segments,
+        test_recognize_formula_retries_whole_image_for_severe_split_artifacts,
         test_recognize_mixed_uses_text_pipeline,
         test_recognize_mixed_splits_multiline_formula_blocks,
         test_recognize_text_skips_formula_pipeline,

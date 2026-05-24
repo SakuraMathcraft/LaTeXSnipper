@@ -7,6 +7,8 @@ import re
 
 import numpy as np
 
+from .latex_alignment import align_latex_relation_lines
+
 
 @dataclass(frozen=True)
 class FormulaLineCrop:
@@ -50,7 +52,7 @@ def compose_aligned_formula(lines: list[str] | tuple[str, ...]) -> str:
     cleaned = [line for line in cleaned if line]
     if len(cleaned) <= 1:
         return cleaned[0] if cleaned else ""
-    body = " \\\\\n".join(cleaned)
+    body = " \\\\\n".join(align_latex_relation_lines(cleaned))
     return "\\begin{aligned}\n" + body + "\n\\end{aligned}"
 
 
@@ -81,6 +83,8 @@ def _split_formula_rows(rgb: np.ndarray) -> tuple[FormulaLineCrop, ...]:
         if _band_looks_like_formula_row(mask, top, bottom, image_width=width)
     ]
     bands = _filter_annotation_bands(mask, bands, image_width=width)
+    if _looks_like_compact_fraction_split(mask, bands, image_width=width, image_height=height):
+        return ()
     if len(bands) < 2:
         return ()
 
@@ -191,6 +195,51 @@ def _filter_annotation_bands(
     return [(top, bottom) for active, top, bottom in stats if active >= min_active]
 
 
+def _looks_like_compact_fraction_split(
+    mask: np.ndarray,
+    bands: list[tuple[int, int]],
+    *,
+    image_width: int,
+    image_height: int,
+) -> bool:
+    if len(bands) != 2:
+        return False
+    if image_height < 70 or image_width / max(1, image_height) > 2.65:
+        return False
+
+    first = _band_bounds(mask, *bands[0])
+    second = _band_bounds(mask, *bands[1])
+    if first is None or second is None:
+        return False
+
+    first_left, _first_top, first_right, first_bottom = first
+    second_left, second_top, second_right, _second_bottom = second
+    vertical_gap = second_top - first_bottom - 1
+    if vertical_gap < 0 or vertical_gap > max(12, int(round(image_height * 0.09))):
+        return False
+
+    first_width = first_right - first_left + 1
+    second_width = second_right - second_left + 1
+    first_inset = min(first_left, image_width - first_right - 1)
+    second_inset = min(second_left, image_width - second_right - 1)
+    first_is_centered_fragment = (
+        first_width <= image_width * 0.86 and first_inset >= image_width * 0.06
+    )
+    second_is_wider = second_width >= first_width * 1.15 and second_inset <= image_width * 0.08
+    return first_is_centered_fragment and second_is_wider
+
+
+def _band_bounds(mask: np.ndarray, top: int, bottom: int) -> tuple[int, int, int, int] | None:
+    points = np.argwhere(mask[top : bottom + 1, :])
+    if points.size == 0:
+        return None
+    y1 = int(points[:, 0].min()) + top
+    y2 = int(points[:, 0].max()) + top
+    x1 = int(points[:, 1].min())
+    x2 = int(points[:, 1].max())
+    return x1, y1, x2, y2
+
+
 def _band_active_columns(mask: np.ndarray, top: int, bottom: int) -> int:
     return int(np.count_nonzero(mask[top : bottom + 1, :].any(axis=0)))
 
@@ -229,6 +278,9 @@ def _split_wide_line_segments(line: FormulaLineCrop) -> tuple[FormulaLineCrop, .
         return (line,)
 
     mask = _ink_mask(line.image)
+    if _has_large_vertical_delimiter(mask):
+        return (line,)
+
     column_counts = mask.sum(axis=0)
     column_threshold = max(2, int(round(height * 0.035)))
     column_has_ink = column_counts >= column_threshold
@@ -262,6 +314,26 @@ def _split_wide_line_segments(line: FormulaLineCrop) -> tuple[FormulaLineCrop, .
             segments.append(segment)
         left = right
     return tuple(segments) if len(segments) > 1 else (line,)
+
+
+def _has_large_vertical_delimiter(mask: np.ndarray) -> bool:
+    height, width = mask.shape
+    if height < 48 or width < 80:
+        return False
+    content = np.argwhere(mask)
+    if content.size == 0:
+        return False
+    content_height = int(content[:, 0].max() - content[:, 0].min() + 1)
+    if content_height < height * 0.42:
+        return False
+    window = max(6, int(round(width * 0.035)))
+    column_counts = mask.sum(axis=0)
+    tall_threshold = max(12, int(round(content_height * 0.42)))
+    left_has_tall = bool(np.any(column_counts[:window] >= tall_threshold))
+    right_has_tall = bool(np.any(column_counts[-window:] >= tall_threshold))
+    interior = column_counts[window:-window] if width > window * 2 else column_counts
+    interior_tall_count = int(np.count_nonzero(interior >= tall_threshold))
+    return left_has_tall or right_has_tall or interior_tall_count >= 2
 
 
 def _crop_segment(
