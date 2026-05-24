@@ -55,12 +55,13 @@
 
 ### 安装后第一步：运行依赖向导
 
-LaTeXSnipper 首次启动时会弹出"依赖向导"。这不是可有可无的步骤——向导负责安装和配置运行所需的 Python 依赖层（包括 OCR 引擎、预览渲染等）。
+LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导"。这不是可有可无的步骤——向导负责安装和配置内置 MathCraft OCR、PDF/Pandoc 等运行依赖层；外部模型服务本身仍需要用户另行部署或配置。
 
 > [!WARNING]
-> **常见错误：跳过向导直接使用**
+> **常见错误：跳过向导后直接使用内置识别**
 >
-> 如果点"跳过"或向导中途失败，后续截图识别、公式预览、手写识别等功能将无法正常工作。
+> 如果依赖层未完整安装，内置 MathCraft 截图识别、PDF 识别、手写识别和 Pandoc 导出可能不可用，或在首次调用时进入修复流程。
+> 如果只使用外部模型，可以跳过安装并进入应用，但仍需要在设置页完成外部服务配置并通过连接测试。
 > 向导只管理 Python 依赖层，不会安装或卸载系统软件包（如 apt/brew 等）。
 
 如果向导本身运行失败：
@@ -367,8 +368,14 @@ python3.11 -m venv .venv
 # Linux/macOS 激活
 source .venv/bin/activate
 
-# 安装依赖
+# Windows 安装公共依赖
 pip install -r requirements.txt
+
+# Linux 安装公共依赖和 Linux 快捷键依赖
+pip install -r requirements-linux.txt
+
+# macOS 安装公共依赖
+pip install -r requirements-macos.txt
 ```
 
 ### PyInstaller 打包版和开发版行为不同
@@ -380,7 +387,7 @@ pip install -r requirements.txt
 **解决：**
 
 - **如果是用户：** 优先使用 Release 版本，不要自己从源码跑
-- **如果是开发者：** 按照 `requirements.txt` 和 `requirements-build.txt` 安装依赖
+- **如果是开发者：** Windows 使用 `requirements.txt`；Linux/macOS 分别使用 `requirements-linux.txt` / `requirements-macos.txt`；需要打包或构建资源时再安装 `requirements-build.txt`
 
 ### Linux/macOS 依赖环境创建在哪里
 
@@ -426,7 +433,8 @@ https://www.python.org/downloads/macos/
   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
   ```
 
-- `pywin32` 如果 pip 装不上，去 PyPI 手动下载 wheel 安装
+- Linux/macOS 源码运行请改用对应平台文件：`requirements-linux.txt` 或 `requirements-macos.txt`
+- `pywin32` 只在 Windows 平台安装；如果 Windows pip 装不上，去 PyPI 手动下载匹配 Python 版本的 wheel 安装
 
 ### 权限问题（Program Files / 系统目录）
 
@@ -436,8 +444,8 @@ https://www.python.org/downloads/macos/
 
 **解决：**
 
-- 不要安装到需要管理员权限的目录
-- 用户级安装（`%LOCALAPPDATA%` 下）通常没有问题
+- GitHub 安装包默认安装到 `%LOCALAPPDATA%\LaTeXSnipper`，普通用户权限即可运行
+- 如果手动放入 `C:\Program Files\` 等受保护目录，不要把依赖目录、模型缓存或日志目录指向安装目录；保持默认用户目录通常没有问题
 
 ### 中文路径 / 用户名包含特殊字符
 
