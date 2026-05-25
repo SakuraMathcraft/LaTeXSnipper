@@ -88,6 +88,7 @@ class MainWindowSetupMixin:
         self._preview_render_thread = None
         self._preview_render_worker = None
         self._model_warmup_callbacks = []
+        self._office_bridge_server = None
 
 
         self.cfg = ConfigManager()

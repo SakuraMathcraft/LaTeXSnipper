@@ -4,18 +4,18 @@
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
-  <Id>7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21</Id>
+  <Id>b5182ab2-5a84-45fb-81c4-67a725d6c7b1</Id>
   <Version>0.1.0.0</Version>
   <ProviderName>SakuraMathcraft</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper"/>
   <Description DefaultValue="Edit, recognize, and insert mathematical equations with LaTeXSnipper."/>
   <Hosts>
-    <Host Name="Document"/>
+    <Host Name="Presentation"/>
   </Hosts>
   <Requirements>
     <Sets DefaultMinVersion="1.1">
-      <Set Name="WordApi" MinVersion="1.1"/>
+      <Set Name="PowerPointApi" MinVersion="1.1"/>
     </Sets>
   </Requirements>
   <DefaultSettings>
@@ -24,7 +24,7 @@
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
     <Hosts>
-      <Host xsi:type="Document">
+      <Host xsi:type="Presentation">
         <DesktopFormFactor>
           <GetStarted>
             <Title resid="GetStarted.Title"/>
@@ -143,8 +143,8 @@
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."/>
-        <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."/>
-        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert a display equation with automatic numbering."/>
+        <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert a formula image into the current slide."/>
+        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert a display formula with numbering."/>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
         <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>
       </bt:LongStrings>

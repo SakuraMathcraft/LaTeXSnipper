@@ -13,6 +13,13 @@ The add-in is intentionally independent from the desktop application UI. The des
 
 The formula editor uses MathLive and keeps a synchronized LaTeX text view for debugging and manual edits. The keyboard routing logic mirrors the desktop math workbench: arrow keys are forwarded to MathLive navigation commands, and the virtual keyboard can be toggled from the task pane.
 
+Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate manifests:
+
+- `manifest.word.xml`
+- `manifest.powerpoint.xml`
+
+The initial Ribbon commands open the task pane: Editor, Insert Formula, Numbered, and Screenshot OCR.
+
 ## Development
 
 ```powershell

@@ -3,6 +3,7 @@ import "../styles/taskpane.css";
 import { BridgeClient, ConversionResult } from "../services/bridgeClient";
 import { loadSession, saveSession } from "../services/equationSession";
 import { insertEquationIntoWord } from "../office/wordInsert";
+import { insertEquationIntoPowerPoint } from "../office/powerpointInsert";
 import { MathLiveEditor } from "./mathliveEditor";
 
 type Elements = {
@@ -24,9 +25,11 @@ type Elements = {
 
 let lastConversion: ConversionResult | null = null;
 let formulaEditor: MathLiveEditor | null = null;
+let officeHost: Office.HostType | undefined;
 
 Office.onReady((info) => {
   const elements = resolveElements();
+  officeHost = info.host;
   elements.hostLabel.textContent = `${info.host || "Office"} add-in`;
   restoreSession(elements);
   formulaEditor = new MathLiveEditor(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
@@ -100,16 +103,19 @@ async function convertCurrentLatex(elements: Elements): Promise<ConversionResult
 }
 
 async function insertCurrentLatex(elements: Elements): Promise<void> {
+  const draft = {
+    latex: readLatex(elements),
+    display: elements.displayMode.checked,
+    numbering: elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none",
+    manualNumber: elements.manualNumber.value
+  } as const;
+  if (officeHost === Office.HostType.PowerPoint) {
+    await insertEquationIntoPowerPoint(draft, clientFromElements(elements));
+    setStatus(elements, "Inserted equation into PowerPoint.", "ok");
+    return;
+  }
   const conversion = lastConversion || (await convertCurrentLatex(elements));
-  await insertEquationIntoWord(
-    {
-      latex: readLatex(elements),
-      display: elements.displayMode.checked,
-      numbering: elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none",
-      manualNumber: elements.manualNumber.value
-    },
-    conversion
-  );
+  await insertEquationIntoWord(draft, conversion);
   setStatus(elements, "Inserted equation into Word.", "ok");
 }
 

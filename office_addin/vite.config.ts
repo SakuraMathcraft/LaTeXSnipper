@@ -13,7 +13,10 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
-      input: "taskpane.html"
+      input: {
+        taskpane: "taskpane.html",
+        commands: "commands.html"
+      }
     }
   }
 });

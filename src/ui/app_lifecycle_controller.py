@@ -124,6 +124,11 @@ class AppLifecycleMixin:
                 self.overlay = None
         except Exception:
             pass
+        try:
+            if hasattr(self, "_stop_office_bridge"):
+                self._stop_office_bridge()
+        except Exception:
+            pass
 
         if self.predict_thread:
             try:

@@ -432,6 +432,7 @@ Future cross-platform tests:
 - Implement editor, preview, bridge status, and insert buttons.
 - Implement Word insertion first.
 - Keep PowerPoint insertion image-based.
+- Add Word and PowerPoint Ribbon tabs with task-pane entry buttons.
 
 ### Phase 4: Recognition Integration
 
@@ -451,6 +452,7 @@ Future cross-platform tests:
 - Add recent formulas.
 - Add diagnostics.
 - Add user manual section.
+- Split the MathLive bundle if the production add-in payload needs to stay smaller.
 
 ### Phase 7: Independent Add-in Installer
 

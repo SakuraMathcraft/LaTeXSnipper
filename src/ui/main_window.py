@@ -17,6 +17,7 @@ from ui.hotkey_controller import HotkeyControllerMixin
 from ui.main_window_setup import MainWindowSetupMixin
 from ui.menu_helpers import action_btn_style as _action_btn_style
 from ui.model_runtime_controller import ModelRuntimeControllerMixin
+from ui.office_bridge_controller import OfficeBridgeControllerMixin
 from ui.predict_result_controller import PredictResultControllerMixin
 from ui.status_controller import StatusControllerMixin
 from ui.theme_controller import ThemeControllerMixin
@@ -40,6 +41,7 @@ class MainWindow(
     CaptureControllerMixin,
     HotkeyControllerMixin,
     WindowOpenersMixin,
+    OfficeBridgeControllerMixin,
     AppLifecycleMixin,
     QMainWindow,
 ):
@@ -88,6 +90,10 @@ class MainWindow(
         try:
             if self.model:
                 QTimer.singleShot(0, self._warmup_desired_model)
+        except Exception:
+            pass
+        try:
+            QTimer.singleShot(0, self.apply_office_bridge_startup_preference)
         except Exception:
             pass
 
