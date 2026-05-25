@@ -48,6 +48,7 @@ def test_edit_formula_dialog_uses_shared_mathjax_base_url() -> None:
     assert "_fallback_local_mathjax_base_url" not in source
     assert "BodyLabel(\"实时预览:\")" in source
     assert "setMinimumHeight(150)" in source
+    assert "build_math_html(text, center_viewport=True)" in source
 
 
 def test_handwriting_external_prompt_preserves_text_and_formula() -> None:

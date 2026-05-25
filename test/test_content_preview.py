@@ -1,5 +1,5 @@
 from preview.content_preview import build_mixed_content_html
-from preview.math_preview import MATHJAX_CDN_URL, MATHJAX_CDN_URL_BACKUP
+from preview.math_preview import MATHJAX_CDN_URL, MATHJAX_CDN_URL_BACKUP, build_math_html
 from preview.smart_preview import build_smart_preview_html
 
 
@@ -33,3 +33,12 @@ def test_smart_preview_uses_shared_mathjax_fallback_loader():
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "backupScript.src = cdnUrls[1];" in html
     assert "appendScript(script);" in html
+
+
+def test_math_preview_can_center_single_formula_in_viewport():
+    normal_html = build_math_html("x")
+    centered_html = build_math_html("x", center_viewport=True)
+
+    assert 'body class=""' in normal_html
+    assert 'body class="viewport-centered"' in centered_html
+    assert "body.viewport-centered" in centered_html

@@ -186,6 +186,13 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+body.viewport-centered {
+  min-height: calc(100vh - 24px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .math-container {
   overflow-x: auto;
   padding: 0;
@@ -197,6 +204,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+body.viewport-centered .math-container {
+  min-height: calc(100vh - 24px);
+  margin-bottom: 0;
 }
 .math-container:last-child {
   margin-bottom: 0;
@@ -248,7 +259,7 @@ body {
   };
 </script>
 </head>
-<body>
+<body class="__BODY_CLASS__">
 __FORMULAS__
 __MATHJAX_LOADER_SCRIPT__
 </body>
@@ -329,7 +340,7 @@ def get_mathjax_base_url() -> QUrl:
         return QUrl.fromLocalFile("/")
 
 
-def build_math_html(latex_or_list, labels=None) -> str:
+def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False) -> str:
     """Build MathJax rendering HTML for a single formula or a formula list."""
     try:
         if isinstance(latex_or_list, str):
@@ -355,6 +366,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
             "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(log_local_fallback=log_local_fallback),
+            "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
             "__BODY_BG__": tokens["body_bg"],
             "__BODY_TEXT__": tokens["body_text"],
             "__LABEL_TEXT__": tokens["label_text"],

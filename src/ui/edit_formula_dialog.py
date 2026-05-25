@@ -79,7 +79,7 @@ class EditFormulaDialog(QDialog):
 
     def _build_preview_payload(self, latex: str):
         text = str(latex or "").strip()
-        return build_math_html(text), get_mathjax_base_url()
+        return build_math_html(text, center_viewport=True), get_mathjax_base_url()
 
     def event(self, event):
         result = super().event(event)
