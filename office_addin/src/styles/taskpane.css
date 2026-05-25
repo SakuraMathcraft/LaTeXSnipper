@@ -83,6 +83,45 @@ textarea {
   font-family: Consolas, "Cascadia Mono", monospace;
 }
 
+.editor-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-header button {
+  min-height: 28px;
+  padding: 4px 8px;
+  width: auto;
+}
+
+.mathfield-host {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  border-radius: 4px;
+  min-height: 92px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.mathfield-host:focus-within {
+  border-color: #2e7be6;
+  box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);
+}
+
+math-field {
+  box-sizing: border-box;
+  display: block;
+  font-size: 22px;
+  min-height: 72px;
+  width: 100%;
+}
+
+.vk-visible .taskpane-shell {
+  padding-bottom: 220px;
+}
+
 .options-row {
   align-items: center;
   display: grid;

@@ -25,8 +25,13 @@
       </section>
 
       <section class="panel editor-panel">
-        <label for="latexInput">LaTeX</label>
-        <textarea id="latexInput" spellcheck="false">\int_0^1 x^2\,dx</textarea>
+        <div class="editor-header">
+          <label for="mathfieldHost">Formula editor</label>
+          <button id="keyboardButton" type="button">Keyboard</button>
+        </div>
+        <div id="mathfieldHost" class="mathfield-host"></div>
+        <label for="latexOutput">LaTeX</label>
+        <textarea id="latexOutput" spellcheck="false"></textarea>
         <div class="options-row">
           <label><input id="displayMode" type="checkbox" checked /> Display</label>
           <label><input id="autoNumber" type="checkbox" /> Auto number</label>

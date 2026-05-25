@@ -3,12 +3,15 @@ import "../styles/taskpane.css";
 import { BridgeClient, ConversionResult } from "../services/bridgeClient";
 import { loadSession, saveSession } from "../services/equationSession";
 import { insertEquationIntoWord } from "../office/wordInsert";
+import { MathLiveEditor } from "./mathliveEditor";
 
 type Elements = {
   hostLabel: HTMLElement;
   bridgeUrl: HTMLInputElement;
   bridgeToken: HTMLInputElement;
-  latexInput: HTMLTextAreaElement;
+  mathfieldHost: HTMLElement;
+  latexOutput: HTMLTextAreaElement;
+  keyboardButton: HTMLButtonElement;
   displayMode: HTMLInputElement;
   autoNumber: HTMLInputElement;
   manualNumber: HTMLInputElement;
@@ -20,11 +23,13 @@ type Elements = {
 };
 
 let lastConversion: ConversionResult | null = null;
+let formulaEditor: MathLiveEditor | null = null;
 
 Office.onReady((info) => {
   const elements = resolveElements();
   elements.hostLabel.textContent = `${info.host || "Office"} add-in`;
   restoreSession(elements);
+  formulaEditor = new MathLiveEditor(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   setStatus(elements, "Ready.", "ok");
 });
@@ -34,7 +39,9 @@ function resolveElements(): Elements {
     hostLabel: requiredElement("hostLabel", HTMLElement),
     bridgeUrl: requiredElement("bridgeUrl", HTMLInputElement),
     bridgeToken: requiredElement("bridgeToken", HTMLInputElement),
-    latexInput: requiredElement("latexInput", HTMLTextAreaElement),
+    mathfieldHost: requiredElement("mathfieldHost", HTMLElement),
+    latexOutput: requiredElement("latexOutput", HTMLTextAreaElement),
+    keyboardButton: requiredElement("keyboardButton", HTMLButtonElement),
     displayMode: requiredElement("displayMode", HTMLInputElement),
     autoNumber: requiredElement("autoNumber", HTMLInputElement),
     manualNumber: requiredElement("manualNumber", HTMLInputElement),
@@ -66,9 +73,10 @@ function wireEvents(elements: Elements): void {
     await convertCurrentLatex(elements);
   }));
   elements.insertButton.addEventListener("click", () => runAction(elements, () => insertCurrentLatex(elements)));
+  elements.keyboardButton.addEventListener("click", () => formulaEditor?.toggleKeyboard());
   elements.bridgeUrl.addEventListener("change", () => persistSession(elements));
   elements.bridgeToken.addEventListener("change", () => persistSession(elements));
-  elements.latexInput.addEventListener("input", () => {
+  elements.latexOutput.addEventListener("latexsnipper-latex-change", () => {
     lastConversion = null;
     elements.ommlOutput.value = "";
   });
@@ -117,7 +125,7 @@ function clientFromElements(elements: Elements): BridgeClient {
 }
 
 function readLatex(elements: Elements): string {
-  const latex = elements.latexInput.value.trim();
+  const latex = formulaEditor?.getLatex() || elements.latexOutput.value.trim();
   if (!latex) {
     throw new Error("LaTeX is required.");
   }

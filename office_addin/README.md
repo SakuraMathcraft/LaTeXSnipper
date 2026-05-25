@@ -11,6 +11,8 @@ PowerPoint support will be added after the Word insertion path is stable.
 
 The add-in is intentionally independent from the desktop application UI. The desktop app only needs to expose a small optional localhost bridge. Add-in installation, Office version checks, manifest registration, certificates, repair, and uninstall belong to this package.
 
+The formula editor uses MathLive and keeps a synchronized LaTeX text view for debugging and manual edits. The keyboard routing logic mirrors the desktop math workbench: arrow keys are forwarded to MathLive navigation commands, and the virtual keyboard can be toggled from the task pane.
+
 ## Development
 
 ```powershell

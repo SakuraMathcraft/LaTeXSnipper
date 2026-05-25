@@ -235,7 +235,7 @@ The task pane editor should be independent from Word and PowerPoint insertion ad
 
 Core editor responsibilities:
 
-- Text LaTeX input.
+- MathLive formula input with synchronized LaTeX text view.
 - Live preview.
 - Common symbol palette.
 - Matrix/cases/aligned templates.
@@ -258,6 +258,13 @@ Host-specific adapters handle insertion:
 
 - `wordInsert.ts`
 - `powerpointInsert.ts`
+
+The MathLive editor should reuse the desktop workbench's interaction policy where possible:
+
+- Arrow keys should route to MathLive navigation commands.
+- The virtual keyboard should be explicitly toggleable.
+- LaTeX should remain visible for direct editing and debugging.
+- MathLive-specific behavior should stay in an editor adapter module rather than leaking into insertion adapters.
 
 ## Recognition Flow
 
