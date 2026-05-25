@@ -1,5 +1,6 @@
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import MATHJAX_CDN_URL, MATHJAX_CDN_URL_BACKUP
+from preview.smart_preview import build_smart_preview_html
 
 
 def test_mixed_content_escapes_text_and_preserves_formulas():
@@ -18,4 +19,15 @@ def test_mixed_content_mathjax_loader_falls_back_to_backup_cdn():
     assert MATHJAX_CDN_URL in html
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "cdnScript.onerror" in html
+    assert "backupScript.src = cdnUrls[1];" in html
+
+
+def test_smart_preview_uses_shared_mathjax_fallback_loader():
+    html = build_smart_preview_html(
+        [("$x$", "Formula", "mathcraft")],
+        lambda content: f'<div class="formula-content">$${content}$$</div>',
+    )
+
+    assert MATHJAX_CDN_URL in html
+    assert MATHJAX_CDN_URL_BACKUP in html
     assert "backupScript.src = cdnUrls[1];" in html

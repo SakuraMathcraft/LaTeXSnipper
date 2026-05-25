@@ -6,7 +6,7 @@ import html as html_module
 import re
 from collections.abc import Callable
 
-from preview.math_preview import preview_theme_tokens, build_math_html
+from preview.math_preview import build_math_html, mathjax_loader_script, preview_theme_tokens
 from runtime.config_manager import normalize_content_type
 
 
@@ -42,25 +42,25 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer, *, 
             for content, label, content_type in items
         )
 
-        mathjax_config = '''
+        mathjax_config = f'''
 <script>
-window.MathJax = {
-  tex: {
+window.MathJax = {{
+  tex: {{
     inlineMath: [['$','$'], ['\\(','\\)']],
     displayMath: [['$$','$$'], ['\\[','\\]']],
     processEscapes: true
-  },
-  svg: {
+  }},
+  svg: {{
     fontCache: 'global',
     scale: 1
-  },
-  options: {
+  }},
+  options: {{
     enableMenu: false,
     processHtmlClass: 'formula-content'
-  }
-};
+  }}
+}};
 </script>
-<script src="tex-mml-chtml.js" type="text/javascript"></script>'''
+{mathjax_loader_script()}'''
 
         return f'''<!DOCTYPE html>
 <html>
@@ -286,4 +286,3 @@ def render_mixed_content(content: str) -> str:
     except Exception as exc:
         print(f"[RenderMixed] 混合内容渲染失败: {exc}")
         return f'<div style="color: red;">{html_module.escape(f"混合内容渲染失败: {exc}")}</div>'
-
