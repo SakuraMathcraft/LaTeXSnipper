@@ -23,6 +23,7 @@ class OfficeBridgeServer:
         port: int = 0,
         auth: OfficeBridgeAuth | None = None,
         conversion_service: OfficeConversionService | None = None,
+        recognition_service: Any | None = None,
     ) -> None:
         if host not in {"127.0.0.1", "localhost"}:
             raise ValueError("Office bridge must bind to localhost only")
@@ -30,6 +31,7 @@ class OfficeBridgeServer:
         self.requested_port = int(port)
         self.auth = auth or OfficeBridgeAuth()
         self.conversion_service = conversion_service or OfficeConversionService()
+        self.recognition_service = recognition_service
         self._httpd: _OfficeHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -73,13 +75,24 @@ class OfficeBridgeServer:
             "auth": "bearer",
             "features": {
                 "convert_latex": True,
-                "capture_recognize": False,
+                "capture_recognize": self.recognition_service is not None,
             },
+        }
+
+    def config(self) -> dict[str, Any]:
+        return {
+            "bridge_url": self.base_url,
+            "token": self.token,
+            "features": self.health()["features"],
         }
 
     def handle_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         if path == "/convert/latex":
             return self.conversion_service.convert(payload)
+        if path == "/recognize/screenshot":
+            if self.recognition_service is None:
+                raise OfficeBridgeError(501, "feature_unavailable", "screenshot OCR is not available")
+            return self.recognition_service.recognize_screenshot(payload)
         raise OfficeBridgeError(404, "not_found", f"unknown endpoint: {path}")
 
 
@@ -99,10 +112,15 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NO_CONTENT, {})
 
     def do_GET(self) -> None:
-        if self.path != "/health":
+        if self.path == "/health":
+            self._send_json(HTTPStatus.OK, success_response(self.server.bridge.health()))
+            return
+        if self.path == "/config":
+            self._send_json(HTTPStatus.OK, success_response(self.server.bridge.config()))
+            return
+        else:
             self._send_error(OfficeBridgeError(404, "not_found", f"unknown endpoint: {self.path}"))
             return
-        self._send_json(HTTPStatus.OK, success_response(self.server.bridge.health()))
 
     def do_POST(self) -> None:
         try:
@@ -140,7 +158,11 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin")
+        if origin in {"https://localhost:3000", "https://127.0.0.1:3000"}:
+            self.send_header("Access-Control-Allow-Origin", origin)
+        elif origin is None:
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()

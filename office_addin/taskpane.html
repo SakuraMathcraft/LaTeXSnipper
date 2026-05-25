@@ -13,20 +13,12 @@
           <h1>LaTeXSnipper</h1>
           <p id="hostLabel">Office add-in</p>
         </div>
-        <button id="healthButton" type="button">Connect</button>
-      </section>
-
-      <section class="panel">
-        <label for="bridgeUrl">Bridge URL</label>
-        <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
-
-        <label for="bridgeToken">Bridge token</label>
-        <input id="bridgeToken" type="password" spellcheck="false" placeholder="Paste token from LaTeXSnipper" />
+        <button id="healthButton" type="button" title="Check connection">Connect</button>
       </section>
 
       <section class="panel editor-panel">
         <div class="editor-header">
-          <label for="mathfieldHost">Formula editor</label>
+          <label for="mathfieldHost">Equation</label>
           <button id="keyboardButton" type="button">Keyboard</button>
         </div>
         <div id="mathfieldHost" class="mathfield-host"></div>
@@ -39,15 +31,36 @@
         </div>
       </section>
 
-      <section class="actions">
-        <button id="convertButton" type="button">Convert</button>
+      <section class="actions primary-actions">
+        <button id="ocrButton" type="button">Screenshot OCR</button>
         <button id="insertButton" type="button" class="primary">Insert</button>
       </section>
 
-      <section class="panel output-panel">
+      <section class="panel compact-panel">
+        <label>Selected equation</label>
+        <section class="actions">
+          <button id="loadSelectedButton" type="button">Load</button>
+          <button id="updateSelectedButton" type="button">Update</button>
+        </section>
+      </section>
+
+      <section class="panel compact-panel">
+        <label>Numbering</label>
+        <section class="actions">
+          <button id="renumberButton" type="button">Renumber all</button>
+        </section>
+      </section>
+
+      <details class="panel advanced-panel">
+        <summary>Advanced</summary>
+        <label for="bridgeUrl">Bridge URL</label>
+        <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
+        <label for="bridgeToken">Bridge token</label>
+        <input id="bridgeToken" type="password" spellcheck="false" />
+        <button id="convertButton" type="button">Convert only</button>
         <label for="ommlOutput">OMML preview</label>
         <textarea id="ommlOutput" spellcheck="false" readonly></textarea>
-      </section>
+      </details>
 
       <div id="status" class="status">Waiting for Office.</div>
     </main>

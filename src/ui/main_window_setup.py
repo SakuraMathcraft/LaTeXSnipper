@@ -33,6 +33,7 @@ class MainWindowSetupMixin:
         self._report_startup_progress("读取配置与启动参数...")
         self._pending_model_warmup_result = None
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
+        self._office_screenshot_ocr_request_signal.connect(self._run_office_screenshot_ocr_from_signal)
         self._post_show_tasks_started = False
         self._startup_centered_once = False
         self._pending_hotkey_seq = None

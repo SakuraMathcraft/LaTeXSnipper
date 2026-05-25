@@ -51,6 +51,25 @@ p {
   padding: 10px;
 }
 
+details.panel {
+  display: block;
+}
+
+summary {
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+details.panel > *:not(summary) {
+  margin-top: 8px;
+}
+
+.compact-panel {
+  gap: 6px;
+}
+
 label {
   color: #344054;
   font-size: 12px;
@@ -143,8 +162,16 @@ math-field {
 .actions {
   display: grid;
   gap: 8px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   margin-bottom: 12px;
+}
+
+.panel .actions {
+  margin-bottom: 0;
+}
+
+.primary-actions {
+  grid-template-columns: 1fr 1fr;
 }
 
 button {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import copy
 
 from exporting.formula_format_helpers import (
     latex_to_svg,
@@ -46,7 +47,7 @@ def latex_to_omml(latex: str) -> str:
     result = etree.tostring(omml_doc, encoding="unicode")
     if not _looks_like_omml(result):
         raise RuntimeError("MML2OMML conversion did not produce OMML")
-    return result
+    return _repair_empty_nary_operands(result)
 
 
 def _find_mml2omml_xsl() -> Path | None:
@@ -66,3 +67,29 @@ def _find_mml2omml_xsl() -> Path | None:
 def _looks_like_omml(value: str) -> bool:
     text = str(value or "")
     return "<m:oMath" in text or "<m:oMathPara" in text
+
+
+def _repair_empty_nary_operands(omml: str) -> str:
+    from lxml import etree
+
+    ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
+    root = etree.fromstring(omml.encode("utf-8"))
+    for nary in root.xpath(".//m:nary[m:e[not(node())]]", namespaces=ns):
+        body = nary.find("m:e", namespaces=ns)
+        if body is None:
+            continue
+        parent = nary.getparent()
+        if parent is None:
+            continue
+        siblings = list(parent)
+        try:
+            nary_index = siblings.index(nary)
+        except ValueError:
+            continue
+        for candidate in siblings[nary_index + 1 :]:
+            if candidate.tag.endswith("}r") and "".join(candidate.itertext()).strip() == "":
+                continue
+            body.append(copy.deepcopy(candidate))
+            parent.remove(candidate)
+            break
+    return etree.tostring(root, encoding="unicode")

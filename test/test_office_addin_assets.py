@@ -21,6 +21,11 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "InsertFormulaButton" in text
         assert "NumberedFormulaButton" in text
         assert "ScreenshotOcrButton" in text
+        if manifest_name == "manifest.word.xml":
+            assert "LoadSelectedButton" in text
+            assert "UpdateSelectedButton" in text
+            assert "RenumberButton" in text
+            assert "ExecuteFunction" in text
 
 
 def test_office_addin_static_icon_assets_exist() -> None:
@@ -28,3 +33,7 @@ def test_office_addin_static_icon_assets_exist() -> None:
         path = ADDIN / "public" / "assets" / f"icon-{size}.png"
         assert path.is_file()
         assert path.stat().st_size > 0
+
+    svg = ADDIN / "public" / "assets" / "ribbon-icons.svg"
+    assert svg.is_file()
+    assert "latexsnipper-ocr" in svg.read_text(encoding="utf-8")

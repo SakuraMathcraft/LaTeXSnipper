@@ -57,6 +57,11 @@ def test_office_bridge_health_and_authenticated_conversion() -> None:
         assert health["ok"] is True
         assert health["result"]["features"]["convert_latex"] is True
 
+        config = _get_json(f"{server.base_url}/config")
+        assert config["ok"] is True
+        assert config["result"]["bridge_url"] == server.base_url
+        assert config["result"]["token"] == "test-token"
+
         unauth = _post_json(f"{server.base_url}/convert/latex", {"latex": "x"})
         assert unauth["status"] == 401
         assert unauth["payload"]["error"]["code"] == "unauthorized"
@@ -69,6 +74,32 @@ def test_office_bridge_health_and_authenticated_conversion() -> None:
         assert converted["status"] == 200
         assert converted["payload"]["result"]["omml"] == "<omml>x</omml>"
         assert converted["payload"]["result"]["svg"] == "<svg>x</svg>"
+    finally:
+        server.stop()
+
+
+def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
+    class RecognitionService:
+        def recognize_screenshot(self, payload: dict) -> dict:
+            assert payload["timeout"] == 10
+            return {"latex": "x^2"}
+
+    server = OfficeBridgeServer(
+        auth=OfficeBridgeAuth("test-token"),
+        recognition_service=RecognitionService(),
+    )
+    server.start()
+    try:
+        health = _get_json(f"{server.base_url}/health")
+        assert health["result"]["features"]["capture_recognize"] is True
+
+        result = _post_json(
+            f"{server.base_url}/recognize/screenshot",
+            {"timeout": 10},
+            token="test-token",
+        )
+        assert result["status"] == 200
+        assert result["payload"]["result"]["latex"] == "x^2"
     finally:
         server.stop()
 

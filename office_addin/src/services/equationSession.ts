@@ -27,6 +27,17 @@ export function saveSession(session: SavedSession): Promise<void> {
   return saveSettings();
 }
 
+export async function saveEquationSource(latex: string, equationId?: string): Promise<string> {
+  const id = equationId || createEquationId();
+  Office.context.document.settings.set(`${EQUATION_SOURCE_PREFIX}${id}`, {
+    id,
+    latex,
+    updatedAt: new Date().toISOString()
+  });
+  await saveSettings();
+  return id;
+}
+
 export async function allocateEquationNumber(): Promise<string> {
   const settings = Office.context.document.settings;
   const state = readNumberingState(settings.get(NUMBERING_KEY));
@@ -36,15 +47,12 @@ export async function allocateEquationNumber(): Promise<string> {
   return `(${current})`;
 }
 
-export async function saveEquationSource(latex: string): Promise<string> {
-  const id = createEquationId();
-  Office.context.document.settings.set(`${EQUATION_SOURCE_PREFIX}${id}`, {
-    id,
-    latex,
-    updatedAt: new Date().toISOString()
-  });
-  await saveSettings();
-  return id;
+export function loadEquationSource(equationId: string): string {
+  const record = Office.context.document.settings.get(`${EQUATION_SOURCE_PREFIX}${equationId}`);
+  if (typeof record === "object" && record !== null && "latex" in record) {
+    return String((record as { latex?: unknown }).latex || "");
+  }
+  return "";
 }
 
 function readNumberingState(raw: unknown): NumberingState {

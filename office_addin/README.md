@@ -1,4 +1,4 @@
-# LaTeXSnipper Office Add-in
+﻿# LaTeXSnipper Office Add-in
 
 This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The first milestone is a Word-only loop:
 
@@ -18,7 +18,7 @@ Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate man
 - `manifest.word.xml`
 - `manifest.powerpoint.xml`
 
-The initial Ribbon commands open the task pane: Editor, Insert Formula, Numbered, and Screenshot OCR.
+The Ribbon uses Office add-in commands. Editor opens the task pane; Insert, Screenshot OCR, edit-selected, update-selected, and renumber publish commands that the task pane executes.
 
 Word insertion creates a tagged LaTeXSnipper equation object: the visible formula is OMML, while the original LaTeX source is saved in Office document settings. This is the foundation for the later edit-selected-formula flow.
 
@@ -30,26 +30,46 @@ npm install
 npm run dev
 ```
 
-Sideload `manifest.word.xml` in Word. The manifest points to:
+The manifest points to:
 
 ```text
 https://localhost:3000/taskpane.html
 ```
 
-The task pane expects the LaTeXSnipper desktop bridge URL and token to be entered manually until the add-in installer can provision those values. The desktop UI should only grow a compact setting to enable or disable the bridge.
-
-For the current development loop, start the bridge manually:
+Trust the local development certificate before opening the add-in in Word:
 
 ```powershell
-E:\LaTexSnipper\office_addin\scripts\start_bridge_dev.ps1 -Port 8765 -Token dev-token
+E:\LaTexSnipper\office_addin\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
 ```
 
-Then enter this in the task pane:
+Install the generated certificate for the current user into `Trusted Root Certification Authorities`, confirm the Windows security prompt, then restart Word. A browser warning such as `NET::ERR_CERT_AUTHORITY_INVALID` means Word/WebView2 will reject the add-in.
 
-```text
-Bridge URL: http://127.0.0.1:8765
-Bridge token: dev-token
+Register the shared-folder catalog for Word:
+
+```powershell
+E:\LaTexSnipper\office_addin\scripts\register_word_catalog.ps1 -SharePath "\\DESKTOP-V3G05D9\office_addin"
 ```
+
+Use the UNC path shown in the Windows folder sharing dialog. Close all Office apps after registration. Reopen Word and load the add-in from the Office add-ins entry, usually one of:
+
+- `Insert -> Add-ins / My Add-ins -> Shared Folder`
+- `Developer -> Add-ins`
+
+Do not use `Developer -> XML Expansion Pack`; that is not the Office.js Web Add-in loader.
+
+The task pane auto-discovers the local LaTeXSnipper bridge from `http://127.0.0.1:8765/config`, so the bridge URL and token should not be typed by users during normal testing.
+
+Start LaTeXSnipper itself and enable `Office 插件` in settings before testing conversion or Screenshot OCR. The add-in discovers the local bridge and token automatically.
+
+For the current development loop, sideload Word with:
+
+```powershell
+npm run dev:word
+```
+
+This starts the Vite dev server when needed, checks whether the active bridge supports Screenshot OCR, and sideloads Word.
+
+The ribbon icon source is `public/assets/ribbon-icons.svg`; Office manifests still reference PNG assets because desktop Office ribbon images require fixed-size bitmap URLs.
 
 ## Architecture
 
@@ -66,3 +86,4 @@ The add-in does not load MathCraft OCR or local model dependencies. Recognition 
 - Desktop bridge code lives under `src/integration/office/`.
 - The main application should not contain Office installation wizards.
 - Windows/macOS Office-specific setup should be handled by this package.
+

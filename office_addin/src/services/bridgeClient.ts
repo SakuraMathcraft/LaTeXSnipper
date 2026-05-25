@@ -7,6 +7,12 @@ export type BridgeHealth = {
   features: Record<string, boolean>;
 };
 
+export type BridgeConfig = {
+  bridge_url: string;
+  token: string;
+  features: Record<string, boolean>;
+};
+
 export type ConversionResult = {
   latex: string;
   display: boolean;
@@ -17,6 +23,10 @@ export type ConversionResult = {
   png_base64?: string;
 };
 
+export type ScreenshotOcrResult = {
+  latex: string;
+};
+
 type BridgeEnvelope<T> =
   | { ok: true; result: T }
   | { ok: false; error: { code: string; message: string } };
@@ -24,11 +34,16 @@ type BridgeEnvelope<T> =
 export class BridgeClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly token: string
+    private readonly token: string,
+    private readonly timeoutMs = 7000
   ) {}
 
   async health(): Promise<BridgeHealth> {
     return this.request<BridgeHealth>("/health", { method: "GET" }, false);
+  }
+
+  async config(): Promise<BridgeConfig> {
+    return this.request<BridgeConfig>("/config", { method: "GET" }, false);
   }
 
   async convertLatex(latex: string, targets: ConvertTarget[] = ["omml"]): Promise<ConversionResult> {
@@ -46,19 +61,51 @@ export class BridgeClient {
     );
   }
 
+  async recognizeScreenshot(): Promise<ScreenshotOcrResult> {
+    const health = await this.health();
+    if (!health.features.capture_recognize) {
+      throw new Error(
+        "Connected bridge does not support Screenshot OCR. Enable the Office bridge in LaTeXSnipper."
+      );
+    }
+    return this.request<ScreenshotOcrResult>(
+      "/recognize/screenshot",
+      {
+        method: "POST",
+        body: JSON.stringify({ timeout: 180 })
+      },
+      true
+    );
+  }
+
   private async request<T>(path: string, init: RequestInit, authenticated: boolean): Promise<T> {
     const headers = new Headers(init.headers || {});
-    headers.set("Content-Type", "application/json");
+    if (init.body) {
+      headers.set("Content-Type", "application/json");
+    }
     if (authenticated) {
       if (!this.token.trim()) {
         throw new Error("Bridge token is required.");
       }
       headers.set("Authorization", `Bearer ${this.token.trim()}`);
     }
-    const response = await fetch(`${this.normalizedBaseUrl()}${path}`, {
-      ...init,
-      headers
-    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), this.timeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(`${this.normalizedBaseUrl()}${path}`, {
+        ...init,
+        headers,
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error("Bridge request timed out.");
+      }
+      throw new Error(`Bridge is not reachable at ${this.normalizedBaseUrl()}.`);
+    } finally {
+      window.clearTimeout(timeout);
+    }
     const payload = (await response.json()) as BridgeEnvelope<T>;
     if (!response.ok || !payload.ok) {
       const message = payload.ok ? `Bridge request failed: ${response.status}` : payload.error.message;
