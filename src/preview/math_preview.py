@@ -129,6 +129,39 @@ def dialog_theme_tokens() -> dict:
     }
 
 
+def mathjax_loader_script(*, log_local_fallback: bool = False) -> str:
+    should_log = "true" if log_local_fallback else "false"
+    return f"""<script>
+(function() {{
+  var shouldLogLocalFallback = {should_log};
+  var localScript = 'tex-mml-chtml.js';
+  var cdnUrls = ['{MATHJAX_CDN_URL}', '{MATHJAX_CDN_URL_BACKUP}'];
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.async = true;
+  script.onerror = function() {{
+    if (shouldLogLocalFallback) {{
+      console.warn('[MathJax] local MathJax failed, trying CDN...');
+    }}
+    var cdnScript = document.createElement('script');
+    cdnScript.src = cdnUrls[0];
+    cdnScript.type = 'text/javascript';
+    cdnScript.async = true;
+    cdnScript.onerror = function() {{
+      var backupScript = document.createElement('script');
+      backupScript.src = cdnUrls[1];
+      backupScript.type = 'text/javascript';
+      backupScript.async = true;
+      document.body.appendChild(backupScript);
+    }};
+    document.body.appendChild(cdnScript);
+  }};
+  script.src = localScript;
+  document.body.appendChild(script);
+}})();
+</script>"""
+
+
 MATHJAX_HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html>
@@ -211,35 +244,7 @@ body {
 </head>
 <body>
 __FORMULAS__
-<script>
-(function() {
-  var shouldLogLocalFallback = __LOG_MATHJAX_LOCAL_FALLBACK__;
-  var localScript = 'tex-mml-chtml.js';
-  var cdnUrls = ['__MATHJAX_CDN_URL__', '__MATHJAX_CDN_URL_BACKUP__'];
-  var script = document.createElement('script');
-  script.type = 'text/javascript';
-  script.async = true;
-  script.onerror = function() {
-    if (shouldLogLocalFallback) {
-      console.warn('[MathJax] local MathJax failed, trying CDN...');
-    }
-    var cdnScript = document.createElement('script');
-    cdnScript.src = cdnUrls[0];
-    cdnScript.type = 'text/javascript';
-    cdnScript.async = true;
-    cdnScript.onerror = function() {
-      var backupScript = document.createElement('script');
-      backupScript.src = cdnUrls[1];
-      backupScript.type = 'text/javascript';
-      backupScript.async = true;
-      document.body.appendChild(backupScript);
-    };
-    document.body.appendChild(cdnScript);
-  };
-  script.src = localScript;
-  document.body.appendChild(script);
-})();
-</script>
+__MATHJAX_LOADER_SCRIPT__
 </body>
 </html>
 """
@@ -343,9 +348,7 @@ def build_math_html(latex_or_list, labels=None) -> str:
         log_local_fallback = mode in ("auto", "mathjax_local")
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
-            "__LOG_MATHJAX_LOCAL_FALLBACK__": "true" if log_local_fallback else "false",
-            "__MATHJAX_CDN_URL__": MATHJAX_CDN_URL,
-            "__MATHJAX_CDN_URL_BACKUP__": MATHJAX_CDN_URL_BACKUP,
+            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(log_local_fallback=log_local_fallback),
             "__BODY_BG__": tokens["body_bg"],
             "__BODY_TEXT__": tokens["body_text"],
             "__LABEL_TEXT__": tokens["label_text"],
