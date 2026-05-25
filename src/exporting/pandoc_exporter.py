@@ -12,6 +12,7 @@ Pandoc is treated as an **optional** dependency:
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import shutil
@@ -19,9 +20,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-import importlib.util
 from pathlib import Path
-from typing import Optional
 
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
@@ -87,16 +86,25 @@ PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 # Availability check (cached)
 # ---------------------------------------------------------------------------
 
-_available_cache: Optional[bool] = None
-_pandoc_version_cache: Optional[str] = None
-_pandoc_path_cache: Optional[str] = None
-def _find_pandoc_binary() -> Optional[str]:
+_available_cache: bool | None = None
+_pandoc_version_cache: str | None = None
+_pandoc_path_cache: str | None = None
+
+
+def _append_to_path_once(directory: Path) -> None:
+    path_value = os.environ.get("PATH", "")
+    dir_str = str(directory)
+    entries = [os.path.normcase(os.path.abspath(item)) for item in path_value.split(os.pathsep) if item]
+    key = os.path.normcase(os.path.abspath(dir_str))
+    if key not in entries:
+        os.environ["PATH"] = dir_str + os.pathsep + path_value
+
+
+def _find_pandoc_binary() -> str | None:
     """Try to locate the ``pandoc`` executable."""
     configured = load_configured_pandoc_path()
     if configured is not None:
-        dir_str = str(configured.parent)
-        if dir_str not in os.environ.get("PATH", ""):
-            os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+        _append_to_path_once(configured.parent)
         os.environ["PYPANDOC_PANDOC"] = str(configured)
         return str(configured)
 
@@ -106,9 +114,7 @@ def _find_pandoc_binary() -> Optional[str]:
             for candidate in ("pandoc.exe", "pandoc"):
                 deps_pandoc = deps_dir / candidate
                 if deps_pandoc.exists() and deps_pandoc.is_file():
-                    dir_str = str(deps_pandoc.parent)
-                    if dir_str not in os.environ.get("PATH", ""):
-                        os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+                    _append_to_path_once(deps_pandoc.parent)
                     os.environ["PYPANDOC_PANDOC"] = str(deps_pandoc)
                     return str(deps_pandoc)
     except Exception:
@@ -174,13 +180,13 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     return True
 
 
-def pandoc_version() -> Optional[str]:
+def pandoc_version() -> str | None:
     """Return the pandoc version string, or *None* if unavailable."""
     check_pandoc_available()
     return _pandoc_version_cache
 
 
-def pandoc_path() -> Optional[str]:
+def pandoc_path() -> str | None:
     """Return the resolved pandoc executable path, or *None* if unavailable."""
     check_pandoc_available()
     return _pandoc_path_cache
