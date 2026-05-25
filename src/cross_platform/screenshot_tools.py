@@ -1,9 +1,4 @@
-"""Platform screenshot fallbacks used by the capture overlay.
-
-Qt's root-window capture is still the primary path.  This module contains the
-Linux and macOS command-line fallbacks plus Wayland portal capture, with Qt
-imports delayed until a screenshot is actually needed.
-"""
+"""Platform screenshot fallbacks used by the capture overlay."""
 
 from __future__ import annotations
 
