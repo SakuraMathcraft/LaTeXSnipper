@@ -1,6 +1,6 @@
 # LaTeXSnipper Office Add-in
 
-This folder contains the Office.js task pane for Word integration. The first milestone is a Word-only loop:
+This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The first milestone is a Word-only loop:
 
 1. Type LaTeX in the task pane.
 2. Call the LaTeXSnipper desktop Office bridge `/convert/latex` endpoint.
@@ -8,6 +8,8 @@ This folder contains the Office.js task pane for Word integration. The first mil
 4. Insert editable Office Math into the current Word selection.
 
 PowerPoint support will be added after the Word insertion path is stable.
+
+The add-in is intentionally independent from the desktop application UI. The desktop app only needs to expose a small optional localhost bridge. Add-in installation, Office version checks, manifest registration, certificates, repair, and uninstall belong to this package.
 
 ## Development
 
@@ -23,7 +25,7 @@ Sideload `manifest.word.xml` in Word. The manifest points to:
 https://localhost:3000/taskpane.html
 ```
 
-The task pane expects the LaTeXSnipper desktop bridge URL and token to be entered manually until the desktop UI grows an Office integration settings panel.
+The task pane expects the LaTeXSnipper desktop bridge URL and token to be entered manually until the add-in installer can provision those values. The desktop UI should only grow a compact setting to enable or disable the bridge.
 
 For the current development loop, start the bridge manually:
 
@@ -46,3 +48,10 @@ Bridge token: dev-token
 - `src/styles/`: task pane styles.
 
 The add-in does not load MathCraft OCR or local model dependencies. Recognition and conversion belong to the desktop bridge.
+
+## Packaging Boundary
+
+- Office add-in assets and installers live under `office_addin/`.
+- Desktop bridge code lives under `src/integration/office/`.
+- The main application should not contain Office installation wizards.
+- Windows/macOS Office-specific setup should be handled by this package.

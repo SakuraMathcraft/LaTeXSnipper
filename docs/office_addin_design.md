@@ -2,9 +2,11 @@
 
 ## Purpose
 
-The Office add-in is planned as a companion layer for LaTeXSnipper. Its goal is to provide an AxMath-like equation editing and insertion experience in Word and PowerPoint, while reusing LaTeXSnipper's recognition, preview, conversion, and model infrastructure.
+The Office add-in is planned as a separately installed companion for LaTeXSnipper. Its goal is to provide an AxMath-like equation editing and insertion experience in Word and PowerPoint, while reusing LaTeXSnipper's recognition, preview, conversion, and model infrastructure through a small local bridge.
 
-The add-in must not become a second OCR runtime. Office hosts should handle editing, insertion, numbering, and document integration. The desktop application remains responsible for screenshot capture, MathCraft OCR, external-model OCR, model downloads, dependency management, and LaTeX conversion.
+The add-in must not become a second OCR runtime. Office hosts should handle editing, insertion, numbering, document integration, Office-version adaptation, and user onboarding. The desktop application remains responsible for screenshot capture, MathCraft OCR, external-model OCR, model downloads, dependency management, and LaTeX conversion.
+
+The desktop application's visible UI should remain mostly unchanged. The only planned main-window/settings change is a single Office integration enablement control placed next to startup behavior settings. Installation, compatibility checks, manifest registration, certificates, and Office-specific troubleshooting belong to the add-in installer and add-in UI.
 
 ## Product Goals
 
@@ -14,6 +16,8 @@ The add-in must not become a second OCR runtime. Office hosts should handle edit
 4. Equation numbering suitable for academic writing and slides.
 5. A clean module boundary that keeps Office-specific code isolated from the existing desktop UI.
 6. A fallback path for Office hosts that cannot insert editable equations.
+7. Independent add-in installation and rollback without changing the desktop application install.
+8. Fault isolation: Office/WebView failures must not affect core LaTeXSnipper recognition.
 
 ## Non-Goals for the First Version
 
@@ -31,7 +35,7 @@ Word / PowerPoint task pane
   |
   | HTTPS/HTTP loopback JSON API, localhost only
   v
-LaTeXSnipper Office bridge
+LaTeXSnipper local Office bridge
   |
   +-- capture controller
   +-- MathCraft / external OCR model wrapper
@@ -44,10 +48,22 @@ The add-in is a web application loaded by Office. It talks to the desktop app th
 
 This keeps heavyweight Python, ONNX Runtime, CUDA, MathCraft model cache, and screen-capture permissions out of the Office host.
 
+The add-in package is installed separately from the desktop app. The installer owns:
+
+- Word and PowerPoint manifest deployment.
+- Windows and macOS Office sideload mechanisms.
+- Local development certificate or production hosting configuration.
+- Office desktop version checks.
+- Office Web compatibility warnings.
+- Repair and uninstall actions.
+
 ## Repository Layout
 
 ```text
 office_addin/
+  installer/
+    windows/
+    macos/
   package.json
   manifest.word.xml
   manifest.powerpoint.xml
@@ -81,6 +97,8 @@ src/integration/office/
 
 The `office_addin/` folder owns Office.js and task-pane code. The `src/integration/office/` package owns the desktop-side bridge. Existing desktop modules should not import from `office_addin/`.
 
+The desktop app may include bridge code, but it should not include the Office add-in installer workflow inside the main UI.
+
 ## Desktop Bridge
 
 The bridge should be implemented as a small localhost HTTP server.
@@ -93,6 +111,7 @@ Required properties:
 - Return structured JSON errors.
 - Never expose filesystem paths unless required for diagnostics.
 - Disable the bridge by default unless Office integration is enabled.
+- Keep bridge startup independent from Office add-in installation.
 
 Recommended endpoints:
 
@@ -295,6 +314,32 @@ The add-in should show a clear connection state:
 - Connected.
 - Recognition running.
 
+## Desktop UI Boundary
+
+The desktop application's settings should expose only one compact option near startup behavior:
+
+```text
+[ ] Enable Office add-in bridge
+```
+
+Optional secondary text can show:
+
+```text
+Office bridge: disabled / listening on 127.0.0.1:<port>
+```
+
+The main program should not include Office install wizards, manifest registration, certificate repair, or Office-version troubleshooting pages. Those belong to the add-in installer and task pane UI.
+
+The desktop-side behavior is:
+
+1. If disabled, no bridge server is started.
+2. If enabled, start the localhost bridge after the application runtime is ready.
+3. Generate or load a local token.
+4. Allow the add-in to connect and request conversion/recognition.
+5. Stop the bridge when the app exits.
+
+The setting should not affect MathCraft OCR, screenshot recognition, external models, PDF recognition, or normal startup when Office integration is not used.
+
 ## Packaging
 
 The first internal build can use sideloaded manifests.
@@ -303,13 +348,19 @@ Release packaging should keep Office assets separate from the desktop installers
 
 - `office_addin/dist/` for task-pane static assets.
 - Manifest files generated per environment.
-- Desktop installer may include the Office add-in assets, but should not auto-install the add-in without user action.
+- The Office add-in should have its own installer or setup package.
+- The desktop installer should not auto-install the add-in without user action.
 
 The user-facing installer flow can later provide:
 
-1. Open Office add-in setup instructions.
-2. Copy manifest path.
-3. Launch the Office integration bridge.
+1. Detect Windows/macOS and Office desktop capabilities.
+2. Install or register Word and PowerPoint manifests.
+3. Validate task-pane hosting and local certificate requirements.
+4. Explain Office Web limitations when localhost bridge access is unavailable.
+5. Launch or prompt the desktop app to enable the Office bridge.
+6. Provide repair and uninstall actions.
+
+The add-in installer should be versioned independently. The bridge protocol version controls compatibility between the add-in and desktop app.
 
 ## Testing Plan
 
@@ -333,6 +384,9 @@ Manual Office tests:
 
 - Word desktop on Windows: inline formula, display formula, numbered display formula.
 - PowerPoint desktop on Windows: SVG/PNG formula insertion and numbered display.
+- Word desktop on macOS: inline formula, display formula, numbered display formula.
+- PowerPoint desktop on macOS: SVG/PNG formula insertion and numbered display.
+- Older Office desktop builds: show clear unsupported-version messaging.
 - Word/PPT with desktop app closed: add-in shows bridge unavailable.
 - Desktop bridge enabled but token invalid: add-in shows reconnect required.
 - Recognition from screenshot: result appears in editor and inserts correctly.
@@ -355,7 +409,7 @@ Future cross-platform tests:
 
 - Add `src/integration/office/bridge_server.py`.
 - Add `/health` and authenticated error handling.
-- Add settings toggle but keep the bridge disabled by default.
+- Keep the bridge disabled by default.
 - Add tests for bridge lifecycle and token rejection.
 
 ### Phase 2: Conversion API
@@ -391,6 +445,14 @@ Future cross-platform tests:
 - Add diagnostics.
 - Add user manual section.
 
+### Phase 7: Independent Add-in Installer
+
+- Add Windows add-in setup flow.
+- Add macOS add-in setup flow.
+- Add manifest repair and uninstall actions.
+- Add Office version/protocol diagnostics.
+- Keep installer logic out of the desktop main UI.
+
 ## Open Questions
 
 1. Should Word editable equations require OMML success, or should SVG fallback be allowed silently?
@@ -398,6 +460,8 @@ Future cross-platform tests:
 3. Should PowerPoint equations be inserted as SVG by default, with PNG fallback only when SVG fails?
 4. Should the bridge support only the currently running desktop app, or should it auto-launch LaTeXSnipper from the add-in?
 5. Should the Office add-in share the same MathJax/MathLive assets as the desktop app or carry its own pinned copy?
+6. How should the add-in installer hand the local bridge token to the task pane without exposing it unnecessarily?
+7. Should the bridge token be per-user persistent, per-session, or rotated when Office integration is disabled and re-enabled?
 
 ## References
 
