@@ -11,6 +11,7 @@ env/
 # Build
 build/
 dist/
+node_modules/
 !LaTeXSnipper-linux.spec
 !LaTeXSnipper-macos.spec
 !LaTeXSnipper.spec

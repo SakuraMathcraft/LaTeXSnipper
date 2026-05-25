@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Office Add-in</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <main class="taskpane-shell">
+      <section class="toolbar">
+        <div>
+          <h1>LaTeXSnipper</h1>
+          <p id="hostLabel">Word add-in</p>
+        </div>
+        <button id="healthButton" type="button">Connect</button>
+      </section>
+
+      <section class="panel">
+        <label for="bridgeUrl">Bridge URL</label>
+        <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
+
+        <label for="bridgeToken">Bridge token</label>
+        <input id="bridgeToken" type="password" spellcheck="false" placeholder="Paste token from LaTeXSnipper" />
+      </section>
+
+      <section class="panel editor-panel">
+        <label for="latexInput">LaTeX</label>
+        <textarea id="latexInput" spellcheck="false">\int_0^1 x^2\,dx</textarea>
+        <div class="options-row">
+          <label><input id="displayMode" type="checkbox" checked /> Display</label>
+          <label><input id="autoNumber" type="checkbox" /> Auto number</label>
+          <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual number" />
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="convertButton" type="button">Convert</button>
+        <button id="insertButton" type="button" class="primary">Insert into Word</button>
+      </section>
+
+      <section class="panel output-panel">
+        <label for="ommlOutput">OMML preview</label>
+        <textarea id="ommlOutput" spellcheck="false" readonly></textarea>
+      </section>
+
+      <div id="status" class="status">Waiting for Office.</div>
+    </main>
+    <script type="module" src="/src/taskpane/App.ts"></script>
+  </body>
+</html>
