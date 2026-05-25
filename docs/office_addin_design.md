@@ -161,13 +161,14 @@ The bridge should reuse the existing export layer:
 
 The Office bridge should wrap these functions in a dedicated `conversion_service.py` so Office behavior does not leak into the general export API.
 
-Word insertion should prefer editable Office math:
+Word insertion should create a LaTeXSnipper equation object:
 
 1. LaTeX -> MathML.
 2. MathML -> OMML.
-3. Wrap OMML in valid WordprocessingML.
+3. Wrap OMML in a Word content control tagged with a LaTeXSnipper equation ID.
 4. Insert through Word OOXML APIs.
-5. Fall back to SVG/PNG when OMML is unavailable.
+5. Save the original LaTeX source in document settings keyed by that equation ID.
+6. Do not return MathML from the OMML path. If real OMML cannot be produced, fail clearly.
 
 PowerPoint insertion should start with visual formulas:
 
@@ -177,6 +178,8 @@ PowerPoint insertion should start with visual formulas:
 4. Grouping can be added later if Office.js support is reliable enough.
 
 PowerPoint native editable equations should be treated as a later research item, not an MVP requirement.
+
+The product target is not merely "insert visible math". The target is an AxMath-like object model: formulas carry editable LaTeX source and can be reopened in the add-in editor. Word uses content controls and document settings for this metadata foundation. PowerPoint needs a separate shape metadata strategy before it can be considered equivalent.
 
 ## Word Insert Model
 

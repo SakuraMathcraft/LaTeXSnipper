@@ -35,9 +35,9 @@ class SettingsLayoutMixin:
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # Use a wider default size to avoid truncating InfoBar text.
-        self.resize(550, 665)
+        self.resize(550, 675)
         self.setMinimumWidth(550)
-        self.setMinimumHeight(665)
+        self.setMinimumHeight(675)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)

@@ -1,6 +1,7 @@
 const BRIDGE_URL_KEY = "latexsnipper.bridgeUrl";
 const BRIDGE_TOKEN_KEY = "latexsnipper.bridgeToken";
 const NUMBERING_KEY = "latexsnipper.equationNumbering";
+const EQUATION_SOURCE_PREFIX = "latexsnipper.equationSource.";
 
 type NumberingState = {
   next: number;
@@ -35,6 +36,17 @@ export async function allocateEquationNumber(): Promise<string> {
   return `(${current})`;
 }
 
+export async function saveEquationSource(latex: string): Promise<string> {
+  const id = createEquationId();
+  Office.context.document.settings.set(`${EQUATION_SOURCE_PREFIX}${id}`, {
+    id,
+    latex,
+    updatedAt: new Date().toISOString()
+  });
+  await saveSettings();
+  return id;
+}
+
 function readNumberingState(raw: unknown): NumberingState {
   if (typeof raw === "object" && raw !== null && "next" in raw) {
     const value = Number((raw as NumberingState).next);
@@ -55,4 +67,11 @@ function saveSettings(): Promise<void> {
       reject(new Error(result.error?.message || "Failed to save Office document settings."));
     });
   });
+}
+
+function createEquationId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `eq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }

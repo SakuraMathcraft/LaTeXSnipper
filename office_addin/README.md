@@ -20,6 +20,8 @@ Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate man
 
 The initial Ribbon commands open the task pane: Editor, Insert Formula, Numbered, and Screenshot OCR.
 
+Word insertion creates a tagged LaTeXSnipper equation object: the visible formula is OMML, while the original LaTeX source is saved in Office document settings. This is the foundation for the later edit-selected-formula flow.
+
 ## Development
 
 ```powershell

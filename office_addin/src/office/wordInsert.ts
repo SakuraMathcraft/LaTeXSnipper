@@ -1,5 +1,5 @@
 import { ConversionResult } from "../services/bridgeClient";
-import { allocateEquationNumber } from "../services/equationSession";
+import { allocateEquationNumber, saveEquationSource } from "../services/equationSession";
 
 export type EquationDraft = {
   latex: string;
@@ -13,8 +13,10 @@ export async function insertEquationIntoWord(draft: EquationDraft, conversion: C
     throw new Error("The bridge did not return editable OMML.");
   }
   const number = await resolveNumber(draft);
+  const equationId = await saveEquationSource(draft.latex);
   const ooxml = buildEquationOoxml(conversion.omml, {
     display: draft.display,
+    equationId,
     number
   });
 
@@ -45,8 +47,10 @@ async function resolveNumber(draft: EquationDraft): Promise<string | undefined> 
   return undefined;
 }
 
-function buildEquationOoxml(omml: string, options: { display: boolean; number?: string }): string {
-  const body = options.display ? buildDisplayBody(omml, options.number) : buildInlineBody(omml);
+function buildEquationOoxml(omml: string, options: { display: boolean; equationId: string; number?: string }): string {
+  const body = options.display
+    ? buildDisplayBody(omml, options.equationId, options.number)
+    : buildInlineBody(omml, options.equationId);
   const documentXml = [
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"',
     ' xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">',
@@ -58,13 +62,13 @@ function buildEquationOoxml(omml: string, options: { display: boolean; number?: 
   return wrapFlatOpc(documentXml);
 }
 
-function buildInlineBody(omml: string): string {
-  return `<w:p>${omml}</w:p>`;
+function buildInlineBody(omml: string, equationId: string): string {
+  return `<w:p>${wrapEquationContentControl(omml, equationId)}</w:p>`;
 }
 
-function buildDisplayBody(omml: string, number?: string): string {
+function buildDisplayBody(omml: string, equationId: string, number?: string): string {
   if (!number) {
-    return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${omml}</w:p>`;
+    return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${wrapEquationContentControl(omml, equationId)}</w:p>`;
   }
   return [
     '<w:tbl><w:tblPr>',
@@ -74,12 +78,27 @@ function buildDisplayBody(omml: string, number?: string): string {
     '<w:tblGrid><w:gridCol w:w="8500"/><w:gridCol w:w="1500"/></w:tblGrid>',
     "<w:tr>",
     '<w:tc><w:tcPr><w:tcW w:w="8500" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>',
-    omml,
+    wrapEquationContentControl(omml, equationId),
     "</w:p></w:tc>",
     '<w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t>',
     escapeXml(number),
     "</w:t></w:r></w:p></w:tc>",
     "</w:tr></w:tbl>"
+  ].join("");
+}
+
+function wrapEquationContentControl(omml: string, equationId: string): string {
+  const tag = `latexsnipper-equation:${equationId}`;
+  return [
+    "<w:sdt>",
+    "<w:sdtPr>",
+    '<w:alias w:val="LaTeXSnipper Equation"/>',
+    `<w:tag w:val="${escapeXml(tag)}"/>`,
+    "</w:sdtPr>",
+    "<w:sdtContent>",
+    omml,
+    "</w:sdtContent>",
+    "</w:sdt>"
   ].join("");
 }
 
