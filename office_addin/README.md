@@ -28,8 +28,7 @@ The task pane expects the LaTeXSnipper desktop bridge URL and token to be entere
 For the current development loop, start the bridge manually:
 
 ```powershell
-$env:LATEXSNIPPER_OFFICE_BRIDGE_TOKEN="dev-token"
-E:\LaTexSnipper\tools\deps\python311\python.exe -m integration.office.dev_server --port 8765
+E:\LaTexSnipper\office_addin\scripts\start_bridge_dev.ps1 -Port 8765 -Token dev-token
 ```
 
 Then enter this in the task pane:
