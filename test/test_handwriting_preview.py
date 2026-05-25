@@ -39,6 +39,7 @@ def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     assert "tex-mml-chtml.js" in html
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "backupScript.src = cdnUrls[1];" in html
+    assert "::-webkit-scrollbar-thumb" in html
 
 
 def test_edit_formula_dialog_uses_shared_mathjax_base_url() -> None:

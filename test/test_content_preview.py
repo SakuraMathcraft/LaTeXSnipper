@@ -33,6 +33,8 @@ def test_smart_preview_uses_shared_mathjax_fallback_loader():
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "backupScript.src = cdnUrls[1];" in html
     assert "appendScript(script);" in html
+    assert "color-scheme:" in html
+    assert "::-webkit-scrollbar-thumb" in html
 
 
 def test_math_preview_can_center_single_formula_in_viewport():

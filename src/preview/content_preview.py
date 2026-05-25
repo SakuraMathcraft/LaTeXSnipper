@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import re
 
-from preview.math_preview import mathjax_loader_script, preview_theme_tokens
+from preview.math_preview import mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
 
 FORMULA_PATTERN = re.compile(r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)")
 
@@ -52,6 +52,7 @@ options: {{
 }};
 </script>
 <style>
+{preview_scrollbar_css(tokens)}
 html, body {{
    margin: 0;
    padding: 0;
