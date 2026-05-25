@@ -64,6 +64,9 @@ def preview_theme_tokens() -> dict:
             "badge_mixed_text": "#e4bcff",
             "table_border": "#3e4958",
             "th_bg": "#27303b",
+            "scrollbar_track": "#1b1f27",
+            "scrollbar_thumb": "#6f7782",
+            "scrollbar_thumb_hover": "#8b949e",
         }
     return {
         "body_bg": "#fafafa",
@@ -90,6 +93,9 @@ def preview_theme_tokens() -> dict:
         "badge_mixed_text": "#7b1fa2",
         "table_border": "#dddddd",
         "th_bg": "#f2f2f2",
+        "scrollbar_track": "#f0f0f0",
+        "scrollbar_thumb": "#b8b8b8",
+        "scrollbar_thumb_hover": "#969696",
     }
 
 
@@ -127,6 +133,31 @@ def dialog_theme_tokens() -> dict:
         "border": "#d0d7de",
         "accent": "#1976d2",
     }
+
+
+def preview_scrollbar_css(tokens: dict) -> str:
+    scheme = "dark" if is_dark_ui() else "light"
+    return f"""
+html {{
+  color-scheme: {scheme};
+  scrollbar-color: {tokens['scrollbar_thumb']} {tokens['scrollbar_track']};
+}}
+::-webkit-scrollbar {{
+  width: 10px;
+  height: 10px;
+  background: {tokens['scrollbar_track']};
+}}
+::-webkit-scrollbar-thumb {{
+  background: {tokens['scrollbar_thumb']};
+  border-radius: 0;
+}}
+::-webkit-scrollbar-thumb:hover {{
+  background: {tokens['scrollbar_thumb_hover']};
+}}
+::-webkit-scrollbar-corner {{
+  background: {tokens['scrollbar_track']};
+}}
+"""
 
 
 def mathjax_loader_script(*, log_local_fallback: bool = False) -> str:
@@ -175,6 +206,7 @@ MATHJAX_HTML_TEMPLATE = r"""
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: file:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';">
 <style>
+__SCROLLBAR_CSS__
 body {
   font-family: 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
   padding: 12px;
@@ -367,6 +399,7 @@ def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False
         replacements = {
             "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(log_local_fallback=log_local_fallback),
             "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
+            "__SCROLLBAR_CSS__": preview_scrollbar_css(tokens),
             "__BODY_BG__": tokens["body_bg"],
             "__BODY_TEXT__": tokens["body_text"],
             "__LABEL_TEXT__": tokens["label_text"],

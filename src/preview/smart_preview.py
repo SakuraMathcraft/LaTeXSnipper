@@ -6,7 +6,7 @@ import html as html_module
 import re
 from collections.abc import Callable
 
-from preview.math_preview import build_math_html, mathjax_loader_script, preview_theme_tokens
+from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
 from runtime.config_manager import normalize_content_type
 
 
@@ -68,6 +68,7 @@ window.MathJax = {{
 <meta charset="UTF-8">
 {mathjax_config}
 <style>
+{preview_scrollbar_css(tokens)}
 body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     padding: 16px;
