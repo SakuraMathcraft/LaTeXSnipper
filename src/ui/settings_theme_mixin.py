@@ -1,6 +1,5 @@
 from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QCheckBox
 
 
 class SettingsThemeMixin:
@@ -76,8 +75,8 @@ class SettingsThemeMixin:
             return t["compute_cpu"]
         return t["compute_unknown"]
 
-    def _style_native_checkbox(self, checkbox: QCheckBox, text_color: str, disabled_color: str) -> None:
-        pal = checkbox.palette()
+    def _style_startup_button(self, button, text_color: str, disabled_color: str) -> None:
+        pal = button.palette()
         for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
             pal.setColor(group, QPalette.ColorRole.WindowText, QColor(text_color))
             pal.setColor(group, QPalette.ColorRole.ButtonText, QColor(text_color))
@@ -85,8 +84,7 @@ class SettingsThemeMixin:
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(disabled_color))
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(disabled_color))
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(disabled_color))
-        checkbox.setPalette(pal)
-        checkbox.setStyleSheet("")
+        button.setPalette(pal)
 
     def apply_theme_styles(self, force: bool = False):
         dark = self._is_dark_mode()
@@ -104,8 +102,10 @@ class SettingsThemeMixin:
             self.lbl_compute_mode.setStyleSheet(
                 f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"
             )
-        if hasattr(self, "startup_console_checkbox") and self.startup_console_checkbox is not None:
-            self._style_native_checkbox(self.startup_console_checkbox, t["text"], t["muted"])
+        if hasattr(self, "startup_console_button") and self.startup_console_button is not None:
+            self._style_startup_button(self.startup_console_button, t["text"], t["muted"])
+        if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
+            self._style_startup_button(self.office_bridge_button, t["text"], t["muted"])
 
     def event(self, e):
         result = super().event(e)

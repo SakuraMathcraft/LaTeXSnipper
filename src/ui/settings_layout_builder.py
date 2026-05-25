@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, PrimaryPushButton, PushButton
 
 from backend.external_model import PRESET_ITEMS
@@ -35,9 +35,9 @@ class SettingsLayoutMixin:
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # Use a wider default size to avoid truncating InfoBar text.
-        self.resize(550, 665)
+        self.resize(550, 675)
         self.setMinimumWidth(550)
-        self.setMinimumHeight(665)
+        self.setMinimumHeight(675)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
@@ -95,7 +95,7 @@ class SettingsLayoutMixin:
         self.mathcraft_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
         self.mathcraft_env_hint.setWordWrap(True)
         lay.addWidget(self.mathcraft_env_hint)
-        # Installation and downloads are handled by the dependency wizard; the settings page no longer exposes separate model install/download actions.
+        # Installation and downloads are handled by the dependency wizard.
         self.mathcraft_dl_widget = None
         self.mathcraft_download_btn = None
         self.mathcraft_open_btn = None
@@ -285,16 +285,36 @@ class SettingsLayoutMixin:
         lay.addWidget(self.btn_update)
         # Startup behavior.
         lay.addWidget(QLabel("启动行为:"))
-        self.startup_console_checkbox = QCheckBox("启动时显示日志窗口")
+        startup_row = QWidget()
+        startup_layout = QHBoxLayout(startup_row)
+        startup_layout.setContentsMargins(0, 0, 0, 0)
+        startup_layout.setSpacing(6)
+        self.startup_console_button = PushButton(FluentIcon.DOCUMENT, "日志窗口")
+        self.startup_console_button.setFixedHeight(36)
+        self.startup_console_button.setCheckable(True)
         startup_console_pref = False
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
                 startup_console_pref = self.parent().cfg.get("show_startup_console", False)
         except Exception:
             startup_console_pref = False
-        self.startup_console_checkbox.setChecked(self._to_bool(startup_console_pref))
-        self.startup_console_checkbox.setToolTip("开启后将显示初始化与运行日志窗口")
-        lay.addWidget(self.startup_console_checkbox)
+        self.startup_console_button.setChecked(self._to_bool(startup_console_pref))
+        self.startup_console_button.setToolTip("开启后将显示日志窗口")
+        startup_layout.addWidget(self.startup_console_button, 1)
+        self.office_bridge_button = PushButton(FluentIcon.APPLICATION, "Office 插件")
+        self.office_bridge_button.setFixedHeight(36)
+        self.office_bridge_button.setCheckable(True)
+        office_bridge_pref = False
+        try:
+            if self.parent() and hasattr(self.parent(), "cfg"):
+                office_bridge_pref = self.parent().cfg.get("office_bridge_enabled", False)
+        except Exception:
+            office_bridge_pref = False
+        self.office_bridge_button.setChecked(self._to_bool(office_bridge_pref))
+        self.office_bridge_button.setToolTip("启用 Office 插件功能")
+        startup_layout.addWidget(self.office_bridge_button, 1)
+        lay.addWidget(startup_row)
+        self._sync_startup_action_buttons()
         # Separator.
         lay.addSpacing(8)
         # Advanced action: open terminal; use carefully.
@@ -309,7 +329,7 @@ class SettingsLayoutMixin:
         terminal_layout.addWidget(self.terminal_env_button, 1)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
-        self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖。\n⚠️ 请谨慎操作，错误的命令可能损坏环境！")
+        self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖")
         terminal_layout.addWidget(self.btn_terminal, 1)
         lay.addWidget(terminal_row)
         # Dependency management wizard and cache directory.
@@ -319,11 +339,11 @@ class SettingsLayoutMixin:
         deps_row_layout.setSpacing(6)
         self.btn_deps_wizard = PushButton(FluentIcon.DEVELOPER_TOOLS, "依赖管理向导")
         self.btn_deps_wizard.setFixedHeight(36)
-        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/修复依赖。\n从设置页进入会执行真实依赖校验。")
+        self.btn_deps_wizard.setToolTip("打开依赖管理向导，可安装/修复依赖")
         deps_row_layout.addWidget(self.btn_deps_wizard, 1)
         self.btn_open_mathcraft_cache = PushButton(FluentIcon.FOLDER, "打开缓存目录")
         self.btn_open_mathcraft_cache.setFixedHeight(36)
-        self.btn_open_mathcraft_cache.setToolTip("打开 MathCraft 模型缓存目录（默认位于AppData\\Roaming\\MathCraft\\models）")
+        self.btn_open_mathcraft_cache.setToolTip("打开 MathCraft 模型缓存目录")
         deps_row_layout.addWidget(self.btn_open_mathcraft_cache, 1)
         lay.addWidget(deps_row)
         # Stretch spacer.
@@ -337,7 +357,8 @@ class SettingsLayoutMixin:
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
-        self.startup_console_checkbox.stateChanged.connect(self._on_startup_console_changed)
+        self.startup_console_button.clicked.connect(self._on_startup_console_button_clicked)
+        self.office_bridge_button.clicked.connect(self._on_office_bridge_button_clicked)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # Render-engine related signals.
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
@@ -381,9 +402,17 @@ class SettingsLayoutMixin:
             return value.strip().lower() in ("1", "true", "yes", "on")
         return False
 
-    def _on_startup_console_changed(self, _state: int):
-        # PyQt6 CheckState is not safely cast with int(); reading the widget state directly is safest.
-        enabled = bool(self.startup_console_checkbox.isChecked())
+    def _sync_startup_action_buttons(self):
+        if hasattr(self, "startup_console_button") and self.startup_console_button is not None:
+            enabled = bool(self.startup_console_button.isChecked())
+            self.startup_console_button.setText("日志窗口: 开" if enabled else "日志窗口: 关")
+        if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
+            enabled = bool(self.office_bridge_button.isChecked())
+            self.office_bridge_button.setText("Office 插件: 开" if enabled else "Office 插件: 关")
+
+    def _on_startup_console_button_clicked(self, _checked: bool):
+        enabled = bool(self.startup_console_button.isChecked())
+        self._sync_startup_action_buttons()
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
                 self.parent().cfg.set("show_startup_console", enabled)
@@ -394,7 +423,30 @@ class SettingsLayoutMixin:
                 self.parent().apply_startup_console_preference(enabled)
         except Exception:
             pass
-        self._show_info("设置已保存", "日志窗口显示偏好已更新（建议重启程序后完全生效）", "success")
+        self._show_info("设置已保存", "日志窗口显示偏好已更新", "success")
+
+    def _on_office_bridge_button_clicked(self, _checked: bool):
+        enabled = bool(self.office_bridge_button.isChecked())
+        self.office_bridge_button.setEnabled(False)
+        self._sync_startup_action_buttons()
+
+        def _done(ok: bool, message: str):
+            self.office_bridge_button.setEnabled(True)
+            if not ok:
+                self.office_bridge_button.setChecked(False)
+                self._sync_startup_action_buttons()
+                self._show_info("Office 插件", f"启用失败: {message}", "error")
+                return
+            self._sync_startup_action_buttons()
+            self._show_info("Office 插件", message or "设置已更新", "success")
+
+        try:
+            if self.parent() and hasattr(self.parent(), "set_office_bridge_enabled_async"):
+                self.parent().set_office_bridge_enabled_async(enabled, _done)
+                return
+            raise RuntimeError("Office bridge controller unavailable")
+        except Exception as exc:
+            _done(False, str(exc))
 
     def _update_model_desc(self):
         # Update model description.

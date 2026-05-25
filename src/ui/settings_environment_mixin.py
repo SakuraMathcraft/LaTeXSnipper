@@ -60,10 +60,10 @@ class SettingsEnvironmentMixin:
         }.get(env_key, "主环境")
         msg = MessageBox(
             "打开环境终端",
-            "是否以管理员模式打开终端？\n\n"
-            "- 管理员：推荐用于修复权限问题\n"
-            "- 普通：快速打开，可能遇到权限错误\n"
-            "- ESC：取消",
+            "是否以管理员模式打开终端？\n"
+            "\n• 管理员：推荐用于修复权限问题"
+            "\n• 普通：快速打开，可能遇到权限错误"
+            "\n• ESC：取消操作",
             self
         )
         _apply_app_window_icon(msg)
@@ -207,7 +207,7 @@ class SettingsEnvironmentMixin:
         """Open the dependency management wizard."""
         msg = MessageBox(
             "打开依赖向导",
-            "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC取消操作",
+            "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC：取消操作",
             self
         )
         _apply_app_window_icon(msg)

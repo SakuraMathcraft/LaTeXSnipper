@@ -86,6 +86,8 @@ def _ensure_mathml_block(mathml: str) -> str:
 def mathml_standardize(mathml: str) -> str:
     """Normalize MathML for export targets."""
     mathml = _ensure_mathml_block(mathml)
+    mathml = re.sub(r"<mi>\s*(?:&|&amp;)\s*</mi>", "", mathml)
+    mathml = re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml)
     mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
     mathml = re.sub(
         r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
@@ -97,6 +99,8 @@ def mathml_standardize(mathml: str) -> str:
 
 def _mathml_htmlize(mathml: str) -> str:
     mathml = _ensure_mathml_block(mathml)
+    mathml = re.sub(r"<mi>\s*(?:&|&amp;)\s*</mi>", "", mathml)
+    mathml = re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml)
     mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
     mathml = re.sub(
         r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
