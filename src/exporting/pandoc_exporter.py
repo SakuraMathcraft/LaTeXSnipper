@@ -1,14 +1,4 @@
-"""Optional Pandoc export backend for LaTeXSnipper.
-
-Uses ``pypandoc`` (pip install pypandoc) to convert LaTeX / Markdown / MathML
-inputs to docx, odt, epub, rtf, plain-text and other Pandoc-supported formats.
-
-Pandoc is treated as an **optional** dependency:
-  * If ``pypandoc`` is not installed *or* the pandoc binary is missing, the
-    module exposes ``is_available() -> False`` and every public converter
-    raises ``PandocNotAvailable``.
-  * The rest of LaTeXSnipper keeps working without Pandoc.
-"""
+"""Optional Pandoc export backend for LaTeXSnipper."""
 
 from __future__ import annotations
 
@@ -26,22 +16,12 @@ from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
-
-
 class PandocNotAvailable(RuntimeError):
     """Raised when pypandoc or the pandoc binary cannot be found."""
 
 
 class PandocConversionError(RuntimeError):
     """Raised when a Pandoc conversion fails."""
-
-
-# ---------------------------------------------------------------------------
-# Format descriptor
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -55,14 +35,11 @@ class PandocFormat:
     needs_file: bool = False  # True when pandoc writes to a file (binary output)
 
 
-# All supported Pandoc target formats.
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
-    # --- Document exchange formats (binary) ---
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
     PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_icml", "InDesign (.icml)", "icml", ".icml"),
-    # --- Markup/text formats ---
     PandocFormat("pandoc_rtf", "RTF (.rtf)", "rtf", ".rtf"),
     PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
     PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
@@ -81,10 +58,6 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
 
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
-
-# ---------------------------------------------------------------------------
-# Availability check (cached)
-# ---------------------------------------------------------------------------
 
 _available_cache: bool | None = None
 _pandoc_version_cache: str | None = None
@@ -119,7 +92,6 @@ def _find_pandoc_binary() -> str | None:
                     return str(deps_pandoc)
     except Exception:
         pass
-    # 2. Check system PATH (fallback)
     found = shutil.which("pandoc")
     if found:
         os.environ["PYPANDOC_PANDOC"] = found
@@ -141,24 +113,19 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     _pandoc_version_cache = None
     _pandoc_path_cache = None
 
-    # When force=True, clear stale import cache so a fresh import succeeds
-    # after the user has just installed pypandoc.
     if force:
         sys.modules.pop("pypandoc", None)
 
-    # 1. Try pypandoc
     if importlib.util.find_spec("pypandoc") is None:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    # 2. Prefer the persisted app-level path, then local deps/PATH fallbacks.
     pandoc_path = _find_pandoc_binary()
 
     if not pandoc_path:
         logger.debug("pandoc binary not found – Pandoc export disabled")
         return False
 
-    # 3. Get version
     try:
         ver_output = subprocess.check_output(
             [pandoc_path, "--version"],
@@ -197,11 +164,6 @@ def is_available() -> bool:
     return check_pandoc_available()
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _subprocess_flags() -> int:
     if os.name != "nt":
         return 0
@@ -228,7 +190,6 @@ def _wrap_formula_in_document(latex: str) -> str:
     This is needed because Pandoc expects a *document* rather than a bare
     formula.  Using ``standalone`` class keeps the output compact.
     """
-    # Strip outer $ / $$ delimiters if present
     text = (latex or "").strip()
     if text.startswith("$$") and text.endswith("$$"):
         text = text[2:-2].strip()
@@ -242,11 +203,6 @@ def _wrap_formula_in_document(latex: str) -> str:
         f"\\[{text}\\]\n"
         "\\end{document}\n"
     )
-
-
-# ---------------------------------------------------------------------------
-# Core conversion
-# ---------------------------------------------------------------------------
 
 
 def convert_latex_to(
@@ -288,7 +244,6 @@ def convert_latex_to(
 
     import pypandoc  # type: ignore[import-untyped]
 
-    # Prepare source
     if as_document:
         src = _wrap_formula_in_document(latex)
     else:
@@ -297,7 +252,6 @@ def convert_latex_to(
     args = extra_args or []
 
     if fmt.needs_file:
-        # Binary output: write to a temp file, then read back
         with tempfile.NamedTemporaryFile(
             suffix=fmt.extension, delete=False
         ) as tmp:
@@ -322,7 +276,6 @@ def convert_latex_to(
             except OSError:
                 pass
     else:
-        # Text output
         try:
             result = pypandoc.convert_text(
                 src,
