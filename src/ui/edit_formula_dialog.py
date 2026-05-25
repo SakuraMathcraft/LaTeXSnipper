@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
+from qfluentwidgets import BodyLabel
 
 from preview.math_preview import build_math_html, dialog_theme_tokens, get_mathjax_base_url, is_dark_ui
 from ui.window_helpers import apply_no_minimize_window_flags
@@ -27,7 +28,7 @@ class EditFormulaDialog(QDialog):
         self.editor.setMaximumHeight(150)
         lay.addWidget(self.editor)
 
-        preview_label = QLabel("实时预览:")
+        preview_label = BodyLabel("实时预览:")
         lay.addWidget(preview_label)
 
         self._pending_latex = ""
@@ -35,7 +36,7 @@ class EditFormulaDialog(QDialog):
         web_view_cls = self._load_webengine_view()
         if web_view_cls is not None:
             self.preview_view = web_view_cls()
-            self.preview_view.setMinimumHeight(200)
+            self.preview_view.setMinimumHeight(150)
             init_html, init_base_url = self._build_preview_payload(latex or "")
             self.preview_view.setHtml(init_html, init_base_url)
             self._pending_latex = latex or ""

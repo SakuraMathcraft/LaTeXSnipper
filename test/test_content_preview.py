@@ -20,6 +20,7 @@ def test_mixed_content_mathjax_loader_falls_back_to_backup_cdn():
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "cdnScript.onerror" in html
     assert "backupScript.src = cdnUrls[1];" in html
+    assert "document.body || document.head || document.documentElement" in html
 
 
 def test_smart_preview_uses_shared_mathjax_fallback_loader():
@@ -31,3 +32,4 @@ def test_smart_preview_uses_shared_mathjax_fallback_loader():
     assert MATHJAX_CDN_URL in html
     assert MATHJAX_CDN_URL_BACKUP in html
     assert "backupScript.src = cdnUrls[1];" in html
+    assert "appendScript(script);" in html

@@ -136,6 +136,12 @@ def mathjax_loader_script(*, log_local_fallback: bool = False) -> str:
   var shouldLogLocalFallback = {should_log};
   var localScript = 'tex-mml-chtml.js';
   var cdnUrls = ['{MATHJAX_CDN_URL}', '{MATHJAX_CDN_URL_BACKUP}'];
+  function appendScript(node) {{
+    var target = document.body || document.head || document.documentElement;
+    if (target) {{
+      target.appendChild(node);
+    }}
+  }}
   var script = document.createElement('script');
   script.type = 'text/javascript';
   script.async = true;
@@ -152,12 +158,12 @@ def mathjax_loader_script(*, log_local_fallback: bool = False) -> str:
       backupScript.src = cdnUrls[1];
       backupScript.type = 'text/javascript';
       backupScript.async = true;
-      document.body.appendChild(backupScript);
+      appendScript(backupScript);
     }};
-    document.body.appendChild(cdnScript);
+    appendScript(cdnScript);
   }};
   script.src = localScript;
-  document.body.appendChild(script);
+  appendScript(script);
 }})();
 </script>"""
 
