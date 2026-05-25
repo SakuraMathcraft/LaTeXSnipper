@@ -558,6 +558,28 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
                 self.assertEqual(installer_cache._update_dir(), root / "updates")
                 self.assertTrue((root / "updates").is_dir())
 
+    def test_latex_settings_prunes_legacy_unused_keys(self):
+        from backend.latex_renderer import LaTeXSettings
+
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "latex_settings.json"
+            cfg.write_text(
+                json.dumps(
+                    {
+                        "render_mode": "latex_xelatex",
+                        "latex_path": "xelatex",
+                        "use_xelatex": True,
+                        "cache_svg": True,
+                        "enable_offline": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            settings = LaTeXSettings(cfg)
+
+            self.assertEqual(settings.settings, {"render_mode": "latex_xelatex", "latex_path": "xelatex"})
+
     def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
         source = (
             (SRC / "bootstrap" / "deps_runtime_verify.py").read_text(encoding="utf-8")
