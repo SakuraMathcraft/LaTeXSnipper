@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import re
 
-from preview.math_preview import build_math_html, preview_theme_tokens
+from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
 
 
 _FENCED_BLOCK_RE = re.compile(
@@ -52,6 +52,7 @@ def _build_markdown_math_html(content: str) -> str:
 <head>
   <meta charset="utf-8" />
   <style>
+    {preview_scrollbar_css(tokens)}
     html, body {{
       margin: 0;
       padding: 0;
@@ -107,7 +108,7 @@ def _build_markdown_math_html(content: str) -> str:
       options: {{ enableMenu: false }}
     }};
   </script>
-  <script src="tex-mml-chtml.js" type="text/javascript"></script>
+  {mathjax_loader_script()}
 </head>
 <body><div class="content">{body}</div></body>
 </html>"""

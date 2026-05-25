@@ -91,7 +91,11 @@ def show_predict_result_dialog(
 
             preview_view = QWebEngineView()
             preview_view.setMinimumHeight(150)
+
             preview_view.setHtml(build_math_html(_preview_src), get_mathjax_base_url())
+
+            preview_view.setHtml(build_math_html(code, center_viewport=True), get_mathjax_base_url())
+
             lay.addWidget(preview_view, 1)
 
             render_timer = QTimer(dlg)
@@ -100,7 +104,7 @@ def show_predict_result_dialog(
             def do_render():
                 latex = _preview_math_source(te.toPlainText().strip(), _preview_src)
                 if latex and preview_view:
-                    preview_view.setHtml(build_math_html(latex), get_mathjax_base_url())
+                    preview_view.setHtml(build_math_html(latex, center_viewport=True), get_mathjax_base_url())
 
             render_timer.timeout.connect(do_render)
             te.textChanged.connect(lambda: render_timer.start(300))

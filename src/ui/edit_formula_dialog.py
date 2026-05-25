@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
-
-from PyQt6.QtCore import QEvent, QTimer, QUrl
+from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
+from qfluentwidgets import BodyLabel
+
 
 from exporting.formula_converters import convert_typst_to_latex, get_current_render_mode
 from preview.math_preview import dialog_theme_tokens, is_dark_ui, build_math_html
 from runtime.app_paths import get_app_root
+
+from preview.math_preview import build_math_html, dialog_theme_tokens, get_mathjax_base_url, is_dark_ui
+
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
@@ -33,7 +34,7 @@ class EditFormulaDialog(QDialog):
         self.editor.setMaximumHeight(150)
         lay.addWidget(self.editor)
 
-        preview_label = QLabel("实时预览:")
+        preview_label = BodyLabel("实时预览:")
         lay.addWidget(preview_label)
 
         self._pending_latex = ""
@@ -41,7 +42,7 @@ class EditFormulaDialog(QDialog):
         web_view_cls = self._load_webengine_view()
         if web_view_cls is not None:
             self.preview_view = web_view_cls()
-            self.preview_view.setMinimumHeight(200)
+            self.preview_view.setMinimumHeight(150)
             init_html, init_base_url = self._build_preview_payload(latex or "")
             self.preview_view.setHtml(init_html, init_base_url)
             self._pending_latex = latex or ""
@@ -82,35 +83,9 @@ class EditFormulaDialog(QDialog):
             self._pending_latex = ""
             self._do_render()
 
-    def _fallback_local_mathjax_base_url(self):
-        candidates = []
-        try:
-            app_dir = get_app_root()
-            if app_dir and str(app_dir).strip():
-                candidates.append(Path(app_dir) / "assets" / "MathJax-3.2.2" / "es5")
-        except Exception:
-            pass
-        try:
-            exe_dir = Path(sys.executable).parent
-            candidates.append(exe_dir / "_internal" / "assets" / "MathJax-3.2.2" / "es5")
-            candidates.append(exe_dir / "assets" / "MathJax-3.2.2" / "es5")
-        except Exception:
-            pass
-        try:
-            candidates.append(Path(__file__).resolve().parents[1] / "assets" / "MathJax-3.2.2" / "es5")
-        except Exception:
-            pass
-
-        for es5_dir in candidates:
-            try:
-                if es5_dir.exists():
-                    return QUrl.fromLocalFile(str(es5_dir) + os.sep)
-            except Exception:
-                pass
-        return QUrl()
-
     def _build_preview_payload(self, latex: str):
         text = str(latex or "").strip()
+
         # When the render engine is Typst, the dialog content is Typst syntax.
         # Convert Typst -> LaTeX so MathJax can render it as a preview.
         if get_current_render_mode() == "typst" and text:
@@ -121,6 +96,9 @@ class EditFormulaDialog(QDialog):
             if converted and converted != text:
                 text = converted
         return build_math_html(text), self._fallback_local_mathjax_base_url()
+
+        return build_math_html(text, center_viewport=True), get_mathjax_base_url()
+
 
     def event(self, event):
         result = super().event(event)

@@ -3,12 +3,13 @@ import json
 import os
 from pathlib import Path
 
+from runtime.app_paths import app_state_dir
 from update.release_assets import _normalize_download_asset
 from update.release_types import ReleaseInfo, _normalize_sha256
 
 
 def _update_dir() -> Path:
-    update_dir = Path.home() / ".latexsnipper" / "updates"
+    update_dir = app_state_dir() / "updates"
     update_dir.mkdir(parents=True, exist_ok=True)
     return update_dir
 

@@ -2,36 +2,31 @@
 
 from __future__ import annotations
 
-from preview.math_preview import preview_theme_tokens
+import html
+import re
+
+from preview.math_preview import mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
+
+FORMULA_PATTERN = re.compile(r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)")
 
 
-def build_mixed_content_html(content: str) -> str:
-    """Build HTML for mixed text and formula content."""
-    import html
-    import re
-    tokens = preview_theme_tokens()
-
-    # Extract and protect formula segments.
-    # Match block formulas $$...$$ first, then inline formulas $...$.
-    formula_pattern = r'(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)'
-
-    parts = re.split(formula_pattern, content)
+def _mixed_content_body(content: str) -> str:
+    parts = FORMULA_PATTERN.split(content or "")
     result_parts = []
 
     for part in parts:
-        if part.startswith('$$') and part.endswith('$$'):
-            # Keep block formulas unchanged.
-            result_parts.append(part)
-        elif part.startswith('$') and part.endswith('$'):
-            # Keep inline formulas unchanged.
+        if (part.startswith("$$") and part.endswith("$$")) or (part.startswith("$") and part.endswith("$")):
             result_parts.append(part)
         else:
-            # Escape HTML special characters in plain text and preserve line breaks.
-            escaped = html.escape(part)
-            escaped = escaped.replace('\n', '<br>')
-            result_parts.append(escaped)
+            result_parts.append(html.escape(part).replace("\n", "<br>"))
 
-    body_content = ''.join(result_parts)
+    return "".join(result_parts)
+
+
+def build_mixed_content_html(content: str) -> str:
+    tokens = preview_theme_tokens()
+    body_content = _mixed_content_body(content)
+    loader_script = mathjax_loader_script()
 
     return f'''<!DOCTYPE html>
 <html>
@@ -53,11 +48,11 @@ options: {{
   skipHtmlTags: [],
   ignoreHtmlClass: [],
   processHtmlClass: []
-}}
-  }};
+  }}
+}};
 </script>
-<script src="tex-mml-chtml.js" async></script>
 <style>
+{preview_scrollbar_css(tokens)}
 html, body {{
    margin: 0;
    padding: 0;
@@ -95,5 +90,5 @@ pre, code {{
 }}
 </style>
 </head>
-<body><div class="content">{body_content}</div></body>
+<body><div class="content">{body_content}</div>{loader_script}</body>
 </html>'''

@@ -544,6 +544,42 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn('SRC / "editor" / "advanced_cas.py"', spec)
         self.assertNotIn('(str(SRC / "editor"), "editor")', spec)
 
+    def test_pyinstaller_specs_do_not_keep_removed_startup_dependency_flow(self):
+        for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+            spec = (ROOT / spec_name).read_text(encoding="utf-8")
+            self.assertNotIn("runtime.startup_dependency_flow", spec)
+
+    def test_update_download_cache_uses_app_state_dir(self):
+        import update.installer_cache as installer_cache
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            with mock.patch.object(installer_cache, "app_state_dir", return_value=root):
+                self.assertEqual(installer_cache._update_dir(), root / "updates")
+                self.assertTrue((root / "updates").is_dir())
+
+    def test_latex_settings_prunes_legacy_unused_keys(self):
+        from backend.latex_renderer import LaTeXSettings
+
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "latex_settings.json"
+            cfg.write_text(
+                json.dumps(
+                    {
+                        "render_mode": "latex_xelatex",
+                        "latex_path": "xelatex",
+                        "use_xelatex": True,
+                        "cache_svg": True,
+                        "enable_offline": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            settings = LaTeXSettings(cfg)
+
+            self.assertEqual(settings.settings, {"render_mode": "latex_xelatex", "latex_path": "xelatex"})
+
     def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
         source = (
             (SRC / "bootstrap" / "deps_runtime_verify.py").read_text(encoding="utf-8")

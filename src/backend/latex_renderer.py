@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple
 import json
 
+
 try:
     import pypandoc
 except ImportError:  # pragma: no cover
@@ -21,6 +22,12 @@ from backend.typst_utils import (
     ensure_typst_math_grouping,
     preprocess_latex_for_typst,
 )
+
+LATEX_SETTINGS_DEFAULTS = {
+    "render_mode": "auto",
+    "latex_path": None,
+}
+
 
 
 @dataclass
@@ -904,17 +911,24 @@ class LaTeXSettings:
 
     def _load_settings(self) -> Dict:
         """Load settings from disk."""
+        defaults = self._default_settings()
         if self.config_file.exists():
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    return {
+                        key: loaded.get(key, default)
+                        for key, default in defaults.items()
+                    }
             except Exception as e:
                 print(f"[WARN] Failed to load LaTeX settings: {e}")
 
-        return self._default_settings()
+        return defaults
 
     def _default_settings(self) -> Dict:
         """Return default settings."""
+
         return {
             "render_mode": "auto",
             "latex_path": None,
@@ -923,6 +937,9 @@ class LaTeXSettings:
             "cache_svg": True,
             "enable_offline": False,
         }
+
+        return dict(LATEX_SETTINGS_DEFAULTS)
+
 
     def save(self):
         """Save settings to disk."""
@@ -951,11 +968,6 @@ class LaTeXSettings:
             return
 
         self.settings["render_mode"] = mode
-
-        if mode == "latex_xelatex":
-            self.settings["use_xelatex"] = True
-        elif mode == "latex_pdflatex":
-            self.settings["use_xelatex"] = False
 
         self.save()
 

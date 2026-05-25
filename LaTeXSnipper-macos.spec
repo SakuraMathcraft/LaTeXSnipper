@@ -215,7 +215,6 @@ a = Analysis(
         "runtime.distribution",
         "runtime.history_store",
         "runtime.pandoc_runtime",
-        "runtime.startup_dependency_flow",
         "runtime.startup_gui_deps",
         "runtime.webengine_runtime",
         "ui",
