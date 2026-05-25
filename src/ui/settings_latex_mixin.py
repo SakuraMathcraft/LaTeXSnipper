@@ -187,15 +187,9 @@ class SettingsLatexMixin:
                 idx = self.render_engine_combo.currentIndex()
                 if 0 <= idx < len(self._render_modes):
                     mode = self._render_modes[idx]
-                if mode == "latex_xelatex":
-                    use_xelatex = True
-                elif mode == "latex_pdflatex":
-                    use_xelatex = False
-                else:
-                    use_xelatex = os.path.basename(latex_path).lower() == "xelatex.exe"
+                _latex_settings.set_render_mode(mode)
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
-                    _latex_settings.settings["use_xelatex"] = use_xelatex
                     print(f"[LaTeX] 设置已保存: {latex_path}")
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")

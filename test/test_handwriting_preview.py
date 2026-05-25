@@ -29,6 +29,7 @@ def test_handwriting_latex_preview_keeps_multiline_environment_together() -> Non
 
 def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     from handwriting.latex_preview import build_handwriting_preview_html
+    from preview.math_preview import MATHJAX_CDN_URL_BACKUP
 
     html = build_handwriting_preview_html("京文子\nMathCraft\n$$\\int_0^1 x^2 dx$$", "markdown")
 
@@ -36,6 +37,18 @@ def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     assert "MathCraft" in html
     assert "$$\\int_0^1 x^2 dx$$" in html
     assert "tex-mml-chtml.js" in html
+    assert MATHJAX_CDN_URL_BACKUP in html
+    assert "backupScript.src = cdnUrls[1];" in html
+
+
+def test_edit_formula_dialog_uses_shared_mathjax_base_url() -> None:
+    source = (SRC / "ui" / "edit_formula_dialog.py").read_text(encoding="utf-8")
+
+    assert "get_mathjax_base_url" in source
+    assert "_fallback_local_mathjax_base_url" not in source
+    assert "BodyLabel(\"实时预览:\")" in source
+    assert "setMinimumHeight(150)" in source
+    assert "build_math_html(text, center_viewport=True)" in source
 
 
 def test_handwriting_external_prompt_preserves_text_and_formula() -> None:

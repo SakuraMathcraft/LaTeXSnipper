@@ -1,17 +1,8 @@
-"""Optional Pandoc export backend for LaTeXSnipper.
-
-Uses ``pypandoc`` (pip install pypandoc) to convert LaTeX / Markdown / MathML
-inputs to docx, odt, epub, rtf, plain-text and other Pandoc-supported formats.
-
-Pandoc is treated as an **optional** dependency:
-  * If ``pypandoc`` is not installed *or* the pandoc binary is missing, the
-    module exposes ``is_available() -> False`` and every public converter
-    raises ``PandocNotAvailable``.
-  * The rest of LaTeXSnipper keeps working without Pandoc.
-"""
+"""Optional Pandoc export backend for LaTeXSnipper."""
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import shutil
@@ -19,51 +10,35 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-import importlib.util
 from pathlib import Path
-from typing import Optional
 
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
-
 
 class PandocNotAvailable(RuntimeError):
-    """Raised when pypandoc or the pandoc binary cannot be found."""
+    pass
 
 
 class PandocConversionError(RuntimeError):
-    """Raised when a Pandoc conversion fails."""
-
-
-# ---------------------------------------------------------------------------
-# Format descriptor
-# ---------------------------------------------------------------------------
+    pass
 
 
 @dataclass(frozen=True)
 class PandocFormat:
-    """Metadata for a single Pandoc target format."""
-
     key: str
     label: str
-    pandoc_format: str  # pandoc output format name
-    extension: str  # file extension (with dot)
-    needs_file: bool = False  # True when pandoc writes to a file (binary output)
+    pandoc_format: str
+    extension: str
+    needs_file: bool = False
 
 
-# All supported Pandoc target formats.
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
-    # --- Document exchange formats (binary) ---
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
     PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_icml", "InDesign (.icml)", "icml", ".icml"),
-    # --- Markup/text formats ---
     PandocFormat("pandoc_rtf", "RTF (.rtf)", "rtf", ".rtf"),
     PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
     PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
@@ -83,20 +58,24 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
 
-# ---------------------------------------------------------------------------
-# Availability check (cached)
-# ---------------------------------------------------------------------------
+_available_cache: bool | None = None
+_pandoc_version_cache: str | None = None
+_pandoc_path_cache: str | None = None
 
-_available_cache: Optional[bool] = None
-_pandoc_version_cache: Optional[str] = None
-_pandoc_path_cache: Optional[str] = None
-def _find_pandoc_binary() -> Optional[str]:
-    """Try to locate the ``pandoc`` executable."""
+
+def _append_to_path_once(directory: Path) -> None:
+    path_value = os.environ.get("PATH", "")
+    dir_str = str(directory)
+    entries = [os.path.normcase(os.path.abspath(item)) for item in path_value.split(os.pathsep) if item]
+    key = os.path.normcase(os.path.abspath(dir_str))
+    if key not in entries:
+        os.environ["PATH"] = dir_str + os.pathsep + path_value
+
+
+def _find_pandoc_binary() -> str | None:
     configured = load_configured_pandoc_path()
     if configured is not None:
-        dir_str = str(configured.parent)
-        if dir_str not in os.environ.get("PATH", ""):
-            os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+        _append_to_path_once(configured.parent)
         os.environ["PYPANDOC_PANDOC"] = str(configured)
         return str(configured)
 
@@ -106,14 +85,11 @@ def _find_pandoc_binary() -> Optional[str]:
             for candidate in ("pandoc.exe", "pandoc"):
                 deps_pandoc = deps_dir / candidate
                 if deps_pandoc.exists() and deps_pandoc.is_file():
-                    dir_str = str(deps_pandoc.parent)
-                    if dir_str not in os.environ.get("PATH", ""):
-                        os.environ["PATH"] = dir_str + os.pathsep + os.environ.get("PATH", "")
+                    _append_to_path_once(deps_pandoc.parent)
                     os.environ["PYPANDOC_PANDOC"] = str(deps_pandoc)
                     return str(deps_pandoc)
     except Exception:
         pass
-    # 2. Check system PATH (fallback)
     found = shutil.which("pandoc")
     if found:
         os.environ["PYPANDOC_PANDOC"] = found
@@ -122,11 +98,6 @@ def _find_pandoc_binary() -> Optional[str]:
 
 
 def check_pandoc_available(*, force: bool = False) -> bool:
-    """Return *True* if ``pypandoc`` can be imported **and** a pandoc binary exists.
-
-    When *force* is ``True`` the cache is bypassed. This function never
-    downloads or installs pandoc; dependency management owns installation.
-    """
     global _available_cache, _pandoc_version_cache, _pandoc_path_cache
     if _available_cache is not None and not force:
         return _available_cache
@@ -135,24 +106,19 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     _pandoc_version_cache = None
     _pandoc_path_cache = None
 
-    # When force=True, clear stale import cache so a fresh import succeeds
-    # after the user has just installed pypandoc.
     if force:
         sys.modules.pop("pypandoc", None)
 
-    # 1. Try pypandoc
     if importlib.util.find_spec("pypandoc") is None:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    # 2. Prefer the persisted app-level path, then local deps/PATH fallbacks.
     pandoc_path = _find_pandoc_binary()
 
     if not pandoc_path:
         logger.debug("pandoc binary not found – Pandoc export disabled")
         return False
 
-    # 3. Get version
     try:
         ver_output = subprocess.check_output(
             [pandoc_path, "--version"],
@@ -174,26 +140,18 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     return True
 
 
-def pandoc_version() -> Optional[str]:
-    """Return the pandoc version string, or *None* if unavailable."""
+def pandoc_version() -> str | None:
     check_pandoc_available()
     return _pandoc_version_cache
 
 
-def pandoc_path() -> Optional[str]:
-    """Return the resolved pandoc executable path, or *None* if unavailable."""
+def pandoc_path() -> str | None:
     check_pandoc_available()
     return _pandoc_path_cache
 
 
 def is_available() -> bool:
-    """Convenience alias for ``check_pandoc_available()``."""
     return check_pandoc_available()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _subprocess_flags() -> int:
@@ -217,12 +175,6 @@ def _hidden_subprocess_kwargs() -> dict:
 
 
 def _wrap_formula_in_document(latex: str) -> str:
-    """Wrap a single LaTeX formula in a minimal standalone document.
-
-    This is needed because Pandoc expects a *document* rather than a bare
-    formula.  Using ``standalone`` class keeps the output compact.
-    """
-    # Strip outer $ / $$ delimiters if present
     text = (latex or "").strip()
     if text.startswith("$$") and text.endswith("$$"):
         text = text[2:-2].strip()
@@ -238,11 +190,6 @@ def _wrap_formula_in_document(latex: str) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Core conversion
-# ---------------------------------------------------------------------------
-
-
 def convert_latex_to(
     target_key: str,
     latex: str,
@@ -250,27 +197,6 @@ def convert_latex_to(
     as_document: bool = True,
     extra_args: list[str] | None = None,
 ) -> str | bytes:
-    """Convert *latex* to the Pandoc format identified by *target_key*.
-
-    Parameters
-    ----------
-    target_key:
-        One of the keys in ``PANDOC_FORMAT_MAP``.
-    latex:
-        LaTeX source (may be a bare formula or a full document).
-    as_document:
-        If *True* (default), wraps bare formulas in a minimal LaTeX document
-        before conversion.  Set to *False* if *latex* is already a full
-        document.
-    extra_args:
-        Additional CLI arguments passed to pandoc.
-
-    Returns
-    -------
-    str or bytes
-        For text-based formats a ``str`` is returned; for binary formats
-        (docx, odt, epub) ``bytes`` are returned.
-    """
     if not is_available():
         raise PandocNotAvailable(
             "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
@@ -282,7 +208,6 @@ def convert_latex_to(
 
     import pypandoc  # type: ignore[import-untyped]
 
-    # Prepare source
     if as_document:
         src = _wrap_formula_in_document(latex)
     else:
@@ -291,7 +216,6 @@ def convert_latex_to(
     args = extra_args or []
 
     if fmt.needs_file:
-        # Binary output: write to a temp file, then read back
         with tempfile.NamedTemporaryFile(
             suffix=fmt.extension, delete=False
         ) as tmp:
@@ -316,7 +240,6 @@ def convert_latex_to(
             except OSError:
                 pass
     else:
-        # Text output
         try:
             result = pypandoc.convert_text(
                 src,
@@ -337,11 +260,6 @@ def convert_markdown_to(
     *,
     extra_args: list[str] | None = None,
 ) -> str | bytes:
-    """Convert *markdown* (with math blocks) to the Pandoc format *target_key*.
-
-    Similar to :func:`convert_latex_to` but the input format is
-    ``markdown+tex_math_dollars``.
-    """
     if not is_available():
         raise PandocNotAvailable(
             "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
@@ -395,12 +313,9 @@ def convert_markdown_to(
 
 
 def get_available_format_keys() -> list[str]:
-    """Return keys of all Pandoc formats (always returns the full list;
-    availability is checked separately)."""
     return [f.key for f in PANDOC_FORMATS]
 
 
 def get_format_label(key: str) -> str:
-    """Return the human-readable label for a Pandoc format key."""
     fmt = PANDOC_FORMAT_MAP.get(key)
     return fmt.label if fmt else key
