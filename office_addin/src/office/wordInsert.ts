@@ -1,6 +1,11 @@
 import { ConversionResult } from "../services/bridgeClient";
 import { loadEquationSource, saveEquationSource } from "../services/equationSession";
 
+const EQUATION_TAG_PREFIX = "latexsnipper-equation:";
+const LEGACY_NUMBER_TAG_PREFIX = "latexsnipper-equation-number:";
+const NUMBER_CONTROL_TAG = "latexsnipper-equation-number";
+const NUMBER_CONTROL_ALIAS_PREFIX = "LaTeXSnipper Equation Number:";
+
 export type EquationDraft = {
   latex: string;
   display: boolean;
@@ -29,7 +34,8 @@ export async function insertEquationIntoWord(draft: EquationDraft, conversion: C
   if (typeof Word !== "undefined" && Word.run) {
     await Word.run(async (context) => {
       const range = context.document.getSelection();
-      range.insertOoxml(ooxml, Word.InsertLocation.replace);
+      const insertedRange = range.insertOoxml(ooxml, Word.InsertLocation.replace);
+      moveSelectionAfterInsertedEquation(insertedRange, draft.display);
       await context.sync();
     });
     return;
@@ -60,16 +66,20 @@ export async function renumberWordEquations(): Promise<number> {
     throw new Error("Renumbering is available in Word only.");
   }
   return Word.run(async (context) => {
-    const body = context.document.body;
-    const current = body.getOoxml();
+    const modernControls = context.document.contentControls.getByTag(NUMBER_CONTROL_TAG);
+    modernControls.load("items");
     await context.sync();
-    const { ooxml, count } = renumberTaggedEquationOoxml(current.value);
-    if (count === 0) {
-      return 0;
+
+    let controls = modernControls.items;
+    if (controls.length === 0) {
+      controls = await loadLegacyNumberControls(context);
     }
-    body.insertOoxml(ooxml, Word.InsertLocation.replace);
+    controls.forEach((control, index) => {
+      normalizeNumberedEquationTable(control);
+      control.insertText(`(${index + 1})`, Word.InsertLocation.replace);
+    });
     await context.sync();
-    return count;
+    return controls.length;
   });
 }
 
@@ -83,19 +93,19 @@ async function resolveNumber(draft: EquationDraft): Promise<string | undefined> 
     return value || undefined;
   }
   if (draft.numbering === "auto") {
-    return `(${(await countExistingLaTeXSnipperEquations()) + 1})`;
+    return `(${(await countExistingNumberedEquations()) + 1})`;
   }
   return undefined;
 }
 
-async function countExistingLaTeXSnipperEquations(): Promise<number> {
+async function countExistingNumberedEquations(): Promise<number> {
   if (typeof Word === "undefined" || !Word.run) {
     return 0;
   }
   return Word.run(async (context) => {
     const body = context.document.body.getOoxml();
     await context.sync();
-    return (body.value.match(/latexsnipper-equation:/g) || []).length;
+    return countNumberControls(body.value);
   });
 }
 
@@ -124,31 +134,60 @@ function buildDisplayBody(omml: string, equationId: string, number?: string): st
   }
   const table = [
     '<w:tbl><w:tblPr>',
-    '<w:tblW w:w="0" w:type="auto"/>',
+    '<w:tblW w:w="5000" w:type="pct"/>',
+    '<w:jc w:val="center"/>',
+    '<w:tblInd w:w="0" w:type="dxa"/>',
+    '<w:tblLayout w:type="fixed"/>',
     '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>',
+    '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>',
     "</w:tblPr>",
     '<w:tblGrid><w:gridCol w:w="8500"/><w:gridCol w:w="1500"/></w:tblGrid>',
     "<w:tr>",
-    '<w:tc><w:tcPr><w:tcW w:w="8500" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>',
+    '<w:tc><w:tcPr><w:tcW w:w="4250" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>',
     wrapEquationContentControl(omml, equationId),
     "</w:p></w:tc>",
-    '<w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/></w:pPr>',
-    wrapTextContentControl(`latexsnipper-equation-number:${equationId}`, number),
+    '<w:tc><w:tcPr><w:tcW w:w="750" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/></w:pPr>',
+    wrapTextContentControl(
+      NUMBER_CONTROL_TAG,
+      `${NUMBER_CONTROL_ALIAS_PREFIX}${equationId}`,
+      number
+    ),
     "</w:p></w:tc>",
     "</w:tr></w:tbl>"
   ].join("");
-  return wrapTaggedBlock(`latexsnipper-equation-row:${equationId}`, table);
+  return table;
+}
+
+function moveSelectionAfterInsertedEquation(insertedRange: Word.Range, display: boolean): void {
+  if (!display) {
+    insertedRange.select(Word.SelectionMode.end);
+    return;
+  }
+  const nextParagraph = insertedRange.insertParagraph("", Word.InsertLocation.after);
+  nextParagraph.select(Word.SelectionMode.start);
+}
+
+function normalizeNumberedEquationTable(numberControl: Word.ContentControl): void {
+  const table = numberControl.parentTable;
+  table.alignment = Word.Alignment.centered;
+  table.verticalAlignment = Word.VerticalAlignment.center;
+  table.setCellPadding("Top", 0);
+  table.setCellPadding("Bottom", 0);
+  table.setCellPadding("Left", 0);
+  table.setCellPadding("Right", 0);
+  table.autoFitWindow();
+  table.autoFitBehavior(Word.AutoFitBehavior.fixedSize);
 }
 
 function wrapEquationContentControl(omml: string, equationId: string): string {
-  return wrapTaggedBlock(`latexsnipper-equation:${equationId}`, omml, "LaTeXSnipper Equation");
+  return wrapTaggedBlock(`${EQUATION_TAG_PREFIX}${equationId}`, omml, "LaTeXSnipper Equation");
 }
 
-function wrapTextContentControl(tag: string, text: string): string {
+function wrapTextContentControl(tag: string, alias: string, text: string): string {
   return [
     "<w:sdt>",
     "<w:sdtPr>",
-    '<w:alias w:val="LaTeXSnipper Equation Number"/>',
+    `<w:alias w:val="${escapeXml(alias)}"/>`,
     `<w:tag w:val="${escapeXml(tag)}"/>`,
     "</w:sdtPr>",
     "<w:sdtContent><w:r><w:t>",
@@ -173,20 +212,56 @@ function wrapTaggedBlock(tag: string, content: string, alias = "LaTeXSnipper Equ
 }
 
 function extractEquationId(ooxml: string): string {
-  const match = /latexsnipper-equation(?:-row|-number)?:([^"&<\s]+)/.exec(ooxml);
-  return match?.[1] || "";
+  return (
+    extractFirstMatch(ooxml, /latexsnipper-equation:([^"&<\s]+)/) ||
+    extractFirstMatch(ooxml, /latexsnipper-equation-row:([^"&<\s]+)/) ||
+    extractFirstMatch(ooxml, /latexsnipper-equation-number:([^"&<\s]+)/) ||
+    extractFirstMatch(ooxml, /LaTeXSnipper Equation Number:([^"&<\s]+)/) ||
+    ""
+  );
 }
 
-function renumberTaggedEquationOoxml(ooxml: string): { ooxml: string; count: number } {
-  let index = 0;
-  const updated = ooxml.replace(
-    /(<w:sdt\b(?:(?!<\/w:sdt>).)*?latexsnipper-equation-number:[^"&<\s]+(?:(?!<\/w:sdt>).)*?<w:t(?:\s[^>]*)?>)(?:\(\d+\)|[^<]*)(<\/w:t>)/gs,
-    (_match, prefix: string, suffix: string) => {
-      index += 1;
-      return `${prefix}(${index})${suffix}`;
+function extractFirstMatch(value: string, pattern: RegExp): string {
+  return pattern.exec(value)?.[1] || "";
+}
+
+async function loadLegacyNumberControls(context: Word.RequestContext): Promise<Word.ContentControl[]> {
+  const body = context.document.body.getOoxml();
+  await context.sync();
+  const ids = extractLegacyNumberControlIds(body.value);
+  if (ids.length === 0) {
+    return [];
+  }
+  const collections = ids.map((id) => {
+    const collection = context.document.contentControls.getByTag(`${LEGACY_NUMBER_TAG_PREFIX}${id}`);
+    collection.load("items");
+    return collection;
+  });
+  await context.sync();
+  return collections.flatMap((collection) => collection.items);
+}
+
+function extractLegacyNumberControlIds(ooxml: string): string[] {
+  return uniqueMatches(ooxml, /latexsnipper-equation-number:([^"&<\s]+)/g);
+}
+
+function countNumberControls(ooxml: string): number {
+  const modern = (ooxml.match(/w:tag w:val="latexsnipper-equation-number"/g) || []).length;
+  const legacy = extractLegacyNumberControlIds(ooxml).length;
+  return modern + legacy;
+}
+
+function uniqueMatches(value: string, pattern: RegExp): string[] {
+  const seen = new Set<string>();
+  const matches: string[] = [];
+  for (const match of value.matchAll(pattern)) {
+    const item = match[1] || match[0];
+    if (!seen.has(item)) {
+      seen.add(item);
+      matches.push(item);
     }
-  );
-  return { ooxml: updated, count: index };
+  }
+  return matches;
 }
 
 function wrapFlatOpc(documentXml: string): string {

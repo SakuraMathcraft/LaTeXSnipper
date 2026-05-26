@@ -5,6 +5,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+try {
+    chcp 65001 | Out-Null
+}
+catch {
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptDir "..\..")
 $addinRoot = Join-Path $repoRoot "office_addin"
@@ -67,7 +77,7 @@ try {
     }
     else {
         Write-Host "Warning: Office bridge is not reachable at http://127.0.0.1:8765."
-        Write-Host "Open LaTeXSnipper settings and enable Office 插件 before testing Screenshot OCR."
+        Write-Host "Open LaTeXSnipper settings and enable the Office add-in before testing Screenshot OCR."
     }
 
     if (-not $NoSideload) {

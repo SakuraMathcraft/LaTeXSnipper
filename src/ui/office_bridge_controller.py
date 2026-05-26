@@ -241,7 +241,6 @@ class OfficeBridgeControllerMixin:
         request = _OfficeOcrRequest()
         self._office_ocr_request = request
         try:
-            self._office_screenshot_ocr_request_signal.emit()
             if not request.event.wait(timeout):
                 self._office_ocr_request = None
                 raise RuntimeError("screenshot OCR timed out")
@@ -251,21 +250,6 @@ class OfficeBridgeControllerMixin:
         finally:
             if getattr(self, "_office_ocr_request", None) is request:
                 self._office_ocr_request = None
-
-    def _run_office_screenshot_ocr_from_signal(self) -> None:
-        request = getattr(self, "_office_ocr_request", None)
-        if request is None:
-            return
-        try:
-            if self.is_recognition_busy(source="main"):
-                self._complete_office_screenshot_ocr(error="recognition is busy")
-                return
-            if not getattr(self, "model", None) and self._get_preferred_model_for_predict() != "external_model":
-                self._complete_office_screenshot_ocr(error="recognition model is not loaded")
-                return
-            self.start_capture()
-        except Exception as exc:
-            self._complete_office_screenshot_ocr(error=str(exc))
 
     def _complete_office_screenshot_ocr(self, *, result: str = "", error: str = "") -> bool:
         request = getattr(self, "_office_ocr_request", None)

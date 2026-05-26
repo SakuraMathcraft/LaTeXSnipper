@@ -1,6 +1,6 @@
 import "../styles/taskpane.css";
 
-import { BridgeClient, ConversionResult } from "../services/bridgeClient";
+import { BridgeClient, type BridgeHealth, type ConversionResult } from "../services/bridgeClient";
 import { loadSession, saveSession } from "../services/equationSession";
 import { normalizeOfficeLatex } from "../services/latexNormalize";
 import { clearRibbonCommand, readRibbonCommand, RibbonCommand } from "../services/ribbonCommands";
@@ -13,8 +13,11 @@ import {
 import { insertEquationIntoPowerPoint } from "../office/powerpointInsert";
 import { MathLiveEditor } from "./mathliveEditor";
 
+const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8765";
+
 type Elements = {
   hostLabel: HTMLElement;
+  statusBanner: HTMLElement;
   bridgeUrl: HTMLInputElement;
   bridgeToken: HTMLInputElement;
   mathfieldHost: HTMLElement;
@@ -23,14 +26,11 @@ type Elements = {
   displayMode: HTMLInputElement;
   autoNumber: HTMLInputElement;
   manualNumber: HTMLInputElement;
-  ommlOutput: HTMLTextAreaElement;
-  status: HTMLElement;
   healthButton: HTMLButtonElement;
   ocrButton: HTMLButtonElement;
   loadSelectedButton: HTMLButtonElement;
   updateSelectedButton: HTMLButtonElement;
   renumberButton: HTMLButtonElement;
-  convertButton: HTMLButtonElement;
   insertButton: HTMLButtonElement;
 };
 
@@ -39,12 +39,14 @@ let formulaEditor: MathLiveEditor | null = null;
 let officeHost: Office.HostType | undefined;
 let selectedEquationId = "";
 let lastHandledCommandId = "";
+let actionBusy = false;
 
 Office.onReady(async (info) => {
   const elements = resolveElements();
   officeHost = info.host;
   elements.hostLabel.textContent = `${info.host || "Office"} add-in`;
   restoreSession(elements);
+  refreshCommandAvailability(elements);
   formulaEditor = new MathLiveEditor(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
@@ -59,6 +61,7 @@ Office.onReady(async (info) => {
 function resolveElements(): Elements {
   return {
     hostLabel: requiredElement("hostLabel", HTMLElement),
+    statusBanner: requiredElement("statusBanner", HTMLElement),
     bridgeUrl: requiredElement("bridgeUrl", HTMLInputElement),
     bridgeToken: requiredElement("bridgeToken", HTMLInputElement),
     mathfieldHost: requiredElement("mathfieldHost", HTMLElement),
@@ -67,14 +70,11 @@ function resolveElements(): Elements {
     displayMode: requiredElement("displayMode", HTMLInputElement),
     autoNumber: requiredElement("autoNumber", HTMLInputElement),
     manualNumber: requiredElement("manualNumber", HTMLInputElement),
-    ommlOutput: requiredElement("ommlOutput", HTMLTextAreaElement),
-    status: requiredElement("status", HTMLElement),
     healthButton: requiredElement("healthButton", HTMLButtonElement),
     ocrButton: requiredElement("ocrButton", HTMLButtonElement),
     loadSelectedButton: requiredElement("loadSelectedButton", HTMLButtonElement),
     updateSelectedButton: requiredElement("updateSelectedButton", HTMLButtonElement),
     renumberButton: requiredElement("renumberButton", HTMLButtonElement),
-    convertButton: requiredElement("convertButton", HTMLButtonElement),
     insertButton: requiredElement("insertButton", HTMLButtonElement)
   };
 }
@@ -171,19 +171,15 @@ function wireEvents(elements: Elements): void {
   elements.loadSelectedButton.addEventListener("click", () => runAction(elements, () => loadSelectedEquation(elements)));
   elements.updateSelectedButton.addEventListener("click", () => runAction(elements, () => updateSelectedEquation(elements)));
   elements.renumberButton.addEventListener("click", () => runAction(elements, () => renumberEquations(elements)));
-  elements.convertButton.addEventListener("click", () => runAction(elements, async () => {
-    await convertCurrentLatex(elements);
-  }));
   elements.insertButton.addEventListener("click", () => runAction(elements, () => insertCurrentLatex(elements)));
   elements.keyboardButton.addEventListener("click", () => formulaEditor?.toggleKeyboard());
   window.addEventListener("keydown", (event) => handleKeyboardShortcut(event, elements));
-  elements.bridgeUrl.addEventListener("change", () => persistSession(elements));
-  elements.bridgeToken.addEventListener("change", () => persistSession(elements));
-  elements.bridgeUrl.addEventListener("input", () => persistSession(elements));
-  elements.bridgeToken.addEventListener("input", () => persistSession(elements));
+  elements.bridgeUrl.addEventListener("change", () => persistBridgeInputs(elements));
+  elements.bridgeToken.addEventListener("change", () => persistBridgeInputs(elements));
+  elements.bridgeUrl.addEventListener("input", () => persistBridgeInputs(elements));
+  elements.bridgeToken.addEventListener("input", () => persistBridgeInputs(elements));
   elements.latexOutput.addEventListener("latexsnipper-latex-change", () => {
     lastConversion = null;
-    elements.ommlOutput.value = "";
   });
 }
 
@@ -233,18 +229,15 @@ function applyLaunchMode(elements: Elements): boolean {
 }
 
 async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
-  const candidate = new BridgeClient("http://127.0.0.1:8765", "", 2500);
   try {
-    const config = await candidate.config();
-    elements.bridgeUrl.value = config.bridge_url;
-    elements.bridgeToken.value = config.token;
-    await persistSession(elements);
-    const ocrText = config.features.capture_recognize ? "OCR enabled" : "conversion only";
-    setStatus(elements, `Connected to local LaTeXSnipper bridge (${ocrText}).`, config.features.capture_recognize ? "ok" : "");
+    const health = await configureBridge(elements, DEFAULT_BRIDGE_URL, 2500);
+    const ocrText = health.features.capture_recognize ? "OCR enabled" : "conversion only";
+    setStatus(elements, `Connected to local LaTeXSnipper bridge (${ocrText}).`, health.features.capture_recognize ? "ok" : "");
     return true;
   } catch {
     if (!elements.bridgeToken.value.trim()) {
       setStatus(elements, "Start LaTeXSnipper Office bridge to auto-configure the add-in.", "error");
+      refreshCommandAvailability(elements);
       return true;
     }
   }
@@ -252,9 +245,25 @@ async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
 }
 
 async function testConnection(elements: Elements): Promise<void> {
-  await persistSession(elements);
-  const health = await clientFromElements(elements).health();
+  const health = await configureBridge(elements, elements.bridgeUrl.value, 7000);
   setStatus(elements, `Connected to ${health.name}, protocol ${health.protocol}.`, "ok");
+}
+
+async function configureBridge(elements: Elements, baseUrl: string, timeoutMs: number): Promise<BridgeHealth> {
+  const configClient = new BridgeClient(baseUrl.trim() || DEFAULT_BRIDGE_URL, "", timeoutMs);
+  const config = await configClient.config();
+  if (!config.token.trim()) {
+    throw new Error("Bridge config did not return a session token.");
+  }
+  elements.bridgeUrl.value = config.bridge_url || baseUrl || DEFAULT_BRIDGE_URL;
+  elements.bridgeToken.value = config.token;
+  await persistSession(elements);
+  refreshCommandAvailability(elements);
+  const health = await clientFromElements(elements).health(true);
+  if (!health.features.convert_latex) {
+    throw new Error("Connected bridge does not support LaTeX conversion.");
+  }
+  return health;
 }
 
 async function convertCurrentLatex(elements: Elements): Promise<ConversionResult> {
@@ -263,7 +272,6 @@ async function convertCurrentLatex(elements: Elements): Promise<ConversionResult
   setStatus(elements, "Converting LaTeX through bridge.");
   const conversion = await clientFromElements(elements).convertLatex(latex, ["omml"]);
   lastConversion = conversion;
-  elements.ommlOutput.value = conversion.omml || "";
   setStatus(elements, "Converted to OMML.", "ok");
   return conversion;
 }
@@ -293,7 +301,6 @@ async function loadSelectedEquation(elements: Elements): Promise<void> {
   selectedEquationId = selected.equationId;
   formulaEditor?.setLatex(selected.latex);
   lastConversion = null;
-  elements.ommlOutput.value = "";
   setStatus(elements, "Loaded selected equation source.", "ok");
 }
 
@@ -324,7 +331,7 @@ async function renumberEquations(elements: Elements): Promise<void> {
 
 async function runScreenshotOcr(elements: Elements): Promise<void> {
   const client = clientFromElements(elements);
-  setStatus(elements, "Select a screen region in LaTeXSnipper.");
+  setStatus(elements, "Waiting for the next LaTeXSnipper recognition. Use the global shortcut, then capture a region.");
   const result = await client.recognizeScreenshot();
   const latex = normalizeOfficeLatex(result.latex);
   if (!latex) {
@@ -332,7 +339,6 @@ async function runScreenshotOcr(elements: Elements): Promise<void> {
   }
   formulaEditor?.setLatex(latex);
   lastConversion = null;
-  elements.ommlOutput.value = "";
   setStatus(elements, "Screenshot OCR result loaded.", "ok");
 }
 
@@ -343,8 +349,17 @@ async function persistSession(elements: Elements): Promise<void> {
   });
 }
 
+function persistBridgeInputs(elements: Elements): void {
+  refreshCommandAvailability(elements);
+  void persistSession(elements);
+}
+
 function clientFromElements(elements: Elements): BridgeClient {
-  return new BridgeClient(elements.bridgeUrl.value, elements.bridgeToken.value);
+  const token = elements.bridgeToken.value.trim();
+  if (!token) {
+    throw new Error("Click Connect to refresh the LaTeXSnipper bridge token.");
+  }
+  return new BridgeClient(elements.bridgeUrl.value || DEFAULT_BRIDGE_URL, token);
 }
 
 function readLatex(elements: Elements): string {
@@ -368,17 +383,23 @@ async function runAction(elements: Elements, action: () => Promise<void>): Promi
 }
 
 function setBusy(elements: Elements, busy: boolean): void {
-  elements.healthButton.disabled = busy;
-  elements.ocrButton.disabled = busy;
-  elements.loadSelectedButton.disabled = busy;
-  elements.updateSelectedButton.disabled = busy;
-  elements.renumberButton.disabled = busy;
-  elements.convertButton.disabled = busy;
-  elements.insertButton.disabled = busy;
-  elements.healthButton.textContent = busy ? "Working..." : "Connect";
+  actionBusy = busy;
+  refreshCommandAvailability(elements);
+}
+
+function refreshCommandAvailability(elements: Elements): void {
+  const hasBridgeToken = Boolean(elements.bridgeToken.value.trim());
+  const isWord = officeHost === Office.HostType.Word;
+  elements.healthButton.disabled = actionBusy;
+  elements.ocrButton.disabled = actionBusy || !hasBridgeToken;
+  elements.loadSelectedButton.disabled = actionBusy || !isWord;
+  elements.updateSelectedButton.disabled = actionBusy || !isWord || !hasBridgeToken;
+  elements.renumberButton.disabled = actionBusy || !isWord;
+  elements.insertButton.disabled = actionBusy || !hasBridgeToken;
+  elements.healthButton.textContent = actionBusy ? "Working..." : "Connect";
 }
 
 function setStatus(elements: Elements, message: string, kind: "ok" | "error" | "" = ""): void {
-  elements.status.textContent = message;
-  elements.status.className = `status ${kind}`.trim();
+  elements.statusBanner.textContent = message;
+  elements.statusBanner.className = `status-banner ${kind}`.trim();
 }
