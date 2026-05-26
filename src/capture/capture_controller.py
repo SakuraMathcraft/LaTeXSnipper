@@ -124,6 +124,8 @@ class CaptureControllerMixin:
             self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
+        if hasattr(self, "set_office_screenshot_ocr_state"):
+            self.set_office_screenshot_ocr_state("recognizing")
         self._start_predict_with_pil(img)
 
     def _show_capture_failure_info(self, message: str):

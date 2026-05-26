@@ -332,14 +332,32 @@ async function renumberEquations(elements: Elements): Promise<void> {
 async function runScreenshotOcr(elements: Elements): Promise<void> {
   const client = clientFromElements(elements);
   setStatus(elements, "Waiting for the next LaTeXSnipper recognition. Use the global shortcut, then capture a region.");
-  const result = await client.recognizeScreenshot();
-  const latex = normalizeOfficeLatex(result.latex);
-  if (!latex) {
-    throw new Error("Screenshot OCR returned an empty result.");
+  let lastStatus = "waiting";
+  const statusTimer = window.setInterval(() => {
+    void client.recognitionStatus().then((status) => {
+      if (status.state === lastStatus) {
+        return;
+      }
+      lastStatus = status.state;
+      if (status.state === "waiting") {
+        setStatus(elements, "Waiting for the next LaTeXSnipper recognition. Use the global shortcut, then capture a region.");
+      } else if (status.state === "recognizing") {
+        setStatus(elements, "Recognizing formula in LaTeXSnipper. First OCR after startup can take longer.");
+      }
+    }).catch(() => undefined);
+  }, 900);
+  try {
+    const result = await client.recognizeScreenshot();
+    const latex = normalizeOfficeLatex(result.latex);
+    if (!latex) {
+      throw new Error("Screenshot OCR returned an empty result.");
+    }
+    formulaEditor?.setLatex(latex);
+    lastConversion = null;
+    setStatus(elements, "Screenshot OCR result loaded.", "ok");
+  } finally {
+    window.clearInterval(statusTimer);
   }
-  formulaEditor?.setLatex(latex);
-  lastConversion = null;
-  setStatus(elements, "Screenshot OCR result loaded.", "ok");
 }
 
 async function persistSession(elements: Elements): Promise<void> {

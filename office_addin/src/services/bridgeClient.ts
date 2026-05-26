@@ -27,6 +27,10 @@ export type ScreenshotOcrResult = {
   latex: string;
 };
 
+export type RecognitionStatus = {
+  state: "idle" | "waiting" | "recognizing" | "completed" | "failed" | "unavailable" | "unknown";
+};
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 7000;
 const OCR_REQUEST_TIMEOUT_MS = 305000;
 
@@ -79,6 +83,17 @@ export class BridgeClient {
       },
       true,
       OCR_REQUEST_TIMEOUT_MS
+    );
+  }
+
+  async recognitionStatus(): Promise<RecognitionStatus> {
+    return this.request<RecognitionStatus>(
+      "/recognition/status",
+      {
+        method: "POST",
+        body: JSON.stringify({})
+      },
+      true
     );
   }
 

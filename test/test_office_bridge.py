@@ -80,6 +80,9 @@ def test_office_bridge_health_and_authenticated_conversion() -> None:
 
 def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
     class RecognitionService:
+        def recognition_status(self) -> dict:
+            return {"state": "recognizing"}
+
         def recognize_screenshot(self, payload: dict) -> dict:
             assert payload["timeout"] == 10
             return {"latex": "x^2"}
@@ -92,6 +95,14 @@ def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
     try:
         health = _get_json(f"{server.base_url}/health")
         assert health["result"]["features"]["capture_recognize"] is True
+
+        status = _post_json(
+            f"{server.base_url}/recognition/status",
+            {},
+            token="test-token",
+        )
+        assert status["status"] == 200
+        assert status["payload"]["result"]["state"] == "recognizing"
 
         result = _post_json(
             f"{server.base_url}/recognize/screenshot",
