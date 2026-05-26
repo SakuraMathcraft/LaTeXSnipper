@@ -1,0 +1,26 @@
+{
+  "name": "latexsnipper-office-addin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host localhost --port 3000",
+    "typecheck": "tsc --noEmit",
+    "dev:word": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_word_dev.ps1",
+    "sideload:word": "office-addin-dev-settings sideload manifest.word.xml desktop --app Word",
+    "sideload:powerpoint": "office-addin-dev-settings sideload manifest.powerpoint.xml desktop --app PowerPoint",
+    "addin:registered": "office-addin-dev-settings registered"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.512",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "office-addin-dev-settings": "^3.1.1",
+    "typescript": "^5.6.0",
+    "vite": "^8.0.14"
+  },
+  "dependencies": {
+    "mathlive": "^0.109.2"
+  }
+}

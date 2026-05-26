@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21</Id>
+  <Version>0.1.0.0</Version>
+  <ProviderName>SakuraMathcraft</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="LaTeXSnipper"/>
+  <Description DefaultValue="Edit, recognize, and insert mathematical equations with LaTeXSnipper."/>
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="WordApi" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+          </GetStarted>
+          <FunctionFile resid="Commands.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="TabLaTeXSnipper">
+              <Group id="GroupInsert">
+                <Label resid="GroupInsert.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="OpenEditorButton">
+                  <Label resid="OpenEditor.Label"/>
+                  <Supertip>
+                    <Title resid="OpenEditor.Label"/>
+                    <Description resid="OpenEditor.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>LaTeXSnipper.EditorTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="InsertFormulaButton">
+                  <Label resid="InsertFormula.Label"/>
+                  <Supertip>
+                    <Title resid="InsertFormula.Label"/>
+                    <Description resid="InsertFormula.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>insertFormulaCommand</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="ScreenshotOcrButton">
+                  <Label resid="ScreenshotOcr.Label"/>
+                  <Supertip>
+                    <Title resid="ScreenshotOcr.Label"/>
+                    <Description resid="ScreenshotOcr.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>screenshotOcrCommand</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+              <Group id="GroupEdit">
+                <Label resid="GroupEdit.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="LoadSelectedButton">
+                  <Label resid="LoadSelected.Label"/>
+                  <Supertip>
+                    <Title resid="LoadSelected.Label"/>
+                    <Description resid="LoadSelected.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>loadSelectedCommand</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="UpdateSelectedButton">
+                  <Label resid="UpdateSelected.Label"/>
+                  <Supertip>
+                    <Title resid="UpdateSelected.Label"/>
+                    <Description resid="UpdateSelected.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>updateSelectedCommand</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+              <Group id="GroupNumbering">
+                <Label resid="GroupNumbering.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="NumberedFormulaButton">
+                  <Label resid="NumberedFormula.Label"/>
+                  <Supertip>
+                    <Title resid="NumberedFormula.Label"/>
+                    <Description resid="NumberedFormula.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>numberedFormulaCommand</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="RenumberButton">
+                  <Label resid="Renumber.Label"/>
+                  <Supertip>
+                    <Title resid="Renumber.Label"/>
+                    <Description resid="Renumber.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>renumberCommand</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+              <Label resid="Tab.Label"/>
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
+        <bt:Url id="Taskpane.InsertUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=insert"/>
+        <bt:Url id="Taskpane.NumberedUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=numbered"/>
+        <bt:Url id="Taskpane.OcrUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=ocr"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000/taskpane.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="Tab.Label" DefaultValue="LaTeXSnipper"/>
+        <bt:String id="GroupInsert.Label" DefaultValue="Formula"/>
+        <bt:String id="GroupEdit.Label" DefaultValue="Edit"/>
+        <bt:String id="GroupNumbering.Label" DefaultValue="Numbering"/>
+        <bt:String id="OpenEditor.Label" DefaultValue="Editor"/>
+        <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"/>
+        <bt:String id="NumberedFormula.Label" DefaultValue="Numbered"/>
+        <bt:String id="LoadSelected.Label" DefaultValue="Load Selected"/>
+        <bt:String id="UpdateSelected.Label" DefaultValue="Update Selected"/>
+        <bt:String id="Renumber.Label" DefaultValue="Renumber"/>
+        <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
+        <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper is ready"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."/>
+        <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."/>
+        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert a display equation with automatic numbering."/>
+        <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."/>
+        <bt:String id="UpdateSelected.Tooltip" DefaultValue="Replace the selected equation with the current editor content."/>
+        <bt:String id="Renumber.Tooltip" DefaultValue="Renumber LaTeXSnipper display equations in document order."/>
+        <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

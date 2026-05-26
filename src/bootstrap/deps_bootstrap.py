@@ -1,10 +1,6 @@
 # pyright: reportUnusedImport=false
 
-"""Compatibility facade for the dependency bootstrap package.
-
-The implementation is intentionally split across focused modules. Keep new logic out
-of this file so old imports continue to work without rebuilding the monolith.
-"""
+"""Compatibility facade for the dependency bootstrap package."""
 
 # ruff: noqa: F401
 

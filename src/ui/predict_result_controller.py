@@ -349,6 +349,10 @@ class PredictResultControllerMixin:
 
     def on_predict_ok(self, latex: str):
         self._recognition_cancel_requested = False
+        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(result=latex):
+            self.set_model_status("完成")
+            self.set_action_status("Office OCR 完成", auto_clear_ms=3000)
+            return
         used = None
         try:
             if getattr(self, "current_model", "") == "external_model":
@@ -477,6 +481,10 @@ class PredictResultControllerMixin:
 
     def on_predict_fail(self, msg: str, external_model: bool | None = None):
         self._next_predict_result_screen_index = None
+        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(error=msg):
+            self.set_model_status("失败")
+            self.set_action_status("Office OCR 失败", auto_clear_ms=4500)
+            return
         self._restore_hidden_unpinned_predict_result_dialog()
         if self._is_user_cancelled_recognition_error(msg):
             try:

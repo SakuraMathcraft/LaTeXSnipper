@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Office Add-in</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <main class="taskpane-shell">
+      <section class="toolbar">
+        <div>
+          <h1>LaTeXSnipper</h1>
+          <p id="hostLabel">Office add-in</p>
+        </div>
+        <button id="healthButton" type="button" title="Check connection">Connect</button>
+      </section>
+
+      <section class="panel editor-panel">
+        <div class="editor-header">
+          <label for="mathfieldHost">Equation</label>
+          <button id="keyboardButton" type="button">Keyboard</button>
+        </div>
+        <div id="mathfieldHost" class="mathfield-host"></div>
+        <label for="latexOutput">LaTeX</label>
+        <textarea id="latexOutput" spellcheck="false"></textarea>
+        <div class="options-row">
+          <label><input id="displayMode" type="checkbox" checked /> Display</label>
+          <label><input id="autoNumber" type="checkbox" /> Auto number</label>
+          <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual number" />
+        </div>
+      </section>
+
+      <section class="actions primary-actions">
+        <button id="ocrButton" type="button">Screenshot OCR</button>
+        <button id="insertButton" type="button" class="primary">Insert</button>
+      </section>
+
+      <section class="panel compact-panel">
+        <label>Selected equation</label>
+        <section class="actions">
+          <button id="loadSelectedButton" type="button">Load</button>
+          <button id="updateSelectedButton" type="button">Update</button>
+        </section>
+      </section>
+
+      <section class="panel compact-panel">
+        <label>Numbering</label>
+        <section class="actions">
+          <button id="renumberButton" type="button">Renumber all</button>
+        </section>
+      </section>
+
+      <details class="panel advanced-panel">
+        <summary>Advanced</summary>
+        <label for="bridgeUrl">Bridge URL</label>
+        <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
+        <label for="bridgeToken">Bridge token</label>
+        <input id="bridgeToken" type="password" spellcheck="false" />
+        <button id="convertButton" type="button">Convert only</button>
+        <label for="ommlOutput">OMML preview</label>
+        <textarea id="ommlOutput" spellcheck="false" readonly></textarea>
+      </details>
+
+      <div id="status" class="status">Waiting for Office.</div>
+    </main>
+    <script type="module" src="/src/taskpane/App.ts"></script>
+  </body>
+</html>

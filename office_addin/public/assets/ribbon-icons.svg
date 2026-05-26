@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="latexsnipper-editor" viewBox="0 0 32 32">
+    <rect x="4" y="4" width="24" height="24" rx="4" fill="#eef6ff" stroke="#2e7be6" stroke-width="2"/>
+    <path d="M10 11h12M10 16h8M10 21h10" stroke="#1f4f99" stroke-width="2" stroke-linecap="round"/>
+    <path d="M21 20l5 5" stroke="#2e7be6" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="latexsnipper-insert" viewBox="0 0 32 32">
+    <rect x="5" y="6" width="22" height="20" rx="3" fill="#f5fbff" stroke="#2e7be6" stroke-width="2"/>
+    <path d="M11 18l3-6h2l3 6M12.5 15.5h5" stroke="#1f4f99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23 10v6M20 13h6" stroke="#13a36f" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="latexsnipper-ocr" viewBox="0 0 32 32">
+    <rect x="5" y="7" width="22" height="18" rx="3" fill="#f7fbff" stroke="#2e7be6" stroke-width="2"/>
+    <path d="M9 13V9h4M19 9h4v4M23 19v4h-4M13 23H9v-4" stroke="#1f4f99" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 18l2-5h2l2 5M13 16.5h4" stroke="#13a36f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="latexsnipper-numbering" viewBox="0 0 32 32">
+    <rect x="4" y="5" width="24" height="22" rx="4" fill="#f7fbff" stroke="#2e7be6" stroke-width="2"/>
+    <path d="M9 12h10M9 17h10M9 22h10" stroke="#1f4f99" stroke-width="2" stroke-linecap="round"/>
+    <path d="M22 11c2 2 2 7 0 9M25 9c3 4 3 10 0 14" stroke="#13a36f" stroke-width="1.8" stroke-linecap="round"/>
+  </symbol>
+</svg>

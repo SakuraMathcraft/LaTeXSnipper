@@ -1,0 +1,216 @@
+:root {
+  color: #1f2937;
+  background: #f7f8fa;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.taskpane-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 14px;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+p {
+  color: #667085;
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+}
+
+details.panel {
+  display: block;
+}
+
+summary {
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+details.panel > *:not(summary) {
+  margin-top: 8px;
+}
+
+.compact-panel {
+  gap: 6px;
+}
+
+label {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+input,
+textarea {
+  border: 1px solid #c8d0dc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: #101828;
+  outline: none;
+  padding: 8px;
+  width: 100%;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #2e7be6;
+  box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.editor-panel textarea {
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+.editor-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-header button {
+  min-height: 28px;
+  padding: 4px 8px;
+  width: auto;
+}
+
+.mathfield-host {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  border-radius: 4px;
+  min-height: 92px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.mathfield-host:focus-within {
+  border-color: #2e7be6;
+  box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);
+}
+
+math-field {
+  box-sizing: border-box;
+  display: block;
+  font-size: 22px;
+  min-height: 72px;
+  width: 100%;
+}
+
+.vk-visible .taskpane-shell {
+  padding-bottom: 220px;
+}
+
+.options-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto auto 1fr;
+}
+
+.options-row label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.options-row input[type="checkbox"] {
+  width: auto;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-bottom: 12px;
+}
+
+.panel .actions {
+  margin-bottom: 0;
+}
+
+.primary-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+button {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  border-radius: 4px;
+  color: #1f2937;
+  cursor: pointer;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+button.primary {
+  background: #2e7be6;
+  border-color: #2e7be6;
+  color: #ffffff;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.output-panel textarea {
+  color: #475467;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  min-height: 90px;
+}
+
+.status {
+  color: #475467;
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.status.error {
+  color: #b42318;
+}
+
+.status.ok {
+  color: #067647;
+}
