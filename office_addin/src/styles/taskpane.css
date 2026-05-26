@@ -28,6 +28,30 @@ textarea {
   margin-bottom: 12px;
 }
 
+.status-banner {
+  background: #eef4ff;
+  border: 1px solid #b2ccff;
+  border-radius: 6px;
+  color: #1849a9;
+  font-size: 13px;
+  line-height: 1.35;
+  margin-bottom: 12px;
+  min-height: 20px;
+  padding: 9px 10px;
+}
+
+.status-banner.error {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: #b42318;
+}
+
+.status-banner.ok {
+  background: #ecfdf3;
+  border-color: #abefc6;
+  color: #067647;
+}
+
 h1 {
   font-size: 18px;
   font-weight: 600;
@@ -193,24 +217,4 @@ button.primary {
 button:disabled {
   cursor: default;
   opacity: 0.6;
-}
-
-.output-panel textarea {
-  color: #475467;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  min-height: 90px;
-}
-
-.status {
-  color: #475467;
-  font-size: 12px;
-  min-height: 18px;
-}
-
-.status.error {
-  color: #b42318;
-}
-
-.status.ok {
-  color: #067647;
 }

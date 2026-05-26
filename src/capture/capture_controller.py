@@ -91,8 +91,6 @@ class CaptureControllerMixin:
                 self._capture_start_pending = False
                 self._capture_waiting_for_hidden_result_window = False
                 self.overlay = None
-                if hasattr(self, "_complete_office_screenshot_ocr"):
-                    self._complete_office_screenshot_ocr(error="screenshot OCR was cancelled")
                 QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
                 QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
                 self.set_action_status("已取消截图")
@@ -112,8 +110,6 @@ class CaptureControllerMixin:
             self.overlay = None
         QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
         if pixmap is None:
-            if hasattr(self, "_complete_office_screenshot_ocr"):
-                self._complete_office_screenshot_ocr(error=capture_failure_message or "screenshot OCR was cancelled")
             QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
             if capture_failure_message:
                 QTimer.singleShot(0, lambda msg=capture_failure_message: self._show_capture_failure_info(msg))
@@ -128,6 +124,8 @@ class CaptureControllerMixin:
             self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
+        if hasattr(self, "set_office_screenshot_ocr_state"):
+            self.set_office_screenshot_ocr_state("recognizing")
         self._start_predict_with_pil(img)
 
     def _show_capture_failure_info(self, message: str):

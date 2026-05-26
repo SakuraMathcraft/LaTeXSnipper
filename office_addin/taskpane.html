@@ -15,6 +15,7 @@
         </div>
         <button id="healthButton" type="button" title="Check connection">Connect</button>
       </section>
+      <div id="statusBanner" class="status-banner" role="status">Waiting for Office.</div>
 
       <section class="panel editor-panel">
         <div class="editor-header">
@@ -57,12 +58,8 @@
         <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
         <label for="bridgeToken">Bridge token</label>
         <input id="bridgeToken" type="password" spellcheck="false" />
-        <button id="convertButton" type="button">Convert only</button>
-        <label for="ommlOutput">OMML preview</label>
-        <textarea id="ommlOutput" spellcheck="false" readonly></textarea>
       </details>
 
-      <div id="status" class="status">Waiting for Office.</div>
     </main>
     <script type="module" src="/src/taskpane/App.ts"></script>
   </body>

@@ -27,6 +27,13 @@ export type ScreenshotOcrResult = {
   latex: string;
 };
 
+export type RecognitionStatus = {
+  state: "idle" | "waiting" | "recognizing" | "completed" | "failed" | "unavailable" | "unknown";
+};
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 7000;
+const OCR_REQUEST_TIMEOUT_MS = 305000;
+
 type BridgeEnvelope<T> =
   | { ok: true; result: T }
   | { ok: false; error: { code: string; message: string } };
@@ -35,11 +42,11 @@ export class BridgeClient {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
-    private readonly timeoutMs = 7000
+    private readonly timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
   ) {}
 
-  async health(): Promise<BridgeHealth> {
-    return this.request<BridgeHealth>("/health", { method: "GET" }, false);
+  async health(authenticated = true): Promise<BridgeHealth> {
+    return this.request<BridgeHealth>("/health", { method: "GET" }, authenticated);
   }
 
   async config(): Promise<BridgeConfig> {
@@ -72,13 +79,30 @@ export class BridgeClient {
       "/recognize/screenshot",
       {
         method: "POST",
-        body: JSON.stringify({ timeout: 180 })
+        body: JSON.stringify({ timeout: 300 })
+      },
+      true,
+      OCR_REQUEST_TIMEOUT_MS
+    );
+  }
+
+  async recognitionStatus(): Promise<RecognitionStatus> {
+    return this.request<RecognitionStatus>(
+      "/recognition/status",
+      {
+        method: "POST",
+        body: JSON.stringify({})
       },
       true
     );
   }
 
-  private async request<T>(path: string, init: RequestInit, authenticated: boolean): Promise<T> {
+  private async request<T>(
+    path: string,
+    init: RequestInit,
+    authenticated: boolean,
+    timeoutMs = this.timeoutMs
+  ): Promise<T> {
     const headers = new Headers(init.headers || {});
     if (init.body) {
       headers.set("Content-Type", "application/json");
@@ -90,7 +114,7 @@ export class BridgeClient {
       headers.set("Authorization", `Bearer ${this.token.trim()}`);
     }
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await fetch(`${this.normalizedBaseUrl()}${path}`, {

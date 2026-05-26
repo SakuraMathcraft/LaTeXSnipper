@@ -89,6 +89,13 @@ class OfficeBridgeServer:
     def handle_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         if path == "/convert/latex":
             return self.conversion_service.convert(payload)
+        if path == "/recognition/status":
+            if self.recognition_service is None:
+                return {"state": "unavailable"}
+            status = getattr(self.recognition_service, "recognition_status", None)
+            if callable(status):
+                return status()
+            return {"state": "unknown"}
         if path == "/recognize/screenshot":
             if self.recognition_service is None:
                 raise OfficeBridgeError(501, "feature_unavailable", "screenshot OCR is not available")

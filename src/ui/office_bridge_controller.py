@@ -22,6 +22,16 @@ class _OfficeOcrRequest:
         self.event = threading.Event()
         self.result = ""
         self.error = ""
+        self.state = "waiting"
+        self._lock = threading.Lock()
+
+    def set_state(self, state: str) -> None:
+        with self._lock:
+            self.state = state
+
+    def snapshot(self) -> dict[str, str]:
+        with self._lock:
+            return {"state": self.state}
 
 
 class _OfficeScreenshotRecognitionService:
@@ -35,6 +45,9 @@ class _OfficeScreenshotRecognitionService:
             timeout = 120.0
         text = self._window.request_office_screenshot_ocr(timeout=max(10.0, min(timeout, 300.0)))
         return {"latex": text}
+
+    def recognition_status(self) -> dict:
+        return self._window.office_screenshot_ocr_status()
 
 
 class _OfficeBridgeToggleWorker(QThread):
@@ -241,7 +254,6 @@ class OfficeBridgeControllerMixin:
         request = _OfficeOcrRequest()
         self._office_ocr_request = request
         try:
-            self._office_screenshot_ocr_request_signal.emit()
             if not request.event.wait(timeout):
                 self._office_ocr_request = None
                 raise RuntimeError("screenshot OCR timed out")
@@ -252,25 +264,22 @@ class OfficeBridgeControllerMixin:
             if getattr(self, "_office_ocr_request", None) is request:
                 self._office_ocr_request = None
 
-    def _run_office_screenshot_ocr_from_signal(self) -> None:
+    def office_screenshot_ocr_status(self) -> dict[str, str]:
         request = getattr(self, "_office_ocr_request", None)
         if request is None:
-            return
-        try:
-            if self.is_recognition_busy(source="main"):
-                self._complete_office_screenshot_ocr(error="recognition is busy")
-                return
-            if not getattr(self, "model", None) and self._get_preferred_model_for_predict() != "external_model":
-                self._complete_office_screenshot_ocr(error="recognition model is not loaded")
-                return
-            self.start_capture()
-        except Exception as exc:
-            self._complete_office_screenshot_ocr(error=str(exc))
+            return {"state": "idle"}
+        return request.snapshot()
+
+    def set_office_screenshot_ocr_state(self, state: str) -> None:
+        request = getattr(self, "_office_ocr_request", None)
+        if request is not None:
+            request.set_state(state)
 
     def _complete_office_screenshot_ocr(self, *, result: str = "", error: str = "") -> bool:
         request = getattr(self, "_office_ocr_request", None)
         if request is None:
             return False
+        request.set_state("completed" if not error else "failed")
         request.result = str(result or "").strip()
         request.error = str(error or "").strip()
         request.event.set()
