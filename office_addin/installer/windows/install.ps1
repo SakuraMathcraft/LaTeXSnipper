@@ -104,16 +104,12 @@ $addins = @(
 $manifestsDir = Join-Path $root "manifests"
 $manifestsUrl = "file:///" + ($manifestsDir -replace '\\', '/').TrimStart('/')
 
+$devKey = Join-Path $wefBase "Developer"
 foreach ($addin in $addins) {
     $manifestPath = Join-Path $manifestsDir $addin.Manifest
-
-    $devKey = Join-Path $wefBase "Developer" $addin.Id
-    Remove-Item -LiteralPath $devKey -Force -ErrorAction SilentlyContinue -Recurse
-    New-Item -Path $devKey -Force | Out-Null
-    New-ItemProperty -Path $devKey -Name "Name" -PropertyType String -Value $addin.Name -Force | Out-Null
-    New-ItemProperty -Path $devKey -Name "Url" -PropertyType String -Value $manifestPath -Force | Out-Null
-    New-ItemProperty -Path $devKey -Name "Id" -PropertyType String -Value $addin.Id -Force | Out-Null
-    New-ItemProperty -Path $devKey -Name "Flags" -PropertyType DWord -Value 1 -Force | Out-Null
+    $propName = $addin.Id.Trim('{').Trim('}')
+    Remove-ItemProperty -Path $devKey -Name $propName -Force -ErrorAction SilentlyContinue
+    New-ItemProperty -Path $devKey -Name $propName -PropertyType String -Value $manifestPath -Force | Out-Null
 }
 
 $catalogId = "{7C4B0843-A874-420F-908C-73673C42F4B0}"
