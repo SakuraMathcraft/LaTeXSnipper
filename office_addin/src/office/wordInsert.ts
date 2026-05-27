@@ -1,5 +1,5 @@
 import { ConversionResult } from "../services/bridgeClient";
-import { loadEquationSource, saveEquationSource } from "../services/equationSession";
+import { deleteEquationSource, loadEquationSource, saveEquationSource } from "../services/equationSession";
 
 const EQUATION_TAG_PREFIX = "latexsnipper-eq-";
 const NUMBER_CONTROL_TAG_PREFIX = "latexsnipper-eqn-";
@@ -26,19 +26,28 @@ export async function insertEquationIntoWord(draft: EquationDraft, conversion: C
   if (!conversion.omml || !looksLikeOmml(conversion.omml)) {
     throw new Error("The bridge did not return editable OMML.");
   }
+  const omml = conversion.omml;
   const number = await resolveNumber(draft);
-  const equationId = await saveEquationSource(draft.latex, draft.equationId, draft.display, draft.numbering, number || draft.manualNumber);
-  const ooxml = buildEquationOoxml(conversion.omml, { display: draft.display, equationId, number });
 
   if (typeof Word !== "undefined" && Word.run) {
     await Word.run(async (context) => {
-      const targetRange = await getInsertionTargetRange(context);
+      const targetRange = await getValidInsertionTargetRange(context);
+      const equationId = await saveEquationSource(
+        draft.latex,
+        draft.equationId,
+        draft.display,
+        draft.numbering,
+        number || draft.manualNumber
+      );
+      const ooxml = buildEquationOoxml(omml, { display: draft.display, equationId, number });
       const insertedRange = targetRange.insertOoxml(ooxml, Word.InsertLocation.replace);
       moveSelectionAfterInsertedEquation(insertedRange, draft.display);
       await context.sync();
     });
     return;
   }
+  const equationId = await saveEquationSource(draft.latex, draft.equationId, draft.display, draft.numbering, number || draft.manualNumber);
+  const ooxml = buildEquationOoxml(omml, { display: draft.display, equationId, number });
   await setSelectedOoxml(ooxml);
 }
 
@@ -56,19 +65,28 @@ export async function updateEquationInWord(draft: EquationDraft, conversion: Con
   const number = draft.manualNumber || draft.numberValue || await resolveNumber(draft);
   await saveEquationSource(draft.latex, equationId, draft.display, draft.numbering, number);
 
-  const tag = `${EQUATION_TAG_PREFIX}${equationId}`;
-
-  // Rebuild when numbering structure changes (none <-> numbered).
   const willBeNumbered = !!number;
-  if ((willBeNumbered && !wasNumbered) || (!willBeNumbered && wasNumbered)) {
-    const newOoxml = buildEquationOoxml(omml, {
-      display: draft.display,
-      equationId,
-      number,
-    });
+  const newOoxml = buildEquationOoxml(omml, {
+    display: draft.display,
+    equationId,
+    number,
+  });
+
+  // A numbered equation is contained in a table. Replace that complete
+  // container so Word never receives a nested content-control rewrite.
+  if (wasNumbered && typeof Word !== "undefined" && typeof Word.run === "function") {
+    await replaceNumberedEquationContainer(equationId, newOoxml);
+    if (draft.numbering === "auto" && !draft.numberValue) {
+      await renumberWordEquations();
+    }
+    return;
+  }
+
+  // Converting an ordinary equation into a numbered table replaces its
+  // selected paragraph with the newly structured display equation.
+  if (willBeNumbered && !wasNumbered) {
     await setSelectedOoxml(newOoxml);
     await moveSelectionAfterRebuiltEquation(equationId, draft.display);
-
     if (draft.numbering === "auto" && !draft.numberValue) {
       await renumberWordEquations();
     }
@@ -77,31 +95,59 @@ export async function updateEquationInWord(draft: EquationDraft, conversion: Con
 
   if (typeof Word !== "undefined" && Word.run) {
     await Word.run(async (context) => {
-      const eqCcs = context.document.contentControls.getByTag(tag);
+      const eqCcs = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
       eqCcs.load("items");
       await context.sync();
       if (eqCcs.items.length === 0) {
         throw new Error("The equation could not be found in this document.");
       }
       const equationControl = eqCcs.items[0];
-      const existingOoxml = equationControl.getOoxml();
-      await context.sync();
-      const updatedOoxml = replaceContentControlBody(existingOoxml.value, omml);
-      equationControl.getRange(Word.RangeLocation.whole).insertOoxml(updatedOoxml, Word.InsertLocation.replace);
+      equationControl.getRange(Word.RangeLocation.content).insertOoxml(
+        normalizeOmmlForWord(omml),
+        Word.InsertLocation.replace
+      );
       await context.sync();
     });
     if (number) {
       await updateNumberControlViaWordApi(equationId, number);
     }
   } else {
-    await setSelectedOoxml(buildEquationOoxml(omml, {
-      display: draft.display,
-      equationId,
-      number,
-    }));
+    await setSelectedOoxml(newOoxml);
   }
 
   if (draft.numbering === "auto" && !draft.numberValue) {
+    await renumberWordEquations();
+  }
+}
+
+export async function deleteSelectedEquationFromWord(): Promise<void> {
+  const equationId = await getSelectedEquationIdFromWord();
+  if (!equationId) {
+    throw new Error("Select a LaTeXSnipper equation to delete.");
+  }
+  if (typeof Word === "undefined" || !Word.run) {
+    throw new Error("Deleting equations is available in Word only.");
+  }
+  const record = loadEquationSource(equationId);
+  await Word.run(async (context) => {
+    const controls = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
+    controls.load("items");
+    await context.sync();
+    if (controls.items.length === 0) {
+      throw new Error("The selected equation could not be found in this document.");
+    }
+    const equationControl = controls.items[0];
+    equationControl.load("parentTableOrNullObject");
+    await context.sync();
+    if (equationControl.parentTableOrNullObject.isNullObject) {
+      equationControl.delete(true);
+    } else {
+      equationControl.parentTableOrNullObject.delete();
+    }
+    await context.sync();
+  });
+  await deleteEquationSource(equationId);
+  if (record?.numbering === "auto") {
     await renumberWordEquations();
   }
 }
@@ -125,32 +171,34 @@ export async function loadSelectedEquationFromWord(): Promise<SelectedEquation> 
 }
 
 export async function getSelectedEquationIdFromWord(): Promise<string> {
-  const ooxml = await getSelectedOoxml();
-  const id = extractEquationId(ooxml);
-  if (id) return id;
-
-  // Drag-selection may not expose the tag in OOXML. Inspect only controls
-  // contained in that selection; never infer selection from the whole body.
   if (typeof Word !== "undefined" && Word.run) {
     return Word.run(async (context) => {
       const selection = context.document.getSelection();
+      const parent = selection.parentContentControlOrNullObject;
       const ccs = selection.contentControls;
+      parent.load("tag");
       ccs.load("items");
       await context.sync();
+      if (!parent.isNullObject) {
+        const parentId = equationIdFromTag(parent.tag);
+        if (parentId) {
+          return parentId;
+        }
+      }
       for (const cc of ccs.items) {
         cc.load("tag");
       }
       await context.sync();
       for (const cc of ccs.items) {
-        if (cc.tag.startsWith(EQUATION_TAG_PREFIX)) {
-          return cc.tag.slice(EQUATION_TAG_PREFIX.length);
+        const id = equationIdFromTag(cc.tag);
+        if (id) {
+          return id;
         }
       }
       return "";
     });
   }
-
-  return "";
+  return extractEquationId(await getSelectedOoxml());
 }
 
 export async function renumberWordEquations(): Promise<number> {
@@ -214,8 +262,9 @@ export async function renumberWordEquations(): Promise<number> {
       for (const row of rows) {
         const cells = row.cells.items;
         if (cells.length >= 2) {
-          cellAlignments.push({ cell: cells[0], alignment: Word.Alignment.centered });
-          cellAlignments.push({ cell: cells[1], alignment: Word.Alignment.right });
+          const equationCellIndex = cells.length >= 3 ? 1 : 0;
+          cellAlignments.push({ cell: cells[equationCellIndex], alignment: Word.Alignment.centered });
+          cellAlignments.push({ cell: cells[cells.length - 1], alignment: Word.Alignment.right });
         }
       }
     }
@@ -263,7 +312,7 @@ async function countExistingNumberedEquations(): Promise<number> {
   });
 }
 
-async function getInsertionTargetRange(context: Word.RequestContext): Promise<Word.Range> {
+async function getValidInsertionTargetRange(context: Word.RequestContext): Promise<Word.Range> {
   const selection = context.document.getSelection();
   selection.paragraphs.load("items");
   await context.sync();
@@ -273,9 +322,15 @@ async function getInsertionTargetRange(context: Word.RequestContext): Promise<Wo
   const paragraph = selection.paragraphs.items[0];
   paragraph.load("parentTableOrNullObject");
   await context.sync();
-  return paragraph.parentTableOrNullObject.isNullObject
-    ? selection
-    : paragraph.parentTableOrNullObject.getRange(Word.RangeLocation.after);
+  if (paragraph.parentTableOrNullObject.isNullObject) {
+    return selection;
+  }
+  const tableOoxml = paragraph.parentTableOrNullObject.getRange(Word.RangeLocation.whole).getOoxml();
+  await context.sync();
+  if (tableOoxml.value.includes(NUMBER_CONTROL_TAG_PREFIX)) {
+    throw new Error("Place the cursor outside the numbered LaTeXSnipper equation before inserting another formula.");
+  }
+  return selection;
 }
 
 function buildEquationOoxml(omml: string, options: { display: boolean; equationId: string; number?: string }): string {
@@ -310,9 +365,10 @@ function buildDisplayBody(omml: string, equationId: string, number?: string): st
     '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>',
     '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>',
     "</w:tblPr>",
-    '<w:tblGrid><w:gridCol w:w="8500"/><w:gridCol w:w="1500"/></w:tblGrid>',
+    '<w:tblGrid><w:gridCol w:w="1500"/><w:gridCol w:w="7000"/><w:gridCol w:w="1500"/></w:tblGrid>',
     "<w:tr>",
-    '<w:tc><w:tcPr><w:tcW w:w="4250" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>',
+    '<w:tc><w:tcPr><w:tcW w:w="750" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p/></w:tc>',
+    '<w:tc><w:tcPr><w:tcW w:w="3500" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>',
     wrapEquationContentControl(omml, equationId),
     "</w:p></w:tc>",
     '<w:tc><w:tcPr><w:tcW w:w="750" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="right"/></w:pPr>',
@@ -366,26 +422,11 @@ function normalizeNumberedEquationTable(numberControl: Word.ContentControl): voi
   table.setCellPadding("Bottom", 0);
   table.setCellPadding("Left", 0);
   table.setCellPadding("Right", 0);
-  table.autoFitWindow();
   table.autoFitBehavior(Word.AutoFitBehavior.fixedSize);
 }
 
 function wrapEquationContentControl(omml: string, equationId: string): string {
   return wrapTaggedBlock(`${EQUATION_TAG_PREFIX}${equationId}`, normalizeOmmlForWord(omml), "LaTeXSnipper Equation");
-}
-
-function replaceContentControlBody(controlOoxml: string, omml: string): string {
-  const startToken = "<w:sdtContent>";
-  const start = controlOoxml.indexOf(startToken);
-  const end = controlOoxml.indexOf("</w:sdtContent>", start);
-  if (start === -1 || end === -1) {
-    throw new Error("The equation content control has an invalid OOXML structure.");
-  }
-  return [
-    controlOoxml.slice(0, start + startToken.length),
-    normalizeOmmlForWord(omml),
-    controlOoxml.slice(end),
-  ].join("");
 }
 
 function normalizeOmmlForWord(omml: string): string {
@@ -428,6 +469,16 @@ function extractEquationId(ooxml: string): string {
   );
 }
 
+function equationIdFromTag(tag: string): string {
+  if (tag.startsWith(EQUATION_TAG_PREFIX)) {
+    return tag.slice(EQUATION_TAG_PREFIX.length);
+  }
+  if (tag.startsWith(NUMBER_CONTROL_TAG_PREFIX)) {
+    return tag.slice(NUMBER_CONTROL_TAG_PREFIX.length);
+  }
+  return "";
+}
+
 function extractFirstMatch(value: string, pattern: RegExp): string {
   return pattern.exec(value)?.[1] || "";
 }
@@ -445,6 +496,27 @@ async function updateNumberControlViaWordApi(equationId: string, number: string)
       controls.items[0].insertText(number, Word.InsertLocation.replace);
       await context.sync();
     }
+  });
+}
+
+async function replaceNumberedEquationContainer(equationId: string, ooxml: string): Promise<void> {
+  await Word.run(async (context) => {
+    const controls = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
+    controls.load("items");
+    await context.sync();
+    if (controls.items.length === 0) {
+      throw new Error("The equation could not be found in this document.");
+    }
+    const equationControl = controls.items[0];
+    equationControl.load("parentTableOrNullObject");
+    await context.sync();
+    if (equationControl.parentTableOrNullObject.isNullObject) {
+      throw new Error("The numbered equation table could not be found.");
+    }
+    equationControl.parentTableOrNullObject
+      .getRange(Word.RangeLocation.whole)
+      .insertOoxml(ooxml, Word.InsertLocation.replace);
+    await context.sync();
   });
 }
 

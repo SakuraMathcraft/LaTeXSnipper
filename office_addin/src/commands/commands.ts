@@ -30,7 +30,7 @@ const insertFormulaCommand = (event: Office.AddinCommands.Event): void => publis
 const screenshotOcrCommand = (event: Office.AddinCommands.Event): void => publish("ocr", event);
 const numberedFormulaCommand = (event: Office.AddinCommands.Event): void => publish("numbered", event);
 const loadSelectedCommand = (event: Office.AddinCommands.Event): void => publish("loadSelected", event);
-const updateSelectedCommand = (event: Office.AddinCommands.Event): void => publish("updateSelected", event);
+const deleteSelectedCommand = (event: Office.AddinCommands.Event): void => publish("deleteSelected", event);
 const renumberCommand = (event: Office.AddinCommands.Event): void => publish("renumber", event);
 
 Office.onReady(() => {
@@ -39,6 +39,6 @@ Office.onReady(() => {
   Office.actions.associate("screenshotOcrCommand", screenshotOcrCommand);
   Office.actions.associate("numberedFormulaCommand", numberedFormulaCommand);
   Office.actions.associate("loadSelectedCommand", loadSelectedCommand);
-  Office.actions.associate("updateSelectedCommand", updateSelectedCommand);
+  Office.actions.associate("deleteSelectedCommand", deleteSelectedCommand);
   Office.actions.associate("renumberCommand", renumberCommand);
 });

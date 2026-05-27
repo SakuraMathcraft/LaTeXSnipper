@@ -138,6 +138,11 @@ export class MathLiveEditor {
   }
 
   getLatex(): string {
+    if (this.latexSourceTimer !== null) {
+      clearTimeout(this.latexSourceTimer);
+      this.latexSourceTimer = null;
+      this.core.setLatex(this.latexOutput.value);
+    }
     return this.core.getLatex();
   }
 
@@ -154,6 +159,7 @@ export class MathLiveEditor {
     if (this.updatingFromMathLive) return;
     if (this.latexSourceTimer !== null) clearTimeout(this.latexSourceTimer);
     this.latexSourceTimer = setTimeout(() => {
+      this.latexSourceTimer = null;
       this.core.setLatex(this.latexOutput.value);
       this.core.focus();
     }, 250);

@@ -23,7 +23,7 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "ScreenshotOcrButton" in text
         if manifest_name == "manifest.word.xml":
             assert "LoadSelectedButton" in text
-            assert "UpdateSelectedButton" in text
+            assert "DeleteSelectedButton" in text
             assert "RenumberButton" in text
             assert "ExecuteFunction" in text
 

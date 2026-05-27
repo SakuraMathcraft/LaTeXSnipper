@@ -470,11 +470,12 @@ function readInitArgs(): DialogInitArgs {
 }
 
 function readDraft(elements: {
+  latexSource: HTMLTextAreaElement;
   displayMode: HTMLInputElement;
   autoNumber: HTMLInputElement;
   manualNumber: HTMLInputElement;
 }): EquationDraft {
-  let latex = core.getLatex();
+  let latex = elements.latexSource.value.trim();
   if (!latex) throw new Error("LaTeX is required.");
   latex = latex.replace(/#\?/g, "0").replace(/\\placeholder\{\}/g, "0");
   const numbering = elements.autoNumber.checked ? "auto"
@@ -495,6 +496,7 @@ function sendMessage(message: DialogMessage): void {
 }
 
 async function handleInsert(elements: {
+  latexSource: HTMLTextAreaElement;
   displayMode: HTMLInputElement; autoNumber: HTMLInputElement;
   manualNumber: HTMLInputElement; insertButton: HTMLButtonElement;
 }): Promise<void> {

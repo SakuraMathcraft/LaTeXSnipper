@@ -3,7 +3,7 @@ export type RibbonCommandName =
   | "numbered"
   | "ocr"
   | "loadSelected"
-  | "updateSelected"
+  | "deleteSelected"
   | "renumber";
 
 export type RibbonCommand = {

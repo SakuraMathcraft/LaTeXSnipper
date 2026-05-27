@@ -5,6 +5,7 @@ import { loadEquationSource, loadSession, saveSession } from "../services/equati
 import { normalizeOfficeLatex } from "../services/latexNormalize";
 import { clearRibbonCommand, readRibbonCommand, RibbonCommand } from "../services/ribbonCommands";
 import {
+  deleteSelectedEquationFromWord,
   getSelectedEquationIdFromWord,
   insertEquationIntoWord,
   loadSelectedEquationFromWord,
@@ -34,10 +35,8 @@ type Elements = {
   insertButton: HTMLButtonElement;
 };
 
-let lastConversion: ConversionResult | null = null;
 let formulaEditor: MathLiveEditor | null = null;
 let officeHost: Office.HostType | undefined;
-let selectedEquationId = "";
 let selectionNoticeEquationId = "";
 let lastHandledCommandId = "";
 let actionBusy = false;
@@ -150,8 +149,8 @@ async function executeRibbonCommand(elements: Elements, command: RibbonCommand):
     case "loadSelected":
       await loadSelectedEquation(elements);
       return;
-    case "updateSelected":
-      await updateSelectedEquation(elements);
+    case "deleteSelected":
+      await deleteSelectedEquation(elements);
       return;
     case "renumber":
       await renumberEquations(elements);
@@ -183,8 +182,15 @@ function wireEvents(elements: Elements): void {
   elements.bridgeToken.addEventListener("change", () => persistBridgeInputs(elements));
   elements.bridgeUrl.addEventListener("input", () => persistBridgeInputs(elements));
   elements.bridgeToken.addEventListener("input", () => persistBridgeInputs(elements));
-  elements.latexOutput.addEventListener("latexsnipper-latex-change", () => {
-    lastConversion = null;
+  elements.manualNumber.addEventListener("input", () => {
+    if (elements.manualNumber.value.trim()) {
+      elements.autoNumber.checked = false;
+    }
+  });
+  elements.autoNumber.addEventListener("change", () => {
+    if (elements.autoNumber.checked) {
+      elements.manualNumber.value = "";
+    }
   });
 }
 
@@ -193,6 +199,7 @@ function applyLaunchMode(elements: Elements): boolean {
   if (mode === "numbered") {
     elements.displayMode.checked = true;
     elements.autoNumber.checked = true;
+    elements.manualNumber.value = "";
     setStatus(elements, "Numbered equation mode is enabled.", "ok");
     return true;
   }
@@ -261,7 +268,6 @@ async function convertCurrentLatex(elements: Elements): Promise<ConversionResult
   const latex = readLatex(elements);
   setStatus(elements, "Converting LaTeX through bridge.");
   const conversion = await clientFromElements(elements).convertLatex(latex, ["omml"]);
-  lastConversion = conversion;
   setStatus(elements, "Converted to OMML.", "ok");
   return conversion;
 }
@@ -278,7 +284,7 @@ async function insertCurrentLatex(elements: Elements): Promise<void> {
     setStatus(elements, "Inserted equation into PowerPoint.", "ok");
     return;
   }
-  const conversion = lastConversion || (await convertCurrentLatex(elements));
+  const conversion = await convertCurrentLatex(elements);
   await insertEquationIntoWord(draft, conversion);
   setStatus(elements, "Inserted equation into Word.", "ok");
 }
@@ -288,7 +294,6 @@ async function loadSelectedEquation(elements: Elements): Promise<void> {
     throw new Error("Equation editing is available in Word only.");
   }
   const selected = await loadSelectedEquationFromWord();
-  selectedEquationId = selected.equationId;
   // Sync equation content and numbering to the sidebar
   formulaEditor?.setLatex(selected.latex);
   elements.latexOutput.value = selected.latex;
@@ -299,52 +304,13 @@ async function loadSelectedEquation(elements: Elements): Promise<void> {
   setStatus(elements, "Opened equation in editor.", "ok");
 }
 
-async function updateSelectedEquation(elements: Elements): Promise<void> {
-  if (!selectedEquationId) {
-    throw new Error("Load the equation first, then update.");
+async function deleteSelectedEquation(elements: Elements): Promise<void> {
+  if (officeHost !== Office.HostType.Word) {
+    throw new Error("Deleting equations is available in Word only.");
   }
-  const record = loadEquationSource(selectedEquationId);
-  if (!record?.latex) {
-    throw new Error("The selected equation does not have saved LaTeX source.");
-  }
-
-  const latex = readLatex(elements);
-  const display = elements.displayMode.checked;
-  const numbering = elements.autoNumber.checked ? "auto" as const
-    : elements.manualNumber.value.trim() ? "manual" as const : "none" as const;
-  const manualNumber = elements.manualNumber.value || undefined;
-
-  // Nothing changed — skip the update to avoid unnecessary OOXML churn
-  // (re-converting to OMML can produce slightly different MathML that
-  // causes Word to reflow the equation, adding unwanted line breaks).
-  const originalNumbering = record.numbering || "none";
-  const rawLatex = (elements.latexOutput.value || "").trim();
-  if (
-    rawLatex === (record.latex || "").trim() &&
-    display === (record.display !== false) &&
-    numbering === originalNumbering &&
-    (numbering !== "manual" || manualNumber === record.numberValue)
-  ) {
-    setStatus(elements, "No changes to update.", "");
-    return;
-  }
-
-  // Preserve the original numberValue when the numbering type is unchanged.
-  const numberValue = numbering === originalNumbering ? record.numberValue : undefined;
-
-  const draft = {
-    latex,
-    display,
-    numbering,
-    manualNumber,
-    equationId: selectedEquationId,
-    numberValue,
-  } as const;
-
-  const conversion = await convertCurrentLatex(elements);
-  await updateEquationInWord(draft, conversion);
-  setStatus(elements, "Updated selected equation.", "ok");
-  resetSidebarAfterUpdate(elements);
+  await deleteSelectedEquationFromWord();
+  selectionNoticeEquationId = "";
+  setStatus(elements, "Deleted selected equation.", "ok");
 }
 
 async function numberSelectedEquation(elements: Elements): Promise<void> {
@@ -365,8 +331,6 @@ async function numberSelectedEquation(elements: Elements): Promise<void> {
   }
   formulaEditor?.setLatex(record.latex);
   elements.latexOutput.value = record.latex;
-  lastConversion = null;
-
   const draft = {
     latex: record.latex,
     display: true,
@@ -410,7 +374,6 @@ async function runScreenshotOcr(elements: Elements): Promise<void> {
       throw new Error("Screenshot OCR returned an empty result.");
     }
     formulaEditor?.setLatex(latex);
-    lastConversion = null;
     setStatus(elements, "Screenshot OCR result loaded.", "ok");
   } finally {
     window.clearInterval(statusTimer);
@@ -517,7 +480,7 @@ async function handleDialogMessage(elements: Elements, raw: string): Promise<voi
       elements.latexOutput.value = draft.latex;
       elements.displayMode.checked = draft.display;
       elements.autoNumber.checked = draft.numbering === "auto";
-      elements.manualNumber.value = draft.manualNumber || "";
+      elements.manualNumber.value = draft.numbering === "manual" ? (draft.manualNumber || "") : "";
       await runAction(elements, () => insertFromDialog(elements, draft, message.equationId));
       officeDialog?.close();
       officeDialog = null;
@@ -585,8 +548,6 @@ function resetSidebarAfterUpdate(elements: Elements): void {
   elements.displayMode.checked = true;
   elements.autoNumber.checked = false;
   elements.manualNumber.value = "";
-  selectedEquationId = "";
-  lastConversion = null;
 }
 
 function refreshCommandAvailability(elements: Elements): void {

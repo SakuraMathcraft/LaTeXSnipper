@@ -81,6 +81,11 @@ export function loadEquationSource(equationId: string): EquationSourceRecord | n
   return null;
 }
 
+export async function deleteEquationSource(equationId: string): Promise<void> {
+  Office.context.document.settings.remove(`${EQUATION_SOURCE_PREFIX}${equationId}`);
+  await saveSettings();
+}
+
 function readNumberingState(raw: unknown): NumberingState {
   if (typeof raw === "object" && raw !== null && "next" in raw) {
     const value = Number((raw as NumberingState).next);

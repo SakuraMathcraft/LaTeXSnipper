@@ -20,7 +20,7 @@ Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editi
 | **Numbered** | Add auto-numbering to the selected equation |
 | **Screenshot OCR** | Import next global LaTeXSnipper recognition result |
 | **Load Selected** | Open selected equation in the dialog editor |
-| **Update Selected** | Replace selected equation with sidebar content |
+| **Delete Selected** | Delete the selected equation, including its numbering table |
 | **Renumber** | Renumber auto-numbered equations in document order |
 | **Help** | Open built-in help documentation |
 

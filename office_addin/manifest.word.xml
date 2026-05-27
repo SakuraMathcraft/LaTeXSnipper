@@ -110,11 +110,11 @@
                     <FunctionName>loadSelectedCommand</FunctionName>
                   </Action>
                 </Control>
-                <Control xsi:type="Button" id="UpdateSelectedButton">
-                  <Label resid="UpdateSelected.Label"/>
+                <Control xsi:type="Button" id="DeleteSelectedButton">
+                  <Label resid="DeleteSelected.Label"/>
                   <Supertip>
-                    <Title resid="UpdateSelected.Label"/>
-                    <Description resid="UpdateSelected.Tooltip"/>
+                    <Title resid="DeleteSelected.Label"/>
+                    <Description resid="DeleteSelected.Tooltip"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Ico.Update.16"/>
@@ -122,7 +122,7 @@
                     <bt:Image size="80" resid="Ico.Update.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
-                    <FunctionName>updateSelectedCommand</FunctionName>
+                    <FunctionName>deleteSelectedCommand</FunctionName>
                   </Action>
                 </Control>
               </Group>
@@ -243,7 +243,7 @@
         <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"/>
         <bt:String id="NumberedFormula.Label" DefaultValue="Numbered"/>
         <bt:String id="LoadSelected.Label" DefaultValue="Load Selected"/>
-        <bt:String id="UpdateSelected.Label" DefaultValue="Update Selected"/>
+        <bt:String id="DeleteSelected.Label" DefaultValue="Delete Selected"/>
         <bt:String id="Renumber.Label" DefaultValue="Renumber"/>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
         <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
@@ -255,7 +255,7 @@
         <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."/>
         <bt:String id="NumberedFormula.Tooltip" DefaultValue="Add automatic numbering to the selected LaTeXSnipper equation."/>
         <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."/>
-        <bt:String id="UpdateSelected.Tooltip" DefaultValue="Replace the selected equation with the current editor content."/>
+        <bt:String id="DeleteSelected.Tooltip" DefaultValue="Delete the selected LaTeXSnipper equation and its numbering table."/>
         <bt:String id="Renumber.Tooltip" DefaultValue="Renumber LaTeXSnipper display equations in document order."/>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
         <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."/>
