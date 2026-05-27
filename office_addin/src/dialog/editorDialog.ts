@@ -316,7 +316,12 @@ Office.onReady(async () => {
   elements.autoNumberOption.hidden = isPowerPoint;
   elements.autoNumber.disabled = isPowerPoint;
 
-  core = await MathLiveCore.create(elements.mathfieldHost);
+  try {
+    core = await MathLiveCore.create(elements.mathfieldHost);
+  } catch (error: unknown) {
+    setStatus(displayMessage(error instanceof Error ? error.message : String(error)), true);
+    return;
+  }
   buildSymbolPanel();
 
   if (initArgs.latex) {

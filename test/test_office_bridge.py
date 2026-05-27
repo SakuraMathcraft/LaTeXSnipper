@@ -120,6 +120,8 @@ def test_office_bridge_serves_installed_addin_site(tmp_path: Path) -> None:
     try:
         with urllib.request.urlopen(f"{server.base_url}/taskpane.html?host=word", timeout=5) as response:
             assert response.read().decode("utf-8") == "<html>office</html>"
+            assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate"
+            assert response.headers["Pragma"] == "no-cache"
     finally:
         server.stop()
 

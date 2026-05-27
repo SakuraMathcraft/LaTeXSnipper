@@ -68,6 +68,8 @@ def test_office_addin_static_icon_assets_exist() -> None:
 
 def test_office_addin_includes_local_mathlive_runtime() -> None:
     runtime = ADDIN / "public" / "vendor" / "mathlive.min.mjs"
+    bootstrap = ADDIN / "public" / "vendor" / "mathlive-bootstrap.mjs"
+    fonts = ADDIN / "public" / "vendor" / "fonts"
     license_file = ADDIN / "public" / "vendor" / "mathlive.LICENSE.txt"
     loader = (ADDIN / "src" / "taskpane" / "mathliveEditor.ts").read_text(encoding="utf-8")
     taskpane = (ADDIN / "taskpane.html").read_text(encoding="utf-8")
@@ -75,10 +77,16 @@ def test_office_addin_includes_local_mathlive_runtime() -> None:
 
     assert runtime.is_file()
     assert runtime.stat().st_size > 0
+    assert bootstrap.is_file()
+    assert 'customElements.define("math-field", MathfieldElement);' in bootstrap.read_text(encoding="utf-8")
+    assert fonts.is_dir()
+    assert any(fonts.glob("*.woff2"))
     assert license_file.is_file()
     assert "customElements.whenDefined" in loader
-    assert "/vendor/mathlive.min.mjs" in taskpane
-    assert "/vendor/mathlive.min.mjs" in dialog
+    assert "MATHFIELD_LOAD_TIMEOUT_MS" in loader
+    assert 'Mathfield.fontsDirectory = "/vendor/fonts";' in loader
+    assert "/vendor/mathlive-bootstrap.mjs" in taskpane
+    assert "/vendor/mathlive-bootstrap.mjs" in dialog
 
 
 def test_office_addin_help_documents_runtime_boundaries_in_both_languages() -> None:
@@ -118,6 +126,9 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     assert "data-i18n" in taskpane
     assert "data-i18n" in dialog
     assert "Office.context.displayLanguage" in app
+    assert "void initializeFormulaEditor(elements);" in app
+    assert app.index("wireEvents(elements);") < app.index("void initializeFormulaEditor(elements);")
+    assert app.index("void initializeFormulaEditor(elements);") < app.index("tryAutoConfigureBridge(elements)")
     assert 'insertCurrentLatex(elements, "auto")' not in app
     assert "pptManualNumberPrompt" in app
     assert 'type: "insertFailed"' in app

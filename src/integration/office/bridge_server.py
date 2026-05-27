@@ -187,6 +187,7 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.send_response(int(HTTPStatus.OK))
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
+        self._send_no_store_headers()
         origin = self.headers.get("Origin")
         if origin is not None:
             self.send_header("Access-Control-Allow-Origin", origin)
@@ -198,6 +199,7 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
+        self._send_no_store_headers()
         origin = self.headers.get("Origin")
         if origin in {
             "https://localhost:3000",
@@ -212,3 +214,7 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if status != HTTPStatus.NO_CONTENT:
             self.wfile.write(raw)
+
+    def _send_no_store_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")

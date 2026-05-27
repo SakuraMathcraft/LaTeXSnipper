@@ -56,15 +56,23 @@ Office.onReady(async (info) => {
   configureHostUi(elements);
   restoreSession(elements);
   refreshCommandAvailability(elements);
-  formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
   startRibbonCommandPolling(elements);
+  void initializeFormulaEditor(elements);
   const configured = await tryAutoConfigureBridge(elements);
   if (!configured) {
     setStatus(elements, t("ready"), "ok");
   }
 });
+
+async function initializeFormulaEditor(elements: Elements): Promise<void> {
+  try {
+    formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
+  } catch (error: unknown) {
+    setStatus(elements, displayMessage(error instanceof Error ? error.message : String(error)), "error");
+  }
+}
 
 function resolveElements(): Elements {
   return {
