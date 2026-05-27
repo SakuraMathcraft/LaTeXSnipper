@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -55,7 +56,7 @@ def test_office_bridge_health_and_authenticated_conversion() -> None:
     try:
         health = _get_json(f"{server.base_url}/health")
         assert health["ok"] is True
-        assert health["result"]["features"]["convert_latex"] is True
+        assert health["result"] == {"name": "LaTeXSnipper Office Bridge"}
 
         config = _get_json(f"{server.base_url}/config")
         assert config["ok"] is True
@@ -93,9 +94,6 @@ def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
     )
     server.start()
     try:
-        health = _get_json(f"{server.base_url}/health")
-        assert health["result"]["features"]["capture_recognize"] is True
-
         status = _post_json(
             f"{server.base_url}/recognition/status",
             {},
@@ -111,6 +109,17 @@ def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
         )
         assert result["status"] == 200
         assert result["payload"]["result"]["latex"] == "x^2"
+    finally:
+        server.stop()
+
+
+def test_office_bridge_serves_installed_addin_site(tmp_path: Path) -> None:
+    (tmp_path / "taskpane.html").write_text("<html>office</html>", encoding="utf-8")
+    server = OfficeBridgeServer(site_root=tmp_path)
+    server.start()
+    try:
+        with urllib.request.urlopen(f"{server.base_url}/taskpane.html?host=word", timeout=5) as response:
+            assert response.read().decode("utf-8") == "<html>office</html>"
     finally:
         server.stop()
 

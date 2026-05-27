@@ -72,11 +72,7 @@ try {
 
     $health = Get-OfficeBridgeHealth
     if ($health -and $health.ok) {
-        $capture = [bool]$health.result.features.capture_recognize
-        Write-Host "Office bridge detected: capture_recognize=$capture"
-        if (-not $capture) {
-            Write-Host "Warning: current bridge is conversion-only. Screenshot OCR needs the LaTeXSnipper desktop bridge."
-        }
+        Write-Host "LaTeXSnipper Office bridge detected."
     }
     else {
         Write-Host "Warning: Office bridge is not reachable at http://127.0.0.1:8765."

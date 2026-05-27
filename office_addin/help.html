@@ -30,7 +30,7 @@
     <p class="lead">Equation entry and screenshot OCR powered by the local LaTeXSnipper Office bridge.</p>
 
     <div class="callout">
-      The add-in follows the Office display language. Start the desktop Office bridge before using conversion or screenshot OCR.
+      The add-in follows the Office display language. Enable the Office add-in feature in LaTeXSnipper desktop settings and keep the desktop app running before using conversion or screenshot OCR.
     </div>
 
     <h2>Supported Hosts</h2>
@@ -50,6 +50,7 @@
       </tbody>
     </table>
     <p>Web and mobile Office are not product targets because the workflow depends on a local desktop bridge and desktop screenshot capture.</p>
+    <p>The released installer is a desktop sideload path: Windows configures a trusted shared-folder catalog, while macOS deploys to the Word and PowerPoint sideload folders. Both configure the local <code>https://localhost:8765</code> site. They are not Marketplace or centralized administration deployment packages.</p>
 
     <h2>Word Functions</h2>
     <h3>Insert Formula</h3>
@@ -63,7 +64,7 @@
     <p>A cursor inside an existing LaTeXSnipper equation or numbered layout cannot be used as an insertion point; the add-in reports this instead of allowing Word to raise a raw insertion error.</p>
 
     <h2>PowerPoint Functions</h2>
-    <p><strong>Insert Formula</strong> writes a rendered PNG image to the current slide. <strong>Insert Numbered</strong> writes one composed PNG containing both the formula and its number, so the label cannot separate from the formula. Screenshot OCR loads LaTeX into the editor before insertion.</p>
+    <p><strong>Insert Formula</strong> writes a rendered PNG image to the current slide. <strong>Insert Numbered</strong> writes one composed PNG containing both the formula and its number, so the label cannot separate from the formula. Screenshot OCR updates the task pane and, while its editor window is open, synchronizes the same LaTeX into that window before insertion.</p>
     <p>PowerPoint does not expose the Word-style tagged editable equation container used by this add-in. Therefore PowerPoint intentionally has no Load Selected, Update, Delete Selected, or Renumber All workflow for inserted images.</p>
 
     <h2>Office.js Capability Boundary</h2>

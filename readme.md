@@ -269,17 +269,21 @@ is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno installer; SignPath-signed artifact is preferred, with an unsigned fallback when signing is unavailable.
+- Windows: Inno desktop installer and a separate Office add-in Inno installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
-- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
+- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`, plus the Office add-in `.pkg` from `scripts/build_office_addin_macos.sh`.
+
+The Office add-in packages deploy the Word/PowerPoint desktop sideload configuration and a localhost HTTPS site consumed by the LaTeXSnipper Office Bridge. They require the installed desktop application with its Office feature enabled; they are not Marketplace or Microsoft 365 centralized deployment packages.
 
 The release workflow expects these GitHub Actions variables:
 `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
 `SIGNPATH_SIGNING_POLICY_SLUG`, and
-`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
+`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`; signing the Office add-in installer
+additionally uses `SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
 `SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
-`.signpath/artifact-configurations/windows-installer.xml`; copy that XML into
-the matching SignPath project artifact configuration.
+`.signpath/artifact-configurations/windows-installer.xml` and
+`.signpath/artifact-configurations/windows-office-addin-installer.xml`; copy
+those XML files into the matching SignPath project artifact configurations.
 
 ---
 

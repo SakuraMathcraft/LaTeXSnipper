@@ -373,7 +373,7 @@ Office.onReady(async () => {
 
   elements.insertButton.addEventListener("click", () => void handleInsert(elements));
   Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, (arg: { message?: string }) => {
-    handleParentMessage(elements.insertButton, arg.message);
+    handleParentMessage(elements, arg.message);
   });
   window.addEventListener("keydown", (event) => handleKeyboard(event, elements));
 
@@ -492,19 +492,29 @@ function sendMessage(message: DialogMessage): void {
   Office.context.ui.messageParent(JSON.stringify(message));
 }
 
-function handleParentMessage(insertButton: HTMLButtonElement, raw?: string): void {
+function handleParentMessage(
+  elements: { latexSource: HTMLTextAreaElement; insertButton: HTMLButtonElement },
+  raw?: string
+): void {
   if (!raw) {
     return;
   }
-  let message: { type?: string; message?: string };
+  let message: { type?: string; message?: string; latex?: string };
   try {
     message = JSON.parse(raw) as typeof message;
   } catch {
     return;
   }
   if (message.type === "insertFailed") {
-    insertButton.disabled = false;
+    elements.insertButton.disabled = false;
     setStatus(message.message || t("ready"), true);
+    return;
+  }
+  if (message.type === "ocrResult" && message.latex) {
+    core.setLatex(message.latex);
+    elements.latexSource.value = message.latex;
+    core.focus();
+    setStatus(t("ocrLoaded"));
   }
 }
 

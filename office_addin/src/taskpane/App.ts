@@ -16,7 +16,9 @@ import { insertEquationIntoPowerPoint } from "../office/powerpointInsert";
 import { configureLocale, currentLocale, displayMessage, localizeDocument, t } from "../services/i18n";
 import { MathLiveEditor } from "./mathliveEditor";
 
-const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8765";
+const DEFAULT_BRIDGE_URL = window.location.port === "8765"
+  ? window.location.origin
+  : "http://127.0.0.1:8765";
 
 type Elements = {
   hostLabel: HTMLElement;
@@ -43,6 +45,7 @@ let selectionNoticeEquationId = "";
 let lastHandledCommandId = "";
 let actionBusy = false;
 let officeDialog: Office.Dialog | null = null;
+let officeDialogKind: "editor" | "help" | null = null;
 
 Office.onReady(async (info) => {
   configureLocale(Office.context.displayLanguage);
@@ -215,9 +218,8 @@ function wireEvents(elements: Elements): void {
 
 async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
   try {
-    const health = await configureBridge(elements, DEFAULT_BRIDGE_URL, 2500);
-    const ocrText = health.features.capture_recognize ? t("ocrEnabled") : t("conversionOnly");
-    setStatus(elements, t("connectedBridge", { feature: ocrText }), health.features.capture_recognize ? "ok" : "");
+    await configureBridge(elements, DEFAULT_BRIDGE_URL, 2500);
+    setStatus(elements, t("connectedBridge"), "ok");
     return true;
   } catch {
     if (!elements.bridgeToken.value.trim()) {
@@ -230,8 +232,8 @@ async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
 }
 
 async function testConnection(elements: Elements): Promise<void> {
-  const health = await configureBridge(elements, elements.bridgeUrl.value, 7000);
-  setStatus(elements, t("connectedProtocol", { name: health.name, protocol: health.protocol }), "ok");
+  await configureBridge(elements, elements.bridgeUrl.value, 7000);
+  setStatus(elements, t("connectedBridge"), "ok");
 }
 
 async function configureBridge(elements: Elements, baseUrl: string, timeoutMs: number): Promise<BridgeHealth> {
@@ -244,11 +246,7 @@ async function configureBridge(elements: Elements, baseUrl: string, timeoutMs: n
   elements.bridgeToken.value = config.token;
   await persistSession(elements);
   refreshCommandAvailability(elements);
-  const health = await clientFromElements(elements).health(true);
-  if (!health.features.convert_latex) {
-    throw new Error(t("conversionRequired"));
-  }
-  return health;
+  return clientFromElements(elements).health(true);
 }
 
 async function convertCurrentLatex(elements: Elements): Promise<ConversionResult> {
@@ -361,6 +359,10 @@ async function runScreenshotOcr(elements: Elements): Promise<void> {
       throw new Error(t("ocrEmpty"));
     }
     formulaEditor?.setLatex(latex);
+    elements.latexOutput.value = latex;
+    if (officeDialog && officeDialogKind === "editor") {
+      officeDialog.messageChild(JSON.stringify({ type: "ocrResult", latex }));
+    }
     setStatus(elements, t("ocrLoaded"), "ok");
   } finally {
     window.clearInterval(statusTimer);
@@ -430,6 +432,7 @@ function openDialogEditor(
       return;
     }
     officeDialog = result.value;
+    officeDialogKind = "editor";
     officeDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: {
       message?: string;
       error?: number;
@@ -440,6 +443,7 @@ function openDialogEditor(
     });
     officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
       officeDialog = null;
+      officeDialogKind = null;
       resetSidebarAfterUpdate(elements);
     });
   });
@@ -455,8 +459,10 @@ function openHelpDialog(elements: Elements): void {
       return;
     }
     officeDialog = result.value;
+    officeDialogKind = "help";
     officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
       officeDialog = null;
+      officeDialogKind = null;
     });
   });
 }
@@ -470,6 +476,7 @@ function closeOfficeDialog(): void {
   } catch {
   } finally {
     officeDialog = null;
+    officeDialogKind = null;
   }
 }
 
@@ -501,11 +508,13 @@ async function handleDialogMessage(elements: Elements, raw: string): Promise<voi
       }
       officeDialog?.close();
       officeDialog = null;
+      officeDialogKind = null;
       break;
     }
     case "close": {
       officeDialog?.close();
       officeDialog = null;
+      officeDialogKind = null;
       break;
     }
   }

@@ -21,6 +21,7 @@ Word / PowerPoint Ribbon
        -> MathLive quick editor
        -> Dialog editor
        -> Local Office bridge
+            GET  installed add-in static site over HTTPS in release builds
             POST /convert/latex
             POST /recognize/screenshot
             POST /recognition/status
@@ -28,6 +29,8 @@ Word / PowerPoint Ribbon
 ```
 
 Ribbon 命令通过共享运行时进入任务窗格调度层；`Editor`、`Insert`、`Screenshot OCR`、编号动作和 `Help` 都执行真实命令，而不是仅打开一个无动作的窗格。
+
+截图识别返回后，任务窗格输入值总会更新；若 `Dialog editor` 正在打开，父窗口通过 Office 对话框消息同时将同一 LaTeX 写入该编辑器。
 
 ## 语言
 
@@ -81,6 +84,14 @@ PowerPoint 工作流没有 `Load Selected`、`Update`、`Delete Selected` 或 `R
 
 Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源和自动编号状态；PowerPoint 插入结果不写入虚假的可编辑公式元数据。
 
+正式安装包将构建后的 Office 站点、manifest 和 `localhost` TLS 配置安装到本机。启用 Office 功能后的桌面端发现这些资源后，以 `https://localhost:8765` 同时提供站点和 Bridge API：
+
+- Windows Inno 安装包生成受信任的 `localhost` 证书，并注册包含 Word/PPT manifest 的 Office 共享文件夹目录。
+- macOS `.pkg` 生成用户信任的 `localhost` 证书，并将 manifest 复制到 Word 和 PowerPoint 的旁加载目录。
+- GitHub Release workflow 产出 Windows 安装程序与 macOS 包；Windows 安装程序纳入 SignPath 签名路径。
+
+该分发方式是 Office 桌面端旁加载/内部安装路径。当前没有实现 Microsoft Marketplace 发布、Microsoft 365 管理员集中部署或远程托管网页，因此文档和 UI 不声称支持这些渠道。
+
 ## Requirement Sets
 
 | 宿主 | Manifest 声明 | 支持目标 |
@@ -102,6 +113,9 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 | `src/services/i18n.ts` | 中英文字符串与错误显示 |
 | `src/services/equationSession.ts` | 文档设置持久化 |
 | `src/services/ribbonCommands.ts` | Ribbon 与共享运行时队列 |
+| `../src/integration/office/addin_runtime.py` | 正式安装站点及 TLS 文件发现 |
+| `../scripts/build_office_addin_installer.ps1` | Windows Office 加载项安装包构建 |
+| `../scripts/build_office_addin_macos.sh` | macOS Office 加载项安装包构建 |
 
 ## 官方依据
 
@@ -109,3 +123,5 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 - [Shared runtime requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets)
 - [Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)
 - [Localize Office Add-ins](https://learn.microsoft.com/office/dev/add-ins/develop/localization)
+- [Sideload Office Add-ins from a network share on Windows](https://learn.microsoft.com/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins)
+- [Sideload Office Add-ins on Mac](https://learn.microsoft.com/office/dev/add-ins/testing/sideload-an-office-add-in-on-mac)

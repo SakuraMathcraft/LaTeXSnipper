@@ -16,7 +16,7 @@ Word 使用带 `latexsnipper-eq-{id}` 标记的内容控件保存 OMML 公式，
 | `Delete Selected` | 删除选中公式及其元数据；编号公式同时删除自身表格 |
 | `Auto Numbered` | 为选中的未编号公式添加自动编号 |
 | `Renumber All` | 按文档顺序重排所有自动编号公式 |
-| `Screenshot OCR` | 将下一次桌面端截图识别结果载入编辑器 |
+| `Screenshot OCR` | 将下一次桌面端截图识别结果载入任务窗格，并同步到已打开的编辑器窗口 |
 
 编号公式以独立的无边框三列表格布局；连续插入不会合并到同一表格。处于已有公式或编号布局内部的插入请求会直接提示不可插入。
 
@@ -29,7 +29,7 @@ PowerPoint 通过 `Office.CoercionType.Image` 插入 PNG 图像：
 | `Editor` | 打开公式编辑器 |
 | `Insert Formula` | 向当前幻灯片插入公式图像 |
 | `Insert Numbered` | 插入一张包含公式和编号的合成图像 |
-| `Screenshot OCR` | 将识别结果载入编辑器后再插入 |
+| `Screenshot OCR` | 将识别结果载入任务窗格，并同步到已打开的编辑器窗口后再插入 |
 
 PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected` 或 `Renumber All`。
 
@@ -49,6 +49,17 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 | PowerPoint 桌面版 | `ImageCoercion 1.1`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 PowerPoint Version 2102 (Build 13722.10000) 或 PowerPoint 2021/2024，Mac 要求 PowerPoint 16.46 |
 
 本地 Bridge 与桌面截图依赖使 Web 和移动版 Office 不属于当前支持范围。
+
+## 正式安装与分发
+
+发布流水线生成两个独立的 Office 加载项安装包：
+
+| 平台 | 安装包 | 安装行为 |
+|---|---|---|
+| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点和 manifest，生成并信任仅用于 `localhost` 的 TLS 证书，注册 Office 共享文件夹受信任目录 |
+| macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点和 manifest，生成并信任 `localhost` TLS 证书，将 manifest 部署到 Word 与 PowerPoint 的 `wef` 目录 |
+
+这些安装包属于桌面端旁加载/内部分发路径，不是 Microsoft Marketplace 或管理员集中部署包。加载项页面和 API 由启用 Office 加载项功能后的 LaTeXSnipper 桌面端在 `https://localhost:8765` 提供；未安装并运行桌面端时，Office 加载项不能转换或截图识别。
 
 ## 开发启动
 
@@ -86,8 +97,11 @@ npm run dev:powerpoint
 | `src/office/powerpointInsert.ts` | PowerPoint PNG 与编号合成图像插入 |
 | `src/services/i18n.ts` | 按 Office 显示语言切换文本 |
 | `src/services/equationSession.ts` | Word 文档设置和编号状态 |
+| `../src/integration/office/addin_runtime.py` | 发现正式安装的站点与本机 TLS 配置 |
 
 官方依据：
 [Word requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/word/word-api-requirement-sets)；
 [Shared runtime requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets)；
-[Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)。
+[Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)；
+[Shared folder catalog sideloading on Windows](https://learn.microsoft.com/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins)；
+[Sideloading on Mac](https://learn.microsoft.com/office/dev/add-ins/testing/sideload-an-office-add-in-on-mac)。

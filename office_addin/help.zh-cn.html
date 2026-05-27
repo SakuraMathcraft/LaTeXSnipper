@@ -30,7 +30,7 @@
     <p class="lead">通过本机 LaTeXSnipper Office Bridge 输入公式并使用截图识别。</p>
 
     <div class="callout">
-      加载项界面跟随 Office 显示语言自动切换。使用转换或截图识别前，请先启动桌面端 Office Bridge。
+      加载项界面跟随 Office 显示语言自动切换。使用转换或截图识别前，请在 LaTeXSnipper 桌面端设置中启用 Office 加载项功能并保持桌面端运行。
     </div>
 
     <h2>支持的宿主</h2>
@@ -50,6 +50,7 @@
       </tbody>
     </table>
     <p>由于工作流依赖本机 Bridge 与桌面截图，Web 和移动版 Office 不作为当前产品支持目标。</p>
+    <p>发布安装包为桌面旁加载路径：Windows 安装包配置受信任共享文件夹目录，macOS 安装包部署到 Word/PPT 旁加载目录；两者均配置本机 <code>https://localhost:8765</code> 站点。它们不是 Marketplace 或管理员集中部署包。</p>
 
     <h2>Word 功能</h2>
     <h3>插入公式</h3>
@@ -63,7 +64,7 @@
     <p>光标位于已有 LaTeXSnipper 公式或编号布局内部时不能继续插入；加载项会显示明确提示，而不是暴露 Word 原始写入错误。</p>
 
     <h2>PowerPoint 功能</h2>
-    <p><strong>插入公式</strong>将渲染后的 PNG 图像写入当前幻灯片。<strong>插入编号公式</strong>写入一张同时含公式和编号的合成 PNG，编号不会与公式分离。截图识别先将 LaTeX 载入编辑器，再由用户插入。</p>
+    <p><strong>插入公式</strong>将渲染后的 PNG 图像写入当前幻灯片。<strong>插入编号公式</strong>写入一张同时含公式和编号的合成 PNG，编号不会与公式分离。截图识别更新任务窗格，并在编辑器窗口已打开时同步更新窗口内容，再由用户插入。</p>
     <p>PowerPoint 不提供本加载项在 Word 中使用的带标记可编辑公式容器。因此 PowerPoint 对已插入图像不提供加载、更新、删除选中项或重新编号全部工作流。</p>
 
     <h2>Office.js 能力边界</h2>
