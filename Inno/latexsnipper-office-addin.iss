@@ -25,6 +25,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 DisableProgramGroupPage=yes
+UninstallDisplayIcon={app}\icon.ico
+UninstallDisplayName={#MyAppName}
 OutputDir={#MyOutputDir}
 OutputBaseFilename=OfficeAddinSetup-{#MyAppVersion}
 SetupIconFile={#MySourceRoot}\icon.ico
@@ -39,6 +41,7 @@ Name: "chinesesimplified"; MessagesFile: "{#MySourceRoot}\ChineseSimplified.isl"
 Source: "{#MySourceRoot}\site\*"; DestDir: "{app}\site"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MySourceRoot}\manifests\*"; DestDir: "{app}\manifests"; Flags: ignoreversion
 Source: "{#MySourceRoot}\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MySourceRoot}\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MySourceRoot}\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Run]
