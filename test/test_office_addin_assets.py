@@ -121,11 +121,24 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     app = (ADDIN / "src" / "taskpane" / "App.ts").read_text(encoding="utf-8")
     i18n = (ADDIN / "src" / "services" / "i18n.ts").read_text(encoding="utf-8")
     powerpoint = (ADDIN / "src" / "office" / "powerpointInsert.ts").read_text(encoding="utf-8")
+    session = (ADDIN / "src" / "services" / "equationSession.ts").read_text(encoding="utf-8")
+    dev_script = (ADDIN / "scripts" / "start_office_dev.ps1").read_text(encoding="utf-8")
+    editor_dialog = (ADDIN / "src" / "dialog" / "editorDialog.ts").read_text(encoding="utf-8")
     package = (ADDIN / "package.json").read_text(encoding="utf-8")
 
     assert "data-i18n" in taskpane
     assert "data-i18n" in dialog
     assert "Office.context.displayLanguage" in app
+    assert "https://localhost:8765" in taskpane
+    assert "https://localhost:8765" in app
+    assert "https://localhost:8765" in session
+    assert "https://localhost:8765" in dev_script
+    assert "https://localhost:8765" in editor_dialog
+    assert "http://127.0.0.1:8765" not in taskpane
+    assert "http://127.0.0.1:8765" not in app
+    assert "http://127.0.0.1:8765" not in session
+    assert "http://127.0.0.1:8765" not in dev_script
+    assert "http://127.0.0.1:8765" not in editor_dialog
     assert "void initializeFormulaEditor(elements);" in app
     assert app.index("wireEvents(elements);") < app.index("void initializeFormulaEditor(elements);")
     assert app.index("void initializeFormulaEditor(elements);") < app.index("tryAutoConfigureBridge(elements)")

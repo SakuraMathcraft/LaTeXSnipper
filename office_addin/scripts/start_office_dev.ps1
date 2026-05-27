@@ -23,42 +23,64 @@ $repoRoot = Resolve-Path (Join-Path $scriptDir "..\..")
 $addinRoot = Join-Path $repoRoot "office_addin"
 $python = Join-Path $repoRoot "tools\deps\python311\python.exe"
 $mainPy = Join-Path $repoRoot "src\main.py"
+$devServerUrl = "https://localhost:3000/taskpane.html"
+$officeBridgeUrl = "https://localhost:8765"
+
+function Invoke-LocalHttpsProbe($Url, $ReadBody) {
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $code = if ($ReadBody) {
+            "import ssl, sys, urllib.request; ctx = ssl._create_unverified_context(); print(urllib.request.urlopen(sys.argv[1], context=ctx, timeout=2).read().decode('utf-8'))"
+        }
+        else {
+            "import ssl, sys, urllib.request; ctx = ssl._create_unverified_context(); urllib.request.urlopen(sys.argv[1], context=ctx, timeout=2).close(); print('ok')"
+        }
+        $output = & $python -c $code $Url 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return $null
+        }
+        return $output
+    }
+    finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+    }
+}
 
 function Get-OfficeBridgeHealth {
-    try {
-        return Invoke-RestMethod -Uri "http://127.0.0.1:8765/health" -TimeoutSec 2
-    }
-    catch {
+    $payload = Invoke-LocalHttpsProbe "$officeBridgeUrl/health" $true
+    if (-not $payload) {
         return $null
     }
+    return $payload | ConvertFrom-Json
 }
 
 function Wait-HttpReady($Url, $Seconds) {
     $deadline = (Get-Date).AddSeconds($Seconds)
     while ((Get-Date) -lt $deadline) {
-        try {
-            Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 2 | Out-Null
+        if ($null -ne (Invoke-LocalHttpsProbe $Url $false)) {
             return $true
         }
-        catch {
-            Start-Sleep -Milliseconds 500
-        }
+        Start-Sleep -Milliseconds 500
     }
     return $false
 }
 
 Push-Location $addinRoot
 try {
-    $viteListening = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
-    if (-not $viteListening) {
-        Write-Host "Starting Office add-in Vite dev server..."
-        Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $addinRoot -WindowStyle Hidden
-        if (-not (Wait-HttpReady "https://localhost:3000/taskpane.html" 20)) {
-            throw "Vite dev server did not become ready at https://localhost:3000."
-        }
+    if (Wait-HttpReady $devServerUrl 2) {
+        Write-Host "Vite dev server is already reachable at $devServerUrl."
     }
     else {
-        Write-Host "Vite dev server is already listening on port 3000."
+        $viteListening = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+        if ($viteListening) {
+            throw "Port 3000 is already in use, but $devServerUrl did not respond."
+        }
+        Write-Host "Starting Office add-in Vite dev server..."
+        Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $addinRoot -WindowStyle Hidden
+        if (-not (Wait-HttpReady $devServerUrl 20)) {
+            throw "Vite dev server did not become ready at $devServerUrl."
+        }
     }
 
     if ($LaunchLaTeXSnipper) {
@@ -75,7 +97,7 @@ try {
         Write-Host "LaTeXSnipper Office bridge detected."
     }
     else {
-        Write-Host "Warning: Office bridge is not reachable at http://127.0.0.1:8765."
+        Write-Host "Warning: Office bridge is not reachable at $officeBridgeUrl."
         Write-Host "Open LaTeXSnipper settings and enable the Office add-in before testing Screenshot OCR."
     }
 

@@ -468,7 +468,7 @@ function readInitArgs(): DialogInitArgs {
     mode: (params.get("mode") as "insert" | "update") || "insert",
     latex: params.get("latex") || undefined,
     equationId: params.get("equationId") || undefined,
-    bridgeUrl: params.get("bridgeUrl") || "http://127.0.0.1:8765",
+    bridgeUrl: params.get("bridgeUrl") || "https://localhost:8765",
     bridgeToken: params.get("bridgeToken") || "",
     display: params.has("display") ? params.get("display") === "true" : undefined,
     autoNumber: params.has("autoNumber") ? params.get("autoNumber") === "true" : undefined,

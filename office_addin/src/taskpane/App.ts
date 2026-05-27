@@ -18,7 +18,7 @@ import { MathLiveEditor } from "./mathliveEditor";
 
 const DEFAULT_BRIDGE_URL = window.location.port === "8765"
   ? window.location.origin
-  : "http://127.0.0.1:8765";
+  : "https://localhost:8765";
 
 type Elements = {
   hostLabel: HTMLElement;
