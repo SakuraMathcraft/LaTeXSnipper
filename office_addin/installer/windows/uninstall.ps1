@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$root = (Resolve-Path -LiteralPath $InstallRoot).Path
 $thumbprintFile = Join-Path $InstallRoot "tls\thumbprint.txt"
 if (Test-Path -LiteralPath $thumbprintFile) {
     $thumbprint = (Get-Content -LiteralPath $thumbprintFile -Raw).Trim()
@@ -12,6 +13,7 @@ if (Test-Path -LiteralPath $thumbprintFile) {
         Remove-Item -LiteralPath (Join-Path $store $thumbprint) -Force -ErrorAction SilentlyContinue
     }
 }
+Remove-Item -LiteralPath (Join-Path $InstallRoot "tls") -Force -Recurse -ErrorAction SilentlyContinue
 
 $wefBase = "HKCU:\Software\Microsoft\Office\16.0\WEF"
 $devKey = Join-Path $wefBase "Developer"
@@ -21,4 +23,10 @@ $propNames = @(
 )
 foreach ($name in $propNames) {
     Remove-ItemProperty -Path $devKey -Name $name -Force -ErrorAction SilentlyContinue
+}
+
+$productKey = "HKCU:\Software\LaTeXSnipper\OfficeAddin"
+$installed = Get-ItemProperty -LiteralPath $productKey -Name "InstallRoot" -ErrorAction SilentlyContinue
+if ($null -ne $installed -and [string]::Equals($installed.InstallRoot, $root, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Remove-Item -LiteralPath $productKey -Force -Recurse -ErrorAction SilentlyContinue
 }

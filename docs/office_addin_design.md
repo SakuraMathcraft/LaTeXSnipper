@@ -86,7 +86,7 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 
 本机安装包将构建后的 Office 站点、manifest 和 `localhost` TLS 配置安装到本机。启用 Office 功能后的桌面端发现这些资源后，以 `https://localhost:8765` 同时提供站点和 Bridge API：
 
-- Windows Inno 包为当前用户安装站点与证书，并将 Word/PPT manifest 写入 `WEF\Developer` 本机 sideload 注册。不写入需要 UNC 共享目录的 `TrustedCatalogs`。
+- Windows Inno 包为当前用户安装站点与证书，将实际所选安装目录写入产品注册表供 Bridge 发现，并将 Word/PPT manifest 写入 `WEF\Developer` 本机 sideload 注册。不写入需要 UNC 共享目录的 `TrustedCatalogs`。
 - macOS `.pkg` 安装站点与证书，并将 Word/PPT manifest 放入 Microsoft 文档指定的 `wef` 本机 sideload 目录。
 - GitHub Release workflow 额外产出 `OfficeDeploymentManifests-<version>.zip`，供管理员通过 Microsoft 365 Integrated apps 统一部署；Windows 本机安装程序纳入 SignPath 签名路径。
 

@@ -66,6 +66,10 @@ $tls = Join-Path $root "tls"
 $thumbprintFile = Join-Path $tls "thumbprint.txt"
 New-Item -ItemType Directory -Path $tls -Force | Out-Null
 
+$productKey = "HKCU:\Software\LaTeXSnipper\OfficeAddin"
+New-Item -Path $productKey -Force | Out-Null
+New-ItemProperty -Path $productKey -Name "InstallRoot" -PropertyType String -Value $root -Force | Out-Null
+
 if (Test-Path -LiteralPath $thumbprintFile) {
     $oldThumbprint = (Get-Content -LiteralPath $thumbprintFile -Raw).Trim()
     foreach ($store in @("Cert:\CurrentUser\Root", "Cert:\CurrentUser\My")) {

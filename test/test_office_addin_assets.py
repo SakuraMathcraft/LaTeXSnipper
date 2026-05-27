@@ -140,6 +140,7 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
 
 def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     windows_build = (ROOT / "scripts" / "build_office_addin_installer.ps1").read_text(encoding="utf-8")
+    inno = (ROOT / "Inno" / "latexsnipper-office-addin.iss").read_text(encoding="utf-8")
     windows_install = (ADDIN / "installer" / "windows" / "install.ps1").read_text(encoding="utf-8")
     macos_build = (ROOT / "scripts" / "build_office_addin_macos.sh").read_text(encoding="utf-8")
     macos_install = (ADDIN / "installer" / "macos" / "postinstall").read_text(encoding="utf-8")
@@ -150,11 +151,15 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     package = json.loads((ADDIN / "package.json").read_text(encoding="utf-8"))
 
     assert "https://localhost:8765" in windows_build
+    assert 'RunOnceId: "UnregisterOfficeAddin"' in inno
     assert "https://localhost:8765" in macos_build
     assert "New-SelfSignedCertificate" in windows_install
     assert "16.0\\WEF" in windows_install
     assert '"Developer"' in windows_install
     assert "New-Item -Path $devKey -Force" in windows_install
+    assert '"HKCU:\\Software\\LaTeXSnipper\\OfficeAddin"' in windows_install
+    assert '"InstallRoot"' in windows_install
+    assert 'Join-Path $InstallRoot "tls"' in (ADDIN / "installer" / "windows" / "uninstall.ps1").read_text(encoding="utf-8")
     assert '"TrustedCatalogs"' not in windows_install
     assert "New-SmbShare" not in windows_install
     assert "security add-trusted-cert" in macos_install
@@ -163,7 +168,9 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "wef" in macos_install
     assert "OfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
-    assert "LOCALAPPDATA" in runtime
+    assert "WINDOWS_OFFICE_ADDIN_REGISTRY_KEY" in runtime
+    assert "_windows_installed_root" in runtime
+    assert "LOCALAPPDATA" not in runtime
     assert "PROGRAMDATA" not in runtime
     assert "find_installed_office_addin" in controller
     assert "OfficeAddinSetup-" in release
