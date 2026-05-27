@@ -13,9 +13,8 @@ home_dir="$(dscl . -read "/Users/$console_user" NFSHomeDirectory | awk '{print $
 target="$home_dir/Library/Application Support/LaTeXSnipper/OfficeAddin"
 tls="$target/tls"
 mkdir -p "$target" "$tls"
-rm -rf "$target/site" "$target/manifests"
+rm -rf "$target/site"
 cp -R "$payload/site" "$target/site"
-cp -R "$payload/manifests" "$target/manifests"
 
 openssl_config="$tls/localhost.conf"
 cat > "$openssl_config" <<'EOF'
@@ -41,12 +40,6 @@ chmod 600 "$tls/server.key"
 sudo -u "$console_user" security add-trusted-cert -d -r trustRoot \
     -k "$home_dir/Library/Keychains/login.keychain-db" "$tls/server.crt"
 
-for container in com.microsoft.Word com.microsoft.Powerpoint; do
-    wef="$home_dir/Library/Containers/$container/Data/Documents/wef"
-    mkdir -p "$wef"
-    cp "$target/manifests/"*.xml "$wef/"
-    chown -R "$console_user":staff "$wef"
-done
-
 rm -rf "$payload"
-echo "LaTeXSnipper Office add-in installed for $console_user."
+echo "LaTeXSnipper Office local runtime installed for $console_user."
+echo "Deploy the release manifests through Microsoft 365 Integrated apps for persistent Word and PowerPoint ribbon installation."

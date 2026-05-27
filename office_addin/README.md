@@ -27,11 +27,11 @@ PowerPoint 通过 `Office.CoercionType.Image` 插入 PNG 图像：
 | 功能 | 实际行为 |
 |---|---|
 | `Editor` | 打开公式编辑器 |
-| `Insert Formula` | 向当前幻灯片插入公式图像 |
-| `Insert Numbered` | 插入一张包含公式和编号的合成图像 |
+| `Insert Formula` | 向当前幻灯片插入按公式实际边界裁剪过的图像 |
+| `Insert Manual #` | 打开编辑器填写编号后，插入一张包含公式和该编号的合成图像 |
 | `Screenshot OCR` | 将识别结果载入任务窗格，并同步到已打开的编辑器窗口后再插入 |
 
-PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected` 或 `Renumber All`。
+PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected`、`Auto Numbered` 或 `Renumber All`。正式可用的 `Office.CoercionType.Image` 写入路径不会返回可由插件持续跟踪的图片对象；删除图像后无法可靠识别哪些编号仍存在，因此 PPT 不生成伪自动编号。
 
 ## Office.js 能力边界
 
@@ -52,14 +52,15 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 
 ## 正式安装与分发
 
-发布流水线生成两个独立的 Office 加载项安装包：
+发布流水线生成本机运行时安装包以及持久部署 manifest 包：
 
-| 平台 | 安装包 | 安装行为 |
+| 平台 | 产物 | 实际行为 |
 |---|---|---|
-| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点和 manifest，生成并信任仅用于 `localhost` 的 TLS 证书，注册 Office 共享文件夹受信任目录 |
-| macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点和 manifest，生成并信任 `localhost` TLS 证书，将 manifest 部署到 Word 与 PowerPoint 的 `wef` 目录 |
+| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
+| macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
+| Microsoft 365 部署 | `LaTeXSnipperOfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
 
-这些安装包属于桌面端旁加载/内部分发路径，不是 Microsoft Marketplace 或管理员集中部署包。加载项页面和 API 由启用 Office 加载项功能后的 LaTeXSnipper 桌面端在 `https://localhost:8765` 提供；未安装并运行桌面端时，Office 加载项不能转换或截图识别。
+持久出现在 Word/PPT Ribbon 中必须使用 Microsoft 支持的生产部署方式：管理员 Integrated apps 部署上述 manifests，或未来发布到 Marketplace。共享文件夹与 `wef` 旁加载只用于开发测试，不由安装包注入。每台使用者电脑仍需安装对应本机运行时，并运行已启用 Office 功能的 LaTeXSnipper 桌面端，由其在 `https://localhost:8765` 提供页面和 API。
 
 ## 开发启动
 

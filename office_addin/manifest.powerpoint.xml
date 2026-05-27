@@ -243,7 +243,7 @@
         <bt:String id="GroupNumbering.Label" DefaultValue="Numbering"><bt:Override Locale="zh-CN" Value="编号"/></bt:String>
         <bt:String id="OpenEditor.Label" DefaultValue="Editor"><bt:Override Locale="zh-CN" Value="编辑器"/></bt:String>
         <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"><bt:Override Locale="zh-CN" Value="插入公式"/></bt:String>
-        <bt:String id="NumberedFormula.Label" DefaultValue="Insert Numbered"><bt:Override Locale="zh-CN" Value="插入编号公式"/></bt:String>
+        <bt:String id="NumberedFormula.Label" DefaultValue="Insert Manual #"><bt:Override Locale="zh-CN" Value="插入自定义编号"/></bt:String>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"><bt:Override Locale="zh-CN" Value="截图识别"/></bt:String>
         <bt:String id="GroupHelp.Label" DefaultValue="Help"><bt:Override Locale="zh-CN" Value="帮助"/></bt:String>
         <bt:String id="Help.Label" DefaultValue="Help"><bt:Override Locale="zh-CN" Value="帮助"/></bt:String>
@@ -252,7 +252,7 @@
       <bt:LongStrings>
         <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."><bt:Override Locale="zh-CN" Value="打开 LaTeXSnipper 公式编辑器。"/></bt:String>
         <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert a formula image into the current slide."><bt:Override Locale="zh-CN" Value="将公式图像插入当前幻灯片。"/></bt:String>
-        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert one formula image with its number."><bt:Override Locale="zh-CN" Value="插入包含编号的一张公式图像。"/></bt:String>
+        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Open the editor and enter a manual number for one formula image."><bt:Override Locale="zh-CN" Value="打开编辑器并填写编号，插入一张带编号的公式图像。"/></bt:String>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Load the next LaTeXSnipper recognition into the editor."><bt:Override Locale="zh-CN" Value="将下一次 LaTeXSnipper 截图识别结果载入编辑器。"/></bt:String>
         <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."><bt:Override Locale="zh-CN" Value="打开 LaTeXSnipper 帮助文档。"/></bt:String>
         <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to recognize and insert formula images."><bt:Override Locale="zh-CN" Value="使用 LaTeXSnipper 选项卡识别并插入公式图像。"/></bt:String>

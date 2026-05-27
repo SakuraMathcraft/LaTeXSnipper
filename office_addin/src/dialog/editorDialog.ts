@@ -14,6 +14,7 @@ type DialogInitArgs = {
   manualNumber?: string;
   numberValue?: string;
   host: "word" | "powerpoint";
+  requireManualNumber?: boolean;
   locale?: string;
 };
 
@@ -308,8 +309,12 @@ Office.onReady(async () => {
     latexPanelToggle: requiredElement("latexPanelToggle", HTMLElement),
     dialogStatus: requiredElement("dialogStatus", HTMLElement),
     displayOption: requiredElement("displayOption", HTMLElement),
+    autoNumberOption: requiredElement("autoNumberOption", HTMLElement),
   };
-  elements.displayOption.hidden = initArgs.host === "powerpoint";
+  const isPowerPoint = initArgs.host === "powerpoint";
+  elements.displayOption.hidden = isPowerPoint;
+  elements.autoNumberOption.hidden = isPowerPoint;
+  elements.autoNumber.disabled = isPowerPoint;
 
   core = await MathLiveCore.create(elements.mathfieldHost);
   buildSymbolPanel();
@@ -333,6 +338,9 @@ Office.onReady(async () => {
       if (initArgs.manualNumber !== undefined) elements.manualNumber.value = initArgs.manualNumber;
     }
     setStatus(t("editingEquation"));
+  }
+  if (isPowerPoint) {
+    elements.autoNumber.checked = false;
   }
 
   elements.manualNumber.addEventListener("input", () => {
@@ -378,7 +386,7 @@ Office.onReady(async () => {
   window.addEventListener("keydown", (event) => handleKeyboard(event, elements));
 
   core.focus();
-  setStatus(t("ready"));
+  setStatus(initArgs.requireManualNumber ? t("pptManualNumberPrompt") : t("ready"));
 });
 
 function buildSymbolPanel(): void {
@@ -462,6 +470,7 @@ function readInitArgs(): DialogInitArgs {
     manualNumber: params.get("manualNumber") || undefined,
     numberValue: params.get("numberValue") || undefined,
     host: params.get("host") === "powerpoint" ? "powerpoint" : "word",
+    requireManualNumber: params.get("requireManualNumber") === "true",
     locale: params.get("locale") || undefined,
   };
 }
@@ -525,6 +534,9 @@ async function handleInsert(elements: {
 }): Promise<void> {
   try {
     const draft = readDraft(elements);
+    if (initArgs.host === "powerpoint" && initArgs.requireManualNumber && draft.numbering !== "manual") {
+      throw new Error("PowerPoint numbered images require a manual number.");
+    }
     elements.insertButton.disabled = true;
     sendMessage({ type: "insert", draft, equationId: initArgs.equationId });
     setStatus(t("inserting"));

@@ -1,4 +1,4 @@
-#define MyAppName "LaTeXSnipper Office Add-in"
+#define MyAppName "LaTeXSnipper Office Runtime"
 #define MyAppVersion "2.3.2"
 #define MyAppPublisher "SakuraMathcraft"
 #define MyAppURL "https://github.com/SakuraMathcraft/LaTeXSnipper"
@@ -37,7 +37,6 @@ Name: "chinesesimplified"; MessagesFile: "{#MySourceRoot}\ChineseSimplified.isl"
 
 [Files]
 Source: "{#MySourceRoot}\site\*"; DestDir: "{app}\site"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MySourceRoot}\manifests\*"; DestDir: "{app}\manifests"; Flags: ignoreversion
 Source: "{#MySourceRoot}\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MySourceRoot}\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 

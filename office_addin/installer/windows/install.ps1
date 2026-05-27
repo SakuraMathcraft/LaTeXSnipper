@@ -1,8 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$InstallRoot,
-    [string]$CatalogId = "{7C4B0843-A874-420F-908C-73673C42F4B0}",
-    [string]$ShareName = "LaTeXSnipperOfficeAddin$"
+    [string]$InstallRoot
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,7 +63,6 @@ function ConvertTo-RsaPrivateKeyDer {
 
 $root = (Resolve-Path -LiteralPath $InstallRoot).Path
 $tls = Join-Path $root "tls"
-$manifests = Join-Path $root "manifests"
 $thumbprintFile = Join-Path $tls "thumbprint.txt"
 New-Item -ItemType Directory -Path $tls -Force | Out-Null
 
@@ -99,19 +96,5 @@ Write-Pem -Path $keyPath -Label "RSA PRIVATE KEY" -Bytes (ConvertTo-RsaPrivateKe
 Import-Certificate -FilePath $certPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
 [System.IO.File]::WriteAllText($thumbprintFile, $certificate.Thumbprint, [System.Text.Encoding]::ASCII)
 
-$existingShare = Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue
-if ($existingShare) {
-    Remove-SmbShare -Name $ShareName -Force
-}
-New-SmbShare -Name $ShareName -Path $manifests -ReadAccess "Everyone" | Out-Null
-
-$catalogRoot = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs"
-$catalogPath = Join-Path $catalogRoot $CatalogId
-$sharePath = "\\localhost\$ShareName"
-New-Item -Path $catalogPath -Force | Out-Null
-New-ItemProperty -Path $catalogPath -Name "Id" -PropertyType String -Value $CatalogId -Force | Out-Null
-New-ItemProperty -Path $catalogPath -Name "Url" -PropertyType String -Value $sharePath -Force | Out-Null
-New-ItemProperty -Path $catalogPath -Name "Flags" -PropertyType DWord -Value 1 -Force | Out-Null
-
-Write-Host "LaTeXSnipper Office add-in installed."
-Write-Host "Restart Word and PowerPoint, then add LaTeXSnipper from Shared Folder add-ins."
+Write-Host "LaTeXSnipper Office local runtime installed."
+Write-Host "Deploy the release manifests through Microsoft 365 Integrated apps for persistent Word and PowerPoint ribbon installation."

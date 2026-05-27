@@ -34,7 +34,7 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
             assert "helpCommand" in text
             assert "Commands.Url" not in text
         else:
-            assert "Insert Numbered" in text
+            assert "Insert Manual #" in text
             assert "ImageCoercion" in text
             assert "SharedRuntime" in text
             assert 'lifetime="long"' in text
@@ -117,7 +117,8 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     assert "data-i18n" in taskpane
     assert "data-i18n" in dialog
     assert "Office.context.displayLanguage" in app
-    assert 'insertCurrentLatex(elements, "auto")' in app
+    assert 'insertCurrentLatex(elements, "auto")' not in app
+    assert "pptManualNumberPrompt" in app
     assert 'type: "insertFailed"' in app
     assert 'type: "ocrResult"' in app
     assert "protocol" not in i18n
@@ -125,10 +126,14 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     assert '"zh-CN"' in i18n
     assert "DialogParentMessageReceived" in (ADDIN / "src" / "dialog" / "editorDialog.ts").read_text(encoding="utf-8")
     assert "appendNumberToImage" in powerpoint
+    assert "trimImageToContent" in powerpoint
+    assert "allocateEquationNumber" not in powerpoint
+    assert "PowerPoint numbered images require a manual number." in powerpoint
     assert "setSelectedText" not in powerpoint
     assert '"dev:powerpoint"' in package
     assert (ADDIN / "scripts" / "start_office_dev.ps1").is_file()
     assert not (ADDIN / "scripts" / "start_word_dev.ps1").exists()
+    assert not (ADDIN / "scripts" / "register_word_catalog.ps1").exists()
     assert not (ADDIN / "src" / "dialog" / "previewRender.ts").exists()
 
 
@@ -144,9 +149,13 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "https://localhost:8765" in windows_build
     assert "https://localhost:8765" in macos_build
     assert "New-SelfSignedCertificate" in windows_install
-    assert "New-SmbShare" in windows_install
+    assert "TrustedCatalog" not in windows_install
+    assert "New-SmbShare" not in windows_install
     assert "security add-trusted-cert" in macos_install
+    assert "/Documents/wef" not in macos_install
+    assert "LaTeXSnipperOfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
     assert "find_installed_office_addin" in controller
     assert "LaTeXSnipperOfficeAddinSetup-" in release
     assert "LaTeXSnipperOfficeAddin-" in release
+    assert "LaTeXSnipperOfficeDeploymentManifests-" in release

@@ -73,12 +73,12 @@ Ribbon 命令通过共享运行时进入任务窗格调度层；`Editor`、`Inse
 
 | 命令 | 行为 |
 |---|---|
-| `Insert Formula` | 插入一张公式 PNG |
-| `Insert Numbered` | 在 Canvas 中合成公式和编号后插入一张 PNG |
+| `Insert Formula` | 裁剪空白边界后插入一张公式 PNG |
+| `Insert Manual #` | 在编辑器填写手动编号后，于 Canvas 中合成公式和编号并插入一张 PNG |
 | `Editor` | 编辑待插入的 LaTeX |
 | `Screenshot OCR` | 将 OCR 结果载入编辑器 |
 
-PowerPoint 工作流没有 `Load Selected`、`Update`、`Delete Selected` 或 `Renumber All`。插入图像不携带 Word 内容控件式公式身份，也不声称可回读原始 LaTeX。
+PowerPoint 工作流没有 `Load Selected`、`Update`、`Delete Selected`、自动编号或 `Renumber All`。稳定发布路径使用 `Office.CoercionType.Image` 写入图像，该方法不返回可由本插件标记并持续追踪的图片对象。删除后的图片无法可靠参与编号重算，因此不保留只会递增的伪自动编号状态。
 
 ## Bridge 与数据
 
@@ -86,11 +86,11 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 
 正式安装包将构建后的 Office 站点、manifest 和 `localhost` TLS 配置安装到本机。启用 Office 功能后的桌面端发现这些资源后，以 `https://localhost:8765` 同时提供站点和 Bridge API：
 
-- Windows Inno 安装包生成受信任的 `localhost` 证书，并注册包含 Word/PPT manifest 的 Office 共享文件夹目录。
-- macOS `.pkg` 生成用户信任的 `localhost` 证书，并将 manifest 复制到 Word 和 PowerPoint 的旁加载目录。
-- GitHub Release workflow 产出 Windows 安装程序与 macOS 包；Windows 安装程序纳入 SignPath 签名路径。
+- Windows Inno 安装包与 macOS `.pkg` 安装站点并生成受信任的 `localhost` 证书。
+- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `LaTeXSnipperOfficeDeploymentManifests-<version>.zip`；Windows 运行时安装程序纳入 SignPath 签名路径。
+- 管理员将生产 manifest 通过 Microsoft 365 管理中心的 Integrated apps 部署给用户，Ribbon 命令由 Office 持久提供。
 
-该分发方式是 Office 桌面端旁加载/内部安装路径。当前没有实现 Microsoft Marketplace 发布、Microsoft 365 管理员集中部署或远程托管网页，因此文档和 UI 不声称支持这些渠道。
+共享目录和 `wef` 旁加载仅用于开发测试，不是安装器行为。持久安装由 Microsoft 365 Integrated apps 部署实现；Marketplace 上架仍不属于仓库可自动完成的发布步骤。
 
 ## Requirement Sets
 
@@ -125,3 +125,4 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 - [Localize Office Add-ins](https://learn.microsoft.com/office/dev/add-ins/develop/localization)
 - [Sideload Office Add-ins from a network share on Windows](https://learn.microsoft.com/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins)
 - [Sideload Office Add-ins on Mac](https://learn.microsoft.com/office/dev/add-ins/testing/sideload-an-office-add-in-on-mac)
+- [Deploy add-ins through Integrated apps](https://learn.microsoft.com/microsoft-365/admin/manage/test-and-deploy-microsoft-365-apps)

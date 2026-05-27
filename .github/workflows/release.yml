@@ -114,11 +114,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Build unsigned Office add-in installer
+      - name: Build unsigned Office local runtime installer and deployment manifests
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File scripts\build_office_addin_installer.ps1
 
-      - name: Upload unsigned Office add-in installer artifact
+      - name: Upload unsigned Office runtime and deployment artifact
         id: upload-office-addin-unsigned
         uses: actions/upload-artifact@v7
         with:
@@ -126,6 +126,14 @@ jobs:
           path: |
             dist/office-addin/LaTeXSnipperOfficeAddinSetup-*.exe
             dist/office-addin/LaTeXSnipperOfficeAddinSetup-*.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Office persistent deployment manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: latexsnipper-office-deployment-manifests
+          path: dist/office-addin/LaTeXSnipperOfficeDeploymentManifests-*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -227,7 +235,7 @@ jobs:
             "enabled=true" >> $env:GITHUB_OUTPUT
           }
 
-      - name: Submit Office add-in installer to SignPath
+      - name: Submit Office local runtime installer to SignPath
         id: office-signpath
         if: ${{ steps.office-signpath-config.outputs.enabled == 'true' }}
         continue-on-error: true
@@ -242,7 +250,7 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: office-addin-signed
 
-      - name: Upload signed Office add-in installer artifact
+      - name: Upload signed Office local runtime installer artifact
         if: ${{ steps.office-signpath.outcome == 'success' }}
         uses: actions/upload-artifact@v7
         with:
@@ -430,6 +438,9 @@ jobs:
             find release-assets/unsigned-latexsnipper-office-addin-windows -type f -name 'LaTeXSnipperOfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
           else
             echo "No Windows Office add-in artifact is available for this release."
+          fi
+          if [[ -d release-assets/latexsnipper-office-deployment-manifests ]]; then
+            find release-assets/latexsnipper-office-deployment-manifests -type f -name 'LaTeXSnipperOfficeDeploymentManifests-*.zip' -exec cp -v {} publish-assets/ \;
           fi
 
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;

@@ -151,7 +151,8 @@ async function executeRibbonCommand(elements: Elements, command: RibbonCommand):
       return;
     case "numbered":
       if (officeHost === Office.HostType.PowerPoint) {
-        await insertCurrentLatex(elements, "auto");
+        openDialogEditor(elements, readLatex(elements), undefined, undefined, true);
+        setStatus(elements, t("pptManualNumberPrompt"), "ok");
       } else {
         await numberSelectedEquation(elements);
       }
@@ -258,12 +259,12 @@ async function convertCurrentLatex(elements: Elements): Promise<ConversionResult
   return conversion;
 }
 
-async function insertCurrentLatex(elements: Elements, forcedNumbering?: "auto"): Promise<void> {
+async function insertCurrentLatex(elements: Elements): Promise<void> {
   const draft = {
     latex: readLatex(elements),
     display: elements.displayMode.checked,
-    numbering: forcedNumbering || (elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none"),
-    manualNumber: forcedNumbering ? "" : elements.manualNumber.value
+    numbering: elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none",
+    manualNumber: elements.manualNumber.value
   } as const;
   if (officeHost === Office.HostType.PowerPoint) {
     await insertEquationIntoPowerPoint(draft, clientFromElements(elements));
@@ -401,7 +402,8 @@ function openDialogEditor(
   elements: Elements,
   latex?: string,
   equationId?: string,
-  numberValue?: string
+  numberValue?: string,
+  requireManualNumber = false
 ): void {
   closeOfficeDialog();
   const params = new URLSearchParams();
@@ -421,6 +423,9 @@ function openDialogEditor(
     }
   }
   params.set("host", officeHost === Office.HostType.PowerPoint ? "powerpoint" : "word");
+  if (requireManualNumber) {
+    params.set("requireManualNumber", "true");
+  }
   params.set("locale", currentLocale());
   const dialogUrl = `${window.location.origin}${window.location.pathname.replace(
     "taskpane.html",

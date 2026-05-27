@@ -50,7 +50,7 @@
       </tbody>
     </table>
     <p>Web and mobile Office are not product targets because the workflow depends on a local desktop bridge and desktop screenshot capture.</p>
-    <p>The released installer is a desktop sideload path: Windows configures a trusted shared-folder catalog, while macOS deploys to the Word and PowerPoint sideload folders. Both configure the local <code>https://localhost:8765</code> site. They are not Marketplace or centralized administration deployment packages.</p>
+    <p>The Windows and macOS runtime installers configure the local <code>https://localhost:8765</code> site. For the add-in to remain present in the Word and PowerPoint ribbon, an administrator must deploy the production manifests from the release bundle through Microsoft 365 Integrated apps. Shared-folder and <code>wef</code> sideloading are for development testing only.</p>
 
     <h2>Word Functions</h2>
     <h3>Insert Formula</h3>
@@ -64,8 +64,8 @@
     <p>A cursor inside an existing LaTeXSnipper equation or numbered layout cannot be used as an insertion point; the add-in reports this instead of allowing Word to raise a raw insertion error.</p>
 
     <h2>PowerPoint Functions</h2>
-    <p><strong>Insert Formula</strong> writes a rendered PNG image to the current slide. <strong>Insert Numbered</strong> writes one composed PNG containing both the formula and its number, so the label cannot separate from the formula. Screenshot OCR updates the task pane and, while its editor window is open, synchronizes the same LaTeX into that window before insertion.</p>
-    <p>PowerPoint does not expose the Word-style tagged editable equation container used by this add-in. Therefore PowerPoint intentionally has no Load Selected, Update, Delete Selected, or Renumber All workflow for inserted images.</p>
+    <p><strong>Insert Formula</strong> writes a PNG cropped to the actual formula bounds. <strong>Insert Manual #</strong> opens the editor for a user-entered label, then writes one composed PNG containing the formula and label. Screenshot OCR updates the task pane and synchronizes the same LaTeX into an open editor window.</p>
+    <p>PowerPoint's stable image insertion API does not expose a durable managed identity for an inserted formula image. After an image is deleted, the add-in cannot reliably determine the remaining labels, so it intentionally has no auto numbering, Load Selected, Update, Delete Selected, or Renumber All workflow.</p>
 
     <h2>Office.js Capability Boundary</h2>
     <div class="callout good">

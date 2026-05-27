@@ -273,7 +273,7 @@ GitHub Actions release builds run the platform package jobs in one workflow:
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
 - macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`, plus the Office add-in `.pkg` from `scripts/build_office_addin_macos.sh`.
 
-The Office add-in packages deploy the Word/PowerPoint desktop sideload configuration and a localhost HTTPS site consumed by the LaTeXSnipper Office Bridge. They require the installed desktop application with its Office feature enabled; they are not Marketplace or Microsoft 365 centralized deployment packages.
+The Office runtime packages install the localhost HTTPS site consumed by the LaTeXSnipper Office Bridge. Releases also contain production Word/PowerPoint manifests for persistent deployment through Microsoft 365 Integrated apps; development sideload registration is not installed as a production substitute. Each client still requires the desktop application with its Office feature enabled.
 
 The release workflow expects these GitHub Actions variables:
 `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,

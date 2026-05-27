@@ -11,6 +11,8 @@ $addin = Join-Path $root "office_addin"
 $stage = Join-Path $root "build\office_addin\windows"
 $output = Join-Path $root "dist\office-addin"
 $publicOrigin = "https://localhost:8765"
+$version = "2.3.2"
+$deploymentBundle = Join-Path $output "LaTeXSnipperOfficeDeploymentManifests-$version.zip"
 
 Push-Location $addin
 try {
@@ -44,9 +46,11 @@ foreach ($manifest in @("manifest.word.xml", "manifest.powerpoint.xml")) {
         [System.Text.UTF8Encoding]::new($false)
     )
 }
+Compress-Archive -LiteralPath (Join-Path $stage "manifests\manifest.word.xml"), (Join-Path $stage "manifests\manifest.powerpoint.xml") -DestinationPath $deploymentBundle -Force
 
 if ($SkipInstaller) {
-    Write-Host "Office add-in staging created: $stage"
+    Write-Host "Office runtime staging created: $stage"
+    Write-Host "Persistent deployment manifests created: $deploymentBundle"
     exit 0
 }
 
@@ -90,4 +94,5 @@ if (-not $installer) {
 }
 $hash = (Get-FileHash -Algorithm SHA256 $installer.FullName).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText("$($installer.FullName).sha256", "$hash  $($installer.Name)`n", [System.Text.UTF8Encoding]::new($false))
-Write-Host "Office add-in installer created: $($installer.FullName)"
+Write-Host "Office local runtime installer created: $($installer.FullName)"
+Write-Host "Persistent deployment manifests created: $deploymentBundle"
