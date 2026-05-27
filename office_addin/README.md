@@ -1,26 +1,32 @@
 ﻿# LaTeXSnipper Office Add-in
 
-This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The first milestone is a Word-only loop:
+This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The current code is a development prototype; the formal product target is an AxMath-like editor dialog backed by LaTeXSnipper's desktop bridge.
 
-1. Type LaTeX in the task pane.
-2. Call the LaTeXSnipper desktop Office bridge `/convert/latex` endpoint.
-3. Receive OMML.
-4. Insert editable Office Math into the current Word selection.
+The formal Word loop is:
+
+1. Open the LaTeXSnipper equation editor dialog from the Ribbon or task pane.
+2. Edit MathLive visual input and TeX source side by side.
+3. Convert LaTeX through the LaTeXSnipper desktop Office bridge.
+4. Insert a tagged Word equation object with native OMML rendering.
+5. Store the original TeX source and numbering metadata with the object.
+6. Reopen the object later for TeX-based editing and update.
 
 PowerPoint support will be added after the Word insertion path is stable.
 
 The add-in is intentionally independent from the desktop application UI. The desktop app only needs to expose a small optional localhost bridge. Add-in installation, Office version checks, manifest registration, certificates, repair, and uninstall belong to this package.
 
-The formula editor uses MathLive and keeps a synchronized LaTeX text view for debugging and manual edits. The keyboard routing logic mirrors the desktop math workbench: arrow keys are forwarded to MathLive navigation commands, and the virtual keyboard can be toggled from the task pane.
+The formula editor uses MathLive and keeps a synchronized LaTeX text view for direct editing. The task pane should remain a lightweight status and launcher surface; the larger editor belongs in an Office dialog.
 
 Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate manifests:
 
 - `manifest.word.xml`
 - `manifest.powerpoint.xml`
 
-The Ribbon uses Office add-in commands. Editor opens the task pane; Insert, Screenshot OCR, edit-selected, update-selected, and renumber publish commands that the task pane executes.
+The Ribbon uses Office add-in commands. Editor opens the Office editor surface; Insert, Screenshot OCR, update, and renumber commands should synchronize with the active editor state.
 
 Word insertion creates a tagged LaTeXSnipper equation object: the visible formula is OMML, while the original LaTeX source is saved in Office document settings. This is the foundation for the later edit-selected-formula flow.
+
+Screenshot OCR must not be a Word-window-only capture. The add-in should subscribe to the next global LaTeXSnipper recognition result, then the user triggers the normal LaTeXSnipper screenshot hotkey and captures any screen region. The recognized LaTeX fills the editor; insertion remains a user-confirmed action.
 
 ## Development
 
@@ -61,6 +67,8 @@ The task pane auto-discovers the local LaTeXSnipper bridge from `http://127.0.0.
 
 Start LaTeXSnipper itself and enable `Office 插件` in settings before testing conversion or Screenshot OCR. The add-in discovers the local bridge and token automatically.
 
+`Connect` must refresh `/config` before checking `/health`. A successful health response without a token is not a usable connection because conversion and recognition endpoints require authentication.
+
 For the current development loop, sideload Word with:
 
 ```powershell
@@ -74,6 +82,7 @@ The ribbon icon source is `public/assets/ribbon-icons.svg`; Office manifests sti
 ## Architecture
 
 - `src/taskpane/`: task pane composition and user events.
+- `src/dialog/`: formal equation editor dialog code when the prototype is promoted.
 - `src/services/`: localhost bridge client and shared service code.
 - `src/office/`: Office host adapters. Word insertion logic belongs here.
 - `src/styles/`: task pane styles.

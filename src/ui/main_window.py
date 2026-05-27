@@ -49,7 +49,6 @@ class MainWindow(
 
     _model_warmup_result_signal = pyqtSignal()
     _preview_latex_render_request = pyqtSignal(str, str)
-    _office_screenshot_ocr_request_signal = pyqtSignal()
 
     def _center_on_startup_screen_once(self) -> None:
         if getattr(self, "_startup_centered_once", False):
