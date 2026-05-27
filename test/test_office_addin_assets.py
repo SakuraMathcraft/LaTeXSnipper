@@ -149,10 +149,14 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "https://localhost:8765" in windows_build
     assert "https://localhost:8765" in macos_build
     assert "New-SelfSignedCertificate" in windows_install
-    assert "TrustedCatalog" not in windows_install
+    assert "16.0\\WEF" in windows_install
+    assert '"Developer"' in windows_install
+    assert '"TrustedCatalogs"' in windows_install
     assert "New-SmbShare" not in windows_install
     assert "security add-trusted-cert" in macos_install
-    assert "/Documents/wef" not in macos_install
+    assert "com.microsoft.Word" in macos_install
+    assert "com.microsoft.Powerpoint" in macos_install
+    assert "wef" in macos_install
     assert "LaTeXSnipperOfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
     assert "find_installed_office_addin" in controller

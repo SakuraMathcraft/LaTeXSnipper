@@ -40,6 +40,13 @@ chmod 600 "$tls/server.key"
 sudo -u "$console_user" security add-trusted-cert -d -r trustRoot \
     -k "$home_dir/Library/Keychains/login.keychain-db" "$tls/server.crt"
 
+for host_dir in "com.microsoft.Word" "com.microsoft.Powerpoint"; do
+    wef_dir="$home_dir/Library/Containers/$host_dir/Data/Documents/wef"
+    mkdir -p "$wef_dir"
+    cp "$payload/manifests"/*.xml "$wef_dir/"
+    chown -R "$console_user":staff "$wef_dir"
+done
+
 rm -rf "$payload"
 echo "LaTeXSnipper Office local runtime installed for $console_user."
-echo "Deploy the release manifests through Microsoft 365 Integrated apps for persistent Word and PowerPoint ribbon installation."
+echo "The LaTeXSnipper ribbon tab will appear the next time you start Word and PowerPoint."
