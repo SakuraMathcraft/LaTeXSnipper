@@ -187,6 +187,9 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.send_response(int(HTTPStatus.OK))
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
+        origin = self.headers.get("Origin")
+        if origin is not None:
+            self.send_header("Access-Control-Allow-Origin", origin)
         self.end_headers()
         self.wfile.write(raw)
 
