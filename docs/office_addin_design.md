@@ -244,7 +244,7 @@ The insertion adapter must treat each numbered formula as an atomic object:
 
 1. Create an equation content control tagged `latexsnipper-eq-<id>`.
 2. Create a number content control tagged `latexsnipper-eqn-<id>` (unique tag per equation, not a shared generic tag).
-3. Insert a paragraph boundary after each display equation so consecutive insertions cannot nest into the previous table.
+3. Preserve the paragraph boundary after each numbered display equation when the next insertion occurs, so Word cannot merge consecutive formula tables.
 4. Store the equation source and numbering metadata in document settings.
 
 Renumbering scans body OOXML for all `latexsnipper-eqn-` prefixed tags, extracts the equation IDs, filters to auto-numbered equations only, then updates each via `ContentControl.insertText`. Manual-numbered equations are identified by checking the saved `EquationSourceRecord.numbering` field and are skipped.
@@ -385,7 +385,7 @@ A LaTeXSnipper equation in Word is an OMML content control tagged with `latexsni
 4. If found → task pane reads the stored LaTeX source from document settings via `loadEquationSource(id)`.
 5. Task pane opens the Dialog editor with the LaTeX pre-loaded and the equation ID attached.
 6. Dialog editor enters "Update mode": the Insert button label changes to "Update", and the dialog header shows "Editing equation (X)".
-7. On Update, the task pane rebuilds a complete tagged equation container. For numbered equations it inserts through a paragraph outside the old table, then removes the old table after insertion succeeds.
+7. On Update, a numbered equation that remains numbered is updated in place inside its own cell and number control; a structural mode change rebuilds the complete tagged container outside its old layout table.
 
 This flow provides the MathType-like "double click to re-edit" experience while keeping the editor dialog stateless (it doesn't need to know about Word APIs).
 

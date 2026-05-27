@@ -4,6 +4,9 @@ import { deleteEquationSource, loadEquationSource, saveEquationSource } from "..
 const EQUATION_TAG_PREFIX = "latexsnipper-eq-";
 const NUMBER_CONTROL_TAG_PREFIX = "latexsnipper-eqn-";
 const NUMBER_CONTROL_ALIAS_PREFIX = "LaTeXSnipperEqNum-";
+const INSERT_IN_EQUATION_ERROR = "Place the cursor outside the LaTeXSnipper equation before inserting another formula.";
+const INSERT_IN_NUMBERED_EQUATION_ERROR = "Place the cursor outside the numbered LaTeXSnipper equation before inserting another formula.";
+const NUMBERED_LAYOUT_TRANSITION_ERROR = "This numbered equation shares a table with another formula. Delete or separate it before changing its numbering mode.";
 
 export type EquationDraft = {
   latex: string;
@@ -66,7 +69,7 @@ export async function updateEquationInWord(draft: EquationDraft, conversion: Con
   if (typeof Word === "undefined" || typeof Word.run !== "function") {
     throw new Error("Word API 1.3 is required for editable equations.");
   }
-  await replaceEquationContainer(equationId, newOoxml);
+  await replaceEquationContainer(equationId, newOoxml, omml, number);
   await saveEquationSource(draft.latex, equationId, draft.display, draft.numbering, number);
 
   const removedFromAutomaticSequence = previousRecord?.numbering === "auto" && draft.numbering !== "auto";
@@ -97,7 +100,15 @@ export async function deleteSelectedEquationFromWord(): Promise<void> {
     if (equationControl.parentTableOrNullObject.isNullObject) {
       equationControl.delete(false);
     } else {
-      equationControl.parentTableOrNullObject.delete();
+      const table = equationControl.parentTableOrNullObject;
+      const layout = await inspectNumberedLayoutTable(context, table, equationId);
+      if (!layout.isNumberedLayout) {
+        equationControl.delete(false);
+      } else if (layout.equationIds.length === 1) {
+        table.delete();
+      } else {
+        equationControl.parentTableCell.parentRow.delete();
+      }
     }
     await context.sync();
   });
@@ -269,21 +280,49 @@ async function countExistingNumberedEquations(): Promise<number> {
 
 async function getValidInsertionTargetRange(context: Word.RequestContext): Promise<Word.Range> {
   const selection = context.document.getSelection();
+  const parentControl = selection.parentContentControlOrNullObject;
+  const parentTable = selection.parentTableOrNullObject;
+  const selectedControls = selection.contentControls;
+  selection.load("isEmpty");
   selection.paragraphs.load("items");
+  parentControl.load("tag");
+  parentTable.load("isNullObject");
+  selectedControls.load("items");
   await context.sync();
-  if (selection.paragraphs.items.length === 0) {
+
+  if (!parentTable.isNullObject && await tableContainsNumberControl(context, parentTable)) {
+    throw new Error(INSERT_IN_NUMBERED_EQUATION_ERROR);
+  }
+
+  if (!parentControl.isNullObject && isEquationTag(parentControl.tag)) {
+    throw new Error(INSERT_IN_EQUATION_ERROR);
+  }
+  for (const control of selectedControls.items) {
+    control.load("tag");
+  }
+  await context.sync();
+  if (selectedControls.items.some((control) => isEquationTag(control.tag))) {
+    throw new Error(INSERT_IN_EQUATION_ERROR);
+  }
+
+  if (!selection.isEmpty || selection.paragraphs.items.length === 0) {
     return selection;
   }
   const paragraph = selection.paragraphs.items[0];
-  paragraph.load("parentTableOrNullObject");
+  paragraph.load("text");
+  const previousParagraph = paragraph.getPreviousOrNullObject();
+  previousParagraph.load("isNullObject");
   await context.sync();
-  if (paragraph.parentTableOrNullObject.isNullObject) {
+  if (paragraph.text || previousParagraph.isNullObject) {
     return selection;
   }
-  const tableOoxml = paragraph.parentTableOrNullObject.getRange(Word.RangeLocation.whole).getOoxml();
+  previousParagraph.load("parentTableOrNullObject");
   await context.sync();
-  if (tableOoxml.value.includes(NUMBER_CONTROL_TAG_PREFIX)) {
-    throw new Error("Place the cursor outside the numbered LaTeXSnipper equation before inserting another formula.");
+  if (previousParagraph.parentTableOrNullObject.isNullObject) {
+    return selection;
+  }
+  if (await tableContainsNumberControl(context, previousParagraph.parentTableOrNullObject)) {
+    return paragraph.getRange(Word.RangeLocation.after);
   }
   return selection;
 }
@@ -408,7 +447,12 @@ function extractNumberedEquationIds(ooxml: string): string[] {
   return uniqueMatches(ooxml, /latexsnipper-eqn-([^"&<\s]+)/g);
 }
 
-async function replaceEquationContainer(equationId: string, ooxml: string): Promise<void> {
+async function replaceEquationContainer(
+  equationId: string,
+  ooxml: string,
+  omml: string,
+  number?: string
+): Promise<void> {
   await Word.run(async (context) => {
     const controls = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
     controls.load("items");
@@ -425,6 +469,31 @@ async function replaceEquationContainer(equationId: string, ooxml: string): Prom
       return;
     }
     const table = equationControl.parentTableOrNullObject;
+    const layout = await inspectNumberedLayoutTable(context, table, equationId);
+    if (!layout.isNumberedLayout) {
+      equationControl.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.replace);
+      await context.sync();
+      return;
+    }
+    if (number) {
+      equationControl.getRange(Word.RangeLocation.whole).insertOoxml(
+        buildEquationOoxml(omml, { display: true, equationId }),
+        Word.InsertLocation.replace
+      );
+      const numberControls = context.document.contentControls.getByTag(`${NUMBER_CONTROL_TAG_PREFIX}${equationId}`);
+      numberControls.load("items");
+      await context.sync();
+      if (numberControls.items.length === 0) {
+        throw new Error("The numbered equation label could not be found in this document.");
+      }
+      numberControls.items[0].insertText(number, Word.InsertLocation.replace);
+      normalizeNumberedEquationTable(numberControls.items[0]);
+      await context.sync();
+      return;
+    }
+    if (layout.equationIds.length > 1) {
+      throw new Error(NUMBERED_LAYOUT_TRANSITION_ERROR);
+    }
     const anchor = table.insertParagraph("", Word.InsertLocation.after);
     await context.sync();
     anchor.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.replace);
@@ -432,6 +501,38 @@ async function replaceEquationContainer(equationId: string, ooxml: string): Prom
     table.delete();
     await context.sync();
   });
+}
+
+type NumberedLayoutInspection = {
+  isNumberedLayout: boolean;
+  equationIds: string[];
+};
+
+async function inspectNumberedLayoutTable(
+  context: Word.RequestContext,
+  table: Word.Table,
+  equationId: string
+): Promise<NumberedLayoutInspection> {
+  const tableOoxml = table.getRange(Word.RangeLocation.whole).getOoxml();
+  await context.sync();
+  return {
+    isNumberedLayout: tableOoxml.value.includes(`${NUMBER_CONTROL_TAG_PREFIX}${equationId}`),
+    equationIds: extractEquationIds(tableOoxml.value)
+  };
+}
+
+async function tableContainsNumberControl(context: Word.RequestContext, table: Word.Table): Promise<boolean> {
+  const tableOoxml = table.getRange(Word.RangeLocation.whole).getOoxml();
+  await context.sync();
+  return tableOoxml.value.includes(NUMBER_CONTROL_TAG_PREFIX);
+}
+
+function isEquationTag(tag: string): boolean {
+  return tag.startsWith(EQUATION_TAG_PREFIX) || tag.startsWith(NUMBER_CONTROL_TAG_PREFIX);
+}
+
+function extractEquationIds(ooxml: string): string[] {
+  return uniqueMatches(ooxml, /latexsnipper-eq-(?!n-)([^"&<\s]+)/g);
 }
 
 function uniqueMatches(value: string, pattern: RegExp): string[] {

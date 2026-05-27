@@ -79,3 +79,15 @@ def test_office_addin_help_documents_word_runtime_boundaries() -> None:
     assert "Version 2205 (Build 15202.10000)" in help_text
     assert "Word 2024" in help_text
     assert "Word 2016、2019 与 2021 不在本加载项的 Windows 支持范围内" in help_text
+
+
+def test_word_insert_keeps_numbered_equation_operations_atomic() -> None:
+    adapter = (ADDIN / "src" / "office" / "wordInsert.ts").read_text(encoding="utf-8")
+
+    assert "INSERT_IN_EQUATION_ERROR" in adapter
+    assert "INSERT_IN_NUMBERED_EQUATION_ERROR" in adapter
+    assert "const parentTable = selection.parentTableOrNullObject;" in adapter
+    assert "return paragraph.getRange(Word.RangeLocation.after);" in adapter
+    assert "equationControl.parentTableCell.parentRow.delete();" in adapter
+    assert "inspectNumberedLayoutTable" in adapter
+    assert "normalizeNumberedEquationTable(numberControls.items[0]);" in adapter
