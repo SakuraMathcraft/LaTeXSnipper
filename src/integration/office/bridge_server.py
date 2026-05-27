@@ -16,6 +16,8 @@ from .bridge_auth import OfficeBridgeAuth
 from .bridge_contracts import MAX_JSON_BODY_BYTES, OfficeBridgeError, error_response, parse_json_body, success_response
 from .conversion_service import OfficeConversionService
 
+JAVASCRIPT_MODULE_SUFFIXES = {".js", ".mjs"}
+
 
 class OfficeBridgeServer:
     def __init__(
@@ -183,7 +185,11 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
             self._send_error(OfficeBridgeError(404, "not_found", "Office add-in resource was not found"))
             return
         raw = requested.read_bytes()
-        content_type = mimetypes.guess_type(requested.name)[0] or "application/octet-stream"
+        content_type = (
+            "text/javascript; charset=utf-8"
+            if requested.suffix.lower() in JAVASCRIPT_MODULE_SUFFIXES
+            else mimetypes.guess_type(requested.name)[0] or "application/octet-stream"
+        )
         self.send_response(int(HTTPStatus.OK))
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
