@@ -149,9 +149,6 @@ async function consumeRibbonCommand(elements: Elements): Promise<void> {
 async function executeRibbonCommand(elements: Elements, command: RibbonCommand): Promise<void> {
   switch (command.name) {
     case "editor":
-      if (!elements.bridgeToken.value.trim()) {
-        throw new Error(t("connectForEditor"));
-      }
       openDialogEditor(elements);
       return;
     case "insert":

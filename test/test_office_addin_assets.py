@@ -13,8 +13,10 @@ ADDIN = ROOT / "office_addin"
 
 def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
     for manifest_name in ("manifest.word.xml", "manifest.powerpoint.xml"):
-        root = ET.parse(ADDIN / manifest_name).getroot()
+        manifest = ADDIN / manifest_name
+        root = ET.parse(manifest).getroot()
         text = ET.tostring(root, encoding="unicode")
+        manifest_text = manifest.read_text(encoding="utf-8")
 
         assert "PrimaryCommandSurface" in text
         assert "TabLaTeXSnipper" in text
@@ -23,6 +25,9 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "NumberedFormulaButton" in text
         assert "ScreenshotOcrButton" in text
         assert 'Locale="zh-CN"' in text
+        assert "<Version>1.0.1.0</Version>" in manifest_text
+        assert ".png?v=20260528" in manifest_text
+        assert '.png"' not in "\n".join(line for line in manifest_text.splitlines() if "assets/icon-" in line)
         if manifest_name == "manifest.word.xml":
             assert "Auto Numbered" in text
             assert "LoadSelectedButton" in text
@@ -142,6 +147,8 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     assert "void initializeFormulaEditor(elements);" in app
     assert app.index("wireEvents(elements);") < app.index("void initializeFormulaEditor(elements);")
     assert app.index("void initializeFormulaEditor(elements);") < app.index("tryAutoConfigureBridge(elements)")
+    assert "connectForEditor" not in app
+    assert "connectForEditor" not in i18n
     assert 'insertCurrentLatex(elements, "auto")' not in app
     assert "pptManualNumberPrompt" in app
     assert 'type: "insertFailed"' in app

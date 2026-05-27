@@ -1,19 +1,19 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.1.0</Version>
   <ProviderName>SakuraMathcraft</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper"/>
   <Description DefaultValue="Edit, recognize, and insert mathematical equations with LaTeXSnipper.">
     <Override Locale="zh-CN" Value="使用 LaTeXSnipper 编辑、识别和插入数学公式。"/>
   </Description>
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-editor-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-editor-80.png"/>
+  <IconUrl DefaultValue="https://localhost:3000/assets/icon-editor-32.png?v=20260528"/>
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-editor-80.png?v=20260528"/>
   <SupportUrl DefaultValue="https://localhost:3000/help.html">
     <Override Locale="zh-CN" Value="https://localhost:3000/help.zh-cn.html"/>
   </SupportUrl>
@@ -265,70 +265,70 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Ico.Editor.16" DefaultValue="https://localhost:3000/assets/icon-editor-16.png"/>
-        <bt:Image id="Ico.Editor.20" DefaultValue="https://localhost:3000/assets/icon-editor-20.png"/>
-        <bt:Image id="Ico.Editor.24" DefaultValue="https://localhost:3000/assets/icon-editor-24.png"/>
-        <bt:Image id="Ico.Editor.32" DefaultValue="https://localhost:3000/assets/icon-editor-32.png"/>
-        <bt:Image id="Ico.Editor.40" DefaultValue="https://localhost:3000/assets/icon-editor-40.png"/>
-        <bt:Image id="Ico.Editor.48" DefaultValue="https://localhost:3000/assets/icon-editor-48.png"/>
-        <bt:Image id="Ico.Editor.64" DefaultValue="https://localhost:3000/assets/icon-editor-64.png"/>
-        <bt:Image id="Ico.Editor.80" DefaultValue="https://localhost:3000/assets/icon-editor-80.png"/>
-        <bt:Image id="Ico.Insert.16" DefaultValue="https://localhost:3000/assets/icon-insert-16.png"/>
-        <bt:Image id="Ico.Insert.20" DefaultValue="https://localhost:3000/assets/icon-insert-20.png"/>
-        <bt:Image id="Ico.Insert.24" DefaultValue="https://localhost:3000/assets/icon-insert-24.png"/>
-        <bt:Image id="Ico.Insert.32" DefaultValue="https://localhost:3000/assets/icon-insert-32.png"/>
-        <bt:Image id="Ico.Insert.40" DefaultValue="https://localhost:3000/assets/icon-insert-40.png"/>
-        <bt:Image id="Ico.Insert.48" DefaultValue="https://localhost:3000/assets/icon-insert-48.png"/>
-        <bt:Image id="Ico.Insert.64" DefaultValue="https://localhost:3000/assets/icon-insert-64.png"/>
-        <bt:Image id="Ico.Insert.80" DefaultValue="https://localhost:3000/assets/icon-insert-80.png"/>
-        <bt:Image id="Ico.Ocr.16" DefaultValue="https://localhost:3000/assets/icon-ocr-16.png"/>
-        <bt:Image id="Ico.Ocr.20" DefaultValue="https://localhost:3000/assets/icon-ocr-20.png"/>
-        <bt:Image id="Ico.Ocr.24" DefaultValue="https://localhost:3000/assets/icon-ocr-24.png"/>
-        <bt:Image id="Ico.Ocr.32" DefaultValue="https://localhost:3000/assets/icon-ocr-32.png"/>
-        <bt:Image id="Ico.Ocr.40" DefaultValue="https://localhost:3000/assets/icon-ocr-40.png"/>
-        <bt:Image id="Ico.Ocr.48" DefaultValue="https://localhost:3000/assets/icon-ocr-48.png"/>
-        <bt:Image id="Ico.Ocr.64" DefaultValue="https://localhost:3000/assets/icon-ocr-64.png"/>
-        <bt:Image id="Ico.Ocr.80" DefaultValue="https://localhost:3000/assets/icon-ocr-80.png"/>
-        <bt:Image id="Ico.Load.16" DefaultValue="https://localhost:3000/assets/icon-load-16.png"/>
-        <bt:Image id="Ico.Load.20" DefaultValue="https://localhost:3000/assets/icon-load-20.png"/>
-        <bt:Image id="Ico.Load.24" DefaultValue="https://localhost:3000/assets/icon-load-24.png"/>
-        <bt:Image id="Ico.Load.32" DefaultValue="https://localhost:3000/assets/icon-load-32.png"/>
-        <bt:Image id="Ico.Load.40" DefaultValue="https://localhost:3000/assets/icon-load-40.png"/>
-        <bt:Image id="Ico.Load.48" DefaultValue="https://localhost:3000/assets/icon-load-48.png"/>
-        <bt:Image id="Ico.Load.64" DefaultValue="https://localhost:3000/assets/icon-load-64.png"/>
-        <bt:Image id="Ico.Load.80" DefaultValue="https://localhost:3000/assets/icon-load-80.png"/>
-        <bt:Image id="Ico.Delete.16" DefaultValue="https://localhost:3000/assets/icon-delete-16.png"/>
-        <bt:Image id="Ico.Delete.20" DefaultValue="https://localhost:3000/assets/icon-delete-20.png"/>
-        <bt:Image id="Ico.Delete.24" DefaultValue="https://localhost:3000/assets/icon-delete-24.png"/>
-        <bt:Image id="Ico.Delete.32" DefaultValue="https://localhost:3000/assets/icon-delete-32.png"/>
-        <bt:Image id="Ico.Delete.40" DefaultValue="https://localhost:3000/assets/icon-delete-40.png"/>
-        <bt:Image id="Ico.Delete.48" DefaultValue="https://localhost:3000/assets/icon-delete-48.png"/>
-        <bt:Image id="Ico.Delete.64" DefaultValue="https://localhost:3000/assets/icon-delete-64.png"/>
-        <bt:Image id="Ico.Delete.80" DefaultValue="https://localhost:3000/assets/icon-delete-80.png"/>
-        <bt:Image id="Ico.Numbered.16" DefaultValue="https://localhost:3000/assets/icon-numbered-16.png"/>
-        <bt:Image id="Ico.Numbered.20" DefaultValue="https://localhost:3000/assets/icon-numbered-20.png"/>
-        <bt:Image id="Ico.Numbered.24" DefaultValue="https://localhost:3000/assets/icon-numbered-24.png"/>
-        <bt:Image id="Ico.Numbered.32" DefaultValue="https://localhost:3000/assets/icon-numbered-32.png"/>
-        <bt:Image id="Ico.Numbered.40" DefaultValue="https://localhost:3000/assets/icon-numbered-40.png"/>
-        <bt:Image id="Ico.Numbered.48" DefaultValue="https://localhost:3000/assets/icon-numbered-48.png"/>
-        <bt:Image id="Ico.Numbered.64" DefaultValue="https://localhost:3000/assets/icon-numbered-64.png"/>
-        <bt:Image id="Ico.Numbered.80" DefaultValue="https://localhost:3000/assets/icon-numbered-80.png"/>
-        <bt:Image id="Ico.Renumber.16" DefaultValue="https://localhost:3000/assets/icon-renumber-16.png"/>
-        <bt:Image id="Ico.Renumber.20" DefaultValue="https://localhost:3000/assets/icon-renumber-20.png"/>
-        <bt:Image id="Ico.Renumber.24" DefaultValue="https://localhost:3000/assets/icon-renumber-24.png"/>
-        <bt:Image id="Ico.Renumber.32" DefaultValue="https://localhost:3000/assets/icon-renumber-32.png"/>
-        <bt:Image id="Ico.Renumber.40" DefaultValue="https://localhost:3000/assets/icon-renumber-40.png"/>
-        <bt:Image id="Ico.Renumber.48" DefaultValue="https://localhost:3000/assets/icon-renumber-48.png"/>
-        <bt:Image id="Ico.Renumber.64" DefaultValue="https://localhost:3000/assets/icon-renumber-64.png"/>
-        <bt:Image id="Ico.Renumber.80" DefaultValue="https://localhost:3000/assets/icon-renumber-80.png"/>
-        <bt:Image id="Ico.Help.16" DefaultValue="https://localhost:3000/assets/icon-help-16.png"/>
-        <bt:Image id="Ico.Help.20" DefaultValue="https://localhost:3000/assets/icon-help-20.png"/>
-        <bt:Image id="Ico.Help.24" DefaultValue="https://localhost:3000/assets/icon-help-24.png"/>
-        <bt:Image id="Ico.Help.32" DefaultValue="https://localhost:3000/assets/icon-help-32.png"/>
-        <bt:Image id="Ico.Help.40" DefaultValue="https://localhost:3000/assets/icon-help-40.png"/>
-        <bt:Image id="Ico.Help.48" DefaultValue="https://localhost:3000/assets/icon-help-48.png"/>
-        <bt:Image id="Ico.Help.64" DefaultValue="https://localhost:3000/assets/icon-help-64.png"/>
-        <bt:Image id="Ico.Help.80" DefaultValue="https://localhost:3000/assets/icon-help-80.png"/>
+        <bt:Image id="Ico.Editor.16" DefaultValue="https://localhost:3000/assets/icon-editor-16.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.20" DefaultValue="https://localhost:3000/assets/icon-editor-20.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.24" DefaultValue="https://localhost:3000/assets/icon-editor-24.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.32" DefaultValue="https://localhost:3000/assets/icon-editor-32.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.40" DefaultValue="https://localhost:3000/assets/icon-editor-40.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.48" DefaultValue="https://localhost:3000/assets/icon-editor-48.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.64" DefaultValue="https://localhost:3000/assets/icon-editor-64.png?v=20260528"/>
+        <bt:Image id="Ico.Editor.80" DefaultValue="https://localhost:3000/assets/icon-editor-80.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.16" DefaultValue="https://localhost:3000/assets/icon-insert-16.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.20" DefaultValue="https://localhost:3000/assets/icon-insert-20.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.24" DefaultValue="https://localhost:3000/assets/icon-insert-24.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.32" DefaultValue="https://localhost:3000/assets/icon-insert-32.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.40" DefaultValue="https://localhost:3000/assets/icon-insert-40.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.48" DefaultValue="https://localhost:3000/assets/icon-insert-48.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.64" DefaultValue="https://localhost:3000/assets/icon-insert-64.png?v=20260528"/>
+        <bt:Image id="Ico.Insert.80" DefaultValue="https://localhost:3000/assets/icon-insert-80.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.16" DefaultValue="https://localhost:3000/assets/icon-ocr-16.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.20" DefaultValue="https://localhost:3000/assets/icon-ocr-20.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.24" DefaultValue="https://localhost:3000/assets/icon-ocr-24.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.32" DefaultValue="https://localhost:3000/assets/icon-ocr-32.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.40" DefaultValue="https://localhost:3000/assets/icon-ocr-40.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.48" DefaultValue="https://localhost:3000/assets/icon-ocr-48.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.64" DefaultValue="https://localhost:3000/assets/icon-ocr-64.png?v=20260528"/>
+        <bt:Image id="Ico.Ocr.80" DefaultValue="https://localhost:3000/assets/icon-ocr-80.png?v=20260528"/>
+        <bt:Image id="Ico.Load.16" DefaultValue="https://localhost:3000/assets/icon-load-16.png?v=20260528"/>
+        <bt:Image id="Ico.Load.20" DefaultValue="https://localhost:3000/assets/icon-load-20.png?v=20260528"/>
+        <bt:Image id="Ico.Load.24" DefaultValue="https://localhost:3000/assets/icon-load-24.png?v=20260528"/>
+        <bt:Image id="Ico.Load.32" DefaultValue="https://localhost:3000/assets/icon-load-32.png?v=20260528"/>
+        <bt:Image id="Ico.Load.40" DefaultValue="https://localhost:3000/assets/icon-load-40.png?v=20260528"/>
+        <bt:Image id="Ico.Load.48" DefaultValue="https://localhost:3000/assets/icon-load-48.png?v=20260528"/>
+        <bt:Image id="Ico.Load.64" DefaultValue="https://localhost:3000/assets/icon-load-64.png?v=20260528"/>
+        <bt:Image id="Ico.Load.80" DefaultValue="https://localhost:3000/assets/icon-load-80.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.16" DefaultValue="https://localhost:3000/assets/icon-delete-16.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.20" DefaultValue="https://localhost:3000/assets/icon-delete-20.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.24" DefaultValue="https://localhost:3000/assets/icon-delete-24.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.32" DefaultValue="https://localhost:3000/assets/icon-delete-32.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.40" DefaultValue="https://localhost:3000/assets/icon-delete-40.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.48" DefaultValue="https://localhost:3000/assets/icon-delete-48.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.64" DefaultValue="https://localhost:3000/assets/icon-delete-64.png?v=20260528"/>
+        <bt:Image id="Ico.Delete.80" DefaultValue="https://localhost:3000/assets/icon-delete-80.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.16" DefaultValue="https://localhost:3000/assets/icon-numbered-16.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.20" DefaultValue="https://localhost:3000/assets/icon-numbered-20.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.24" DefaultValue="https://localhost:3000/assets/icon-numbered-24.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.32" DefaultValue="https://localhost:3000/assets/icon-numbered-32.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.40" DefaultValue="https://localhost:3000/assets/icon-numbered-40.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.48" DefaultValue="https://localhost:3000/assets/icon-numbered-48.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.64" DefaultValue="https://localhost:3000/assets/icon-numbered-64.png?v=20260528"/>
+        <bt:Image id="Ico.Numbered.80" DefaultValue="https://localhost:3000/assets/icon-numbered-80.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.16" DefaultValue="https://localhost:3000/assets/icon-renumber-16.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.20" DefaultValue="https://localhost:3000/assets/icon-renumber-20.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.24" DefaultValue="https://localhost:3000/assets/icon-renumber-24.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.32" DefaultValue="https://localhost:3000/assets/icon-renumber-32.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.40" DefaultValue="https://localhost:3000/assets/icon-renumber-40.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.48" DefaultValue="https://localhost:3000/assets/icon-renumber-48.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.64" DefaultValue="https://localhost:3000/assets/icon-renumber-64.png?v=20260528"/>
+        <bt:Image id="Ico.Renumber.80" DefaultValue="https://localhost:3000/assets/icon-renumber-80.png?v=20260528"/>
+        <bt:Image id="Ico.Help.16" DefaultValue="https://localhost:3000/assets/icon-help-16.png?v=20260528"/>
+        <bt:Image id="Ico.Help.20" DefaultValue="https://localhost:3000/assets/icon-help-20.png?v=20260528"/>
+        <bt:Image id="Ico.Help.24" DefaultValue="https://localhost:3000/assets/icon-help-24.png?v=20260528"/>
+        <bt:Image id="Ico.Help.32" DefaultValue="https://localhost:3000/assets/icon-help-32.png?v=20260528"/>
+        <bt:Image id="Ico.Help.40" DefaultValue="https://localhost:3000/assets/icon-help-40.png?v=20260528"/>
+        <bt:Image id="Ico.Help.48" DefaultValue="https://localhost:3000/assets/icon-help-48.png?v=20260528"/>
+        <bt:Image id="Ico.Help.64" DefaultValue="https://localhost:3000/assets/icon-help-64.png?v=20260528"/>
+        <bt:Image id="Ico.Help.80" DefaultValue="https://localhost:3000/assets/icon-help-80.png?v=20260528"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
