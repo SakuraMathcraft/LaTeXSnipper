@@ -1,19 +1,24 @@
 import "../styles/taskpane.css";
 
 import { BridgeClient, type BridgeHealth, type ConversionResult } from "../services/bridgeClient";
-import { loadSession, saveSession } from "../services/equationSession";
+import { loadEquationSource, loadSession, saveSession } from "../services/equationSession";
 import { normalizeOfficeLatex } from "../services/latexNormalize";
 import { clearRibbonCommand, readRibbonCommand, RibbonCommand } from "../services/ribbonCommands";
 import {
+  deleteSelectedEquationFromWord,
   getSelectedEquationIdFromWord,
   insertEquationIntoWord,
   loadSelectedEquationFromWord,
-  renumberWordEquations
+  renumberWordEquations,
+  updateEquationInWord
 } from "../office/wordInsert";
 import { insertEquationIntoPowerPoint } from "../office/powerpointInsert";
+import { configureLocale, currentLocale, displayMessage, localizeDocument, t } from "../services/i18n";
 import { MathLiveEditor } from "./mathliveEditor";
 
-const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8765";
+const DEFAULT_BRIDGE_URL = window.location.port === "8765"
+  ? window.location.origin
+  : "http://127.0.0.1:8765";
 
 type Elements = {
   hostLabel: HTMLElement;
@@ -26,35 +31,38 @@ type Elements = {
   displayMode: HTMLInputElement;
   autoNumber: HTMLInputElement;
   manualNumber: HTMLInputElement;
+  displayOption: HTMLElement;
+  numberingPanel: HTMLElement;
   healthButton: HTMLButtonElement;
   ocrButton: HTMLButtonElement;
-  loadSelectedButton: HTMLButtonElement;
-  updateSelectedButton: HTMLButtonElement;
   renumberButton: HTMLButtonElement;
   insertButton: HTMLButtonElement;
 };
 
-let lastConversion: ConversionResult | null = null;
 let formulaEditor: MathLiveEditor | null = null;
 let officeHost: Office.HostType | undefined;
-let selectedEquationId = "";
+let selectionNoticeEquationId = "";
 let lastHandledCommandId = "";
 let actionBusy = false;
+let officeDialog: Office.Dialog | null = null;
+let officeDialogKind: "editor" | "help" | null = null;
 
 Office.onReady(async (info) => {
+  configureLocale(Office.context.displayLanguage);
+  localizeDocument();
   const elements = resolveElements();
   officeHost = info.host;
-  elements.hostLabel.textContent = `${info.host || "Office"} add-in`;
+  elements.hostLabel.textContent = t("officeAddin", { host: info.host || "Office" });
+  configureHostUi(elements);
   restoreSession(elements);
   refreshCommandAvailability(elements);
-  formulaEditor = new MathLiveEditor(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
+  formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
   startRibbonCommandPolling(elements);
   const configured = await tryAutoConfigureBridge(elements);
-  const launchModeApplied = applyLaunchMode(elements);
-  if (!configured && !launchModeApplied) {
-    setStatus(elements, "Ready.", "ok");
+  if (!configured) {
+    setStatus(elements, t("ready"), "ok");
   }
 });
 
@@ -70,10 +78,10 @@ function resolveElements(): Elements {
     displayMode: requiredElement("displayMode", HTMLInputElement),
     autoNumber: requiredElement("autoNumber", HTMLInputElement),
     manualNumber: requiredElement("manualNumber", HTMLInputElement),
+    displayOption: requiredElement("displayOption", HTMLElement),
+    numberingPanel: requiredElement("numberingPanel", HTMLElement),
     healthButton: requiredElement("healthButton", HTMLButtonElement),
     ocrButton: requiredElement("ocrButton", HTMLButtonElement),
-    loadSelectedButton: requiredElement("loadSelectedButton", HTMLButtonElement),
-    updateSelectedButton: requiredElement("updateSelectedButton", HTMLButtonElement),
     renumberButton: requiredElement("renumberButton", HTMLButtonElement),
     insertButton: requiredElement("insertButton", HTMLButtonElement)
   };
@@ -87,26 +95,30 @@ function installSelectionTracking(elements: Elements): void {
   const handler = () => {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
-      void refreshSelectedEquationState(elements);
+      void refreshSelectedEquationState(elements).catch((error: unknown) => {
+        setStatus(elements, displayMessage(error instanceof Error ? error.message : String(error)), "error");
+      });
     }, 300);
   };
-  try {
-    Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handler);
-  } catch {
-    // Selection tracking is a convenience layer. Load/Update still work from buttons.
-  }
+  Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handler);
 }
 
 async function refreshSelectedEquationState(elements: Elements): Promise<void> {
-  try {
-    const equationId = await getSelectedEquationIdFromWord();
-    if (!equationId || equationId === selectedEquationId) {
-      return;
+  const equationId = await getSelectedEquationIdFromWord();
+  if (!equationId) {
+    selectionNoticeEquationId = "";
+    if (elements.statusBanner.textContent === t("selectedEquation")) {
+      setStatus(elements, t("ready"), "ok");
     }
-    selectedEquationId = equationId;
-    setStatus(elements, "LaTeXSnipper equation selected.", "ok");
-  } catch {
-    // Ignore ordinary Word selections.
+    return;
+  }
+  if (equationId === selectionNoticeEquationId) {
+    return;
+  }
+  const record = loadEquationSource(equationId);
+  if (record?.latex) {
+    selectionNoticeEquationId = equationId;
+    setStatus(elements, t("selectedEquation"), "ok");
   }
 }
 
@@ -128,13 +140,22 @@ async function consumeRibbonCommand(elements: Elements): Promise<void> {
 
 async function executeRibbonCommand(elements: Elements, command: RibbonCommand): Promise<void> {
   switch (command.name) {
+    case "editor":
+      if (!elements.bridgeToken.value.trim()) {
+        throw new Error(t("connectForEditor"));
+      }
+      openDialogEditor(elements);
+      return;
     case "insert":
       await insertCurrentLatex(elements);
       return;
     case "numbered":
-      elements.displayMode.checked = true;
-      elements.autoNumber.checked = true;
-      await insertCurrentLatex(elements);
+      if (officeHost === Office.HostType.PowerPoint) {
+        openDialogEditor(elements, readLatex(elements), undefined, undefined, true);
+        setStatus(elements, t("pptManualNumberPrompt"), "ok");
+      } else {
+        await numberSelectedEquation(elements);
+      }
       return;
     case "ocr":
       await runScreenshotOcr(elements);
@@ -142,11 +163,14 @@ async function executeRibbonCommand(elements: Elements, command: RibbonCommand):
     case "loadSelected":
       await loadSelectedEquation(elements);
       return;
-    case "updateSelected":
-      await updateSelectedEquation(elements);
+    case "deleteSelected":
+      await deleteSelectedEquation(elements);
       return;
     case "renumber":
       await renumberEquations(elements);
+      return;
+    case "help":
+      openHelpDialog(elements);
       return;
   }
 }
@@ -165,78 +189,42 @@ function restoreSession(elements: Elements): void {
   elements.bridgeToken.value = session.bridgeToken;
 }
 
+function configureHostUi(elements: Elements): void {
+  const isPowerPoint = officeHost === Office.HostType.PowerPoint;
+  elements.displayOption.hidden = isPowerPoint;
+  elements.numberingPanel.hidden = isPowerPoint;
+}
+
 function wireEvents(elements: Elements): void {
   elements.healthButton.addEventListener("click", () => runAction(elements, () => testConnection(elements)));
   elements.ocrButton.addEventListener("click", () => runAction(elements, () => runScreenshotOcr(elements)));
-  elements.loadSelectedButton.addEventListener("click", () => runAction(elements, () => loadSelectedEquation(elements)));
-  elements.updateSelectedButton.addEventListener("click", () => runAction(elements, () => updateSelectedEquation(elements)));
   elements.renumberButton.addEventListener("click", () => runAction(elements, () => renumberEquations(elements)));
   elements.insertButton.addEventListener("click", () => runAction(elements, () => insertCurrentLatex(elements)));
-  elements.keyboardButton.addEventListener("click", () => formulaEditor?.toggleKeyboard());
-  window.addEventListener("keydown", (event) => handleKeyboardShortcut(event, elements));
+  elements.keyboardButton.style.display = "none";
   elements.bridgeUrl.addEventListener("change", () => persistBridgeInputs(elements));
   elements.bridgeToken.addEventListener("change", () => persistBridgeInputs(elements));
   elements.bridgeUrl.addEventListener("input", () => persistBridgeInputs(elements));
   elements.bridgeToken.addEventListener("input", () => persistBridgeInputs(elements));
-  elements.latexOutput.addEventListener("latexsnipper-latex-change", () => {
-    lastConversion = null;
+  elements.manualNumber.addEventListener("input", () => {
+    if (elements.manualNumber.value.trim()) {
+      elements.autoNumber.checked = false;
+    }
   });
-}
-
-function handleKeyboardShortcut(event: KeyboardEvent, elements: Elements): void {
-  if (!event.ctrlKey || event.altKey || event.metaKey) {
-    return;
-  }
-  const key = event.key.toLowerCase();
-  const action =
-    key === "enter"
-      ? () => insertCurrentLatex(elements)
-      : event.shiftKey && key === "s"
-        ? () => runScreenshotOcr(elements)
-        : event.shiftKey && key === "l"
-          ? () => loadSelectedEquation(elements)
-          : event.shiftKey && key === "u"
-            ? () => updateSelectedEquation(elements)
-            : null;
-  if (!action) {
-    return;
-  }
-  event.preventDefault();
-  event.stopPropagation();
-  void runAction(elements, action);
-}
-
-function applyLaunchMode(elements: Elements): boolean {
-  const mode = new URLSearchParams(window.location.search).get("mode");
-  if (mode === "numbered") {
-    elements.displayMode.checked = true;
-    elements.autoNumber.checked = true;
-    setStatus(elements, "Numbered equation mode is enabled.", "ok");
-    return true;
-  }
-  if (mode === "insert") {
-    setStatus(elements, "Insert mode is ready.", "ok");
-    formulaEditor?.focus(false);
-    return true;
-  }
-  if (mode === "ocr") {
-    window.setTimeout(() => {
-      void runAction(elements, () => runScreenshotOcr(elements));
-    }, 200);
-    return true;
-  }
-  return false;
+  elements.autoNumber.addEventListener("change", () => {
+    if (elements.autoNumber.checked) {
+      elements.manualNumber.value = "";
+    }
+  });
 }
 
 async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
   try {
-    const health = await configureBridge(elements, DEFAULT_BRIDGE_URL, 2500);
-    const ocrText = health.features.capture_recognize ? "OCR enabled" : "conversion only";
-    setStatus(elements, `Connected to local LaTeXSnipper bridge (${ocrText}).`, health.features.capture_recognize ? "ok" : "");
+    await configureBridge(elements, DEFAULT_BRIDGE_URL, 2500);
+    setStatus(elements, t("connectedBridge"), "ok");
     return true;
   } catch {
     if (!elements.bridgeToken.value.trim()) {
-      setStatus(elements, "Start LaTeXSnipper Office bridge to auto-configure the add-in.", "error");
+      setStatus(elements, t("startBridge"), "error");
       refreshCommandAvailability(elements);
       return true;
     }
@@ -245,8 +233,8 @@ async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
 }
 
 async function testConnection(elements: Elements): Promise<void> {
-  const health = await configureBridge(elements, elements.bridgeUrl.value, 7000);
-  setStatus(elements, `Connected to ${health.name}, protocol ${health.protocol}.`, "ok");
+  await configureBridge(elements, elements.bridgeUrl.value, 7000);
+  setStatus(elements, t("connectedBridge"), "ok");
 }
 
 async function configureBridge(elements: Elements, baseUrl: string, timeoutMs: number): Promise<BridgeHealth> {
@@ -259,20 +247,15 @@ async function configureBridge(elements: Elements, baseUrl: string, timeoutMs: n
   elements.bridgeToken.value = config.token;
   await persistSession(elements);
   refreshCommandAvailability(elements);
-  const health = await clientFromElements(elements).health(true);
-  if (!health.features.convert_latex) {
-    throw new Error("Connected bridge does not support LaTeX conversion.");
-  }
-  return health;
+  return clientFromElements(elements).health(true);
 }
 
 async function convertCurrentLatex(elements: Elements): Promise<ConversionResult> {
   await persistSession(elements);
   const latex = readLatex(elements);
-  setStatus(elements, "Converting LaTeX through bridge.");
+  setStatus(elements, t("converting"));
   const conversion = await clientFromElements(elements).convertLatex(latex, ["omml"]);
-  lastConversion = conversion;
-  setStatus(elements, "Converted to OMML.", "ok");
+  setStatus(elements, t("converted"), "ok");
   return conversion;
 }
 
@@ -285,53 +268,77 @@ async function insertCurrentLatex(elements: Elements): Promise<void> {
   } as const;
   if (officeHost === Office.HostType.PowerPoint) {
     await insertEquationIntoPowerPoint(draft, clientFromElements(elements));
-    setStatus(elements, "Inserted equation into PowerPoint.", "ok");
+    setStatus(elements, t("insertedPpt"), "ok");
     return;
   }
-  const conversion = lastConversion || (await convertCurrentLatex(elements));
+  const conversion = await convertCurrentLatex(elements);
   await insertEquationIntoWord(draft, conversion);
-  setStatus(elements, "Inserted equation into Word.", "ok");
+  setStatus(elements, t("insertedWord"), "ok");
 }
 
 async function loadSelectedEquation(elements: Elements): Promise<void> {
   if (officeHost !== Office.HostType.Word) {
-    throw new Error("Native TeX editing is currently available in Word only.");
+    throw new Error(t("wordOnlyEdit"));
   }
   const selected = await loadSelectedEquationFromWord();
-  selectedEquationId = selected.equationId;
   formulaEditor?.setLatex(selected.latex);
-  lastConversion = null;
-  setStatus(elements, "Loaded selected equation source.", "ok");
+  elements.latexOutput.value = selected.latex;
+  elements.displayMode.checked = selected.display;
+  elements.autoNumber.checked = selected.numbering === "auto";
+  elements.manualNumber.value = selected.numbering === "manual" ? (selected.numberValue || "") : "";
+  openDialogEditor(elements, selected.latex, selected.equationId, selected.numberValue);
+  setStatus(elements, t("openedEditor"), "ok");
 }
 
-async function updateSelectedEquation(elements: Elements): Promise<void> {
-  const currentSelectionId = await getSelectedEquationIdFromWord();
-  if (currentSelectionId) {
-    selectedEquationId = currentSelectionId;
+async function deleteSelectedEquation(elements: Elements): Promise<void> {
+  if (officeHost !== Office.HostType.Word) {
+    throw new Error(t("wordOnlyDelete"));
   }
-  if (!selectedEquationId) {
-    throw new Error("Select a LaTeXSnipper equation to update.");
+  await deleteSelectedEquationFromWord();
+  selectionNoticeEquationId = "";
+  setStatus(elements, t("deletedEquation"), "ok");
+}
+
+async function numberSelectedEquation(elements: Elements): Promise<void> {
+  if (officeHost !== Office.HostType.Word) {
+    throw new Error(t("wordOnlyNumbering"));
   }
+  const equationId = await getSelectedEquationIdFromWord();
+  if (!equationId) {
+    throw new Error(t("selectNumber"));
+  }
+  const record = loadEquationSource(equationId);
+  if (!record || !record.latex) {
+    throw new Error(t("missingSource"));
+  }
+  if (record.numbering && record.numbering !== "none") {
+    setStatus(elements, t("alreadyNumbered"), "");
+    return;
+  }
+  formulaEditor?.setLatex(record.latex);
+  elements.latexOutput.value = record.latex;
   const draft = {
-    latex: readLatex(elements),
-    display: elements.displayMode.checked,
-    numbering: elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none",
-    manualNumber: elements.manualNumber.value,
-    equationId: selectedEquationId
-  } as const;
+    latex: record.latex,
+    display: true,
+    numbering: "auto" as const,
+    manualNumber: undefined as string | undefined,
+    equationId,
+    numberValue: record.numberValue,
+  };
   const conversion = await convertCurrentLatex(elements);
-  await insertEquationIntoWord(draft, conversion);
-  setStatus(elements, "Updated selected equation.", "ok");
+  await updateEquationInWord(draft, conversion);
+  setStatus(elements, t("addedNumber"), "ok");
+  resetSidebarAfterUpdate(elements);
 }
 
 async function renumberEquations(elements: Elements): Promise<void> {
   const count = await renumberWordEquations();
-  setStatus(elements, count ? `Renumbered ${count} equations.` : "No numbered LaTeXSnipper equations found.", count ? "ok" : "");
+  setStatus(elements, count ? t("renumbered", { count }) : t("noNumbered"), count ? "ok" : "");
 }
 
 async function runScreenshotOcr(elements: Elements): Promise<void> {
   const client = clientFromElements(elements);
-  setStatus(elements, "Waiting for the next LaTeXSnipper recognition. Use the global shortcut, then capture a region.");
+  setStatus(elements, t("waitingCapture"));
   let lastStatus = "waiting";
   const statusTimer = window.setInterval(() => {
     void client.recognitionStatus().then((status) => {
@@ -340,9 +347,9 @@ async function runScreenshotOcr(elements: Elements): Promise<void> {
       }
       lastStatus = status.state;
       if (status.state === "waiting") {
-        setStatus(elements, "Waiting for the next LaTeXSnipper recognition. Use the global shortcut, then capture a region.");
+        setStatus(elements, t("waitingCapture"));
       } else if (status.state === "recognizing") {
-        setStatus(elements, "Recognizing formula in LaTeXSnipper. First OCR after startup can take longer.");
+        setStatus(elements, t("recognizing"));
       }
     }).catch(() => undefined);
   }, 900);
@@ -350,11 +357,14 @@ async function runScreenshotOcr(elements: Elements): Promise<void> {
     const result = await client.recognizeScreenshot();
     const latex = normalizeOfficeLatex(result.latex);
     if (!latex) {
-      throw new Error("Screenshot OCR returned an empty result.");
+      throw new Error(t("ocrEmpty"));
     }
     formulaEditor?.setLatex(latex);
-    lastConversion = null;
-    setStatus(elements, "Screenshot OCR result loaded.", "ok");
+    elements.latexOutput.value = latex;
+    if (officeDialog && officeDialogKind === "editor") {
+      officeDialog.messageChild(JSON.stringify({ type: "ocrResult", latex }));
+    }
+    setStatus(elements, t("ocrLoaded"), "ok");
   } finally {
     window.clearInterval(statusTimer);
   }
@@ -375,7 +385,7 @@ function persistBridgeInputs(elements: Elements): void {
 function clientFromElements(elements: Elements): BridgeClient {
   const token = elements.bridgeToken.value.trim();
   if (!token) {
-    throw new Error("Click Connect to refresh the LaTeXSnipper bridge token.");
+    throw new Error(t("connectRefresh"));
   }
   return new BridgeClient(elements.bridgeUrl.value || DEFAULT_BRIDGE_URL, token);
 }
@@ -383,18 +393,177 @@ function clientFromElements(elements: Elements): BridgeClient {
 function readLatex(elements: Elements): string {
   const latex = normalizeOfficeLatex(formulaEditor?.getLatex() || elements.latexOutput.value);
   if (!latex) {
-    throw new Error("LaTeX is required.");
+    throw new Error(t("latexRequired"));
   }
   return latex;
 }
 
-async function runAction(elements: Elements, action: () => Promise<void>): Promise<void> {
+function openDialogEditor(
+  elements: Elements,
+  latex?: string,
+  equationId?: string,
+  numberValue?: string,
+  requireManualNumber = false
+): void {
+  closeOfficeDialog();
+  const params = new URLSearchParams();
+  params.set("mode", equationId ? "update" : "insert");
+  params.set("bridgeUrl", elements.bridgeUrl.value || DEFAULT_BRIDGE_URL);
+  params.set("bridgeToken", elements.bridgeToken.value.trim());
+  if (latex) {
+    params.set("latex", latex);
+  }
+  if (equationId) {
+    params.set("equationId", equationId);
+    params.set("display", String(elements.displayMode.checked));
+    params.set("autoNumber", String(elements.autoNumber.checked));
+    params.set("manualNumber", elements.manualNumber.value.trim());
+    if (numberValue) {
+      params.set("numberValue", numberValue);
+    }
+  }
+  params.set("host", officeHost === Office.HostType.PowerPoint ? "powerpoint" : "word");
+  if (requireManualNumber) {
+    params.set("requireManualNumber", "true");
+  }
+  params.set("locale", currentLocale());
+  const dialogUrl = `${window.location.origin}${window.location.pathname.replace(
+    "taskpane.html",
+    "src/dialog/editorDialog.html"
+  )}?${params.toString()}`;
+  Office.context.ui.displayDialogAsync(dialogUrl, { height: 60, width: 48 }, (result) => {
+    if (result.status === Office.AsyncResultStatus.Failed) {
+      setStatus(elements, t("failedEditor", { message: result.error.message }), "error");
+      return;
+    }
+    officeDialog = result.value;
+    officeDialogKind = "editor";
+    officeDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: {
+      message?: string;
+      error?: number;
+    }) => {
+      if (arg.message) {
+        void handleDialogMessage(elements, arg.message);
+      }
+    });
+    officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+      officeDialog = null;
+      officeDialogKind = null;
+      resetSidebarAfterUpdate(elements);
+    });
+  });
+}
+
+function openHelpDialog(elements: Elements): void {
+  closeOfficeDialog();
+  const helpPage = currentLocale() === "zh-CN" ? "help.zh-cn.html" : "help.html";
+  const dialogUrl = `${window.location.origin}${window.location.pathname.replace("taskpane.html", helpPage)}`;
+  Office.context.ui.displayDialogAsync(dialogUrl, { height: 80, width: 58 }, (result) => {
+    if (result.status === Office.AsyncResultStatus.Failed) {
+      setStatus(elements, t("failedHelp", { message: result.error.message }), "error");
+      return;
+    }
+    officeDialog = result.value;
+    officeDialogKind = "help";
+    officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+      officeDialog = null;
+      officeDialogKind = null;
+    });
+  });
+}
+
+function closeOfficeDialog(): void {
+  if (!officeDialog) {
+    return;
+  }
+  try {
+    officeDialog.close();
+  } catch {
+  } finally {
+    officeDialog = null;
+    officeDialogKind = null;
+  }
+}
+
+async function handleDialogMessage(elements: Elements, raw: string): Promise<void> {
+  let message: { type: string; draft?: { latex: string; display: boolean; numbering: string; manualNumber?: string; numberValue?: string }; equationId?: string };
+  try {
+    message = JSON.parse(raw) as typeof message;
+  } catch {
+    return;
+  }
+  switch (message.type) {
+    case "insert": {
+      if (!message.draft) {
+        return;
+      }
+      const draft = message.draft;
+      formulaEditor?.setLatex(draft.latex);
+      elements.latexOutput.value = draft.latex;
+      elements.displayMode.checked = draft.display;
+      elements.autoNumber.checked = draft.numbering === "auto";
+      elements.manualNumber.value = draft.numbering === "manual" ? (draft.manualNumber || "") : "";
+      const inserted = await runAction(elements, () => insertFromDialog(elements, draft, message.equationId));
+      if (!inserted) {
+        officeDialog?.messageChild(JSON.stringify({
+          type: "insertFailed",
+          message: elements.statusBanner.textContent || t("latexRequired")
+        }));
+        return;
+      }
+      officeDialog?.close();
+      officeDialog = null;
+      officeDialogKind = null;
+      break;
+    }
+    case "close": {
+      officeDialog?.close();
+      officeDialog = null;
+      officeDialogKind = null;
+      break;
+    }
+  }
+}
+
+async function insertFromDialog(
+  elements: Elements,
+  draft: { latex: string; display: boolean; numbering: string; manualNumber?: string; numberValue?: string },
+  equationId?: string
+): Promise<void> {
+  if (officeHost === Office.HostType.PowerPoint) {
+    await insertEquationIntoPowerPoint(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber, equationId },
+      clientFromElements(elements)
+    );
+    setStatus(elements, t("insertedPpt"), "ok");
+    return;
+  }
+  const conversion = await convertCurrentLatex(elements);
+  if (equationId) {
+    await updateEquationInWord(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber, equationId, numberValue: draft.numberValue },
+      conversion
+    );
+    setStatus(elements, t("updatedWord"), "ok");
+    resetSidebarAfterUpdate(elements);
+  } else {
+    await insertEquationIntoWord(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber },
+      conversion
+    );
+    setStatus(elements, t("insertedWord"), "ok");
+  }
+}
+
+async function runAction(elements: Elements, action: () => Promise<void>): Promise<boolean> {
   setBusy(elements, true);
-  setStatus(elements, "Working.");
+  setStatus(elements, t("workingButton"));
   try {
     await action();
+    return true;
   } catch (error) {
-    setStatus(elements, error instanceof Error ? error.message : String(error), "error");
+    setStatus(elements, displayMessage(error instanceof Error ? error.message : String(error)), "error");
+    return false;
   } finally {
     setBusy(elements, false);
   }
@@ -405,16 +574,23 @@ function setBusy(elements: Elements, busy: boolean): void {
   refreshCommandAvailability(elements);
 }
 
+function resetSidebarAfterUpdate(elements: Elements): void {
+  const initialLatex = "\\int_0^1 x^2\\,dx";
+  formulaEditor?.setLatex(initialLatex);
+  elements.latexOutput.value = initialLatex;
+  elements.displayMode.checked = true;
+  elements.autoNumber.checked = false;
+  elements.manualNumber.value = "";
+}
+
 function refreshCommandAvailability(elements: Elements): void {
   const hasBridgeToken = Boolean(elements.bridgeToken.value.trim());
   const isWord = officeHost === Office.HostType.Word;
   elements.healthButton.disabled = actionBusy;
   elements.ocrButton.disabled = actionBusy || !hasBridgeToken;
-  elements.loadSelectedButton.disabled = actionBusy || !isWord;
-  elements.updateSelectedButton.disabled = actionBusy || !isWord || !hasBridgeToken;
   elements.renumberButton.disabled = actionBusy || !isWord;
   elements.insertButton.disabled = actionBusy || !hasBridgeToken;
-  elements.healthButton.textContent = actionBusy ? "Working..." : "Connect";
+  elements.healthButton.textContent = actionBusy ? t("workingButton") : t("connect");
 }
 
 function setStatus(elements: Elements, message: string, kind: "ok" | "error" | "" = ""): void {

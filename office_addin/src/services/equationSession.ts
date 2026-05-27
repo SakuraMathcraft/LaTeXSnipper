@@ -27,11 +27,29 @@ export function saveSession(session: SavedSession): Promise<void> {
   return saveSettings();
 }
 
-export async function saveEquationSource(latex: string, equationId?: string): Promise<string> {
+export type EquationSourceRecord = {
+  id: string;
+  latex: string;
+  display?: boolean;
+  numbering?: string;
+  numberValue?: string;
+  updatedAt: string;
+};
+
+export async function saveEquationSource(
+  latex: string,
+  equationId?: string,
+  display?: boolean,
+  numbering?: string,
+  numberValue?: string
+): Promise<string> {
   const id = equationId || createEquationId();
   Office.context.document.settings.set(`${EQUATION_SOURCE_PREFIX}${id}`, {
     id,
     latex,
+    display,
+    numbering,
+    numberValue,
     updatedAt: new Date().toISOString()
   });
   await saveSettings();
@@ -47,12 +65,25 @@ export async function allocateEquationNumber(): Promise<string> {
   return `(${current})`;
 }
 
-export function loadEquationSource(equationId: string): string {
+export function loadEquationSource(equationId: string): EquationSourceRecord | null {
   const record = Office.context.document.settings.get(`${EQUATION_SOURCE_PREFIX}${equationId}`);
   if (typeof record === "object" && record !== null && "latex" in record) {
-    return String((record as { latex?: unknown }).latex || "");
+    const r = record as Record<string, unknown>;
+    return {
+      id: String(r.id || equationId),
+      latex: String(r.latex || ""),
+      display: typeof r.display === "boolean" ? r.display : undefined,
+      numbering: typeof r.numbering === "string" ? r.numbering : undefined,
+      numberValue: typeof r.numberValue === "string" ? r.numberValue : undefined,
+      updatedAt: String(r.updatedAt || ""),
+    };
   }
-  return "";
+  return null;
+}
+
+export async function deleteEquationSource(equationId: string): Promise<void> {
+  Office.context.document.settings.remove(`${EQUATION_SOURCE_PREFIX}${equationId}`);
+  await saveSettings();
 }
 
 function readNumberingState(raw: unknown): NumberingState {

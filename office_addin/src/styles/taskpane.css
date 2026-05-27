@@ -1,3 +1,8 @@
+math-field::part(virtual-keyboard-toggle),
+math-field::part(menu-toggle) {
+  display: none;
+}
+
 :root {
   color: #1f2937;
   background: #f7f8fa;
@@ -168,19 +173,27 @@ math-field {
 .options-row {
   align-items: center;
   display: grid;
-  gap: 8px;
+  gap: 4px;
   grid-template-columns: auto auto 1fr;
 }
 
 .options-row label {
   align-items: center;
   display: inline-flex;
-  gap: 6px;
+  gap: 3px;
   white-space: nowrap;
+  font-size: 11px;
 }
 
 .options-row input[type="checkbox"] {
   width: auto;
+}
+
+.options-row input[type="text"] {
+  padding: 5px 6px;
+  font-size: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .actions {

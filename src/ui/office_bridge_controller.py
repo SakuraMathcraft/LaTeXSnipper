@@ -7,6 +7,7 @@ import threading
 
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
 
+from integration.office.addin_runtime import OFFICE_ADDIN_PORT, find_installed_office_addin
 from integration.office.bridge_auth import OfficeBridgeAuth
 from integration.office.bridge_server import OfficeBridgeServer
 
@@ -72,10 +73,14 @@ class _OfficeBridgeToggleWorker(QThread):
     def run(self) -> None:
         try:
             if self._action == "start":
+                installed = find_installed_office_addin()
                 server = OfficeBridgeServer(
-                    port=self._port,
+                    port=OFFICE_ADDIN_PORT if installed is not None else self._port,
                     auth=OfficeBridgeAuth(self._token),
                     recognition_service=self._recognition_service,
+                    site_root=installed.site_root if installed else None,
+                    certificate=installed.certificate if installed else None,
+                    private_key=installed.private_key if installed else None,
                 )
                 server.start()
                 self.completed.emit(True, f"Office bridge: {server.base_url}", server)
@@ -232,10 +237,14 @@ class OfficeBridgeControllerMixin:
     def _start_office_bridge(self) -> None:
         if getattr(self, "_office_bridge_server", None):
             return
+        installed = find_installed_office_addin()
         server = OfficeBridgeServer(
-            port=self._office_bridge_port_pref(),
+            port=OFFICE_ADDIN_PORT if installed is not None else self._office_bridge_port_pref(),
             auth=OfficeBridgeAuth(self._office_bridge_token()),
             recognition_service=_OfficeScreenshotRecognitionService(self),
+            site_root=installed.site_root if installed else None,
+            certificate=installed.certificate if installed else None,
+            private_key=installed.private_key if installed else None,
         )
         server.start()
         self._office_bridge_server = server

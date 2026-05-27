@@ -1,98 +1,108 @@
-﻿# LaTeXSnipper Office Add-in
+# LaTeXSnipper Office 加载项
 
-This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The current code is a development prototype; the formal product target is an AxMath-like editor dialog backed by LaTeXSnipper's desktop bridge.
+该加载项通过本机 LaTeXSnipper Office Bridge 为 Word 和 PowerPoint 提供公式输入与截图识别。任务窗格、编辑器和 Ribbon 文本会按 Office 显示语言在中文与英文之间自动切换。
 
-The formal Word loop is:
+## 当前功能
 
-1. Open the LaTeXSnipper equation editor dialog from the Ribbon or task pane.
-2. Edit MathLive visual input and TeX source side by side.
-3. Convert LaTeX through the LaTeXSnipper desktop Office bridge.
-4. Insert a tagged Word equation object with native OMML rendering.
-5. Store the original TeX source and numbering metadata with the object.
-6. Reopen the object later for TeX-based editing and update.
+### Word
 
-PowerPoint support will be added after the Word insertion path is stable.
+Word 使用带 `latexsnipper-eq-{id}` 标记的内容控件保存 OMML 公式，并在文档设置中保存对应 LaTeX 和编号信息。
 
-The add-in is intentionally independent from the desktop application UI. The desktop app only needs to expose a small optional localhost bridge. Add-in installation, Office version checks, manifest registration, certificates, repair, and uninstall belong to this package.
+| 功能 | 实际行为 |
+|---|---|
+| `Editor` | 打开 MathLive 编辑器和符号/结构面板 |
+| `Insert Formula` | 在光标处插入新的可编辑 LaTeXSnipper 公式 |
+| `Load Selected` | 加载选中的 LaTeXSnipper 公式进行编辑 |
+| `Delete Selected` | 删除选中公式及其元数据；编号公式同时删除自身表格 |
+| `Auto Numbered` | 为选中的未编号公式添加自动编号 |
+| `Renumber All` | 按文档顺序重排所有自动编号公式 |
+| `Screenshot OCR` | 将下一次桌面端截图识别结果载入任务窗格，并同步到已打开的编辑器窗口 |
 
-The formula editor uses MathLive and keeps a synchronized LaTeX text view for direct editing. The task pane should remain a lightweight status and launcher surface; the larger editor belongs in an Office dialog.
+编号公式以独立的无边框三列表格布局；连续插入不会合并到同一表格。处于已有公式或编号布局内部的插入请求会直接提示不可插入。
 
-Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate manifests:
+### PowerPoint
 
-- `manifest.word.xml`
-- `manifest.powerpoint.xml`
+PowerPoint 通过 `Office.CoercionType.Image` 插入 PNG 图像：
 
-The Ribbon uses Office add-in commands. Editor opens the Office editor surface; Insert, Screenshot OCR, update, and renumber commands should synchronize with the active editor state.
+| 功能 | 实际行为 |
+|---|---|
+| `Editor` | 打开公式编辑器 |
+| `Insert Formula` | 向当前幻灯片插入按公式实际边界裁剪过的图像 |
+| `Insert Manual #` | 打开编辑器填写编号后，插入一张包含公式和该编号的合成图像 |
+| `Screenshot OCR` | 将识别结果载入任务窗格，并同步到已打开的编辑器窗口后再插入 |
 
-Word insertion creates a tagged LaTeXSnipper equation object: the visible formula is OMML, while the original LaTeX source is saved in Office document settings. This is the foundation for the later edit-selected-formula flow.
+PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected`、`Auto Numbered` 或 `Renumber All`。正式可用的 `Office.CoercionType.Image` 写入路径不会返回可由插件持续跟踪的图片对象；删除图像后无法可靠识别哪些编号仍存在，因此 PPT 不生成伪自动编号。
 
-Screenshot OCR must not be a Word-window-only capture. The add-in should subscribe to the next global LaTeXSnipper recognition result, then the user triggers the normal LaTeXSnipper screenshot hotkey and captures any screen region. The recognized LaTeX fills the editor; insertion remains a user-confirmed action.
+## Office.js 能力边界
 
-## Development
+本实现已经覆盖当前目标中 Office.js 可可靠交付的边界：
+
+- Word 只编辑和维护本加载项创建且仍具备元数据的公式，不猜测任意原生 Word 公式的 LaTeX 来源。
+- PowerPoint 只交付稳定的公式图像插入，不宣称提供原生可编辑公式对象。
+- 不保留损坏对象、历史结构或外来对象的兼容兜底逻辑。
+
+## 支持要求
+
+| 宿主 | 要求 |
+|---|---|
+| Word 桌面版 | `WordApi 1.3`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 Word Version 2205 (Build 15202.10000) 或 Word 2024，Mac 要求 Word 16.61 |
+| PowerPoint 桌面版 | `ImageCoercion 1.1`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 PowerPoint Version 2102 (Build 13722.10000) 或 PowerPoint 2021/2024，Mac 要求 PowerPoint 16.46 |
+
+本地 Bridge 与桌面截图依赖使 Web 和移动版 Office 不属于当前支持范围。
+
+## 正式安装与分发
+
+发布流水线生成本机运行时安装包以及持久部署 manifest 包：
+
+| 平台 | 产物 | 实际行为 |
+|---|---|---|
+| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
+| macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
+| Microsoft 365 部署 | `LaTeXSnipperOfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
+
+持久出现在 Word/PPT Ribbon 中必须使用 Microsoft 支持的生产部署方式：管理员 Integrated apps 部署上述 manifests，或未来发布到 Marketplace。共享文件夹与 `wef` 旁加载只用于开发测试，不由安装包注入。每台使用者电脑仍需安装对应本机运行时，并运行已启用 Office 功能的 LaTeXSnipper 桌面端，由其在 `https://localhost:8765` 提供页面和 API。
+
+## 开发启动
+
+首次使用前安装依赖并信任开发证书：
 
 ```powershell
-cd office_addin
+cd E:\LaTexSnipper\office_addin
 npm install
-npm run dev
+.\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
 ```
 
-The manifest points to:
-
-```text
-https://localhost:3000/taskpane.html
-```
-
-Trust the local development certificate before opening the add-in in Word:
+启动 Word 加载项：
 
 ```powershell
-E:\LaTexSnipper\office_addin\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
-```
-
-Install the generated certificate for the current user into `Trusted Root Certification Authorities`, confirm the Windows security prompt, then restart Word. A browser warning such as `NET::ERR_CERT_AUTHORITY_INVALID` means Word/WebView2 will reject the add-in.
-
-Register the shared-folder catalog for Word:
-
-```powershell
-E:\LaTexSnipper\office_addin\scripts\register_word_catalog.ps1 -SharePath "\\DESKTOP-V3G05D9\office_addin"
-```
-
-Use the UNC path shown in the Windows folder sharing dialog. Close all Office apps after registration. Reopen Word and load the add-in from the Office add-ins entry, usually one of:
-
-- `Insert -> Add-ins / My Add-ins -> Shared Folder`
-- `Developer -> Add-ins`
-
-Do not use `Developer -> XML Expansion Pack`; that is not the Office.js Web Add-in loader.
-
-The task pane auto-discovers the local LaTeXSnipper bridge from `http://127.0.0.1:8765/config`, so the bridge URL and token should not be typed by users during normal testing.
-
-Start LaTeXSnipper itself and enable `Office 插件` in settings before testing conversion or Screenshot OCR. The add-in discovers the local bridge and token automatically.
-
-`Connect` must refresh `/config` before checking `/health`. A successful health response without a token is not a usable connection because conversion and recognition endpoints require authentication.
-
-For the current development loop, sideload Word with:
-
-```powershell
+cd E:\LaTexSnipper\office_addin
 npm run dev:word
 ```
 
-This starts the Vite dev server when needed, checks whether the active bridge supports Screenshot OCR, and sideloads Word.
+启动 PowerPoint 加载项：
 
-The ribbon icon source is `public/assets/ribbon-icons.svg`; Office manifests still reference PNG assets because desktop Office ribbon images require fixed-size bitmap URLs.
+```powershell
+cd E:\LaTexSnipper\office_addin
+npm run dev:powerpoint
+```
 
-## Architecture
+两个命令复用 `scripts/start_office_dev.ps1`，启动 HTTPS Vite 服务、检查本机 Bridge，并向对应 Office 宿主旁加载 manifest。
 
-- `src/taskpane/`: task pane composition and user events.
-- `src/dialog/`: formal equation editor dialog code when the prototype is promoted.
-- `src/services/`: localhost bridge client and shared service code.
-- `src/office/`: Office host adapters. Word insertion logic belongs here.
-- `src/styles/`: task pane styles.
+## 模块
 
-The add-in does not load MathCraft OCR or local model dependencies. Recognition and conversion belong to the desktop bridge.
+| 模块 | 责任 |
+|---|---|
+| `src/taskpane/App.ts` | 宿主 UI、Ribbon 指令调度、Bridge 与对话框编排 |
+| `src/dialog/editorDialog.ts` | MathLive 编辑器、符号和结构输入 |
+| `src/office/wordInsert.ts` | Word OMML 插入、加载、更新、删除与编号 |
+| `src/office/powerpointInsert.ts` | PowerPoint PNG 与编号合成图像插入 |
+| `src/services/i18n.ts` | 按 Office 显示语言切换文本 |
+| `src/services/equationSession.ts` | Word 文档设置和编号状态 |
+| `../src/integration/office/addin_runtime.py` | 发现正式安装的站点与本机 TLS 配置 |
 
-## Packaging Boundary
-
-- Office add-in assets and installers live under `office_addin/`.
-- Desktop bridge code lives under `src/integration/office/`.
-- The main application should not contain Office installation wizards.
-- Windows/macOS Office-specific setup should be handled by this package.
-
+官方依据：
+[Word requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/word/word-api-requirement-sets)；
+[Shared runtime requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets)；
+[Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)；
+[Shared folder catalog sideloading on Windows](https://learn.microsoft.com/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins)；
+[Sideloading on Mac](https://learn.microsoft.com/office/dev/add-ins/testing/sideload-an-office-add-in-on-mac)。

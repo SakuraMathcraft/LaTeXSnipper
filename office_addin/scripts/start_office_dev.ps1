@@ -1,4 +1,7 @@
 param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("Word", "PowerPoint")]
+    [string]$HostApp,
     [switch]$LaunchLaTeXSnipper,
     [switch]$NoSideload
 )
@@ -69,11 +72,7 @@ try {
 
     $health = Get-OfficeBridgeHealth
     if ($health -and $health.ok) {
-        $capture = [bool]$health.result.features.capture_recognize
-        Write-Host "Office bridge detected: capture_recognize=$capture"
-        if (-not $capture) {
-            Write-Host "Warning: current bridge is conversion-only. Screenshot OCR needs the LaTeXSnipper desktop bridge."
-        }
+        Write-Host "LaTeXSnipper Office bridge detected."
     }
     else {
         Write-Host "Warning: Office bridge is not reachable at http://127.0.0.1:8765."
@@ -81,7 +80,12 @@ try {
     }
 
     if (-not $NoSideload) {
-        npm run sideload:word
+        if ($HostApp -eq "PowerPoint") {
+            npm run sideload:powerpoint
+        }
+        else {
+            npm run sideload:word
+        }
     }
 }
 finally {

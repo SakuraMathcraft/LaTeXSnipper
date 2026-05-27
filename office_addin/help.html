@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Office Add-in Help</title>
+    <style>
+      :root { color: #172033; background: #fff; font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.65; }
+      body { margin: 0; padding: 24px 26px 36px; max-width: 860px; }
+      h1 { font-size: 23px; margin: 0 0 4px; }
+      h2 { font-size: 18px; margin: 27px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #dbe3ef; }
+      h3 { font-size: 15px; margin: 17px 0 4px; color: #0f3e8a; }
+      p, li, td, th { font-size: 13px; color: #293548; }
+      p { margin: 5px 0 10px; }
+      ul { padding-left: 20px; margin: 5px 0 12px; }
+      li { margin: 4px 0; }
+      code { background: #eef3fb; padding: 1px 5px; border-radius: 3px; font: 12px "Cascadia Code", Consolas, monospace; }
+      table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+      th { text-align: left; color: #172033; background: #f2f6fb; }
+      td, th { border: 1px solid #dbe3ef; padding: 7px 9px; vertical-align: top; }
+      .lead { color: #52647f; margin-top: 0; }
+      .callout { background: #eef5ff; border-left: 4px solid #2563eb; padding: 10px 12px; margin: 14px 0; }
+      .good { background: #effaf3; border-left-color: #16a34a; }
+      a { color: #185abc; }
+      .footer { margin-top: 34px; padding-top: 12px; border-top: 1px solid #dbe3ef; font-size: 11px; color: #73829b; }
+    </style>
+  </head>
+  <body>
+    <h1>LaTeXSnipper Office Add-in</h1>
+    <p class="lead">Equation entry and screenshot OCR powered by the local LaTeXSnipper Office bridge.</p>
+
+    <div class="callout">
+      The add-in follows the Office display language. Enable the Office add-in feature in LaTeXSnipper desktop settings and keep the desktop app running before using conversion or screenshot OCR.
+    </div>
+
+    <h2>Supported Hosts</h2>
+    <table>
+      <thead><tr><th>Host</th><th>Requirements</th><th>Delivered workflow</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Word desktop</td>
+          <td><code>WordApi 1.3</code> and <code>SharedRuntime 1.1</code>. On Windows, the shared runtime requires Microsoft 365 Word Version 2205 (Build 15202.10000) or Word 2024; on Mac it requires Word 16.61.</td>
+          <td>Tagged editable OMML equations, update/delete, auto or manual numbering, and renumber all.</td>
+        </tr>
+        <tr>
+          <td>PowerPoint desktop</td>
+          <td><code>ImageCoercion 1.1</code> and <code>SharedRuntime 1.1</code>. The shared runtime requires Microsoft 365 PowerPoint Version 2102 (Build 13722.10000) or PowerPoint 2021/2024 on Windows; PowerPoint 16.46 on Mac.</td>
+          <td>Formula image insertion and numbered formula image insertion.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Web and mobile Office are not product targets because the workflow depends on a local desktop bridge and desktop screenshot capture.</p>
+    <p>The Windows and macOS runtime installers configure the local <code>https://localhost:8765</code> site. For the add-in to remain present in the Word and PowerPoint ribbon, an administrator must deploy the production manifests from the release bundle through Microsoft 365 Integrated apps. Shared-folder and <code>wef</code> sideloading are for development testing only.</p>
+
+    <h2>Word Functions</h2>
+    <h3>Insert Formula</h3>
+    <p>Converts the current LaTeX to OMML and inserts a new LaTeXSnipper equation at the cursor. Display, automatic numbering, and manual numbering apply to the new equation.</p>
+    <h3>Editor and Load Selected</h3>
+    <p><strong>Editor</strong> opens visual entry. <strong>Load Selected</strong> edits only a LaTeXSnipper equation selected in the document, including selection through its numbered layout.</p>
+    <h3>Delete Selected</h3>
+    <p>Deletes the selected LaTeXSnipper equation and stored source. For a numbered equation it also removes that equation's layout table; for an ordinary equation inside a user table it leaves the user's table intact.</p>
+    <h3>Auto Numbered and Renumber All</h3>
+    <p><strong>Auto Numbered</strong> converts one selected unnumbered LaTeXSnipper equation to automatic numbering. <strong>Renumber All</strong> updates automatic numbers in document order and leaves manual labels unchanged.</p>
+    <p>A cursor inside an existing LaTeXSnipper equation or numbered layout cannot be used as an insertion point; the add-in reports this instead of allowing Word to raise a raw insertion error.</p>
+
+    <h2>PowerPoint Functions</h2>
+    <p><strong>Insert Formula</strong> writes a PNG cropped to the actual formula bounds. <strong>Insert Manual #</strong> opens the editor for a user-entered label, then writes one composed PNG containing the formula and label. Screenshot OCR updates the task pane and synchronizes the same LaTeX into an open editor window.</p>
+    <p>PowerPoint's stable image insertion API does not expose a durable managed identity for an inserted formula image. After an image is deleted, the add-in cannot reliably determine the remaining labels, so it intentionally has no auto numbering, Load Selected, Update, Delete Selected, or Renumber All workflow.</p>
+
+    <h2>Office.js Capability Boundary</h2>
+    <div class="callout good">
+      The implementation is complete at the reliable Office.js boundary for this add-in: Word manages equations created and tagged by LaTeXSnipper; PowerPoint receives rendered formula images. No compatibility or guessing logic is kept for unsupported objects.
+    </div>
+    <ul>
+      <li>An arbitrary native Word equation has no stored original LaTeXSnipper source and is not loadable or maintainable by this add-in.</li>
+      <li>A copied formula without its document settings is not converted into a managed equation automatically.</li>
+      <li>A PowerPoint inserted image is a slide image, not a native editable LaTeXSnipper equation object.</li>
+    </ul>
+
+    <h2>References</h2>
+    <p>
+      <a href="https://learn.microsoft.com/javascript/api/requirement-sets/word/word-api-requirement-sets" target="_blank">Word requirement sets</a> ·
+      <a href="https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets" target="_blank">Shared runtime requirement sets</a> ·
+      <a href="https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets" target="_blank">Image coercion requirement sets</a>
+    </p>
+    <div class="footer">LaTeXSnipper Office Add-in &copy; SakuraMathcraft</div>
+  </body>
+</html>

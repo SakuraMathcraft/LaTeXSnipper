@@ -33,6 +33,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: office_addin/package-lock.json
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
@@ -41,6 +48,13 @@ jobs:
 
       - name: Byte-compile key entry files
         run: python -m py_compile src/main.py src/bootstrap/deps_bootstrap.py LaTeXSnipper.spec
+
+      - name: Validate Office add-in build
+        shell: pwsh
+        run: |
+          npm ci --prefix office_addin
+          npm run typecheck --prefix office_addin
+          powershell -ExecutionPolicy Bypass -File scripts\build_office_addin_installer.ps1 -SkipInstaller
 
       - name: Validate Python comment language
         shell: pwsh
@@ -94,6 +108,12 @@ jobs:
             "scripts\build_deb.sh",
             "scripts\build_macos.sh",
             "scripts\package_common.sh",
+            "scripts\build_office_addin_installer.ps1",
+            "scripts\build_office_addin_macos.sh",
+            "Inno\latexsnipper-office-addin.iss",
+            "office_addin\installer\windows\install.ps1",
+            "office_addin\installer\windows\uninstall.ps1",
+            "office_addin\installer\macos\postinstall",
             "packaging\debian\DEBIAN\control"
           )
           foreach ($path in $required) {
@@ -146,6 +166,17 @@ jobs:
               throw "Release workflow is missing job: $job"
             }
           }
+          foreach ($token in @(
+            "build_office_addin_installer.ps1",
+            "build_office_addin_macos.sh",
+            "LaTeXSnipperOfficeAddinSetup-",
+            "LaTeXSnipperOfficeAddin-",
+            "LaTeXSnipperOfficeDeploymentManifests-"
+          )) {
+            if ($release -notmatch [regex]::Escape($token)) {
+              throw "Release workflow is missing Office add-in artifact path: $token"
+            }
+          }
           foreach ($workflow in @((Get-Content -LiteralPath ".github\workflows\ci.yml" -Raw), $release)) {
             if ($workflow -match "actions/checkout@v[0-5]\b") {
               throw "GitHub Actions checkout must use a Node 24 version."
@@ -163,6 +194,9 @@ jobs:
           foreach ($path in @(
             "scripts\build_deb.sh",
             "scripts\build_macos.sh",
+            "scripts\build_office_addin_macos.sh",
+            "scripts\build_office_addin_installer.ps1",
+            "office_addin\installer\macos\postinstall",
             "scripts\package_common.sh",
             "requirements.txt",
             "requirements-build.txt",
