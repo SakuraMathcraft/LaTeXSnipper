@@ -11,10 +11,8 @@ export async function insertEquationIntoPowerPoint(
     throw new Error("The bridge did not return a PowerPoint image.");
   }
   const number = await resolveNumber(draft);
-  await setSelectedImage(conversion.png_base64);
-  if (number) {
-    await setSelectedText(` ${number}`);
-  }
+  const image = number ? await appendNumberToImage(conversion.png_base64, number) : conversion.png_base64;
+  await setSelectedImage(image);
 }
 
 function resolveNumber(draft: EquationDraft): Promise<string | undefined> {
@@ -43,18 +41,28 @@ function setSelectedImage(base64: string): Promise<void> {
   });
 }
 
-function setSelectedText(text: string): Promise<void> {
+function appendNumberToImage(base64: string, number: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    Office.context.document.setSelectedDataAsync(
-      text,
-      { coercionType: Office.CoercionType.Text },
-      (result) => {
-        if (result.status === Office.AsyncResultStatus.Succeeded) {
-          resolve();
-          return;
-        }
-        reject(new Error(result.error?.message || "Failed to insert numbering into PowerPoint."));
+    const source = new Image();
+    source.onload = () => {
+      const numberWidth = Math.max(62, Math.ceil(source.height * 1.7));
+      const canvas = document.createElement("canvas");
+      canvas.width = source.width + numberWidth;
+      canvas.height = source.height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("Failed to compose PowerPoint numbering."));
+        return;
       }
-    );
+      context.drawImage(source, 0, 0);
+      context.fillStyle = "#111827";
+      context.font = `${Math.max(16, Math.floor(source.height * 0.34))}px "Cambria Math", "Times New Roman", serif`;
+      context.textAlign = "right";
+      context.textBaseline = "middle";
+      context.fillText(number, canvas.width - 8, canvas.height / 2);
+      resolve(canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, ""));
+    };
+    source.onerror = () => reject(new Error("Failed to compose PowerPoint numbering."));
+    source.src = `data:image/png;base64,${base64}`;
   });
 }

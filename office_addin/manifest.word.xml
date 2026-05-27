@@ -9,10 +9,14 @@
   <ProviderName>SakuraMathcraft</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper"/>
-  <Description DefaultValue="Edit, recognize, and insert mathematical equations with LaTeXSnipper."/>
+  <Description DefaultValue="Edit, recognize, and insert mathematical equations with LaTeXSnipper.">
+    <Override Locale="zh-CN" Value="使用 LaTeXSnipper 编辑、识别和插入数学公式。"/>
+  </Description>
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-editor-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-editor-80.png"/>
-  <SupportUrl DefaultValue="https://localhost:3000/help.html"/>
+  <SupportUrl DefaultValue="https://localhost:3000/help.html">
+    <Override Locale="zh-CN" Value="https://localhost:3000/help.zh-cn.html"/>
+  </SupportUrl>
   <Hosts>
     <Host Name="Document"/>
   </Hosts>
@@ -332,30 +336,30 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Tab.Label" DefaultValue="LaTeXSnipper"/>
-        <bt:String id="GroupInsert.Label" DefaultValue="Formula"/>
-        <bt:String id="GroupEdit.Label" DefaultValue="Edit"/>
-        <bt:String id="GroupNumbering.Label" DefaultValue="Numbering"/>
-        <bt:String id="OpenEditor.Label" DefaultValue="Editor"/>
-        <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"/>
-        <bt:String id="NumberedFormula.Label" DefaultValue="Auto Numbered"/>
-        <bt:String id="LoadSelected.Label" DefaultValue="Load Selected"/>
-        <bt:String id="DeleteSelected.Label" DefaultValue="Delete Selected"/>
-        <bt:String id="Renumber.Label" DefaultValue="Renumber All"/>
-        <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
-        <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
-        <bt:String id="Help.Label" DefaultValue="Help"/>
-        <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper is ready"/>
+        <bt:String id="GroupInsert.Label" DefaultValue="Formula"><bt:Override Locale="zh-CN" Value="公式"/></bt:String>
+        <bt:String id="GroupEdit.Label" DefaultValue="Edit"><bt:Override Locale="zh-CN" Value="编辑"/></bt:String>
+        <bt:String id="GroupNumbering.Label" DefaultValue="Numbering"><bt:Override Locale="zh-CN" Value="编号"/></bt:String>
+        <bt:String id="OpenEditor.Label" DefaultValue="Editor"><bt:Override Locale="zh-CN" Value="编辑器"/></bt:String>
+        <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"><bt:Override Locale="zh-CN" Value="插入公式"/></bt:String>
+        <bt:String id="NumberedFormula.Label" DefaultValue="Auto Numbered"><bt:Override Locale="zh-CN" Value="自动编号"/></bt:String>
+        <bt:String id="LoadSelected.Label" DefaultValue="Load Selected"><bt:Override Locale="zh-CN" Value="加载选中项"/></bt:String>
+        <bt:String id="DeleteSelected.Label" DefaultValue="Delete Selected"><bt:Override Locale="zh-CN" Value="删除选中项"/></bt:String>
+        <bt:String id="Renumber.Label" DefaultValue="Renumber All"><bt:Override Locale="zh-CN" Value="重新编号全部"/></bt:String>
+        <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"><bt:Override Locale="zh-CN" Value="截图识别"/></bt:String>
+        <bt:String id="GroupHelp.Label" DefaultValue="Help"><bt:Override Locale="zh-CN" Value="帮助"/></bt:String>
+        <bt:String id="Help.Label" DefaultValue="Help"><bt:Override Locale="zh-CN" Value="帮助"/></bt:String>
+        <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper is ready"><bt:Override Locale="zh-CN" Value="LaTeXSnipper 已就绪"/></bt:String>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."/>
-        <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."/>
-        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Add automatic numbering to the selected LaTeXSnipper equation."/>
-        <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."/>
-        <bt:String id="DeleteSelected.Tooltip" DefaultValue="Delete the selected LaTeXSnipper equation and its numbering table."/>
-        <bt:String id="Renumber.Tooltip" DefaultValue="Renumber all auto-numbered LaTeXSnipper equations in document order."/>
-        <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
-        <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."/>
-        <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>
+        <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."><bt:Override Locale="zh-CN" Value="打开 LaTeXSnipper 公式编辑器。"/></bt:String>
+        <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."><bt:Override Locale="zh-CN" Value="从侧边栏插入可编辑公式。"/></bt:String>
+        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Add automatic numbering to the selected LaTeXSnipper equation."><bt:Override Locale="zh-CN" Value="为选中的 LaTeXSnipper 公式添加自动编号。"/></bt:String>
+        <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."><bt:Override Locale="zh-CN" Value="将选中的 LaTeXSnipper 公式加载到编辑器。"/></bt:String>
+        <bt:String id="DeleteSelected.Tooltip" DefaultValue="Delete the selected LaTeXSnipper equation and its numbering table."><bt:Override Locale="zh-CN" Value="删除选中的公式及其编号表格。"/></bt:String>
+        <bt:String id="Renumber.Tooltip" DefaultValue="Renumber all auto-numbered LaTeXSnipper equations in document order."><bt:Override Locale="zh-CN" Value="按文档顺序重新编号所有自动编号公式。"/></bt:String>
+        <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."><bt:Override Locale="zh-CN" Value="将下一次 LaTeXSnipper 截图识别结果载入编辑器。"/></bt:String>
+        <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."><bt:Override Locale="zh-CN" Value="打开 LaTeXSnipper 帮助文档。"/></bt:String>
+        <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."><bt:Override Locale="zh-CN" Value="使用 LaTeXSnipper 选项卡编辑、识别和插入公式。"/></bt:String>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

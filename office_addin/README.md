@@ -1,103 +1,93 @@
-# LaTeXSnipper Office Add-in
+# LaTeXSnipper Office 加载项
 
-Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editing, numbering, and insertion powered by the LaTeXSnipper desktop bridge. Editable Word workflows require `WordApi 1.3` and `SharedRuntime 1.1`.
+该加载项通过本机 LaTeXSnipper Office Bridge 为 Word 和 PowerPoint 提供公式输入与截图识别。任务窗格、编辑器和 Ribbon 文本会按 Office 显示语言在中文与英文之间自动切换。
 
-## Workflow
+## 当前功能
 
-1. Open the equation editor dialog from the Ribbon (Editor button) or task pane sidebar.
-2. Edit with MathLive visual input, LaTeX source, and symbol palette.
-3. Convert LaTeX through the desktop bridge (`POST /convert/latex` → OMML).
-4. Insert as a tagged Word equation object (content control with native OMML rendering).
-5. LaTeX source and numbering metadata are stored in document settings.
-6. Reopen equations later for editing: Load → edit → Update in-place.
+### Word
 
-## Ribbon Commands
+Word 使用带 `latexsnipper-eq-{id}` 标记的内容控件保存 OMML 公式，并在文档设置中保存对应 LaTeX 和编号信息。
 
-| Button | Action |
+| 功能 | 实际行为 |
 |---|---|
-| **Editor** | Open full dialog editor with symbol panel |
-| **Insert Formula** | Insert sidebar LaTeX at cursor |
-| **Auto Numbered** | Add auto-numbering to the selected equation |
-| **Screenshot OCR** | Import next global LaTeXSnipper recognition result |
-| **Load Selected** | Open selected equation in the dialog editor |
-| **Delete Selected** | Delete the selected equation, including its numbering table |
-| **Renumber All** | Renumber all auto-numbered equations in document order |
-| **Help** | Open built-in help documentation |
+| `Editor` | 打开 MathLive 编辑器和符号/结构面板 |
+| `Insert Formula` | 在光标处插入新的可编辑 LaTeXSnipper 公式 |
+| `Load Selected` | 加载选中的 LaTeXSnipper 公式进行编辑 |
+| `Delete Selected` | 删除选中公式及其元数据；编号公式同时删除自身表格 |
+| `Auto Numbered` | 为选中的未编号公式添加自动编号 |
+| `Renumber All` | 按文档顺序重排所有自动编号公式 |
+| `Screenshot OCR` | 将下一次桌面端截图识别结果载入编辑器 |
 
-## Equation Numbering
+编号公式以独立的无边框三列表格布局；连续插入不会合并到同一表格。处于已有公式或编号布局内部的插入请求会直接提示不可插入。
 
-- **Auto**: Sequential `(1)`, `(2)`, `(3)` managed by the add-in.
-- **Manual**: Custom number via the `Manual #` field. Auto-number is disabled when a manual value is entered.
-- **Renumber All**: Updates only auto-numbered equations. Manual numbers are preserved.
-- Numbered equations use a borderless 3-cell table (formula centered, number right-aligned).
-- Each number content control carries a unique tag (`latexsnipper-eqn-{uuid}`) for precise targeting.
+### PowerPoint
 
-## Development
+PowerPoint 通过 `Office.CoercionType.Image` 插入 PNG 图像：
+
+| 功能 | 实际行为 |
+|---|---|
+| `Editor` | 打开公式编辑器 |
+| `Insert Formula` | 向当前幻灯片插入公式图像 |
+| `Insert Numbered` | 插入一张包含公式和编号的合成图像 |
+| `Screenshot OCR` | 将识别结果载入编辑器后再插入 |
+
+PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected` 或 `Renumber All`。
+
+## Office.js 能力边界
+
+本实现已经覆盖当前目标中 Office.js 可可靠交付的边界：
+
+- Word 只编辑和维护本加载项创建且仍具备元数据的公式，不猜测任意原生 Word 公式的 LaTeX 来源。
+- PowerPoint 只交付稳定的公式图像插入，不宣称提供原生可编辑公式对象。
+- 不保留损坏对象、历史结构或外来对象的兼容兜底逻辑。
+
+## 支持要求
+
+| 宿主 | 要求 |
+|---|---|
+| Word 桌面版 | `WordApi 1.3`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 Word Version 2205 (Build 15202.10000) 或 Word 2024，Mac 要求 Word 16.61 |
+| PowerPoint 桌面版 | `ImageCoercion 1.1`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 PowerPoint Version 2102 (Build 13722.10000) 或 PowerPoint 2021/2024，Mac 要求 PowerPoint 16.46 |
+
+本地 Bridge 与桌面截图依赖使 Web 和移动版 Office 不属于当前支持范围。
+
+## 开发启动
+
+首次使用前安装依赖并信任开发证书：
 
 ```powershell
-cd office_addin
+cd E:\LaTexSnipper\office_addin
 npm install
-npm run dev           # Dev server on https://localhost:3000
-npm run dev:word      # Sideload into Word
-```
-
-Trust the dev certificate before loading in Office:
-
-```powershell
 .\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
 ```
 
-Register the shared-folder catalog:
+启动 Word 加载项：
 
 ```powershell
-.\scripts\register_word_catalog.ps1 -SharePath "\\YOUR-PC\office_addin"
+cd E:\LaTexSnipper\office_addin
+npm run dev:word
 ```
 
-Start LaTeXSnipper and enable "Office 插件" in settings before testing conversion or OCR.
+启动 PowerPoint 加载项：
 
-## Architecture
-
-```
-Ribbon Commands
-  |
-  +-- Shared Task Pane Runtime (Word) — Ribbon dispatch, quick insert, bridge status
-  +-- Dialog Editor — full editor with symbol palette + MathLive
-  |
-  v
-LaTeXSnipper Bridge (localhost HTTP, bearer token)
-  POST /convert/latex    → OMML + SVG + MathML + PNG
-  POST /recognize/screenshot
-  GET  /health, /config
+```powershell
+cd E:\LaTexSnipper\office_addin
+npm run dev:powerpoint
 ```
 
-- `src/taskpane/App.ts` — Task pane control hub (bridge, insertion, dialog management)
-- `src/taskpane/mathliveEditor.ts` — Shared `MathLiveCore` (used by both editors)
-- `src/dialog/editorDialog.ts` — Dialog editor (MathLive + complete symbol panel + structures)
-- `src/office/wordInsert.ts` — Word OOXML insert / update / renumber
-- `src/office/powerpointInsert.ts` — PowerPoint image insertion
-- `src/services/bridgeClient.ts` — HTTP bridge client
-- `src/services/equationSession.ts` — Document settings persistence
+两个命令复用 `scripts/start_office_dev.ps1`，启动 HTTPS Vite 服务、检查本机 Bridge，并向对应 Office 宿主旁加载 manifest。
 
-## Icons
+## 模块
 
-Ribbon icons are published as transparent PNG files rasterized from path-only SVG sources. Sources remain under `assets/`; generated manifest assets are written to `public/assets/`.
-
-```bash
-node gen_icons.mjs    # Requires sharp (npm install)
-```
-
-Outputs `icon-{name}-{16,20,24,32,40,48,64,80}.png` for each ribbon button. Size-specific stroke weights keep small and high-DPI ribbon icons crisp.
-
-## Document Settings
-
-| Key | Purpose |
+| 模块 | 责任 |
 |---|---|
-| `latexsnipper.bridgeUrl` / `bridgeToken` | Bridge connection |
-| `latexsnipper.equationNumbering` | Auto-number counter |
-| `latexsnipper.equationSource.{id}` | Per-equation: latex, display, numbering, numberValue |
+| `src/taskpane/App.ts` | 宿主 UI、Ribbon 指令调度、Bridge 与对话框编排 |
+| `src/dialog/editorDialog.ts` | MathLive 编辑器、符号和结构输入 |
+| `src/office/wordInsert.ts` | Word OMML 插入、加载、更新、删除与编号 |
+| `src/office/powerpointInsert.ts` | PowerPoint PNG 与编号合成图像插入 |
+| `src/services/i18n.ts` | 按 Office 显示语言切换文本 |
+| `src/services/equationSession.ts` | Word 文档设置和编号状态 |
 
-## Packaging
-
-- Office add-in assets live under `office_addin/`.
-- Desktop bridge code lives under `src/integration/office/`.
-- The add-in is installed independently from the desktop app.
+官方依据：
+[Word requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/word/word-api-requirement-sets)；
+[Shared runtime requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets)；
+[Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)。

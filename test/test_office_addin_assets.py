@@ -20,9 +20,10 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "OpenEditorButton" in text
         assert "InsertFormulaButton" in text
         assert "NumberedFormulaButton" in text
-        assert "Auto Numbered" in text
         assert "ScreenshotOcrButton" in text
+        assert 'Locale="zh-CN"' in text
         if manifest_name == "manifest.word.xml":
+            assert "Auto Numbered" in text
             assert "LoadSelectedButton" in text
             assert "DeleteSelectedButton" in text
             assert "RenumberButton" in text
@@ -33,6 +34,14 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
             assert "helpCommand" in text
             assert "Commands.Url" not in text
         else:
+            assert "Insert Numbered" in text
+            assert "ImageCoercion" in text
+            assert "SharedRuntime" in text
+            assert 'lifetime="long"' in text
+            assert "ExecuteFunction" in text
+            assert "insertFormulaCommand" in text
+            assert "numberedFormulaCommand" in text
+            assert "helpCommand" in text
             assert "Commands.Url" not in text
 
 
@@ -71,14 +80,18 @@ def test_office_addin_includes_local_mathlive_runtime() -> None:
     assert "/vendor/mathlive.min.mjs" in dialog
 
 
-def test_office_addin_help_documents_word_runtime_boundaries() -> None:
+def test_office_addin_help_documents_runtime_boundaries_in_both_languages() -> None:
     help_text = (ADDIN / "help.html").read_text(encoding="utf-8")
+    chinese_help = (ADDIN / "help.zh-cn.html").read_text(encoding="utf-8")
 
     assert "WordApi 1.3" in help_text
     assert "SharedRuntime 1.1" in help_text
+    assert "ImageCoercion 1.1" in help_text
     assert "Version 2205 (Build 15202.10000)" in help_text
     assert "Word 2024" in help_text
-    assert "Word 2016、2019 与 2021 不在本加载项的 Windows 支持范围内" in help_text
+    assert "Office.js Capability Boundary" in help_text
+    assert "Office.js 能力边界" in chinese_help
+    assert "PowerPoint" in chinese_help
 
 
 def test_word_insert_keeps_numbered_equation_operations_atomic() -> None:
@@ -91,3 +104,26 @@ def test_word_insert_keeps_numbered_equation_operations_atomic() -> None:
     assert "equationControl.parentTableCell.parentRow.delete();" in adapter
     assert "inspectNumberedLayoutTable" in adapter
     assert "normalizeNumberedEquationTable(numberControls.items[0]);" in adapter
+
+
+def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
+    taskpane = (ADDIN / "taskpane.html").read_text(encoding="utf-8")
+    dialog = (ADDIN / "src" / "dialog" / "editorDialog.html").read_text(encoding="utf-8")
+    app = (ADDIN / "src" / "taskpane" / "App.ts").read_text(encoding="utf-8")
+    i18n = (ADDIN / "src" / "services" / "i18n.ts").read_text(encoding="utf-8")
+    powerpoint = (ADDIN / "src" / "office" / "powerpointInsert.ts").read_text(encoding="utf-8")
+    package = (ADDIN / "package.json").read_text(encoding="utf-8")
+
+    assert "data-i18n" in taskpane
+    assert "data-i18n" in dialog
+    assert "Office.context.displayLanguage" in app
+    assert 'insertCurrentLatex(elements, "auto")' in app
+    assert 'type: "insertFailed"' in app
+    assert '"zh-CN"' in i18n
+    assert "DialogParentMessageReceived" in (ADDIN / "src" / "dialog" / "editorDialog.ts").read_text(encoding="utf-8")
+    assert "appendNumberToImage" in powerpoint
+    assert "setSelectedText" not in powerpoint
+    assert '"dev:powerpoint"' in package
+    assert (ADDIN / "scripts" / "start_office_dev.ps1").is_file()
+    assert not (ADDIN / "scripts" / "start_word_dev.ps1").exists()
+    assert not (ADDIN / "src" / "dialog" / "previewRender.ts").exists()

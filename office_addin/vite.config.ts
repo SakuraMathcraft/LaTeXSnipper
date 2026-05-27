@@ -22,7 +22,8 @@ export default defineConfig({
       input: {
         taskpane: "taskpane.html",
         dialog: "src/dialog/editorDialog.html",
-        help: "help.html"
+        help: "help.html",
+        helpZh: "help.zh-cn.html"
       }
     }
   }

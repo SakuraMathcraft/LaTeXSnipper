@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host localhost --port 3000",
     "typecheck": "tsc --noEmit",
-    "dev:word": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_word_dev.ps1",
+    "dev:word": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_office_dev.ps1 -HostApp Word",
+    "dev:powerpoint": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_office_dev.ps1 -HostApp PowerPoint",
     "sideload:word": "office-addin-dev-settings sideload manifest.word.xml desktop --app Word",
     "sideload:powerpoint": "office-addin-dev-settings sideload manifest.powerpoint.xml desktop --app PowerPoint",
     "addin:registered": "office-addin-dev-settings registered"

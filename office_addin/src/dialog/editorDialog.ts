@@ -1,5 +1,6 @@
 import "../styles/dialog.css";
 
+import { configureLocale, displayMessage, localizeDocument, t } from "../services/i18n";
 import { MathLiveCore } from "../taskpane/mathliveEditor";
 
 type DialogInitArgs = {
@@ -12,6 +13,8 @@ type DialogInitArgs = {
   autoNumber?: boolean;
   manualNumber?: string;
   numberValue?: string;
+  host: "word" | "powerpoint";
+  locale?: string;
 };
 
 type EquationDraft = {
@@ -34,10 +37,9 @@ type SymbolItem = {
 
 type MatrixEnv = "bmatrix" | "pmatrix" | "vmatrix" | "cases";
 
-const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
+const SYMBOL_GROUPS: { id: string; items: SymbolItem[] }[] = [
   {
     id: "symbolGreekLower",
-    title: "Greek (lower)",
     items: [
       { label: "α", latex: "\\alpha" }, { label: "β", latex: "\\beta" },
       { label: "γ", latex: "\\gamma" }, { label: "δ", latex: "\\delta" },
@@ -59,7 +61,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolGreekUpper",
-    title: "Greek (upper)",
     items: [
       { label: "Γ", latex: "\\Gamma" }, { label: "Δ", latex: "\\Delta" },
       { label: "Θ", latex: "\\Theta" }, { label: "Λ", latex: "\\Lambda" },
@@ -71,7 +72,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolOperators",
-    title: "Operators",
     items: [
       { label: "±", latex: "\\pm" }, { label: "∓", latex: "\\mp" },
       { label: "×", latex: "\\times" }, { label: "÷", latex: "\\div" },
@@ -92,7 +92,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolBigOps",
-    title: "Big Operators",
     items: [
       { label: "∑", latex: "\\sum" }, { label: "∏", latex: "\\prod" },
       { label: "∐", latex: "\\coprod" }, { label: "∫", latex: "\\int" },
@@ -108,7 +107,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolRelations",
-    title: "Relations",
     items: [
       { label: "≤", latex: "\\leq" }, { label: "≥", latex: "\\geq" },
       { label: "⩽", latex: "\\leqslant" }, { label: "⩾", latex: "\\geqslant" },
@@ -130,7 +128,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolSets",
-    title: "Sets & Logic",
     items: [
       { label: "∈", latex: "\\in" }, { label: "∉", latex: "\\notin" },
       { label: "∋", latex: "\\ni" }, { label: "⊂", latex: "\\subset" },
@@ -151,7 +148,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolNumberSets",
-    title: "Number Sets",
     items: [
       { label: "ℕ", latex: "\\mathbb{N}" }, { label: "ℤ", latex: "\\mathbb{Z}" },
       { label: "ℚ", latex: "\\mathbb{Q}" }, { label: "ℝ", latex: "\\mathbb{R}" },
@@ -161,7 +157,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolArrows",
-    title: "Arrows",
     items: [
       { label: "→", latex: "\\rightarrow" }, { label: "←", latex: "\\leftarrow" },
       { label: "↑", latex: "\\uparrow" }, { label: "↓", latex: "\\downarrow" },
@@ -182,7 +177,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolDelimiters",
-    title: "Delimiters",
     items: [
       { label: "( )", latex: "\\left( #? \\right)" },
       { label: "[ ]", latex: "\\left[ #? \\right]" },
@@ -196,7 +190,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolFunctions",
-    title: "Functions",
     items: [
       { label: "sin", latex: "\\sin" }, { label: "cos", latex: "\\cos" },
       { label: "tan", latex: "\\tan" }, { label: "csc", latex: "\\csc" },
@@ -217,7 +210,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolAccents",
-    title: "Accents & Decorations",
     items: [
       { label: "x̂", latex: "\\hat{x}" }, { label: "x̃", latex: "\\tilde{x}" },
       { label: "x̄", latex: "\\bar{x}" }, { label: "x⃗", latex: "\\vec{x}" },
@@ -231,7 +223,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolFonts",
-    title: "Font Styles",
     items: [
       { label: "ℝ", latex: "\\mathbb{#?}", variant: "struct" },
       { label: "ℱ", latex: "\\mathcal{#?}", variant: "struct" },
@@ -246,7 +237,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolMisc",
-    title: "Misc",
     items: [
       { label: "∞", latex: "\\infty" }, { label: "∂", latex: "\\partial" },
       { label: "∇", latex: "\\nabla" }, { label: "ℏ", latex: "\\hbar" },
@@ -267,7 +257,6 @@ const SYMBOL_GROUPS: { id: string; title: string; items: SymbolItem[] }[] = [
   },
   {
     id: "symbolStructures",
-    title: "Structures",
     items: [
       { label: "Fraction", latex: "\\frac{#?}{#?}", variant: "struct" },
       { label: "Superscript", latex: "^{#?}", variant: "struct" },
@@ -303,6 +292,8 @@ let updatingFromMathLive = false;
 
 Office.onReady(async () => {
   initArgs = readInitArgs();
+  configureLocale(initArgs.locale || Office.context.displayLanguage);
+  localizeDocument();
 
   const elements = {
     mathfieldHost: requiredElement("mathfieldHost", HTMLElement),
@@ -316,7 +307,9 @@ Office.onReady(async () => {
     latexPanel: requiredElement("latexPanel", HTMLElement),
     latexPanelToggle: requiredElement("latexPanelToggle", HTMLElement),
     dialogStatus: requiredElement("dialogStatus", HTMLElement),
+    displayOption: requiredElement("displayOption", HTMLElement),
   };
+  elements.displayOption.hidden = initArgs.host === "powerpoint";
 
   core = await MathLiveCore.create(elements.mathfieldHost);
   buildSymbolPanel();
@@ -327,7 +320,7 @@ Office.onReady(async () => {
   }
 
   if (initArgs.mode === "update") {
-    elements.insertButton.textContent = "Update";
+    elements.insertButton.textContent = t("update");
     if (initArgs.display !== undefined) elements.displayMode.checked = initArgs.display;
     if (initArgs.autoNumber) {
       elements.autoNumber.checked = true;
@@ -339,10 +332,9 @@ Office.onReady(async () => {
       elements.autoNumber.checked = false;
       if (initArgs.manualNumber !== undefined) elements.manualNumber.value = initArgs.manualNumber;
     }
-    setStatus("Editing equation — click Update to apply changes.");
+    setStatus(t("editingEquation"));
   }
 
-  // Manual number input disables auto-number
   elements.manualNumber.addEventListener("input", () => {
     if (elements.manualNumber.value.trim()) {
       elements.autoNumber.checked = false;
@@ -380,10 +372,13 @@ Office.onReady(async () => {
   });
 
   elements.insertButton.addEventListener("click", () => void handleInsert(elements));
+  Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, (arg: { message?: string }) => {
+    handleParentMessage(elements.insertButton, arg.message);
+  });
   window.addEventListener("keydown", (event) => handleKeyboard(event, elements));
 
   core.focus();
-  setStatus("Ready");
+  setStatus(t("ready"));
 });
 
 function buildSymbolPanel(): void {
@@ -397,7 +392,7 @@ function buildSymbolPanel(): void {
       }
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = item.label;
+      btn.textContent = localizeStructureLabel(item.label);
       btn.title = item.latex;
       if (item.variant === "struct") btn.className = "struct-btn";
       btn.addEventListener("click", () => {
@@ -417,7 +412,7 @@ function buildMatrixControl(grid: HTMLElement, variant: MatrixEnv): void {
   row.className = "matrix-row";
 
   const selRows = document.createElement("select");
-  selRows.title = "Rows";
+  selRows.title = t("rows");
   for (let i = 1; i <= 10; i++) {
     selRows.appendChild(new Option(String(i), String(i), i === 2, i === 2));
   }
@@ -425,7 +420,7 @@ function buildMatrixControl(grid: HTMLElement, variant: MatrixEnv): void {
   let selCols: HTMLSelectElement | null = null;
   if (!isCases) {
     selCols = document.createElement("select");
-    selCols.title = "Columns";
+    selCols.title = t("columns");
     for (let i = 1; i <= 10; i++) {
       selCols.appendChild(new Option(String(i), String(i), i === 2, i === 2));
     }
@@ -433,7 +428,7 @@ function buildMatrixControl(grid: HTMLElement, variant: MatrixEnv): void {
 
   const insertBtn = document.createElement("button");
   insertBtn.type = "button";
-  insertBtn.textContent = name;
+  insertBtn.textContent = localizeStructureLabel(name);
   insertBtn.className = "struct-btn";
   insertBtn.style.cssText = "flex:1;min-width:0;";
 
@@ -466,6 +461,8 @@ function readInitArgs(): DialogInitArgs {
     autoNumber: params.has("autoNumber") ? params.get("autoNumber") === "true" : undefined,
     manualNumber: params.get("manualNumber") || undefined,
     numberValue: params.get("numberValue") || undefined,
+    host: params.get("host") === "powerpoint" ? "powerpoint" : "word",
+    locale: params.get("locale") || undefined,
   };
 }
 
@@ -476,7 +473,7 @@ function readDraft(elements: {
   manualNumber: HTMLInputElement;
 }): EquationDraft {
   let latex = elements.latexSource.value.trim();
-  if (!latex) throw new Error("LaTeX is required.");
+  if (!latex) throw new Error(t("latexRequired"));
   latex = latex.replace(/#\?/g, "0").replace(/\\placeholder\{\}/g, "0");
   const numbering = elements.autoNumber.checked ? "auto"
     : elements.manualNumber.value.trim() ? "manual" : "none";
@@ -495,6 +492,22 @@ function sendMessage(message: DialogMessage): void {
   Office.context.ui.messageParent(JSON.stringify(message));
 }
 
+function handleParentMessage(insertButton: HTMLButtonElement, raw?: string): void {
+  if (!raw) {
+    return;
+  }
+  let message: { type?: string; message?: string };
+  try {
+    message = JSON.parse(raw) as typeof message;
+  } catch {
+    return;
+  }
+  if (message.type === "insertFailed") {
+    insertButton.disabled = false;
+    setStatus(message.message || t("ready"), true);
+  }
+}
+
 async function handleInsert(elements: {
   latexSource: HTMLTextAreaElement;
   displayMode: HTMLInputElement; autoNumber: HTMLInputElement;
@@ -504,9 +517,9 @@ async function handleInsert(elements: {
     const draft = readDraft(elements);
     elements.insertButton.disabled = true;
     sendMessage({ type: "insert", draft, equationId: initArgs.equationId });
-    setStatus("Inserting...");
+    setStatus(t("inserting"));
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), true);
+    setStatus(displayMessage(error instanceof Error ? error.message : String(error)), true);
     elements.insertButton.disabled = false;
   }
 }
@@ -520,7 +533,7 @@ function handleKeyboard(
 ): void {
   if (event.key === "Escape") {
     event.preventDefault();
-    if (core.getLatex().trim() && !window.confirm("Discard unsaved formula?")) return;
+    if (core.getLatex().trim() && !window.confirm(t("discardFormula"))) return;
     sendMessage({ type: "close" });
   }
 }
@@ -536,4 +549,25 @@ function setStatus(message: string, isError = false): void {
   if (!el) return;
   el.textContent = message;
   el.className = `dialog-status${isError ? " error" : ""}`;
+}
+
+function localizeStructureLabel(label: string): string {
+  const keys: Record<string, Parameters<typeof t>[0]> = {
+    Fraction: "fraction",
+    Superscript: "superscript",
+    Subscript: "subscript",
+    "Square root": "squareRoot",
+    "Sub + Sup": "subSup",
+    Sum: "sum",
+    Integral: "integral",
+    Limit: "limit",
+    Determinant: "determinant",
+    Cases: "cases",
+    Aligned: "aligned",
+    Binomial: "binomial",
+    "Nth root": "nthRoot",
+    Product: "product",
+    Gather: "gather"
+  };
+  return keys[label] ? t(keys[label]) : label;
 }

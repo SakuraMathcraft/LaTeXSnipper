@@ -109,7 +109,6 @@ export class MathLiveCore {
         event.stopPropagation();
       }
     } catch {
-      // Keep MathLive's default behavior when a command is unsupported.
     }
   }
 }

@@ -177,7 +177,6 @@ export async function renumberWordEquations(): Promise<number> {
     const eqIds = extractNumberedEquationIds(body.value);
     if (eqIds.length === 0) return 0;
 
-    // Keep equations in document order and filter out manually-numbered ones.
     const ordered: { id: string; pos: number }[] = [];
     for (const id of eqIds) {
       const pos = body.value.indexOf(`${NUMBER_CONTROL_TAG_PREFIX}${id}`);
@@ -191,7 +190,6 @@ export async function renumberWordEquations(): Promise<number> {
         return rec?.numbering === "auto";
       });
 
-    // Load content controls for auto-numbered equations only.
     const collections: Word.ContentControlCollection[] = [];
     for (const id of autoIds) {
       const c = context.document.contentControls.getByTag(`${NUMBER_CONTROL_TAG_PREFIX}${id}`);
@@ -202,7 +200,6 @@ export async function renumberWordEquations(): Promise<number> {
     const controls = collections.flatMap((c: Word.ContentControlCollection) => c.items);
     if (controls.length === 0) return 0;
 
-    // Pass 1: fix table-level properties, update numbers, queue row loads
     for (let i = 0; i < controls.length; i++) {
       const control = controls[i];
       normalizeNumberedEquationTable(control);
@@ -211,7 +208,6 @@ export async function renumberWordEquations(): Promise<number> {
     }
     await context.sync();
 
-    // Pass 2: queue cell loads
     const rowsPerTable: Word.TableRow[][] = [];
     for (const control of controls) {
       const tableRows = control.parentTable.rows.items;
@@ -222,7 +218,6 @@ export async function renumberWordEquations(): Promise<number> {
     }
     await context.sync();
 
-    // Pass 3: collect cells, set vertical alignment, queue paragraph loads
     const cellAlignments: { cell: Word.TableCell; alignment: Word.Alignment }[] = [];
     for (const rows of rowsPerTable) {
       for (const row of rows) {
@@ -240,7 +235,6 @@ export async function renumberWordEquations(): Promise<number> {
     }
     await context.sync();
 
-    // Pass 4: set paragraph alignment
     for (const entry of cellAlignments) {
       for (const para of entry.cell.body.paragraphs.items) {
         para.alignment = entry.alignment;
