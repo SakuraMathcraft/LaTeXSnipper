@@ -25,6 +25,7 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
             assert "LoadSelectedButton" in text
             assert "DeleteSelectedButton" in text
             assert "RenumberButton" in text
+            assert "Renumber All" in text
             assert "ExecuteFunction" in text
 
 

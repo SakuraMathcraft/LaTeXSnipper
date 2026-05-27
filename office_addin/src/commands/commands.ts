@@ -40,5 +40,7 @@ Office.onReady(() => {
   Office.actions.associate("numberedFormulaCommand", numberedFormulaCommand);
   Office.actions.associate("loadSelectedCommand", loadSelectedCommand);
   Office.actions.associate("deleteSelectedCommand", deleteSelectedCommand);
+  // Route cached manifests that still expose the former command to deletion.
+  Office.actions.associate("updateSelectedCommand", deleteSelectedCommand);
   Office.actions.associate("renumberCommand", renumberCommand);
 });

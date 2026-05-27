@@ -58,64 +58,24 @@ export async function updateEquationInWord(draft: EquationDraft, conversion: Con
   if (!draft.equationId) throw new Error("Equation ID is required for update.");
   const equationId = draft.equationId;
   const omml = conversion.omml;
-
-  const record = loadEquationSource(equationId);
-  const wasNumbered = !!(record?.numbering && record.numbering !== "none");
+  const previousRecord = loadEquationSource(equationId);
 
   const number = draft.manualNumber || draft.numberValue || await resolveNumber(draft);
-  await saveEquationSource(draft.latex, equationId, draft.display, draft.numbering, number);
-
-  const willBeNumbered = !!number;
   const newOoxml = buildEquationOoxml(omml, {
     display: draft.display,
     equationId,
     number,
   });
 
-  // A numbered equation is contained in a table. Replace that complete
-  // container so Word never receives a nested content-control rewrite.
-  if (wasNumbered && typeof Word !== "undefined" && typeof Word.run === "function") {
-    await replaceNumberedEquationContainer(equationId, newOoxml);
-    if (draft.numbering === "auto" && !draft.numberValue) {
-      await renumberWordEquations();
-    }
-    return;
-  }
-
-  // Converting an ordinary equation into a numbered table replaces its
-  // selected paragraph with the newly structured display equation.
-  if (willBeNumbered && !wasNumbered) {
-    await setSelectedOoxml(newOoxml);
-    await moveSelectionAfterRebuiltEquation(equationId, draft.display);
-    if (draft.numbering === "auto" && !draft.numberValue) {
-      await renumberWordEquations();
-    }
-    return;
-  }
-
-  if (typeof Word !== "undefined" && Word.run) {
-    await Word.run(async (context) => {
-      const eqCcs = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
-      eqCcs.load("items");
-      await context.sync();
-      if (eqCcs.items.length === 0) {
-        throw new Error("The equation could not be found in this document.");
-      }
-      const equationControl = eqCcs.items[0];
-      equationControl.getRange(Word.RangeLocation.content).insertOoxml(
-        normalizeOmmlForWord(omml),
-        Word.InsertLocation.replace
-      );
-      await context.sync();
-    });
-    if (number) {
-      await updateNumberControlViaWordApi(equationId, number);
-    }
+  if (typeof Word !== "undefined" && typeof Word.run === "function") {
+    await replaceEquationContainer(equationId, newOoxml);
   } else {
     await setSelectedOoxml(newOoxml);
   }
+  await saveEquationSource(draft.latex, equationId, draft.display, draft.numbering, number);
 
-  if (draft.numbering === "auto" && !draft.numberValue) {
+  const removedFromAutomaticSequence = previousRecord?.numbering === "auto" && draft.numbering !== "auto";
+  if ((draft.numbering === "auto" && !draft.numberValue) || removedFromAutomaticSequence) {
     await renumberWordEquations();
   }
 }
@@ -140,7 +100,7 @@ export async function deleteSelectedEquationFromWord(): Promise<void> {
     equationControl.load("parentTableOrNullObject");
     await context.sync();
     if (equationControl.parentTableOrNullObject.isNullObject) {
-      equationControl.delete(true);
+      equationControl.delete(false);
     } else {
       equationControl.parentTableOrNullObject.delete();
     }
@@ -392,28 +352,6 @@ function moveSelectionAfterInsertedEquation(insertedRange: Word.Range, display: 
   nextParagraph.select(Word.SelectionMode.start);
 }
 
-async function moveSelectionAfterRebuiltEquation(equationId: string, display: boolean): Promise<void> {
-  if (typeof Word === "undefined" || !Word.run) {
-    return;
-  }
-  await Word.run(async (context) => {
-    const controls = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
-    controls.load("items");
-    await context.sync();
-    if (controls.items.length === 0) {
-      return;
-    }
-    const equation = controls.items[0];
-    equation.load("parentTableOrNullObject");
-    await context.sync();
-    const containerRange = equation.parentTableOrNullObject.isNullObject
-      ? equation.getRange(Word.RangeLocation.whole)
-      : equation.parentTableOrNullObject.getRange(Word.RangeLocation.whole);
-    moveSelectionAfterInsertedEquation(containerRange, display);
-    await context.sync();
-  });
-}
-
 function normalizeNumberedEquationTable(numberControl: Word.ContentControl): void {
   const table = numberControl.parentTable;
   table.alignment = Word.Alignment.centered;
@@ -487,19 +425,7 @@ function extractNumberedEquationIds(ooxml: string): string[] {
   return uniqueMatches(ooxml, /latexsnipper-eqn-([^"&<\s]+)/g);
 }
 
-async function updateNumberControlViaWordApi(equationId: string, number: string): Promise<void> {
-  await Word.run(async (context) => {
-    const controls = context.document.contentControls.getByTag(`${NUMBER_CONTROL_TAG_PREFIX}${equationId}`);
-    controls.load("items");
-    await context.sync();
-    if (controls.items.length > 0) {
-      controls.items[0].insertText(number, Word.InsertLocation.replace);
-      await context.sync();
-    }
-  });
-}
-
-async function replaceNumberedEquationContainer(equationId: string, ooxml: string): Promise<void> {
+async function replaceEquationContainer(equationId: string, ooxml: string): Promise<void> {
   await Word.run(async (context) => {
     const controls = context.document.contentControls.getByTag(`${EQUATION_TAG_PREFIX}${equationId}`);
     controls.load("items");
@@ -511,11 +437,14 @@ async function replaceNumberedEquationContainer(equationId: string, ooxml: strin
     equationControl.load("parentTableOrNullObject");
     await context.sync();
     if (equationControl.parentTableOrNullObject.isNullObject) {
-      throw new Error("The numbered equation table could not be found.");
+      equationControl.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.replace);
+      await context.sync();
+      return;
     }
-    equationControl.parentTableOrNullObject
-      .getRange(Word.RangeLocation.whole)
-      .insertOoxml(ooxml, Word.InsertLocation.replace);
+    const table = equationControl.parentTableOrNullObject;
+    table.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.before);
+    await context.sync();
+    table.delete();
     await context.sync();
   });
 }

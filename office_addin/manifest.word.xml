@@ -244,7 +244,7 @@
         <bt:String id="NumberedFormula.Label" DefaultValue="Numbered"/>
         <bt:String id="LoadSelected.Label" DefaultValue="Load Selected"/>
         <bt:String id="DeleteSelected.Label" DefaultValue="Delete Selected"/>
-        <bt:String id="Renumber.Label" DefaultValue="Renumber"/>
+        <bt:String id="Renumber.Label" DefaultValue="Renumber All"/>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
         <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
         <bt:String id="Help.Label" DefaultValue="Help"/>
@@ -256,7 +256,7 @@
         <bt:String id="NumberedFormula.Tooltip" DefaultValue="Add automatic numbering to the selected LaTeXSnipper equation."/>
         <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."/>
         <bt:String id="DeleteSelected.Tooltip" DefaultValue="Delete the selected LaTeXSnipper equation and its numbering table."/>
-        <bt:String id="Renumber.Tooltip" DefaultValue="Renumber LaTeXSnipper display equations in document order."/>
+        <bt:String id="Renumber.Tooltip" DefaultValue="Renumber all auto-numbered LaTeXSnipper equations in document order."/>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
         <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."/>
         <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>

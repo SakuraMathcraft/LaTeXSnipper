@@ -21,15 +21,15 @@ Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editi
 | **Screenshot OCR** | Import next global LaTeXSnipper recognition result |
 | **Load Selected** | Open selected equation in the dialog editor |
 | **Delete Selected** | Delete the selected equation, including its numbering table |
-| **Renumber** | Renumber auto-numbered equations in document order |
+| **Renumber All** | Renumber all auto-numbered equations in document order |
 | **Help** | Open built-in help documentation |
 
 ## Equation Numbering
 
 - **Auto**: Sequential `(1)`, `(2)`, `(3)` managed by the add-in.
 - **Manual**: Custom number via the `Manual #` field. Auto-number is disabled when a manual value is entered.
-- **Renumber**: Updates only auto-numbered equations. Manual numbers are preserved.
-- Numbered equations use a borderless 2-cell table (formula centered, number right-aligned).
+- **Renumber All**: Updates only auto-numbered equations. Manual numbers are preserved.
+- Numbered equations use a borderless 3-cell table (formula centered, number right-aligned).
 - Each number content control carries a unique tag (`latexsnipper-eqn-{uuid}`) for precise targeting.
 
 ## Development
