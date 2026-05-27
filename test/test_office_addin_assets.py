@@ -37,3 +37,18 @@ def test_office_addin_static_icon_assets_exist() -> None:
     svg = ADDIN / "public" / "assets" / "ribbon-icons.svg"
     assert svg.is_file()
     assert "latexsnipper-ocr" in svg.read_text(encoding="utf-8")
+
+
+def test_office_addin_includes_local_mathlive_runtime() -> None:
+    runtime = ADDIN / "public" / "vendor" / "mathlive.min.mjs"
+    license_file = ADDIN / "public" / "vendor" / "mathlive.LICENSE.txt"
+    loader = (ADDIN / "src" / "taskpane" / "mathliveEditor.ts").read_text(encoding="utf-8")
+    taskpane = (ADDIN / "taskpane.html").read_text(encoding="utf-8")
+    dialog = (ADDIN / "src" / "dialog" / "editorDialog.html").read_text(encoding="utf-8")
+
+    assert runtime.is_file()
+    assert runtime.stat().st_size > 0
+    assert license_file.is_file()
+    assert "customElements.whenDefined" in loader
+    assert "/vendor/mathlive.min.mjs" in taskpane
+    assert "/vendor/mathlive.min.mjs" in dialog

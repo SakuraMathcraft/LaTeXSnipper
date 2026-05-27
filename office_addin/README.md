@@ -1,98 +1,103 @@
-﻿# LaTeXSnipper Office Add-in
+# LaTeXSnipper Office Add-in
 
-This folder contains the separately installed Office.js add-in for Word and PowerPoint integration. The current code is a development prototype; the formal product target is an AxMath-like editor dialog backed by LaTeXSnipper's desktop bridge.
+Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editing, numbering, and insertion powered by the LaTeXSnipper desktop bridge.
 
-The formal Word loop is:
+## Workflow
 
-1. Open the LaTeXSnipper equation editor dialog from the Ribbon or task pane.
-2. Edit MathLive visual input and TeX source side by side.
-3. Convert LaTeX through the LaTeXSnipper desktop Office bridge.
-4. Insert a tagged Word equation object with native OMML rendering.
-5. Store the original TeX source and numbering metadata with the object.
-6. Reopen the object later for TeX-based editing and update.
+1. Open the equation editor dialog from the Ribbon (Editor button) or task pane sidebar.
+2. Edit with MathLive visual input, LaTeX source, and symbol palette.
+3. Convert LaTeX through the desktop bridge (`POST /convert/latex` → OMML).
+4. Insert as a tagged Word equation object (content control with native OMML rendering).
+5. LaTeX source and numbering metadata are stored in document settings.
+6. Reopen equations later for editing: Load → edit → Update in-place.
 
-PowerPoint support will be added after the Word insertion path is stable.
+## Ribbon Commands
 
-The add-in is intentionally independent from the desktop application UI. The desktop app only needs to expose a small optional localhost bridge. Add-in installation, Office version checks, manifest registration, certificates, repair, and uninstall belong to this package.
+| Button | Action |
+|---|---|
+| **Editor** | Open full dialog editor with symbol panel |
+| **Insert Formula** | Insert sidebar LaTeX at cursor |
+| **Numbered** | Add auto-numbering to the selected equation |
+| **Screenshot OCR** | Import next global LaTeXSnipper recognition result |
+| **Load Selected** | Open selected equation in the dialog editor |
+| **Update Selected** | Replace selected equation with sidebar content |
+| **Renumber** | Renumber auto-numbered equations in document order |
+| **Help** | Open built-in help documentation |
 
-The formula editor uses MathLive and keeps a synchronized LaTeX text view for direct editing. The task pane should remain a lightweight status and launcher surface; the larger editor belongs in an Office dialog.
+## Equation Numbering
 
-Word and PowerPoint both expose a `LaTeXSnipper` Ribbon tab through separate manifests:
-
-- `manifest.word.xml`
-- `manifest.powerpoint.xml`
-
-The Ribbon uses Office add-in commands. Editor opens the Office editor surface; Insert, Screenshot OCR, update, and renumber commands should synchronize with the active editor state.
-
-Word insertion creates a tagged LaTeXSnipper equation object: the visible formula is OMML, while the original LaTeX source is saved in Office document settings. This is the foundation for the later edit-selected-formula flow.
-
-Screenshot OCR must not be a Word-window-only capture. The add-in should subscribe to the next global LaTeXSnipper recognition result, then the user triggers the normal LaTeXSnipper screenshot hotkey and captures any screen region. The recognized LaTeX fills the editor; insertion remains a user-confirmed action.
+- **Auto**: Sequential `(1)`, `(2)`, `(3)` managed by the add-in.
+- **Manual**: Custom number via the `Manual #` field. Auto-number is disabled when a manual value is entered.
+- **Renumber**: Updates only auto-numbered equations. Manual numbers are preserved.
+- Numbered equations use a borderless 2-cell table (formula centered, number right-aligned).
+- Each number content control carries a unique tag (`latexsnipper-eqn-{uuid}`) for precise targeting.
 
 ## Development
 
 ```powershell
 cd office_addin
 npm install
-npm run dev
+npm run dev           # Dev server on https://localhost:3000
+npm run dev:word      # Sideload into Word
 ```
 
-The manifest points to:
-
-```text
-https://localhost:3000/taskpane.html
-```
-
-Trust the local development certificate before opening the add-in in Word:
+Trust the dev certificate before loading in Office:
 
 ```powershell
-E:\LaTexSnipper\office_addin\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
+.\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
 ```
 
-Install the generated certificate for the current user into `Trusted Root Certification Authorities`, confirm the Windows security prompt, then restart Word. A browser warning such as `NET::ERR_CERT_AUTHORITY_INVALID` means Word/WebView2 will reject the add-in.
-
-Register the shared-folder catalog for Word:
+Register the shared-folder catalog:
 
 ```powershell
-E:\LaTexSnipper\office_addin\scripts\register_word_catalog.ps1 -SharePath "\\DESKTOP-V3G05D9\office_addin"
+.\scripts\register_word_catalog.ps1 -SharePath "\\YOUR-PC\office_addin"
 ```
 
-Use the UNC path shown in the Windows folder sharing dialog. Close all Office apps after registration. Reopen Word and load the add-in from the Office add-ins entry, usually one of:
-
-- `Insert -> Add-ins / My Add-ins -> Shared Folder`
-- `Developer -> Add-ins`
-
-Do not use `Developer -> XML Expansion Pack`; that is not the Office.js Web Add-in loader.
-
-The task pane auto-discovers the local LaTeXSnipper bridge from `http://127.0.0.1:8765/config`, so the bridge URL and token should not be typed by users during normal testing.
-
-Start LaTeXSnipper itself and enable `Office 插件` in settings before testing conversion or Screenshot OCR. The add-in discovers the local bridge and token automatically.
-
-`Connect` must refresh `/config` before checking `/health`. A successful health response without a token is not a usable connection because conversion and recognition endpoints require authentication.
-
-For the current development loop, sideload Word with:
-
-```powershell
-npm run dev:word
-```
-
-This starts the Vite dev server when needed, checks whether the active bridge supports Screenshot OCR, and sideloads Word.
-
-The ribbon icon source is `public/assets/ribbon-icons.svg`; Office manifests still reference PNG assets because desktop Office ribbon images require fixed-size bitmap URLs.
+Start LaTeXSnipper and enable "Office 插件" in settings before testing conversion or OCR.
 
 ## Architecture
 
-- `src/taskpane/`: task pane composition and user events.
-- `src/dialog/`: formal equation editor dialog code when the prototype is promoted.
-- `src/services/`: localhost bridge client and shared service code.
-- `src/office/`: Office host adapters. Word insertion logic belongs here.
-- `src/styles/`: task pane styles.
+```
+Ribbon Commands
+  |
+  +-- Task Pane (sidebar, ~350px) — quick insert, bridge status
+  +-- Dialog Editor — full editor with symbol palette + MathLive
+  |
+  v
+LaTeXSnipper Bridge (localhost HTTP, bearer token)
+  POST /convert/latex    → OMML + SVG + MathML + PNG
+  POST /recognize/screenshot
+  GET  /health, /config
+```
 
-The add-in does not load MathCraft OCR or local model dependencies. Recognition and conversion belong to the desktop bridge.
+- `src/taskpane/App.ts` — Task pane control hub (bridge, insertion, dialog management)
+- `src/taskpane/mathliveEditor.ts` — Shared `MathLiveCore` (used by both editors)
+- `src/dialog/editorDialog.ts` — Dialog editor (MathLive + complete symbol panel + structures)
+- `src/office/wordInsert.ts` — Word OOXML insert / update / renumber
+- `src/office/powerpointInsert.ts` — PowerPoint image insertion
+- `src/services/bridgeClient.ts` — HTTP bridge client
+- `src/services/equationSession.ts` — Document settings persistence
 
-## Packaging Boundary
+## Icons
 
-- Office add-in assets and installers live under `office_addin/`.
+Ribbon icons are PNG rasterized from SVG sources:
+
+```bash
+node gen_icons.mjs    # Requires sharp (npm install)
+```
+
+Outputs `icon-{name}-{16,32,80}.png` for each ribbon button.
+
+## Document Settings
+
+| Key | Purpose |
+|---|---|
+| `latexsnipper.bridgeUrl` / `bridgeToken` | Bridge connection |
+| `latexsnipper.equationNumbering` | Auto-number counter |
+| `latexsnipper.equationSource.{id}` | Per-equation: latex, display, numbering, numberValue |
+
+## Packaging
+
+- Office add-in assets live under `office_addin/`.
 - Desktop bridge code lives under `src/integration/office/`.
-- The main application should not contain Office installation wizards.
-- Windows/macOS Office-specific setup should be handled by this package.
-
+- The add-in is installed independently from the desktop app.

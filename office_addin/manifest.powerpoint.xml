@@ -19,7 +19,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
+    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" RequestedWidth="460"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -37,9 +37,9 @@
               <Group id="GroupInsert">
                 <Label resid="GroupInsert.Label"/>
                 <Icon>
-                  <bt:Image size="16" resid="Icon.16"/>
-                  <bt:Image size="32" resid="Icon.32"/>
-                  <bt:Image size="80" resid="Icon.80"/>
+                  <bt:Image size="16" resid="Ico.Insert.16"/>
+                  <bt:Image size="32" resid="Ico.Insert.32"/>
+                  <bt:Image size="80" resid="Ico.Insert.80"/>
                 </Icon>
                 <Control xsi:type="Button" id="OpenEditorButton">
                   <Label resid="OpenEditor.Label"/>
@@ -48,9 +48,9 @@
                     <Description resid="OpenEditor.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Editor.16"/>
+                    <bt:Image size="32" resid="Ico.Editor.32"/>
+                    <bt:Image size="80" resid="Ico.Editor.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>LaTeXSnipper.Taskpane</TaskpaneId>
@@ -64,9 +64,9 @@
                     <Description resid="InsertFormula.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Insert.16"/>
+                    <bt:Image size="32" resid="Ico.Insert.32"/>
+                    <bt:Image size="80" resid="Ico.Insert.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>LaTeXSnipper.Taskpane</TaskpaneId>
@@ -80,9 +80,9 @@
                     <Description resid="ScreenshotOcr.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Ocr.16"/>
+                    <bt:Image size="32" resid="Ico.Ocr.32"/>
+                    <bt:Image size="80" resid="Ico.Ocr.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>LaTeXSnipper.Taskpane</TaskpaneId>
@@ -93,9 +93,9 @@
               <Group id="GroupNumbering">
                 <Label resid="GroupNumbering.Label"/>
                 <Icon>
-                  <bt:Image size="16" resid="Icon.16"/>
-                  <bt:Image size="32" resid="Icon.32"/>
-                  <bt:Image size="80" resid="Icon.80"/>
+                  <bt:Image size="16" resid="Ico.Numbered.16"/>
+                  <bt:Image size="32" resid="Ico.Numbered.32"/>
+                  <bt:Image size="80" resid="Ico.Numbered.80"/>
                 </Icon>
                 <Control xsi:type="Button" id="NumberedFormulaButton">
                   <Label resid="NumberedFormula.Label"/>
@@ -104,13 +104,37 @@
                     <Description resid="NumberedFormula.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Numbered.16"/>
+                    <bt:Image size="32" resid="Ico.Numbered.32"/>
+                    <bt:Image size="80" resid="Ico.Numbered.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>LaTeXSnipper.Taskpane</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+              <Group id="GroupHelp">
+                <Label resid="GroupHelp.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Ico.Help.16"/>
+                  <bt:Image size="32" resid="Ico.Help.32"/>
+                  <bt:Image size="80" resid="Ico.Help.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="HelpButton">
+                  <Label resid="Help.Label"/>
+                  <Supertip>
+                    <Title resid="Help.Label"/>
+                    <Description resid="Help.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Ico.Help.16"/>
+                    <bt:Image size="32" resid="Ico.Help.32"/>
+                    <bt:Image size="80" resid="Ico.Help.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>LaTeXSnipper.HelpTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.HelpUrl"/>
                   </Action>
                 </Control>
               </Group>
@@ -125,11 +149,27 @@
         <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
         <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
         <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+        <bt:Image id="Ico.Editor.16" DefaultValue="https://localhost:3000/assets/icon-editor-16.png"/>
+        <bt:Image id="Ico.Editor.32" DefaultValue="https://localhost:3000/assets/icon-editor-32.png"/>
+        <bt:Image id="Ico.Editor.80" DefaultValue="https://localhost:3000/assets/icon-editor-80.png"/>
+        <bt:Image id="Ico.Insert.16" DefaultValue="https://localhost:3000/assets/icon-insert-16.png"/>
+        <bt:Image id="Ico.Insert.32" DefaultValue="https://localhost:3000/assets/icon-insert-32.png"/>
+        <bt:Image id="Ico.Insert.80" DefaultValue="https://localhost:3000/assets/icon-insert-80.png"/>
+        <bt:Image id="Ico.Ocr.16" DefaultValue="https://localhost:3000/assets/icon-ocr-16.png"/>
+        <bt:Image id="Ico.Ocr.32" DefaultValue="https://localhost:3000/assets/icon-ocr-32.png"/>
+        <bt:Image id="Ico.Ocr.80" DefaultValue="https://localhost:3000/assets/icon-ocr-80.png"/>
+        <bt:Image id="Ico.Numbered.16" DefaultValue="https://localhost:3000/assets/icon-numbered-16.png"/>
+        <bt:Image id="Ico.Numbered.32" DefaultValue="https://localhost:3000/assets/icon-numbered-32.png"/>
+        <bt:Image id="Ico.Numbered.80" DefaultValue="https://localhost:3000/assets/icon-numbered-80.png"/>
+        <bt:Image id="Ico.Help.16" DefaultValue="https://localhost:3000/assets/icon-help-16.png"/>
+        <bt:Image id="Ico.Help.32" DefaultValue="https://localhost:3000/assets/icon-help-32.png"/>
+        <bt:Image id="Ico.Help.80" DefaultValue="https://localhost:3000/assets/icon-help-80.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
         <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000/taskpane.html"/>
+        <bt:Url id="Taskpane.HelpUrl" DefaultValue="https://localhost:3000/help.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Tab.Label" DefaultValue="LaTeXSnipper"/>
@@ -139,6 +179,8 @@
         <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"/>
         <bt:String id="NumberedFormula.Label" DefaultValue="Numbered"/>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
+        <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
+        <bt:String id="Help.Label" DefaultValue="Help"/>
         <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper is ready"/>
       </bt:ShortStrings>
       <bt:LongStrings>
@@ -146,6 +188,7 @@
         <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert a formula image into the current slide."/>
         <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert a display formula with numbering."/>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
+        <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."/>
         <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>
       </bt:LongStrings>
     </Resources>

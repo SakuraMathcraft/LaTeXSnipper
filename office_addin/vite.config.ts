@@ -21,7 +21,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         taskpane: "taskpane.html",
-        commands: "commands.html"
+        commands: "commands.html",
+        dialog: "src/dialog/editorDialog.html",
+        help: "help.html"
       }
     }
   }

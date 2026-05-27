@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Editor</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <div class="dialog-shell">
+      <div class="dialog-editor-area">
+        <div class="dialog-symbol-panel" id="symbolPanel">
+          <div class="panel-section"><div class="panel-title">Greek (lower)</div><div class="panel-grid" id="symbolGreekLower"></div></div>
+          <div class="panel-section"><div class="panel-title">Greek (upper)</div><div class="panel-grid" id="symbolGreekUpper"></div></div>
+          <div class="panel-section"><div class="panel-title">Operators</div><div class="panel-grid" id="symbolOperators"></div></div>
+          <div class="panel-section"><div class="panel-title">Big Operators</div><div class="panel-grid" id="symbolBigOps"></div></div>
+          <div class="panel-section"><div class="panel-title">Relations</div><div class="panel-grid" id="symbolRelations"></div></div>
+          <div class="panel-section"><div class="panel-title">Sets &amp; Logic</div><div class="panel-grid" id="symbolSets"></div></div>
+          <div class="panel-section"><div class="panel-title">Arrows</div><div class="panel-grid" id="symbolArrows"></div></div>
+          <div class="panel-section"><div class="panel-title">Functions</div><div class="panel-grid panel-grid-func" id="symbolFunctions"></div></div>
+          <div class="panel-section"><div class="panel-title">Accents</div><div class="panel-grid" id="symbolAccents"></div></div>
+          <div class="panel-section"><div class="panel-title">Misc</div><div class="panel-grid" id="symbolMisc"></div></div>
+          <div class="panel-section"><div class="panel-title">Structures</div><div class="panel-grid panel-grid-struct" id="symbolStructures"></div></div>
+        </div>
+
+        <div class="dialog-mathlive-panel">
+          <div id="mathfieldHost" class="mathfield-host"></div>
+        </div>
+      </div>
+
+      <div class="dialog-latex-panel collapsed" id="latexPanel">
+        <div class="latex-panel-header" id="latexPanelToggle">LaTeX Source</div>
+        <textarea id="latexSource" class="latex-source" spellcheck="false"></textarea>
+      </div>
+
+      <div class="dialog-footer">
+        <button id="symbolsToggle" type="button" class="active" title="Toggle symbol panel">Symbols</button>
+        <span class="footer-spacer"></span>
+        <label><input id="displayMode" type="checkbox" checked /> Display</label>
+        <label><input id="autoNumber" type="checkbox" /> Auto number</label>
+        <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual #" />
+        <button id="insertButton" type="button" class="primary">Insert</button>
+      </div>
+
+      <div class="dialog-status" id="dialogStatus">Ready</div>
+    </div>
+    <script type="module" src="/vendor/mathlive.min.mjs"></script>
+    <script type="module" src="./editorDialog.ts"></script>
+  </body>
+</html>

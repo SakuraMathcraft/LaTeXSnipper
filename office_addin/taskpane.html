@@ -28,21 +28,13 @@
         <div class="options-row">
           <label><input id="displayMode" type="checkbox" checked /> Display</label>
           <label><input id="autoNumber" type="checkbox" /> Auto number</label>
-          <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual number" />
+          <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual #" />
         </div>
       </section>
 
       <section class="actions primary-actions">
         <button id="ocrButton" type="button">Screenshot OCR</button>
         <button id="insertButton" type="button" class="primary">Insert</button>
-      </section>
-
-      <section class="panel compact-panel">
-        <label>Selected equation</label>
-        <section class="actions">
-          <button id="loadSelectedButton" type="button">Load</button>
-          <button id="updateSelectedButton" type="button">Update</button>
-        </section>
       </section>
 
       <section class="panel compact-panel">
@@ -61,6 +53,7 @@
       </details>
 
     </main>
+    <script type="module" src="/vendor/mathlive.min.mjs"></script>
     <script type="module" src="/src/taskpane/App.ts"></script>
   </body>
 </html>

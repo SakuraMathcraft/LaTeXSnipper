@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Help</title>
+    <style>
+      :root { color: #1a1a1a; background: #fff; font-family: "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.6; }
+      body { margin: 0; padding: 24px 28px; max-width: 720px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h2 { font-size: 17px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e0e0e0; }
+      h3 { font-size: 14px; margin: 16px 0 4px; }
+      p, li { font-size: 13px; color: #333; }
+      ul { padding-left: 20px; margin: 4px 0; }
+      li { margin-bottom: 4px; }
+      code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: "Cascadia Code", "Consolas", monospace; }
+      .kbd { background: #e8e8e8; border: 1px solid #ccc; border-radius: 3px; padding: 1px 6px; font-size: 12px; }
+      .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #888; }
+    </style>
+  </head>
+  <body>
+    <h1>LaTeXSnipper — Help</h1>
+    <p style="margin-top:2px;">Edit, recognize, and insert mathematical equations into Office documents.</p>
+
+    <h2>Getting Started</h2>
+    <p>Before using the add-in, start the LaTeXSnipper bridge application on your computer. The add-in auto-connects on launch. If needed, click <strong>Connect</strong> in the sidebar to refresh the connection.</p>
+
+    <h2>Ribbon Commands</h2>
+
+    <h3>Editor</h3>
+    <p>Opens the full equation editor dialog with symbol panel, visual math editing, and LaTeX source view.</p>
+
+    <h3>Insert Formula</h3>
+    <p>Converts the sidebar LaTeX into an editable OMML equation at the cursor position. Use the sidebar options to set <strong>Display</strong> mode (centered, own line) and numbering.</p>
+
+    <h3>Numbered Formula</h3>
+    <p>Adds automatic numbering to the currently selected LaTeXSnipper equation. The equation becomes a centered display equation with an auto-number. After numbering, the sidebar resets to its initial state.</p>
+
+    <h3>Screenshot OCR</h3>
+    <p>Opens LaTeXSnipper recognition tools. Capture a screen region containing a formula; the recognized LaTeX appears in the sidebar. Then edit and insert it into the document.</p>
+
+    <h2>Editing Equations</h2>
+
+    <h3>Load Selected</h3>
+    <p>Click on a LaTeXSnipper equation in the document, then click <strong>Load Selected</strong> to open it in the editor dialog. The sidebar also refreshes to show the equation's LaTeX, display mode, and numbering.</p>
+
+    <h3>Update Selected</h3>
+    <p>With an equation selected, click <strong>Update Selected</strong> to replace it with the current sidebar content. This preserves the equation's content control and numbering.</p>
+
+    <h3>Renumber All</h3>
+    <p>Renumbers every LaTeXSnipper numbered equation in document order (1), (2), (3)... Also normalizes table layout and alignment for all numbered equations.</p>
+
+    <h2>Equation Numbering</h2>
+    <ul>
+      <li><strong>Auto number</strong> — Automatically assigns the next sequential number <code>(n)</code> when inserting.</li>
+      <li><strong>Manual #</strong> — Type a custom number (e.g. <code>(5)</code>, <code>A.1</code>). Auto number is disabled when a manual value is entered.</li>
+      <li>All numbered equations are display equations in a centered table. Renumber updates them in document order.</li>
+    </ul>
+
+    <h2>Settings</h2>
+    <ul>
+      <li><strong>Bridge URL</strong> — Address of the LaTeXSnipper bridge (default <code>http://127.0.0.1:8765</code>). Change if the bridge runs on a different machine or port.</li>
+      <li><strong>Bridge token</strong> — Session token auto-filled when you connect. Required for secure communication with the bridge.</li>
+    </ul>
+
+    <div class="footer">LaTeXSnipper Office Add-in &copy; SakuraMathcraft</div>
+  </body>
+</html>

@@ -1,19 +1,21 @@
 import "../styles/taskpane.css";
 
 import { BridgeClient, type BridgeHealth, type ConversionResult } from "../services/bridgeClient";
-import { loadSession, saveSession } from "../services/equationSession";
+import { loadEquationSource, loadSession, saveSession } from "../services/equationSession";
 import { normalizeOfficeLatex } from "../services/latexNormalize";
 import { clearRibbonCommand, readRibbonCommand, RibbonCommand } from "../services/ribbonCommands";
 import {
   getSelectedEquationIdFromWord,
   insertEquationIntoWord,
   loadSelectedEquationFromWord,
-  renumberWordEquations
+  renumberWordEquations,
+  updateEquationInWord
 } from "../office/wordInsert";
 import { insertEquationIntoPowerPoint } from "../office/powerpointInsert";
 import { MathLiveEditor } from "./mathliveEditor";
 
 const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8765";
+const SELECTED_EQUATION_STATUS = "LaTeXSnipper equation selected. Click Load to edit.";
 
 type Elements = {
   hostLabel: HTMLElement;
@@ -28,8 +30,6 @@ type Elements = {
   manualNumber: HTMLInputElement;
   healthButton: HTMLButtonElement;
   ocrButton: HTMLButtonElement;
-  loadSelectedButton: HTMLButtonElement;
-  updateSelectedButton: HTMLButtonElement;
   renumberButton: HTMLButtonElement;
   insertButton: HTMLButtonElement;
 };
@@ -38,8 +38,10 @@ let lastConversion: ConversionResult | null = null;
 let formulaEditor: MathLiveEditor | null = null;
 let officeHost: Office.HostType | undefined;
 let selectedEquationId = "";
+let selectionNoticeEquationId = "";
 let lastHandledCommandId = "";
 let actionBusy = false;
+let officeDialog: Office.Dialog | null = null;
 
 Office.onReady(async (info) => {
   const elements = resolveElements();
@@ -47,7 +49,7 @@ Office.onReady(async (info) => {
   elements.hostLabel.textContent = `${info.host || "Office"} add-in`;
   restoreSession(elements);
   refreshCommandAvailability(elements);
-  formulaEditor = new MathLiveEditor(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
+  formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
   startRibbonCommandPolling(elements);
@@ -72,8 +74,6 @@ function resolveElements(): Elements {
     manualNumber: requiredElement("manualNumber", HTMLInputElement),
     healthButton: requiredElement("healthButton", HTMLButtonElement),
     ocrButton: requiredElement("ocrButton", HTMLButtonElement),
-    loadSelectedButton: requiredElement("loadSelectedButton", HTMLButtonElement),
-    updateSelectedButton: requiredElement("updateSelectedButton", HTMLButtonElement),
     renumberButton: requiredElement("renumberButton", HTMLButtonElement),
     insertButton: requiredElement("insertButton", HTMLButtonElement)
   };
@@ -100,11 +100,21 @@ function installSelectionTracking(elements: Elements): void {
 async function refreshSelectedEquationState(elements: Elements): Promise<void> {
   try {
     const equationId = await getSelectedEquationIdFromWord();
-    if (!equationId || equationId === selectedEquationId) {
+    if (!equationId) {
+      selectionNoticeEquationId = "";
+      if (elements.statusBanner.textContent === SELECTED_EQUATION_STATUS) {
+        setStatus(elements, "Ready.", "ok");
+      }
       return;
     }
-    selectedEquationId = equationId;
-    setStatus(elements, "LaTeXSnipper equation selected.", "ok");
+    if (equationId === selectionNoticeEquationId) {
+      return;
+    }
+    const record = loadEquationSource(equationId);
+    if (record?.latex) {
+      selectionNoticeEquationId = equationId;
+      setStatus(elements, SELECTED_EQUATION_STATUS, "ok");
+    }
   } catch {
     // Ignore ordinary Word selections.
   }
@@ -132,9 +142,7 @@ async function executeRibbonCommand(elements: Elements, command: RibbonCommand):
       await insertCurrentLatex(elements);
       return;
     case "numbered":
-      elements.displayMode.checked = true;
-      elements.autoNumber.checked = true;
-      await insertCurrentLatex(elements);
+      await numberSelectedEquation(elements);
       return;
     case "ocr":
       await runScreenshotOcr(elements);
@@ -168,12 +176,9 @@ function restoreSession(elements: Elements): void {
 function wireEvents(elements: Elements): void {
   elements.healthButton.addEventListener("click", () => runAction(elements, () => testConnection(elements)));
   elements.ocrButton.addEventListener("click", () => runAction(elements, () => runScreenshotOcr(elements)));
-  elements.loadSelectedButton.addEventListener("click", () => runAction(elements, () => loadSelectedEquation(elements)));
-  elements.updateSelectedButton.addEventListener("click", () => runAction(elements, () => updateSelectedEquation(elements)));
   elements.renumberButton.addEventListener("click", () => runAction(elements, () => renumberEquations(elements)));
   elements.insertButton.addEventListener("click", () => runAction(elements, () => insertCurrentLatex(elements)));
-  elements.keyboardButton.addEventListener("click", () => formulaEditor?.toggleKeyboard());
-  window.addEventListener("keydown", (event) => handleKeyboardShortcut(event, elements));
+  elements.keyboardButton.style.display = "none";
   elements.bridgeUrl.addEventListener("change", () => persistBridgeInputs(elements));
   elements.bridgeToken.addEventListener("change", () => persistBridgeInputs(elements));
   elements.bridgeUrl.addEventListener("input", () => persistBridgeInputs(elements));
@@ -181,29 +186,6 @@ function wireEvents(elements: Elements): void {
   elements.latexOutput.addEventListener("latexsnipper-latex-change", () => {
     lastConversion = null;
   });
-}
-
-function handleKeyboardShortcut(event: KeyboardEvent, elements: Elements): void {
-  if (!event.ctrlKey || event.altKey || event.metaKey) {
-    return;
-  }
-  const key = event.key.toLowerCase();
-  const action =
-    key === "enter"
-      ? () => insertCurrentLatex(elements)
-      : event.shiftKey && key === "s"
-        ? () => runScreenshotOcr(elements)
-        : event.shiftKey && key === "l"
-          ? () => loadSelectedEquation(elements)
-          : event.shiftKey && key === "u"
-            ? () => updateSelectedEquation(elements)
-            : null;
-  if (!action) {
-    return;
-  }
-  event.preventDefault();
-  event.stopPropagation();
-  void runAction(elements, action);
 }
 
 function applyLaunchMode(elements: Elements): boolean {
@@ -216,13 +198,21 @@ function applyLaunchMode(elements: Elements): boolean {
   }
   if (mode === "insert") {
     setStatus(elements, "Insert mode is ready.", "ok");
-    formulaEditor?.focus(false);
+    formulaEditor?.focus();
     return true;
   }
   if (mode === "ocr") {
     window.setTimeout(() => {
       void runAction(elements, () => runScreenshotOcr(elements));
     }, 200);
+    return true;
+  }
+  if (mode === "editor") {
+    if (elements.bridgeToken.value.trim()) {
+      window.setTimeout(() => openDialogEditor(elements), 300);
+    } else {
+      setStatus(elements, "Connect to the LaTeXSnipper bridge first, then open the editor.", "error");
+    }
     return true;
   }
   return false;
@@ -295,33 +285,100 @@ async function insertCurrentLatex(elements: Elements): Promise<void> {
 
 async function loadSelectedEquation(elements: Elements): Promise<void> {
   if (officeHost !== Office.HostType.Word) {
-    throw new Error("Native TeX editing is currently available in Word only.");
+    throw new Error("Equation editing is available in Word only.");
   }
   const selected = await loadSelectedEquationFromWord();
   selectedEquationId = selected.equationId;
+  // Sync equation content and numbering to the sidebar
   formulaEditor?.setLatex(selected.latex);
-  lastConversion = null;
-  setStatus(elements, "Loaded selected equation source.", "ok");
+  elements.latexOutput.value = selected.latex;
+  elements.displayMode.checked = selected.display;
+  elements.autoNumber.checked = selected.numbering === "auto";
+  elements.manualNumber.value = selected.numbering === "manual" ? (selected.numberValue || "") : "";
+  openDialogEditor(elements, selected.latex, selected.equationId, selected.numberValue);
+  setStatus(elements, "Opened equation in editor.", "ok");
 }
 
 async function updateSelectedEquation(elements: Elements): Promise<void> {
-  const currentSelectionId = await getSelectedEquationIdFromWord();
-  if (currentSelectionId) {
-    selectedEquationId = currentSelectionId;
-  }
   if (!selectedEquationId) {
-    throw new Error("Select a LaTeXSnipper equation to update.");
+    throw new Error("Load the equation first, then update.");
   }
+  const record = loadEquationSource(selectedEquationId);
+  if (!record?.latex) {
+    throw new Error("The selected equation does not have saved LaTeX source.");
+  }
+
+  const latex = readLatex(elements);
+  const display = elements.displayMode.checked;
+  const numbering = elements.autoNumber.checked ? "auto" as const
+    : elements.manualNumber.value.trim() ? "manual" as const : "none" as const;
+  const manualNumber = elements.manualNumber.value || undefined;
+
+  // Nothing changed — skip the update to avoid unnecessary OOXML churn
+  // (re-converting to OMML can produce slightly different MathML that
+  // causes Word to reflow the equation, adding unwanted line breaks).
+  const originalNumbering = record.numbering || "none";
+  const rawLatex = (elements.latexOutput.value || "").trim();
+  if (
+    rawLatex === (record.latex || "").trim() &&
+    display === (record.display !== false) &&
+    numbering === originalNumbering &&
+    (numbering !== "manual" || manualNumber === record.numberValue)
+  ) {
+    setStatus(elements, "No changes to update.", "");
+    return;
+  }
+
+  // Preserve the original numberValue when the numbering type is unchanged.
+  const numberValue = numbering === originalNumbering ? record.numberValue : undefined;
+
   const draft = {
-    latex: readLatex(elements),
-    display: elements.displayMode.checked,
-    numbering: elements.autoNumber.checked ? "auto" : elements.manualNumber.value.trim() ? "manual" : "none",
-    manualNumber: elements.manualNumber.value,
-    equationId: selectedEquationId
+    latex,
+    display,
+    numbering,
+    manualNumber,
+    equationId: selectedEquationId,
+    numberValue,
   } as const;
+
   const conversion = await convertCurrentLatex(elements);
-  await insertEquationIntoWord(draft, conversion);
+  await updateEquationInWord(draft, conversion);
   setStatus(elements, "Updated selected equation.", "ok");
+  resetSidebarAfterUpdate(elements);
+}
+
+async function numberSelectedEquation(elements: Elements): Promise<void> {
+  if (officeHost !== Office.HostType.Word) {
+    throw new Error("Equation numbering is available in Word only.");
+  }
+  const equationId = await getSelectedEquationIdFromWord();
+  if (!equationId) {
+    throw new Error("Select a LaTeXSnipper equation to add numbering.");
+  }
+  const record = loadEquationSource(equationId);
+  if (!record || !record.latex) {
+    throw new Error("The selected equation does not have saved LaTeX source.");
+  }
+  if (record.numbering && record.numbering !== "none") {
+    setStatus(elements, "Selected equation already has numbering.", "");
+    return;
+  }
+  formulaEditor?.setLatex(record.latex);
+  elements.latexOutput.value = record.latex;
+  lastConversion = null;
+
+  const draft = {
+    latex: record.latex,
+    display: true,
+    numbering: "auto" as const,
+    manualNumber: undefined as string | undefined,
+    equationId,
+    numberValue: record.numberValue,
+  };
+  const conversion = await convertCurrentLatex(elements);
+  await updateEquationInWord(draft, conversion);
+  setStatus(elements, "Added numbering to selected equation.", "ok");
+  resetSidebarAfterUpdate(elements);
 }
 
 async function renumberEquations(elements: Elements): Promise<void> {
@@ -388,6 +445,122 @@ function readLatex(elements: Elements): string {
   return latex;
 }
 
+function openDialogEditor(
+  elements: Elements,
+  latex?: string,
+  equationId?: string,
+  numberValue?: string
+): void {
+  if (officeDialog) {
+    try {
+      officeDialog.close();
+    } catch {
+      // Previous dialog may already be closed.
+    }
+    officeDialog = null;
+  }
+  const params = new URLSearchParams();
+  params.set("mode", equationId ? "update" : "insert");
+  params.set("bridgeUrl", elements.bridgeUrl.value || DEFAULT_BRIDGE_URL);
+  params.set("bridgeToken", elements.bridgeToken.value.trim());
+  if (latex) {
+    params.set("latex", latex);
+  }
+  if (equationId) {
+    params.set("equationId", equationId);
+    params.set("display", String(elements.displayMode.checked));
+    params.set("autoNumber", String(elements.autoNumber.checked));
+    params.set("manualNumber", elements.manualNumber.value.trim());
+    if (numberValue) {
+      params.set("numberValue", numberValue);
+    }
+  }
+  const dialogUrl = `${window.location.origin}${window.location.pathname.replace(
+    "taskpane.html",
+    "src/dialog/editorDialog.html"
+  )}?${params.toString()}`;
+  Office.context.ui.displayDialogAsync(dialogUrl, { height: 60, width: 48 }, (result) => {
+    if (result.status === Office.AsyncResultStatus.Failed) {
+      setStatus(elements, `Failed to open editor: ${result.error.message}`, "error");
+      return;
+    }
+    officeDialog = result.value;
+    officeDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: {
+      message?: string;
+      error?: number;
+    }) => {
+      if (arg.message) {
+        void handleDialogMessage(elements, arg.message);
+      }
+    });
+    officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+      officeDialog = null;
+      resetSidebarAfterUpdate(elements);
+    });
+  });
+}
+
+async function handleDialogMessage(elements: Elements, raw: string): Promise<void> {
+  let message: { type: string; draft?: { latex: string; display: boolean; numbering: string; manualNumber?: string; numberValue?: string }; equationId?: string };
+  try {
+    message = JSON.parse(raw) as typeof message;
+  } catch {
+    return;
+  }
+  switch (message.type) {
+    case "insert": {
+      if (!message.draft) {
+        return;
+      }
+      const draft = message.draft;
+      formulaEditor?.setLatex(draft.latex);
+      elements.latexOutput.value = draft.latex;
+      elements.displayMode.checked = draft.display;
+      elements.autoNumber.checked = draft.numbering === "auto";
+      elements.manualNumber.value = draft.manualNumber || "";
+      await runAction(elements, () => insertFromDialog(elements, draft, message.equationId));
+      officeDialog?.close();
+      officeDialog = null;
+      break;
+    }
+    case "close": {
+      officeDialog?.close();
+      officeDialog = null;
+      break;
+    }
+  }
+}
+
+async function insertFromDialog(
+  elements: Elements,
+  draft: { latex: string; display: boolean; numbering: string; manualNumber?: string; numberValue?: string },
+  equationId?: string
+): Promise<void> {
+  if (officeHost === Office.HostType.PowerPoint) {
+    await insertEquationIntoPowerPoint(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber, equationId },
+      clientFromElements(elements)
+    );
+    setStatus(elements, "Inserted equation into PowerPoint.", "ok");
+    return;
+  }
+  const conversion = await convertCurrentLatex(elements);
+  if (equationId) {
+    await updateEquationInWord(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber, equationId, numberValue: draft.numberValue },
+      conversion
+    );
+    setStatus(elements, "Updated equation in Word.", "ok");
+    resetSidebarAfterUpdate(elements);
+  } else {
+    await insertEquationIntoWord(
+      { latex: draft.latex, display: draft.display, numbering: draft.numbering as "none" | "auto" | "manual", manualNumber: draft.manualNumber },
+      conversion
+    );
+    setStatus(elements, "Inserted equation into Word.", "ok");
+  }
+}
+
 async function runAction(elements: Elements, action: () => Promise<void>): Promise<void> {
   setBusy(elements, true);
   setStatus(elements, "Working.");
@@ -405,13 +578,22 @@ function setBusy(elements: Elements, busy: boolean): void {
   refreshCommandAvailability(elements);
 }
 
+function resetSidebarAfterUpdate(elements: Elements): void {
+  const initialLatex = "\\int_0^1 x^2\\,dx";
+  formulaEditor?.setLatex(initialLatex);
+  elements.latexOutput.value = initialLatex;
+  elements.displayMode.checked = true;
+  elements.autoNumber.checked = false;
+  elements.manualNumber.value = "";
+  selectedEquationId = "";
+  lastConversion = null;
+}
+
 function refreshCommandAvailability(elements: Elements): void {
   const hasBridgeToken = Boolean(elements.bridgeToken.value.trim());
   const isWord = officeHost === Office.HostType.Word;
   elements.healthButton.disabled = actionBusy;
   elements.ocrButton.disabled = actionBusy || !hasBridgeToken;
-  elements.loadSelectedButton.disabled = actionBusy || !isWord;
-  elements.updateSelectedButton.disabled = actionBusy || !isWord || !hasBridgeToken;
   elements.renumberButton.disabled = actionBusy || !isWord;
   elements.insertButton.disabled = actionBusy || !hasBridgeToken;
   elements.healthButton.textContent = actionBusy ? "Working..." : "Connect";

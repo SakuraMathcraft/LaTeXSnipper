@@ -19,7 +19,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
+    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" RequestedWidth="460"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -37,9 +37,9 @@
               <Group id="GroupInsert">
                 <Label resid="GroupInsert.Label"/>
                 <Icon>
-                  <bt:Image size="16" resid="Icon.16"/>
-                  <bt:Image size="32" resid="Icon.32"/>
-                  <bt:Image size="80" resid="Icon.80"/>
+                  <bt:Image size="16" resid="Ico.Insert.16"/>
+                  <bt:Image size="32" resid="Ico.Insert.32"/>
+                  <bt:Image size="80" resid="Ico.Insert.80"/>
                 </Icon>
                 <Control xsi:type="Button" id="OpenEditorButton">
                   <Label resid="OpenEditor.Label"/>
@@ -48,13 +48,13 @@
                     <Description resid="OpenEditor.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Editor.16"/>
+                    <bt:Image size="32" resid="Ico.Editor.32"/>
+                    <bt:Image size="80" resid="Ico.Editor.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>LaTeXSnipper.EditorTaskpane</TaskpaneId>
-                    <SourceLocation resid="Taskpane.Url"/>
+                    <SourceLocation resid="Taskpane.EditorUrl"/>
                   </Action>
                 </Control>
                 <Control xsi:type="Button" id="InsertFormulaButton">
@@ -64,9 +64,9 @@
                     <Description resid="InsertFormula.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Insert.16"/>
+                    <bt:Image size="32" resid="Ico.Insert.32"/>
+                    <bt:Image size="80" resid="Ico.Insert.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>insertFormulaCommand</FunctionName>
@@ -79,9 +79,9 @@
                     <Description resid="ScreenshotOcr.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Ocr.16"/>
+                    <bt:Image size="32" resid="Ico.Ocr.32"/>
+                    <bt:Image size="80" resid="Ico.Ocr.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>screenshotOcrCommand</FunctionName>
@@ -91,9 +91,9 @@
               <Group id="GroupEdit">
                 <Label resid="GroupEdit.Label"/>
                 <Icon>
-                  <bt:Image size="16" resid="Icon.16"/>
-                  <bt:Image size="32" resid="Icon.32"/>
-                  <bt:Image size="80" resid="Icon.80"/>
+                  <bt:Image size="16" resid="Ico.Update.16"/>
+                  <bt:Image size="32" resid="Ico.Update.32"/>
+                  <bt:Image size="80" resid="Ico.Update.80"/>
                 </Icon>
                 <Control xsi:type="Button" id="LoadSelectedButton">
                   <Label resid="LoadSelected.Label"/>
@@ -102,9 +102,9 @@
                     <Description resid="LoadSelected.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Load.16"/>
+                    <bt:Image size="32" resid="Ico.Load.32"/>
+                    <bt:Image size="80" resid="Ico.Load.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>loadSelectedCommand</FunctionName>
@@ -117,9 +117,9 @@
                     <Description resid="UpdateSelected.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Update.16"/>
+                    <bt:Image size="32" resid="Ico.Update.32"/>
+                    <bt:Image size="80" resid="Ico.Update.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>updateSelectedCommand</FunctionName>
@@ -129,9 +129,9 @@
               <Group id="GroupNumbering">
                 <Label resid="GroupNumbering.Label"/>
                 <Icon>
-                  <bt:Image size="16" resid="Icon.16"/>
-                  <bt:Image size="32" resid="Icon.32"/>
-                  <bt:Image size="80" resid="Icon.80"/>
+                  <bt:Image size="16" resid="Ico.Numbered.16"/>
+                  <bt:Image size="32" resid="Ico.Numbered.32"/>
+                  <bt:Image size="80" resid="Ico.Numbered.80"/>
                 </Icon>
                 <Control xsi:type="Button" id="NumberedFormulaButton">
                   <Label resid="NumberedFormula.Label"/>
@@ -140,9 +140,9 @@
                     <Description resid="NumberedFormula.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Numbered.16"/>
+                    <bt:Image size="32" resid="Ico.Numbered.32"/>
+                    <bt:Image size="80" resid="Ico.Numbered.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>numberedFormulaCommand</FunctionName>
@@ -155,12 +155,36 @@
                     <Description resid="Renumber.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.16"/>
-                    <bt:Image size="32" resid="Icon.32"/>
-                    <bt:Image size="80" resid="Icon.80"/>
+                    <bt:Image size="16" resid="Ico.Renumber.16"/>
+                    <bt:Image size="32" resid="Ico.Renumber.32"/>
+                    <bt:Image size="80" resid="Ico.Renumber.80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>renumberCommand</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+              <Group id="GroupHelp">
+                <Label resid="GroupHelp.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Ico.Help.16"/>
+                  <bt:Image size="32" resid="Ico.Help.32"/>
+                  <bt:Image size="80" resid="Ico.Help.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="HelpButton">
+                  <Label resid="Help.Label"/>
+                  <Supertip>
+                    <Title resid="Help.Label"/>
+                    <Description resid="Help.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Ico.Help.16"/>
+                    <bt:Image size="32" resid="Ico.Help.32"/>
+                    <bt:Image size="80" resid="Ico.Help.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>LaTeXSnipper.HelpTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.HelpUrl"/>
                   </Action>
                 </Control>
               </Group>
@@ -175,14 +199,40 @@
         <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
         <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
         <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+        <bt:Image id="Ico.Editor.16" DefaultValue="https://localhost:3000/assets/icon-editor-16.png"/>
+        <bt:Image id="Ico.Editor.32" DefaultValue="https://localhost:3000/assets/icon-editor-32.png"/>
+        <bt:Image id="Ico.Editor.80" DefaultValue="https://localhost:3000/assets/icon-editor-80.png"/>
+        <bt:Image id="Ico.Insert.16" DefaultValue="https://localhost:3000/assets/icon-insert-16.png"/>
+        <bt:Image id="Ico.Insert.32" DefaultValue="https://localhost:3000/assets/icon-insert-32.png"/>
+        <bt:Image id="Ico.Insert.80" DefaultValue="https://localhost:3000/assets/icon-insert-80.png"/>
+        <bt:Image id="Ico.Ocr.16" DefaultValue="https://localhost:3000/assets/icon-ocr-16.png"/>
+        <bt:Image id="Ico.Ocr.32" DefaultValue="https://localhost:3000/assets/icon-ocr-32.png"/>
+        <bt:Image id="Ico.Ocr.80" DefaultValue="https://localhost:3000/assets/icon-ocr-80.png"/>
+        <bt:Image id="Ico.Load.16" DefaultValue="https://localhost:3000/assets/icon-load-16.png"/>
+        <bt:Image id="Ico.Load.32" DefaultValue="https://localhost:3000/assets/icon-load-32.png"/>
+        <bt:Image id="Ico.Load.80" DefaultValue="https://localhost:3000/assets/icon-load-80.png"/>
+        <bt:Image id="Ico.Update.16" DefaultValue="https://localhost:3000/assets/icon-update-16.png"/>
+        <bt:Image id="Ico.Update.32" DefaultValue="https://localhost:3000/assets/icon-update-32.png"/>
+        <bt:Image id="Ico.Update.80" DefaultValue="https://localhost:3000/assets/icon-update-80.png"/>
+        <bt:Image id="Ico.Numbered.16" DefaultValue="https://localhost:3000/assets/icon-numbered-16.png"/>
+        <bt:Image id="Ico.Numbered.32" DefaultValue="https://localhost:3000/assets/icon-numbered-32.png"/>
+        <bt:Image id="Ico.Numbered.80" DefaultValue="https://localhost:3000/assets/icon-numbered-80.png"/>
+        <bt:Image id="Ico.Renumber.16" DefaultValue="https://localhost:3000/assets/icon-renumber-16.png"/>
+        <bt:Image id="Ico.Renumber.32" DefaultValue="https://localhost:3000/assets/icon-renumber-32.png"/>
+        <bt:Image id="Ico.Renumber.80" DefaultValue="https://localhost:3000/assets/icon-renumber-80.png"/>
+        <bt:Image id="Ico.Help.16" DefaultValue="https://localhost:3000/assets/icon-help-16.png"/>
+        <bt:Image id="Ico.Help.32" DefaultValue="https://localhost:3000/assets/icon-help-32.png"/>
+        <bt:Image id="Ico.Help.80" DefaultValue="https://localhost:3000/assets/icon-help-80.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
         <bt:Url id="Taskpane.InsertUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=insert"/>
         <bt:Url id="Taskpane.NumberedUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=numbered"/>
         <bt:Url id="Taskpane.OcrUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=ocr"/>
+        <bt:Url id="Taskpane.EditorUrl" DefaultValue="https://localhost:3000/taskpane.html?mode=editor"/>
         <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000/taskpane.html"/>
+        <bt:Url id="Taskpane.HelpUrl" DefaultValue="https://localhost:3000/help.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Tab.Label" DefaultValue="LaTeXSnipper"/>
@@ -196,16 +246,19 @@
         <bt:String id="UpdateSelected.Label" DefaultValue="Update Selected"/>
         <bt:String id="Renumber.Label" DefaultValue="Renumber"/>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
+        <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
+        <bt:String id="Help.Label" DefaultValue="Help"/>
         <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper is ready"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="OpenEditor.Tooltip" DefaultValue="Open the LaTeXSnipper equation editor."/>
         <bt:String id="InsertFormula.Tooltip" DefaultValue="Insert an editable equation from the task pane."/>
-        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Insert a display equation with automatic numbering."/>
+        <bt:String id="NumberedFormula.Tooltip" DefaultValue="Add automatic numbering to the selected LaTeXSnipper equation."/>
         <bt:String id="LoadSelected.Tooltip" DefaultValue="Load the selected LaTeXSnipper equation into the editor."/>
         <bt:String id="UpdateSelected.Tooltip" DefaultValue="Replace the selected equation with the current editor content."/>
         <bt:String id="Renumber.Tooltip" DefaultValue="Renumber LaTeXSnipper display equations in document order."/>
         <bt:String id="ScreenshotOcr.Tooltip" DefaultValue="Open LaTeXSnipper recognition tools."/>
+        <bt:String id="Help.Tooltip" DefaultValue="Open the LaTeXSnipper help documentation."/>
         <bt:String id="GetStarted.Description" DefaultValue="Use the LaTeXSnipper tab to edit, recognize, and insert equations."/>
       </bt:LongStrings>
     </Resources>

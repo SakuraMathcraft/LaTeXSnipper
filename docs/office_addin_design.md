@@ -32,42 +32,56 @@ The desktop application's visible UI should remain mostly unchanged. The only pl
 ## High-Level Architecture
 
 ```text
-Word / PowerPoint Ribbon and lightweight task pane
+Word / PowerPoint Ribbon
   |
-  | opens
+  +-- "Editor" button → Office Dialog (premium equation editor)
+  |     |
+  |     +-- MathLive visual input + LaTeX source (bidirectional sync)
+  |     +-- SVG native rendering preview (via bridge /convert/latex)
+  |     +-- Symbol palette + template insertion
+  |     +-- Keyboard-driven editing (arrow keys, shortcuts)
+  |     +-- messageParent() → task pane handles insertion
+  |
+  +-- Insert / Numbered / OCR / Renumber / Help buttons → Ribbon commands
+  |     |
+  |     +-- Compact MathLive editor in task pane (quick insert)
+  |     +-- Connection status, bridge health
+  |     +-- Load / Update / Renumber via ribbon (not sidebar buttons)
+  |
   v
-Office equation editor dialog
+LaTeXSnipper local Office bridge (localhost HTTP, bearer token)
   |
-  | HTTPS/HTTP loopback JSON API, localhost only
-  v
-LaTeXSnipper local Office bridge
-  |
-  +-- capture controller
+  +-- POST /convert/latex    → OMML + SVG + MathML + PNG
+  +-- POST /recognize/screenshot
+  +-- POST /recognition/status
+  +-- GET  /health, /config
+  +-- capture controller (desktop-side screenshot hotkey)
   +-- MathCraft / external OCR model wrapper
-  +-- formula conversion service
-  +-- numbering/session service
-  +-- diagnostics and version handshake
+  +-- formula conversion service (reuses exporting.formula_converters)
 ```
 
-The add-in is a web application loaded by Office. It talks to the desktop app through a local loopback bridge such as `http://127.0.0.1:<port>`. The bridge is started by the desktop app only when Office integration is enabled.
+The add-in is a web application loaded by Office. It talks to the desktop app through a local loopback bridge (`http://127.0.0.1:<port>`). The bridge is started by the desktop app only when Office integration is enabled. Heavyweight Python, ONNX Runtime, CUDA, MathCraft model cache, and screen-capture permissions stay out of the Office host.
 
-This keeps heavyweight Python, ONNX Runtime, CUDA, MathCraft model cache, and screen-capture permissions out of the Office host.
+### Two-Editor Model
 
-The task pane is not the primary editing surface in the formal product. It should stay lightweight:
+The add-in provides **two editing surfaces** that serve different workflows:
 
-- Connection state.
-- Open editor.
-- Insert/update quick actions.
-- Recent recognition status.
-- Diagnostics and repair hints.
+| Surface | Location | Purpose |
+|---|---|---|
+| **Task Pane Editor** | Office task pane (right sidebar, ~300px) | Quick formula entry, instant insert. Always visible. Suitable for simple formulas. |
+| **Dialog Editor** | Office dialog window (resizable, ~800x600) | Premium editing experience. SVG live preview, symbol palette, templates. The MathType/AxMath equivalent. |
 
-The primary formula editor should run in an Office dialog so it feels closer to AxMath/MathType: larger canvas, MathLive visual input, direct TeX source editing, templates, OCR import, and explicit Insert/Update actions.
+Both editors share a `MathLiveCore` module (MathLive initialization, virtual keyboard, LaTeX sync, arrow-key routing). Neither duplicates the other's logic.
+
+The task pane is the **control hub**: it owns the bridge connection, manages document settings, and executes all Word/PPT insertion. The dialog editor is a **pure editing surface** — it emits `EquationDraft` messages via `Office.context.ui.messageParent()` and the task pane handles the rest.
+
+### Installer
 
 The add-in package is installed separately from the desktop app. The installer owns:
 
 - Word and PowerPoint manifest deployment.
-- Windows and macOS Office sideload mechanisms.
-- Local development certificate or production hosting configuration.
+- Automatic localhost SSL certificate generation and system trust injection.
+- Persistent Word trusted-add-in catalog registration (registry-based on Windows).
 - Office desktop version checks.
 - Office Web compatibility warnings.
 - Repair and uninstall actions.
@@ -78,38 +92,41 @@ The add-in package is installed separately from the desktop app. The installer o
 office_addin/
   installer/
     windows/
+      setup.ps1              # Auto-cert trust + registry catalog registration
+      uninstall.ps1
     macos/
   package.json
   manifest.word.xml
   manifest.powerpoint.xml
   src/
     dialog/
-      EditorDialog.ts
-      editorDialog.html
+      editorDialog.html      # Office dialog host page
+      editorDialog.ts        # Dialog editor logic (MathLive + SVG preview + symbols)
+      previewRender.ts       # SVG rendering pipeline (bridge /convert/latex → DOM)
     taskpane/
-      App.ts
-      TaskPaneStatus.ts
+      App.ts                 # Task pane control hub (bridge, dialog opener, insertion)
+      mathliveEditor.ts      # MathLiveCore — shared by task pane and dialog editors
     office/
-      host.ts
-      wordInsert.ts
-      powerpointInsert.ts
-      numbering.ts
+      host.ts                # Office host detection and capability adapter
+      wordInsert.ts           # Word OOXML insertion adapter
+      powerpointInsert.ts     # PowerPoint image insertion adapter
+      numbering.ts            # Equation numbering state machine
     services/
-      bridgeClient.ts
-      equationSession.ts
-      latexNormalize.ts
+      bridgeClient.ts         # HTTP bridge client (convert, OCR, health, config)
+      equationSession.ts      # Document settings persistence (source, numbering, token)
+      latexNormalize.ts       # LaTeX normalization before bridge conversion
+      ribbonCommands.ts       # Ribbon command queue via OfficeRuntime.storage
     styles/
       taskpane.css
+      dialog.css
 
 src/integration/office/
   __init__.py
-  bridge_server.py
-  bridge_auth.py
-  bridge_contracts.py
-  capture_actions.py
-  conversion_service.py
-  numbering_service.py
-  recognition_bus.py
+  bridge_server.py            # Localhost HTTP server (GET /health, /config, POST routing)
+  bridge_auth.py              # Bearer token generation and HMAC verification
+  bridge_contracts.py         # JSON envelope, error types, body parsing
+  conversion_service.py       # LaTeX → OMML/MathML/SVG/PNG via exporting.*
+  dev_server.py               # CLI dev launcher
 ```
 
 The `office_addin/` folder owns Office.js and task-pane code. The `src/integration/office/` package owns the desktop-side bridge. Existing desktop modules should not import from `office_addin/`.
@@ -226,13 +243,12 @@ This is less fragile than trying to maintain tab stops across different Word tem
 
 The insertion adapter must treat each numbered formula as an atomic object:
 
-1. Create a row-level content control tagged `latexsnipper-equation-row:<id>`.
-2. Create an equation content control tagged `latexsnipper-equation:<id>`.
-3. Create a number content control tagged `latexsnipper-equation-number:<id>`.
-4. Insert a paragraph boundary after each object so consecutive insertions cannot nest into the previous table/control.
-5. Store the equation source and numbering metadata in document settings.
+1. Create an equation content control tagged `latexsnipper-eq-<id>`.
+2. Create a number content control tagged `latexsnipper-eqn-<id>` (unique tag per equation, not a shared generic tag).
+3. Insert a paragraph boundary after each display equation so consecutive insertions cannot nest into the previous table.
+4. Store the equation source and numbering metadata in document settings.
 
-Renumbering must scan tagged LaTeXSnipper number controls and update only those controls. It must not rewrite the whole document body OOXML because that is fragile and can disturb unrelated content.
+Renumbering scans body OOXML for all `latexsnipper-eqn-` prefixed tags, extracts the equation IDs, filters to auto-numbered equations only, then updates each via `ContentControl.insertText`. Manual-numbered equations are identified by checking the saved `EquationSourceRecord.numbering` field and are skipped.
 
 The add-in should store document-level numbering settings through Office document settings where possible:
 
@@ -267,42 +283,168 @@ PowerPoint layout should be slide-aware:
 
 ## Equation Editor
 
-The primary editor should be an Office dialog independent from Word and PowerPoint insertion adapters. The task pane can open the dialog and display connection state, but it should not be the long-term main editing surface.
+### Two-Editor Model
 
-Core editor responsibilities:
+The add-in provides two editing surfaces. They serve different workflows and coexist — the dialog is not a replacement for the task pane editor.
 
-- MathLive formula input with synchronized LaTeX text view.
-- Live preview.
-- Common symbol palette.
-- Matrix/cases/aligned templates.
-- Recognition result import.
-- Recent formulas.
-- Insert inline, insert display, insert numbered display.
-- Update selected LaTeXSnipper equation.
-- Import pending global OCR result from LaTeXSnipper.
+| | Task Pane Editor | Dialog Editor |
+|---|---|---|
+| **Location** | Office task pane (right sidebar, ~300px) | Office dialog window (resizable, default 820×620) |
+| **Purpose** | Quick formula entry, instant insert | Premium editing: MathType/AxMath equivalent |
+| **MathLive** | Yes (compact) | Yes (full canvas, center stage) |
+| **LaTeX source** | Textarea below MathLive | Collapsible panel below MathLive |
+| **Symbol palette** | No | Yes — persistent left panel (always visible) |
+| **Templates** | No | Yes — persistent right panel (always visible) |
+| **Keyboard driven** | Ctrl+Enter to insert | Full keyboard navigation + shortcuts |
+| **Entry** | Always visible in task pane | Ribbon "Editor" button, task pane button, double-click equation |
 
-The editor should not directly call Office APIs. It should emit a normalized `EquationDraft` object:
+### Shared Module: MathLiveCore
 
+Both editors instantiate the same `MathLiveCore` class (defined in `src/taskpane/mathliveEditor.ts`). This module owns:
+
+- `MathfieldElement` creation and configuration (fonts, keyboard policy, smartFence, defaultMode)
+- Virtual keyboard lifecycle (`window.mathVirtualKeyboard` container, geometry changes, visibility toggle)
+- Bidirectional LaTeX sync between the mathfield and a `<textarea>`
+- Arrow-key routing to MathLive navigation commands (`moveToPreviousChar`, `moveToNextChar`, `moveUp`, `moveDown`)
+- Theme token passthrough (`data-theme` attribute)
+
+Neither editor duplicates MathLive initialization logic. The dialog and task pane each create one `MathLiveCore` instance bound to their own DOM host.
+
+### Dialog Editor Layout
+
+The dialog uses a three-column layout with persistent side panels, following the AxMath/MathType pattern where symbols and templates are always visible — no auto-collapsing dropdowns.
+
+```
+┌──────┬──────────────────────────────┬──────────┐
+│Symbol│                              │Template  │
+│Panel │   MathLive Editor            │Panel     │
+│(left)│   (center, full height)      │(right)   │
+│      │                              │          │
+│ α β  │   MathLive renders formulas  │ Fraction │
+│ γ δ  │   natively. No separate      │ Sup/Sub  │
+│ π σ  │   SVG preview needed —       │ Integral │
+│ ± ×  │   what you see is what       │ Matrix   │
+│ ≤ ≥  │   MathLive displays.         │ Cases    │
+│ → ⇒  │                              │ Aligned  │
+├──────┴──────────────────────────────┴──────────┤
+│  ▸ LaTeX Source (collapsible, defaults closed)  │
+├────────────────────────────────────────────────┤
+│  □ Display  □ Auto Number  [____]  [Insert]    │
+└────────────────────────────────────────────────┘
+```
+
+The symbol panel (left, ~180px) and template panel (right, ~170px) are always visible. Clicking a symbol or template inserts the LaTeX directly at the MathLive cursor — no dropdown, no auto-collapse. MathLive occupies the full center area and handles all formula rendering.
+
+### Native Formula Rendering (Inserted Equations)
+
+MathLive handles all **editing-time** rendering — the dialog has no separate preview panel. The "native rendering" goal applies to **inserted equations in the Word document**:
+
+1. Insert: LaTeX → Bridge `/convert/latex` → OMML → Word content control → Word renders the equation natively via its built-in OMML engine.
+2. Double-click: Word detects selection on a `latexsnipper-equation:<id>` tagged content control → loads the stored LaTeX source → opens Dialog editor in Update mode → user edits → Update replaces the OMML in-place.
+
+This gives the AxMath experience: equations look native in the document, and double-click reopens them for LaTeX-based editing. The original TeX source is always preserved in document settings.
+
+### Symbol Palette and Templates
+
+Reference the desktop workbench's `LaTeXSnippetPanel` (`src/editor/latex_snippet_panel.py`). The dialog editor provides **persistent side panels** (not dropdowns):
+
+**Symbol Panel (left, 180px, always visible, scrollable):**
+- Greek lowercase (α–ω, 20 symbols)
+- Greek uppercase (Γ–Ω, 10 symbols)
+- Operators (±, ×, ÷, ·, ∂, ∇, ∫, ∑, ∏, √, ∞, etc.)
+- Relations (≤, ≥, ≠, ≈, ≡, ∈, ⊂, ⊆, etc.)
+- Arrows & Misc (→, ⇒, ∀, ∃, ¬, ∧, ∨, etc.)
+
+**Template Panel (right, 170px, always visible, scrollable):**
+
+| Label | LaTeX Template |
+|---|---|
+| Fraction | `\frac{#?}{#?}` |
+| Superscript | `x^{#?}` |
+| Subscript | `x_{#?}` |
+| Sub+Sup | `x_{#?}^{#?}` |
+| Square root | `\sqrt{#?}` |
+| Nth root | `\sqrt[#?]{#?}` |
+| Sum | `\sum_{n=1}^{\infty} #?` |
+| Product | `\prod_{n=1}^{\infty} #?` |
+| Integral | `\int_{a}^{b} #?\,dx` |
+| Matrix 2×2 | `\begin{bmatrix} #? & #? \\ #? & #? \end{bmatrix}` |
+| Cases | `\begin{cases} #? & \text{if } #? \\ #? & \text{otherwise} \end{cases}` |
+| Aligned | `\begin{aligned} #? &= #? \\ #? &= #? \end{aligned}` |
+
+The `#?` markers are placeholder positions. When a template is inserted:
+- If the user has a text selection, it fills the first `#?`.
+- Remaining `#?` positions guide the user on where to type next.
+
+### Double-Click to Edit
+
+A LaTeXSnipper equation in Word is an OMML content control tagged with `latexsnipper-equation:<id>`. When the user double-clicks such an equation:
+
+1. Word fires `DocumentSelectionChanged`.
+2. Task pane's selection tracker (`installSelectionTracking` in `App.ts`) extracts the OOXML of the current selection.
+3. `extractEquationId()` checks for a `latexsnipper-equation:` tag.
+4. If found → task pane reads the stored LaTeX source from document settings via `loadEquationSource(id)`.
+5. Task pane opens the Dialog editor with the LaTeX pre-loaded and the equation ID attached.
+6. Dialog editor enters "Update mode": the Insert button label changes to "Update", and the dialog header shows "Editing equation (X)".
+7. On Update, the task pane replaces the selected equation's OMML in-place using `Word.Range.insertOoxml(..., Word.InsertLocation.replace)` on the content control's range — not by inserting a new control.
+
+This flow provides the MathType-like "double click to re-edit" experience while keeping the editor dialog stateless (it doesn't need to know about Word APIs).
+
+Future enhancement: detect double-click via `DocumentSelectionChanged` timing (two rapid selections on the same equation ID within ~500ms), or via a Word content control event if Office.js exposes one.
+
+### Dialog ↔ Task Pane Communication
+
+The dialog is a **pure editing surface**. It never calls Office insertion APIs directly. All communication goes through `Office.context.ui.messageParent()`.
+
+**Task Pane → Dialog (on open):**
 ```ts
-type EquationDraft = {
-  latex: string;
-  display: boolean;
-  numbering: "none" | "auto" | "manual";
-  manualNumber?: string;
+type DialogOpenArgs = {
+  mode: "insert" | "update";
+  latex?: string;          // Pre-fill editor (for update or "numbered" launch)
+  equationId?: string;     // Required for update mode
+  bridgeUrl: string;
+  bridgeToken: string;
 };
 ```
 
-Host-specific adapters handle insertion:
+**Dialog → Task Pane (user actions):**
+```ts
+type DialogMessage =
+  | { type: "insert"; draft: EquationDraft; equationId?: string }
+  | { type: "ocr-start" }
+  | { type: "ocr-cancel" }
+  | { type: "close" };
+```
 
-- `wordInsert.ts`
-- `powerpointInsert.ts`
+Task pane handlers:
+- `insert` → calls `insertEquationIntoWord(draft, conversion)` or `insertEquationIntoPowerPoint(draft, client)`. For update mode (`equationId` present), replaces the existing content control instead of inserting new.
+- `ocr-start` → calls `bridgeClient.recognizeScreenshot()`, sends result back via `dialog.messageChild()`.
+- `close` → invokes `event.completed()` so Office allows the dialog to close.
 
-The MathLive editor should reuse the desktop workbench's interaction policy where possible:
+**Task Pane → Dialog (async responses):**
+```ts
+type TaskPaneMessage =
+  | { type: "ocr-result"; latex: string }
+  | { type: "ocr-error"; message: string };
+```
 
-- Arrow keys should route to MathLive navigation commands.
-- The virtual keyboard should be explicitly toggleable.
-- LaTeX should remain visible for direct editing and debugging.
-- MathLive-specific behavior should stay in an editor adapter module rather than leaking into insertion adapters.
+### Keyboard-Driven Editing
+
+The dialog editor should support keyboard-only workflows equivalent to typing raw LaTeX. Key bindings:
+
+| Shortcut | Action |
+|---|---|
+| Arrow keys | Navigate within MathLive (routed to `moveToPreviousChar`, etc.) |
+| `Ctrl+Enter` | Insert equation (inline or display based on current mode) |
+| `Ctrl+S` | Toggle display mode |
+| `Ctrl+Shift+S` | Start screenshot OCR |
+| `Ctrl+K` | Toggle virtual keyboard |
+| `Ctrl+L` | Jump focus to LaTeX source panel |
+| `Escape` | Close dialog (prompt if unsaved changes) |
+
+These shortcuts work within the Office dialog's DOM context. They do not conflict with Word's own shortcuts because the dialog runs in a separate WebView instance.
+
+The desktop workbench's arrow-key routing implementation (`routeArrowKeyToMathfield` in `src/assets/mathlive/app.js`) is the direct reference for the Office dialog's keyboard behavior.
 
 ## Recognition Flow
 
@@ -338,8 +480,7 @@ MVP numbering:
 
 - Plain sequence: `(1)`, `(2)`, `(3)`.
 - Manual override for a single insertion.
-- Reset command.
-- Renumber tagged LaTeXSnipper equations in document order.
+- Renumber auto-numbered equations in document order, preserving manual numbers.
 
 Later numbering:
 
@@ -352,10 +493,10 @@ The first version should avoid rewriting untagged user content. It may renumber 
 
 Renumbering requirements:
 
-- Scan document order, not session insertion history.
+- Scan document order (based on body OOXML position), not session insertion history.
 - Ignore deleted formulas automatically because their content controls no longer exist.
-- Update document settings so the next inserted auto number follows the current document maximum.
-- Preserve manual-number formulas unless the user explicitly chooses to normalize them.
+- Skip manually-numbered equations (`numbering: "manual"`) — only auto-numbered equations are renumbered.
+- Each number CC carries a unique tag `latexsnipper-eqn-{uuid}`, allowing precise targeting via `getByTag` without body OOXML replacement.
 
 ## Security Model
 
@@ -470,91 +611,152 @@ Future cross-platform tests:
 
 ## Implementation Phases
 
-### Phase 0: Design Branch
+### Phase 0: Design Branch ✅
 
 - Create the `office-addin` branch.
 - Add this design document.
 - Do not change desktop runtime behavior.
 
-### Phase 1: Desktop Bridge Skeleton
+### Phase 1: Desktop Bridge Skeleton ✅
 
 - Add `src/integration/office/bridge_server.py`.
 - Add `/health` and authenticated error handling.
 - Keep the bridge disabled by default.
 - Add tests for bridge lifecycle and token rejection.
 
-### Phase 2: Conversion API
+### Phase 2: Conversion API ✅
 
 - Add `/convert/latex`.
 - Reuse existing formula converters.
 - Add explicit OMML/SVG/PNG target selection.
 - Verify Word can consume the returned OOXML wrapper.
 
-### Phase 3: Office Task Pane MVP
+### Phase 3: Office Task Pane MVP ✅
 
-- Add Office.js task pane scaffold.
-- Implement editor, preview, bridge status, and insert buttons.
-- Implement Word insertion first.
+- Add Office.js task pane scaffold with MathLive editor.
+- Implement bridge auto-discovery, health check, and token refresh.
+- Implement Word OOXML insertion (inline, display, numbered display).
 - Keep PowerPoint insertion image-based.
-- Add Word and PowerPoint Ribbon tabs with task-pane entry buttons.
+- Add Word and PowerPoint Ribbon tabs with command buttons.
+- Ribbon commands communicate with task pane via `OfficeRuntime.storage` queue.
 
-This phase is a prototype only. Before the formal plugin release, the task pane should be reduced to status and entry points, and the editor should move to an Office dialog.
+The task pane editor stays as the quick-insert surface. The dialog editor (Phase 5) is an additional premium editing surface — not a replacement.
 
-### Phase 4: Stable Connection and Word Object Model
+### Phase 4: Stable Connection and Word Object Model ✅
 
 - Fix `Connect` so it always refreshes `/config` and token state.
 - Disable functional commands when bridge token is missing.
 - Make development scripts print UTF-8 text reliably on Windows terminals.
-- Insert numbered formulas as non-nesting tagged objects.
-- Store LaTeX source, display mode, numbering mode, number value, and converter version per equation ID.
+- Insert numbered formulas as non-nesting tagged objects with content controls.
+- Store LaTeX source, display mode, numbering mode, number value, and converter version per equation ID in document settings.
 - Replace whole-body OOXML renumbering with tagged content-control updates.
+- Selection tracking for LaTeXSnipper equation detection in Word.
 
-### Phase 5: Dialog Editor
+### Phase 5: Dialog Editor (current)
 
-- Add an Office dialog for the formula editor.
-- Keep MathLive visual editing and TeX source editing synchronized.
-- Move insert/update/numbering choices into the dialog.
-- Keep the task pane as connection status, editor launcher, and diagnostics.
-- Support loading the selected LaTeXSnipper equation into the dialog.
+#### Phase 5a: MathLiveCore Extraction ✅
+
+- Refactor `mathliveEditor.ts` into a shared `MathLiveCore` class.
+- Task pane and dialog each create their own `MathLiveCore` instance.
+- No behavior change for task pane — pure refactor.
+
+#### Phase 5b: Dialog Shell + Persistent Panels ✅
+
+- Create `src/dialog/editorDialog.html` and `editorDialog.ts`.
+- Open dialog via `Office.context.ui.displayDialogAsync()`.
+- Three-column layout: symbol panel (left, 180px) + MathLive center + template panel (right, 170px).
+- Both side panels are persistent (always visible, scrollable) — not auto-collapsing dropdowns.
+- Implement Task Pane ↔ Dialog message protocol (`messageParent` / `DialogMessageReceived`).
+- Task pane handles Insert/Update actions, dialog is a pure editing surface.
+
+#### Phase 5c: Load & Update ✅
+
+The equation editing lifecycle: inserted OMML equations can be reloaded into the editor for revision.
+
+- Detect LaTeXSnipper equation selection in Word via `DocumentSelectionChanged`.
+- Load: extract equation ID from body OOXML via `selection.contentControls`, load LaTeX source from document settings, open Dialog editor in Update mode.
+- Update: replace the equation CC's OMML in-place via `setSelectedOoxml` (select → read OOXML → patch sdtContent → write back). Number CCs updated via `getByTag` + `insertText`.
+- Numbered equation CCs use unique tags (`latexsnipper-eqn-{uuid}`) for direct lookup without body OOXML replacement.
+- Structural changes (none↔numbered) trigger full OOXML rebuild via `buildEquationOoxml`.
+
+#### Phase 5d: Keyboard-Driven Editing ✅
+
+- Arrow keys → MathLive navigation (routed via `executeCommand` in capture phase).
+- `Escape` → close dialog with unsaved-changes prompt.
+- No JS-level keyboard shortcuts (Office host intercepts Ctrl+Shift combinations before they reach the WebView).
 
 ### Phase 6: Recognition Subscription
 
 - Add `/recognition/subscribe-next`, `/recognition/poll`, and `/recognition/cancel`.
 - Route the next desktop global screenshot recognition result to the pending Office editor.
 - Fill the editor but do not auto-insert by default.
-- Add explicit waiting/cancel states.
+- Add explicit waiting/cancel states in both task pane and dialog editor.
 
-### Phase 7: Numbering Polish
+### Phase 7: Numbering ✅
 
-- Add document/session numbering state.
-- Implement Word numbered display insertion and document-order renumbering.
-- Implement PowerPoint numbered visual insertion.
+- Auto/manual numbering with persistent state in document settings.
+- Numbered display equations use a borderless 2-cell table with unique tags.
+- Renumber scans body OOXML for `latexsnipper-eqn-` tags, filters to auto-numbered only via `loadEquationSource`, updates in document order.
+- Manual-numbered equations are completely ignored during renumber.
+- The `Numbered` ribbon button adds auto-numbering to the selected equation (not a new insert).
+- Switching numbering type (none/auto/manual) during update triggers full OOXML rebuild when the structure changes.
 
 ### Phase 8: Polish
 
-- Add formula templates and symbol palette.
-- Add recent formulas.
-- Add diagnostics.
-- Add user manual section.
+- Add recent formulas list (stored in document settings, last N entries).
+- Add diagnostics page (bridge reachability, protocol version, token validity, feature flags).
+- Add user manual section in the add-in or a help pane.
 - Split the MathLive bundle if the production add-in payload needs to stay smaller.
+- Office version compatibility warning for older Office builds.
 
 ### Phase 9: Independent Add-in Installer
 
-- Add Windows add-in setup flow.
-- Add macOS add-in setup flow.
-- Add manifest repair and uninstall actions.
-- Add Office version/protocol diagnostics.
-- Keep installer logic out of the desktop main UI.
+The installer must deliver a single-click setup experience: users run one PowerShell script and the add-in appears in Word, persisted across restarts.
+
+**Windows installer (`installer/windows/setup.ps1`):**
+
+1. **SSL Certificate** — Generate self-signed certificate for `localhost`, install to system Trusted Root Certification Authorities. This resolves `NET::ERR_CERT_AUTHORITY_INVALID` in Word's WebView2.
+2. **Static deployment** — Copy `office_addin/dist/` to `%APPDATA%\LaTeXSnipper\office_addin\`. The manifest URL points to this local path.
+3. **Shared folder** — Share the deployment directory and register in Word's trusted catalog via registry:
+   - `HKCU\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs` — add the shared folder path.
+   - Also probe `15.0` (Office 2016) and `16.0` (Office 2019/365/2024).
+4. **Manifest registration** — Register `manifest.word.xml` and `manifest.powerpoint.xml` in the shared folder catalog.
+5. **Office version detection** — Check installed Office version; warn if below minimum (WordApi 1.1+).
+6. **Desktop bridge integration** — Optionally prompt user to enable "Office 插件" in LaTeXSnipper settings if bridge isn't already running.
+
+**macOS installer (`installer/macos/`):**
+
+1. Certificate trust via `security add-trusted-cert`.
+2. Manifest sideloading via Office add-in dev settings or catalog manifest.
+3. AppleScript or shell to detect Office installation.
+
+**Uninstall (`installer/windows/uninstall.ps1`):**
+
+1. Remove registry entries for trusted catalogs.
+2. Remove shared folder registration.
+3. Optionally remove certificate from Trusted Root CA.
+4. Delete deployed static files.
+
+The installer is versioned independently and does not bundle the desktop application. Bridge protocol version compatibility is checked at add-in startup (via `/health`).
 
 ## Open Questions
 
-1. Should Word editable equations require OMML success, or should SVG fallback be allowed silently?
-2. Should numbering state live only in Office document settings, or also in LaTeXSnipper's config for recovery?
-3. Should PowerPoint equations be inserted as SVG by default, with PNG fallback only when SVG fails?
-4. Should the bridge support only the currently running desktop app, or should it auto-launch LaTeXSnipper from the add-in?
-5. Should the Office add-in share the same MathJax/MathLive assets as the desktop app or carry its own pinned copy?
-6. How should the add-in installer hand the local bridge token to the task pane without exposing it unnecessarily?
-7. Should the bridge token be per-user persistent, per-session, or rotated when Office integration is disabled and re-enabled?
+### Resolved
+
+1. ~~Should Word editable equations require OMML success, or should SVG fallback be allowed silently?~~ → OMML is required. The bridge must produce valid OMML. The editor shows SVG as live preview, but Insert fails clearly if OMML is not available.
+2. ~~Should the task pane editor be removed when the dialog is built?~~ → No. Both editors coexist. Task pane = quick insert, Dialog = premium editing.
+3. ~~Should the Office add-in share the same MathJax/MathLive assets as the desktop app or carry its own pinned copy?~~ → The add-in loads MathLive from CDN (`cdn.jsdelivr.net`). SVG preview uses bridge conversion, not MathJax, so no MathJax dependency in the add-in.
+
+### Open
+
+1. Should numbering state live only in Office document settings, or also in LaTeXSnipper's config for recovery across sessions?
+2. Should PowerPoint equations be inserted as SVG by default, with PNG fallback only when SVG fails? Can PowerPoint shapes store LaTeX source metadata for re-editing (similar to Word content controls)?
+3. Should the bridge auto-launch LaTeXSnipper from the add-in if the bridge is not reachable, or should the user always start the desktop app manually?
+4. Should the bridge token be per-user persistent, per-session, or rotated when Office integration is disabled and re-enabled? Current implementation uses per-session tokens.
+5. How should the add-in handle Word for Web (Office Online)? The localhost bridge is unreachable from a browser-based Office host. Show a clear "desktop-only" message, or provide a cloud relay option?
+6. Double-click detection: should the add-in rely on rapid `DocumentSelectionChanged` timing, or is there a reliable Office.js content control click event? The current prototype uses selection tracking with debounce, which works for selection but doesn't distinguish single-click from double-click.
+7. Should the dialog editor support multiple concurrent editor windows (one per equation), or enforce a single dialog at a time? Single dialog is simpler and consistent with MathType's behavior.
+8. How should the installer handle Office Click-to-Run vs MSI vs Microsoft Store versions — do they all share the same WEF registry path? Testing needed across Office distribution channels.
 
 ## References
 
