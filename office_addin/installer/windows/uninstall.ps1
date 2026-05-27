@@ -14,11 +14,12 @@ if (Test-Path -LiteralPath $thumbprintFile) {
 }
 
 $wefBase = "HKCU:\Software\Microsoft\Office\16.0\WEF"
-$addinIds = @(
-    "{7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21}",
-    "{b5182ab2-5a84-45fb-81c4-67a725d6c7b1}"
+$devKey = Join-Path $wefBase "Developer"
+$propNames = @(
+    "7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21",
+    "b5182ab2-5a84-45fb-81c4-67a725d6c7b1"
 )
-foreach ($id in $addinIds) {
-    Remove-Item -LiteralPath (Join-Path $wefBase "Developer" $id) -Force -ErrorAction SilentlyContinue -Recurse
+foreach ($name in $propNames) {
+    Remove-ItemProperty -Path $devKey -Name $name -Force -ErrorAction SilentlyContinue
 }
 Remove-Item -LiteralPath (Join-Path $wefBase "TrustedCatalogs" "{7C4B0843-A874-420F-908C-73673C42F4B0}") -Force -ErrorAction SilentlyContinue -Recurse
