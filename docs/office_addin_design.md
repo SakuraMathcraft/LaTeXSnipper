@@ -720,7 +720,7 @@ The installer must deliver a single-click setup experience: users run one PowerS
    - `HKCU\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs` — add the shared folder path.
    - Also probe `15.0` (Office 2016) and `16.0` (Office 2019/365/2024).
 4. **Manifest registration** — Register `manifest.word.xml` and `manifest.powerpoint.xml` in the shared folder catalog.
-5. **Office version detection** — Check installed Office version; warn if below minimum (WordApi 1.1+).
+5. **Office version detection** — The Word manifest requires `WordApi 1.3` for content-control/table editing and `SharedRuntime 1.1` for Ribbon command dispatch through the persistent task pane runtime. This raises the supported Windows floor to Microsoft 365 Word Version 2205 (Build 15202.10000) or Word 2024, and the Mac API floor to Word 16.61.
 6. **Desktop bridge integration** — Optionally prompt user to enable "Office 插件" in LaTeXSnipper settings if bridge isn't already running.
 
 **macOS installer (`installer/macos/`):**

@@ -1,6 +1,6 @@
 # LaTeXSnipper Office Add-in
 
-Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editing, numbering, and insertion powered by the LaTeXSnipper desktop bridge.
+Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editing, numbering, and insertion powered by the LaTeXSnipper desktop bridge. Editable Word workflows require `WordApi 1.3` and `SharedRuntime 1.1`.
 
 ## Workflow
 
@@ -60,7 +60,7 @@ Start LaTeXSnipper and enable "Office 插件" in settings before testing convers
 ```
 Ribbon Commands
   |
-  +-- Task Pane (sidebar, ~350px) — quick insert, bridge status
+  +-- Shared Task Pane Runtime (Word) — Ribbon dispatch, quick insert, bridge status
   +-- Dialog Editor — full editor with symbol palette + MathLive
   |
   v
@@ -80,13 +80,13 @@ LaTeXSnipper Bridge (localhost HTTP, bearer token)
 
 ## Icons
 
-Ribbon icons are PNG rasterized from SVG sources:
+Ribbon icons are published as transparent PNG files rasterized from path-only SVG sources. Sources remain under `assets/`; generated manifest assets are written to `public/assets/`.
 
 ```bash
 node gen_icons.mjs    # Requires sharp (npm install)
 ```
 
-Outputs `icon-{name}-{16,32,80}.png` for each ribbon button.
+Outputs `icon-{name}-{16,20,24,32,40,48,64,80}.png` for each ribbon button. Size-specific stroke weights keep small and high-DPI ribbon icons crisp.
 
 ## Document Settings
 

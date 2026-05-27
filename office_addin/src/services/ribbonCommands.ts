@@ -1,10 +1,12 @@
 export type RibbonCommandName =
+  | "editor"
   | "insert"
   | "numbered"
   | "ocr"
   | "loadSelected"
   | "deleteSelected"
-  | "renumber";
+  | "renumber"
+  | "help";
 
 export type RibbonCommand = {
   name: RibbonCommandName;

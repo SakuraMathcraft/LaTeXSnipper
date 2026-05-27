@@ -51,10 +51,11 @@ Office.onReady(async (info) => {
   formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
-  startRibbonCommandPolling(elements);
+  if (officeHost === Office.HostType.Word) {
+    startRibbonCommandPolling(elements);
+  }
   const configured = await tryAutoConfigureBridge(elements);
-  const launchModeApplied = applyLaunchMode(elements);
-  if (!configured && !launchModeApplied) {
+  if (!configured) {
     setStatus(elements, "Ready.", "ok");
   }
 });
@@ -131,6 +132,12 @@ async function consumeRibbonCommand(elements: Elements): Promise<void> {
 
 async function executeRibbonCommand(elements: Elements, command: RibbonCommand): Promise<void> {
   switch (command.name) {
+    case "editor":
+      if (!elements.bridgeToken.value.trim()) {
+        throw new Error("Connect to the LaTeXSnipper bridge first, then open the editor.");
+      }
+      openDialogEditor(elements);
+      return;
     case "insert":
       await insertCurrentLatex(elements);
       return;
@@ -148,6 +155,9 @@ async function executeRibbonCommand(elements: Elements, command: RibbonCommand):
       return;
     case "renumber":
       await renumberEquations(elements);
+      return;
+    case "help":
+      openHelpDialog(elements);
       return;
   }
 }
@@ -186,37 +196,6 @@ function wireEvents(elements: Elements): void {
       elements.manualNumber.value = "";
     }
   });
-}
-
-function applyLaunchMode(elements: Elements): boolean {
-  const mode = new URLSearchParams(window.location.search).get("mode");
-  if (mode === "numbered") {
-    elements.displayMode.checked = true;
-    elements.autoNumber.checked = true;
-    elements.manualNumber.value = "";
-    setStatus(elements, "Auto-numbered equation mode is enabled.", "ok");
-    return true;
-  }
-  if (mode === "insert") {
-    setStatus(elements, "Insert mode is ready.", "ok");
-    formulaEditor?.focus();
-    return true;
-  }
-  if (mode === "ocr") {
-    window.setTimeout(() => {
-      void runAction(elements, () => runScreenshotOcr(elements));
-    }, 200);
-    return true;
-  }
-  if (mode === "editor") {
-    if (elements.bridgeToken.value.trim()) {
-      window.setTimeout(() => openDialogEditor(elements), 300);
-    } else {
-      setStatus(elements, "Connect to the LaTeXSnipper bridge first, then open the editor.", "error");
-    }
-    return true;
-  }
-  return false;
 }
 
 async function tryAutoConfigureBridge(elements: Elements): Promise<boolean> {
@@ -408,14 +387,7 @@ function openDialogEditor(
   equationId?: string,
   numberValue?: string
 ): void {
-  if (officeDialog) {
-    try {
-      officeDialog.close();
-    } catch {
-      // Previous dialog may already be closed.
-    }
-    officeDialog = null;
-  }
+  closeOfficeDialog();
   const params = new URLSearchParams();
   params.set("mode", equationId ? "update" : "insert");
   params.set("bridgeUrl", elements.bridgeUrl.value || DEFAULT_BRIDGE_URL);
@@ -455,6 +427,34 @@ function openDialogEditor(
       resetSidebarAfterUpdate(elements);
     });
   });
+}
+
+function openHelpDialog(elements: Elements): void {
+  closeOfficeDialog();
+  const dialogUrl = `${window.location.origin}${window.location.pathname.replace("taskpane.html", "help.html")}`;
+  Office.context.ui.displayDialogAsync(dialogUrl, { height: 80, width: 58 }, (result) => {
+    if (result.status === Office.AsyncResultStatus.Failed) {
+      setStatus(elements, `Failed to open help: ${result.error.message}`, "error");
+      return;
+    }
+    officeDialog = result.value;
+    officeDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+      officeDialog = null;
+    });
+  });
+}
+
+function closeOfficeDialog(): void {
+  if (!officeDialog) {
+    return;
+  }
+  try {
+    officeDialog.close();
+  } catch {
+    // Office can report a dialog as closed before the local handle is cleared.
+  } finally {
+    officeDialog = null;
+  }
 }
 
 async function handleDialogMessage(elements: Elements, raw: string): Promise<void> {

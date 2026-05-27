@@ -28,17 +28,32 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
             assert "RenumberButton" in text
             assert "Renumber All" in text
             assert "ExecuteFunction" in text
+            assert "SharedRuntime" in text
+            assert 'lifetime="long"' in text
+            assert "helpCommand" in text
+            assert "Commands.Url" not in text
+        else:
+            assert "Commands.Url" not in text
 
 
 def test_office_addin_static_icon_assets_exist() -> None:
-    for size in (16, 32, 80):
-        path = ADDIN / "public" / "assets" / f"icon-{size}.png"
-        assert path.is_file()
-        assert path.stat().st_size > 0
+    icons = ("editor", "insert", "ocr", "load", "delete", "numbered", "renumber", "help")
+    sizes = (16, 20, 24, 32, 40, 48, 64, 80)
+    expected_sources = {f"icon-{icon}.svg" for icon in icons}
+    expected_published = {f"icon-{icon}-{size}.png" for icon in icons for size in sizes}
+    assert {path.name for path in (ADDIN / "assets").iterdir() if path.is_file()} == expected_sources
+    assert {path.name for path in (ADDIN / "public" / "assets").iterdir() if path.is_file()} == expected_published
 
-    svg = ADDIN / "public" / "assets" / "ribbon-icons.svg"
-    assert svg.is_file()
-    assert "latexsnipper-ocr" in svg.read_text(encoding="utf-8")
+    for icon in icons:
+        source = ADDIN / "assets" / f"icon-{icon}.svg"
+        assert source.is_file()
+        assert "<text" not in source.read_text(encoding="utf-8")
+        for size in sizes:
+            path = ADDIN / "public" / "assets" / f"icon-{icon}-{size}.png"
+            assert path.is_file()
+            assert path.stat().st_size > 0
+
+    assert not (ADDIN / "assets" / "icon-update.svg").exists()
 
 
 def test_office_addin_includes_local_mathlive_runtime() -> None:
@@ -54,3 +69,13 @@ def test_office_addin_includes_local_mathlive_runtime() -> None:
     assert "customElements.whenDefined" in loader
     assert "/vendor/mathlive.min.mjs" in taskpane
     assert "/vendor/mathlive.min.mjs" in dialog
+
+
+def test_office_addin_help_documents_word_runtime_boundaries() -> None:
+    help_text = (ADDIN / "help.html").read_text(encoding="utf-8")
+
+    assert "WordApi 1.3" in help_text
+    assert "SharedRuntime 1.1" in help_text
+    assert "Version 2205 (Build 15202.10000)" in help_text
+    assert "Word 2024" in help_text
+    assert "Word 2016、2019 与 2021 不在本加载项的 Windows 支持范围内" in help_text
