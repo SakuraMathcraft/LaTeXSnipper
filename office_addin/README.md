@@ -56,11 +56,11 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 
 | 平台 | 产物 | 实际行为 |
 |---|---|---|
-| Windows | `OfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
-| macOS | `OfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
+| Windows | `OfficeAddinSetup-<version>.exe` | 为当前用户安装站点与 `localhost` TLS 证书，并写入 Word/PPT 本机 sideload 注册 |
+| macOS | `OfficeAddin-<version>.pkg` | 安装站点与 `localhost` TLS 证书，并将 manifest 放入 Word/PPT 本机 sideload 目录 |
 | Microsoft 365 部署 | `OfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
 
-Windows 安装包同时将 manifest 注册为受信目录，用户在 Office 中通过 **插入 → 加载项 → 共享文件夹** 添加一次后即持久驻留 Ribbon。企业管理员也可通过 Integrated apps 统一部署。
+安装包提供单机 sideload 安装；安装后先重启已启用 Office 功能的 LaTeXSnipper 桌面端，再重启桌面版 Office。Windows 将从当前用户注册载入加载项，Mac 可从 **开始 → 加载项** 打开已部署的加载项。本机 sideload 不是组织级生产分发机制。需要由 Office 持续分配给用户的 Ribbon 插件时，管理员应通过 Integrated apps 部署生产 manifest。
 
 ## 开发启动
 

@@ -102,9 +102,9 @@ $addins = @(
     @{ Id = "{b5182ab2-5a84-45fb-81c4-67a725d6c7b1}"; Name = "LaTeXSnipper PowerPoint"; Manifest = "manifest.powerpoint.xml" }
 )
 $manifestsDir = Join-Path $root "manifests"
-$manifestsUrl = "file:///" + ($manifestsDir -replace '\\', '/').TrimStart('/')
 
 $devKey = Join-Path $wefBase "Developer"
+New-Item -Path $devKey -Force | Out-Null
 foreach ($addin in $addins) {
     $manifestPath = Join-Path $manifestsDir $addin.Manifest
     $propName = $addin.Id.Trim('{').Trim('}')
@@ -112,13 +112,6 @@ foreach ($addin in $addins) {
     New-ItemProperty -Path $devKey -Name $propName -PropertyType String -Value $manifestPath -Force | Out-Null
 }
 
-$catalogId = "{7C4B0843-A874-420F-908C-73673C42F4B0}"
-$catalogKey = Join-Path $wefBase "TrustedCatalogs" $catalogId
-Remove-Item -LiteralPath $catalogKey -Force -ErrorAction SilentlyContinue -Recurse
-New-Item -Path $catalogKey -Force | Out-Null
-New-ItemProperty -Path $catalogKey -Name "Id" -PropertyType String -Value $catalogId -Force | Out-Null
-New-ItemProperty -Path $catalogKey -Name "Url" -PropertyType String -Value $manifestsUrl -Force | Out-Null
-New-ItemProperty -Path $catalogKey -Name "Flags" -PropertyType DWord -Value 1 -Force | Out-Null
-
-Write-Host "LaTeXSnipper Office local runtime installed."
-Write-Host "The LaTeXSnipper ribbon tab will appear the next time you start Word and PowerPoint."
+Write-Host "LaTeXSnipper Office local runtime and local sideload registration installed."
+Write-Host "Restart LaTeXSnipper with the Office feature enabled, then restart Word and PowerPoint."
+Write-Host "For managed production deployment, use the release manifests through Microsoft 365 Integrated apps."

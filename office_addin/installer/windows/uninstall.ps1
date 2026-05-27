@@ -22,4 +22,3 @@ $propNames = @(
 foreach ($name in $propNames) {
     Remove-ItemProperty -Path $devKey -Name $name -Force -ErrorAction SilentlyContinue
 }
-Remove-Item -LiteralPath (Join-Path $wefBase "TrustedCatalogs" "{7C4B0843-A874-420F-908C-73673C42F4B0}") -Force -ErrorAction SilentlyContinue -Recurse

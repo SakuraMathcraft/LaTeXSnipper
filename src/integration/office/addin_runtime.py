@@ -41,8 +41,8 @@ def _candidate_roots() -> list[Path]:
     if override:
         return [Path(override).expanduser()]
     if sys.platform == "win32":
-        program_data = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
-        return [Path(program_data) / "LaTeXSnipper" / "OfficeAddin"]
+        local_data = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
+        return [Path(local_data) / "LaTeXSnipper" / "OfficeAddin"]
     if sys.platform == "darwin":
         return [
             Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "OfficeAddin",

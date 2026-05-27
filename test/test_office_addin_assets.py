@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -143,15 +144,18 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     macos_build = (ROOT / "scripts" / "build_office_addin_macos.sh").read_text(encoding="utf-8")
     macos_install = (ADDIN / "installer" / "macos" / "postinstall").read_text(encoding="utf-8")
     bridge = (ROOT / "src" / "integration" / "office" / "bridge_server.py").read_text(encoding="utf-8")
+    runtime = (ROOT / "src" / "integration" / "office" / "addin_runtime.py").read_text(encoding="utf-8")
     controller = (ROOT / "src" / "ui" / "office_bridge_controller.py").read_text(encoding="utf-8")
     release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    package = json.loads((ADDIN / "package.json").read_text(encoding="utf-8"))
 
     assert "https://localhost:8765" in windows_build
     assert "https://localhost:8765" in macos_build
     assert "New-SelfSignedCertificate" in windows_install
     assert "16.0\\WEF" in windows_install
     assert '"Developer"' in windows_install
-    assert '"TrustedCatalogs"' in windows_install
+    assert "New-Item -Path $devKey -Force" in windows_install
+    assert '"TrustedCatalogs"' not in windows_install
     assert "New-SmbShare" not in windows_install
     assert "security add-trusted-cert" in macos_install
     assert "com.microsoft.Word" in macos_install
@@ -159,7 +163,12 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "wef" in macos_install
     assert "OfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
+    assert "LOCALAPPDATA" in runtime
+    assert "PROGRAMDATA" not in runtime
     assert "find_installed_office_addin" in controller
     assert "OfficeAddinSetup-" in release
     assert "OfficeAddin-" in release
     assert "OfficeDeploymentManifests-" in release
+    assert "npx --no-install office-addin-manifest validate" in release
+    assert "needs.build-windows-installer.result == 'success'" in release
+    assert package["devDependencies"]["office-addin-manifest"] == "^2.1.5"

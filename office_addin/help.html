@@ -50,7 +50,7 @@
       </tbody>
     </table>
     <p>Web and mobile Office are not product targets because the workflow depends on a local desktop bridge and desktop screenshot capture.</p>
-    <p>The Windows and macOS runtime installers configure the local <code>https://localhost:8765</code> site. The Windows installer writes registry entries under both <code>WEF\Developer</code> (auto-load) and <code>WEF\TrustedCatalogs</code> (makes the manifests visible under Shared Folder in Office that support it). The LaTeXSnipper ribbon tab appears on the next start of Word and PowerPoint without extra steps on most configurations. Enterprise administrators can instead deploy the production manifests through Microsoft 365 Integrated apps.</p>
+    <p>The Windows and macOS installers configure the local <code>https://localhost:8765</code> site and per-user local sideload registration. After installation, restart LaTeXSnipper with its Office feature enabled, then restart desktop Office; on Mac, open LaTeXSnipper from Home &gt; Add-ins if it is not already shown. Local sideloading is not enterprise production deployment. Administrators should deploy the production manifests from the release bundle through Microsoft 365 Integrated apps for managed ribbon availability.</p>
 
     <h2>Word Functions</h2>
     <h3>Insert Formula</h3>
