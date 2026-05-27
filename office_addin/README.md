@@ -67,7 +67,7 @@ Windows 安装包同时将 manifest 注册为受信目录，用户在 Office 中
 首次使用前安装依赖并信任开发证书：
 
 ```powershell
-cd E:\LaTexSnipper\office_addin
+cd office_addin
 npm install
 .\scripts\trust_vite_dev_cert.ps1 -OpenInstaller
 ```
@@ -75,14 +75,14 @@ npm install
 启动 Word 加载项：
 
 ```powershell
-cd E:\LaTexSnipper\office_addin
+cd office_addin
 npm run dev:word
 ```
 
 启动 PowerPoint 加载项：
 
 ```powershell
-cd E:\LaTexSnipper\office_addin
+cd office_addin
 npm run dev:powerpoint
 ```
 
