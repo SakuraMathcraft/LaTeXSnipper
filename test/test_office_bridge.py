@@ -115,11 +115,17 @@ def test_office_bridge_screenshot_ocr_uses_injected_service() -> None:
 
 def test_office_bridge_serves_installed_addin_site(tmp_path: Path) -> None:
     (tmp_path / "taskpane.html").write_text("<html>office</html>", encoding="utf-8")
+    (tmp_path / "runtime.mjs").write_text("export const ok = true;", encoding="utf-8")
     server = OfficeBridgeServer(site_root=tmp_path)
     server.start()
     try:
         with urllib.request.urlopen(f"{server.base_url}/taskpane.html?host=word", timeout=5) as response:
             assert response.read().decode("utf-8") == "<html>office</html>"
+            assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate"
+            assert response.headers["Pragma"] == "no-cache"
+        with urllib.request.urlopen(f"{server.base_url}/runtime.mjs", timeout=5) as response:
+            assert response.headers["Content-Type"] == "text/javascript; charset=utf-8"
+            assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate"
     finally:
         server.stop()
 

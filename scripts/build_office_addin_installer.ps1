@@ -50,7 +50,7 @@ Compress-Archive -LiteralPath (Join-Path $stage "manifests\manifest.word.xml"), 
 
 if ($SkipInstaller) {
     Write-Host "Office runtime staging created: $stage"
-    Write-Host "Persistent deployment manifests created: $deploymentBundle"
+    Write-Host "Managed deployment manifests created: $deploymentBundle"
     exit 0
 }
 
@@ -95,4 +95,4 @@ if (-not $installer) {
 $hash = (Get-FileHash -Algorithm SHA256 $installer.FullName).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText("$($installer.FullName).sha256", "$hash  $($installer.Name)`n", [System.Text.UTF8Encoding]::new($false))
 Write-Host "Office local runtime installer created: $($installer.FullName)"
-Write-Host "Persistent deployment manifests created: $deploymentBundle"
+Write-Host "Managed deployment manifests created: $deploymentBundle"

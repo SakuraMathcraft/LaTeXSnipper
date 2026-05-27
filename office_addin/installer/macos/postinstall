@@ -49,4 +49,6 @@ done
 
 rm -rf "$payload"
 echo "LaTeXSnipper Office local runtime installed for $console_user."
-echo "The LaTeXSnipper ribbon tab will appear the next time you start Word and PowerPoint."
+echo "Restart LaTeXSnipper with the Office feature enabled, then restart Word and PowerPoint."
+echo "Open LaTeXSnipper from Home > Add-ins if it is not already shown."
+echo "For managed production deployment, use the release manifests through Microsoft 365 Integrated apps."

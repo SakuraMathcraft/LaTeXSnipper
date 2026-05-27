@@ -135,6 +135,18 @@ jobs:
           if ($text -notmatch [regex]::Escape('MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"')) {
             throw "Inno script must use the repository Simplified Chinese language file: $iss"
           }
+          $officeIss = "Inno\latexsnipper-office-addin.iss"
+          $officeText = Get-Content -LiteralPath $officeIss -Raw
+          if ($officeText -notmatch [regex]::Escape('DefaultDirName={localappdata}\LaTeXSnipper\OfficeAddin')) {
+            throw "Office local sideload installer must target the current user: $officeIss"
+          }
+          if ($officeText -notmatch '(?m)^PrivilegesRequired=lowest\r?$') {
+            throw "Office local sideload installer must not elevate while writing HKCU: $officeIss"
+          }
+          $officeInstall = Get-Content -LiteralPath "office_addin\installer\windows\install.ps1" -Raw
+          if ($officeInstall -match 'TrustedCatalogs' -or $officeInstall -match 'New-SmbShare') {
+            throw "Office local sideload installer must not register an invalid trusted catalog."
+          }
           foreach ($specPath in @("LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec")) {
             $specText = Get-Content -LiteralPath $specPath -Raw
             if ($specText -match "deps/python311|LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME|BUNDLED_PY311|BUNDLED_DEPS_DIR_ENV") {

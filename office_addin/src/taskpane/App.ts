@@ -18,7 +18,7 @@ import { MathLiveEditor } from "./mathliveEditor";
 
 const DEFAULT_BRIDGE_URL = window.location.port === "8765"
   ? window.location.origin
-  : "http://127.0.0.1:8765";
+  : "https://localhost:8765";
 
 type Elements = {
   hostLabel: HTMLElement;
@@ -56,15 +56,23 @@ Office.onReady(async (info) => {
   configureHostUi(elements);
   restoreSession(elements);
   refreshCommandAvailability(elements);
-  formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
   wireEvents(elements);
   installSelectionTracking(elements);
   startRibbonCommandPolling(elements);
+  void initializeFormulaEditor(elements);
   const configured = await tryAutoConfigureBridge(elements);
   if (!configured) {
     setStatus(elements, t("ready"), "ok");
   }
 });
+
+async function initializeFormulaEditor(elements: Elements): Promise<void> {
+  try {
+    formulaEditor = await MathLiveEditor.create(elements.mathfieldHost, elements.latexOutput, "\\int_0^1 x^2\\,dx");
+  } catch (error: unknown) {
+    setStatus(elements, displayMessage(error instanceof Error ? error.message : String(error)), "error");
+  }
+}
 
 function resolveElements(): Elements {
   return {
@@ -141,9 +149,6 @@ async function consumeRibbonCommand(elements: Elements): Promise<void> {
 async function executeRibbonCommand(elements: Elements, command: RibbonCommand): Promise<void> {
   switch (command.name) {
     case "editor":
-      if (!elements.bridgeToken.value.trim()) {
-        throw new Error(t("connectForEditor"));
-      }
       openDialogEditor(elements);
       return;
     case "insert":

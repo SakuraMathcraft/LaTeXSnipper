@@ -2,6 +2,7 @@ const BRIDGE_URL_KEY = "latexsnipper.bridgeUrl";
 const BRIDGE_TOKEN_KEY = "latexsnipper.bridgeToken";
 const NUMBERING_KEY = "latexsnipper.equationNumbering";
 const EQUATION_SOURCE_PREFIX = "latexsnipper.equationSource.";
+const DEFAULT_BRIDGE_URL = "https://localhost:8765";
 
 type NumberingState = {
   next: number;
@@ -15,7 +16,7 @@ export type SavedSession = {
 export function loadSession(): SavedSession {
   const settings = Office.context.document.settings;
   return {
-    bridgeUrl: String(settings.get(BRIDGE_URL_KEY) || "http://127.0.0.1:8765"),
+    bridgeUrl: String(settings.get(BRIDGE_URL_KEY) || DEFAULT_BRIDGE_URL),
     bridgeToken: String(settings.get(BRIDGE_TOKEN_KEY) || "")
   };
 }

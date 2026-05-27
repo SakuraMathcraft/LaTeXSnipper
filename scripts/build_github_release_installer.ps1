@@ -303,9 +303,41 @@ if bad:
     Test-PythonHttpsRuntime -PythonExe $pythonExe
 }
 
+function Stage-BundledPythonSeed {
+    param([string]$Root)
+
+    $source = Join-Path $Root "python311"
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "Bundled Python template not found: $source"
+    }
+
+    $stagingBase = Join-Path $Root "build\github-release"
+    New-Item -ItemType Directory -Path $stagingBase -Force | Out-Null
+    $stagingBase = (Resolve-Path -LiteralPath $stagingBase).Path
+    $stagedRoot = Join-Path $stagingBase "bundled-deps"
+    if (Test-Path -LiteralPath $stagedRoot) {
+        $resolvedStagedRoot = (Resolve-Path -LiteralPath $stagedRoot).Path
+        $expectedPrefix = $stagingBase.TrimEnd('\') + '\'
+        if (-not $resolvedStagedRoot.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to replace bundled dependency stage outside build directory: $resolvedStagedRoot"
+        }
+        Remove-Item -LiteralPath $stagedRoot -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $stagedRoot -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination (Join-Path $stagedRoot "python311") -Recurse -Force
+
+    $depsState = Join-Path $Root ".deps_state.json"
+    if (Test-Path -LiteralPath $depsState) {
+        Copy-Item -LiteralPath $depsState -Destination $stagedRoot -Force
+    }
+    Write-Host "Bundled Python template staged: $stagedRoot"
+    return $stagedRoot
+}
+
 $root = Resolve-RepoRoot
 $python = Resolve-BuildPython -Root $root -RequestedPython $PythonPath
-Normalize-BundledPythonSeed -Root $root
+$bundledDepsRoot = Stage-BundledPythonSeed -Root $root
+Normalize-BundledPythonSeed -Root $bundledDepsRoot
 
 $isccCandidates = @()
 if ($InnoCompiler) {
@@ -336,11 +368,13 @@ $oldChannel = $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL
 $oldStoreProduct = $env:LATEXSNIPPER_STORE_PRODUCT_ID
 $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
 $oldBundlePythonInstaller = $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER
+$oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
 try {
     $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = "github"
     $env:LATEXSNIPPER_STORE_PRODUCT_ID = ""
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
     $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = if ($SkipPythonInstaller) { "0" } else { "1" }
+    $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot
 
     & $python -m PyInstaller $spec --clean --noconfirm
     if ($LASTEXITCODE -ne 0) {
@@ -354,6 +388,7 @@ finally {
     $env:LATEXSNIPPER_STORE_PRODUCT_ID = $oldStoreProduct
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
     $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = $oldBundlePythonInstaller
+    $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
 }
 
 $appExe = Join-Path $root "dist\$buildName\$buildName.exe"

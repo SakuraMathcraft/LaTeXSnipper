@@ -40,7 +40,6 @@ const TEXT = {
     misc: "Misc",
     structures: "Structures",
     selectedEquation: "LaTeXSnipper equation selected. Click Load to edit.",
-    connectForEditor: "Connect to the LaTeXSnipper bridge first, then open the editor.",
     connectedBridge: "Connected to LaTeXSnipper.",
     startBridge: "Enable the Office add-in feature in LaTeXSnipper desktop settings to connect.",
     converting: "Converting LaTeX through bridge.",
@@ -127,7 +126,6 @@ const TEXT = {
     misc: "其他符号",
     structures: "结构",
     selectedEquation: "已选中 LaTeXSnipper 公式。点击“加载选中项”进行编辑。",
-    connectForEditor: "请先连接 LaTeXSnipper Bridge，再打开编辑器。",
     connectedBridge: "已连接 LaTeXSnipper。",
     startBridge: "请在 LaTeXSnipper 桌面端设置中启用 Office 加载项功能以连接。",
     converting: "正在通过 Bridge 转换 LaTeX。",
@@ -234,7 +232,8 @@ const ERROR_TRANSLATIONS: Record<string, string> = {
   "Bridge config did not return a session token.": "Bridge 配置未返回会话令牌。",
   "Failed to save Office document settings.": "无法保存 Office 文档设置。",
   "Bridge token is required.": "需要 Bridge 令牌。",
-  "Bridge request timed out.": "Bridge 请求超时。"
+  "Bridge request timed out.": "Bridge 请求超时。",
+  "MathLive editor failed to load.": "公式编辑器加载失败，请重新打开加载项。"
 };
 
 export function displayMessage(message: string): string {

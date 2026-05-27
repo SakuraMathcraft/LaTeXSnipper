@@ -9,6 +9,8 @@ import sys
 
 
 OFFICE_ADDIN_PORT = 8765
+WINDOWS_OFFICE_ADDIN_REGISTRY_KEY = r"Software\LaTeXSnipper\OfficeAddin"
+WINDOWS_OFFICE_ADDIN_INSTALL_ROOT_VALUE = "InstallRoot"
 
 
 @dataclass(frozen=True)
@@ -41,11 +43,23 @@ def _candidate_roots() -> list[Path]:
     if override:
         return [Path(override).expanduser()]
     if sys.platform == "win32":
-        program_data = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
-        return [Path(program_data) / "LaTeXSnipper" / "OfficeAddin"]
+        installed_root = _windows_installed_root()
+        return [installed_root] if installed_root is not None else []
     if sys.platform == "darwin":
         return [
             Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "OfficeAddin",
             Path("/Library/Application Support/LaTeXSnipper/OfficeAddin"),
         ]
     return []
+
+
+def _windows_installed_root() -> Path | None:
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, WINDOWS_OFFICE_ADDIN_REGISTRY_KEY) as key:
+            value, _kind = winreg.QueryValueEx(key, WINDOWS_OFFICE_ADDIN_INSTALL_ROOT_VALUE)
+    except OSError:
+        return None
+    root = str(value).strip()
+    return Path(root) if root else None

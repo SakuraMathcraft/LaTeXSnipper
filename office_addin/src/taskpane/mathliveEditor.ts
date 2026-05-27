@@ -5,12 +5,13 @@ type MathLiveModule = typeof import("mathlive");
 type MathfieldConstructor = MathLiveModule["MathfieldElement"];
 
 const MATHFIELD_TAG_NAME = "math-field";
+const MATHFIELD_LOAD_TIMEOUT_MS = 5000;
 
 let mathfieldConstructorPromise: Promise<MathfieldConstructor> | null = null;
 
 function loadMathfieldConstructor(): Promise<MathfieldConstructor> {
   if (!mathfieldConstructorPromise) {
-    mathfieldConstructorPromise = customElements.whenDefined(MATHFIELD_TAG_NAME).then(() => {
+    mathfieldConstructorPromise = waitForMathfieldRegistration().then(() => {
       const Mathfield = customElements.get(MATHFIELD_TAG_NAME);
       if (!Mathfield) {
         throw new Error("MathLive failed to register the math-field element.");
@@ -19,6 +20,24 @@ function loadMathfieldConstructor(): Promise<MathfieldConstructor> {
     });
   }
   return mathfieldConstructorPromise;
+}
+
+function waitForMathfieldRegistration(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("MathLive editor failed to load."));
+    }, MATHFIELD_LOAD_TIMEOUT_MS);
+    customElements.whenDefined(MATHFIELD_TAG_NAME).then(
+      () => {
+        window.clearTimeout(timeoutId);
+        resolve();
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
 }
 
 export class MathLiveCore {
@@ -31,7 +50,7 @@ export class MathLiveCore {
   }
 
   private constructor(host: HTMLElement, Mathfield: MathfieldConstructor, initialLatex: string) {
-    Mathfield.fontsDirectory = "https://cdn.jsdelivr.net/npm/mathlive/fonts";
+    Mathfield.fontsDirectory = "/vendor/fonts";
     this.mathfield = new Mathfield();
     this.configureMathfield();
     host.replaceChildren(this.mathfield);

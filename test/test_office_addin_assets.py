@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,8 +13,10 @@ ADDIN = ROOT / "office_addin"
 
 def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
     for manifest_name in ("manifest.word.xml", "manifest.powerpoint.xml"):
-        root = ET.parse(ADDIN / manifest_name).getroot()
+        manifest = ADDIN / manifest_name
+        root = ET.parse(manifest).getroot()
         text = ET.tostring(root, encoding="unicode")
+        manifest_text = manifest.read_text(encoding="utf-8")
 
         assert "PrimaryCommandSurface" in text
         assert "TabLaTeXSnipper" in text
@@ -22,6 +25,9 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "NumberedFormulaButton" in text
         assert "ScreenshotOcrButton" in text
         assert 'Locale="zh-CN"' in text
+        assert "<Version>1.0.1.0</Version>" in manifest_text
+        assert ".png?v=20260528" in manifest_text
+        assert '.png"' not in "\n".join(line for line in manifest_text.splitlines() if "assets/icon-" in line)
         if manifest_name == "manifest.word.xml":
             assert "Auto Numbered" in text
             assert "LoadSelectedButton" in text
@@ -67,6 +73,8 @@ def test_office_addin_static_icon_assets_exist() -> None:
 
 def test_office_addin_includes_local_mathlive_runtime() -> None:
     runtime = ADDIN / "public" / "vendor" / "mathlive.min.mjs"
+    bootstrap = ADDIN / "public" / "vendor" / "mathlive-bootstrap.mjs"
+    fonts = ADDIN / "public" / "vendor" / "fonts"
     license_file = ADDIN / "public" / "vendor" / "mathlive.LICENSE.txt"
     loader = (ADDIN / "src" / "taskpane" / "mathliveEditor.ts").read_text(encoding="utf-8")
     taskpane = (ADDIN / "taskpane.html").read_text(encoding="utf-8")
@@ -74,10 +82,16 @@ def test_office_addin_includes_local_mathlive_runtime() -> None:
 
     assert runtime.is_file()
     assert runtime.stat().st_size > 0
+    assert bootstrap.is_file()
+    assert 'customElements.define("math-field", MathfieldElement);' in bootstrap.read_text(encoding="utf-8")
+    assert fonts.is_dir()
+    assert any(fonts.glob("*.woff2"))
     assert license_file.is_file()
     assert "customElements.whenDefined" in loader
-    assert "/vendor/mathlive.min.mjs" in taskpane
-    assert "/vendor/mathlive.min.mjs" in dialog
+    assert "MATHFIELD_LOAD_TIMEOUT_MS" in loader
+    assert 'Mathfield.fontsDirectory = "/vendor/fonts";' in loader
+    assert "/vendor/mathlive-bootstrap.mjs" in taskpane
+    assert "/vendor/mathlive-bootstrap.mjs" in dialog
 
 
 def test_office_addin_help_documents_runtime_boundaries_in_both_languages() -> None:
@@ -112,11 +126,29 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
     app = (ADDIN / "src" / "taskpane" / "App.ts").read_text(encoding="utf-8")
     i18n = (ADDIN / "src" / "services" / "i18n.ts").read_text(encoding="utf-8")
     powerpoint = (ADDIN / "src" / "office" / "powerpointInsert.ts").read_text(encoding="utf-8")
+    session = (ADDIN / "src" / "services" / "equationSession.ts").read_text(encoding="utf-8")
+    dev_script = (ADDIN / "scripts" / "start_office_dev.ps1").read_text(encoding="utf-8")
+    editor_dialog = (ADDIN / "src" / "dialog" / "editorDialog.ts").read_text(encoding="utf-8")
     package = (ADDIN / "package.json").read_text(encoding="utf-8")
 
     assert "data-i18n" in taskpane
     assert "data-i18n" in dialog
     assert "Office.context.displayLanguage" in app
+    assert "https://localhost:8765" in taskpane
+    assert "https://localhost:8765" in app
+    assert "https://localhost:8765" in session
+    assert "https://localhost:8765" in dev_script
+    assert "https://localhost:8765" in editor_dialog
+    assert "http://127.0.0.1:8765" not in taskpane
+    assert "http://127.0.0.1:8765" not in app
+    assert "http://127.0.0.1:8765" not in session
+    assert "http://127.0.0.1:8765" not in dev_script
+    assert "http://127.0.0.1:8765" not in editor_dialog
+    assert "void initializeFormulaEditor(elements);" in app
+    assert app.index("wireEvents(elements);") < app.index("void initializeFormulaEditor(elements);")
+    assert app.index("void initializeFormulaEditor(elements);") < app.index("tryAutoConfigureBridge(elements)")
+    assert "connectForEditor" not in app
+    assert "connectForEditor" not in i18n
     assert 'insertCurrentLatex(elements, "auto")' not in app
     assert "pptManualNumberPrompt" in app
     assert 'type: "insertFailed"' in app
@@ -139,19 +171,27 @@ def test_office_addin_localization_and_powerpoint_workflow_assets() -> None:
 
 def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     windows_build = (ROOT / "scripts" / "build_office_addin_installer.ps1").read_text(encoding="utf-8")
+    inno = (ROOT / "Inno" / "latexsnipper-office-addin.iss").read_text(encoding="utf-8")
     windows_install = (ADDIN / "installer" / "windows" / "install.ps1").read_text(encoding="utf-8")
     macos_build = (ROOT / "scripts" / "build_office_addin_macos.sh").read_text(encoding="utf-8")
     macos_install = (ADDIN / "installer" / "macos" / "postinstall").read_text(encoding="utf-8")
     bridge = (ROOT / "src" / "integration" / "office" / "bridge_server.py").read_text(encoding="utf-8")
+    runtime = (ROOT / "src" / "integration" / "office" / "addin_runtime.py").read_text(encoding="utf-8")
     controller = (ROOT / "src" / "ui" / "office_bridge_controller.py").read_text(encoding="utf-8")
     release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    package = json.loads((ADDIN / "package.json").read_text(encoding="utf-8"))
 
     assert "https://localhost:8765" in windows_build
+    assert 'RunOnceId: "UnregisterOfficeAddin"' in inno
     assert "https://localhost:8765" in macos_build
     assert "New-SelfSignedCertificate" in windows_install
     assert "16.0\\WEF" in windows_install
     assert '"Developer"' in windows_install
-    assert '"TrustedCatalogs"' in windows_install
+    assert "New-Item -Path $devKey -Force" in windows_install
+    assert '"HKCU:\\Software\\LaTeXSnipper\\OfficeAddin"' in windows_install
+    assert '"InstallRoot"' in windows_install
+    assert 'Join-Path $InstallRoot "tls"' in (ADDIN / "installer" / "windows" / "uninstall.ps1").read_text(encoding="utf-8")
+    assert '"TrustedCatalogs"' not in windows_install
     assert "New-SmbShare" not in windows_install
     assert "security add-trusted-cert" in macos_install
     assert "com.microsoft.Word" in macos_install
@@ -159,7 +199,14 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "wef" in macos_install
     assert "OfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
+    assert "WINDOWS_OFFICE_ADDIN_REGISTRY_KEY" in runtime
+    assert "_windows_installed_root" in runtime
+    assert "LOCALAPPDATA" not in runtime
+    assert "PROGRAMDATA" not in runtime
     assert "find_installed_office_addin" in controller
     assert "OfficeAddinSetup-" in release
     assert "OfficeAddin-" in release
     assert "OfficeDeploymentManifests-" in release
+    assert "npx --no-install office-addin-manifest validate" in release
+    assert "needs.build-windows-installer.result == 'success'" in release
+    assert package["devDependencies"]["office-addin-manifest"] == "^2.1.5"
