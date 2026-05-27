@@ -87,9 +87,9 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 正式安装包将构建后的 Office 站点、manifest 和 `localhost` TLS 配置安装到本机。启用 Office 功能后的桌面端发现这些资源后，以 `https://localhost:8765` 同时提供站点和 Bridge API：
 
 - Windows Inno 安装包与 macOS `.pkg` 安装站点并生成受信任的 `localhost` 证书。
-- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `LaTeXSnipperOfficeDeploymentManifests-<version>.zip`；Windows 运行时安装程序纳入 SignPath 签名路径。
+- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `OfficeDeploymentManifests-<version>.zip`；Windows 运行时安装程序纳入 SignPath 签名路径。
 - Windows 安装包同时写入 `WEF\Developer`（自动加载）和 `WEF\TrustedCatalogs`（Shared Folder 可见）两套注册表，覆盖不同 Office 配置。下次启动 Word/PowerPoint 后 LaTeXSnipper 选项卡自动出现在功能区。
-- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `LaTeXSnipperOfficeDeploymentManifests-<version>.zip`，供管理员通过 Microsoft 365 Integrated apps 统一部署，无须逐台运行安装器。
+- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `OfficeDeploymentManifests-<version>.zip`，供管理员通过 Microsoft 365 Integrated apps 统一部署，无须逐台运行安装器。
 - Windows 运行时安装程序纳入 SignPath 签名路径。
 
 ## Requirement Sets

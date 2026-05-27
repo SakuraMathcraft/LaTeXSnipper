@@ -157,9 +157,9 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "com.microsoft.Word" in macos_install
     assert "com.microsoft.Powerpoint" in macos_install
     assert "wef" in macos_install
-    assert "LaTeXSnipperOfficeDeploymentManifests-" in windows_build
+    assert "OfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
     assert "find_installed_office_addin" in controller
     assert "OfficeAddinSetup-" in release
-    assert "LaTeXSnipperOfficeAddin-" in release
-    assert "LaTeXSnipperOfficeDeploymentManifests-" in release
+    assert "OfficeAddin-" in release
+    assert "OfficeDeploymentManifests-" in release

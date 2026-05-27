@@ -12,7 +12,7 @@ $stage = Join-Path $root "build\office_addin\windows"
 $output = Join-Path $root "dist\office-addin"
 $publicOrigin = "https://localhost:8765"
 $version = "2.3.2"
-$deploymentBundle = Join-Path $output "LaTeXSnipperOfficeDeploymentManifests-$version.zip"
+$deploymentBundle = Join-Path $output "OfficeDeploymentManifests-$version.zip"
 
 Push-Location $addin
 try {
