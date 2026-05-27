@@ -12,7 +12,7 @@ $stage = Join-Path $root "build\office_addin\windows"
 $output = Join-Path $root "dist\office-addin"
 $publicOrigin = "https://localhost:8765"
 $version = "2.3.2"
-$deploymentBundle = Join-Path $output "LaTeXSnipperOfficeDeploymentManifests-$version.zip"
+$deploymentBundle = Join-Path $output "OfficeDeploymentManifests-$version.zip"
 
 Push-Location $addin
 try {
@@ -88,7 +88,7 @@ finally {
     $env:LATEXSNIPPER_OFFICE_OUTPUT = $oldOutput
 }
 
-$installer = Get-ChildItem -LiteralPath $output -Filter "LaTeXSnipperOfficeAddinSetup-*.exe" | Select-Object -First 1
+$installer = Get-ChildItem -LiteralPath $output -Filter "OfficeAddinSetup-*.exe" | Select-Object -First 1
 if (-not $installer) {
     throw "Office add-in installer output was not produced."
 }

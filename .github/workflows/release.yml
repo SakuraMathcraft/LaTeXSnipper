@@ -124,8 +124,8 @@ jobs:
         with:
           name: unsigned-latexsnipper-office-addin-windows
           path: |
-            dist/office-addin/LaTeXSnipperOfficeAddinSetup-*.exe
-            dist/office-addin/LaTeXSnipperOfficeAddinSetup-*.exe.sha256
+            dist/office-addin/OfficeAddinSetup-*.exe
+            dist/office-addin/OfficeAddinSetup-*.exe.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -133,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: latexsnipper-office-deployment-manifests
-          path: dist/office-addin/LaTeXSnipperOfficeDeploymentManifests-*.zip
+          path: dist/office-addin/OfficeDeploymentManifests-*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -432,20 +432,20 @@ jobs:
           fi
 
           if [[ -d release-assets/signed-latexsnipper-office-addin-windows ]] && \
-             find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'LaTeXSnipperOfficeAddinSetup-*.exe' -print -quit | grep -q .; then
-            find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'LaTeXSnipperOfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
+             find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -print -quit | grep -q .; then
+            find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
           elif [[ -d release-assets/unsigned-latexsnipper-office-addin-windows ]]; then
-            find release-assets/unsigned-latexsnipper-office-addin-windows -type f -name 'LaTeXSnipperOfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
+            find release-assets/unsigned-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
           else
             echo "No Windows Office add-in artifact is available for this release."
           fi
           if [[ -d release-assets/latexsnipper-office-deployment-manifests ]]; then
-            find release-assets/latexsnipper-office-deployment-manifests -type f -name 'LaTeXSnipperOfficeDeploymentManifests-*.zip' -exec cp -v {} publish-assets/ \;
+            find release-assets/latexsnipper-office-deployment-manifests -type f -name 'OfficeDeploymentManifests-*.zip' -exec cp -v {} publish-assets/ \;
           fi
 
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
           find release-assets/latexsnipper-macos -type f \( -name '*.dmg' -o -name '*.app.zip' \) -exec cp -v {} publish-assets/ \;
-          find release-assets/latexsnipper-macos -type f -name 'LaTeXSnipperOfficeAddin-*.pkg' -exec cp -v {} publish-assets/ \;
+          find release-assets/latexsnipper-macos -type f -name 'OfficeAddin-*.pkg' -exec cp -v {} publish-assets/ \;
 
           asset_count="$(find publish-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
           if [[ "${asset_count}" == "0" ]]; then

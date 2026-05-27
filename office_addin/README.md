@@ -56,9 +56,9 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 
 | 平台 | 产物 | 实际行为 |
 |---|---|---|
-| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
-| macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
-| Microsoft 365 部署 | `LaTeXSnipperOfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
+| Windows | `OfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
+| macOS | `OfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
+| Microsoft 365 部署 | `OfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
 
 Windows 安装包同时将 manifest 注册为受信目录，用户在 Office 中通过 **插入 → 加载项 → 共享文件夹** 添加一次后即持久驻留 Ribbon。企业管理员也可通过 Integrated apps 统一部署。
 

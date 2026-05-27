@@ -16,7 +16,7 @@ STAGE="$PROJECT_ROOT/build/office_addin/macos"
 PAYLOAD="$STAGE/payload/Library/Application Support/LaTeXSnipper/OfficeAddinPayload"
 SCRIPTS="$STAGE/scripts"
 OUTPUT="$PROJECT_ROOT/dist/office-addin"
-PKG="$OUTPUT/LaTeXSnipperOfficeAddin-${VERSION}.pkg"
+PKG="$OUTPUT/OfficeAddin-${VERSION}.pkg"
 
 log_step "1/4" "Building Office add-in site"
 npm --prefix "$ADDIN_ROOT" run build

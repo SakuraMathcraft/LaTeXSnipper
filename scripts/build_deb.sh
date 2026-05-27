@@ -21,7 +21,7 @@ echo "Version: $VERSION"
 PACKAGING_TEMPLATE="$PROJECT_ROOT/packaging/debian"
 PACKAGE_ROOT="$PROJECT_ROOT/build/package/debian-latexsnipper"
 DEB_OUTPUT_DIR="$PROJECT_ROOT/dist"
-DEB_PATH="$DEB_OUTPUT_DIR/latexsnipper_${VERSION}_amd64.deb"
+DEB_PATH="$DEB_OUTPUT_DIR/LaTeXSnipper_${VERSION}_amd64.deb"
 DIST_DIR="$PROJECT_ROOT/dist/LaTeXSnipper"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-linux.spec"
 
