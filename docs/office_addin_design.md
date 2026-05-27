@@ -88,9 +88,9 @@ Bridge URL 与会话 token 由文档设置保存。Word 额外保存公式来源
 
 - Windows Inno 安装包与 macOS `.pkg` 安装站点并生成受信任的 `localhost` 证书。
 - GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `LaTeXSnipperOfficeDeploymentManifests-<version>.zip`；Windows 运行时安装程序纳入 SignPath 签名路径。
-- 管理员将生产 manifest 通过 Microsoft 365 管理中心的 Integrated apps 部署给用户，Ribbon 命令由 Office 持久提供。
-
-共享目录和 `wef` 旁加载仅用于开发测试，不是安装器行为。持久安装由 Microsoft 365 Integrated apps 部署实现；Marketplace 上架仍不属于仓库可自动完成的发布步骤。
+- Windows 安装包同时写入 `WEF\Developer`（自动加载）和 `WEF\TrustedCatalogs`（Shared Folder 可见）两套注册表，覆盖不同 Office 配置。下次启动 Word/PowerPoint 后 LaTeXSnipper 选项卡自动出现在功能区。
+- GitHub Release workflow 额外产出包含 Word/PPT 生产 manifest 的 `LaTeXSnipperOfficeDeploymentManifests-<version>.zip`，供管理员通过 Microsoft 365 Integrated apps 统一部署，无须逐台运行安装器。
+- Windows 运行时安装程序纳入 SignPath 签名路径。
 
 ## Requirement Sets
 

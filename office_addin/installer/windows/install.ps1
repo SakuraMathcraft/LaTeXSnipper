@@ -96,5 +96,33 @@ Write-Pem -Path $keyPath -Label "RSA PRIVATE KEY" -Bytes (ConvertTo-RsaPrivateKe
 Import-Certificate -FilePath $certPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
 [System.IO.File]::WriteAllText($thumbprintFile, $certificate.Thumbprint, [System.Text.Encoding]::ASCII)
 
+$wefBase = "HKCU:\Software\Microsoft\Office\16.0\WEF"
+$addins = @(
+    @{ Id = "{7b6d0711-08ec-4a81-9c3f-3f8e0d6f6d21}"; Name = "LaTeXSnipper Word"; Manifest = "manifest.word.xml" },
+    @{ Id = "{b5182ab2-5a84-45fb-81c4-67a725d6c7b1}"; Name = "LaTeXSnipper PowerPoint"; Manifest = "manifest.powerpoint.xml" }
+)
+$manifestsDir = Join-Path $root "manifests"
+$manifestsUrl = "file:///" + ($manifestsDir -replace '\\', '/').TrimStart('/')
+
+foreach ($addin in $addins) {
+    $manifestPath = Join-Path $manifestsDir $addin.Manifest
+
+    $devKey = Join-Path $wefBase "Developer" $addin.Id
+    Remove-Item -LiteralPath $devKey -Force -ErrorAction SilentlyContinue -Recurse
+    New-Item -Path $devKey -Force | Out-Null
+    New-ItemProperty -Path $devKey -Name "Name" -PropertyType String -Value $addin.Name -Force | Out-Null
+    New-ItemProperty -Path $devKey -Name "Url" -PropertyType String -Value $manifestPath -Force | Out-Null
+    New-ItemProperty -Path $devKey -Name "Id" -PropertyType String -Value $addin.Id -Force | Out-Null
+    New-ItemProperty -Path $devKey -Name "Flags" -PropertyType DWord -Value 1 -Force | Out-Null
+}
+
+$catalogId = "{7C4B0843-A874-420F-908C-73673C42F4B0}"
+$catalogKey = Join-Path $wefBase "TrustedCatalogs" $catalogId
+Remove-Item -LiteralPath $catalogKey -Force -ErrorAction SilentlyContinue -Recurse
+New-Item -Path $catalogKey -Force | Out-Null
+New-ItemProperty -Path $catalogKey -Name "Id" -PropertyType String -Value $catalogId -Force | Out-Null
+New-ItemProperty -Path $catalogKey -Name "Url" -PropertyType String -Value $manifestsUrl -Force | Out-Null
+New-ItemProperty -Path $catalogKey -Name "Flags" -PropertyType DWord -Value 1 -Force | Out-Null
+
 Write-Host "LaTeXSnipper Office local runtime installed."
-Write-Host "Deploy the release manifests through Microsoft 365 Integrated apps for persistent Word and PowerPoint ribbon installation."
+Write-Host "The LaTeXSnipper ribbon tab will appear the next time you start Word and PowerPoint."

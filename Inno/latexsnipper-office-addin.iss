@@ -37,6 +37,7 @@ Name: "chinesesimplified"; MessagesFile: "{#MySourceRoot}\ChineseSimplified.isl"
 
 [Files]
 Source: "{#MySourceRoot}\site\*"; DestDir: "{app}\site"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MySourceRoot}\manifests\*"; DestDir: "{app}\manifests"; Flags: ignoreversion
 Source: "{#MySourceRoot}\install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MySourceRoot}\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 

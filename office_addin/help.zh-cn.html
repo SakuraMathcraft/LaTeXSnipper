@@ -50,7 +50,7 @@
       </tbody>
     </table>
     <p>由于工作流依赖本机 Bridge 与桌面截图，Web 和移动版 Office 不作为当前产品支持目标。</p>
-    <p>Windows/macOS 运行时安装包配置本机 <code>https://localhost:8765</code> 站点。要让加载项持续出现在 Word/PPT Ribbon 中，管理员必须在 Microsoft 365 管理中心通过 Integrated apps 部署发布包中的生产 manifest；共享文件夹和 <code>wef</code> 旁加载仅用于开发测试。</p>
+    <p>Windows/macOS 运行时安装包配置本机 <code>https://localhost:8765</code> 站点。Windows 安装包同时写入 <code>WEF\Developer</code>（自动加载）和 <code>WEF\TrustedCatalogs</code>（在支持 Shared Folder 的 Office 中可见）两套注册表，覆盖不同 Office 配置。下次启动 Word/PowerPoint 后 LaTeXSnipper 选项卡自动出现在功能区。企业管理员也可在 Microsoft 365 管理中心通过 Integrated apps 部署发布包中的生产 manifest。</p>
 
     <h2>Word 功能</h2>
     <h3>插入公式</h3>

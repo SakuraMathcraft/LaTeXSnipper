@@ -21,10 +21,15 @@ PKG="$OUTPUT/LaTeXSnipperOfficeAddin-${VERSION}.pkg"
 log_step "1/4" "Building Office add-in site"
 npm --prefix "$ADDIN_ROOT" run build
 
+PUBLIC_ORIGIN="https://localhost:8765"
+
 log_step "2/4" "Staging Office add-in payload"
 rm -rf "$STAGE"
-mkdir -p "$PAYLOAD/site" "$SCRIPTS" "$OUTPUT"
+mkdir -p "$PAYLOAD/site" "$PAYLOAD/manifests" "$SCRIPTS" "$OUTPUT"
 cp -R "$ADDIN_ROOT/dist/." "$PAYLOAD/site/"
+for manifest in manifest.word.xml manifest.powerpoint.xml; do
+    sed "s|https://localhost:3000|$PUBLIC_ORIGIN|g" "$ADDIN_ROOT/$manifest" > "$PAYLOAD/manifests/$manifest"
+done
 cp "$ADDIN_ROOT/installer/macos/postinstall" "$SCRIPTS/postinstall"
 chmod 755 "$SCRIPTS/postinstall"
 
