@@ -56,7 +56,7 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 
 | 平台 | 产物 | 实际行为 |
 |---|---|---|
-| Windows | `LaTeXSnipperOfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
+| Windows | `OfficeAddinSetup-<version>.exe` | 通过 Inno 安装已构建站点，并生成、信任仅用于 `localhost` 的 TLS 证书 |
 | macOS | `LaTeXSnipperOfficeAddin-<version>.pkg` | 安装已构建站点，并生成、信任 `localhost` TLS 证书 |
 | Microsoft 365 部署 | `LaTeXSnipperOfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
 

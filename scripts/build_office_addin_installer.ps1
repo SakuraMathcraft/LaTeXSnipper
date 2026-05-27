@@ -88,7 +88,7 @@ finally {
     $env:LATEXSNIPPER_OFFICE_OUTPUT = $oldOutput
 }
 
-$installer = Get-ChildItem -LiteralPath $output -Filter "LaTeXSnipperOfficeAddinSetup-*.exe" | Select-Object -First 1
+$installer = Get-ChildItem -LiteralPath $output -Filter "OfficeAddinSetup-*.exe" | Select-Object -First 1
 if (-not $installer) {
     throw "Office add-in installer output was not produced."
 }

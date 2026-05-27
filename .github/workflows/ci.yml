@@ -169,7 +169,7 @@ jobs:
           foreach ($token in @(
             "build_office_addin_installer.ps1",
             "build_office_addin_macos.sh",
-            "LaTeXSnipperOfficeAddinSetup-",
+            "OfficeAddinSetup-",
             "LaTeXSnipperOfficeAddin-",
             "LaTeXSnipperOfficeDeploymentManifests-"
           )) {

@@ -160,6 +160,6 @@ def test_office_addin_release_packaging_uses_installed_https_runtime() -> None:
     assert "LaTeXSnipperOfficeDeploymentManifests-" in windows_build
     assert "site_root" in bridge
     assert "find_installed_office_addin" in controller
-    assert "LaTeXSnipperOfficeAddinSetup-" in release
+    assert "OfficeAddinSetup-" in release
     assert "LaTeXSnipperOfficeAddin-" in release
     assert "LaTeXSnipperOfficeDeploymentManifests-" in release
