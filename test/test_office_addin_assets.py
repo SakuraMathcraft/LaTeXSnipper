@@ -20,6 +20,7 @@ def test_office_addin_manifests_are_well_formed_and_have_ribbon_tabs() -> None:
         assert "OpenEditorButton" in text
         assert "InsertFormulaButton" in text
         assert "NumberedFormulaButton" in text
+        assert "Auto Numbered" in text
         assert "ScreenshotOcrButton" in text
         if manifest_name == "manifest.word.xml":
             assert "LoadSelectedButton" in text

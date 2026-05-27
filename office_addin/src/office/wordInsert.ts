@@ -28,27 +28,23 @@ export async function insertEquationIntoWord(draft: EquationDraft, conversion: C
   }
   const omml = conversion.omml;
   const number = await resolveNumber(draft);
-
-  if (typeof Word !== "undefined" && Word.run) {
-    await Word.run(async (context) => {
-      const targetRange = await getValidInsertionTargetRange(context);
-      const equationId = await saveEquationSource(
-        draft.latex,
-        draft.equationId,
-        draft.display,
-        draft.numbering,
-        number || draft.manualNumber
-      );
-      const ooxml = buildEquationOoxml(omml, { display: draft.display, equationId, number });
-      const insertedRange = targetRange.insertOoxml(ooxml, Word.InsertLocation.replace);
-      moveSelectionAfterInsertedEquation(insertedRange, draft.display);
-      await context.sync();
-    });
-    return;
+  if (typeof Word === "undefined" || typeof Word.run !== "function") {
+    throw new Error("Word API 1.3 is required for editable equations.");
   }
-  const equationId = await saveEquationSource(draft.latex, draft.equationId, draft.display, draft.numbering, number || draft.manualNumber);
-  const ooxml = buildEquationOoxml(omml, { display: draft.display, equationId, number });
-  await setSelectedOoxml(ooxml);
+  await Word.run(async (context) => {
+    const targetRange = await getValidInsertionTargetRange(context);
+    const equationId = await saveEquationSource(
+      draft.latex,
+      draft.equationId,
+      draft.display,
+      draft.numbering,
+      number || draft.manualNumber
+    );
+    const ooxml = buildEquationOoxml(omml, { display: draft.display, equationId, number });
+    const insertedRange = targetRange.insertOoxml(ooxml, Word.InsertLocation.replace);
+    moveSelectionAfterInsertedEquation(insertedRange, draft.display);
+    await context.sync();
+  });
 }
 
 export async function updateEquationInWord(draft: EquationDraft, conversion: ConversionResult): Promise<void> {
@@ -67,11 +63,10 @@ export async function updateEquationInWord(draft: EquationDraft, conversion: Con
     number,
   });
 
-  if (typeof Word !== "undefined" && typeof Word.run === "function") {
-    await replaceEquationContainer(equationId, newOoxml);
-  } else {
-    await setSelectedOoxml(newOoxml);
+  if (typeof Word === "undefined" || typeof Word.run !== "function") {
+    throw new Error("Word API 1.3 is required for editable equations.");
   }
+  await replaceEquationContainer(equationId, newOoxml);
   await saveEquationSource(draft.latex, equationId, draft.display, draft.numbering, number);
 
   const removedFromAutomaticSequence = previousRecord?.numbering === "auto" && draft.numbering !== "auto";
@@ -131,34 +126,34 @@ export async function loadSelectedEquationFromWord(): Promise<SelectedEquation> 
 }
 
 export async function getSelectedEquationIdFromWord(): Promise<string> {
-  if (typeof Word !== "undefined" && Word.run) {
-    return Word.run(async (context) => {
-      const selection = context.document.getSelection();
-      const parent = selection.parentContentControlOrNullObject;
-      const ccs = selection.contentControls;
-      parent.load("tag");
-      ccs.load("items");
-      await context.sync();
-      if (!parent.isNullObject) {
-        const parentId = equationIdFromTag(parent.tag);
-        if (parentId) {
-          return parentId;
-        }
-      }
-      for (const cc of ccs.items) {
-        cc.load("tag");
-      }
-      await context.sync();
-      for (const cc of ccs.items) {
-        const id = equationIdFromTag(cc.tag);
-        if (id) {
-          return id;
-        }
-      }
-      return "";
-    });
+  if (typeof Word === "undefined" || typeof Word.run !== "function") {
+    throw new Error("Word API 1.3 is required for equation selection.");
   }
-  return extractEquationId(await getSelectedOoxml());
+  return Word.run(async (context) => {
+    const selection = context.document.getSelection();
+    const parent = selection.parentContentControlOrNullObject;
+    const ccs = selection.contentControls;
+    parent.load("tag");
+    ccs.load("items");
+    await context.sync();
+    if (!parent.isNullObject) {
+      const parentId = equationIdFromTag(parent.tag);
+      if (parentId) {
+        return parentId;
+      }
+    }
+    for (const cc of ccs.items) {
+      cc.load("tag");
+    }
+    await context.sync();
+    for (const cc of ccs.items) {
+      const id = equationIdFromTag(cc.tag);
+      if (id) {
+        return id;
+      }
+    }
+    return "";
+  });
 }
 
 export async function renumberWordEquations(): Promise<number> {
@@ -262,8 +257,8 @@ async function resolveNumber(draft: EquationDraft): Promise<string | undefined> 
 }
 
 async function countExistingNumberedEquations(): Promise<number> {
-  if (typeof Word === "undefined" || !Word.run) {
-    return 0;
+  if (typeof Word === "undefined" || typeof Word.run !== "function") {
+    throw new Error("Word API 1.3 is required for equation numbering.");
   }
   return Word.run(async (context) => {
     const body = context.document.body.getOoxml();
@@ -399,14 +394,6 @@ function wrapTaggedBlock(tag: string, content: string, alias = "LaTeXSnipper Equ
   ].join("");
 }
 
-function extractEquationId(ooxml: string): string {
-  return (
-    extractFirstMatch(ooxml, /latexsnipper-eq-([^"&<\s]+)/) ||
-    extractFirstMatch(ooxml, /LaTeXSnipperEqNum-([^"&<\s]+)/) ||
-    ""
-  );
-}
-
 function equationIdFromTag(tag: string): string {
   if (tag.startsWith(EQUATION_TAG_PREFIX)) {
     return tag.slice(EQUATION_TAG_PREFIX.length);
@@ -415,10 +402,6 @@ function equationIdFromTag(tag: string): string {
     return tag.slice(NUMBER_CONTROL_TAG_PREFIX.length);
   }
   return "";
-}
-
-function extractFirstMatch(value: string, pattern: RegExp): string {
-  return pattern.exec(value)?.[1] || "";
 }
 
 function extractNumberedEquationIds(ooxml: string): string[] {
@@ -442,7 +425,9 @@ async function replaceEquationContainer(equationId: string, ooxml: string): Prom
       return;
     }
     const table = equationControl.parentTableOrNullObject;
-    table.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.before);
+    const anchor = table.insertParagraph("", Word.InsertLocation.after);
+    await context.sync();
+    anchor.getRange(Word.RangeLocation.whole).insertOoxml(ooxml, Word.InsertLocation.replace);
     await context.sync();
     table.delete();
     await context.sync();
@@ -488,35 +473,4 @@ function escapeXml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
-}
-
-function setSelectedOoxml(ooxml: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    Office.context.document.setSelectedDataAsync(
-      ooxml,
-      { coercionType: Office.CoercionType.Ooxml },
-      (result) => {
-        if (result.status === Office.AsyncResultStatus.Succeeded) {
-          resolve();
-          return;
-        }
-        reject(new Error(result.error?.message || "Failed to insert OOXML."));
-      }
-    );
-  });
-}
-
-function getSelectedOoxml(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    Office.context.document.getSelectedDataAsync(
-      Office.CoercionType.Ooxml,
-      (result) => {
-        if (result.status === Office.AsyncResultStatus.Succeeded) {
-          resolve(String(result.value || ""));
-          return;
-        }
-        reject(new Error(result.error?.message || "Failed to read selected OOXML."));
-      }
-    );
-  });
 }

@@ -86,36 +86,30 @@ function installSelectionTracking(elements: Elements): void {
   const handler = () => {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
-      void refreshSelectedEquationState(elements);
+      void refreshSelectedEquationState(elements).catch((error: unknown) => {
+        setStatus(elements, error instanceof Error ? error.message : String(error), "error");
+      });
     }, 300);
   };
-  try {
-    Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handler);
-  } catch {
-    // Selection tracking is a convenience layer. Load/Update still work from buttons.
-  }
+  Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, handler);
 }
 
 async function refreshSelectedEquationState(elements: Elements): Promise<void> {
-  try {
-    const equationId = await getSelectedEquationIdFromWord();
-    if (!equationId) {
-      selectionNoticeEquationId = "";
-      if (elements.statusBanner.textContent === SELECTED_EQUATION_STATUS) {
-        setStatus(elements, "Ready.", "ok");
-      }
-      return;
+  const equationId = await getSelectedEquationIdFromWord();
+  if (!equationId) {
+    selectionNoticeEquationId = "";
+    if (elements.statusBanner.textContent === SELECTED_EQUATION_STATUS) {
+      setStatus(elements, "Ready.", "ok");
     }
-    if (equationId === selectionNoticeEquationId) {
-      return;
-    }
-    const record = loadEquationSource(equationId);
-    if (record?.latex) {
-      selectionNoticeEquationId = equationId;
-      setStatus(elements, SELECTED_EQUATION_STATUS, "ok");
-    }
-  } catch {
-    // Ignore ordinary Word selections.
+    return;
+  }
+  if (equationId === selectionNoticeEquationId) {
+    return;
+  }
+  const record = loadEquationSource(equationId);
+  if (record?.latex) {
+    selectionNoticeEquationId = equationId;
+    setStatus(elements, SELECTED_EQUATION_STATUS, "ok");
   }
 }
 
@@ -200,7 +194,7 @@ function applyLaunchMode(elements: Elements): boolean {
     elements.displayMode.checked = true;
     elements.autoNumber.checked = true;
     elements.manualNumber.value = "";
-    setStatus(elements, "Numbered equation mode is enabled.", "ok");
+    setStatus(elements, "Auto-numbered equation mode is enabled.", "ok");
     return true;
   }
   if (mode === "insert") {

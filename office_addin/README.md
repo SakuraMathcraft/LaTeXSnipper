@@ -17,7 +17,7 @@ Office.js add-in for Word and PowerPoint — native-feeling LaTeX equation editi
 |---|---|
 | **Editor** | Open full dialog editor with symbol panel |
 | **Insert Formula** | Insert sidebar LaTeX at cursor |
-| **Numbered** | Add auto-numbering to the selected equation |
+| **Auto Numbered** | Add auto-numbering to the selected equation |
 | **Screenshot OCR** | Import next global LaTeXSnipper recognition result |
 | **Load Selected** | Open selected equation in the dialog editor |
 | **Delete Selected** | Delete the selected equation, including its numbering table |

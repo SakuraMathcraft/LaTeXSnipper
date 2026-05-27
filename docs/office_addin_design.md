@@ -15,9 +15,8 @@ The desktop application's visible UI should remain mostly unchanged. The only pl
 3. Fast insertion of LaTeX formulas into Word and PowerPoint.
 4. Equation numbering suitable for academic writing and slides.
 5. A clean module boundary that keeps Office-specific code isolated from the existing desktop UI.
-6. A fallback path for Office hosts that cannot insert editable equations.
-7. Independent add-in installation and rollback without changing the desktop application install.
-8. Fault isolation: Office/WebView failures must not affect core LaTeXSnipper recognition.
+6. Independent add-in installation and rollback without changing the desktop application install.
+7. Fault isolation: Office/WebView failures must not affect core LaTeXSnipper recognition.
 
 ## Non-Goals for the First Version
 
@@ -378,15 +377,15 @@ The `#?` markers are placeholder positions. When a template is inserted:
 
 ### Double-Click to Edit
 
-A LaTeXSnipper equation in Word is an OMML content control tagged with `latexsnipper-equation:<id>`. When the user double-clicks such an equation:
+A LaTeXSnipper equation in Word is an OMML content control tagged with `latexsnipper-eq-{id}`. When the user selects such an equation:
 
 1. Word fires `DocumentSelectionChanged`.
-2. Task pane's selection tracker (`installSelectionTracking` in `App.ts`) extracts the OOXML of the current selection.
-3. `extractEquationId()` checks for a `latexsnipper-equation:` tag.
+2. Task pane's selection tracker (`installSelectionTracking` in `App.ts`) inspects the selected or parent content control tag.
+3. `equationIdFromTag()` extracts the equation ID from the `latexsnipper-eq-` or `latexsnipper-eqn-` tag.
 4. If found → task pane reads the stored LaTeX source from document settings via `loadEquationSource(id)`.
 5. Task pane opens the Dialog editor with the LaTeX pre-loaded and the equation ID attached.
 6. Dialog editor enters "Update mode": the Insert button label changes to "Update", and the dialog header shows "Editing equation (X)".
-7. On Update, the task pane replaces the selected equation's OMML in-place using `Word.Range.insertOoxml(..., Word.InsertLocation.replace)` on the content control's range — not by inserting a new control.
+7. On Update, the task pane rebuilds a complete tagged equation container. For numbered equations it inserts through a paragraph outside the old table, then removes the old table after insertion succeeds.
 
 This flow provides the MathType-like "double click to re-edit" experience while keeping the editor dialog stateless (it doesn't need to know about Word APIs).
 
@@ -587,7 +586,7 @@ Unit tests:
 Integration tests:
 
 - Bridge `/health`.
-- `/convert/latex` returns OMML or SVG fallback.
+- `/convert/latex` returns editable OMML for Word insertion.
 - Recognition subscription and polling endpoints reject unauthenticated requests.
 - Word adapter builds valid OOXML from conversion output.
 - PowerPoint adapter builds deterministic SVG/PNG insertion commands.
@@ -674,10 +673,10 @@ The task pane editor stays as the quick-insert surface. The dialog editor (Phase
 The equation editing lifecycle: inserted OMML equations can be reloaded into the editor for revision.
 
 - Detect LaTeXSnipper equation selection in Word via `DocumentSelectionChanged`.
-- Load: extract equation ID from body OOXML via `selection.contentControls`, load LaTeX source from document settings, open Dialog editor in Update mode.
-- Update: replace the equation CC's OMML in-place via `setSelectedOoxml` (select → read OOXML → patch sdtContent → write back). Number CCs updated via `getByTag` + `insertText`.
-- Numbered equation CCs use unique tags (`latexsnipper-eqn-{uuid}`) for direct lookup without body OOXML replacement.
-- Structural changes (none↔numbered) trigger full OOXML rebuild via `buildEquationOoxml`.
+- Load: extract equation ID from the selected or parent content control tag, load LaTeX source from document settings, open Dialog editor in Update mode.
+- Update: rebuild the complete tagged OOXML container through `Word.run`; numbered formulas use an external paragraph anchor so table replacement is atomic from the user's perspective.
+- Numbered equation CCs use unique tags (`latexsnipper-eqn-{uuid}`) for direct lookup.
+- All update paths use `buildEquationOoxml` so edited formulas remain LaTeXSnipper equations.
 
 #### Phase 5d: Keyboard-Driven Editing ✅
 
@@ -695,10 +694,10 @@ The equation editing lifecycle: inserted OMML equations can be reloaded into the
 ### Phase 7: Numbering ✅
 
 - Auto/manual numbering with persistent state in document settings.
-- Numbered display equations use a borderless 2-cell table with unique tags.
+- Numbered display equations use a borderless 3-cell table with unique tags.
 - Renumber scans body OOXML for `latexsnipper-eqn-` tags, filters to auto-numbered only via `loadEquationSource`, updates in document order.
 - Manual-numbered equations are completely ignored during renumber.
-- The `Numbered` ribbon button adds auto-numbering to the selected equation (not a new insert).
+- The `Auto Numbered` ribbon button adds auto-numbering to the selected equation (not a new insert).
 - Switching numbering type (none/auto/manual) during update triggers full OOXML rebuild when the structure changes.
 
 ### Phase 8: Polish
@@ -743,14 +742,14 @@ The installer is versioned independently and does not bundle the desktop applica
 
 ### Resolved
 
-1. ~~Should Word editable equations require OMML success, or should SVG fallback be allowed silently?~~ → OMML is required. The bridge must produce valid OMML. The editor shows SVG as live preview, but Insert fails clearly if OMML is not available.
+1. Word insertion requires valid editable OMML. The editor shows SVG as live preview, but Insert fails clearly if OMML is not available.
 2. ~~Should the task pane editor be removed when the dialog is built?~~ → No. Both editors coexist. Task pane = quick insert, Dialog = premium editing.
 3. ~~Should the Office add-in share the same MathJax/MathLive assets as the desktop app or carry its own pinned copy?~~ → The add-in loads MathLive from CDN (`cdn.jsdelivr.net`). SVG preview uses bridge conversion, not MathJax, so no MathJax dependency in the add-in.
 
 ### Open
 
 1. Should numbering state live only in Office document settings, or also in LaTeXSnipper's config for recovery across sessions?
-2. Should PowerPoint equations be inserted as SVG by default, with PNG fallback only when SVG fails? Can PowerPoint shapes store LaTeX source metadata for re-editing (similar to Word content controls)?
+2. Should PowerPoint equations remain PNG-based, and can PowerPoint shapes store LaTeX source metadata for re-editing (similar to Word content controls)?
 3. Should the bridge auto-launch LaTeXSnipper from the add-in if the bridge is not reachable, or should the user always start the desktop app manually?
 4. Should the bridge token be per-user persistent, per-session, or rotated when Office integration is disabled and re-enabled? Current implementation uses per-session tokens.
 5. How should the add-in handle Word for Web (Office Online)? The localhost bridge is unreachable from a browser-based Office host. Show a clear "desktop-only" message, or provide a cloud relay option?

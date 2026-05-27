@@ -177,7 +177,7 @@
         <bt:String id="GroupNumbering.Label" DefaultValue="Numbering"/>
         <bt:String id="OpenEditor.Label" DefaultValue="Editor"/>
         <bt:String id="InsertFormula.Label" DefaultValue="Insert Formula"/>
-        <bt:String id="NumberedFormula.Label" DefaultValue="Numbered"/>
+        <bt:String id="NumberedFormula.Label" DefaultValue="Auto Numbered"/>
         <bt:String id="ScreenshotOcr.Label" DefaultValue="Screenshot OCR"/>
         <bt:String id="GroupHelp.Label" DefaultValue="Help"/>
         <bt:String id="Help.Label" DefaultValue="Help"/>

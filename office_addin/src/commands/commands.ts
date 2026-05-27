@@ -1,29 +1,23 @@
 import { enqueueRibbonCommand, RibbonCommandName } from "../services/ribbonCommands";
 
 function complete(event: Office.AddinCommands.Event): void {
-  try {
-    event.completed();
-  } catch {
-    // Older command runtimes may not expose completed during manual testing.
-  }
+  event.completed();
 }
 
 function publish(name: RibbonCommandName, event: Office.AddinCommands.Event): void {
-  enqueueRibbonCommand(name)
-    .catch(() => undefined)
-    .finally(() => complete(event));
-  tryShowTaskpane();
+  void enqueueRibbonCommand(name).finally(() => complete(event));
+  showTaskpane();
 }
 
-function tryShowTaskpane(): void {
+function showTaskpane(): void {
   const officeWithAddin = Office as typeof Office & {
-    addin?: { showAsTaskpane?: () => Promise<void> };
+    addin: { showAsTaskpane: () => Promise<void> };
   };
-  officeWithAddin.addin?.showAsTaskpane?.().catch(() => undefined);
+  void officeWithAddin.addin.showAsTaskpane();
 }
 
 const openEditorCommand = (event: Office.AddinCommands.Event): void => {
-  tryShowTaskpane();
+  showTaskpane();
   complete(event);
 };
 const insertFormulaCommand = (event: Office.AddinCommands.Event): void => publish("insert", event);
@@ -40,7 +34,5 @@ Office.onReady(() => {
   Office.actions.associate("numberedFormulaCommand", numberedFormulaCommand);
   Office.actions.associate("loadSelectedCommand", loadSelectedCommand);
   Office.actions.associate("deleteSelectedCommand", deleteSelectedCommand);
-  // Route cached manifests that still expose the former command to deletion.
-  Office.actions.associate("updateSelectedCommand", deleteSelectedCommand);
   Office.actions.associate("renumberCommand", renumberCommand);
 });

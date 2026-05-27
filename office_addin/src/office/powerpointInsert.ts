@@ -44,11 +44,17 @@ function setSelectedImage(base64: string): Promise<void> {
 }
 
 function setSelectedText(text: string): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     Office.context.document.setSelectedDataAsync(
       text,
       { coercionType: Office.CoercionType.Text },
-      () => resolve()
+      (result) => {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          resolve();
+          return;
+        }
+        reject(new Error(result.error?.message || "Failed to insert numbering into PowerPoint."));
+      }
     );
   });
 }
