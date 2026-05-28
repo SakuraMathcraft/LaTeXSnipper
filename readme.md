@@ -110,6 +110,24 @@ The main window includes PDF recognition and a separate bilingual reading tool:
 
 ---
 
+## Office Integration Direction
+
+LaTeXSnipper is moving its Office integration from the current Office.js add-in toward a Windows-native plugin model.
+
+The current `office_addin` project is kept as a migration reference. It already proves the Bridge protocol, OMML insertion, PowerPoint image insertion, OCR handoff, and Word numbering behavior, but Office.js cannot reliably deliver the final product experience for single-user installs: persistent Ribbon loading, native formula objects, double-click editing, low-level shortcuts, and MathType/AxMath-style object lifecycle control.
+
+The planned `office_plugin` line targets Windows desktop Office:
+
+- Word: native OMML insertion and LaTeXSnipper OLE formula objects
+- PowerPoint: current compatible image insertion and LaTeXSnipper OLE formula objects
+- Local MathJax/MathLive/native rendering pipeline for self-rendered formula objects
+- Per-formula persisted LaTeX source, render options, numbering data, and object identity
+- Native Ribbon, shortcuts, double-click editing, update, delete, and renumber workflows
+
+See [Windows native Office plugin design](docs/office_plugin_design.md) and [Office.js migration record](docs/office_addin_design.md).
+
+---
+
 ## Computation Coverage
 
 The workbench currently covers common scenarios such as:
@@ -269,11 +287,11 @@ is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno desktop installer and a separate Office add-in Inno installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
+- Windows: Inno desktop installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
-- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`, plus the Office add-in `.pkg` from `scripts/build_office_addin_macos.sh`.
+- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
 
-The Office packages install the localhost HTTPS site consumed by the LaTeXSnipper Office Bridge and set up per-user local sideload registration for desktop Office. Releases also contain production Word/PowerPoint manifests for managed deployment through Microsoft 365 Integrated apps. Each client still requires the desktop application with its Office feature enabled.
+The old Office.js packages are retained only while `office_addin` is used as a migration reference. They install a localhost HTTPS site and local sideload manifests, but they are not the final Office plugin distribution path. The planned Windows-native `office_plugin` installer will own persistent Word/PowerPoint registration, Ribbon resources, OLE object registration, and shortcut integration.
 
 The release workflow expects these GitHub Actions variables:
 `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
@@ -312,6 +330,8 @@ LaTeXSnipper/
 |-- tools/
 |   `-- deps/                      # Local developer/build dependency environment
 |-- user_manual/                   # Local manual source and generated PDF
+|-- office_addin/                  # Legacy Office.js add-in kept for migration
+|-- docs/office_plugin_design.md   # Windows-native Office plugin target design
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/                     # Debian and MSIX packaging resources
 |-- scripts/                       # Build, release, and regression utilities

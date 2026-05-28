@@ -38,6 +38,10 @@ The current shortcut UI only accepts `Ctrl+letter` and `Ctrl+Shift+letter`, so t
 - macOS: use the `.dmg` or `.app.zip` artifact.
 - Microsoft Store channel: use the Store package/update flow when installed from Store.
 
+## What is the final Office plugin direction?
+
+The current `office_addin` project is an Office.js implementation kept for migration reference. The final Office integration is planned as a Windows-native `office_plugin` so LaTeXSnipper can provide persistent Ribbon loading, native shortcuts, double-click editing, OLE formula objects, Word OMML insertion, PowerPoint image insertion, and a local MathJax/native rendering pipeline without relying on Microsoft 365 enterprise deployment.
+
 ## Does LaTeXSnipper require an internet connection?
 
 Core editing and local recognition workflows are designed to work locally after the required dependencies and models are installed. Some optional downloads, update checks, model downloads, and CDN fallbacks require network access.

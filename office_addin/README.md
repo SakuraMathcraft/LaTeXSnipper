@@ -1,8 +1,20 @@
-# LaTeXSnipper Office 加载项
+# LaTeXSnipper Office.js 加载项
 
-该加载项通过本机 LaTeXSnipper Office Bridge 为 Word 和 PowerPoint 提供公式输入与截图识别。任务窗格、编辑器和 Ribbon 文本会按 Office 显示语言在中文与英文之间自动切换。
+`office_addin` 是当前已实现的 Office.js 加载项，也是迁移到 Windows 原生 Office 插件前的参考实现。它会暂时保留，用来复用 UI、Bridge 协议、OMML 转换、截图识别联动和 Word 编号公式处理经验；迁移完成后再安全删除。
 
-## 当前功能
+它不是 LaTeXSnipper Office 集成的最终方向。没有 Microsoft 365 企业部署、Office Store 或受信任共享目录时，Office.js 不能稳定提供类似 MathType、AxMath 的持久 Ribbon、原生对象、双击编辑和底层快捷键体验。
+
+## 当前定位
+
+| 项目 | 定位 |
+|---|---|
+| `office_addin` | Office.js 迁移参考和临时可用实现 |
+| `office_plugin` | 计划中的 Windows 原生 Office 插件主线 |
+| 桌面端 Bridge | 继续作为 OCR、LaTeX 转换、OMML/图片生成和本地渲染服务 |
+
+后续新增 Office 能力默认进入 `office_plugin`，不再把 Office.js 作为最终产品架构扩展。
+
+## 已实现能力
 
 ### Word
 
@@ -33,13 +45,22 @@ PowerPoint 通过 `Office.CoercionType.Image` 插入 PNG 图像：
 
 PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selected`、`Auto Numbered` 或 `Renumber All`。正式可用的 `Office.CoercionType.Image` 写入路径不会返回可由插件持续跟踪的图片对象；删除图像后无法可靠识别哪些编号仍存在，因此 PPT 不生成伪自动编号。
 
-## Office.js 能力边界
+## Office.js 边界
 
-本实现已经覆盖当前目标中 Office.js 可可靠交付的边界：
+本目录的实现只承认 Office.js 能可靠交付的范围：
 
-- Word 只编辑和维护本加载项创建且仍具备元数据的公式，不猜测任意原生 Word 公式的 LaTeX 来源。
-- PowerPoint 只交付稳定的公式图像插入，不宣称提供原生可编辑公式对象。
+- Word 只编辑和维护本加载项创建且仍具备元数据的 OMML 公式。
+- PowerPoint 只交付稳定的公式图像插入。
+- 不猜测任意 Word 原生公式的 LaTeX 来源。
+- 不把 PowerPoint 图片伪装成可再次编辑的公式对象。
 - 不保留损坏对象、历史结构或外来对象的兼容兜底逻辑。
+
+无法用 Office.js 可靠解决的需求已经转入原生插件设计：
+
+- 安装后长期稳定显示 Ribbon，无需企业账号或 Office 管理中心部署。
+- Word/PPT 中的每个公式都是可识别、可双击编辑、可持久保存源数据的原生对象。
+- 支持 OLE 公式对象、原生自绘渲染和快捷键。
+- 支持类似 MathType/AxMath 的 Windows 桌面插件体验。
 
 ## 支持要求
 
@@ -49,18 +70,6 @@ PowerPoint 不提供已插入公式图像的 `Load`、`Update`、`Delete Selecte
 | PowerPoint 桌面版 | `ImageCoercion 1.1`、`SharedRuntime 1.1`；Windows 目标为 Microsoft 365 PowerPoint Version 2102 (Build 13722.10000) 或 PowerPoint 2021/2024，Mac 要求 PowerPoint 16.46 |
 
 本地 Bridge 与桌面截图依赖使 Web 和移动版 Office 不属于当前支持范围。
-
-## 正式安装与分发
-
-发布流水线生成本机运行时安装包以及持久部署 manifest 包：
-
-| 平台 | 产物 | 实际行为 |
-|---|---|---|
-| Windows | `OfficeAddinSetup-<version>.exe` | 为当前用户安装站点与 `localhost` TLS 证书，并写入 Word/PPT 本机 sideload 注册；可选择安装目录 |
-| macOS | `OfficeAddin-<version>.pkg` | 安装站点与 `localhost` TLS 证书，并将 manifest 放入 Word/PPT 本机 sideload 目录 |
-| Microsoft 365 部署 | `OfficeDeploymentManifests-<version>.zip` | 包含 Word/PPT 生产 manifest，由管理员在 Microsoft 365 管理中心的 Integrated apps 中部署 |
-
-安装包提供单机 sideload 安装；安装后先重启已启用 Office 功能的 LaTeXSnipper 桌面端，再重启桌面版 Office。Windows 会将所选安装目录记录到当前用户注册表，并从该目录载入站点与 manifest，因此更改安装路径不会切断 Bridge 或 Ribbon 资源。Mac 可从 **开始 → 加载项** 打开已部署的加载项。本机 sideload 不是组织级生产分发机制。需要由 Office 持续分配给用户的 Ribbon 插件时，管理员应通过 Integrated apps 部署生产 manifest。
 
 ## 开发启动
 
@@ -100,9 +109,12 @@ npm run dev:powerpoint
 | `src/services/equationSession.ts` | Word 文档设置和编号状态 |
 | `../src/integration/office/addin_runtime.py` | 发现正式安装的站点与本机 TLS 配置 |
 
-官方依据：
-[Word requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/word/word-api-requirement-sets)；
-[Shared runtime requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/shared-runtime-requirement-sets)；
-[Image coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)；
-[Shared folder catalog sideloading on Windows](https://learn.microsoft.com/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins)；
-[Sideloading on Mac](https://learn.microsoft.com/office/dev/add-ins/testing/sideload-an-office-add-in-on-mac)。
+## 原生插件迁移原则
+
+- 不把 Office.js 的 sideload、manifest、WebView 限制带入 `office_plugin`。
+- 保留 Bridge 的能力边界：OCR、转换、渲染、模型状态由桌面端负责。
+- Word 最终支持 OMML 公式和 LaTeXSnipper OLE 公式对象两种表示。
+- PowerPoint 最终支持当前 OMML 图片插入和 LaTeXSnipper OLE 公式对象两种表示。
+- 公式源数据、渲染参数、编号信息必须随对象持久保存，而不是依赖临时任务窗格状态。
+
+详细目标架构见 `../docs/office_plugin_design.md`。
