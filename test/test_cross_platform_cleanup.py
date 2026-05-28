@@ -140,6 +140,10 @@ def test_release_workflow_uses_node24_actions_and_pinned_windows_runner() -> Non
 def test_windows_release_normalizes_bundled_python_seed() -> None:
     script = (ROOT / "scripts" / "build_github_release_installer.ps1").read_text(encoding="utf-8")
 
+    assert "function Stage-BundledPythonSeed" in script
+    assert 'Join-Path $Root "build\\github-release"' in script
+    assert 'Join-Path $stagingBase "bundled-deps"' in script
+    assert 'Copy-Item -LiteralPath $source -Destination (Join-Path $stagedRoot "python311")' in script
     assert "function Normalize-BundledPythonSeed" in script
     assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
     assert "python311._pth" in script
@@ -151,4 +155,6 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "& $pythonExe -c $verifyCode $seedRoot" not in script
     assert "sys.prefix does not point to bundled python311" in script
     assert "sys.path contains paths outside bundled python311" in script
-    assert "Normalize-BundledPythonSeed -Root $root" in script
+    assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
+    assert "$env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot" in script
+    assert "Normalize-BundledPythonSeed -Root $root" not in script

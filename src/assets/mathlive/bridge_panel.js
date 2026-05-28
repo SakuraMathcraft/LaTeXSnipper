@@ -180,9 +180,9 @@ function setupBridge() {
 async function init() {
   await setupBridge();
   try {
-    const { MathfieldElement } = await import('https://esm.run/mathlive');
+    const { MathfieldElement } = await import('./vendor/mathlive.min.mjs');
     installClipboardBridge();
-    MathfieldElement.fontsDirectory = 'https://cdn.jsdelivr.net/npm/mathlive/fonts';
+    MathfieldElement.fontsDirectory = './vendor/fonts';
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
       window.mathVirtualKeyboard.addEventListener?.('geometrychange', () => {

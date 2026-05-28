@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-US">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,56 +11,50 @@
       <section class="toolbar">
         <div>
           <h1>LaTeXSnipper</h1>
-          <p id="hostLabel">Office add-in</p>
+          <p id="hostLabel" data-i18n="officeAddin">Office add-in</p>
         </div>
-        <button id="healthButton" type="button" title="Check connection">Connect</button>
+        <button id="healthButton" type="button" data-i18n="connect" data-i18n-title="checkConnection" title="Check connection">Connect</button>
       </section>
-      <div id="statusBanner" class="status-banner" role="status">Waiting for Office.</div>
+      <div id="statusBanner" class="status-banner" role="status" data-i18n="waitingOffice">Waiting for Office.</div>
 
       <section class="panel editor-panel">
         <div class="editor-header">
-          <label for="mathfieldHost">Equation</label>
-          <button id="keyboardButton" type="button">Keyboard</button>
+          <label for="mathfieldHost" data-i18n="equation">Equation</label>
+          <button id="keyboardButton" type="button" data-i18n="keyboard">Keyboard</button>
         </div>
         <div id="mathfieldHost" class="mathfield-host"></div>
         <label for="latexOutput">LaTeX</label>
         <textarea id="latexOutput" spellcheck="false"></textarea>
         <div class="options-row">
-          <label><input id="displayMode" type="checkbox" checked /> Display</label>
-          <label><input id="autoNumber" type="checkbox" /> Auto number</label>
-          <input id="manualNumber" type="text" spellcheck="false" placeholder="Manual number" />
+          <label id="displayOption"><input id="displayMode" type="checkbox" checked /> <span data-i18n="display">Display</span></label>
+          <label><input id="autoNumber" type="checkbox" /> <span data-i18n="autoNumber">Auto number</span></label>
+          <input id="manualNumber" type="text" spellcheck="false" data-i18n-placeholder="manualNumber" placeholder="Manual #" />
         </div>
       </section>
 
       <section class="actions primary-actions">
-        <button id="ocrButton" type="button">Screenshot OCR</button>
-        <button id="insertButton" type="button" class="primary">Insert</button>
+        <button id="ocrButton" type="button" data-i18n="screenshotOcr">Screenshot OCR</button>
+        <button id="insertButton" type="button" class="primary" data-i18n="insert">Insert</button>
       </section>
 
-      <section class="panel compact-panel">
-        <label>Selected equation</label>
+      <section id="numberingPanel" class="panel compact-panel">
+        <label data-i18n="numbering">Numbering</label>
         <section class="actions">
-          <button id="loadSelectedButton" type="button">Load</button>
-          <button id="updateSelectedButton" type="button">Update</button>
-        </section>
-      </section>
-
-      <section class="panel compact-panel">
-        <label>Numbering</label>
-        <section class="actions">
-          <button id="renumberButton" type="button">Renumber all</button>
+          <button id="renumberButton" type="button" data-i18n="renumberAll">Renumber all</button>
         </section>
       </section>
 
       <details class="panel advanced-panel">
-        <summary>Advanced</summary>
-        <label for="bridgeUrl">Bridge URL</label>
-        <input id="bridgeUrl" type="text" spellcheck="false" value="http://127.0.0.1:8765" />
-        <label for="bridgeToken">Bridge token</label>
+        <summary data-i18n="advanced">Advanced</summary>
+        <label for="bridgeUrl" data-i18n="bridgeUrl">Bridge URL</label>
+        <input id="bridgeUrl" type="text" spellcheck="false" value="https://localhost:8765" />
+        <label for="bridgeToken" data-i18n="bridgeToken">Bridge token</label>
         <input id="bridgeToken" type="password" spellcheck="false" />
       </details>
 
     </main>
+    <script type="module" src="/vendor/mathlive-bootstrap.mjs"></script>
+    <script type="module" src="/src/commands/commands.ts"></script>
     <script type="module" src="/src/taskpane/App.ts"></script>
   </body>
 </html>

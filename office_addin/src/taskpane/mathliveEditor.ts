@@ -1,17 +1,61 @@
-import { MathfieldElement } from "mathlive";
+import type { MathfieldElement } from "mathlive";
 
-export class MathLiveEditor {
-  private readonly mathfield: MathfieldElement;
-  private readonly latexOutput: HTMLTextAreaElement;
+type LatexChangeCallback = (latex: string) => void;
+type MathLiveModule = typeof import("mathlive");
+type MathfieldConstructor = MathLiveModule["MathfieldElement"];
 
-  constructor(host: HTMLElement, latexOutput: HTMLTextAreaElement, initialLatex: string) {
-    this.latexOutput = latexOutput;
-    this.mathfield = new MathfieldElement();
+const MATHFIELD_TAG_NAME = "math-field";
+const MATHFIELD_LOAD_TIMEOUT_MS = 5000;
+
+let mathfieldConstructorPromise: Promise<MathfieldConstructor> | null = null;
+
+function loadMathfieldConstructor(): Promise<MathfieldConstructor> {
+  if (!mathfieldConstructorPromise) {
+    mathfieldConstructorPromise = waitForMathfieldRegistration().then(() => {
+      const Mathfield = customElements.get(MATHFIELD_TAG_NAME);
+      if (!Mathfield) {
+        throw new Error("MathLive failed to register the math-field element.");
+      }
+      return Mathfield as unknown as MathfieldConstructor;
+    });
+  }
+  return mathfieldConstructorPromise;
+}
+
+function waitForMathfieldRegistration(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("MathLive editor failed to load."));
+    }, MATHFIELD_LOAD_TIMEOUT_MS);
+    customElements.whenDefined(MATHFIELD_TAG_NAME).then(
+      () => {
+        window.clearTimeout(timeoutId);
+        resolve();
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
+export class MathLiveCore {
+  readonly mathfield: MathfieldElement;
+  private latexChangeCallbacks: LatexChangeCallback[] = [];
+
+  static async create(host: HTMLElement, initialLatex = ""): Promise<MathLiveCore> {
+    const Mathfield = await loadMathfieldConstructor();
+    return new MathLiveCore(host, Mathfield, initialLatex);
+  }
+
+  private constructor(host: HTMLElement, Mathfield: MathfieldConstructor, initialLatex: string) {
+    Mathfield.fontsDirectory = "/vendor/fonts";
+    this.mathfield = new Mathfield();
     this.configureMathfield();
     host.replaceChildren(this.mathfield);
     this.setLatex(initialLatex);
     this.installListeners();
-    this.syncLatexOutput();
   }
 
   getLatex(): string {
@@ -20,61 +64,46 @@ export class MathLiveEditor {
 
   setLatex(latex: string): void {
     this.mathfield.setValue(latex, { silenceNotifications: true });
-    this.syncLatexOutput();
   }
 
-  focus(showKeyboard = true): void {
+  focus(): void {
     this.mathfield.focus();
-    if (showKeyboard) {
-      this.ensureKeyboardVisible();
-    }
   }
 
-  toggleKeyboard(): void {
-    const keyboard = window.mathVirtualKeyboard;
-    if (!keyboard) {
-      this.focus(true);
-      return;
-    }
-    try {
-      keyboard.visible = !keyboard.visible;
-      this.syncKeyboardState();
-      if (keyboard.visible) {
-        this.mathfield.focus();
-      }
-    } catch {
-      this.focus(true);
-    }
+  onLatexChange(callback: LatexChangeCallback): () => void {
+    this.latexChangeCallbacks.push(callback);
+    return () => {
+      this.latexChangeCallbacks = this.latexChangeCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  dispose(): void {
+    this.mathfield.remove();
+    this.latexChangeCallbacks.length = 0;
   }
 
   private configureMathfield(): void {
-    MathfieldElement.fontsDirectory = "https://cdn.jsdelivr.net/npm/mathlive/fonts";
     this.mathfield.tabIndex = 0;
-    this.mathfield.mathVirtualKeyboardPolicy = "auto";
+    this.mathfield.mathVirtualKeyboardPolicy = "manual";
     this.mathfield.smartFence = true;
     this.mathfield.smartMode = false;
     this.mathfield.defaultMode = "math";
+    this.mathfield.style.width = "100%";
+    this.mathfield.style.height = "100%";
+    this.mathfield.style.display = "block";
+    this.mathfield.style.fontSize = "28px";
     this.mathfield.style.overflowX = "auto";
     this.mathfield.style.overflowY = "auto";
-
-    const keyboard = window.mathVirtualKeyboard;
-    if (keyboard) {
-      keyboard.container = document.body;
-      keyboard.addEventListener?.("geometrychange", () => this.syncKeyboardState());
-      keyboard.addEventListener?.("visibilitychange", () => this.syncKeyboardState());
-    }
   }
 
   private installListeners(): void {
-    this.mathfield.addEventListener("input", () => this.syncLatexOutput());
-    this.mathfield.addEventListener("keydown", (event) => this.routeArrowKey(event), true);
-    this.mathfield.addEventListener("focusin", () => queueMicrotask(() => this.syncKeyboardState()));
-    this.mathfield.addEventListener("focusout", () => setTimeout(() => this.syncKeyboardState(), 0));
-    this.latexOutput.addEventListener("change", () => {
-      this.setLatex(this.latexOutput.value);
-      this.focus(false);
+    this.mathfield.addEventListener("input", () => {
+      const latex = this.getLatex();
+      for (const cb of this.latexChangeCallbacks) {
+        cb(latex);
+      }
     });
-    window.addEventListener("resize", () => this.syncKeyboardState());
+    this.mathfield.addEventListener("keydown", (event) => this.routeArrowKey(event), true);
   }
 
   private routeArrowKey(event: KeyboardEvent): void {
@@ -91,44 +120,73 @@ export class MathLiveEditor {
       return;
     }
     try {
-      const handled = this.mathfield.executeCommand(command as unknown as Parameters<MathfieldElement["executeCommand"]>[0]);
+      const handled = this.mathfield.executeCommand(
+        command as unknown as Parameters<MathfieldElement["executeCommand"]>[0]
+      );
       if (handled !== false) {
         event.preventDefault();
         event.stopPropagation();
       }
     } catch {
-      // Keep MathLive's default behavior when a command is unsupported.
     }
   }
+}
 
-  private ensureKeyboardVisible(): void {
-    const keyboard = window.mathVirtualKeyboard;
-    if (!keyboard) {
-      return;
-    }
-    try {
-      keyboard.container = document.body;
-      const keyboardHeight = Math.max(180, Math.min(380, Math.floor(window.innerHeight * 0.52)));
-      (keyboard as { boundingRect?: { left: number; top: number; width: number; height: number } }).boundingRect = {
-        left: 0,
-        top: Math.max(0, window.innerHeight - keyboardHeight),
-        width: window.innerWidth,
-        height: keyboardHeight
-      };
-      keyboard.visible = true;
-      this.syncKeyboardState();
-    } catch {
-      // Ignore virtual-keyboard placement failures in older WebViews.
-    }
+export class MathLiveEditor {
+  private core: MathLiveCore;
+  private latexOutput: HTMLTextAreaElement;
+  private updatingFromMathLive = false;
+  private latexSourceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  static async create(
+    host: HTMLElement,
+    latexOutput: HTMLTextAreaElement,
+    initialLatex: string
+  ): Promise<MathLiveEditor> {
+    const core = await MathLiveCore.create(host, initialLatex);
+    return new MathLiveEditor(latexOutput, core);
   }
 
-  private syncKeyboardState(): void {
-    const keyboard = window.mathVirtualKeyboard;
-    document.body.classList.toggle("vk-visible", Boolean(keyboard?.visible));
+  private constructor(latexOutput: HTMLTextAreaElement, core: MathLiveCore) {
+    this.latexOutput = latexOutput;
+    this.core = core;
+    this.core.onLatexChange(() => this.syncLatexOutputFromMathLive());
+    this.latexOutput.addEventListener("input", () => this.onLatexSourceInput());
+    this.syncLatexOutputFromMathLive();
   }
 
-  private syncLatexOutput(): void {
-    this.latexOutput.value = this.getLatex();
+  getLatex(): string {
+    if (this.latexSourceTimer !== null) {
+      clearTimeout(this.latexSourceTimer);
+      this.latexSourceTimer = null;
+      this.core.setLatex(this.latexOutput.value);
+    }
+    return this.core.getLatex();
+  }
+
+  setLatex(latex: string): void {
+    this.core.setLatex(latex);
+    this.syncLatexOutputFromMathLive();
+  }
+
+  focus(): void {
+    this.core.focus();
+  }
+
+  private onLatexSourceInput(): void {
+    if (this.updatingFromMathLive) return;
+    if (this.latexSourceTimer !== null) clearTimeout(this.latexSourceTimer);
+    this.latexSourceTimer = setTimeout(() => {
+      this.latexSourceTimer = null;
+      this.core.setLatex(this.latexOutput.value);
+      this.core.focus();
+    }, 250);
+  }
+
+  private syncLatexOutputFromMathLive(): void {
+    this.updatingFromMathLive = true;
+    this.latexOutput.value = this.core.getLatex();
     this.latexOutput.dispatchEvent(new Event("latexsnipper-latex-change"));
+    this.updatingFromMathLive = false;
   }
 }

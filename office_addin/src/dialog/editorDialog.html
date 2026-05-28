@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LaTeXSnipper Editor</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <div class="dialog-shell">
+      <div class="dialog-editor-area">
+        <div class="dialog-symbol-panel" id="symbolPanel">
+          <div class="panel-section"><div class="panel-title" data-i18n="greekLower">Greek (lower)</div><div class="panel-grid" id="symbolGreekLower"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="greekUpper">Greek (upper)</div><div class="panel-grid" id="symbolGreekUpper"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="operators">Operators</div><div class="panel-grid" id="symbolOperators"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="bigOperators">Big Operators</div><div class="panel-grid" id="symbolBigOps"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="relations">Relations</div><div class="panel-grid" id="symbolRelations"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="setsLogic">Sets &amp; Logic</div><div class="panel-grid" id="symbolSets"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="numberSets">Number Sets</div><div class="panel-grid" id="symbolNumberSets"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="arrows">Arrows</div><div class="panel-grid" id="symbolArrows"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="delimiters">Delimiters</div><div class="panel-grid" id="symbolDelimiters"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="functions">Functions</div><div class="panel-grid panel-grid-func" id="symbolFunctions"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="accents">Accents &amp; Decorations</div><div class="panel-grid" id="symbolAccents"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="fontStyles">Font Styles</div><div class="panel-grid" id="symbolFonts"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="misc">Misc</div><div class="panel-grid" id="symbolMisc"></div></div>
+          <div class="panel-section"><div class="panel-title" data-i18n="structures">Structures</div><div class="panel-grid panel-grid-struct" id="symbolStructures"></div></div>
+        </div>
+
+        <div class="dialog-mathlive-panel">
+          <div id="mathfieldHost" class="mathfield-host"></div>
+        </div>
+      </div>
+
+      <div class="dialog-latex-panel collapsed" id="latexPanel">
+        <div class="latex-panel-header" id="latexPanelToggle" data-i18n="latexSource">LaTeX Source</div>
+        <textarea id="latexSource" class="latex-source" spellcheck="false"></textarea>
+      </div>
+
+      <div class="dialog-footer">
+        <button id="symbolsToggle" type="button" class="active" data-i18n="symbols" data-i18n-title="toggleSymbols" title="Toggle symbol panel">Symbols</button>
+        <span class="footer-spacer"></span>
+        <label id="displayOption"><input id="displayMode" type="checkbox" checked /> <span data-i18n="display">Display</span></label>
+        <label id="autoNumberOption"><input id="autoNumber" type="checkbox" /> <span data-i18n="autoNumber">Auto number</span></label>
+        <input id="manualNumber" type="text" spellcheck="false" data-i18n-placeholder="manualNumber" placeholder="Manual #" />
+        <button id="insertButton" type="button" class="primary" data-i18n="insert">Insert</button>
+      </div>
+
+      <div class="dialog-status" id="dialogStatus" data-i18n="ready">Ready</div>
+    </div>
+    <script type="module" src="/vendor/mathlive-bootstrap.mjs"></script>
+    <script type="module" src="./editorDialog.ts"></script>
+  </body>
+</html>

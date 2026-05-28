@@ -2,15 +2,11 @@ export type ConvertTarget = "omml" | "mathml" | "svg" | "png";
 
 export type BridgeHealth = {
   name: string;
-  protocol: number;
-  auth: string;
-  features: Record<string, boolean>;
 };
 
 export type BridgeConfig = {
   bridge_url: string;
   token: string;
-  features: Record<string, boolean>;
 };
 
 export type ConversionResult = {
@@ -69,12 +65,6 @@ export class BridgeClient {
   }
 
   async recognizeScreenshot(): Promise<ScreenshotOcrResult> {
-    const health = await this.health();
-    if (!health.features.capture_recognize) {
-      throw new Error(
-        "Connected bridge does not support Screenshot OCR. Enable the Office bridge in LaTeXSnipper."
-      );
-    }
     return this.request<ScreenshotOcrResult>(
       "/recognize/screenshot",
       {

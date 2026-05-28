@@ -971,8 +971,8 @@ async function bootstrap() {
   await setupBridge();
   try {
     const [{ MathfieldElement }, computeModule] = await Promise.all([
-      import('https://esm.run/mathlive'),
-      import('https://esm.run/@cortex-js/compute-engine'),
+      import('./vendor/mathlive.min.mjs'),
+      import('./vendor/compute-engine.min.esm.js'),
     ]);
 
     const { ComputeEngine, expand, factor, solve } = computeModule;
@@ -993,7 +993,7 @@ async function bootstrap() {
       if ('locale' in MathfieldElement) MathfieldElement.locale = 'zh-CN';
     } catch (_) {}
     installClipboardBridge();
-    MathfieldElement.fontsDirectory = 'https://cdn.jsdelivr.net/npm/mathlive/fonts';
+    MathfieldElement.fontsDirectory = './vendor/fonts';
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
       window.mathVirtualKeyboard.addEventListener?.('geometrychange', syncKeyboardState);
