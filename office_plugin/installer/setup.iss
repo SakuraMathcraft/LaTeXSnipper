@@ -381,9 +381,19 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ClickOnceDir: string;
 begin
   if CurStep = ssPostInstall then
   begin
+    // Clear ClickOnce cache to prevent identity conflicts from previous installs
+    ClickOnceDir := ExpandConstant('{localappdata}\Apps\2.0');
+    if DirExists(ClickOnceDir) then
+    begin
+      DelTree(ClickOnceDir, True, True, True);
+      Log('Cleared ClickOnce cache.');
+    end;
+
     CleanResiliencyForApp('Word');
     CleanResiliencyForApp('PowerPoint');
     CleanHkcuUninstallEntries;
