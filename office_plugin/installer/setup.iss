@@ -277,19 +277,6 @@ begin
   end;
 end;
 
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    CleanResiliencyForApp('Word');
-    CleanResiliencyForApp('PowerPoint');
-    CleanHkcuUninstallEntries;
-    CleanVstoSolutionMetadata;
-    HideVstoUninstallEntries;
-    Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
-  end;
-end;
-
 procedure CleanResiliencyForApp(App: string);
 var
   ResRoots: array [0..1] of string;
@@ -390,5 +377,18 @@ begin
     CleanHkcuUninstallEntries;
     CleanVstoSolutionMetadata;
     Log('Registry cleanup complete.');
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    CleanResiliencyForApp('Word');
+    CleanResiliencyForApp('PowerPoint');
+    CleanHkcuUninstallEntries;
+    CleanVstoSolutionMetadata;
+    HideVstoUninstallEntries;
+    Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
 end;
