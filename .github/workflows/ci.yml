@@ -141,7 +141,7 @@ jobs:
             throw "macOS DMG packaging must not use the app parent directory as the DMG source."
           }
           $release = Get-Content -LiteralPath ".github\workflows\release.yml" -Raw
-          foreach ($job in @("build-windows-installer", "build-linux-deb", "build-macos-app", "publish-release-assets")) {
+          foreach ($job in @("build-windows-installer", "build-office-plugin-installer", "build-linux-deb", "build-macos-app", "build-user-manual", "publish-release-assets")) {
             if ($release -notmatch "(?m)^  ${job}:") {
               throw "Release workflow is missing job: $job"
             }
@@ -181,3 +181,22 @@ jobs:
 
       - name: Byte-compile cross-platform specs
         run: python -m py_compile LaTeXSnipper-linux.spec LaTeXSnipper-macos.spec
+
+      - name: Setup Typst
+        shell: pwsh
+        run: |
+          $typstVersion = "0.14.2"
+          $typstZip = "typst-x86_64-pc-windows-msvc.zip"
+          $typstUrl = "https://github.com/typst/typst/releases/download/v$typstVersion/$typstZip"
+          Invoke-WebRequest -Uri $typstUrl -OutFile $env:TEMP\$typstZip
+          Expand-Archive -Path $env:TEMP\$typstZip -DestinationPath $env:TEMP\typst -Force
+          $typst = Join-Path $env:TEMP\typst "typst.exe"
+          if (-not (Test-Path $typst)) { throw "Typst binary not found after extraction." }
+          "TYPST=$typst" >> $env:GITHUB_ENV
+
+      - name: Build user manual
+        shell: pwsh
+        run: |
+          & $env:TYPST compile user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
+          if ($LASTEXITCODE -ne 0) { throw "Typst compilation failed." }
+          if (-not (Test-Path user_manual\LaTeXSnipper_User_Manual.pdf)) { throw "PDF was not produced." }

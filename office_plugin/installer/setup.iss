@@ -246,10 +246,36 @@ begin
   end;
 end;
 
+procedure HideVstoUninstallEntries;
+var
+  UninstallRoot: string;
+  SubkeyNames: TArrayOfString;
+  DisplayName, KeyPath: string;
+  i: Integer;
+begin
+  UninstallRoot := 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, UninstallRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := UninstallRoot + '\' + SubkeyNames[i];
+      if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'DisplayName', DisplayName) then
+      begin
+        if Pos('LaTeXSnipper.OfficePlugin', DisplayName) > 0 then
+        begin
+          RegWriteDWordValue(HKEY_CURRENT_USER, KeyPath, 'SystemComponent', 1);
+          Log('Hid VSTO uninstall entry: ' + DisplayName);
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    HideVstoUninstallEntries;
     Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
 end;
