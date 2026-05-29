@@ -84,6 +84,9 @@ Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.Core.
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinForms.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 
+; ===== Certificate =====
+Source: "devcert.cer"; DestDir: "{app}"; Flags: ignoreversion
+
 ; ===== Icon =====
 Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
@@ -189,9 +192,7 @@ Root: HKLM; Subkey: "Software\WOW6432Node\Microsoft\Office\16.0\PowerPoint\Addin
 
 [Run]
 ; Trust the signing certificate (development self-signed cert)
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\Word\{#WordAddInName}.dll"""; \
-  StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\PowerPoint\{#PowerPointAddInName}.dll"""; \
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\devcert.cer"""; \
   StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
 
 ; Uninstall any previous VSTO deployment with the same identity (handles reinstall/path change)
@@ -249,7 +250,7 @@ begin
     if FileExists(Path) then
       Result := Path
     else
-      Result := '';
+      RaiseException('Microsoft VSTO Runtime 10.0 is required but was not found. Please install Visual Studio Tools for Office.');
   end;
 end;
 
