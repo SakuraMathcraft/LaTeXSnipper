@@ -110,6 +110,21 @@ The main window includes PDF recognition and a separate bilingual reading tool:
 
 ---
 
+## Office Integration Direction
+
+The active Office integration is the Windows-native `office_plugin` line. It targets Windows desktop Office:
+
+- Word: native OMML insertion and LaTeXSnipper OLE formula objects
+- PowerPoint: current compatible image insertion and LaTeXSnipper OLE formula objects
+- Local TeX rendering pipeline for self-rendered formula objects
+- Per-formula persisted LaTeX source, render options, numbering data, and object identity
+- Native Ribbon, shortcuts, double-click editing, update, delete, and renumber workflows
+- Native Bridge endpoint defaults to `http://127.0.0.1:28765/`
+
+See [Windows native Office plugin design](docs/office_plugin_design.md).
+
+---
+
 ## Computation Coverage
 
 The workbench currently covers common scenarios such as:
@@ -269,21 +284,19 @@ is treated as a template runtime and must not be mutated by packaging scripts.
 
 GitHub Actions release builds run the platform package jobs in one workflow:
 
-- Windows: Inno desktop installer and a separate Office add-in Inno installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
+- Windows: Inno desktop installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
-- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`, plus the Office add-in `.pkg` from `scripts/build_office_addin_macos.sh`.
+- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
 
-The Office packages install the localhost HTTPS site consumed by the LaTeXSnipper Office Bridge and set up per-user local sideload registration for desktop Office. Releases also contain production Word/PowerPoint manifests for managed deployment through Microsoft 365 Integrated apps. Each client still requires the desktop application with its Office feature enabled.
+The active Office integration is the Windows-native `office_plugin`. Its installer owns persistent Word/PowerPoint registration, Ribbon resources, OLE object registration, shortcut integration, and the native Bridge endpoint.
 
 The release workflow expects these GitHub Actions variables:
 `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
 `SIGNPATH_SIGNING_POLICY_SLUG`, and
-`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`; signing the Office add-in installer
-additionally uses `SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
+`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
 `SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
-`.signpath/artifact-configurations/windows-installer.xml` and
-`.signpath/artifact-configurations/windows-office-addin-installer.xml`; copy
-those XML files into the matching SignPath project artifact configurations.
+`.signpath/artifact-configurations/windows-installer.xml`; copy that XML file
+into the matching SignPath project artifact configuration.
 
 ---
 
@@ -312,6 +325,8 @@ LaTeXSnipper/
 |-- tools/
 |   `-- deps/                      # Local developer/build dependency environment
 |-- user_manual/                   # Local manual source and generated PDF
+|-- office_plugin/                  # Windows-native Office plugin foundation
+|-- docs/office_plugin_design.md   # Windows-native Office plugin target design
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/                     # Debian and MSIX packaging resources
 |-- scripts/                       # Build, release, and regression utilities

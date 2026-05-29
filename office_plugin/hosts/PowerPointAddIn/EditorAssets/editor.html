@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper</title>
+  <link rel="stylesheet" href="./editor.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="workspace">
+      <div id="mathfieldHost" class="mathfield-host"></div>
+      <textarea id="latexSource" spellcheck="false" aria-label="LaTeX source"></textarea>
+    </section>
+    <aside class="library">
+      <div class="library-tabs" id="libraryTabs"></div>
+      <div class="library-title" id="libraryTitle"></div>
+      <div class="symbol-grid" id="symbolGrid"></div>
+    </aside>
+  </main>
+  <footer class="footer">
+    <span class="status" id="statusText"></span>
+    <button type="button" id="cancelButton"></button>
+    <button type="button" id="acceptButton"></button>
+  </footer>
+  <script type="module" src="./editor.js"></script>
+</body>
+</html>

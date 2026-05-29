@@ -12,6 +12,10 @@ env/
 build/
 dist/
 node_modules/
+office_plugin/**/bin/
+office_plugin/**/obj/
+office_plugin/**/*.user.props
+office_plugin/**/*.pfx
 !LaTeXSnipper-linux.spec
 !LaTeXSnipper-macos.spec
 !LaTeXSnipper.spec

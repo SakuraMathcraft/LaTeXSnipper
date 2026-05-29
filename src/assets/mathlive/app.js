@@ -993,7 +993,7 @@ async function bootstrap() {
       if ('locale' in MathfieldElement) MathfieldElement.locale = 'zh-CN';
     } catch (_) {}
     installClipboardBridge();
-    MathfieldElement.fontsDirectory = './vendor/fonts';
+    MathfieldElement.fontsDirectory = new URL('./vendor/fonts', window.location.href).href;
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
       window.mathVirtualKeyboard.addEventListener?.('geometrychange', syncKeyboardState);

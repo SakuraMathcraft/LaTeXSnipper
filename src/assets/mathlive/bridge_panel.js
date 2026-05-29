@@ -182,7 +182,7 @@ async function init() {
   try {
     const { MathfieldElement } = await import('./vendor/mathlive.min.mjs');
     installClipboardBridge();
-    MathfieldElement.fontsDirectory = './vendor/fonts';
+    MathfieldElement.fontsDirectory = new URL('./vendor/fonts', window.location.href).href;
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
       window.mathVirtualKeyboard.addEventListener?.('geometrychange', () => {

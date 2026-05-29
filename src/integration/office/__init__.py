@@ -1,4 +1,4 @@
-"""Office add-in bridge integration."""
+"""Office plugin bridge integration."""
 
 from .bridge_server import OfficeBridgeServer
 

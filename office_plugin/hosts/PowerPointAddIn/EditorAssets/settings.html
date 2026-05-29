@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper Office Plugin Settings</title>
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div>
+        <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
+        <p data-i18n="subtitle">配置编号默认值。</p>
+      </div>
+    </header>
+
+    <section id="numberingPanel" class="panel accent-panel">
+      <div>
+        <h2 data-i18n="numberingTitle">带编号公式默认布局</h2>
+        <p class="hint" data-i18n="numberingHint">此设置只影响之后新插入或重新渲染的带编号公式。</p>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Number placement">
+        <button type="button" id="rightNumber" data-placement="Right" data-i18n="numberRight">右编号</button>
+        <button type="button" id="leftNumber" data-placement="Left" data-i18n="numberLeft">左编号</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="editorTitle">编辑器键盘行为</h2>
+      <div class="key-list">
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><span data-i18n="newlineShortcut">在公式编辑器中换行</span></div>
+        <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">关闭编辑器，不应用更改</span></div>
+      </div>
+    </section>
+
+  </main>
+  <script src="./settings.js"></script>
+</body>
+</html>

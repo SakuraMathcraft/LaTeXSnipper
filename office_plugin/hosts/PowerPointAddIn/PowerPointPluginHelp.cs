@@ -1,0 +1,119 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+
+namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
+
+internal static class PowerPointPluginHelp
+{
+    private static HelpWindow? _window;
+
+    public static void Open()
+    {
+        if (_window == null || _window.IsDisposed)
+        {
+            _window = new HelpWindow();
+        }
+
+        _window.Show();
+        _window.Activate();
+    }
+
+    private sealed class HelpWindow : Form
+    {
+        private const string HelpHostName = "latexsnipper.officeplugin.local";
+
+        private readonly WebView2 _webView;
+        private bool _initializing;
+
+        public HelpWindow()
+        {
+            Text = "LaTeXSnipper Help";
+            Width = 980;
+            Height = 760;
+            MinimumSize = new System.Drawing.Size(760, 520);
+            StartPosition = FormStartPosition.CenterScreen;
+            ShowInTaskbar = true;
+            Icon = PowerPointPluginIcon.Load();
+
+            _webView = new WebView2
+            {
+                Dock = DockStyle.Fill,
+            };
+            Controls.Add(_webView);
+            Load += OnLoad;
+            FormClosed += (_, _) =>
+            {
+                _window = null;
+            };
+        }
+
+        private async void OnLoad(object? sender, EventArgs e)
+        {
+            try
+            {
+                await InitializeAsync().ConfigureAwait(true);
+            }
+            catch (Exception exc)
+            {
+                MessageBox.Show(this, exc.Message, "LaTeXSnipper", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Close();
+            }
+        }
+
+        private async Task InitializeAsync()
+        {
+            if (_initializing || _webView.CoreWebView2 != null)
+            {
+                return;
+            }
+
+            _initializing = true;
+            string assetsRoot = ResolveAssetsRoot();
+            string userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LaTeXSnipper",
+                "OfficePlugin",
+                "WebView2");
+            Directory.CreateDirectory(userDataFolder);
+
+            CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
+            await _webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
+            CoreWebView2 core = _webView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 failed to initialize.");
+            core.Settings.AreDefaultContextMenusEnabled = true;
+            core.Settings.AreDevToolsEnabled = false;
+            core.SetVirtualHostNameToFolderMapping(
+                HelpHostName,
+                assetsRoot,
+                CoreWebView2HostResourceAccessKind.Allow);
+            _webView.Source = new Uri("https://" + HelpHostName + "/help.html?platform=powerpoint&_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        private static string ResolveAssetsRoot()
+        {
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string copied = Path.Combine(baseDirectory, "EditorAssets");
+            if (File.Exists(Path.Combine(copied, "help.html")))
+            {
+                return copied;
+            }
+
+            string? current = baseDirectory;
+            for (int i = 0; i < 8 && current != null; i++)
+            {
+                string candidate = Path.Combine(current, "office_plugin", "hosts", "PowerPointAddIn", "EditorAssets");
+                if (File.Exists(Path.Combine(candidate, "help.html")))
+                {
+                    return candidate;
+                }
+
+                current = Directory.GetParent(current)?.FullName;
+            }
+
+            throw new DirectoryNotFoundException("Office plugin help assets were not found.");
+        }
+    }
+}

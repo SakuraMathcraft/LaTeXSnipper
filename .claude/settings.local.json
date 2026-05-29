@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(npx vite *)",
-      "Bash(npx --package typescript tsc --noEmit)"
+      "Bash(npx --package typescript tsc --noEmit)",
+      "Bash(dotnet build *)",
+      "Bash(powershell -ExecutionPolicy Bypass -File ./tools/Register-PowerPointVstoAddIn.ps1 -Configuration Debug -SkipBuild)"
     ]
   }
 }
