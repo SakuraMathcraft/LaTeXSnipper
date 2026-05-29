@@ -1,0 +1,330 @@
+using System;
+using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
+using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Bridge;
+using LaTeXSnipper.OfficePlugin.Editor;
+
+namespace LaTeXSnipper.OfficePlugin.WordAddIn;
+
+public sealed class WordPluginController
+{
+    private readonly FormulaEditorSession _editorSession;
+    private readonly BridgeClient _bridgeClient;
+    private readonly IWordApplicationAdapter _wordAdapter;
+    private readonly IWordStatusSink _statusSink;
+    private readonly IWordFormulaOptionsProvider _optionsProvider;
+    private FormulaMetadata? _currentFormula;
+    private WordFormulaOptions? _pendingEditorInsertOptions;
+
+    public WordPluginController(
+        FormulaEditorSession editorSession,
+        BridgeClient bridgeClient,
+        IWordApplicationAdapter wordAdapter,
+        IWordStatusSink? statusSink = null,
+        IWordFormulaOptionsProvider? optionsProvider = null)
+    {
+        _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
+        _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
+        _wordAdapter = wordAdapter ?? throw new ArgumentNullException(nameof(wordAdapter));
+        _statusSink = statusSink ?? NullWordStatusSink.Instance;
+        _optionsProvider = optionsProvider ?? DefaultWordFormulaOptionsProvider.Instance;
+    }
+
+    public async Task InsertOmmlAsync(CancellationToken cancellationToken)
+    {
+        FormulaMetadata metadata = await CreateMetadataFromDraftAsync(null, _optionsProvider.CurrentLatex, previous: null, cancellationToken);
+        await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
+    }
+
+    public Task InsertInlineAsync(CancellationToken cancellationToken)
+    {
+        return OpenEditorForInsertAsync(new WordFormulaOptions(display: false, NumberingMode.None, string.Empty), cancellationToken);
+    }
+
+    public Task InsertDisplayAsync(CancellationToken cancellationToken)
+    {
+        return OpenEditorForInsertAsync(new WordFormulaOptions(display: true, NumberingMode.None, string.Empty), cancellationToken);
+    }
+
+    public Task InsertNumberedAsync(CancellationToken cancellationToken)
+    {
+        return OpenEditorForInsertAsync(new WordFormulaOptions(display: true, NumberingMode.Automatic, string.Empty), cancellationToken);
+    }
+
+    public async Task TestConnectionAsync(CancellationToken cancellationToken)
+    {
+        await _bridgeClient.ConfigureAsync(cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ConnectedBridgeStatus"));
+    }
+
+    public async Task AcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
+    {
+        if (accepted == null)
+        {
+            throw new ArgumentNullException(nameof(accepted));
+        }
+
+        _statusSink.SetCurrentFormula(accepted.Latex, accepted.UpdateMode);
+        FormulaIdentity identity = accepted.UpdateMode && accepted.InitialFormula != null
+            ? accepted.InitialFormula.Identity
+            : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
+        FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
+        FormulaMetadata metadata = accepted.UpdateMode
+            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, cancellationToken)
+            : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
+
+        if (accepted.UpdateMode && accepted.InitialFormula != null)
+        {
+            await UpdateRenderedFormulaAsync(metadata, cancellationToken);
+        }
+        else
+        {
+            await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
+        }
+
+        _currentFormula = metadata;
+        _pendingEditorInsertOptions = null;
+        ResetDraftState(resetOptions: accepted.UpdateMode);
+    }
+
+    public async Task LoadSelectedAsync(CancellationToken cancellationToken)
+    {
+        FormulaMetadata selected = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        FormulaMetadata initial = IsSameFormula(_currentFormula, selected) ? _currentFormula! : selected;
+        await _editorSession.OpenForEditAsync(initial, cancellationToken);
+        _pendingEditorInsertOptions = null;
+        _currentFormula = selected;
+        _optionsProvider.ApplyFormulaMetadata(selected, updateMode: true);
+        _statusSink.SetCurrentFormula(selected.Latex, updateMode: true);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("LoadedStatus"));
+    }
+
+    public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
+    {
+        FormulaMetadata metadata = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        await _wordAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+        if (IsSameFormula(_currentFormula, metadata))
+        {
+            _currentFormula = null;
+        }
+
+        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
+        _optionsProvider.ResetFormulaDraft();
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("DeletedStatus"));
+    }
+
+    public async Task RecognizeScreenshotAsync(CancellationToken cancellationToken)
+    {
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrWaitingStatus"));
+        string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+        string latex = BridgeRecognitionParser.ParseScreenshotOcrResponse(responseJson);
+        if (string.IsNullOrWhiteSpace(latex))
+        {
+            return;
+        }
+
+        FormulaMetadata recognized = CreateDefaultFormula(latex);
+        _currentFormula = recognized;
+        _statusSink.SetCurrentFormula(recognized.Latex, updateMode: false);
+        await _editorSession.UpdateDraftIfOpenAsync(recognized, updateMode: false, cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OcrLoadedStatus"));
+    }
+
+    public Task CancelScreenshotOcrAsync(CancellationToken cancellationToken)
+    {
+        return _bridgeClient.CancelScreenshotOcrAsync(cancellationToken);
+    }
+
+    public async Task AutoNumberSelectedAsync(CancellationToken cancellationToken)
+    {
+        FormulaMetadata selected = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        if (selected.NumberingMode != NumberingMode.None)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("AlreadyNumberedStatus"));
+            return;
+        }
+
+        FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, FormatNumber(0));
+        await UpdateRenderedFormulaAsync(numbered, cancellationToken);
+        await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        _currentFormula = numbered;
+        ResetDraftState(resetOptions: false);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
+    }
+
+    public async Task RenumberAllAsync(CancellationToken cancellationToken)
+    {
+        int number = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+
+        string message = number == 0
+            ? WordAddInText.Get("NoNumberedStatus")
+            : WordAddInText.Get("RenumberedStatus").Replace("{count}", number.ToString(CultureInfo.InvariantCulture));
+        _statusSink.Post(number == 0 ? WordStatusKind.Info : WordStatusKind.Success, message);
+    }
+
+    public Task ShowHelpAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        OfficePluginHelp.Open();
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("HelpStatus"));
+        return Task.CompletedTask;
+    }
+
+    public Task ShowSettingsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        WordSettingsWindow.Open();
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("SettingsStatus"));
+        return Task.CompletedTask;
+    }
+
+    private async Task InsertRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
+        string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
+        BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
+        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), WordPluginSettings.Load().NumberPlacement);
+        await _wordAdapter.InsertManagedEquationAsync(ooxml, metadata, IsDisplay(metadata), cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+    }
+
+    private async Task UpdateRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
+        string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
+        BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
+        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), WordPluginSettings.Load().NumberPlacement);
+        await _wordAdapter.UpdateFormulaAsync(metadata.Identity.EquationId, ooxml, metadata, IsDisplay(metadata), cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+    }
+
+    private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
+    {
+        _pendingEditorInsertOptions = options;
+        FormulaMetadata draft = CreateMetadataFromOptions(null, _optionsProvider.CurrentLatex, previous: null, options);
+        await _editorSession.OpenForInsertAsync(draft, cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("EditorReadyStatus"));
+    }
+
+    private async Task InsertAndRenumberIfNeededAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        await InsertRenderedFormulaAsync(metadata, cancellationToken);
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
+
+        _currentFormula = null;
+        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
+    }
+
+    private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
+        FormulaIdentity? identity,
+        string latex,
+        FormulaMetadata? previous,
+        CancellationToken cancellationToken)
+    {
+        WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
+        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options));
+    }
+
+    private static FormulaMetadata CreateMetadataFromOptions(
+        FormulaIdentity? identity,
+        string latex,
+        FormulaMetadata? previous,
+        WordFormulaOptions options)
+    {
+        string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim();
+        NumberingMode numberingMode = options.NumberingMode;
+        string numberText = string.Empty;
+        if (numberingMode == NumberingMode.Automatic)
+        {
+            numberText = previous?.NumberingMode == NumberingMode.Automatic && !string.IsNullOrWhiteSpace(previous.NumberText)
+                ? previous.NumberText
+                : FormatNumber(0);
+        }
+        else if (numberingMode == NumberingMode.Manual)
+        {
+            numberText = options.ManualNumber.Trim();
+            if (string.IsNullOrWhiteSpace(numberText))
+            {
+                numberingMode = NumberingMode.None;
+            }
+        }
+
+        FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
+            ? FormulaDisplayMode.Display
+            : FormulaDisplayMode.Inline;
+        FormulaMetadata metadata = new FormulaMetadata(
+            identity ?? new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
+            normalizedLatex,
+            displayMode,
+            numberingMode,
+            numberText,
+            RenderEngineKind.Omml,
+            schemaVersion: previous?.SchemaVersion ?? 1);
+        return metadata;
+    }
+
+    private static FormulaMetadata CreateDefaultFormula(string latex)
+    {
+        return new FormulaMetadata(
+            new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
+            latex,
+            FormulaDisplayMode.Display,
+            NumberingMode.None,
+            string.Empty,
+            RenderEngineKind.Omml,
+            schemaVersion: 1);
+    }
+
+    private static FormulaMetadata CreateDraftFormula(string latex)
+    {
+        return CreateDefaultFormula(string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim());
+    }
+
+    private static string CreateDefaultLatex()
+    {
+        return "e^{i\\pi}+1=0";
+    }
+
+    private static bool IsDisplay(FormulaMetadata metadata)
+    {
+        return metadata.DisplayMode == FormulaDisplayMode.Display;
+    }
+
+    private static bool IsSameFormula(FormulaMetadata? left, FormulaMetadata right)
+    {
+        return left != null && left.Identity.EquationId == right.Identity.EquationId;
+    }
+
+    private static FormulaMetadata WithNumbering(FormulaMetadata metadata, NumberingMode numberingMode, string numberText)
+    {
+        return new FormulaMetadata(
+            metadata.Identity,
+            metadata.Latex,
+            FormulaDisplayMode.Display,
+            numberingMode,
+            numberText,
+            metadata.RenderEngine,
+            metadata.SchemaVersion);
+    }
+
+    private static string FormatNumber(int number)
+    {
+        return "(" + number.ToString(CultureInfo.InvariantCulture) + ")";
+    }
+
+    private void ResetDraftState(bool resetOptions)
+    {
+        _currentFormula = null;
+        if (resetOptions)
+        {
+            _optionsProvider.ResetFormulaDraft();
+        }
+
+        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
+    }
+}

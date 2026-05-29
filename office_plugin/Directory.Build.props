@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>false</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Authors>LaTeXSnipper</Authors>
+    <Company>SakuraMathcraft</Company>
+    <Product>LaTeXSnipper Office Plugin</Product>
+  </PropertyGroup>
+</Project>

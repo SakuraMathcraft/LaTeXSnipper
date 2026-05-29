@@ -836,7 +836,7 @@ async function bootstrap() {
     ce = new ComputeEngine();
     MathfieldElement.computeEngine = ce;
     installClipboardBridge();
-    MathfieldElement.fontsDirectory = './vendor/fonts';
+    MathfieldElement.fontsDirectory = new URL('./vendor/fonts', window.location.href).href;
     if (window.mathVirtualKeyboard) {
       window.mathVirtualKeyboard.container = document.body;
       window.mathVirtualKeyboard.addEventListener?.('geometrychange', syncKeyboardState);

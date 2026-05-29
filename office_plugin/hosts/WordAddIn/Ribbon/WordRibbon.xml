@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon>
+    <tabs>
+      <tab id="LaTeXSnipperTab" label="{RibbonTab}" keytip="LS" insertAfterMso="TabInsert">
+        <group id="LaTeXSnipperFormulaGroup" label="{FormulaGroup}">
+          <button id="InsertInlineButton"
+                  label="{InsertInlineButton}"
+                  supertip="{InsertInlineTip}"
+                  keytip="I"
+                  size="large"
+                  imageMso="EquationProfessional"
+                  onAction="OnInsertInline" />
+          <button id="InsertDisplayButton"
+                  label="{InsertDisplayButton}"
+                  supertip="{InsertDisplayTip}"
+                  keytip="D"
+                  size="large"
+                  imageMso="EquationInsertGallery"
+                  onAction="OnInsertDisplay" />
+          <button id="InsertNumberedButton"
+                  label="{InsertNumberedButton}"
+                  supertip="{InsertNumberedTip}"
+                  keytip="N"
+                  size="large"
+                  imageMso="Numbering"
+                  onAction="OnInsertNumbered" />
+          <button id="ScreenshotOcrButton"
+                  label="{ScreenshotOcrButton}"
+                  supertip="{ScreenshotOcrTip}"
+                  keytip="O"
+                  size="large"
+                  imageMso="ScreenshotInsertGallery"
+                  onAction="OnScreenshotOcr" />
+        </group>
+        <group id="LaTeXSnipperEditGroup" label="{EditGroup}">
+          <button id="LoadSelectedButton"
+                  label="{LoadSelectedButton}"
+                  supertip="{LoadSelectedTip}"
+                  keytip="L"
+                  size="large"
+                  imageMso="ReviewDisplayForReview"
+                  onAction="OnLoadSelected" />
+          <button id="DeleteSelectedButton"
+                  label="{DeleteSelectedButton}"
+                  supertip="{DeleteSelectedTip}"
+                  keytip="X"
+                  size="large"
+                  imageMso="Delete"
+                  onAction="OnDeleteSelected" />
+        </group>
+        <group id="LaTeXSnipperNumberingGroup" label="{NumberingGroup}">
+          <button id="AutoNumberButton"
+                  label="{AutoNumberButton}"
+                  supertip="{AutoNumberTip}"
+                  keytip="A"
+                  size="large"
+                  imageMso="Numbering"
+                  onAction="OnAutoNumberSelected" />
+          <button id="RenumberButton"
+                  label="{RenumberButton}"
+                  supertip="{RenumberTip}"
+                  keytip="R"
+                  size="large"
+                  imageMso="RecurrenceEdit"
+                  onAction="OnRenumberAll" />
+        </group>
+        <group id="LaTeXSnipperToolsGroup" label="{ToolsGroup}">
+          <button id="ShowTaskPaneButton"
+                  label="{ShowTaskPaneButton}"
+                  supertip="{ShowTaskPaneTip}"
+                  keytip="P"
+                  size="large"
+                  imageMso="ReviewingPane"
+                  onAction="OnShowTaskPane" />
+          <button id="SettingsButton"
+                  label="{SettingsButton}"
+                  supertip="{SettingsTip}"
+                  keytip="S"
+                  size="large"
+                  imageMso="ToolsOptions"
+                  onAction="OnSettings" />
+          <button id="HelpButton"
+                  label="{HelpButton}"
+                  supertip="{HelpTip}"
+                  keytip="H"
+                  size="large"
+                  imageMso="Help"
+                  onAction="OnHelp" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

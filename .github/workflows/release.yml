@@ -29,7 +29,6 @@ jobs:
       SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
       SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-      SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG }}
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - name: Checkout
@@ -43,13 +42,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: office_addin/package-lock.json
-
       - name: Install build dependencies
         shell: pwsh
         run: |
@@ -60,10 +52,6 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
-
-      - name: Install Office add-in dependencies
-        shell: pwsh
-        run: npm ci --prefix office_addin
 
       - name: Prepare bundled Python seed
         shell: pwsh
@@ -111,44 +99,6 @@ jobs:
         with:
           name: unsigned-latexsnipper-installer
           path: dist/installer/LaTeXSnipperSetup-*.exe
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Build unsigned Office local runtime installer and deployment manifests
-        shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\build_office_addin_installer.ps1
-
-      - name: Validate production Office manifests
-        shell: pwsh
-        working-directory: office_addin
-        run: |
-          foreach ($manifest in @(
-            "..\build\office_addin\windows\manifests\manifest.word.xml",
-            "..\build\office_addin\windows\manifests\manifest.powerpoint.xml"
-          )) {
-            $output = (npx --no-install office-addin-manifest validate $manifest 2>&1 | Out-String)
-            Write-Host $output
-            if ($LASTEXITCODE -ne 0 -or $output -notmatch "The manifest is valid\.") {
-              throw "Microsoft validation did not confirm a valid Office manifest: $manifest"
-            }
-          }
-
-      - name: Upload unsigned Office runtime and deployment artifact
-        id: upload-office-addin-unsigned
-        uses: actions/upload-artifact@v7
-        with:
-          name: unsigned-latexsnipper-office-addin-windows
-          path: |
-            dist/office-addin/OfficeAddinSetup-*.exe
-            dist/office-addin/OfficeAddinSetup-*.exe.sha256
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload Office managed deployment manifests
-        uses: actions/upload-artifact@v7
-        with:
-          name: latexsnipper-office-deployment-manifests
-          path: dist/office-addin/OfficeDeploymentManifests-*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -224,53 +174,6 @@ jobs:
         with:
           name: signed-latexsnipper-installer
           path: signed/**
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Check Office add-in SignPath configuration
-        id: office-signpath-config
-        shell: pwsh
-        run: |
-          $missing = @()
-          foreach ($name in @(
-            "SIGNPATH_ORGANIZATION_ID",
-            "SIGNPATH_PROJECT_SLUG",
-            "SIGNPATH_SIGNING_POLICY_SLUG",
-            "SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG",
-            "SIGNPATH_API_TOKEN"
-          )) {
-            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
-              $missing += $name
-            }
-          }
-          if ($missing.Count -gt 0) {
-            "enabled=false" >> $env:GITHUB_OUTPUT
-          }
-          else {
-            "enabled=true" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Submit Office local runtime installer to SignPath
-        id: office-signpath
-        if: ${{ steps.office-signpath-config.outputs.enabled == 'true' }}
-        continue-on-error: true
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-office-addin-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: office-addin-signed
-
-      - name: Upload signed Office local runtime installer artifact
-        if: ${{ steps.office-signpath.outcome == 'success' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: signed-latexsnipper-office-addin-windows
-          path: office-addin-signed/**
           if-no-files-found: error
           retention-days: 30
 
@@ -369,24 +272,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: office_addin/package-lock.json
-
       - name: Install macOS packaging tools
         run: brew install create-dmg
-
-      - name: Install Office add-in dependencies
-        run: npm ci --prefix office_addin
 
       - name: Build macOS app
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_macos.sh
-          ./scripts/build_office_addin_macos.sh
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v7
@@ -396,8 +288,6 @@ jobs:
             dist/*.dmg
             dist/*.app.zip
             dist/SHA256SUMS-macos.txt
-            dist/office-addin/*.pkg
-            dist/office-addin/SHA256SUMS-office-addin-macos.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -446,21 +336,8 @@ jobs:
             echo "No signed or unsigned Windows installer artifact found; skipping Windows release asset."
           fi
 
-          if [[ -d release-assets/signed-latexsnipper-office-addin-windows ]] && \
-             find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -print -quit | grep -q .; then
-            find release-assets/signed-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
-          elif [[ -d release-assets/unsigned-latexsnipper-office-addin-windows ]]; then
-            find release-assets/unsigned-latexsnipper-office-addin-windows -type f -name 'OfficeAddinSetup-*.exe' -exec cp -v {} publish-assets/ \;
-          else
-            echo "No Windows Office add-in artifact is available for this release."
-          fi
-          if [[ -d release-assets/latexsnipper-office-deployment-manifests ]]; then
-            find release-assets/latexsnipper-office-deployment-manifests -type f -name 'OfficeDeploymentManifests-*.zip' -exec cp -v {} publish-assets/ \;
-          fi
-
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
           find release-assets/latexsnipper-macos -type f \( -name '*.dmg' -o -name '*.app.zip' \) -exec cp -v {} publish-assets/ \;
-          find release-assets/latexsnipper-macos -type f -name 'OfficeAddin-*.pkg' -exec cp -v {} publish-assets/ \;
 
           asset_count="$(find publish-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
           if [[ "${asset_count}" == "0" ]]; then

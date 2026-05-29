@@ -112,19 +112,16 @@ The main window includes PDF recognition and a separate bilingual reading tool:
 
 ## Office Integration Direction
 
-LaTeXSnipper is moving its Office integration from the current Office.js add-in toward a Windows-native plugin model.
-
-The current `office_addin` project is kept as a migration reference. It already proves the Bridge protocol, OMML insertion, PowerPoint image insertion, OCR handoff, and Word numbering behavior, but Office.js cannot reliably deliver the final product experience for single-user installs: persistent Ribbon loading, native formula objects, double-click editing, low-level shortcuts, and MathType/AxMath-style object lifecycle control.
-
-The planned `office_plugin` line targets Windows desktop Office:
+The active Office integration is the Windows-native `office_plugin` line. It targets Windows desktop Office:
 
 - Word: native OMML insertion and LaTeXSnipper OLE formula objects
 - PowerPoint: current compatible image insertion and LaTeXSnipper OLE formula objects
-- Local MathJax/MathLive/native rendering pipeline for self-rendered formula objects
+- Local TeX rendering pipeline for self-rendered formula objects
 - Per-formula persisted LaTeX source, render options, numbering data, and object identity
 - Native Ribbon, shortcuts, double-click editing, update, delete, and renumber workflows
+- Native Bridge endpoint defaults to `http://127.0.0.1:28765/`
 
-See [Windows native Office plugin design](docs/office_plugin_design.md) and [Office.js migration record](docs/office_addin_design.md).
+See [Windows native Office plugin design](docs/office_plugin_design.md).
 
 ---
 
@@ -291,17 +288,15 @@ GitHub Actions release builds run the platform package jobs in one workflow:
 - Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
 - macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
 
-The old Office.js packages are retained only while `office_addin` is used as a migration reference. They install a localhost HTTPS site and local sideload manifests, but they are not the final Office plugin distribution path. The planned Windows-native `office_plugin` installer will own persistent Word/PowerPoint registration, Ribbon resources, OLE object registration, and shortcut integration.
+The active Office integration is the Windows-native `office_plugin`. Its installer owns persistent Word/PowerPoint registration, Ribbon resources, OLE object registration, shortcut integration, and the native Bridge endpoint.
 
 The release workflow expects these GitHub Actions variables:
 `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
 `SIGNPATH_SIGNING_POLICY_SLUG`, and
-`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`; signing the Office add-in installer
-additionally uses `SIGNPATH_OFFICE_ADDIN_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
+`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
 `SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
-`.signpath/artifact-configurations/windows-installer.xml` and
-`.signpath/artifact-configurations/windows-office-addin-installer.xml`; copy
-those XML files into the matching SignPath project artifact configurations.
+`.signpath/artifact-configurations/windows-installer.xml`; copy that XML file
+into the matching SignPath project artifact configuration.
 
 ---
 
@@ -330,7 +325,7 @@ LaTeXSnipper/
 |-- tools/
 |   `-- deps/                      # Local developer/build dependency environment
 |-- user_manual/                   # Local manual source and generated PDF
-|-- office_addin/                  # Legacy Office.js add-in kept for migration
+|-- office_plugin/                  # Windows-native Office plugin foundation
 |-- docs/office_plugin_design.md   # Windows-native Office plugin target design
 |-- Inno/                          # GitHub Release installer scripts
 |-- packaging/                     # Debian and MSIX packaging resources

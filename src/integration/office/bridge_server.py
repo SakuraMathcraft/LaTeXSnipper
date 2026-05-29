@@ -1,13 +1,10 @@
-"""Localhost HTTP bridge for Office add-ins."""
+"""Localhost HTTP bridge for native Office plugins."""
 
 from __future__ import annotations
 
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import mimetypes
-from pathlib import Path
-import ssl
 import threading
 from typing import Any
 from urllib.parse import urlsplit
@@ -15,9 +12,6 @@ from urllib.parse import urlsplit
 from .bridge_auth import OfficeBridgeAuth
 from .bridge_contracts import MAX_JSON_BODY_BYTES, OfficeBridgeError, error_response, parse_json_body, success_response
 from .conversion_service import OfficeConversionService
-
-JAVASCRIPT_MODULE_SUFFIXES = {".js", ".mjs"}
-
 
 class OfficeBridgeServer:
     def __init__(
@@ -28,22 +22,15 @@ class OfficeBridgeServer:
         auth: OfficeBridgeAuth | None = None,
         conversion_service: OfficeConversionService | None = None,
         recognition_service: Any | None = None,
-        site_root: Path | None = None,
-        certificate: Path | None = None,
-        private_key: Path | None = None,
     ) -> None:
         if host not in {"127.0.0.1", "localhost"}:
             raise ValueError("Office bridge must bind to localhost only")
         self.host = "127.0.0.1" if host == "localhost" else host
+        self.public_host = host
         self.requested_port = int(port)
         self.auth = auth or OfficeBridgeAuth()
         self.conversion_service = conversion_service or OfficeConversionService()
         self.recognition_service = recognition_service
-        self.site_root = site_root.resolve() if site_root is not None else None
-        self.certificate = certificate
-        self.private_key = private_key
-        if (certificate is None) != (private_key is None):
-            raise ValueError("Office bridge HTTPS requires both certificate and private key")
         self._httpd: _OfficeHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -55,9 +42,7 @@ class OfficeBridgeServer:
 
     @property
     def base_url(self) -> str:
-        scheme = "https" if self.certificate is not None else "http"
-        host = "localhost" if scheme == "https" else self.host
-        return f"{scheme}://{host}:{self.port}"
+        return f"http://{self.public_host}:{self.port}"
 
     @property
     def token(self) -> str:
@@ -67,10 +52,6 @@ class OfficeBridgeServer:
         if self._httpd is not None:
             return
         self._httpd = _OfficeHTTPServer((self.host, self.requested_port), _OfficeRequestHandler, self)
-        if self.certificate is not None and self.private_key is not None:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(str(self.certificate), str(self.private_key))
-            self._httpd.socket = context.wrap_socket(self._httpd.socket, server_side=True)
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="OfficeBridgeServer", daemon=True)
         self._thread.start()
 
@@ -107,6 +88,13 @@ class OfficeBridgeServer:
             if callable(status):
                 return status()
             return {"state": "unknown"}
+        if path == "/recognize/screenshot/cancel":
+            if self.recognition_service is None:
+                return {"canceled": False}
+            cancel = getattr(self.recognition_service, "cancel_screenshot", None)
+            if callable(cancel):
+                return cancel()
+            return {"canceled": False}
         if path == "/recognize/screenshot":
             if self.recognition_service is None:
                 raise OfficeBridgeError(501, "feature_unavailable", "screenshot OCR is not available")
@@ -137,12 +125,7 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         if path == "/config":
             self._send_json(HTTPStatus.OK, success_response(self.server.bridge.config()))
             return
-        if self.server.bridge.site_root is not None:
-            self._send_site_file(path.lstrip("/"))
-            return
-        else:
-            self._send_error(OfficeBridgeError(404, "not_found", f"unknown endpoint: {self.path}"))
-            return
+        self._send_error(OfficeBridgeError(404, "not_found", f"unknown endpoint: {self.path}"))
 
     def do_POST(self) -> None:
         try:
@@ -175,31 +158,6 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
     def _send_error(self, error: OfficeBridgeError) -> None:
         self._send_json(HTTPStatus(error.status), error_response(error))
 
-    def _send_site_file(self, relative: str) -> None:
-        site_root = self.server.bridge.site_root
-        if site_root is None:
-            self._send_error(OfficeBridgeError(404, "not_found", "Office add-in site is not installed"))
-            return
-        requested = (site_root / relative).resolve()
-        if site_root not in requested.parents or not requested.is_file():
-            self._send_error(OfficeBridgeError(404, "not_found", "Office add-in resource was not found"))
-            return
-        raw = requested.read_bytes()
-        content_type = (
-            "text/javascript; charset=utf-8"
-            if requested.suffix.lower() in JAVASCRIPT_MODULE_SUFFIXES
-            else mimetypes.guess_type(requested.name)[0] or "application/octet-stream"
-        )
-        self.send_response(int(HTTPStatus.OK))
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(raw)))
-        self._send_no_store_headers()
-        origin = self.headers.get("Origin")
-        if origin is not None:
-            self.send_header("Access-Control-Allow-Origin", origin)
-        self.end_headers()
-        self.wfile.write(raw)
-
     def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(int(status))
@@ -207,11 +165,7 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self._send_no_store_headers()
         origin = self.headers.get("Origin")
-        if origin in {
-            "https://localhost:3000",
-            "https://127.0.0.1:3000",
-            f"https://localhost:{self.server.bridge.port}",
-        }:
+        if origin in {f"http://localhost:{self.server.bridge.port}", f"http://127.0.0.1:{self.server.bridge.port}"}:
             self.send_header("Access-Control-Allow-Origin", origin)
         elif origin is None:
             self.send_header("Access-Control-Allow-Origin", "*")

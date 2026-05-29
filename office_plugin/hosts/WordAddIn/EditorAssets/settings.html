@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper Office Plugin Settings</title>
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div>
+        <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
+        <p data-i18n="subtitle">配置编号默认值，并查看已经落地到 Ribbon 的 KeyTip 快捷键。</p>
+      </div>
+    </header>
+
+    <section class="panel accent-panel">
+      <div>
+        <h2 data-i18n="numberingTitle">带编号公式默认布局</h2>
+        <p class="hint" data-i18n="numberingHint">此设置只影响之后新插入或重新渲染的带编号公式。</p>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Number placement">
+        <button type="button" id="rightNumber" data-placement="Right" data-i18n="numberRight">右编号</button>
+        <button type="button" id="leftNumber" data-placement="Left" data-i18n="numberLeft">左编号</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="keytipsTitle">Ribbon KeyTip 快捷键</h2>
+      <p class="hint" data-i18n="keytipsHint">按 Alt 显示 Office KeyTip，然后依次按下表键位。所有主要 Ribbon 操作已在插件中设置真实 KeyTip。</p>
+      <div class="shortcut-grid">
+        <div><kbd>Alt</kbd><span>LS</span><span>I</span><strong data-i18n="inlineTitle">行内公式</strong><em data-i18n="inlineDesc">插入当前侧边栏 LaTeX 为正文行内公式。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>D</span><strong data-i18n="displayTitle">行间公式</strong><em data-i18n="displayDesc">插入当前侧边栏 LaTeX 为居中行间公式。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>N</span><strong data-i18n="numberedTitle">带编号公式</strong><em data-i18n="numberedDesc">插入当前侧边栏 LaTeX 为自动编号行间公式。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>O</span><strong data-i18n="ocrTitle">截图识别</strong><em data-i18n="ocrDesc">等待下一次全局快捷键截图；再次触发可取消。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>L</span><strong data-i18n="loadTitle">加载所选</strong><em data-i18n="loadDesc">加载选中的受管理公式。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>X</span><strong data-i18n="deleteTitle">删除所选</strong><em data-i18n="deleteDesc">删除选中的受管理公式及元数据。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>A</span><strong data-i18n="autoTitle">自动编号</strong><em data-i18n="autoDesc">为选中公式添加自动编号。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>R</span><strong data-i18n="renumberTitle">重编号</strong><em data-i18n="renumberDesc">按文档顺序更新所有自动编号公式。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>P</span><strong data-i18n="paneTitle">状态窗格</strong><em data-i18n="paneDesc">显示 LaTeXSnipper 侧边栏。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>S</span><strong data-i18n="settingsTitle">设置</strong><em data-i18n="settingsDesc">打开此设置窗口。</em></div>
+        <div><kbd>Alt</kbd><span>LS</span><span>H</span><strong data-i18n="helpTitle">帮助</strong><em data-i18n="helpDesc">打开插件帮助页。</em></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="editorTitle">编辑器键盘行为</h2>
+      <div class="key-list">
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><span data-i18n="newlineShortcut">在公式编辑器中换行</span></div>
+        <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">关闭编辑器，不应用更改</span></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="statusText" data-i18n="ready">就绪</span>
+      <button type="button" id="closeButton" data-i18n="close">关闭</button>
+    </footer>
+  </main>
+  <script src="./settings.js"></script>
+</body>
+</html>

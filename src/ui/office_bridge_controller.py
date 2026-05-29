@@ -7,15 +7,15 @@ import threading
 
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
 
-from integration.office.addin_runtime import OFFICE_ADDIN_PORT, find_installed_office_addin
 from integration.office.bridge_auth import OfficeBridgeAuth
+from integration.office.bridge_contracts import OfficeBridgeError
 from integration.office.bridge_server import OfficeBridgeServer
 
 
 OFFICE_BRIDGE_ENABLED_KEY = "office_bridge_enabled"
 OFFICE_BRIDGE_PORT_KEY = "office_bridge_port"
 OFFICE_BRIDGE_TOKEN_KEY = "office_bridge_token"
-DEFAULT_OFFICE_BRIDGE_PORT = 8765
+DEFAULT_OFFICE_BRIDGE_PORT = 28765
 
 
 class _OfficeOcrRequest:
@@ -44,11 +44,31 @@ class _OfficeScreenshotRecognitionService:
             timeout = float(payload.get("timeout", 120))
         except Exception:
             timeout = 120.0
-        text = self._window.request_office_screenshot_ocr(timeout=max(10.0, min(timeout, 300.0)))
+        try:
+            text = self._window.request_office_screenshot_ocr(timeout=max(10.0, min(timeout, 300.0)))
+        except RuntimeError as exc:
+            message = str(exc)
+            if "already running" in message:
+                raise OfficeBridgeError(
+                    409,
+                    "screenshot_ocr_busy",
+                    "Screenshot OCR is already waiting. Complete a screenshot in LaTeXSnipper first.",
+                ) from exc
+            if "timed out" in message:
+                raise OfficeBridgeError(
+                    408,
+                    "screenshot_ocr_timeout",
+                    "Screenshot OCR timed out. Start Screenshot OCR again and complete a screenshot in LaTeXSnipper.",
+                ) from exc
+            raise
         return {"latex": text}
 
     def recognition_status(self) -> dict:
         return self._window.office_screenshot_ocr_status()
+
+    def cancel_screenshot(self) -> dict:
+        canceled = self._window.cancel_office_screenshot_ocr()
+        return {"canceled": canceled}
 
 
 class _OfficeBridgeToggleWorker(QThread):
@@ -73,14 +93,11 @@ class _OfficeBridgeToggleWorker(QThread):
     def run(self) -> None:
         try:
             if self._action == "start":
-                installed = find_installed_office_addin()
                 server = OfficeBridgeServer(
-                    port=OFFICE_ADDIN_PORT if installed is not None else self._port,
+                    host="127.0.0.1",
+                    port=self._port,
                     auth=OfficeBridgeAuth(self._token),
                     recognition_service=self._recognition_service,
-                    site_root=installed.site_root if installed else None,
-                    certificate=installed.certificate if installed else None,
-                    private_key=installed.private_key if installed else None,
                 )
                 server.start()
                 self.completed.emit(True, f"Office bridge: {server.base_url}", server)
@@ -237,14 +254,11 @@ class OfficeBridgeControllerMixin:
     def _start_office_bridge(self) -> None:
         if getattr(self, "_office_bridge_server", None):
             return
-        installed = find_installed_office_addin()
         server = OfficeBridgeServer(
-            port=OFFICE_ADDIN_PORT if installed is not None else self._office_bridge_port_pref(),
+            host="127.0.0.1",
+            port=self._office_bridge_port_pref(),
             auth=OfficeBridgeAuth(self._office_bridge_token()),
             recognition_service=_OfficeScreenshotRecognitionService(self),
-            site_root=installed.site_root if installed else None,
-            certificate=installed.certificate if installed else None,
-            private_key=installed.private_key if installed else None,
         )
         server.start()
         self._office_bridge_server = server
@@ -278,6 +292,15 @@ class OfficeBridgeControllerMixin:
         if request is None:
             return {"state": "idle"}
         return request.snapshot()
+
+    def cancel_office_screenshot_ocr(self) -> bool:
+        request = getattr(self, "_office_ocr_request", None)
+        if request is None:
+            return False
+        request.set_state("canceled")
+        request.error = "screenshot OCR canceled"
+        request.event.set()
+        return True
 
     def set_office_screenshot_ocr_state(self, state: str) -> None:
         request = getattr(self, "_office_ocr_request", None)
