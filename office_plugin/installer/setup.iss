@@ -191,7 +191,9 @@ Root: HKLM; Subkey: "Software\WOW6432Node\Microsoft\Office\16.0\PowerPoint\Addin
   ValueType: dword; ValueName: "CommandLineSafe"; ValueData: "1"; Flags: uninsdeletekey; Check: IsWin64
 
 [Run]
-; Trust the signing certificate (development self-signed cert)
+; Trust the signing certificate (both Root and TrustedPublisher needed for self-signed)
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{app}\devcert.cer"""; \
+  Flags: runhidden
 Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\devcert.cer"""; \
   StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
 
@@ -227,6 +229,35 @@ chinesesimplified.RegisteringWord=正在注册 Word 加载项...
 chinesesimplified.RegisteringPowerPoint=正在注册 PowerPoint 加载项...
 
 [Code]
+function VstoInstallerExists: Boolean;
+var
+  Path: string;
+begin
+  Path := ExpandConstant('{commonpf}\Common Files\Microsoft Shared\VSTO\10.0\VSTOInstaller.exe');
+  if FileExists(Path) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  Path := ExpandConstant('{commonpf32}\Common Files\Microsoft Shared\VSTO\10.0\VSTOInstaller.exe');
+  Result := FileExists(Path);
+end;
+
+function InitializeSetup: Boolean;
+begin
+  if not VstoInstallerExists then
+  begin
+    SuppressibleMsgBox(
+      'Microsoft Visual Studio Tools for Office Runtime is required but was not found.'#13#13 +
+      'Please install the VSTO Runtime before installing this add-in.'#13#13 +
+      'Download: https://go.microsoft.com/fwlink/?LinkId=140384',
+      mbCriticalError, MB_OK, 0);
+    Result := False;
+  end
+  else
+    Result := True;
+end;
+
 function GetManifestUri(Param: string): string;
 var
   AppDir: string;
