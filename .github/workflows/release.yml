@@ -240,6 +240,7 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
+          Set-Location office_plugin
           $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { $iscc = Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe" }
           & $iscc /DVersion=${{ steps.version.outputs.version }} /DConfig=Release installer\setup.iss
