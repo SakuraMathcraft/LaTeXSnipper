@@ -206,7 +206,7 @@ jobs:
           if ($ref -match '^refs/tags/v(\d+\.\d+\.\d+.*)$') {
             $ver = $matches[1]
           } else {
-            $ver = (Get-Content -Raw pyproject.toml | Select-String 'version\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+            $ver = (Get-Content -Raw Inno\latexsnipper.iss | Select-String 'MyAppVersion\s+"([^"]+)"').Matches.Groups[1].Value
           }
           Write-Host "Office Plugin version: $ver"
           "version=$ver" >> $env:GITHUB_OUTPUT
