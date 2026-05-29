@@ -281,6 +281,10 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    CleanResiliencyForApp('Word');
+    CleanResiliencyForApp('PowerPoint');
+    CleanHkcuUninstallEntries;
+    CleanVstoSolutionMetadata;
     HideVstoUninstallEntries;
     Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
