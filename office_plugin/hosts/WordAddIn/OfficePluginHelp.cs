@@ -89,7 +89,7 @@ internal static class OfficePluginHelp
                 HelpHostName,
                 assetsRoot,
                 CoreWebView2HostResourceAccessKind.Allow);
-            _webView.Source = new Uri("https://" + HelpHostName + "/help.html?v=20260529-help");
+            _webView.Source = new Uri("https://" + HelpHostName + "/help.html?platform=word&_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         private static string ResolveAssetsRoot()

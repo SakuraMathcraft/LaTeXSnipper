@@ -59,7 +59,7 @@ public sealed class BridgeClient : IDisposable
         return SendAsync(
             HttpMethod.Post,
             "recognize/screenshot",
-            "{\"timeout\":300}",
+            "{\"timeout\":" + ((int)_options.ScreenshotOcrHttpTimeout.TotalSeconds - 30).ToString(System.Globalization.CultureInfo.InvariantCulture) + "}",
             cancellationToken,
             requiresAuthentication: true,
             requestTimeout: _options.ScreenshotOcrHttpTimeout,

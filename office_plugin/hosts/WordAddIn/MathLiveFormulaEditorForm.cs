@@ -43,6 +43,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
 
+    public event EventHandler? EditorCancelled;
+
     public event EventHandler<string>? EditorError;
 
     public void Configure(FormulaMetadata? initialFormula, bool updateMode)
@@ -145,6 +147,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         string type = Convert.ToString(rawType) ?? string.Empty;
         if (type == "cancel")
         {
+            EditorCancelled?.Invoke(this, EventArgs.Empty);
             Hide();
             return;
         }

@@ -1,26 +1,45 @@
 # PowerPointAddIn Host
 
-This folder is reserved for the PowerPoint VSTO add-in.
+This folder contains the reusable PowerPoint host workflow core. The VSTO shell in `hosts/PowerPointVstoAddIn` keeps Office startup and Ribbon plumbing thin, then delegates insertion commands to `PowerPointPluginController`.
 
 Responsibilities:
 
 - Register a persistent LaTeXSnipper Ribbon in PowerPoint.
-- Insert compatibility formula images rendered from LaTeX.
-- Insert, load, update, and delete LaTeXSnipper-managed formula objects.
+- Insert compatibility formula images rendered from LaTeX through the shared Bridge conversion endpoint.
+- Store LaTeXSnipper metadata on inserted PowerPoint shapes.
+- Keep host startup, Ribbon callbacks, and PowerPoint automation separate from conversion and controller logic.
 - Keep PowerPoint numbering intentionally simpler than Word numbering.
 
 Feature boundary:
 
-- Inline and display formulas are inserted as high-DPI images cropped to the formula bounds. The image renderer must trim transparent padding before insertion so the slide object size matches the visible formula.
-- Numbered formulas are inserted as a layout object containing the formula image and the user-provided number. Numbered formulas are not cropped as a single formula image, because the number and formula require stable alignment.
-- Automatic numbering in PowerPoint is not a Word-style document field. If enabled, it only increments from the current session counter and cannot safely renumber arbitrary slides. For predictable documents, users must manually fill the number text for numbered formulas.
-- Renumber All, document-wide automatic numbering repair, and Word-style numbered table normalization are out of scope for the first PowerPoint implementation.
+- Formulas are inserted as high-DPI PNG images cropped to the formula bounds. The image renderer trims transparent padding before insertion so the slide object size matches the visible formula.
+- PowerPoint has no inline/display distinction — all formulas are display images on slides. The Ribbon has a single "Insert Formula" button.
+- Numbering is not supported for PowerPoint. Automatic numbering and Renumber All are out of scope.
 - OLE object insertion should be added only after the Word OLE identity model is stable.
 
 First implementation step:
 
-1. Create the VSTO PowerPoint Add-in project with Visual Studio Office tooling.
-2. Reference the shared `src/` contracts.
-3. Implement high-DPI cropped image insertion against the shared Bridge/rendering contracts.
-4. Implement manual-number numbered formula image layout.
-5. Add OLE object insertion only after Word OLE object identity is stable.
+Implemented first:
+
+1. `LaTeXSnipper.OfficePlugin.PowerPointAddIn.csproj` builds the reusable PowerPoint host core.
+2. `PowerPointPluginController` converts LaTeX to PNG through the shared Bridge client.
+3. `DynamicPowerPointApplicationAdapter` inserts the rendered PNG into the active slide.
+4. `PowerPointFormulaMetadataStore` writes durable metadata to PowerPoint shape tags.
+5. `PowerPointStatusTaskPaneControl` is a WebView2-based task pane with MathLive formula editor, ported from the Word host.
+6. `PowerPointRibbonXml` with placeholder-based localization and full Ribbon groups: Formula (Insert + Screenshot OCR), Edit (Load Selected + Delete Selected), Tools (Status Pane + Settings + Help).
+7. `PowerPointRibbonCallbacks` with serial command execution and OCR cancellation support.
+8. `IPowerPointApplicationAdapter` supports InsertFormulaImage, LoadSelectedFormula, and DeleteSelectedFormula.
+9. `PowerPointVstoAddIn` VSTO shell creates the WebView2 task pane and delegates to the shared core.
+
+Next implementation steps:
+
+1. Improve numbered formula layout once the VSTO shell can be tested in PowerPoint.
+2. Add OLE object insertion only after Word OLE object identity is stable.
+3. Add load/update/delete workflow through the formula editor (currently only insert is wired to the task pane editor).
+
+## Registration
+
+PowerPoint registration is wired through `tools/Register-PowerPointVstoAddIn.ps1`
+and the combined `tools/Register-OfficeVstoAddIns.ps1` installer entry point.
+The reusable host core is loaded through the VSTO shell in
+`hosts/PowerPointVstoAddIn`.

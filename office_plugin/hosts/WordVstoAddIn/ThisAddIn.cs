@@ -30,7 +30,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 statusPaneControl = new WordStatusTaskPaneControl();
                 statusTaskPane = CustomTaskPanes.Add(statusPaneControl, WordAddInText.Get("TaskPaneTitle"));
                 statusTaskPane.Width = 480;
-                statusTaskPane.Visible = true;
+                statusTaskPane.Visible = false;
 
                 var visibleStatusSink = new VisibleWordStatusSink(statusPaneControl, ShowStatusPane);
                 controller = WordAddInFactory.CreateController(Application, visibleStatusSink, statusPaneControl);

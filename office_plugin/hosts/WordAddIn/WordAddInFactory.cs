@@ -34,6 +34,7 @@ public static class WordAddInFactory
                 statusSink.Post(WordStatusKind.Error, exc.Message);
             }
         };
+        editor.EditorCancelled += (_, _) => optionsProvider?.ResetFormulaDraft();
         editor.EditorError += (_, message) => statusSink.Post(WordStatusKind.Error, message);
         return controller;
     }

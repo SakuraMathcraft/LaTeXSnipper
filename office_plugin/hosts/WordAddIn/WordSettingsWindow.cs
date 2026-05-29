@@ -96,7 +96,7 @@ internal sealed class WordSettingsWindow : Form
             CoreWebView2HostResourceAccessKind.Allow);
         core.WebMessageReceived += OnWebMessageReceived;
         core.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + SettingsHostName + "/settings.html?v=20260529-settings");
+        _webView.Source = new Uri("https://" + SettingsHostName + "/settings.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)

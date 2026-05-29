@@ -66,7 +66,11 @@ public sealed class WordPluginController
             throw new ArgumentNullException(nameof(accepted));
         }
 
-        _statusSink.SetCurrentFormula(accepted.Latex, accepted.UpdateMode);
+        if (accepted.UpdateMode)
+        {
+            _statusSink.SetCurrentFormula(accepted.Latex, accepted.UpdateMode);
+        }
+
         FormulaIdentity identity = accepted.UpdateMode && accepted.InitialFormula != null
             ? accepted.InitialFormula.Identity
             : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
@@ -110,15 +114,35 @@ public sealed class WordPluginController
             _currentFormula = null;
         }
 
-        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
-        _optionsProvider.ResetFormulaDraft();
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("DeletedStatus"));
     }
 
     public async Task RecognizeScreenshotAsync(CancellationToken cancellationToken)
     {
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrWaitingStatus"));
-        string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+        try
+        {
+            string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+            ProcessOcrResult(responseJson, cancellationToken);
+        }
+        catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
+        {
+            await _bridgeClient.CancelScreenshotOcrAsync(CancellationToken.None);
+            await Task.Delay(300, CancellationToken.None);
+            try
+            {
+                string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+                ProcessOcrResult(responseJson, cancellationToken);
+            }
+            catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
+            {
+                _statusSink.Post(WordStatusKind.Error, WordAddInText.Get("BridgeOcrAlreadyWaiting"));
+            }
+        }
+    }
+
+    private void ProcessOcrResult(string responseJson, CancellationToken cancellationToken)
+    {
         string latex = BridgeRecognitionParser.ParseScreenshotOcrResponse(responseJson);
         if (string.IsNullOrWhiteSpace(latex))
         {
@@ -128,8 +152,13 @@ public sealed class WordPluginController
         FormulaMetadata recognized = CreateDefaultFormula(latex);
         _currentFormula = recognized;
         _statusSink.SetCurrentFormula(recognized.Latex, updateMode: false);
-        await _editorSession.UpdateDraftIfOpenAsync(recognized, updateMode: false, cancellationToken);
+        _ = _editorSession.UpdateDraftIfOpenAsync(recognized, updateMode: false, cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OcrLoadedStatus"));
+    }
+
+    private static bool IsOcrAlreadyWaiting(string message)
+    {
+        return message.IndexOf("already waiting", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     public Task CancelScreenshotOcrAsync(CancellationToken cancellationToken)
@@ -203,7 +232,7 @@ public sealed class WordPluginController
     private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
     {
         _pendingEditorInsertOptions = options;
-        FormulaMetadata draft = CreateMetadataFromOptions(null, _optionsProvider.CurrentLatex, previous: null, options);
+        FormulaMetadata draft = CreateMetadataFromOptions(null, string.Empty, previous: null, options);
         await _editorSession.OpenForInsertAsync(draft, cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("EditorReadyStatus"));
     }
@@ -215,9 +244,6 @@ public sealed class WordPluginController
         {
             await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
-
-        _currentFormula = null;
-        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
     }
 
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
@@ -324,7 +350,5 @@ public sealed class WordPluginController
         {
             _optionsProvider.ResetFormulaDraft();
         }
-
-        _statusSink.SetCurrentFormula(string.Empty, updateMode: false);
     }
 }

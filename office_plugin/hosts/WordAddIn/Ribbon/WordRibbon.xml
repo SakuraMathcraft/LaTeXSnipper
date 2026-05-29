@@ -2,7 +2,7 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
   <ribbon>
     <tabs>
-      <tab id="LaTeXSnipperTab" label="{RibbonTab}" keytip="LS" insertAfterMso="TabInsert">
+      <tab id="LaTeXSnipperTab" label="{RibbonTab}" keytip="LS">
         <group id="LaTeXSnipperFormulaGroup" label="{FormulaGroup}">
           <button id="InsertInlineButton"
                   label="{InsertInlineButton}"
@@ -55,7 +55,7 @@
                   supertip="{AutoNumberTip}"
                   keytip="A"
                   size="large"
-                  imageMso="Numbering"
+                  imageMso="NumberingRestart"
                   onAction="OnAutoNumberSelected" />
           <button id="RenumberButton"
                   label="{RenumberButton}"
@@ -78,7 +78,7 @@
                   supertip="{SettingsTip}"
                   keytip="S"
                   size="large"
-                  imageMso="ToolsOptions"
+                  imageMso="AdvancedFileProperties"
                   onAction="OnSettings" />
           <button id="HelpButton"
                   label="{HelpButton}"

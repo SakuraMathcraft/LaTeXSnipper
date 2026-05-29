@@ -24,7 +24,8 @@
 | `src/LaTeXSnipper.OfficePlugin.Editor` | Formula editor session boundary |
 | `hosts/WordAddIn` | Reusable Word host workflow core: Ribbon XML, status pane, MathLive editor command, Bridge OMML insertion |
 | `hosts/WordVstoAddIn` | Thin VSTO shell loaded by Word; creates the task pane and delegates commands to `hosts/WordAddIn` |
-| `hosts/PowerPointAddIn` | VSTO PowerPoint host scaffold notes |
+| `hosts/PowerPointAddIn` | Reusable PowerPoint host workflow core: Ribbon XML, Bridge PNG conversion, slide image insertion |
+| `hosts/PowerPointVstoAddIn` | Thin VSTO shell loaded by PowerPoint; creates Ribbon extensibility and delegates commands to `hosts/PowerPointAddIn` |
 | `hosts/OleFormulaObject` | COM/OLE formula object scaffold notes |
 
 The compileable projects target `net48;net9.0`: `net48` fits VSTO-era Office hosts, while `net9.0` keeps the shared contracts usable from modern helper processes and tests. VSTO and OLE projects are intentionally not faked here; they need Visual Studio Office tooling and COM registration work in the next phase.
@@ -47,9 +48,23 @@ After the signing certificate exists in
 `hosts/WordVstoAddIn/LaTeXSnipper.OfficePlugin.WordVstoAddIn.user.props`, run:
 
 ```powershell
-.\tools\Register-WordVstoAddIn.ps1
+.\tools\Register-OfficeVstoAddIns.ps1
 .\tools\Test-WordVstoAddIn.ps1
 ```
+
+For installer-style machine-wide registration:
+
+```powershell
+.\tools\Register-OfficeVstoAddIns.ps1 -RegistryScope LocalMachine
+```
+
+`Register-WordVstoAddIn.ps1` and `Register-PowerPointVstoAddIn.ps1` are thin
+host-specific wrappers over `tools/OfficeVstoRegistration.ps1`. The combined
+`Register-OfficeVstoAddIns.ps1` registers both Word and PowerPoint in one pass.
+The shared registration code writes persistent Office add-in registry keys for
+both versionless and Office 16.0 paths. `LocalMachine` registration also writes
+the WOW6432Node paths so an elevated installer can cover 32-bit and 64-bit
+Office installations.
 
 ## Architecture Rule
 

@@ -12,6 +12,8 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
 
+    public event EventHandler? EditorCancelled;
+
     public event EventHandler<string>? EditorError;
 
     public Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken)
@@ -50,6 +52,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
         _activeForm = new MathLiveFormulaEditorForm();
         _activeForm.FormulaAccepted += OnFormulaAccepted;
+        _activeForm.EditorCancelled += OnEditorCancelled;
         _activeForm.EditorError += OnEditorError;
         _activeForm.FormClosed += OnFormClosed;
         return _activeForm;
@@ -62,15 +65,23 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     private void OnFormClosed(object? sender, FormClosedEventArgs e)
     {
+        EditorCancelled?.Invoke(this, EventArgs.Empty);
+
         if (_activeForm == null)
         {
             return;
         }
 
         _activeForm.FormulaAccepted -= OnFormulaAccepted;
+        _activeForm.EditorCancelled -= OnEditorCancelled;
         _activeForm.EditorError -= OnEditorError;
         _activeForm.FormClosed -= OnFormClosed;
         _activeForm = null;
+    }
+
+    private void OnEditorCancelled(object? sender, EventArgs e)
+    {
+        EditorCancelled?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnEditorError(object? sender, string message)
