@@ -32,9 +32,29 @@ internal static class InstalledAssetResolver
         return FindFromRegistry(assetFile);
     }
 
+    private static readonly string[] RegistryPaths =
+    {
+        @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
+        @"Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
+    };
+
     private static string? FindFromRegistry(string assetFile)
     {
-        using RegistryKey? key = Registry.LocalMachine.OpenSubKey(RegistryPath);
+        foreach (var root in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            foreach (var subPath in RegistryPaths)
+            {
+                string? candidate = TryRegistryPath(root, subPath, assetFile);
+                if (candidate != null) return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryRegistryPath(RegistryKey root, string subPath, string assetFile)
+    {
+        using RegistryKey? key = root.OpenSubKey(subPath);
         string? manifest = key?.GetValue("Manifest") as string;
         if (string.IsNullOrWhiteSpace(manifest))
         {

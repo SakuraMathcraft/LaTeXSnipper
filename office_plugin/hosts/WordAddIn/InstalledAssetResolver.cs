@@ -34,16 +34,36 @@ internal static class InstalledAssetResolver
         return FindFromRegistry(assetFile);
     }
 
+    private static readonly string[] RegistryPaths =
+    {
+        @"Software\Microsoft\Office\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",
+        @"Software\Microsoft\Office\16.0\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",
+    };
+
     private static string? FindFromRegistry(string assetFile)
     {
-        using RegistryKey? key = Registry.LocalMachine.OpenSubKey(RegistryPath);
+        // Try HKLM first (machine-wide install), then HKCU (per-user / no-admin install)
+        foreach (var root in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            foreach (var subPath in RegistryPaths)
+            {
+                string? candidate = TryRegistryPath(root, subPath, assetFile);
+                if (candidate != null) return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryRegistryPath(RegistryKey root, string subPath, string assetFile)
+    {
+        using RegistryKey? key = root.OpenSubKey(subPath);
         string? manifest = key?.GetValue("Manifest") as string;
         if (string.IsNullOrWhiteSpace(manifest))
         {
             return null;
         }
 
-        // Parse: file:///D:/path/to/Word/AddIn.vsto|vstolocal
         string path = manifest!
             .Replace("file:///", "")
             .Replace("|vstolocal", "")
