@@ -381,9 +381,9 @@ jobs:
           $typstUrl = "https://github.com/typst/typst/releases/download/v$typstVersion/$typstZip"
           Invoke-WebRequest -Uri $typstUrl -OutFile $env:TEMP\$typstZip
           Expand-Archive -Path $env:TEMP\$typstZip -DestinationPath $env:TEMP\typst -Force
-          $typst = Join-Path $env:TEMP\typst "typst.exe"
-          if (-not (Test-Path $typst)) { throw "Typst binary not found after extraction." }
-          "TYPST=$typst" >> $env:GITHUB_ENV
+          $typst = Get-ChildItem -Path $env:TEMP\typst -Recurse -Filter "typst.exe" | Select-Object -First 1
+          if (-not $typst) { throw "Typst binary not found after extraction." }
+          "TYPST=$($typst.FullName)" >> $env:GITHUB_ENV
 
       - name: Compile user manual
         shell: pwsh
