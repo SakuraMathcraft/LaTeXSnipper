@@ -194,6 +194,12 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" "
 Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\PowerPoint\{#PowerPointAddInName}.dll"""; \
   StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
 
+; Uninstall any previous VSTO deployment with the same identity (handles reinstall/path change)
+Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
+  Flags: runhidden
+Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" /Silent"; \
+  Flags: runhidden
+
 ; Run VSTOInstaller silently for Word
 Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
   StatusMsg: "{cm:RegisteringWord}"; Flags: runhidden
@@ -226,6 +232,7 @@ var
 begin
   AppDir := ExpandConstant('{app}');
   StringChange(AppDir, '\', '/');
+  StringChange(Param, '\', '/');
   Result := 'file:///' + AppDir + '/' + Param + '|vstolocal';
 end;
 
@@ -271,15 +278,6 @@ begin
   end;
 end;
 
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    HideVstoUninstallEntries;
-    Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
-  end;
-end;
-
 procedure CleanResiliencyForApp(App: string);
 var
   ResRoots: array [0..1] of string;
@@ -307,12 +305,128 @@ begin
     end;
 end;
 
+procedure CleanHkcuUninstallEntries;
+var
+  UninstallRoot: string;
+  SubkeyNames: TArrayOfString;
+  DisplayName, KeyPath: string;
+  i: Integer;
+begin
+  UninstallRoot := 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, UninstallRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := UninstallRoot + '\' + SubkeyNames[i];
+      if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'DisplayName', DisplayName) then
+      begin
+        if Pos('LaTeXSnipper.OfficePlugin', DisplayName) > 0 then
+        begin
+          RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+          Log('Removed HKCU uninstall: ' + DisplayName);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure CleanVstoSolutionMetadata;
+var
+  MetaRoot: string;
+  SubkeyNames: TArrayOfString;
+  KeyPath, ValueStr: string;
+  ValueNames: TArrayOfString;
+  i, j: Integer;
+  found: Boolean;
+begin
+  MetaRoot := 'Software\Microsoft\VSTO\SolutionMetadata';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, MetaRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := MetaRoot + '\' + SubkeyNames[i];
+      found := False;
+      if RegGetValueNames(HKEY_CURRENT_USER, KeyPath, ValueNames) then
+      begin
+        for j := 0 to GetArrayLength(ValueNames) - 1 do
+        begin
+          if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, ValueNames[j], ValueStr) then
+          begin
+            if Pos('LaTeXSnipper', ValueStr) > 0 then
+            begin
+              found := True;
+              break;
+            end;
+          end;
+        end;
+      end;
+      if found then
+      begin
+        RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+        Log('Removed VSTO metadata: ' + SubkeyNames[i]);
+      end;
+    end;
+  end;
+end;
+
+procedure CleanVstoSecurityInclusions;
+var
+  InclusionRoot: string;
+  SubkeyNames: TArrayOfString;
+  KeyPath, UrlValue: string;
+  i: Integer;
+begin
+  InclusionRoot := 'Software\Microsoft\VSTO\Security\Inclusion';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, InclusionRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := InclusionRoot + '\' + SubkeyNames[i];
+      if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'Url', UrlValue) then
+      begin
+        if Pos('LaTeXSnipper', UrlValue) > 0 then
+        begin
+          RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+          Log('Removed VSTO security inclusion: ' + SubkeyNames[i]);
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
     CleanResiliencyForApp('Word');
     CleanResiliencyForApp('PowerPoint');
-    Log('Resiliency cleanup complete.');
+    CleanHkcuUninstallEntries;
+    CleanVstoSolutionMetadata;
+    CleanVstoSecurityInclusions;
+    Log('Registry cleanup complete.');
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ClickOnceDir: string;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // Clear ClickOnce cache to prevent identity conflicts from previous installs
+    ClickOnceDir := ExpandConstant('{localappdata}\Apps\2.0');
+    if DirExists(ClickOnceDir) then
+    begin
+      DelTree(ClickOnceDir, True, True, True);
+      Log('Cleared ClickOnce cache.');
+    end;
+
+    CleanResiliencyForApp('Word');
+    CleanResiliencyForApp('PowerPoint');
+    CleanHkcuUninstallEntries;
+    CleanVstoSolutionMetadata;
+    CleanVstoSecurityInclusions;
+    HideVstoUninstallEntries;
+    Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
 end;
