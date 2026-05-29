@@ -138,7 +138,18 @@
   - #link(<sec-bugreport>)[如何有效反馈 Bug]
 
   #v(0.5em)
-  #text(size: 10pt, weight: "bold")[第二卷 · MathCraft 内部模型介绍]
+  #text(size: 10pt, weight: "bold")[第二卷 · Office 加载项指南]
+  #v(0.3em)
+  - #link(<sec-office-intro>)[加载项介绍与系统要求]
+  - #link(<sec-office-install>)[安装与注册]
+  - #link(<sec-office-word>)[Word 功能详解]
+  - #link(<sec-office-ppt>)[PowerPoint 功能详解]
+  - #link(<sec-office-editor>)[公式编辑器与侧边栏]
+  - #link(<sec-office-settings>)[设置与帮助]
+  - #link(<sec-office-trouble>)[常见问题排查]
+
+  #v(0.5em)
+  #text(size: 10pt, weight: "bold")[第三卷 · MathCraft 内部模型介绍]
   #v(0.3em)
   - #link(<sec-mathcraft-intro>)[MathCraft OCR 项目介绍]
   - #link(<sec-envvar>)[环境变量设置指南]
@@ -1176,10 +1187,433 @@ py -3.11 -m venv tools\deps\python311
 #pagebreak()
 
 // ═══════════════════════════════════════════
-// 第二卷：MathCraft 内部模型介绍
+// 第二卷：Office 加载项指南
 // ═══════════════════════════════════════════
 #align(center)[
-  #text(size: 14pt, weight: "bold")[第二卷 · MathCraft 内部模型介绍]
+  #text(size: 14pt, weight: "bold")[第二卷 · Office 加载项指南]
+  #v(0.25em)
+  #line(length: 60%, stroke: 0.4pt + rgb("#CCCCCC"))
+  #v(0.6em)
+]
+
+// ═══════════════════════════════════════════
+// 加载项介绍与系统要求
+// ═══════════════════════════════════════════
+#heading(level: 1)[加载项介绍与系统要求] <sec-office-intro>
+
+== 什么是 Office 加载项
+
+LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。加载项通过本机 Bridge 与 LaTeXSnipper 桌面端通信，实现 LaTeX 公式的转换、识别与插入。
+
+#info-block("与桌面端的关系", [
+  加载项本身不包含 LaTeX 渲染引擎。所有公式转换（LaTeX → OMML / PNG）和截图 OCR 均由本机运行的 LaTeXSnipper 桌面端完成。
+  使用加载项前，请确保桌面端已启动并开启了 Office 插件功能。
+])
+
+== 系统要求
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *Windows 版本：* Windows 10 22H2 或更高版本 / Windows 11
+  - *Office 版本：* Microsoft 365 应用（当前通道或月度企业通道）、Office 2024 / 2021 / 2019 零售版或批量许可版、Office LTSC 2024 / 2021
+  - *运行时：* .NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）
+  - *Office 体系：* 仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office
+  - *LaTeXSnipper 桌面端：* 需在本机运行并开启 Office 插件功能，插件通过 `127.0.0.1:28765` 与本机 Bridge 通信
+]
+
+== 安装前检查
+
+#warn-block("首次安装必读", [
+  - 安装前请关闭所有正在运行的 Word 和 PowerPoint 窗口。Office 进程会锁定加载项 DLL，安装程序无法覆盖。
+  - 如果此前安装过开发版（通过脚本手动注册），请先使用注册脚本的反注册功能清理，或运行安装包执行升级安装。
+  - 安装程序需要管理员权限，用于写入 HKLM 注册表和受信任的发布者证书存储。
+])
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// 安装与注册
+// ═══════════════════════════════════════════
+#heading(level: 1)[安装与注册] <sec-office-install>
+
+== 安装流程
+
+安装程序会自动完成以下步骤：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  + 将 Word 和 PowerPoint 加载项文件复制到安装目录
+  + 将代码签名证书安装到受信任的发布者存储
+  + 写入 HKLM 注册表键值（同时覆盖 32 位和 64 位 Office 路径）
+  + 调用 VSTO 安装程序静默注册加载项
+  + 清理 Office 禁用项和崩溃记录
+]
+
+== 自定义安装路径
+
+安装程序支持自定义安装路径，VSTO 注册和文件引用会自动适配所选路径。不建议将加载项安装到受保护的临时目录或网络路径。
+
+== 卸载
+
+通过 Windows"设置 → 应用 → 已安装的应用"卸载，或运行安装目录下的 `unins000.exe`。卸载程序会自动：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  + 删除所有安装文件
+  + 移除 HKLM 注册表键值
+  + 调用 VSTO 安装程序反注册加载项
+  + 清理 Office 禁用项和崩溃记录
+]
+
+== 命令行静默安装
+
+安装包支持 Inno Setup 标准静默参数：
+
+```text
+# 静默安装（显示进度条）
+OfficePluginSetup-2.3.2.exe /silent
+
+# 完全静默（无界面）
+OfficePluginSetup-2.3.2.exe /verysilent
+
+# 自定义安装目录
+OfficePluginSetup-2.3.2.exe /dir="D:\Tools\LaTeXSnipper"
+```
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// Word 功能详解
+// ═══════════════════════════════════════════
+#heading(level: 1)[Word 功能详解] <sec-office-word>
+
+== 功能区概览
+
+安装后，Word 功能区的最后位置会出现 #text(weight: "bold")[LaTeXSnipper] 标签页，包含三组按钮：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *公式组：* 行内公式、行间公式、带编号公式、截图识别
+  - *编辑组：* 加载所选、删除所选
+  - *工具组：* 状态窗格、设置、帮助
+]
+
+== 插入 OMML 公式
+
+Word 加载项通过本机 Bridge 将 LaTeX 转换为 Word 原生 OMML（Office Math Markup Language）公式。OMML 公式是 Word 原生格式，可以像手动插入的公式一样编辑。
+
+#info-block("OMML 与普通公式的区别", [
+  - OMML 公式是 Word 原生格式，卸载加载项后公式仍然可以正常显示和编辑
+  - 加载项插入的公式会附带 LaTeXSnipper 管理元数据（LaTeX 源码、显示模式、编号模式），用于后续加载、更新和重编号
+  - 普通 Word 公式没有 LaTeXSnipper 元数据，插件不会猜测其 LaTeX 来源
+])
+
+== 三种插入模式
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *行内公式（Ctrl+Shift+I）：* 插入正文中的行内公式，跟随文字排版
+  - *行间公式（Ctrl+Shift+D）：* 插入居中显示的独立公式
+  - *带编号公式（Ctrl+Shift+N）：* 插入自动编号的行间公式，公式与编号使用表格布局对齐
+]
+
+== 加载、更新和删除
+
+选中由 LaTeXSnipper 插入的公式后：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - #text(weight: "bold")[加载所选：] 将公式的 LaTeX 源码加载到公式编辑器，可以修改后重新插入
+  - #text(weight: "bold")[更新：] 在编辑器中修改后点击更新，新公式会替换原公式，保留元数据
+  - #text(weight: "bold")[删除所选：] 删除公式及对应的元数据
+]
+
+#warn-block("重要", [
+  只有由 LaTeXSnipper 插入并保留元数据的公式才能被插件管理。
+  复制粘贴后元数据丢失的公式无法继续维护。
+])
+
+== 自动编号与重编号
+
+带编号公式支持 Word 风格的自动编号管理：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *自动编号：* 为选中的公式添加自动编号。如果公式已有编号，不会重复添加
+  - *重编号全部：* 按文档顺序更新所有自动编号公式的编号文本和元数据，不重新渲染公式内容
+  - *编号位置：* 设置中可选择右编号或左编号
+]
+
+== 截图识别
+
+点击截图识别后，加载项等待桌面端完成下一次截图 OCR。在等待过程中再次点击截图识别会取消当前请求。OCR 识别结果会自动填入公式编辑器。
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// PowerPoint 功能详解
+// ═══════════════════════════════════════════
+#heading(level: 1)[PowerPoint 功能详解] <sec-office-ppt>
+
+== 功能区概览
+
+PowerPoint 的 LaTeXSnipper 标签页结构与 Word 类似，但功能更精简：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *公式组：* 插入公式、截图识别
+  - *编辑组：* 加载所选、删除所选
+  - *工具组：* 状态窗格、设置、帮助
+]
+
+== 插入公式图片
+
+PowerPoint 加载项将 LaTeX 渲染为高 DPI PNG 图片插入当前幻灯片。图片会自动去除透明边距，元数据保存在形状标签（`shape.Tags`）中。
+
+#info-block("与 Word 的区别", [
+  - PowerPoint 所有公式均以图片形式插入，不是原生 OMML
+  - 没有行内/行间区别——PowerPoint 幻灯片上的公式始终是独立图片
+  - 不支持自动编号和重编号（这些是 Word 文档专属功能）
+])
+
+== 加载与删除
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *加载所选：* 选中幻灯片上的公式图片，点击加载所选，公式的 LaTeX 源码会载入独立公式编辑器。修改后重新插入时，新图片会替换原位置旧图片
+  - *删除所选：* 删除选中的公式图片及元数据
+]
+
+#tip-block("提示", [
+  如果你在幻灯片上找不到公式图片，可以检查形状的替代文本（Alt Text）。所有 LaTeXSnipper 公式图片的替代文本均以 "LaTeXSnipper formula" 开头。
+])
+
+== 截图识别
+
+与 Word 相同的截图 OCR 流程。识别结果会自动填入公式编辑器，可直接插入或修改后插入。
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// 公式编辑器与侧边栏
+// ═══════════════════════════════════════════
+#heading(level: 1)[公式编辑器与侧边栏] <sec-office-editor>
+
+== 侧边栏（任务窗格）
+
+侧边栏是加载项的常驻面板，通过功能区"状态窗格"按钮或自动弹出显示：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *MathLive 编辑器：* 侧边栏顶部是可视化公式编辑器，支持所见即所得的公式编辑
+  - *LaTeX 源码：* 编辑器下方是 LaTeX 源码输入区，编辑器和源码区双向同步
+  - *连接按钮：* 测试与桌面端 Bridge 的连通性
+  - *截图识别按钮：* 触发截图 OCR 等待状态
+  - *插入按钮：* 将当前侧边栏公式直接插入文档/幻灯片
+]
+
+== 独立公式编辑器
+
+通过功能区"插入公式"按钮或"加载所选"打开的独立公式编辑器窗口：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *数学编辑区：* 全尺寸 MathLive 编辑器，支持键盘和符号面板输入
+  - *符号面板：* 左侧面板提供希腊字母、结构模板、微积分、线性代数、关系符、运算符号、箭头、集合、函数、概率统计、化学、物理公式等 16 类符号库
+  - *插入 / 更新：* 底部按钮根据当前模式显示"插入"或"更新"
+  - *取消（Esc）：* 关闭编辑器，不应用更改
+]
+
+#tip-block("编辑器快捷键", [
+  - `Ctrl+Enter`：在公式编辑器中换行
+  - `Esc`：关闭编辑器，不应用更改
+])
+
+== 平台界面差异
+
+Word 侧边栏包含"行间公式""自动编号""重编号"等 Word 专属控件。PowerPoint 侧边栏会隐藏这些 PPT 不适用的选项，界面更简洁。
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// 设置与帮助
+// ═══════════════════════════════════════════
+#heading(level: 1)[设置与帮助] <sec-office-settings>
+
+== 设置窗口
+
+通过功能区"设置"按钮打开。设置窗口的内容因宿主程序而异：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - *Word：* 可配置带编号公式的默认布局（右编号或左编号）
+  - *PowerPoint：* 当前无专属设置项
+  - *通用：* 编辑器键盘行为说明（`Ctrl+Enter` 换行，`Esc` 关闭）
+]
+
+== 帮助窗口
+
+通过功能区"帮助"按钮打开，根据当前宿主（Word 或 PowerPoint）显示对应内容：
+
+#block(
+  inset: 12pt,
+  width: 100%,
+)[
+  #set par(spacing: 0.25em)
+
+  - 系统要求详情
+  - Word / PowerPoint 功能列表
+  - 功能区按钮说明
+  - 插件架构介绍
+  - 使用边界说明
+]
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// 常见问题排查
+// ═══════════════════════════════════════════
+#heading(level: 1)[常见问题排查] <sec-office-trouble>
+
+== 加载项未出现在功能区
+
+*现象：* 安装后打开 Word 或 PowerPoint，功能区没有 LaTeXSnipper 标签页。
+
+#v(0.35em)
+
+*排查步骤：*
+
++ 打开 Word / PowerPoint → 文件 → 选项 → 加载项
++ 在"管理"下拉列表中选择"COM 加载项"，点击"转到"
++ 检查列表中是否有 #text(weight: "bold")[LaTeXSnipper]
++ 如果存在但未勾选，勾选后确定
++ 如果存在但被禁用，在"禁用的应用程序加载项"中重新启用
+
+如果列表中完全没有 LaTeXSnipper：
+
++ 确认安装程序以管理员权限运行
++ 检查杀毒软件是否拦截了安装
++ 重新运行安装包，选择"修复"模式
+
+== 连接桌面端失败
+
+*现象：* 点击"连接"按钮后提示"无法连接到 LaTeXSnipper"。
+
+#v(0.35em)
+
+*解决：*
+
++ 确认 LaTeXSnipper 桌面端正在运行
++ 在桌面端设置中确认"Office 插件功能"已开启
++ 检查防火墙是否拦截了 `127.0.0.1:28765` 端口
++ 如果桌面端改变了 Bridge 端口，设置环境变量 `LATEXSNIPPER_OFFICE_BRIDGE_URL` 指向正确地址
+
+== 公式编辑器加载失败
+
+*现象：* 侧边栏或独立编辑器显示空白或加载错误。
+
+#v(0.35em)
+
+*原因：* 公式编辑器依赖 Microsoft Edge WebView2 Runtime。如果系统中未安装或版本过旧，编辑器可能无法加载。
+
+#v(0.35em)
+
+*解决：*
+
++ 从 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下载并安装 WebView2 Runtime
++ Windows 11 和 Microsoft 365 通常已内置 WebView2
+
+== 截图 OCR 提示"正忙"
+
+*现象：* 点击截图识别后很快提示错误"截图识别正忙，请稍后再试"。
+
+#v(0.35em)
+
+*原因：* 桌面端上一次 OCR 请求尚未完成或未正确取消。加载项会自动取消旧请求并重试一次。如果重试仍然失败，可能桌面端正在处理其他任务。
+
+#v(0.35em)
+
+*解决：* 稍等片刻后重试。如果持续出现，关闭并重新打开桌面端的 Office 插件功能。
+
+== 加载项被 Office 禁用
+
+*现象：* 加载项之前正常使用，某次打开 Office 后消失了。
+
+#v(0.35em)
+
+*原因：* Office 检测到加载项启动耗时过长或崩溃，将其自动禁用。
+
+#v(0.35em)
+
+*解决：*
+
++ 文件 → 选项 → 加载项 → 管理"禁用的应用程序加载项" → 转到
++ 找到 LaTeXSnipper，重新启用
++ 如果频繁被禁用，查看 Office 加载项 Resiliency 注册表（`HKCU\Software\Microsoft\Office\{App}\Resiliency`）并清理对应条目
+
+== 安装后出现两个无图标程序条目
+
+*现象：* Windows"设置 → 应用 → 已安装的应用"中出现 `LaTeXSnipper.OfficePlugin.WordVstoAddIn` 和 `LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn` 无图标条目。
+
+#v(0.35em)
+
+*说明：* 这些是 VSTO ClickOnce 部署的注册痕迹，属于正常现象。加载项安装程序已将其标记为系统组件，通常不会在用户界面上显示。如果仍然可见，不影响加载项的正常使用。
+
+#pagebreak()
+
+// ═══════════════════════════════════════════
+// 第三卷：MathCraft 内部模型介绍
+// ═══════════════════════════════════════════
+#align(center)[
+  #text(size: 14pt, weight: "bold")[第三卷 · MathCraft 内部模型介绍]
   #v(0.25em)
   #line(length: 60%, stroke: 0.4pt + rgb("#CCCCCC"))
   #v(0.6em)
