@@ -307,12 +307,78 @@ begin
     end;
 end;
 
+procedure CleanHkcuUninstallEntries;
+var
+  UninstallRoot: string;
+  SubkeyNames: TArrayOfString;
+  DisplayName, KeyPath: string;
+  i: Integer;
+begin
+  UninstallRoot := 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, UninstallRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := UninstallRoot + '\' + SubkeyNames[i];
+      if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'DisplayName', DisplayName) then
+      begin
+        if Pos('LaTeXSnipper.OfficePlugin', DisplayName) > 0 then
+        begin
+          RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+          Log('Removed HKCU uninstall: ' + DisplayName);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure CleanVstoSolutionMetadata;
+var
+  MetaRoot: string;
+  SubkeyNames: TArrayOfString;
+  KeyPath, ValueStr: string;
+  ValueNames: TArrayOfString;
+  i, j: Integer;
+  found: Boolean;
+begin
+  MetaRoot := 'Software\Microsoft\VSTO\SolutionMetadata';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, MetaRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := MetaRoot + '\' + SubkeyNames[i];
+      found := False;
+      if RegGetValueNames(HKEY_CURRENT_USER, KeyPath, ValueNames) then
+      begin
+        for j := 0 to GetArrayLength(ValueNames) - 1 do
+        begin
+          if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, ValueNames[j], ValueStr) then
+          begin
+            if Pos('LaTeXSnipper', ValueStr) > 0 then
+            begin
+              found := True;
+              break;
+            end;
+          end;
+        end;
+      end;
+      if found then
+      begin
+        RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+        Log('Removed VSTO metadata: ' + SubkeyNames[i]);
+      end;
+    end;
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
     CleanResiliencyForApp('Word');
     CleanResiliencyForApp('PowerPoint');
-    Log('Resiliency cleanup complete.');
+    CleanHkcuUninstallEntries;
+    CleanVstoSolutionMetadata;
+    Log('Registry cleanup complete.');
   end;
 end;
