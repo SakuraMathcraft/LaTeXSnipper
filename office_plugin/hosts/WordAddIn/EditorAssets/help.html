@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper Office Plugin Help</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #fff;
+      --line: #d6deea;
+      --text: #182235;
+      --muted: #5a6980;
+      --accent: #1f6feb;
+      --accent-soft: #eaf2ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font: 14px/1.65 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+    main {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 26px 26px 40px;
+    }
+    header { padding: 20px 0 18px; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: 27px; line-height: 1.25; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: 0; }
+    h3 { margin: 15px 0 5px; color: #0f3e8a; font-size: 15px; }
+    p, li, td, th { color: #293548; font-size: 13px; }
+    p { margin: 5px 0 10px; }
+    ul { margin: 6px 0 12px; padding-left: 20px; }
+    li { margin: 4px 0; }
+    code { padding: 1px 5px; border-radius: 3px; color: #1849a9; background: #eef3fb; font: 12px "Cascadia Code", Consolas, monospace; }
+    table { width: 100%; margin: 8px 0 14px; border-collapse: collapse; background: #fff; }
+    th { text-align: left; color: #172033; background: #f2f6fb; }
+    td, th { padding: 8px 10px; border: 1px solid var(--line); vertical-align: top; }
+    section { margin: 18px 0 0; padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+    .lead { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    .callout { margin: 12px 0 0; padding: 11px 13px; border-left: 4px solid var(--accent); background: var(--accent-soft); color: #263f69; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .mini { min-height: 112px; padding: 13px; border: 1px solid #dbe3ef; border-radius: 5px; background: #fbfdff; }
+    .mini h3 { margin-top: 0; }
+    .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); color: #73829b; font-size: 11px; }
+    .lang-en { display: none; }
+    html[lang="en"] .lang-zh { display: none; }
+    html[lang="en"] .lang-en { display: block; }
+    .platform-word, .platform-powerpoint { display: none; }
+    .app-word .platform-word { display: block; }
+    .app-powerpoint .platform-powerpoint { display: block; }
+  </style>
+</head>
+<body class="app-word">
+  <main class="lang-zh">
+    <header>
+      <h1>LaTeXSnipper Office 插件</h1>
+      <p class="lead">在 Word 和 PowerPoint 中插入、编辑和维护由 LaTeXSnipper 管理的原生公式。</p>
+    </header>
+
+    <section>
+      <h2>系统要求</h2>
+      <table>
+        <thead><tr><th>组件</th><th>要求</th></tr></thead>
+        <tbody>
+          <tr><td>Windows 版本</td><td>Windows 10 22H2 或更高版本 / Windows 11</td></tr>
+          <tr><td>Office 版本</td><td><ul><li>Microsoft 365 应用（当前通道或月度企业通道）</li><li>Office 2024 / 2021 / 2019 零售版或批量许可版</li><li>Office LTSC 2024 / 2021</li></ul></td></tr>
+          <tr><td>运行时</td><td>.NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）</td></tr>
+          <tr><td>Office 体系</td><td>仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office</td></tr>
+          <tr><td>LaTeXSnipper 桌面端</td><td>需在本机运行并开启 Office 插件功能，插件通过 <code>127.0.0.1:28765</code> 与本机 Bridge 通信</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>快速开始</h2>
+      <div class="grid">
+        <div class="mini"><h3>1. 启动桌面端</h3><p>打开 LaTeXSnipper 桌面端，在设置中启用 Office 插件功能。</p></div>
+        <div class="mini"><h3>2. 编写公式</h3><p>在侧边栏输入 LaTeX。截图识别结果会自动写回。</p></div>
+        <div class="mini"><h3>3. 插入到文档</h3><p>使用 Ribbon 按钮或侧边栏的插入按钮。Word 写入原生 OMML，PowerPoint 插入矢量图。</p></div>
+      </div>
+      <div class="callout">如果请求失败，请确认桌面端正在运行且 Office 插件功能已开启。</div>
+    </section>
+
+    <section class="platform-word">
+      <h2>Word 功能</h2>
+      <h3>原生 OMML 公式</h3>
+      <p>通过本机 Bridge 将 LaTeX 转换为 Word 原生 OMML。行内公式跟随正文；行间公式居中；带编号公式以表格布局保存公式和编号。</p>
+      <h3>加载、更新和删除</h3>
+      <p>选中受管理公式后可加载到编辑器修改。更新保留元数据；删除同时移除公式和元数据。</p>
+      <h3>自动编号与重编号</h3>
+      <p>带编号公式支持自动编号，重编号按文档顺序更新所有编号文本，不重新渲染公式。编号位置（左/右）可在设置中选择。</p>
+      <h3>截图识别</h3>
+      <p>点击后等待桌面端截图结果，再次点击可取消。</p>
+    </section>
+
+    <section class="platform-powerpoint">
+      <h2>PowerPoint 功能</h2>
+      <h3>高清公式图片</h3>
+      <p>通过本机 Bridge 将 LaTeX 渲染为高 DPI 的 PNG 图片插入幻灯片。公式元数据保存在形状标签中。</p>
+      <h3>加载和删除</h3>
+      <p>选中受管理公式后可加载到独立编辑器修改，修改后新公式替换原位置旧公式。删除同时移除形状和元数据。</p>
+      <h3>截图识别</h3>
+      <p>点击后等待桌面端截图结果，识别后的 LaTeX 自动填入编辑器。再次点击可取消。</p>
+    </section>
+
+    <section>
+      <h2>插件架构</h2>
+      <table>
+        <thead><tr><th>项目</th><th>实现</th></tr></thead>
+        <tbody>
+          <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
+          <tr><td>Word 公式</td><td>写入原生 OMML 公式，附带 LaTeX 源码、显示模式、编号模式等管理元数据。</td></tr>
+          <tr><td>PowerPoint 公式</td><td>插入高 DPI PNG 图片到幻灯片，元数据写入形状标签（<code>shape.Tags</code>）。</td></tr>
+          <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
+          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>边界说明</h2>
+      <ul>
+        <li>只有由 LaTeXSnipper 插入并保留元数据的公式才能被插件管理。</li>
+        <li>普通 Office 公式没有 LaTeXSnipper 元数据，插件不会猜测其 LaTeX 来源。</li>
+        <li>复制粘贴后元数据丢失的公式无法继续维护。</li>
+        <li>如果 Office 禁用了加载项，请关闭 Office，重新运行注册脚本后再打开测试。</li>
+      </ul>
+    </section>
+
+    <div class="footer">LaTeXSnipper Office Plugin &copy; SakuraMathcraft</div>
+  </main>
+
+  <main class="lang-en">
+    <header>
+      <h1>LaTeXSnipper Office Plugin</h1>
+      <p class="lead">Insert, edit, and maintain native formulas managed by LaTeXSnipper in Word and PowerPoint.</p>
+    </header>
+
+    <section>
+      <h2>System Requirements</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Requirement</th></tr></thead>
+        <tbody>
+          <tr><td>Windows</td><td>Windows 10 22H2 or later / Windows 11</td></tr>
+          <tr><td>Office</td><td><ul><li>Microsoft 365 Apps (Current or Monthly Enterprise Channel)</li><li>Office 2024 / 2021 / 2019 Retail or Volume License</li><li>Office LTSC 2024 / 2021</li></ul></td></tr>
+          <tr><td>Runtime</td><td>.NET Framework 4.8; Microsoft Edge WebView2 Runtime (built into Windows 11; auto-installed by M365)</td></tr>
+          <tr><td>Office Platform</td><td>32-bit and 64-bit Windows desktop Office only; web, mobile, and macOS are not supported</td></tr>
+          <tr><td>LaTeXSnipper Desktop</td><td>Must be running locally with the Office plugin feature enabled; communicates via local Bridge at <code>127.0.0.1:28765</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Quick Start</h2>
+      <div class="grid">
+        <div class="mini"><h3>1. Start the client</h3><p>Open LaTeXSnipper and enable Office plugin in settings.</p></div>
+        <div class="mini"><h3>2. Prepare LaTeX</h3><p>Type LaTeX in the side pane. Screenshot OCR writes back automatically.</p></div>
+        <div class="mini"><h3>3. Insert into Office</h3><p>Use Ribbon or side pane. Word writes native OMML; PowerPoint inserts vector graphics.</p></div>
+      </div>
+      <div class="callout">If requests fail, make sure the desktop client is running and Office plugin is enabled.</div>
+    </section>
+
+    <section class="platform-word">
+      <h2>Word Features</h2>
+      <h3>Native OMML Formulas</h3>
+      <p>Converts LaTeX to native Word OMML via the local Bridge. Inline formulas flow with text; display formulas are centered; numbered formulas use a table layout.</p>
+      <h3>Load, Update, Delete</h3>
+      <p>Managed formulas can be loaded into the editor. Updates preserve metadata; deletion removes both formula and metadata.</p>
+      <h3>Auto Numbering &amp; Renumber</h3>
+      <p>Numbered formulas support automatic numbering; renumbering updates all numbers in document order without re-rendering. Number placement (left/right) is configurable in Settings.</p>
+      <h3>Screenshot OCR</h3>
+      <p>Click to wait for the next desktop screenshot; click again to cancel.</p>
+    </section>
+
+    <section class="platform-powerpoint">
+      <h2>PowerPoint Features</h2>
+      <h3>High-DPI Formula Images</h3>
+      <p>Converts LaTeX to high-DPI PNG images via the local Bridge and inserts them onto slides. Metadata is stored in shape tags.</p>
+      <h3>Load and Delete</h3>
+      <p>Managed formulas can be loaded into the standalone editor. After editing, the new formula replaces the original at the same position. Deleting removes both shape and metadata.</p>
+      <h3>Screenshot OCR</h3>
+      <p>Click to wait for the next desktop screenshot; recognized LaTeX is loaded into the editor. Click again to cancel.</p>
+    </section>
+
+    <section>
+      <h2>Plugin Architecture</h2>
+      <table>
+        <thead><tr><th>Area</th><th>Implementation</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
+          <tr><td>Word Output</td><td>Native OMML with LaTeX source, display mode, and numbering metadata.</td></tr>
+          <tr><td>PowerPoint Output</td><td>High-DPI PNG images inserted onto slides; metadata stored in shape tags.</td></tr>
+          <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
+          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Boundaries</h2>
+      <ul>
+        <li>Only formulas inserted by LaTeXSnipper with metadata can be managed by the plugin.</li>
+        <li>Plain Office equations lack LaTeXSnipper metadata; the plugin does not guess their LaTeX source.</li>
+        <li>Formulas that lose metadata after copy-paste cannot be managed.</li>
+        <li>If Office disables the add-in, close Office, re-run the registration script, and reopen Office.</li>
+      </ul>
+    </section>
+
+    <div class="footer">LaTeXSnipper Office Plugin &copy; SakuraMathcraft</div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const platform = params.get("platform") || "word";
+    document.body.className = "app-" + platform;
+    const language = (navigator.language || "").toLowerCase();
+    document.documentElement.lang = language.startsWith("zh") ? "zh-CN" : "en";
+  </script>
+</body>
+</html>

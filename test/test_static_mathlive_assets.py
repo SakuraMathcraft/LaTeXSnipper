@@ -19,7 +19,8 @@ def test_desktop_mathlive_editor_uses_local_runtime_assets() -> None:
     assert "import('./vendor/mathlive.min.mjs')" in app
     assert "import('./vendor/mathlive.min.mjs')" in bridge_panel
     assert "import('./vendor/compute-engine.min.esm.js')" in app
-    assert "MathfieldElement.fontsDirectory = './vendor/fonts';" in combined
+    assert "new URL('./vendor/fonts', window.location.href).href" in combined
+    assert "vendor/vendor/fonts" not in combined
     assert (MATHLIVE / "vendor" / "mathlive.min.mjs").is_file()
     assert (MATHLIVE / "vendor" / "mathlive.LICENSE.txt").is_file()
     assert (MATHLIVE / "vendor" / "compute-engine.min.esm.js").is_file()

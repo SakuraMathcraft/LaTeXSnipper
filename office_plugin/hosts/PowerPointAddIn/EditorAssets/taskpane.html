@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper</title>
+  <link rel="stylesheet" href="./taskpane.css">
+</head>
+<body>
+  <main class="taskpane-shell">
+    <section class="toolbar">
+      <div>
+        <h1>LaTeXSnipper</h1>
+        <p id="hostLabel">Office 插件</p>
+      </div>
+      <button id="connectButton" type="button" class="ghost-button">连接</button>
+    </section>
+
+    <div id="statusBanner" class="status-banner" role="status">
+      <span id="statusText">就绪。</span>
+    </div>
+
+    <section class="panel editor-panel">
+      <label id="equationLabel" for="previewHost">公式</label>
+      <div id="previewHost" class="preview-host"></div>
+      <label for="latexSource">LaTeX</label>
+      <textarea id="latexSource" spellcheck="false"></textarea>
+      <div id="optionsRow" class="options-row">
+        <label><input id="displayMode" type="checkbox" checked><span id="displayLabel">行间公式</span></label>
+        <label><input id="autoNumber" type="checkbox"><span id="autoNumberLabel">自动编号</span></label>
+        <input id="manualNumber" type="text" spellcheck="false" placeholder="自定义编号">
+      </div>
+    </section>
+
+    <section class="actions primary-actions">
+      <button id="ocrButton" type="button">截图识别</button>
+      <button id="insertButton" type="button" class="primary">插入</button>
+    </section>
+
+    <section id="numberingSection" class="panel compact-panel">
+      <label id="numberingLabel">编号</label>
+      <section class="actions">
+        <button id="renumberButton" type="button">重编号全部</button>
+      </section>
+    </section>
+  </main>
+  <script type="module" src="./taskpane.js"></script>
+</body>
+</html>

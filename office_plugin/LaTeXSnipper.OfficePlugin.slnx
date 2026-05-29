@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LaTeXSnipper.OfficePlugin.Abstractions/LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <Project Path="src/LaTeXSnipper.OfficePlugin.Bridge/LaTeXSnipper.OfficePlugin.Bridge.csproj" />
+    <Project Path="src/LaTeXSnipper.OfficePlugin.Editor/LaTeXSnipper.OfficePlugin.Editor.csproj" />
+    <Project Path="src/LaTeXSnipper.OfficePlugin.Rendering/LaTeXSnipper.OfficePlugin.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/hosts/">
+    <Project Path="hosts/PowerPointAddIn/LaTeXSnipper.OfficePlugin.PowerPointAddIn.csproj" />
+    <Project Path="hosts/WordAddIn/LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
+  </Folder>
+</Solution>

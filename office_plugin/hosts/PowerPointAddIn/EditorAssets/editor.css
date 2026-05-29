@@ -1,0 +1,239 @@
+:root {
+  color-scheme: light;
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --line: #cfd7e3;
+  --text: #172033;
+  --muted: #637083;
+  --accent: #1f6feb;
+  --accent-soft: #dceaff;
+  --button: #eef2f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 320px minmax(560px, 1fr);
+  gap: 8px;
+  height: calc(100vh - 54px);
+  padding: 8px;
+}
+
+.workspace,
+.library {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.workspace {
+  display: grid;
+  grid-template-rows: 1fr 118px;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.mathfield-host {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+math-field {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  min-height: 360px;
+  border: 0;
+  outline: none;
+  font-size: 30px;
+  background: #fff;
+}
+
+#latexSource {
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  resize: none;
+  border: 0;
+  outline: none;
+  font: 14px/1.45 Consolas, "Cascadia Mono", monospace;
+  color: var(--text);
+  background: #fbfcfe;
+}
+
+.library {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  grid-template-rows: 34px 1fr;
+  grid-column: 1;
+  grid-row: 1;
+  overflow: hidden;
+}
+
+.library-tabs {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: stretch;
+  padding: 6px 5px;
+  border-right: 1px solid var(--line);
+  background: #f7f9fc;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.tab {
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: #9db8e8;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.library-title {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  color: #1f3d70;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.symbol-grid {
+  grid-column: 2;
+  grid-row: 2;
+  align-content: start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 3px 5px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.symbol-grid.structures {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+
+.symbol-grid button,
+.matrix-row button {
+  min-width: 0;
+  min-height: 32px;
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.symbol-grid button:hover,
+.matrix-row button:hover {
+  border-color: #8fb0e6;
+  background: #e9f1ff;
+}
+
+.symbol-grid.structures button {
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 7px;
+}
+
+.matrix-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 52px 52px 1fr;
+  gap: 4px;
+}
+
+.matrix-row.cases {
+  grid-template-columns: 52px 1fr;
+}
+
+.matrix-row select {
+  min-width: 0;
+  height: 34px;
+}
+
+.footer {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  height: 54px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.option {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer button {
+  min-width: 86px;
+  height: 32px;
+  border: 1px solid #bcc6d4;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+#acceptButton {
+  border-color: #145dbf;
+  color: #fff;
+  background: var(--accent);
+}

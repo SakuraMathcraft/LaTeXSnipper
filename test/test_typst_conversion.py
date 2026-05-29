@@ -19,7 +19,6 @@ from core.mathcraft_document_engine import (
 
 
 def test_convert_latex_to_typst_without_pypandoc(monkeypatch):
-    """Test that convert_latex_to_typst returns original text when pypandoc is not available."""
     monkeypatch.setattr(document_engine, "pypandoc", None)
     latex = r"\int_{0}^{\infty} e^{-x} dx"
     result = convert_latex_to_typst(latex)
@@ -27,7 +26,6 @@ def test_convert_latex_to_typst_without_pypandoc(monkeypatch):
 
 
 def test_compose_mathcraft_markdown_document_with_typst_formulas():
-    """Test that compose_mathcraft_markdown_document accepts typst_formulas parameter."""
     page_texts = [
         "\n".join([
             "Notice that",
@@ -38,18 +36,15 @@ def test_compose_mathcraft_markdown_document_with_typst_formulas():
         ])
     ]
 
-    # Test with typst_formulas=False (default)
     text_default = compose_mathcraft_markdown_document(page_texts)
     assert "$$\nx = y + z\n$$" in text_default
 
-    # Test with typst_formulas=True
     text_typst = compose_mathcraft_markdown_document(page_texts, typst_formulas=True)
     assert isinstance(text_typst, str)
-    assert text_typst  # Should not be empty
+    assert text_typst  
 
 
 def test_compose_mathcraft_markdown_pages_with_typst_formulas():
-    """Test that compose_mathcraft_markdown_pages accepts typst_formulas parameter."""
     page_results = [
         {
             "text": "\n".join([
@@ -62,22 +57,18 @@ def test_compose_mathcraft_markdown_pages_with_typst_formulas():
         }
     ]
 
-    # Test with typst_formulas=False (default)
     text_default = compose_mathcraft_markdown_pages(page_results)
     assert "$$\nx = y + z\n$$" in text_default
 
-    # Test with typst_formulas=True
     text_typst = compose_mathcraft_markdown_pages(page_results, typst_formulas=True)
     assert isinstance(text_typst, str)
-    assert text_typst  # Should not be empty
+    assert text_typst 
 
 
 def test_typst_formulas_parameter_consistency():
-    """Test that typst_formulas parameter works consistently across functions."""
     page_texts = ["$$a + b = c$$"]
     page_results = [{"text": "$$a + b = c$$"}]
 
-    # Both functions should produce valid output with typst_formulas=True
     doc_text = compose_mathcraft_markdown_document(page_texts, typst_formulas=True)
     pages_text = compose_mathcraft_markdown_pages(page_results, typst_formulas=True)
 

@@ -252,9 +252,12 @@ def test_failed_warmup_plan_is_not_cached() -> None:
         calls.append(Path(model_dir).name)
         raise RuntimeError("warmup failed")
 
+    def _ok(model_dir, provider_info):
+        return None
+
     runtime_mod.ONNX_WARMUP_HANDLERS = {
         FORMULA_DETECTOR_ID: _fail,
-        FORMULA_RECOGNIZER_ID: old_handlers[FORMULA_RECOGNIZER_ID],
+        FORMULA_RECOGNIZER_ID: _ok,
         TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
         TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
     }
