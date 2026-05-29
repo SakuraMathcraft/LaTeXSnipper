@@ -353,25 +353,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
 
     private static string ResolveAssetsRoot()
     {
-        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, "EditorAssets");
-        if (File.Exists(Path.Combine(copied, "taskpane.html")))
-        {
-            return copied;
-        }
-
-        string? current = baseDirectory;
-        for (int i = 0; i < 8 && current != null; i++)
-        {
-            string candidate = Path.Combine(current, "office_plugin", "hosts", "WordAddIn", "EditorAssets");
-            if (File.Exists(Path.Combine(candidate, "taskpane.html")))
-            {
-                return candidate;
-            }
-
-            current = Directory.GetParent(current)?.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Task pane assets were not found.");
+        return InstalledAssetResolver.FindAssetRoot("taskpane.html")
+            ?? throw new DirectoryNotFoundException("Task pane assets were not found.");
     }
 }

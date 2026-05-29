@@ -170,25 +170,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private static string ResolveAssetsRoot()
     {
-        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, "EditorAssets");
-        if (File.Exists(Path.Combine(copied, "editor.html")))
-        {
-            return copied;
-        }
-
-        string? current = baseDirectory;
-        for (int i = 0; i < 8 && current != null; i++)
-        {
-            string candidate = Path.Combine(current, "office_plugin", "hosts", "WordAddIn", "EditorAssets");
-            if (File.Exists(Path.Combine(candidate, "editor.html")))
-            {
-                return candidate;
-            }
-
-            current = Directory.GetParent(current)?.FullName;
-        }
-
-        throw new DirectoryNotFoundException("MathLive editor assets were not found.");
+        return InstalledAssetResolver.FindAssetRoot("editor.html")
+            ?? throw new DirectoryNotFoundException("MathLive editor assets were not found.");
     }
 }
