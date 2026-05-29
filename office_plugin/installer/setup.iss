@@ -232,6 +232,7 @@ var
 begin
   AppDir := ExpandConstant('{app}');
   StringChange(AppDir, '\', '/');
+  StringChange(Param, '\', '/');
   Result := 'file:///' + AppDir + '/' + Param + '|vstolocal';
 end;
 
@@ -368,6 +369,31 @@ begin
   end;
 end;
 
+procedure CleanVstoSecurityInclusions;
+var
+  InclusionRoot: string;
+  SubkeyNames: TArrayOfString;
+  KeyPath, UrlValue: string;
+  i: Integer;
+begin
+  InclusionRoot := 'Software\Microsoft\VSTO\Security\Inclusion';
+  if RegGetSubkeyNames(HKEY_CURRENT_USER, InclusionRoot, SubkeyNames) then
+  begin
+    for i := 0 to GetArrayLength(SubkeyNames) - 1 do
+    begin
+      KeyPath := InclusionRoot + '\' + SubkeyNames[i];
+      if RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'Url', UrlValue) then
+      begin
+        if Pos('LaTeXSnipper', UrlValue) > 0 then
+        begin
+          RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, KeyPath);
+          Log('Removed VSTO security inclusion: ' + SubkeyNames[i]);
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
@@ -376,6 +402,7 @@ begin
     CleanResiliencyForApp('PowerPoint');
     CleanHkcuUninstallEntries;
     CleanVstoSolutionMetadata;
+    CleanVstoSecurityInclusions;
     Log('Registry cleanup complete.');
   end;
 end;
@@ -398,6 +425,7 @@ begin
     CleanResiliencyForApp('PowerPoint');
     CleanHkcuUninstallEntries;
     CleanVstoSolutionMetadata;
+    CleanVstoSecurityInclusions;
     HideVstoUninstallEntries;
     Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
