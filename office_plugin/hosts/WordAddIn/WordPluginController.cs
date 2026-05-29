@@ -239,11 +239,14 @@ public sealed class WordPluginController
 
     private async Task InsertAndRenumberIfNeededAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
-        await InsertRenderedFormulaAsync(metadata, cancellationToken);
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+            int nextNumber = _wordAdapter.GetNextAutomaticNumber();
+            metadata = WithNumbering(metadata, NumberingMode.Automatic, FormatNumber(nextNumber));
+            _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
         }
+
+        await InsertRenderedFormulaAsync(metadata, cancellationToken);
     }
 
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(

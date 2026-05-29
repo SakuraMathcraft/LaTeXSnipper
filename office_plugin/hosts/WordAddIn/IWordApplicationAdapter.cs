@@ -21,5 +21,9 @@ public interface IWordApplicationAdapter
 
     Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 
+    int GetNextAutomaticNumber();
+
+    void SetNextAutomaticNumber(int number);
+
     Task<IReadOnlyList<FormulaMetadata>> LoadAllManagedFormulasAsync(CancellationToken cancellationToken);
 }
