@@ -194,6 +194,12 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" "
 Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\PowerPoint\{#PowerPointAddInName}.dll"""; \
   StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
 
+; Uninstall any previous VSTO deployment with the same identity (handles reinstall/path change)
+Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
+  Flags: runhidden
+Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" /Silent"; \
+  Flags: runhidden
+
 ; Run VSTOInstaller silently for Word
 Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
   StatusMsg: "{cm:RegisteringWord}"; Flags: runhidden
