@@ -34,7 +34,7 @@ function Remove-RegistryTree {
     if (Test-Path $Path) {
         try {
             Remove-Item $Path -Recurse -Force -ErrorAction Stop
-            Write-Host "$Message: $Path"
+            Write-Host "$($Message): $Path"
         } catch {
             Write-Host "Failed to remove registry key: $Path -> $($_.Exception.Message)"
         }
@@ -89,7 +89,7 @@ function Remove-RegistryChildrenByNameOrValue {
         ForEach-Object {
             try {
                 Remove-Item $_ -Recurse -Force -ErrorAction Stop
-                Write-Host "$Message: $_"
+                Write-Host "$($Message): $_"
             } catch {
                 Write-Host "Failed to remove registry key: $_ -> $($_.Exception.Message)"
             }
@@ -243,8 +243,8 @@ if (Test-Path $cacheRoot) {
     # 7.1 Match by file/folder names and full paths
     Get-ChildItem $cacheRoot -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object {
-            (Test-MatchText $_.Name) -or
-            (Test-MatchText $_.FullName)
+            Test-MatchText $_.Name -or
+            Test-MatchText $_.FullName
         } |
         ForEach-Object {
             $dir = if ($_.PSIsContainer) { $_ } else { $_.Directory }
@@ -345,3 +345,4 @@ if ($RemoveInstallDir) {
 }
 
 Write-Host "=== Force clean complete ==="
+
