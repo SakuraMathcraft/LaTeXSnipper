@@ -258,6 +258,14 @@ begin
     Result := True;
 end;
 
+procedure KillOfficeProcesses;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{cmd}'), '/c taskkill /f /im WINWORD.EXE /im POWERPNT.EXE /im EXCEL.EXE 2>nul', '', 0, ewWaitUntilTerminated, ResultCode);
+  Sleep(2000);
+end;
+
 function GetManifestUri(Param: string): string;
 var
   AppDir: string;
@@ -427,6 +435,8 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ClickOnceDir: string;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
@@ -435,6 +445,13 @@ begin
     CleanHkcuUninstallEntries;
     CleanVstoSolutionMetadata;
     CleanVstoSecurityInclusions;
+    // Clear ClickOnce cache to prevent stale identity on reinstall
+    ClickOnceDir := ExpandConstant('{localappdata}\Apps\2.0');
+    if DirExists(ClickOnceDir) then
+    begin
+      DelTree(ClickOnceDir, True, True, True);
+      Log('Cleared ClickOnce cache during uninstall.');
+    end;
     Log('Registry cleanup complete.');
   end;
 end;
@@ -443,6 +460,10 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ClickOnceDir: string;
 begin
+  if CurStep = ssInstall then
+  begin
+    KillOfficeProcesses;
+  end;
   if CurStep = ssPostInstall then
   begin
     // Clear ClickOnce cache to prevent identity conflicts from previous installs
