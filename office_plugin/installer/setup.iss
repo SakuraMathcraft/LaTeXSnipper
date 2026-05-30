@@ -308,15 +308,23 @@ Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\Word\{#Wo
 Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" /Silent"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden
 
-; Write VSTO security inclusion entries to HKLM (admin context, machine-wide)
-; Word also needs HKCU inclusion which is created by a per-user post-install step
+; Write VSTO security inclusion entries
+; HKLM is written in elevated installer context; HKCU is written as original user.
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
-  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\Word\{#WordAddInName}.vsto"""; \
+  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\Word\{#WordAddInName}.vsto"" -Target HKLM"; \
   StatusMsg: "{cm:RegisteringWord}"; Flags: runhidden
 
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
-  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"""; \
+  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\Word\{#WordAddInName}.vsto"" -Target HKCU"; \
+  StatusMsg: "{cm:RegisteringWord}"; Flags: runhidden runasoriginaluser
+
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" -Target HKLM"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden
+
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" -Target HKCU"; \
+  StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden runasoriginaluser
 
 [UninstallRun]
 ; Uninstall VSTO for Word

@@ -71,7 +71,7 @@ function Remove-RegistryChildrenByNameOrValue {
                 $props = Get-ItemProperty $item.PSPath -ErrorAction SilentlyContinue
                 foreach ($prop in $props.PSObject.Properties) {
                     if ($prop.Name -match '^PS') { continue }
-                    if (Test-MatchText $prop.Name -or Test-MatchText $prop.Value) {
+                    if ((Test-MatchText $prop.Name) -or (Test-MatchText $prop.Value)) {
                         $hit = $true
                         break
                     }
@@ -224,7 +224,7 @@ foreach ($app in $Apps) {
                 $props = Get-ItemProperty $keyPath -ErrorAction SilentlyContinue
                 foreach ($prop in $props.PSObject.Properties) {
                     if ($prop.Name -match '^PS') { continue }
-                    if (Test-MatchText $prop.Name -or Test-MatchText $prop.Value) {
+                    if ((Test-MatchText $prop.Name) -or (Test-MatchText $prop.Value)) {
                         Remove-ItemProperty -Path $keyPath -Name $prop.Name -Force -ErrorAction SilentlyContinue
                         Write-Host "Cleaned Office resiliency: $keyPath -> $($prop.Name)"
                     }
@@ -243,8 +243,8 @@ if (Test-Path $cacheRoot) {
     # 7.1 Match by file/folder names and full paths
     Get-ChildItem $cacheRoot -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object {
-            Test-MatchText $_.Name -or
-            Test-MatchText $_.FullName
+            (Test-MatchText $_.Name) -or
+            (Test-MatchText $_.FullName)
         } |
         ForEach-Object {
             $dir = if ($_.PSIsContainer) { $_ } else { $_.Directory }
