@@ -14,11 +14,10 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointStatusSink, IPowerPointFormulaOptionsProvider
 {
     private const string TaskPaneHostName = "latexsnipper.officeplugin.local";
-    private const string DefaultLatex = "e^{i\\pi}+1=0";
 
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private readonly WebView2 _webView;
-    private string _currentLatex = DefaultLatex;
+    private string _currentLatex = PowerPointPluginController.DefaultLatex;
     private string? _savedLatex;
     private bool _webViewReady;
     private bool _initializing;
@@ -64,7 +63,7 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
             }
             else
             {
-                _currentLatex = DefaultLatex;
+                _currentLatex = PowerPointPluginController.DefaultLatex;
             }
 
             _lastUpdateMode = false;

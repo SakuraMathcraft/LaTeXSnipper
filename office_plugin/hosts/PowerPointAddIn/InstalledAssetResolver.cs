@@ -6,8 +6,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 internal static class InstalledAssetResolver
 {
-    private const string RegistryPath = @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn";
-
     public static string? FindAssetRoot(string assetFile)
     {
         string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
@@ -36,23 +34,28 @@ internal static class InstalledAssetResolver
     {
         @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
         @"Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
+        // ClickToRun virtualized paths (Office 365 / C2R)
+        @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
+        @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
     };
 
-    private static string? FindFromRegistry(string assetFile)
+    /// <summary>Resolves the directory containing the installed .vsto manifest via registry,
+    /// bypassing AppDomain.BaseDirectory which may point to a ClickOnce cache.</summary>
+    public static string? FindInstallDirectory()
     {
         foreach (var root in new[] { Registry.LocalMachine, Registry.CurrentUser })
         {
             foreach (var subPath in RegistryPaths)
             {
-                string? candidate = TryRegistryPath(root, subPath, assetFile);
-                if (candidate != null) return candidate;
+                string? dir = GetManifestDirectory(root, subPath);
+                if (dir != null) return dir;
             }
         }
 
         return null;
     }
 
-    private static string? TryRegistryPath(RegistryKey root, string subPath, string assetFile)
+    private static string? GetManifestDirectory(RegistryKey root, string subPath)
     {
         using RegistryKey? key = root.OpenSubKey(subPath);
         string? manifest = key?.GetValue("Manifest") as string;
@@ -66,13 +69,18 @@ internal static class InstalledAssetResolver
             .Replace("|vstolocal", "")
             .Replace('/', '\\');
 
-        string? dir = Path.GetDirectoryName(path);
-        if (dir == null)
+        return Path.GetDirectoryName(path);
+    }
+
+    private static string? FindFromRegistry(string assetFile)
+    {
+        string? installDir = FindInstallDirectory();
+        if (installDir != null)
         {
-            return null;
+            string candidate = Path.Combine(installDir, "EditorAssets");
+            return File.Exists(Path.Combine(candidate, assetFile)) ? candidate : null;
         }
 
-        string candidate = Path.Combine(dir, "EditorAssets");
-        return File.Exists(Path.Combine(candidate, assetFile)) ? candidate : null;
+        return null;
     }
 }

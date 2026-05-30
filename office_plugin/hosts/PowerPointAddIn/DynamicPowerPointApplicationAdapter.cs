@@ -9,12 +9,8 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 {
     private const int MsoFalse = 0;
     private const int MsoTrue = -1;
-    private const int MsoTextOrientationHorizontal = 1;
     private const float DefaultLeftPoints = 72f;
     private const float DefaultTopPoints = 96f;
-    private const float NumberGapPoints = 12f;
-    private const float NumberWidthPoints = 54f;
-    private const float NumberFontSize = 18f;
 
     private readonly dynamic _application;
 
@@ -37,10 +33,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         }
 
         dynamic slide = GetActiveSlide();
-        float totalWidth = metadata.NumberingMode == NumberingMode.None
-            ? image.WidthPoints
-            : image.WidthPoints + NumberGapPoints + NumberWidthPoints;
-        InsertionPoint insertionPoint = GetInsertionPoint(slide, totalWidth, image.HeightPoints);
+        InsertionPoint insertionPoint = GetInsertionPoint(slide, image.WidthPoints, image.HeightPoints);
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
     }
 
@@ -65,14 +58,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         dynamic picture = slide.Shapes.AddPicture(image.Path, MsoFalse, MsoTrue, left, top, image.WidthPoints, image.HeightPoints);
         PowerPointFormulaMetadataStore.ApplyToShape(picture, metadata);
-
-        if (metadata.NumberingMode != NumberingMode.None)
-        {
-            dynamic label = AddNumberLabel(slide, metadata, left + image.WidthPoints + NumberGapPoints, top, image.HeightPoints);
-            dynamic group = slide.Shapes.Range(new[] { (string)picture.Name, (string)label.Name }).Group();
-            PowerPointFormulaMetadataStore.ApplyToShape(group, metadata);
-        }
-
         return Task.CompletedTask;
     }
 
@@ -241,22 +226,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         {
             return new InsertionPoint(DefaultLeftPoints, DefaultTopPoints);
         }
-    }
-
-    private static dynamic AddNumberLabel(dynamic slide, FormulaMetadata metadata, float left, float top, float formulaHeight)
-    {
-        string numberText = string.IsNullOrWhiteSpace(metadata.NumberText) ? "(1)" : metadata.NumberText;
-        dynamic label = slide.Shapes.AddTextbox(
-            MsoTextOrientationHorizontal,
-            left,
-            top,
-            NumberWidthPoints,
-            Math.Max(formulaHeight, NumberFontSize + 8f));
-        label.TextFrame.TextRange.Text = numberText;
-        label.TextFrame.TextRange.Font.Size = NumberFontSize;
-        label.TextFrame.VerticalAnchor = 3;
-        PowerPointFormulaMetadataStore.ApplyToShape(label, metadata);
-        return label;
     }
 
     private readonly struct InsertionPoint
