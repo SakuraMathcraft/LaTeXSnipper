@@ -48,6 +48,10 @@ if %ERRORLEVEL% neq 0 (
 echo [3/4] Copying EditorAssets...
 dotnet build "%PLUGIN_ROOT%\LaTeXSnipper.OfficePlugin.slnx" -c %CONFIG% > nul 2>&1
 
+:: Step 3.5: Export signing certificate
+echo [3.5/4] Exporting certificate...
+powershell -ExecutionPolicy Bypass -Command "$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=LaTeXSnipper Office Plugin Dev VSTO' } | Sort-Object NotAfter -Descending | Select-Object -First 1; if ($cert) { Export-Certificate -Cert $cert -FilePath '%SCRIPT_DIR%devcert.cer' -Type CERT -Force } else { Write-Host 'WARNING: Dev cert not found, installer may fail' }"
+
 :: Step 4: Run Inno Setup
 echo [4/4] Building installer...
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"

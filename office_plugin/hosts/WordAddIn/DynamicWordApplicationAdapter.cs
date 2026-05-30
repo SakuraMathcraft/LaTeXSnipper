@@ -123,6 +123,16 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return Task.FromResult<IReadOnlyList<FormulaMetadata>>(LoadAllManagedFormulas());
     }
 
+    public int GetNextAutomaticNumber()
+    {
+        return WordFormulaMetadataStore.GetAutoNumberCounter(_wordApplication.ActiveDocument);
+    }
+
+    public void SetNextAutomaticNumber(int number)
+    {
+        WordFormulaMetadataStore.SetAutoNumberCounter(_wordApplication.ActiveDocument, number);
+    }
+
     public Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -154,6 +164,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             }
         });
 
+        SetNextAutomaticNumber(number + 1);
         return Task.FromResult(number);
     }
 
