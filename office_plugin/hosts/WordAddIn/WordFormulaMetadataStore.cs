@@ -15,6 +15,7 @@ internal static class WordFormulaMetadataStore
     public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
     private const string EquationTagBackupSeparator = "|";
     private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
+    private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
 
     public static string BuildEquationTag(string equationId, FormulaMetadata? metadata = null)
     {
@@ -321,5 +322,33 @@ internal static class WordFormulaMetadataStore
         }
 
         return Enum.TryParse(Convert.ToString(value), ignoreCase: true, out TEnum parsed) ? parsed : fallback;
+    }
+
+    public static int GetAutoNumberCounter(dynamic document)
+    {
+        try
+        {
+            dynamic variable = document.Variables.Item(AutoNumberCounterKey);
+            return Convert.ToInt32(variable.Value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return 1;
+        }
+    }
+
+    public static void SetAutoNumberCounter(dynamic document, int value)
+    {
+        string text = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        dynamic variables = document.Variables;
+        try
+        {
+            dynamic variable = variables.Item(AutoNumberCounterKey);
+            variable.Value = text;
+        }
+        catch
+        {
+            variables.Add(AutoNumberCounterKey, text);
+        }
     }
 }
