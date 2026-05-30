@@ -94,26 +94,8 @@ internal static class OfficePluginHelp
 
         private static string ResolveAssetsRoot()
         {
-            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            string copied = Path.Combine(baseDirectory, "EditorAssets");
-            if (File.Exists(Path.Combine(copied, "help.html")))
-            {
-                return copied;
-            }
-
-            string? current = baseDirectory;
-            for (int i = 0; i < 8 && current != null; i++)
-            {
-                string candidate = Path.Combine(current, "office_plugin", "hosts", "WordAddIn", "EditorAssets");
-                if (File.Exists(Path.Combine(candidate, "help.html")))
-                {
-                    return candidate;
-                }
-
-                current = Directory.GetParent(current)?.FullName;
-            }
-
-            throw new DirectoryNotFoundException("Office plugin help assets were not found.");
+            return InstalledAssetResolver.FindAssetRoot("help.html")
+                ?? throw new DirectoryNotFoundException("Office plugin help assets were not found.");
         }
     }
 }

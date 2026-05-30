@@ -152,25 +152,7 @@ internal sealed class PowerPointSettingsWindow : Form
 
     private static string ResolveAssetsRoot()
     {
-        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, "EditorAssets");
-        if (File.Exists(Path.Combine(copied, "settings.html")))
-        {
-            return copied;
-        }
-
-        string? current = baseDirectory;
-        for (int i = 0; i < 8 && current != null; i++)
-        {
-            string candidate = Path.Combine(current, "office_plugin", "hosts", "PowerPointAddIn", "EditorAssets");
-            if (File.Exists(Path.Combine(candidate, "settings.html")))
-            {
-                return candidate;
-            }
-
-            current = Directory.GetParent(current)?.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Office plugin settings assets were not found.");
+        return InstalledAssetResolver.FindAssetRoot("settings.html")
+            ?? throw new DirectoryNotFoundException("Office plugin settings assets were not found.");
     }
 }

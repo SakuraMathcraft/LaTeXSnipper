@@ -9,6 +9,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public sealed class PowerPointPluginController
 {
+    internal const string DefaultLatex = "e^{i\\pi}+1=0";
+
     private readonly FormulaEditorSession _editorSession;
     private readonly BridgeClient _bridgeClient;
     private readonly IPowerPointApplicationAdapter _powerPointAdapter;
@@ -54,7 +56,7 @@ public sealed class PowerPointPluginController
         string latex = _optionsProvider.CurrentLatex;
         if (string.IsNullOrWhiteSpace(latex))
         {
-            latex = "e^{i\\pi}+1=0";
+            latex = DefaultLatex;
         }
 
         FormulaMetadata metadata = CreateMetadata(latex);
@@ -187,7 +189,7 @@ public sealed class PowerPointPluginController
 
     private static FormulaMetadata CreateMetadata(string latex)
     {
-        string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? "e^{i\\pi}+1=0" : latex.Trim();
+        string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? DefaultLatex : latex.Trim();
         return new FormulaMetadata(
             new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
             normalizedLatex,
