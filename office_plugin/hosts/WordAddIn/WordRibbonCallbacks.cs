@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -118,9 +119,14 @@ public sealed class WordRibbonCallbacks
     {
         try
         {
+            using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
             _statusSink.SetBusy(true);
             _statusSink.Post(WordStatusKind.Info, startMessage);
-            await action(CancellationToken.None);
+            await action(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _statusSink.Post(WordStatusKind.Error, WordAddInText.Get("CommandTimeoutStatus"));
         }
         catch (Exception exc)
         {

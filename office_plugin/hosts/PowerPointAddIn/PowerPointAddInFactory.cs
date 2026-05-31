@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Bridge;
 using LaTeXSnipper.OfficePlugin.Editor;
 
@@ -26,7 +27,12 @@ public static class PowerPointAddInFactory
         {
             try
             {
-                await controller.AcceptEditorFormulaAsync(accepted, CancellationToken.None);
+                using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
+                await controller.AcceptEditorFormulaAsync(accepted, timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("CommandTimeoutStatus"));
             }
             catch (Exception exc)
             {

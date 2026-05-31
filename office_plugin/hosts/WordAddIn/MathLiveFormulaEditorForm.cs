@@ -13,7 +13,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 internal sealed class MathLiveFormulaEditorForm : Form
 {
-    private const string EditorHostName = "latexsnipper.officeplugin.local";
+    private const string EditorHostName = "latexsnipper-word.officeplugin.local";
 
     private readonly WebView2 _webView;
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
@@ -97,7 +97,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + EditorHostName + "/editor.html");
+        _webView.Source = new Uri("https://" + EditorHostName + "/editor.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)

@@ -24,7 +24,7 @@ internal static class OfficePluginHelp
 
     private sealed class HelpWindow : Form
     {
-        private const string HelpHostName = "latexsnipper.officeplugin.local";
+        private const string HelpHostName = "latexsnipper-word.officeplugin.local";
 
         private readonly WebView2 _webView;
         private bool _initializing;

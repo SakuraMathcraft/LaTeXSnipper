@@ -12,7 +12,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 internal sealed class PowerPointSettingsWindow : Form
 {
-    private const string SettingsHostName = "latexsnipper.officeplugin.local";
+    private const string SettingsHostName = "latexsnipper-powerpoint.officeplugin.local";
 
     private static PowerPointSettingsWindow? _window;
 
@@ -94,7 +94,6 @@ internal sealed class PowerPointSettingsWindow : Form
             SettingsHostName,
             assetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
-        core.WebMessageReceived += OnWebMessageReceived;
         core.NavigationCompleted += OnNavigationCompleted;
         _webView.Source = new Uri("https://" + SettingsHostName + "/settings.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
@@ -110,7 +109,6 @@ internal sealed class PowerPointSettingsWindow : Form
 
     private async Task SendSettingsAsync()
     {
-        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         string payload = _serializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "init",
@@ -123,31 +121,6 @@ internal sealed class PowerPointSettingsWindow : Form
             "else{window.__latexSnipperSettingsInit=payload;}" +
             "})(" + payload + ");";
         await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
-    }
-
-    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
-    {
-        Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
-        if (message == null || !message.TryGetValue("type", out object rawType))
-        {
-            return;
-        }
-
-        string type = Convert.ToString(rawType, CultureInfo.InvariantCulture) ?? string.Empty;
-        if (type == "close")
-        {
-            Close();
-            return;
-        }
-
-        if (type != "save")
-        {
-            return;
-        }
-
-        var settings = new PowerPointPluginSettings();
-        settings.Save();
-        _ = SendSettingsAsync();
     }
 
     private static string ResolveAssetsRoot()

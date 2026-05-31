@@ -14,5 +14,7 @@ public interface IPowerPointApplicationAdapter
 
     Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
+    Task<int> DeleteSelectedFormulasAsync(CancellationToken cancellationToken);
+
     (float Left, float Top) GetSelectedShapePosition();
 }

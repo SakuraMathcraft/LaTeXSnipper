@@ -76,16 +76,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return Task.FromResult(selected.Metadata);
     }
 
-    public Task UpdateSelectedFormulaAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
-    {
-        ValidateManagedEquationInput(ooxml, metadata);
-        cancellationToken.ThrowIfCancellationRequested();
-        SelectedWordFormula selected = FindSelectedFormula();
-        object control = FindFormulaControlById(selected.Metadata.Identity.EquationId);
-        ExecuteWithScreenUpdatingSuspended(() => ReplaceFormulaContent(control, ooxml, metadata));
-        return Task.CompletedTask;
-    }
-
     public Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
@@ -110,27 +100,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         });
 
         return Task.CompletedTask;
-    }
-
-    public Task<int> CountAutoNumberedFormulasAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        int count = 0;
-        foreach (FormulaMetadata metadata in LoadAllManagedFormulas())
-        {
-            if (metadata.NumberingMode == NumberingMode.Automatic)
-            {
-                count++;
-            }
-        }
-
-        return Task.FromResult(count);
-    }
-
-    public Task<IReadOnlyList<FormulaMetadata>> LoadAllManagedFormulasAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<IReadOnlyList<FormulaMetadata>>(LoadAllManagedFormulas());
     }
 
     public int GetNextAutomaticNumber()
@@ -176,27 +145,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
         SetNextAutomaticNumber(number + 1);
         return Task.FromResult(number);
-    }
-
-    private IReadOnlyList<FormulaMetadata> LoadAllManagedFormulas()
-    {
-        var formulas = new List<FormulaMetadata>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
-        int count = Convert.ToInt32(controls.Count);
-        for (int i = 1; i <= count; i++)
-        {
-            dynamic control = controls.Item(i);
-            string equationId = GetEquationControlId(control);
-            if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
-            {
-                continue;
-            }
-
-            formulas.Add(LoadFormulaMetadata(control, equationId));
-        }
-
-        return formulas;
     }
 
     private IReadOnlyList<NumberedFormulaEntry> LoadNumberedFormulaEntries()
@@ -393,7 +341,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private static void ReplaceNumberedFormulaControl(object contentControl, string equationOoxml)
     {
         dynamic control = contentControl;
-        dynamic range = control.Range;
+        dynamic range = GetContainingParagraphRange(control);
         range.InsertXML(equationOoxml);
     }
 

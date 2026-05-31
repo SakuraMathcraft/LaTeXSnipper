@@ -124,8 +124,11 @@ public sealed class PowerPointPluginController
 
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
     {
-        await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
-        _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("DeletedStatus"));
+        int count = await _powerPointAdapter.DeleteSelectedFormulasAsync(cancellationToken);
+        string message = count <= 1
+            ? PowerPointAddInText.Get("DeletedStatus")
+            : PowerPointAddInText.Get("DeletedManyStatus").Replace("{count}", count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        _statusSink.Post(PowerPointStatusKind.Success, message);
     }
 
     public async Task RecognizeScreenshotAsync(CancellationToken cancellationToken)
