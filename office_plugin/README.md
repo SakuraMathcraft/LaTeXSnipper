@@ -64,8 +64,8 @@ dotnet build LaTeXSnipper.OfficePlugin.slnx
 MSBuild is auto-discovered via `vswhere` in the registration scripts. No hardcoded paths needed:
 
 ```powershell
-.\tools\Register-WordVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller
-.\tools\Register-PowerPointVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller
+.\tools\Register-WordVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
+.\tools\Register-PowerPointVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
 ```
 
 ### Installer
@@ -77,10 +77,12 @@ cd installer
 build.bat 2.3.2 Release
 ```
 
-Or directly:
+The build script discovers Inno Setup from `PATH` or standard install locations and exports the VSTO signing certificate to `installer\vsto-signing.cer` before packaging.
+
+If the VSTO shell build and certificate export have already completed, the installer script can also be run directly with `ISCC.exe` available on `PATH`:
 
 ```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVersion=2.3.2 /DConfig=Release installer\setup.iss
+ISCC.exe /DVersion=2.3.2 /DConfig=Release installer\setup.iss
 ```
 
 Output: `dist\OfficePluginSetup-2.3.2.exe`
@@ -89,4 +91,4 @@ Output: `dist\OfficePluginSetup-2.3.2.exe`
 
 ## Architecture Rule
 
-New Office product behavior lands here. Do not add dependencies on sideload catalogs, localhost HTTPS static sites, or retired Office packaging paths.
+This directory is the active Office product architecture. New Office behavior lands in the VSTO hosts and shared modules here.

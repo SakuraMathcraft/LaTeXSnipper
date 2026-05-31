@@ -85,7 +85,7 @@ Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinFo
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 
 ; ===== Certificate =====
-Source: "devcert.cer"; DestDir: "{app}"; Flags: ignoreversion
+Source: "vsto-signing.cer"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ===== VSTO inclusion helper script =====
 Source: "WriteVstoInclusions.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -294,19 +294,11 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
   ValueType: string; ValueName: "EnableLocalMachineVSTO"; ValueData: "1"; Flags: uninsdeletevalue
 
 [Run]
-; Trust the signing certificate (both Root and TrustedPublisher needed for self-signed)
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{app}\devcert.cer"""; \
+; Trust the self-signed VSTO manifest certificate.
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{app}\vsto-signing.cer"""; \
   Flags: runhidden
-Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\devcert.cer"""; \
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{app}\vsto-signing.cer"""; \
   StatusMsg: "{cm:InstallingCertificate}"; Flags: runhidden
-
-; Run VSTOInstaller silently for Word
-Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
-  StatusMsg: "{cm:RegisteringWord}"; Flags: runhidden
-
-; Run VSTOInstaller silently for PowerPoint
-Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Install ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" /Silent"; \
-  StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden
 
 ; Write VSTO security inclusion entries
 ; HKLM is written in elevated installer context; HKCU is written as original user.
@@ -325,15 +317,6 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" -Target HKCU"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden runasoriginaluser
-
-[UninstallRun]
-; Uninstall VSTO for Word
-Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\Word\{#WordAddInName}.vsto"" /Silent"; \
-  Flags: runhidden; RunOnceId: "UninstallWordVsto"
-
-; Uninstall VSTO for PowerPoint
-Filename: "{code:GetVstoInstallerPath}"; Parameters: "/Uninstall ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" /Silent"; \
-  Flags: runhidden; RunOnceId: "UninstallPowerPointVsto"
 
 [CustomMessages]
 InstallingCertificate=Installing add-in certificate to Trusted Publisher store...
@@ -383,23 +366,6 @@ begin
   Result := 'file:///' + AppDir + '/' + Param + '|vstolocal';
 end;
 
-function GetVstoInstallerPath(Param: string): string;
-var
-  Path: string;
-begin
-  Path := ExpandConstant('{commonpf32}\Common Files\Microsoft Shared\VSTO\10.0\VSTOInstaller.exe');
-  if FileExists(Path) then
-    Result := Path
-  else
-  begin
-    Path := ExpandConstant('{commonpf}\Common Files\Microsoft Shared\VSTO\10.0\VSTOInstaller.exe');
-    if FileExists(Path) then
-      Result := Path
-    else
-      RaiseException('Microsoft VSTO Runtime 10.0 is required but was not found. Please install Visual Studio Tools for Office.');
-  end;
-end;
-
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;
@@ -407,7 +373,7 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-         '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\ForceClean.ps1"',
+         '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\ForceClean.ps1" -InstallRoot "' + ExpandConstant('{app}') + '"',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Log('ForceClean exited with code ' + IntToStr(ResultCode));
   end;
@@ -427,7 +393,10 @@ begin
     if RegGetValueNames(RootKey, KeyPath, ValueNames) then
       for j := 0 to GetArrayLength(ValueNames) - 1 do
         if RegQueryStringValue(RootKey, KeyPath, ValueNames[j], ValueStr) then
-          if Pos('LaTeXSnipper', ValueStr) > 0 then
+          if (Pos('LaTeXSnipper.OfficePlugin', ValueStr) > 0) or
+             (Pos('LaTeXSnipper Office Plugin', ValueStr) > 0) or
+             (Pos('LaTeXSnipper/OfficePlugin', ValueStr) > 0) or
+             (Pos('LaTeXSnipper\OfficePlugin', ValueStr) > 0) then
           begin
             RegDeleteKeyIncludingSubkeys(RootKey, KeyPath);
             Log('Cleaned ClickOnce: ' + KeyPath);
@@ -446,7 +415,7 @@ begin
   // PowerShell cleanup: certs, file cache, HKLM+WOW registry paths
   ExtractTemporaryFile('ForceClean.ps1');
   Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-       '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\ForceClean.ps1"',
+       '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\ForceClean.ps1" -InstallRoot "' + ExpandConstant('{app}') + '" -RemoveInstallDir',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('ForceClean exited ' + IntToStr(ResultCode));
 

@@ -51,7 +51,12 @@ if (Test-Path $cache) {
   $vstos = Get-ChildItem $cache -Recurse -Filter "*.vsto" -ErrorAction SilentlyContinue
   foreach ($f in $vstos) {
     $content = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
-    if ($content -like "*LaTeXSnipper*") { Write-Host "  FOUND: $($f.FullName)" }
+    if ($content -like "*LaTeXSnipper.OfficePlugin*" -or
+        $content -like "*LaTeXSnipper Office Plugin*" -or
+        $content -like "*LaTeXSnipper\OfficePlugin*" -or
+        $content -like "*LaTeXSnipper/OfficePlugin*") {
+      Write-Host "  FOUND: $($f.FullName)"
+    }
   }
 }
 

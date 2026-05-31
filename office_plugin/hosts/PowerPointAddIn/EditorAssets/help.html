@@ -23,7 +23,7 @@
       font: 14px/1.65 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
     }
     main {
-      max-width: 1000px;
+      max-width: 1160px;
       margin: 0 auto;
       padding: 26px 26px 40px;
     }
@@ -42,7 +42,7 @@
     section { margin: 18px 0 0; padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
     .lead { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
     .callout { margin: 12px 0 0; padding: 11px 13px; border-left: 4px solid var(--accent); background: var(--accent-soft); color: #263f69; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .mini { min-height: 112px; padding: 13px; border: 1px solid #dbe3ef; border-radius: 5px; background: #fbfdff; }
     .mini h3 { margin-top: 0; }
     .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); color: #73829b; font-size: 11px; }
@@ -52,6 +52,9 @@
     .platform-word, .platform-powerpoint { display: none; }
     .app-word .platform-word { display: block; }
     .app-powerpoint .platform-powerpoint { display: block; }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body class="app-word">
@@ -80,7 +83,7 @@
       <div class="grid">
         <div class="mini"><h3>1. 启动桌面端</h3><p>打开 LaTeXSnipper 桌面端，在设置中启用 Office 插件功能。</p></div>
         <div class="mini"><h3>2. 编写公式</h3><p>在侧边栏输入 LaTeX。截图识别结果会自动写回。</p></div>
-        <div class="mini"><h3>3. 插入到文档</h3><p>使用 Ribbon 按钮或侧边栏的插入按钮。Word 写入原生 OMML，PowerPoint 插入矢量图。</p></div>
+        <div class="mini"><h3>3. 插入到文档</h3><p>使用 Ribbon 按钮或侧边栏的插入按钮。Word 写入原生 OMML，PowerPoint 插入高清图片。</p></div>
       </div>
       <div class="callout">如果请求失败，请确认桌面端正在运行且 Office 插件功能已开启。</div>
     </section>
@@ -127,7 +130,7 @@
         <li>只有由 LaTeXSnipper 插入并保留元数据的公式才能被插件管理。</li>
         <li>普通 Office 公式没有 LaTeXSnipper 元数据，插件不会猜测其 LaTeX 来源。</li>
         <li>复制粘贴后元数据丢失的公式无法继续维护。</li>
-        <li>如果 Office 禁用了加载项，请关闭 Office，重新运行注册脚本后再打开测试。</li>
+        <li>如果加载项未显示，请关闭 Office，重新运行安装包进行修复或重新安装，然后再打开 Office。</li>
       </ul>
     </section>
 
@@ -159,7 +162,7 @@
       <div class="grid">
         <div class="mini"><h3>1. Start the client</h3><p>Open LaTeXSnipper and enable Office plugin in settings.</p></div>
         <div class="mini"><h3>2. Prepare LaTeX</h3><p>Type LaTeX in the side pane. Screenshot OCR writes back automatically.</p></div>
-        <div class="mini"><h3>3. Insert into Office</h3><p>Use Ribbon or side pane. Word writes native OMML; PowerPoint inserts vector graphics.</p></div>
+        <div class="mini"><h3>3. Insert into Office</h3><p>Use the Ribbon or side pane. Word writes native OMML; PowerPoint inserts high-resolution images.</p></div>
       </div>
       <div class="callout">If requests fail, make sure the desktop client is running and Office plugin is enabled.</div>
     </section>
@@ -206,7 +209,7 @@
         <li>Only formulas inserted by LaTeXSnipper with metadata can be managed by the plugin.</li>
         <li>Plain Office equations lack LaTeXSnipper metadata; the plugin does not guess their LaTeX source.</li>
         <li>Formulas that lose metadata after copy-paste cannot be managed.</li>
-        <li>If Office disables the add-in, close Office, re-run the registration script, and reopen Office.</li>
+        <li>If the add-in does not appear, close Office, run the installer again to repair or reinstall the add-in, then reopen Office.</li>
       </ul>
     </section>
 

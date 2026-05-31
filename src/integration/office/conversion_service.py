@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 from io import BytesIO
 from typing import Any, Callable
 
 
 Converter = Callable[[str], str]
+ConversionCacheKey = tuple[str, bool, tuple[str, ...]]
 
 
 class OfficeConversionService:
@@ -18,11 +20,14 @@ class OfficeConversionService:
         latex_to_mathml: Converter | None = None,
         latex_to_svg: Converter | None = None,
         normalize_latex: Converter | None = None,
+        cache_size: int = 128,
     ) -> None:
         self._latex_to_omml = latex_to_omml
         self._latex_to_mathml = latex_to_mathml
         self._latex_to_svg = latex_to_svg
         self._normalize_latex = normalize_latex
+        self._cache_size = max(0, cache_size)
+        self._cache: OrderedDict[ConversionCacheKey, dict[str, Any]] = OrderedDict()
 
     def convert(self, payload: dict[str, Any]) -> dict[str, Any]:
         latex = str(payload.get("latex") or "").strip()
@@ -31,9 +36,15 @@ class OfficeConversionService:
 
         targets = self._normalize_targets(payload.get("targets"))
         normalized = self._normalize(latex)
+        display = bool(payload.get("display", True))
+        cache_key = (normalized, display, targets)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
         result: dict[str, Any] = {
             "latex": normalized,
-            "display": bool(payload.get("display", True)),
+            "display": display,
             "warnings": [],
         }
 
@@ -46,7 +57,30 @@ class OfficeConversionService:
         if "png" in targets:
             result["png_base64"] = self._png_base64(normalized)
 
-        return result
+        self._store_cached(cache_key, result)
+        return self._clone_result(result)
+
+    def _get_cached(self, key: ConversionCacheKey) -> dict[str, Any] | None:
+        if self._cache_size == 0:
+            return None
+        result = self._cache.get(key)
+        if result is None:
+            return None
+        self._cache.move_to_end(key)
+        return self._clone_result(result)
+
+    def _store_cached(self, key: ConversionCacheKey, result: dict[str, Any]) -> None:
+        if self._cache_size == 0:
+            return
+        self._cache[key] = self._clone_result(result)
+        self._cache.move_to_end(key)
+        while len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
+
+    def _clone_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        cloned = dict(result)
+        cloned["warnings"] = list(result.get("warnings", []))
+        return cloned
 
     def _normalize_targets(self, raw_targets: Any) -> tuple[str, ...]:
         allowed = {"omml", "mathml", "svg", "png"}

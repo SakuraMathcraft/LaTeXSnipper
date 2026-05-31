@@ -6,7 +6,8 @@ param(
     [string] $PowerPointManifestPath = "",
     [switch] $SkipBuild,
     [switch] $SkipCertificateTrust,
-    [switch] $SkipVstoInstaller
+    [switch] $SkipVstoInstaller,
+    [switch] $SkipOfficeRegistration
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +21,8 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
     -RegistryScope $RegistryScope `
     -SkipBuild:$SkipBuild `
     -SkipCertificateTrust:$SkipCertificateTrust `
-    -SkipVstoInstaller:$SkipVstoInstaller
+    -SkipVstoInstaller:$SkipVstoInstaller `
+    -SkipOfficeRegistration:$SkipOfficeRegistration
 
 & (Join-Path $scriptRoot "Register-PowerPointVstoAddIn.ps1") `
     -Configuration $Configuration `
@@ -30,4 +32,5 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
     -ManifestPath $PowerPointManifestPath `
     -SkipBuild:$SkipBuild `
     -SkipCertificateTrust:$SkipCertificateTrust `
-    -SkipVstoInstaller:$SkipVstoInstaller
+    -SkipVstoInstaller:$SkipVstoInstaller `
+    -SkipOfficeRegistration:$SkipOfficeRegistration

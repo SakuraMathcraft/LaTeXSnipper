@@ -1,3 +1,11 @@
+param(
+  [string]$InstallRoot = ""
+)
+
+if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
+  $InstallRoot = Join-Path $env:ProgramFiles "LaTeXSnipper\OfficePlugin"
+}
+
 Write-Host "=== Word HKLM Registry ==="
 $kp = "HKLM:\Software\Microsoft\Office\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn"
 if (Test-Path $kp) {
@@ -20,7 +28,12 @@ if (Test-Path $apps) {
   $vstos = Get-ChildItem $apps -Recurse -Filter "*.vsto" -ErrorAction SilentlyContinue
   foreach ($f in $vstos) {
     $c = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
-    if ($c -like "*LaTeXSnipper*") { Write-Host "CACHED: $($f.FullName)" }
+    if ($c -like "*LaTeXSnipper.OfficePlugin*" -or
+        $c -like "*LaTeXSnipper Office Plugin*" -or
+        $c -like "*LaTeXSnipper\OfficePlugin*" -or
+        $c -like "*LaTeXSnipper/OfficePlugin*") {
+      Write-Host "CACHED: $($f.FullName)"
+    }
   }
 }
 
@@ -45,7 +58,7 @@ foreach ($ver in @("", "16.0")) {
 }
 
 Write-Host "=== Manifest file check ==="
-$mf = "C:\Program Files\LaTeXSnipper\OfficePlugin\Word\LaTeXSnipper.OfficePlugin.WordVstoAddIn.vsto"
+$mf = Join-Path $InstallRoot "Word\LaTeXSnipper.OfficePlugin.WordVstoAddIn.vsto"
 Write-Host "Manifest exists: $(Test-Path $mf)"
 if (Test-Path $mf) {
   $xml = [xml](Get-Content $mf)

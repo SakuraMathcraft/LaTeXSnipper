@@ -6,7 +6,8 @@ param(
     [string] $ManifestPath = "",
     [switch] $SkipBuild,
     [switch] $SkipCertificateTrust,
-    [switch] $SkipVstoInstaller
+    [switch] $SkipVstoInstaller,
+    [switch] $SkipOfficeRegistration
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,4 +36,5 @@ Invoke-OfficeVstoRegistration `
     -ManifestPath $ManifestPath `
     -SkipBuild:$SkipBuild `
     -SkipCertificateTrust:$SkipCertificateTrust `
-    -SkipVstoInstaller:$SkipVstoInstaller
+    -SkipVstoInstaller:$SkipVstoInstaller `
+    -SkipOfficeRegistration:$SkipOfficeRegistration

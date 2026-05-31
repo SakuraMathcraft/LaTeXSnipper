@@ -1,22 +1,34 @@
 # ForceClean.ps1 — Clean LaTeXSnipper Office VSTO / ClickOnce artifacts
-# Recommended manual usage:
-#   powershell -ExecutionPolicy Bypass -File .\ForceClean.ps1 -KillOffice -RemoveInstallDir
-# Installer usage:
-#   powershell -ExecutionPolicy Bypass -File .\ForceClean.ps1
 
 param(
     [switch]$KillOffice,
-    [switch]$RemoveInstallDir
+    [switch]$RemoveInstallDir,
+    [string]$InstallRoot = ""
 )
 
 $ErrorActionPreference = "Continue"
 
-$AppDisplayName = "LaTeXSnipper"
 $WordAddInName = "LaTeXSnipper.OfficePlugin.WordVstoAddIn"
 $PowerPointAddInName = "LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn"
 $AddInNames = @($WordAddInName, $PowerPointAddInName)
 $Apps = @("Word", "PowerPoint")
-$MatchPatterns = @("*LaTeXSnipper*", "*OfficePlugin*", "*late..vsto*")
+$MatchPatterns = @(
+    "*LaTeXSnipper.OfficePlugin*",
+    "*LaTeXSnipper Office Plugin*",
+    "*LaTeXSnipper\OfficePlugin*",
+    "*LaTeXSnipper/OfficePlugin*",
+    "*OfficePluginSetup-*"
+)
+$SigningCertificateSubjects = @(
+    "CN=LaTeXSnipper Office Plugin VSTO"
+)
+
+if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
+    $resolvedInstallRoot = Convert-Path -LiteralPath $InstallRoot -ErrorAction SilentlyContinue
+    if ($resolvedInstallRoot) {
+        $InstallRoot = $resolvedInstallRoot
+    }
+}
 
 Write-Host "=== Force Clean LaTeXSnipper VSTO ==="
 
@@ -124,6 +136,8 @@ $vstoInstallerCandidates = @(
 $vstoInstaller = $vstoInstallerCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
 $knownManifestPaths = @(
+    $(if ($InstallRoot) { Join-Path $InstallRoot "Word\$WordAddInName.vsto" }),
+    $(if ($InstallRoot) { Join-Path $InstallRoot "PowerPoint\$PowerPointAddInName.vsto" }),
     "$env:ProgramFiles\LaTeXSnipper\OfficePlugin\Word\$WordAddInName.vsto",
     "$env:ProgramFiles\LaTeXSnipper\OfficePlugin\PowerPoint\$PowerPointAddInName.vsto",
     "${env:ProgramFiles(x86)}\LaTeXSnipper\OfficePlugin\Word\$WordAddInName.vsto",
@@ -212,6 +226,9 @@ foreach ($root in $uninstallRoots) {
     Remove-RegistryChildrenByNameOrValue -RootPath $root -Message "Removed uninstall entry"
 }
 
+# 5.1 Clean only plugin settings under the shared LaTeXSnipper vendor key.
+Remove-RegistryTree -Path "HKCU:\Software\LaTeXSnipper\OfficePlugin" -Message "Removed plugin settings"
+
 # 6. Clean Office Resiliency records
 foreach ($app in $Apps) {
     foreach ($ver in @("", "16.0")) {
@@ -297,7 +314,7 @@ if (Test-Path $cacheRoot) {
         }
 }
 
-# 8. Clean development certificates
+# 8. Clean VSTO signing certificates used only by this add-in
 $certStorePaths = @(
     "Cert:\CurrentUser\Root",
     "Cert:\CurrentUser\TrustedPublisher",
@@ -310,9 +327,8 @@ foreach ($store in $certStorePaths) {
 
     Get-ChildItem $store -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Subject -eq "CN=LaTeXSnipper Office Plugin Dev VSTO" -or
-            $_.Subject -like "*LaTeXSnipper*" -or
-            $_.FriendlyName -like "*LaTeXSnipper*"
+            $_.Subject -in $script:SigningCertificateSubjects -or
+            $_.FriendlyName -like "*LaTeXSnipper Office Plugin*"
         } |
         ForEach-Object {
             try {
@@ -328,9 +344,10 @@ foreach ($store in $certStorePaths) {
 # 9. Optionally remove physical install directories
 if ($RemoveInstallDir) {
     $installDirs = @(
+        $InstallRoot,
         "$env:ProgramFiles\LaTeXSnipper\OfficePlugin",
         "${env:ProgramFiles(x86)}\LaTeXSnipper\OfficePlugin"
-    ) | Where-Object { $_ }
+    ) | Where-Object { $_ } | Select-Object -Unique
 
     foreach ($dir in $installDirs) {
         if (Test-Path $dir) {
@@ -345,4 +362,3 @@ if ($RemoveInstallDir) {
 }
 
 Write-Host "=== Force clean complete ==="
-

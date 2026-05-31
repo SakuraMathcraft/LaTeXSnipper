@@ -66,6 +66,17 @@ public sealed class BridgeClient : IDisposable
             timeoutMessage: "Screenshot OCR timed out. Start Screenshot OCR again and complete a screenshot in LaTeXSnipper.");
     }
 
+    public Task<string> RecognitionStatusAsync(CancellationToken cancellationToken)
+    {
+        return SendAsync(
+            HttpMethod.Post,
+            "recognition/status",
+            "{}",
+            cancellationToken,
+            requiresAuthentication: true,
+            requestTimeout: TimeSpan.FromSeconds(2));
+    }
+
     public Task<string> CancelScreenshotOcrAsync(CancellationToken cancellationToken)
     {
         return SendAsync(

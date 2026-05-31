@@ -133,7 +133,7 @@ public sealed class PowerPointPluginController
         _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OcrWaitingStatus"));
         try
         {
-            string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+            string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
             await ProcessOcrResultAsync(responseJson, cancellationToken);
         }
         catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
@@ -142,7 +142,7 @@ public sealed class PowerPointPluginController
             await Task.Delay(300, CancellationToken.None);
             try
             {
-                string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+                string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
                 await ProcessOcrResultAsync(responseJson, cancellationToken);
             }
             catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
@@ -150,6 +150,14 @@ public sealed class PowerPointPluginController
                 _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("BridgeOcrAlreadyWaiting"));
             }
         }
+    }
+
+    private Task<string> RunScreenshotOcrWithProgressAsync(CancellationToken cancellationToken)
+    {
+        return BridgeRecognitionProgress.RunScreenshotOcrAsync(
+            _bridgeClient,
+            () => _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OcrRecognizingStatus")),
+            cancellationToken);
     }
 
     private async Task ProcessOcrResultAsync(string responseJson, CancellationToken cancellationToken)

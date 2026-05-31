@@ -5,7 +5,12 @@
       "Bash(npx vite *)",
       "Bash(npx --package typescript tsc --noEmit)",
       "Bash(dotnet build *)",
-      "Bash(powershell -ExecutionPolicy Bypass -File ./tools/Register-PowerPointVstoAddIn.ps1 -Configuration Debug -SkipBuild)"
+      "Bash(powershell -ExecutionPolicy Bypass -File ./tools/Register-PowerPointVstoAddIn.ps1 -Configuration Debug -SkipBuild)",
+      "Bash(curl -sL -o /tmp/vsto_deploy.html -w \"%{http_code}\" \"https://learn.microsoft.com/en-us/visualstudio/vsto/deploying-an-office-solution\")",
+      "Bash(curl -sL --max-time 30 \"https://learn.microsoft.com/en-us/archive/blogs/mshneer/deploying-your-vsto-add-in-to-all-users-part-i\")",
+      "WebFetch(domain:developer.aliyun.com)",
+      "WebFetch(domain:archive.is)",
+      "Read(//usr/**)"
     ]
   }
 }

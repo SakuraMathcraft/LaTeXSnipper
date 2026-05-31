@@ -43,6 +43,15 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
     }
 
+    public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        dynamic selection = _wordApplication.Selection;
+        dynamic range = selection.Range;
+        ValidateInsertionTarget(range);
+        return Task.CompletedTask;
+    }
+
     public Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
@@ -73,16 +82,17 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         cancellationToken.ThrowIfCancellationRequested();
         SelectedWordFormula selected = FindSelectedFormula();
         object control = FindFormulaControlById(selected.Metadata.Identity.EquationId);
-        ReplaceFormulaContent(control, ooxml, metadata);
+        ExecuteWithScreenUpdatingSuspended(() => ReplaceFormulaContent(control, ooxml, metadata));
         return Task.CompletedTask;
     }
 
-    public Task UpdateFormulaAsync(string equationId, string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
+    public Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
+        ValidateManagedEquationInput(equationOoxml, metadata);
         cancellationToken.ThrowIfCancellationRequested();
         object control = FindFormulaControlById(equationId);
-        ReplaceFormulaContent(control, ooxml, metadata);
+        ExecuteWithScreenUpdatingSuspended(() => ReplaceFormulaContent(control, ooxml, equationOoxml, metadata));
         return Task.CompletedTask;
     }
 
@@ -354,12 +364,20 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
     }
 
-    private void ReplaceFormulaContent(object contentControl, string ooxml, FormulaMetadata metadata)
+    private void ReplaceFormulaContent(object contentControl, string ooxml, string equationOoxml, FormulaMetadata metadata)
     {
         dynamic control = contentControl;
         object? table = TryGetNumberedTable(control, metadata.Identity.EquationId);
-        dynamic range = ResolveReplacementRange(control, table, metadata);
-        range.InsertXML(ooxml);
+        if (table != null)
+        {
+            ReplaceNumberedFormulaControl(control, equationOoxml);
+        }
+        else
+        {
+            dynamic range = ResolveReplacementRange(control, metadata);
+            range.InsertXML(ooxml);
+        }
+
         WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
         if (metadata.NumberingMode != NumberingMode.None)
         {
@@ -367,13 +385,20 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         }
     }
 
-    private dynamic ResolveReplacementRange(dynamic control, object? table, FormulaMetadata metadata)
+    private void ReplaceFormulaContent(object contentControl, string ooxml, FormulaMetadata metadata)
     {
-        if (table != null)
-        {
-            return ((dynamic)table).Range;
-        }
+        ReplaceFormulaContent(contentControl, ooxml, ooxml, metadata);
+    }
 
+    private static void ReplaceNumberedFormulaControl(object contentControl, string equationOoxml)
+    {
+        dynamic control = contentControl;
+        dynamic range = control.Range;
+        range.InsertXML(equationOoxml);
+    }
+
+    private static dynamic ResolveReplacementRange(dynamic control, FormulaMetadata metadata)
+    {
         return metadata.DisplayMode == FormulaDisplayMode.Display
             ? GetContainingParagraphRange(control)
             : control.Range;
@@ -397,13 +422,30 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             }
 
             dynamic table = tables.Item(1);
-            return TableContainsNumberControl(table, equationId) ? table : null;
+            if (TableContainsNumberControl(table, equationId) || TableContainsManagedControl(table, equationId))
+            {
+                return table;
+            }
         }
         catch
         {
         }
 
         return null;
+    }
+
+    private static object? TryGetContainingTable(dynamic control)
+    {
+        try
+        {
+            dynamic tables = control.Range.Tables;
+            int tableCount = Convert.ToInt32(tables.Count);
+            return tableCount == 0 ? null : tables.Item(1);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static object? TryGetNumberedTableFromNumberControl(dynamic document, string equationId)
@@ -456,16 +498,33 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return false;
     }
 
-    private static void ValidateInsertionTarget(dynamic range)
+    private static bool TableContainsManagedControl(dynamic table, string equationId)
     {
-        if (TryGetParentContentControl(range) != null || TryGetFirstManagedContentControl(range) != null)
+        try
         {
-            throw new InvalidOperationException(WordAddInText.Get("InsertInsideFormulaError"));
+            dynamic controls = table.Range.ContentControls;
+            int count = Convert.ToInt32(controls.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic control = controls.Item(i);
+                if (GetManagedEquationId(control) == equationId)
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
         }
 
-        if (TryGetNumberedTableFromRange(range) != null)
+        return false;
+    }
+
+    private void ValidateInsertionTarget(dynamic range)
+    {
+        if (RangeTouchesManagedFormula(range) || RangeIntersectsManagedFormula(range))
         {
-            throw new InvalidOperationException(WordAddInText.Get("InsertInsideNumberedFormulaError"));
+            throw new InvalidOperationException(WordAddInText.Get("InsertInsideFormulaError"));
         }
     }
 
@@ -479,13 +538,12 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         }
 
         object? numberedTable = TryGetNumberedTableFromRange(range);
-        if (numberedTable == null || !IsCollapsedRange(range))
+        if (numberedTable == null)
         {
             return range;
         }
 
-        object resolvedTable = numberedTable ?? throw new InvalidOperationException(WordAddInText.Get("InsertInsideNumberedFormulaError"));
-        return CreateInsertionRangeAfterNumberedTable(resolvedTable);
+        throw new InvalidOperationException(WordAddInText.Get("InsertInsideFormulaError"));
     }
 
     private object? TryResolveAfterEmptyParagraphFollowingNumberedTable(dynamic range)
@@ -567,44 +625,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         catch
         {
             return null;
-        }
-    }
-
-    private dynamic CreateInsertionRangeAfterNumberedTable(object table)
-    {
-        dynamic numberedTable = table;
-        try
-        {
-            numberedTable.Range.Select();
-            _wordApplication.Selection.Collapse(WdCollapseEnd);
-            _wordApplication.Selection.TypeParagraph();
-            return _wordApplication.Selection.Range;
-        }
-        catch
-        {
-            dynamic tableRange = numberedTable.Range;
-            TryInsertParagraphAfter(tableRange);
-            int insertionPoint = GetRangeEnd(tableRange);
-            if (TryCreateOutsideFormulaRange(insertionPoint + 1, out dynamic target))
-            {
-                return target;
-            }
-
-            return CreateRangeAtDocumentPosition(insertionPoint);
-        }
-    }
-
-    private bool TryCreateOutsideFormulaRange(int position, out dynamic target)
-    {
-        try
-        {
-            target = CreateRangeAtDocumentPosition(position);
-            return !RangeTouchesManagedFormula(target);
-        }
-        catch
-        {
-            target = null!;
-            return false;
         }
     }
 
@@ -904,13 +924,13 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     {
         dynamic control = selected.ContentControl;
         string equationId = selected.Metadata.Identity.EquationId;
-        object? table = TryGetNumberedTable(control, equationId);
+        object? table = TryGetNumberedTable(control, equationId)
+            ?? (selected.Metadata.NumberingMode == NumberingMode.None ? null : TryGetContainingTable(control));
         object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
         WordFormulaMetadataStore.Delete(_wordApplication.ActiveDocument, equationId);
         if (table != null)
         {
-            dynamic numberedTable = table;
-            numberedTable.Delete();
+            DeleteNumberedTableBlock(table);
             return;
         }
 
@@ -920,6 +940,12 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             dynamic backup = metadataControl;
             backup.Delete(true);
         }
+    }
+
+    private void DeleteNumberedTableBlock(object table)
+    {
+        dynamic numberedTable = table;
+        numberedTable.Delete();
     }
 
     private static int GetFormulaStart(SelectedWordFormula formula)
@@ -1108,6 +1134,67 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             || TryGetFirstManagedContentControl(range) != null
             || TryGetFirstManagedContentControlInNumberedTable(range) != null
             || TryGetNumberedTableFromRange(range) != null;
+    }
+
+    private bool RangeIntersectsManagedFormula(dynamic range)
+    {
+        int rangeStart = GetRangeStart(range);
+        int rangeEnd = GetRangeEnd(range);
+        try
+        {
+            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            int count = Convert.ToInt32(controls.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic control = controls.Item(i);
+                if (!IsManagedControl(control))
+                {
+                    continue;
+                }
+
+                if (RangesIntersectOrContainPoint(rangeStart, rangeEnd, GetRangeStart(control.Range), GetRangeEnd(control.Range)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            dynamic tables = _wordApplication.ActiveDocument.Tables;
+            int count = Convert.ToInt32(tables.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic table = tables.Item(i);
+                if (!TableContainsNumberControl(table))
+                {
+                    continue;
+                }
+
+                if (RangesIntersectOrContainPoint(rangeStart, rangeEnd, GetRangeStart(table.Range), GetRangeEnd(table.Range)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool RangesIntersectOrContainPoint(int rangeStart, int rangeEnd, int targetStart, int targetEnd)
+    {
+        if (rangeStart == rangeEnd)
+        {
+            return rangeStart >= targetStart && rangeStart < targetEnd;
+        }
+
+        return RangesOverlap(rangeStart, rangeEnd, targetStart, targetEnd);
     }
 
     private void ExecuteWithScreenUpdatingSuspended(Action action)

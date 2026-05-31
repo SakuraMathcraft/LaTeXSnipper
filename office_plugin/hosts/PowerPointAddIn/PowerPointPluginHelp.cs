@@ -32,9 +32,9 @@ internal static class PowerPointPluginHelp
         public HelpWindow()
         {
             Text = "LaTeXSnipper Help";
-            Width = 980;
+            Width = 1220;
             Height = 760;
-            MinimumSize = new System.Drawing.Size(760, 520);
+            MinimumSize = new System.Drawing.Size(900, 520);
             StartPosition = FormStartPosition.CenterScreen;
             ShowInTaskbar = true;
             Icon = PowerPointPluginIcon.Load();
