@@ -36,7 +36,7 @@ jobs:
           python-version: "3.11"
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "9.0.x"
 
@@ -159,6 +159,9 @@ jobs:
             }
             if ($workflow -match "actions/setup-python@v[0-5]\b") {
               throw "GitHub Actions setup-python must use a Node 24 version."
+            }
+            if ($workflow -match "actions/setup-dotnet@v[0-4]\b") {
+              throw "GitHub Actions setup-dotnet must use a Node 24 version."
             }
             if ($workflow -match "actions/(upload-artifact|download-artifact)@v[0-6]\b") {
               throw "GitHub Actions artifact actions must use Node 24 versions."
