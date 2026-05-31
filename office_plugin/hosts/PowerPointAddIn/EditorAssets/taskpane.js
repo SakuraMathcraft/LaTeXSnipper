@@ -4,15 +4,10 @@ const DEFAULT_LATEX = "e^{i\\pi}+1=0";
 
 const state = {
   latex: DEFAULT_LATEX,
-  display: true,
-  autoNumber: false,
-  manualNumber: "",
   busy: false,
   ocrActive: false,
   strings: {},
 };
-
-let platform = "word";
 
 const els = {
   hostLabel: document.getElementById("hostLabel"),
@@ -22,17 +17,8 @@ const els = {
   equationLabel: document.getElementById("equationLabel"),
   previewHost: document.getElementById("previewHost"),
   latexSource: document.getElementById("latexSource"),
-  displayMode: document.getElementById("displayMode"),
-  displayLabel: document.getElementById("displayLabel"),
-  autoNumber: document.getElementById("autoNumber"),
-  autoNumberLabel: document.getElementById("autoNumberLabel"),
-  manualNumber: document.getElementById("manualNumber"),
   ocrButton: document.getElementById("ocrButton"),
   insertButton: document.getElementById("insertButton"),
-  numberingLabel: document.getElementById("numberingLabel"),
-  numberingSection: document.getElementById("numberingSection"),
-  renumberButton: document.getElementById("renumberButton"),
-  optionsRow: document.getElementById("optionsRow"),
 };
 
 let previewField = null;
@@ -47,9 +33,6 @@ function post(message) {
 function readState() {
   return {
     latex: els.latexSource.value,
-    display: els.displayMode.checked,
-    autoNumber: els.autoNumber.checked,
-    manualNumber: els.manualNumber.value,
   };
 }
 
@@ -80,39 +63,17 @@ function applyLabels(strings) {
   els.hostLabel.textContent = strings.officePlugin || els.hostLabel.textContent;
   els.connectButton.textContent = strings.connect || els.connectButton.textContent;
   els.equationLabel.textContent = strings.equation || els.equationLabel.textContent;
-  els.displayLabel.textContent = strings.display || els.displayLabel.textContent;
-  els.autoNumberLabel.textContent = strings.autoNumber || els.autoNumberLabel.textContent;
-  els.manualNumber.placeholder = strings.manualNumber || els.manualNumber.placeholder;
   els.ocrButton.textContent = strings.screenshotOcr || els.ocrButton.textContent;
   state.strings = { ...state.strings, ...strings };
   els.insertButton.textContent = strings.insert || els.insertButton.textContent;
-  els.numberingLabel.textContent = strings.numbering || els.numberingLabel.textContent;
-  els.renumberButton.textContent = strings.renumber || els.renumberButton.textContent;
-}
-
-function applyPlatformUI() {
-  if (platform === "powerpoint") {
-    if (els.optionsRow) els.optionsRow.style.display = "none";
-    if (els.numberingSection) els.numberingSection.style.display = "none";
-  } else {
-    if (els.optionsRow) els.optionsRow.style.display = "";
-    if (els.numberingSection) els.numberingSection.style.display = "";
-  }
 }
 
 function applyState(payload) {
   applying = true;
   try {
-    if (payload.platform) {
-      platform = payload.platform;
-      applyPlatformUI();
-    }
     applyLabels(payload.strings);
     document.documentElement.lang = String(payload.locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
     setLatex(payload.latex || DEFAULT_LATEX);
-    els.displayMode.checked = payload.display !== false;
-    els.autoNumber.checked = Boolean(payload.autoNumber);
-    els.manualNumber.value = payload.manualNumber || "";
   } finally {
     applying = false;
   }
@@ -127,9 +88,7 @@ function applyStatus(payload) {
   els.ocrButton.textContent = state.ocrActive
     ? state.strings.cancelOcr || "Cancel OCR"
     : state.strings.screenshotOcr || els.ocrButton.textContent;
-  const busyButtons = platform === "powerpoint"
-    ? [els.connectButton, els.insertButton]
-    : [els.connectButton, els.insertButton, els.renumberButton];
+  const busyButtons = [els.connectButton, els.insertButton];
   for (const button of busyButtons) {
     button.disabled = state.busy;
   }
@@ -166,25 +125,9 @@ function initEvents() {
     resizePreview();
     emitState();
   });
-  els.displayMode.addEventListener("change", emitState);
-  els.autoNumber.addEventListener("change", () => {
-    if (els.autoNumber.checked) {
-      els.manualNumber.value = "";
-      els.displayMode.checked = true;
-    }
-    emitState();
-  });
-  els.manualNumber.addEventListener("input", () => {
-    if (els.manualNumber.value.trim()) {
-      els.autoNumber.checked = false;
-      els.displayMode.checked = true;
-    }
-    emitState();
-  });
   els.connectButton.addEventListener("click", () => post({ type: "connect", ...readState() }));
   els.ocrButton.addEventListener("click", () => post({ type: "ocr", ...readState() }));
   els.insertButton.addEventListener("click", () => post({ type: "insert", ...readState() }));
-  els.renumberButton?.addEventListener("click", () => post({ type: "renumber", ...readState() }));
 }
 
 function flushPending() {

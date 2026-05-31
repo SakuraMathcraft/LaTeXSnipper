@@ -16,7 +16,7 @@ def test_office_plugin_foundation_is_modular() -> None:
     assert (PLUGIN / "README.md").is_file()
 
     projects = {
-        "LaTeXSnipper.OfficePlugin.Abstractions": ("FormulaMetadata.cs", "IOfficeEquationHost.cs"),
+        "LaTeXSnipper.OfficePlugin.Abstractions": ("FormulaMetadata.cs", "OfficeCommandTimeouts.cs"),
         "LaTeXSnipper.OfficePlugin.Bridge": ("BridgeClient.cs", "BridgeOptions.cs", "BridgeConfiguration.cs"),
         "LaTeXSnipper.OfficePlugin.Rendering": ("FormulaRenderPipeline.cs", "RendererNotRegisteredException.cs"),
         "LaTeXSnipper.OfficePlugin.Editor": ("FormulaEditorSession.cs",),
@@ -133,7 +133,6 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LaTeXSnipper.Equation." in metadata_store
     assert "TryLoadBackup" in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
-    assert "UpdateSelectedFormulaAsync" in adapter
     assert "UpdateFormulaAsync" in adapter
     assert "DeleteSelectedFormulaAsync" in adapter
     assert "RenumberAutomaticFormulasAsync" in adapter
@@ -142,8 +141,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "AddSelectedFormulasOverlappingRange" in adapter
     assert "RangesOverlap" in adapter
     assert "DeleteFormula" in adapter
-    assert "CountAutoNumberedFormulasAsync" in adapter
-    assert "LoadAllManagedFormulasAsync" in adapter
+    assert "CountAutoNumberedFormulasAsync" not in adapter
+    assert "LoadAllManagedFormulasAsync" not in adapter
     assert "MoveSelectionAfterInlineControl" in adapter
     assert "MoveSelectionAfterDisplayParagraph" in adapter
     assert "MoveSelectionAfterTable" in adapter

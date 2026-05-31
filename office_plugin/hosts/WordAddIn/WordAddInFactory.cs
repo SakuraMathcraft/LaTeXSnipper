@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Windows.Forms;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Bridge;
 using LaTeXSnipper.OfficePlugin.Editor;
 
@@ -27,7 +28,12 @@ public static class WordAddInFactory
         {
             try
             {
-                await controller.AcceptEditorFormulaAsync(accepted, CancellationToken.None);
+                using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
+                await controller.AcceptEditorFormulaAsync(accepted, timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                statusSink.Post(WordStatusKind.Error, WordAddInText.Get("CommandTimeoutStatus"));
             }
             catch (Exception exc)
             {

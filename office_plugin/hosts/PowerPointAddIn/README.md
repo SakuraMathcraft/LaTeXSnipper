@@ -8,7 +8,7 @@ Responsibilities:
 - Insert compatibility formula images rendered from LaTeX through the shared Bridge conversion endpoint.
 - Store LaTeXSnipper metadata on inserted PowerPoint shapes.
 - Keep host startup, Ribbon callbacks, and PowerPoint automation separate from conversion and controller logic.
-- Keep PowerPoint numbering intentionally simpler than Word numbering.
+- Keep PowerPoint free of Word-only numbering commands.
 
 Feature boundary:
 
@@ -33,9 +33,8 @@ Implemented first:
 
 Next implementation steps:
 
-1. Improve numbered formula layout once the VSTO shell can be tested in PowerPoint.
-2. Add OLE object insertion only after Word OLE object identity is stable.
-3. Add load/update/delete workflow through the formula editor (currently only insert is wired to the task pane editor).
+1. Add OLE object insertion only after the Word OLE object identity model is stable.
+2. Keep improving load/update/delete behavior through the formula editor.
 
 ## Registration
 

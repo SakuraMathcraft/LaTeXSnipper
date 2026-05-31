@@ -90,8 +90,40 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.CompletedTask;
     }
 
+    public Task<int> DeleteSelectedFormulasAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var shapes = new System.Collections.Generic.List<object>(GetSelectedFormulaShapes());
+        if (shapes.Count == 0)
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        foreach (object item in shapes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            dynamic shape = item;
+            CleanupImageFile(shape);
+            shape.Delete();
+        }
+
+        return Task.FromResult(shapes.Count);
+    }
+
     private dynamic GetSelectedShape()
     {
+        var shapes = new System.Collections.Generic.List<object>(GetSelectedFormulaShapes());
+        if (shapes.Count > 0)
+        {
+            return shapes[0];
+        }
+
+        throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
+    }
+
+    private System.Collections.Generic.IReadOnlyList<object> GetSelectedFormulaShapes()
+    {
+        var shapes = new System.Collections.Generic.List<object>();
         try
         {
             dynamic selection = _application.ActiveWindow.Selection;
@@ -106,14 +138,15 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
                 throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
             }
 
-            dynamic shape = shapeRange[1];
-            string equationId = ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag);
-            if (string.IsNullOrWhiteSpace(equationId))
+            for (int i = 1; i <= Convert.ToInt32(shapeRange.Count); i++)
             {
-                throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
+                dynamic shape = shapeRange[i];
+                string equationId = ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag);
+                if (!string.IsNullOrWhiteSpace(equationId))
+                {
+                    shapes.Add(shape);
+                }
             }
-
-            return shape;
         }
         catch (InvalidOperationException)
         {
@@ -123,6 +156,8 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         {
             throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"), exc);
         }
+
+        return shapes;
     }
 
     private static FormulaMetadata ReadMetadataFromShape(dynamic shape)
@@ -135,25 +170,17 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
         string latex = ReadTag(shape, PowerPointFormulaMetadataStore.LatexTag);
         string displayModeText = ReadTag(shape, PowerPointFormulaMetadataStore.DisplayModeTag);
-        string numberingModeText = ReadTag(shape, PowerPointFormulaMetadataStore.NumberingModeTag);
-        string numberText = ReadTag(shape, PowerPointFormulaMetadataStore.NumberTextTag);
         string schemaVersionText = ReadTag(shape, PowerPointFormulaMetadataStore.SchemaVersionTag);
 
         FormulaDisplayMode displayMode = displayModeText == "Inline" ? FormulaDisplayMode.Inline : FormulaDisplayMode.Display;
-        NumberingMode numberingMode = numberingModeText switch
-        {
-            "Automatic" => NumberingMode.Automatic,
-            "Manual" => NumberingMode.Manual,
-            _ => NumberingMode.None,
-        };
         int schemaVersion = int.TryParse(schemaVersionText, out int version) ? version : 1;
 
         return new FormulaMetadata(
             new FormulaIdentity("active-presentation", equationId),
             latex,
             displayMode,
-            numberingMode,
-            numberText,
+            NumberingMode.None,
+            string.Empty,
             RenderEngineKind.Image,
             schemaVersion);
     }

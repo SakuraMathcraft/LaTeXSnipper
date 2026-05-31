@@ -85,6 +85,15 @@ public sealed class WordPluginController
 
         if (accepted.UpdateMode && accepted.InitialFormula != null)
         {
+            if (IsSameRenderedFormula(accepted.InitialFormula, metadata))
+            {
+                _currentFormula = accepted.InitialFormula;
+                _pendingEditorInsertOptions = null;
+                ResetDraftState(resetOptions: true);
+                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("UnchangedStatus"));
+                return;
+            }
+
             await UpdateRenderedFormulaAsync(metadata, cancellationToken);
         }
         else
@@ -354,6 +363,14 @@ public sealed class WordPluginController
     private static bool IsSameFormula(FormulaMetadata? left, FormulaMetadata right)
     {
         return left != null && left.Identity.EquationId == right.Identity.EquationId;
+    }
+
+    private static bool IsSameRenderedFormula(FormulaMetadata left, FormulaMetadata right)
+    {
+        return string.Equals(left.Latex.Trim(), right.Latex.Trim(), StringComparison.Ordinal)
+            && left.DisplayMode == right.DisplayMode
+            && left.NumberingMode == right.NumberingMode
+            && string.Equals(left.NumberText.Trim(), right.NumberText.Trim(), StringComparison.Ordinal);
     }
 
     private static FormulaMetadata WithNumbering(FormulaMetadata metadata, NumberingMode numberingMode, string numberText)

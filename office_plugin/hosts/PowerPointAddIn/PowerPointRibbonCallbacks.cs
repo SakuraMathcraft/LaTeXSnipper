@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
@@ -93,9 +94,14 @@ public sealed class PowerPointRibbonCallbacks
     {
         try
         {
+            using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
             _statusSink.SetBusy(true);
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
-            await action(CancellationToken.None);
+            await action(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("CommandTimeoutStatus"));
         }
         catch (Exception exc)
         {

@@ -6,11 +6,13 @@ on:
       - main
       - develop
       - MathCraft
+      - office-plugin
   pull_request:
     branches:
       - main
       - develop
       - MathCraft
+      - office-plugin
   workflow_dispatch:
 
 permissions:
@@ -32,6 +34,11 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
@@ -181,6 +188,9 @@ jobs:
 
       - name: Byte-compile cross-platform specs
         run: python -m py_compile LaTeXSnipper-linux.spec LaTeXSnipper-macos.spec
+
+      - name: Build Office plugin core
+        run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
 
       - name: Setup Typst
         shell: pwsh

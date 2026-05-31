@@ -13,7 +13,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IWordFormulaOptionsProvider
 {
-    private const string TaskPaneHostName = "latexsnipper.officeplugin.local";
+    private const string TaskPaneHostName = "latexsnipper-word.officeplugin.local";
     private const string DefaultLatex = "e^{i\\pi}+1=0";
 
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
@@ -195,7 +195,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + TaskPaneHostName + "/taskpane.html");
+        _webView.Source = new Uri("https://" + TaskPaneHostName + "/taskpane.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)

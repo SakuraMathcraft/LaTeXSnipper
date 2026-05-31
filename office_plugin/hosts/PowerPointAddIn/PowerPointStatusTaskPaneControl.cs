@@ -13,7 +13,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointStatusSink, IPowerPointFormulaOptionsProvider
 {
-    private const string TaskPaneHostName = "latexsnipper.officeplugin.local";
+    private const string TaskPaneHostName = "latexsnipper-powerpoint.officeplugin.local";
 
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private readonly WebView2 _webView;
@@ -152,7 +152,7 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + TaskPaneHostName + "/taskpane.html");
+        _webView.Source = new Uri("https://" + TaskPaneHostName + "/taskpane.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -213,12 +213,8 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
         {
             ["type"] = "state",
             ["latex"] = _currentLatex,
-            ["display"] = true,
-            ["autoNumber"] = false,
-            ["manualNumber"] = string.Empty,
             ["updateMode"] = _lastUpdateMode,
             ["locale"] = CultureInfo.CurrentUICulture.Name,
-            ["platform"] = "powerpoint",
             ["strings"] = CreateStrings(),
         };
         await ExecuteApplyAsync(payload).ConfigureAwait(true);

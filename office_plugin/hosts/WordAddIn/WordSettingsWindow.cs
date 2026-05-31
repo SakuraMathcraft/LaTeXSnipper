@@ -12,7 +12,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 internal sealed class WordSettingsWindow : Form
 {
-    private const string SettingsHostName = "latexsnipper.officeplugin.local";
+    private const string SettingsHostName = "latexsnipper-word.officeplugin.local";
 
     private static WordSettingsWindow? _window;
 
