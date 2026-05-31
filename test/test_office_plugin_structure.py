@@ -114,7 +114,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "EquationProfessional" in ribbon
     assert "EquationInsertGallery" in ribbon
     assert "Numbering" in ribbon
-    assert "ToolsOptions" in ribbon
+    assert "AdvancedFileProperties" in ribbon
     assert 'getImage="GetImage"' not in ribbon
 
     metadata_store = (host_root / "WordFormulaMetadataStore.cs").read_text(encoding="utf-8")
@@ -156,7 +156,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" in adapter
     assert "TryGetNumberedTableFromPreviousParagraph" in adapter
     assert "TryGetNumberedTableBeforeParagraph" in adapter
-    assert "CreateInsertionRangeAfterNumberedTable" in adapter
+    assert "CreateInsertionRangeAfterNumberedTable" not in adapter
     assert "IsInsideManagedContent" not in adapter
     assert "TypeParagraph" in adapter
     assert "CreateRangeAfterTable" not in adapter
@@ -175,12 +175,14 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "CancelScreenshotOcrAsync" in callbacks
     assert "RunScreenshotOcrAsync" in callbacks
     assert "OcrWaitingStatus" in callbacks
+    assert "OcrRecognizingStatus" in addin_text
     assert "OcrCanceledStatus" in callbacks
     assert "MessageBox.Show" not in callbacks
     assert "WordAddInText.Get" in callbacks
-    assert "Use the global shortcut" in addin_text
-    assert "Help opened in Word" in addin_text
-    assert "SettingsShortcuts" in addin_text
+    assert "Waiting for screenshot OCR" in addin_text
+    assert "Recognizing screenshot formula" in addin_text
+    assert "Help opened." in addin_text
+    assert "SettingsNumberingGroup" in addin_text
     assert "可从 Ribbon 或此窗格使用" not in addin_text
     assert "ListBox" not in taskpane
     assert "WebView2" in taskpane
@@ -206,6 +208,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "min-height: 44px" in taskpane_css
     assert "CreateDefaultLatex" in controller
     assert "CancelScreenshotOcrAsync" in controller
+    assert "BridgeRecognitionProgress.RunScreenshotOcrAsync" in controller
     assert "InsertInlineAsync" in controller
     assert "InsertDisplayAsync" in controller
     assert "InsertNumberedAsync" in controller
@@ -246,7 +249,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "displayMode" not in editor_html
     assert "display: true" in editor_js
     assert "event.ctrlKey" not in editor_js
-    assert "symbol-library" in editor_html
+    assert "symbol-grid" in editor_html
     assert "flex-direction: column" in editor_css
     assert "border: 1px solid transparent" in editor_css
     assert "calculus" in editor_js
@@ -258,7 +261,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LaTeXSnipper Office 插件" in help_html
     assert "LaTeXSnipper Office Plugin" in help_html
     assert "Microsoft 365 Apps" in help_html
-    assert "Office 2016 / 2019 / 2021 / 2024" in help_html
+    assert "Office 2024 / 2021 / 2019" in help_html
     assert "旧 add-in" not in help_html
     assert "Old add-in" not in help_html
     assert "<img" not in help_html
@@ -266,10 +269,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     settings_js = (host_root / "EditorAssets" / "settings.js").read_text(encoding="utf-8")
     assert "LaTeXSnipper Office 插件设置" in settings_html
     assert "LaTeXSnipper Office Plugin Settings" in settings_js
-    assert "Alt" in settings_html
-    assert "LS" in settings_html
+    assert "Ctrl" in settings_html
+    assert "Enter" in settings_html
+    assert "Esc" in settings_html
     assert "<img" not in settings_html
-    assert "{\\\"timeout\\\":300}" in bridge_client
+    assert '"{\\"timeout\\":" + ((int)_options.ScreenshotOcrHttpTimeout.TotalSeconds - 30)' in bridge_client
     assert "recognize/screenshot/cancel" in bridge_client
     assert "ScreenshotOcrHttpTimeout" in bridge_client
     assert "Timeout.InfiniteTimeSpan" in bridge_client
@@ -317,14 +321,18 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
 
     register_script = PLUGIN / "tools" / "Register-WordVstoAddIn.ps1"
     smoke_script = PLUGIN / "tools" / "Test-WordVstoAddIn.ps1"
+    shared_registration = PLUGIN / "tools" / "OfficeVstoRegistration.ps1"
     register_text = register_script.read_text(encoding="utf-8")
     smoke_text = smoke_script.read_text(encoding="utf-8")
+    shared_registration_text = shared_registration.read_text(encoding="utf-8")
     assert register_script.is_file()
     assert smoke_script.is_file()
-    assert "RegisterOfficeAddin" in register_text
-    assert "TrustedPublisher" in register_text
-    assert "CommandLineSafe" in register_text
-    assert "VSTOInstaller.exe" in register_text
+    assert shared_registration.is_file()
+    assert "Invoke-OfficeVstoRegistration" in register_text
+    assert "RegisterOfficeAddin" in shared_registration_text
+    assert "TrustedPublisher" in shared_registration_text
+    assert "CommandLineSafe" in shared_registration_text
+    assert "VSTOInstaller.exe" in shared_registration_text
     assert "COMAddIns" in smoke_text
 
 

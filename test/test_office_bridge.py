@@ -38,6 +38,33 @@ def test_office_conversion_service_uses_injected_converters() -> None:
     assert result["warnings"] == []
 
 
+def test_office_conversion_service_caches_identical_requests() -> None:
+    calls = {"omml": 0, "svg": 0}
+
+    def to_omml(value: str) -> str:
+        calls["omml"] += 1
+        return f"<omml>{value}</omml>"
+
+    def to_svg(value: str) -> str:
+        calls["svg"] += 1
+        return f"<svg>{value}</svg>"
+
+    service = OfficeConversionService(
+        normalize_latex=lambda value: value.strip("$"),
+        latex_to_omml=to_omml,
+        latex_to_svg=to_svg,
+    )
+
+    first = service.convert({"latex": "$x^2$", "targets": ["omml", "svg"]})
+    first["warnings"].append("mutated caller copy")
+    second = service.convert({"latex": "$x^2$", "targets": ["omml", "svg"]})
+
+    assert second["omml"] == "<omml>x^2</omml>"
+    assert second["svg"] == "<svg>x^2</svg>"
+    assert second["warnings"] == []
+    assert calls == {"omml": 1, "svg": 1}
+
+
 def test_office_conversion_service_rejects_unknown_targets() -> None:
     service = OfficeConversionService()
 

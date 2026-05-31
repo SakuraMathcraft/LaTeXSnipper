@@ -14,12 +14,13 @@ def test_office_docs_point_to_native_plugin_as_final_direction() -> None:
     plugin_doc = (ROOT / "docs" / "office_plugin_design.md").read_text(encoding="utf-8")
 
     assert "Windows-native `office_plugin`" in root_readme
-    assert "only active Office product architecture" in plugin_readme
-    assert "http://127.0.0.1:28765/" in plugin_readme
-    assert "sideload manifests" in plugin_readme
+    assert "active Office product architecture" in plugin_readme
+    assert "127.0.0.1:28765" in plugin_readme
     assert "Windows" in plugin_doc
     assert "Office 2016" in plugin_doc
     assert "Office 2024" in plugin_doc
     assert "OLE" in plugin_doc
     assert "localhost:8765" not in plugin_readme
     assert "office_addin" not in plugin_readme
+    assert "sideload" not in plugin_readme
+    assert "retired" not in plugin_readme

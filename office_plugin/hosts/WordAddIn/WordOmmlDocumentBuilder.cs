@@ -55,6 +55,31 @@ public static class WordOmmlDocumentBuilder
         return WrapFlatOpc(documentXml);
     }
 
+    public static string BuildFlatOpcInlineEquationDocument(string omml, FormulaMetadata metadata)
+    {
+        if (string.IsNullOrWhiteSpace(omml))
+        {
+            throw new ArgumentException("OMML is required.", nameof(omml));
+        }
+
+        if (metadata == null)
+        {
+            throw new ArgumentNullException(nameof(metadata));
+        }
+
+        string equationId = metadata.Identity.EquationId;
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            throw new ArgumentException("Equation ID is required.", nameof(metadata));
+        }
+
+        string documentXml =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+            " xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">" +
+            "<w:body>" + BuildInlineBody(omml, metadata) + "</w:body></w:document>";
+        return WrapFlatOpc(documentXml);
+    }
+
     private static string BuildInlineBody(string omml, FormulaMetadata metadata)
     {
         return "<w:p>" +

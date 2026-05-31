@@ -3,7 +3,6 @@ setlocal
 
 :: LaTeXSnipper Office Plugin Installer Builder
 :: Usage: build.bat [version] [config]
-::   version: e.g. 1.2.3 (defaults to 0.0.0)
 ::   config:  Debug or Release (defaults to Release)
 
 set VERSION=%1
@@ -27,7 +26,8 @@ echo [1/4] Building Word VSTO Add-in...
 call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Register-WordVstoAddIn.ps1" ^
   -Configuration %CONFIG% ^
   -SkipCertificateTrust ^
-  -SkipVstoInstaller
+  -SkipVstoInstaller ^
+  -SkipOfficeRegistration
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Word VSTO build failed.
   exit /b 1
@@ -38,7 +38,8 @@ echo [2/4] Building PowerPoint VSTO Add-in...
 call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Register-PowerPointVstoAddIn.ps1" ^
   -Configuration %CONFIG% ^
   -SkipCertificateTrust ^
-  -SkipVstoInstaller
+  -SkipVstoInstaller ^
+  -SkipOfficeRegistration
 if %ERRORLEVEL% neq 0 (
   echo ERROR: PowerPoint VSTO build failed.
   exit /b 1
@@ -50,7 +51,7 @@ dotnet build "%PLUGIN_ROOT%\LaTeXSnipper.OfficePlugin.slnx" -c %CONFIG% > nul 2>
 
 :: Step 3.5: Export signing certificate
 echo [3.5/4] Exporting certificate...
-powershell -ExecutionPolicy Bypass -Command "$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=LaTeXSnipper Office Plugin Dev VSTO' } | Sort-Object NotAfter -Descending | Select-Object -First 1; if ($cert) { Export-Certificate -Cert $cert -FilePath '%SCRIPT_DIR%devcert.cer' -Type CERT -Force } else { Write-Host 'WARNING: Dev cert not found, installer may fail' }"
+powershell -ExecutionPolicy Bypass -Command "$subject = 'CN=LaTeXSnipper Office Plugin VSTO'; $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq $subject } | Sort-Object NotAfter -Descending | Select-Object -First 1; if ($cert) { Export-Certificate -Cert $cert -FilePath '%SCRIPT_DIR%vsto-signing.cer' -Type CERT -Force } else { Write-Host 'WARNING: VSTO signing cert not found, installer may fail' }"
 
 :: Step 4: Run Inno Setup
 echo [4/4] Building installer...

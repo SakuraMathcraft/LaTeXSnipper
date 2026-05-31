@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$script:DevCertificateSubject = "CN=LaTeXSnipper Office Plugin Dev VSTO"
+$script:SigningCertificateSubject = "CN=LaTeXSnipper Office Plugin VSTO"
 
 function Resolve-MSBuildPath {
     param([string] $RequestedPath)
@@ -90,7 +90,7 @@ function Set-ManifestCertificateThumbprint {
 function New-VstoSigningCertificate {
     New-SelfSignedCertificate `
         -Type CodeSigningCert `
-        -Subject $script:DevCertificateSubject `
+        -Subject $script:SigningCertificateSubject `
         -CertStoreLocation "Cert:\CurrentUser\My" `
         -KeyAlgorithm RSA `
         -KeyLength 2048 `
@@ -107,7 +107,7 @@ function Ensure-ManifestCertificate {
     }
 
     $certificate = Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert |
-        Where-Object { $_.Subject -eq $script:DevCertificateSubject -and (Test-VstoSigningCertificate -Certificate $_) } |
+        Where-Object { $_.Subject -eq $script:SigningCertificateSubject -and (Test-VstoSigningCertificate -Certificate $_) } |
         Sort-Object NotAfter -Descending |
         Select-Object -First 1
 
@@ -253,7 +253,8 @@ function Invoke-OfficeVstoRegistration {
         [string] $ManifestPath,
         [switch] $SkipBuild,
         [switch] $SkipCertificateTrust,
-        [switch] $SkipVstoInstaller
+        [switch] $SkipVstoInstaller,
+        [switch] $SkipOfficeRegistration
     )
 
     $projectDir = Split-Path -Parent $ProjectPath
@@ -280,7 +281,14 @@ function Invoke-OfficeVstoRegistration {
 
         $MSBuildPath = Resolve-MSBuildPath -RequestedPath $MSBuildPath
 
-        & $MSBuildPath $ProjectPath "/restore" "/t:Build;VisualStudioForApplicationsBuild;RegisterOfficeAddin" "/p:Configuration=$Configuration" "/p:VSTO_ProjectType=Application" "/nologo" "/v:minimal"
+        $targets = if ($SkipOfficeRegistration) {
+            "Build;VisualStudioForApplicationsBuild"
+        }
+        else {
+            "Build;VisualStudioForApplicationsBuild;RegisterOfficeAddin"
+        }
+
+        & $MSBuildPath $ProjectPath "/restore" "/t:$targets" "/p:Configuration=$Configuration" "/p:VSTO_ProjectType=Application" "/nologo" "/v:minimal"
         if ($LASTEXITCODE -ne 0) {
             throw "MSBuild failed with exit code $LASTEXITCODE."
         }
@@ -300,7 +308,7 @@ function Invoke-OfficeVstoRegistration {
         }
     }
 
-    if (-not $SkipVstoInstaller) {
+    if ((-not $SkipOfficeRegistration) -and (-not $SkipVstoInstaller)) {
         $installerPath = Get-VstoInstallerPath
         $installer = Start-Process -FilePath $installerPath -ArgumentList @("/Install", $deploymentManifest, "/Silent") -Wait -PassThru -WindowStyle Hidden
         if ($installer.ExitCode -ne 0) {
@@ -308,14 +316,19 @@ function Invoke-OfficeVstoRegistration {
         }
     }
 
-    Clear-OfficeAddInResiliency -OfficeApplication $OfficeApplication -AddInName $AddInName
-    Set-OfficeAddInRegistry `
-        -OfficeApplication $OfficeApplication `
-        -AddInName $AddInName `
-        -FriendlyName $FriendlyName `
-        -Description $Description `
-        -ManifestPath $deploymentManifest `
-        -RegistryScope $RegistryScope
+    if (-not $SkipOfficeRegistration) {
+        Clear-OfficeAddInResiliency -OfficeApplication $OfficeApplication -AddInName $AddInName
+        Set-OfficeAddInRegistry `
+            -OfficeApplication $OfficeApplication `
+            -AddInName $AddInName `
+            -FriendlyName $FriendlyName `
+            -Description $Description `
+            -ManifestPath $deploymentManifest `
+            -RegistryScope $RegistryScope
 
-    Write-Output "Registered $AddInName for $OfficeApplication using $deploymentManifest."
+        Write-Output "Registered $AddInName for $OfficeApplication using $deploymentManifest."
+    }
+    else {
+        Write-Output "Built $AddInName for $OfficeApplication without Office registration."
+    }
 }

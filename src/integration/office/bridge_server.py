@@ -129,8 +129,8 @@ class _OfficeRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         try:
-            self._require_auth()
             payload = self._read_json()
+            self._require_auth()
             result = self.server.bridge.handle_post(self.path, payload)
         except OfficeBridgeError as exc:
             self._send_error(exc)

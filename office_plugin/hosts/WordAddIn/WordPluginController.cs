@@ -50,7 +50,11 @@ public sealed class WordPluginController
 
     public Task InsertNumberedAsync(CancellationToken cancellationToken)
     {
-        return OpenEditorForInsertAsync(new WordFormulaOptions(display: true, NumberingMode.Automatic, string.Empty), cancellationToken);
+        WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
+        NumberingMode numberingMode = options.NumberingMode == NumberingMode.None
+            ? NumberingMode.Automatic
+            : options.NumberingMode;
+        return OpenEditorForInsertAsync(new WordFormulaOptions(display: true, numberingMode, options.ManualNumber), cancellationToken);
     }
 
     public async Task TestConnectionAsync(CancellationToken cancellationToken)
@@ -122,7 +126,7 @@ public sealed class WordPluginController
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrWaitingStatus"));
         try
         {
-            string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+            string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
             ProcessOcrResult(responseJson, cancellationToken);
         }
         catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
@@ -131,7 +135,7 @@ public sealed class WordPluginController
             await Task.Delay(300, CancellationToken.None);
             try
             {
-                string responseJson = await _bridgeClient.ScreenshotOcrAsync(cancellationToken);
+                string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
                 ProcessOcrResult(responseJson, cancellationToken);
             }
             catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
@@ -139,6 +143,14 @@ public sealed class WordPluginController
                 _statusSink.Post(WordStatusKind.Error, WordAddInText.Get("BridgeOcrAlreadyWaiting"));
             }
         }
+    }
+
+    private Task<string> RunScreenshotOcrWithProgressAsync(CancellationToken cancellationToken)
+    {
+        return BridgeRecognitionProgress.RunScreenshotOcrAsync(
+            _bridgeClient,
+            () => _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrRecognizingStatus")),
+            cancellationToken);
     }
 
     private void ProcessOcrResult(string responseJson, CancellationToken cancellationToken)
@@ -211,6 +223,7 @@ public sealed class WordPluginController
 
     private async Task InsertRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
+        await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
         BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
@@ -225,7 +238,8 @@ public sealed class WordPluginController
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
         BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), WordPluginSettings.Load().NumberPlacement);
-        await _wordAdapter.UpdateFormulaAsync(metadata.Identity.EquationId, ooxml, metadata, IsDisplay(metadata), cancellationToken);
+        string equationOoxml = WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(conversion.Omml, metadata);
+        await _wordAdapter.UpdateFormulaAsync(metadata.Identity.EquationId, ooxml, equationOoxml, metadata, IsDisplay(metadata), cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
     }
 
@@ -255,6 +269,19 @@ public sealed class WordPluginController
         FormulaMetadata? previous,
         CancellationToken cancellationToken)
     {
+        if (previous != null)
+        {
+            string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim();
+            return Task.FromResult(new FormulaMetadata(
+                identity ?? previous.Identity,
+                normalizedLatex,
+                previous.DisplayMode,
+                previous.NumberingMode,
+                previous.NumberText,
+                previous.RenderEngine,
+                previous.SchemaVersion));
+        }
+
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
         return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options));
     }

@@ -7,13 +7,15 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public interface IWordApplicationAdapter
 {
+    Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
+
     Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
 
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task UpdateSelectedFormulaAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
 
-    Task UpdateFormulaAsync(string equationId, string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
+    Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
 
     Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
