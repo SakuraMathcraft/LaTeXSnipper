@@ -94,6 +94,25 @@ public sealed class PowerPointPluginController
         float top,
         CancellationToken cancellationToken)
     {
+        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
+        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        {
+            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OleInsertingStatus"));
+            FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
+            if (updateMode && hasPosition)
+            {
+                await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+                await _powerPointAdapter.InsertOleFormulaObjectAtPositionAsync(oleMetadata, left, top, cancellationToken);
+            }
+            else
+            {
+                await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, cancellationToken);
+            }
+
+            _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedStatus"));
+            return;
+        }
+
         _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("ConvertingStatus"));
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, display: true, new[] { "png" }, cancellationToken);
         PowerPointConversionResult conversion = PowerPointConversionParser.ParseConversionResponse(responseJson);
@@ -209,6 +228,18 @@ public sealed class PowerPointPluginController
             string.Empty,
             RenderEngineKind.Image,
             schemaVersion: 1);
+    }
+
+    private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
+    {
+        return new FormulaMetadata(
+            metadata.Identity,
+            metadata.Latex,
+            metadata.DisplayMode,
+            metadata.NumberingMode,
+            metadata.NumberText,
+            renderEngine,
+            metadata.SchemaVersion);
     }
 
     private static bool IsOcrAlreadyWaiting(string message)

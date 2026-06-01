@@ -17,7 +17,21 @@ public enum RenderEngineKind
 {
     Omml,
     LocalTex,
-    Image
+    Image,
+    MathJaxSvg
+}
+
+public enum FormulaInsertionBackend
+{
+    Ole,
+    WordOmml,
+    PowerPointCompatibility
+}
+
+public enum OlePresentationKind
+{
+    EnhancedMetafile,
+    DirectGdi
 }
 
 public enum OfficeHostKind

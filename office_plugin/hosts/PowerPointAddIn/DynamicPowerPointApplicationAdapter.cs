@@ -11,6 +11,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     private const int MsoTrue = -1;
     private const float DefaultLeftPoints = 72f;
     private const float DefaultTopPoints = 96f;
+    private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _application;
 
@@ -54,10 +55,42 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return InsertPictureAtAsync(slide, image, metadata, left, top);
     }
 
+    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (metadata == null)
+        {
+            throw new ArgumentNullException(nameof(metadata));
+        }
+
+        dynamic slide = GetActiveSlide();
+        InsertionPoint insertionPoint = GetInsertionPoint(slide, 180, 48);
+        return InsertOleObjectAtAsync(slide, metadata, insertionPoint.Left, insertionPoint.Top);
+    }
+
+    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, float left, float top, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (metadata == null)
+        {
+            throw new ArgumentNullException(nameof(metadata));
+        }
+
+        dynamic slide = GetActiveSlide();
+        return InsertOleObjectAtAsync(slide, metadata, left, top);
+    }
+
     private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top)
     {
         dynamic picture = slide.Shapes.AddPicture(image.Path, MsoFalse, MsoTrue, left, top, image.WidthPoints, image.HeightPoints);
         PowerPointFormulaMetadataStore.ApplyToShape(picture, metadata);
+        return Task.CompletedTask;
+    }
+
+    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, float left, float top)
+    {
+        dynamic shape = slide.Shapes.AddOLEObject(left, top, 180f, 48f, OleFormulaProgId, string.Empty, MsoFalse, string.Empty, 0, string.Empty, MsoFalse);
+        PowerPointFormulaMetadataStore.ApplyToShape(shape, metadata);
         return Task.CompletedTask;
     }
 

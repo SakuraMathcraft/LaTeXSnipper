@@ -1,3 +1,5 @@
+using System;
+
 namespace LaTeXSnipper.OfficePlugin.Abstractions;
 
 /// <summary>
@@ -21,4 +23,8 @@ public sealed class RenderRequest
     public int TargetDpi { get; set; } = 192;
 
     public string Theme { get; set; } = "light";
+
+    public double FontScale { get; set; } = 1;
+
+    public TimeSpan Timeout { get; set; } = OfficeCommandTimeouts.Render;
 }

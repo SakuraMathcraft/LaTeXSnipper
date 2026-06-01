@@ -106,6 +106,10 @@ Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
 Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\PowerPoint\EditorAssets"; Flags: ignoreversion recursesubdirs
 
+; ===== OLE formula object local server =====
+Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
+  DestDir: "{app}\OleFormulaObject"; Flags: ignoreversion recursesubdirs
+
 [Registry]
 ; ===== Word Add-in (versionless path) =====
 Root: HKLM; Subkey: "Software\Microsoft\Office\Word\Addins\{#WordAddInName}"; \
@@ -318,13 +322,19 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" -Target HKCU"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden runasoriginaluser
 
+; Register the out-of-proc OLE formula object.
+Filename: "{app}\OleFormulaObject\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  Parameters: "/RegServerMachine"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden
+
 [CustomMessages]
 InstallingCertificate=Installing add-in certificate to Trusted Publisher store...
 RegisteringWord=Registering Word add-in...
 RegisteringPowerPoint=Registering PowerPoint add-in...
+RegisteringOleFormulaObject=Registering LaTeXSnipper formula object...
 chinesesimplified.InstallingCertificate=正在将加载项证书安装到受信任的发布者存储...
 chinesesimplified.RegisteringWord=正在注册 Word 加载项...
 chinesesimplified.RegisteringPowerPoint=正在注册 PowerPoint 加载项...
+chinesesimplified.RegisteringOleFormulaObject=正在注册 LaTeXSnipper 公式对象...
 
 [Code]
 function VstoInstallerExists: Boolean;
@@ -372,6 +382,11 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
+    Exec(ExpandConstant('{app}\OleFormulaObject\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
+         '/UnregServerMachine',
+         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Log('OLE unregister exited with code ' + IntToStr(ResultCode));
+
     Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
          '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\ForceClean.ps1" -InstallRoot "' + ExpandConstant('{app}') + '"',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);

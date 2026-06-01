@@ -11,9 +11,20 @@
     <header class="header">
       <div>
         <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
-        <p data-i18n="subtitle">配置编辑器键盘行为。</p>
+        <p data-i18n="subtitle">配置公式插入方式和编辑器键盘行为。</p>
       </div>
     </header>
+
+    <section class="panel accent-panel">
+      <div>
+        <h2 data-i18n="backendTitle">公式插入方式</h2>
+        <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象；需要兼容旧演示文稿时可切换为旧 PNG 方式。</p>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Formula insertion backend">
+        <button type="button" data-backend="Ole" data-i18n="backendOle">OLE 对象</button>
+        <button type="button" data-backend="PowerPointCompatibility" data-i18n="backendLegacy">旧 PNG</button>
+      </div>
+    </section>
 
     <section class="panel">
       <h2 data-i18n="editorTitle">编辑器键盘行为</h2>

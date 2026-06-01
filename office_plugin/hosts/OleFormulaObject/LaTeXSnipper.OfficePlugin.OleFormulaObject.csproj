@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Rendering\LaTeXSnipper.OfficePlugin.Rendering.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <Prefer32Bit>false</Prefer32Bit>
+    <RootNamespace>LaTeXSnipper.OfficePlugin.OleFormulaObject</RootNamespace>
+    <AssemblyName>LaTeXSnipper.OfficePlugin.OleFormulaObject</AssemblyName>
+  </PropertyGroup>
+
+</Project>

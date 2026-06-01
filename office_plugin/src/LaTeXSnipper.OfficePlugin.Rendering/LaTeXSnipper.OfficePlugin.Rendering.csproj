@@ -4,6 +4,19 @@
     <ProjectReference Include="..\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\..\src\assets\MathJax-3.2.2\**\*">
+      <Link>MathJax-3.2.2\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFrameworks>net48;net9.0</TargetFrameworks>
   </PropertyGroup>
