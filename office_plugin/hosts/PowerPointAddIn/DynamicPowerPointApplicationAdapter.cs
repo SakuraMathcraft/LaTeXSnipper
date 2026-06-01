@@ -89,6 +89,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
     private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, float left, float top)
     {
+        OleFormulaPendingPayloadStore.SavePendingPayload(metadata);
         dynamic shape = slide.Shapes.AddOLEObject(left, top, 180f, 48f, OleFormulaProgId, string.Empty, MsoFalse, string.Empty, 0, string.Empty, MsoFalse);
         PowerPointFormulaMetadataStore.ApplyToShape(shape, metadata);
         return Task.CompletedTask;

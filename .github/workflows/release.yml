@@ -236,6 +236,14 @@ jobs:
           .\tools\Register-WordVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
           .\tools\Register-PowerPointVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
+          if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
+          $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+          if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+          if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
           $subjects = @('CN=LaTeXSnipper Office Plugin VSTO')
           $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -in $subjects } | Sort-Object NotAfter -Descending | Select-Object -First 1
           if ($cert) { Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force } else { Write-Host 'WARNING: VSTO signing cert not found' }

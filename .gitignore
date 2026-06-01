@@ -39,7 +39,6 @@ tools/deps/pandoc/
 
 # Local runtime components (do not version)
 python311/
-Store_CPU/
 python-*.exe
 crash_log.txt
 
@@ -58,7 +57,6 @@ test_pdf/outputs/**
 test_pdf/tex_compile_outputs*/
 test_pdf/*.pdf
 test_samples/
-理论论文/
 release_assets/
 user_manual/*
 !user_manual/

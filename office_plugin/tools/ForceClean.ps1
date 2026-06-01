@@ -22,6 +22,11 @@ $MatchPatterns = @(
 $SigningCertificateSubjects = @(
     "CN=LaTeXSnipper Office Plugin VSTO"
 )
+$OleFormulaClassId = "{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"
+$OleFormulaProgIds = @(
+    "LaTeXSnipper.Formula",
+    "LaTeXSnipper.Formula.1"
+)
 
 if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
     $resolvedInstallRoot = Convert-Path -LiteralPath $InstallRoot -ErrorAction SilentlyContinue
@@ -228,6 +233,16 @@ foreach ($root in $uninstallRoots) {
 
 # 5.1 Clean only plugin settings under the shared LaTeXSnipper vendor key.
 Remove-RegistryTree -Path "HKCU:\Software\LaTeXSnipper\OfficePlugin" -Message "Removed plugin settings"
+
+# 5.2 Clean stale per-user OLE formula registrations. HKCU\Software\Classes
+# overrides HKLM\Software\Classes, so old development registrations can prevent
+# Office from activating the installed native OLE server.
+foreach ($progId in $OleFormulaProgIds) {
+    Remove-RegistryTree -Path "HKCU:\Software\Classes\$progId" -Message "Removed per-user OLE ProgID"
+    Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\$progId" -Message "Removed per-user OLE ProgID"
+}
+Remove-RegistryTree -Path "HKCU:\Software\Classes\CLSID\$OleFormulaClassId" -Message "Removed per-user OLE CLSID"
+Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\CLSID\$OleFormulaClassId" -Message "Removed per-user OLE CLSID"
 
 # 6. Clean Office Resiliency records
 foreach ($app in $Apps) {
