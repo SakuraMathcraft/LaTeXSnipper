@@ -84,6 +84,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             dynamic selection = _wordApplication.Selection;
             dynamic range = ResolveInsertionTargetRange(selection);
             ValidateInsertionTarget(range);
+            OleFormulaPendingPayloadStore.SavePendingPayload(metadata);
             dynamic inlineShape = _wordApplication.ActiveDocument.InlineShapes.AddOLEObject(
                 OleFormulaProgId,
                 Type.Missing,

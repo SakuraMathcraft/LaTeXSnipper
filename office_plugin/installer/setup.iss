@@ -107,8 +107,12 @@ Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\PowerPoint\EditorAssets"; Flags: ignoreversion recursesubdirs
 
 ; ===== OLE formula object local server =====
+Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
+Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
-  DestDir: "{app}\OleFormulaObject"; Flags: ignoreversion recursesubdirs
+  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml"
 
 [Registry]
 ; ===== Word Add-in (versionless path) =====
@@ -323,7 +327,18 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden runasoriginaluser
 
 ; Register the out-of-proc OLE formula object.
-Filename: "{app}\OleFormulaObject\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+; Remove stale per-user registrations first because HKCU\Software\Classes
+; overrides the machine-wide registration used by the installer.
+Filename: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  Parameters: "/UnregServer"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden runasoriginaluser; Check: IsWin64
+
+Filename: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  Parameters: "/UnregServer"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden runasoriginaluser
+
+Filename: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  Parameters: "/RegServerMachine"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden; Check: IsWin64
+
+Filename: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
   Parameters: "/RegServerMachine"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden
 
 [CustomMessages]
@@ -382,10 +397,18 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    Exec(ExpandConstant('{app}\OleFormulaObject\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
+    if IsWin64 then
+    begin
+      Exec(ExpandConstant('{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
+           '/UnregServerMachine',
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Log('OLE x64 unregister exited with code ' + IntToStr(ResultCode));
+    end;
+
+    Exec(ExpandConstant('{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
          '/UnregServerMachine',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Log('OLE unregister exited with code ' + IntToStr(ResultCode));
+    Log('OLE x86 unregister exited with code ' + IntToStr(ResultCode));
 
     Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
          '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\ForceClean.ps1" -InstallRoot "' + ExpandConstant('{app}') + '"',

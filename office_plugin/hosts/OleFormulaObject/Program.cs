@@ -1,6 +1,6 @@
 using System;
+using System.Windows.Forms;
 using System.Text;
-using System.Reflection;
 using System.Threading;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Rendering;
@@ -14,33 +14,9 @@ internal static class Program
     {
         try
         {
-            if (HasSwitch(args, "/RegServer"))
+            if (HasSwitch(args, "/EditPayload"))
             {
-                OleServerRegistration.RegisterCurrentUser(Assembly.GetExecutingAssembly().Location);
-                return 0;
-            }
-
-            if (HasSwitch(args, "/UnregServer"))
-            {
-                OleServerRegistration.UnregisterCurrentUser();
-                return 0;
-            }
-
-            if (HasSwitch(args, "/RegServerMachine"))
-            {
-                OleServerRegistration.RegisterLocalMachine(Assembly.GetExecutingAssembly().Location);
-                return 0;
-            }
-
-            if (HasSwitch(args, "/UnregServerMachine"))
-            {
-                OleServerRegistration.UnregisterLocalMachine();
-                return 0;
-            }
-
-            if (HasSwitch(args, "/Embedding"))
-            {
-                return RunEmbeddingServer();
+                return EditPayload();
             }
 
             string? renderLatex = GetSwitchValue(args, "/RenderSvg");
@@ -56,41 +32,51 @@ internal static class Program
                 return RenderEmfAsync(renderEmfLatex, outputPath).GetAwaiter().GetResult();
             }
 
-            Console.WriteLine(OleFormulaObjectIds.FriendlyName + " OLE local server");
-            Console.WriteLine("Use /RegServer, /UnregServer, /RegServerMachine, /UnregServerMachine, /RenderSvg <latex>, or /RenderEmf <latex> /Output <path>.");
+            TryWriteLine(OleFormulaObjectIds.FriendlyName + " OLE local server");
+            TryWriteLine("Use /RenderSvg <latex>, /RenderEmf <latex> /Output <path>, or /EditPayload.");
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            TryWriteError(ex.Message);
             return 1;
         }
     }
 
-    private static int RunEmbeddingServer()
+    private static int EditPayload()
     {
-        using var server = new OleEmbeddingServer();
-        return server.Run();
+        string payloadJson = OlePayloadRegistryStore.ReadEditorPayload();
+        string latex = OlePayloadRegistryStore.ReadLatex(payloadJson);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        using var form = new OlePayloadEditForm(latex);
+        if (form.ShowDialog() != DialogResult.OK)
+        {
+            return 2;
+        }
+
+        OlePayloadRegistryStore.SaveEditorPayloadResult(OlePayloadRegistryStore.WithLatex(payloadJson, form.Latex));
+        return 0;
     }
 
     private static async System.Threading.Tasks.Task<int> RenderSvgAsync(string latex)
     {
-        Console.OutputEncoding = Encoding.UTF8;
+        TrySetConsoleUtf8();
         using var runtime = new WebView2MathJaxJavaScriptRuntime();
         var renderer = new MathJaxSvgRenderer(runtime);
         var request = new RenderRequest(latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg);
         RenderResult result = await renderer.RenderAsync(request, CancellationToken.None).ConfigureAwait(true);
-        Console.WriteLine("renderer=" + result.RendererVersion);
-        Console.WriteLine("widthPoints=" + result.WidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine("heightPoints=" + result.HeightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine("baselinePoints=" + result.BaselinePoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine(Encoding.UTF8.GetString(result.Payload));
+        TryWriteLine("renderer=" + result.RendererVersion);
+        TryWriteLine("widthPoints=" + result.WidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        TryWriteLine("heightPoints=" + result.HeightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        TryWriteLine("baselinePoints=" + result.BaselinePoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        TryWriteLine(Encoding.UTF8.GetString(result.Payload));
         return 0;
     }
 
     private static async System.Threading.Tasks.Task<int> RenderEmfAsync(string latex, string outputPath)
     {
-        Console.OutputEncoding = Encoding.UTF8;
+        TrySetConsoleUtf8();
         using var runtime = new WebView2MathJaxJavaScriptRuntime();
         var renderer = new MathJaxSvgRenderer(runtime);
         var request = new RenderRequest(latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg);
@@ -101,11 +87,44 @@ internal static class Program
             CancellationToken.None).ConfigureAwait(false);
         string fullPath = System.IO.Path.GetFullPath(outputPath);
         System.IO.File.WriteAllBytes(fullPath, presentation.Payload);
-        Console.WriteLine("renderer=" + intermediate.RendererVersion);
-        Console.WriteLine("presentation=" + presentation.PresentationKind);
-        Console.WriteLine("bytes=" + presentation.Payload.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine("output=" + fullPath);
+        TryWriteLine("renderer=" + intermediate.RendererVersion);
+        TryWriteLine("presentation=" + presentation.PresentationKind);
+        TryWriteLine("bytes=" + presentation.Payload.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        TryWriteLine("output=" + fullPath);
         return 0;
+    }
+
+    private static void TrySetConsoleUtf8()
+    {
+        try
+        {
+            Console.OutputEncoding = Encoding.UTF8;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static void TryWriteLine(string message)
+    {
+        try
+        {
+            Console.WriteLine(message);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static void TryWriteError(string message)
+    {
+        try
+        {
+            Console.Error.WriteLine(message);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private static bool HasSwitch(string[] args, string switchName)
