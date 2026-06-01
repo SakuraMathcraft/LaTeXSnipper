@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -94,6 +95,7 @@ internal sealed class PowerPointSettingsWindow : Form
             SettingsHostName,
             assetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
+        core.WebMessageReceived += OnWebMessageReceived;
         core.NavigationCompleted += OnNavigationCompleted;
         _webView.Source = new Uri("https://" + SettingsHostName + "/settings.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
@@ -109,11 +111,13 @@ internal sealed class PowerPointSettingsWindow : Form
 
     private async Task SendSettingsAsync()
     {
+        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         string payload = _serializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "init",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["platform"] = "powerpoint",
+            ["insertionBackend"] = settings.InsertionBackend.ToString(),
         });
         string script =
             "(function(payload){" +
@@ -121,6 +125,36 @@ internal sealed class PowerPointSettingsWindow : Form
             "else{window.__latexSnipperSettingsInit=payload;}" +
             "})(" + payload + ");";
         await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
+        if (message == null || !message.TryGetValue("type", out object rawType))
+        {
+            return;
+        }
+
+        string type = Convert.ToString(rawType, CultureInfo.InvariantCulture) ?? string.Empty;
+        if (type == "close")
+        {
+            Close();
+            return;
+        }
+
+        if (type != "save")
+        {
+            return;
+        }
+
+        string backend = message.TryGetValue("insertionBackend", out object rawBackend)
+            ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
+        FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.PowerPointCompatibility.ToString()
+            ? FormulaInsertionBackend.PowerPointCompatibility
+            : FormulaInsertionBackend.Ole;
+        new PowerPointPluginSettings(insertionBackend).Save();
+        _ = SendSettingsAsync();
     }
 
     private static string ResolveAssetsRoot()

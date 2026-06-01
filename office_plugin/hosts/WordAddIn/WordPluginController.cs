@@ -233,6 +233,16 @@ public sealed class WordPluginController
     private async Task InsertRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
+        WordPluginSettings settings = WordPluginSettings.Load();
+        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
+            FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
+            await _wordAdapter.InsertOleFormulaObjectAsync(oleMetadata, IsDisplay(oleMetadata), cancellationToken);
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+            return;
+        }
+
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
         BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
@@ -243,6 +253,12 @@ public sealed class WordPluginController
 
     private async Task UpdateRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
+        WordPluginSettings settings = WordPluginSettings.Load();
+        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        {
+            throw new NotSupportedException("OLE formula update is not connected yet.");
+        }
+
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
         BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
@@ -382,6 +398,18 @@ public sealed class WordPluginController
             numberingMode,
             numberText,
             metadata.RenderEngine,
+            metadata.SchemaVersion);
+    }
+
+    private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
+    {
+        return new FormulaMetadata(
+            metadata.Identity,
+            metadata.Latex,
+            metadata.DisplayMode,
+            metadata.NumberingMode,
+            metadata.NumberText,
+            renderEngine,
             metadata.SchemaVersion);
     }
 

@@ -1,7 +1,11 @@
 const TEXT = {
   zh: {
     title: "LaTeXSnipper Office 插件设置",
-    subtitle: "配置编号默认值。",
+    subtitle: "配置公式插入方式和编号默认值。",
+    backendTitle: "公式插入方式",
+    backendHint: "默认使用 OLE 公式对象；需要兼容旧文档时可切换为 Word OMML。",
+    backendOle: "OLE 对象",
+    backendLegacy: "Word OMML",
     numberingTitle: "带编号公式默认布局",
     numberRight: "右编号",
     numberLeft: "左编号",
@@ -12,7 +16,11 @@ const TEXT = {
   },
   en: {
     title: "LaTeXSnipper Office Plugin Settings",
-    subtitle: "Configure numbering defaults.",
+    subtitle: "Configure formula insertion and numbering defaults.",
+    backendTitle: "Formula Insertion",
+    backendHint: "OLE formula objects are the default. Switch to Word OMML only for compatibility.",
+    backendOle: "OLE Object",
+    backendLegacy: "Word OMML",
     numberingTitle: "Default Numbered Formula Layout",
     numberRight: "Number on the right",
     numberLeft: "Number on the left",
@@ -26,9 +34,11 @@ const TEXT = {
 let locale = "zh";
 let platform = "word";
 let numberPlacement = "Right";
+let insertionBackend = "Ole";
 
 const numberingPanel = document.getElementById("numberingPanel");
 const buttons = Array.from(document.querySelectorAll("[data-placement]"));
+const backendButtons = Array.from(document.querySelectorAll("[data-backend]"));
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -57,20 +67,36 @@ function renderPlacement() {
   });
 }
 
+function renderBackend() {
+  backendButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.backend === insertionBackend);
+  });
+}
+
 function init(payload) {
   locale = String(payload?.locale || navigator.language || "zh").toLowerCase();
   platform = payload?.platform || "word";
   numberPlacement = payload?.numberPlacement === "Left" ? "Left" : "Right";
+  insertionBackend = payload?.insertionBackend === "WordOmml" ? "WordOmml" : "Ole";
   applyText();
   applyPlatform();
   renderPlacement();
+  renderBackend();
 }
 
 buttons.forEach((button) => {
   button.addEventListener("click", () => {
     numberPlacement = button.dataset.placement;
     renderPlacement();
-    send({ type: "save", numberPlacement });
+    send({ type: "save", numberPlacement, insertionBackend });
+  });
+});
+
+backendButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    insertionBackend = button.dataset.backend;
+    renderBackend();
+    send({ type: "save", numberPlacement, insertionBackend });
   });
 });
 
@@ -79,5 +105,5 @@ if (window.__latexSnipperSettingsInit) {
   init(window.__latexSnipperSettingsInit);
   window.__latexSnipperSettingsInit = null;
 } else {
-  init({ locale: navigator.language, numberPlacement });
+  init({ locale: navigator.language, numberPlacement, insertionBackend });
 }

@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -116,6 +117,7 @@ internal sealed class WordSettingsWindow : Form
             ["type"] = "init",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["numberPlacement"] = settings.NumberPlacement.ToString(),
+            ["insertionBackend"] = settings.InsertionBackend.ToString(),
         });
         string script =
             "(function(payload){" +
@@ -148,7 +150,13 @@ internal sealed class WordSettingsWindow : Form
         string placement = message.TryGetValue("numberPlacement", out object rawPlacement)
             ? Convert.ToString(rawPlacement, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        var settings = new WordPluginSettings(placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right);
+        string backend = message.TryGetValue("insertionBackend", out object rawBackend)
+            ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
+        FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.WordOmml.ToString()
+            ? FormulaInsertionBackend.WordOmml
+            : FormulaInsertionBackend.Ole;
+        var settings = new WordPluginSettings(placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right, insertionBackend);
         settings.Save();
         _ = SendSettingsAsync();
     }

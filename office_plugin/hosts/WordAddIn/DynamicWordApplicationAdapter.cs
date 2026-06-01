@@ -16,6 +16,8 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private const int WdCellAlignVerticalCenter = 1;
     private const int WdPreferredWidthPercent = 2;
     private const int WdAlignParagraphCenter = 1;
+    private const int WdContentControlRichText = 0;
+    private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
 
@@ -67,6 +69,45 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         });
 
         return Task.CompletedTask;
+    }
+
+    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
+    {
+        if (metadata == null)
+        {
+            throw new ArgumentNullException(nameof(metadata));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        ExecuteWithScreenUpdatingSuspended(() =>
+        {
+            dynamic selection = _wordApplication.Selection;
+            dynamic range = ResolveInsertionTargetRange(selection);
+            ValidateInsertionTarget(range);
+            dynamic inlineShape = _wordApplication.ActiveDocument.InlineShapes.AddOLEObject(
+                OleFormulaProgId,
+                Type.Missing,
+                false,
+                false,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                range);
+            WrapOleInlineShape(inlineShape, metadata);
+            WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+            MoveSelectionAfterInsertedFormula(metadata, display);
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private void WrapOleInlineShape(dynamic inlineShape, FormulaMetadata metadata)
+    {
+        dynamic control = _wordApplication.ActiveDocument.ContentControls.Add(WdContentControlRichText, inlineShape.Range);
+        control.Tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
+        control.Title = "LaTeXSnipper Equation";
+        control.LockContentControl = true;
+        control.LockContents = false;
     }
 
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)

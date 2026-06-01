@@ -46,8 +46,12 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Step 3: Build EditorAssets (dotnet build to copy to output)
-echo [3/4] Copying EditorAssets...
-dotnet build "%PLUGIN_ROOT%\LaTeXSnipper.OfficePlugin.slnx" -c %CONFIG% > nul 2>&1
+echo [3/4] Building shared libraries, EditorAssets, and OLE formula object...
+dotnet build "%PLUGIN_ROOT%\LaTeXSnipper.OfficePlugin.slnx" -c %CONFIG%
+if %ERRORLEVEL% neq 0 (
+  echo ERROR: Shared/OLE build failed.
+  exit /b 1
+)
 
 :: Step 3.5: Export signing certificate
 echo [3.5/4] Exporting certificate...

@@ -344,7 +344,9 @@ def test_office_plugin_hosts_are_explicit_scaffolds() -> None:
 
     ole_text = (PLUGIN / "hosts" / "OleFormulaObject" / "README.md").read_text(encoding="utf-8")
     assert "double-click" in ole_text
-    assert "does not require a from-scratch math layout engine" in ole_text
+    assert "MathJax" in ole_text
+    assert "EMF/GDI" in ole_text
+    assert "must not be inserted into Office as normal pictures" in ole_text
 
 
 def test_office_plugin_build_outputs_are_ignored() -> None:
