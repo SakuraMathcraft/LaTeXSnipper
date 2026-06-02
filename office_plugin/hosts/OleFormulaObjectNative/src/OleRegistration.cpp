@@ -10,6 +10,7 @@
 namespace
 {
 constexpr REGSAM kWritableAccess = KEY_READ | KEY_WRITE;
+constexpr wchar_t kFormulaMiscStatus[] = L"133521";
 
 std::wstring GuidToRegistryString(const GUID& guid)
 {
@@ -24,6 +25,19 @@ std::wstring QuotePathWithEmbedding(const wchar_t* serverPath)
     value += serverPath;
     value += L"\" /Embedding";
     return value;
+}
+
+std::wstring GetHandlerPath(const wchar_t* serverPath)
+{
+    wchar_t drive[_MAX_DRIVE]{};
+    wchar_t directory[_MAX_DIR]{};
+    wchar_t fileName[_MAX_FNAME]{};
+    wchar_t extension[_MAX_EXT]{};
+    _wsplitpath_s(serverPath, drive, std::size(drive), directory, std::size(directory), fileName, std::size(fileName), extension, std::size(extension));
+
+    wchar_t handlerPath[MAX_PATH]{};
+    _wmakepath_s(handlerPath, drive, directory, L"LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler", L".dll");
+    return handlerPath;
 }
 
 HRESULT CreateKey(HKEY root, const std::wstring& path, REGSAM access, HKEY* key)
@@ -75,6 +89,8 @@ HRESULT RegisterProgId(HKEY classesRoot, const wchar_t* progId, const std::wstri
     return result;
 }
 
+void DeleteTreeIfExists(HKEY root, const std::wstring& path, REGSAM access);
+
 HRESULT RegisterClass(HKEY classesRoot, REGSAM access, const wchar_t* serverPath)
 {
     const std::wstring classId = GuidToRegistryString(CLSID_LaTeXSnipperFormula);
@@ -92,6 +108,9 @@ HRESULT RegisterClass(HKEY classesRoot, REGSAM access, const wchar_t* serverPath
         result = SetStringValue(classKey, L"AppID", classId);
     }
 
+    const std::wstring handlerPath = GetHandlerPath(serverPath);
+    const bool hasHandler = GetFileAttributesW(handlerPath.c_str()) != INVALID_FILE_ATTRIBUTES;
+
     const struct ChildValue
     {
         const wchar_t* path;
@@ -100,9 +119,10 @@ HRESULT RegisterClass(HKEY classesRoot, REGSAM access, const wchar_t* serverPath
         {L"ProgID", kFormulaVersionedProgId},
         {L"VersionIndependentProgID", kFormulaProgId},
         {L"LocalServer32", QuotePathWithEmbedding(serverPath)},
-        {L"InprocHandler32", L"ole32.dll"},
         {L"DefaultIcon", std::wstring(L"\"") + serverPath + L"\",0"},
         {L"Insertable", L""},
+        {L"MiscStatus", kFormulaMiscStatus},
+        {L"MiscStatus\\1", kFormulaMiscStatus},
         {L"Verb\\0", L"&Edit,0,0"},
     };
 
@@ -120,6 +140,31 @@ HRESULT RegisterClass(HKEY classesRoot, REGSAM access, const wchar_t* serverPath
             result = SetDefaultValue(childKey, child.value);
             RegCloseKey(childKey);
         }
+    }
+
+    if (SUCCEEDED(result) && hasHandler)
+    {
+        HKEY handlerKey = nullptr;
+        result = CreateKey(classKey, L"InprocServer32", access, &handlerKey);
+        if (SUCCEEDED(result))
+        {
+            result = SetDefaultValue(handlerKey, handlerPath);
+        }
+
+        if (SUCCEEDED(result))
+        {
+            result = SetStringValue(handlerKey, L"ThreadingModel", L"Apartment");
+        }
+
+        if (handlerKey != nullptr)
+        {
+            RegCloseKey(handlerKey);
+        }
+    }
+
+    if (SUCCEEDED(result))
+    {
+        DeleteTreeIfExists(classKey, L"InprocHandler32", access);
     }
 
     RegCloseKey(classKey);

@@ -64,7 +64,7 @@ HRESULT RunEmbeddingServer()
         CLSID_LaTeXSnipperFormula,
         static_cast<IClassFactory*>(factory),
         CLSCTX_LOCAL_SERVER,
-        REGCLS_MULTIPLEUSE,
+        REGCLS_MULTI_SEPARATE,
         &registrationCookie);
 
     if (FAILED(registerResult))

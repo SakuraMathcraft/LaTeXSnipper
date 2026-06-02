@@ -1,5 +1,7 @@
 #include "StorageUtil.h"
 
+#include "OleFormulaIds.h"
+
 #include <vector>
 
 namespace
@@ -56,8 +58,14 @@ HRESULT SavePresentationToStorage(IStorage* storage, const FormulaPresentation& 
         return E_POINTER;
     }
 
+    HRESULT result = WriteClassStg(storage, CLSID_LaTeXSnipperFormula);
+    if (FAILED(result))
+    {
+        return result;
+    }
+
     std::wstring payload = presentation.payloadJson.empty() ? L"{}" : presentation.payloadJson;
-    HRESULT result = WriteStream(storage, kPayloadStream, payload.c_str(), static_cast<ULONG>((payload.size() + 1) * sizeof(wchar_t)));
+    result = WriteStream(storage, kPayloadStream, payload.c_str(), static_cast<ULONG>((payload.size() + 1) * sizeof(wchar_t)));
     if (FAILED(result))
     {
         return result;
@@ -91,7 +99,7 @@ HRESULT LoadPresentationFromStorage(IStorage* storage, FormulaPresentation* pres
         payload.pop_back();
     }
 
-    FormulaPresentation loaded = CreatePresentationFromPayload(payload);
+    FormulaPresentation loaded = CreatePresentationFromPayloadWithoutRendering(payload);
     std::vector<BYTE> emfBytes;
     if (SUCCEEDED(ReadStream(storage, kEmfStream, &emfBytes)) && !emfBytes.empty())
     {
