@@ -10,6 +10,7 @@
 #include <comdef.h>
 #include <new>
 #include <shellapi.h>
+#include <thread>
 #include <vector>
 
 namespace
@@ -119,6 +120,34 @@ FormulaOleObject::~FormulaOleObject()
 {
     WriteNativeOleLog(L"FormulaOleObject destructed.");
     InterlockedDecrement(&g_objectCount);
+}
+
+void FormulaOleObject::NotifyPresentationChanged()
+{
+    if (viewAdviseSink_ != nullptr)
+    {
+        viewAdviseSink_->OnViewChange(DVASPECT_CONTENT, -1);
+    }
+
+    if (objectAdviseSink_ != nullptr)
+    {
+        objectAdviseSink_->OnViewChange(DVASPECT_CONTENT, -1);
+    }
+
+    if (dataAdviseSink_ != nullptr)
+    {
+        STGMEDIUM medium{};
+        if (SUCCEEDED(GetData(&dataAdviseFormat_, &medium)))
+        {
+            dataAdviseSink_->OnDataChange(&dataAdviseFormat_, &medium);
+            ReleaseStgMedium(&medium);
+        }
+    }
+
+    if (clientSite_ != nullptr)
+    {
+        clientSite_->SaveObject();
+    }
 }
 
 STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
@@ -284,32 +313,29 @@ STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite*, LONG, H
 
         if (executeInfo.hProcess != nullptr)
         {
-            WaitForSingleObject(executeInfo.hProcess, INFINITE);
-            CloseHandle(executeInfo.hProcess);
-        }
+            AddRef();
+            HANDLE process = executeInfo.hProcess;
+            std::wstring currentPayload = presentation_.payloadJson;
+            std::thread([this, process, currentPayload]() {
+                CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+                WaitForSingleObject(process, INFINITE);
+                CloseHandle(process);
 
-        std::wstring updatedPayload = ConsumeEditorPayloadResult();
-        if (updatedPayload.empty() || updatedPayload == presentation_.payloadJson)
-        {
-            return S_OK;
-        }
+                std::wstring updatedPayload = ConsumeEditorPayloadResult();
+                if (!updatedPayload.empty() && updatedPayload != currentPayload)
+                {
+                    FormulaPresentation updatedPresentation = CreatePresentationFromPayload(updatedPayload);
+                    if (!updatedPresentation.latex.empty())
+                    {
+                        presentation_ = std::move(updatedPresentation);
+                        dirty_ = true;
+                        NotifyPresentationChanged();
+                    }
+                }
 
-        FormulaPresentation updatedPresentation = CreatePresentationFromPayload(updatedPayload);
-        if (updatedPresentation.latex.empty())
-        {
-            return OLEOBJ_S_CANNOT_DOVERB_NOW;
-        }
-
-        presentation_ = std::move(updatedPresentation);
-        dirty_ = true;
-        if (viewAdviseSink_ != nullptr)
-        {
-            viewAdviseSink_->OnViewChange(DVASPECT_CONTENT, -1);
-        }
-
-        if (clientSite_ != nullptr)
-        {
-            clientSite_->SaveObject();
+                CoUninitialize();
+                Release();
+            }).detach();
         }
 
         return S_OK;
@@ -402,20 +428,32 @@ STDMETHODIMP FormulaOleObject::GetExtent(DWORD drawAspect, SIZEL* size)
     return S_OK;
 }
 
-STDMETHODIMP FormulaOleObject::Advise(IAdviseSink*, DWORD* connection)
+STDMETHODIMP FormulaOleObject::Advise(IAdviseSink* adviseSink, DWORD* connection)
 {
     if (connection == nullptr)
     {
         return E_POINTER;
     }
 
-    *connection = 0;
-    return OLE_E_ADVISENOTSUPPORTED;
+    if (adviseSink == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    objectAdviseSink_ = adviseSink;
+    *connection = 1;
+    return S_OK;
 }
 
-STDMETHODIMP FormulaOleObject::Unadvise(DWORD)
+STDMETHODIMP FormulaOleObject::Unadvise(DWORD connection)
 {
-    return OLE_E_ADVISENOTSUPPORTED;
+    if (connection != 1 || objectAdviseSink_ == nullptr)
+    {
+        return OLE_E_NOCONNECTION;
+    }
+
+    objectAdviseSink_.Release();
+    return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::EnumAdvise(IEnumSTATDATA** enumAdvise)
@@ -426,7 +464,7 @@ STDMETHODIMP FormulaOleObject::EnumAdvise(IEnumSTATDATA** enumAdvise)
     }
 
     *enumAdvise = nullptr;
-    return OLE_E_ADVISENOTSUPPORTED;
+    return S_FALSE;
 }
 
 STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
@@ -567,20 +605,42 @@ STDMETHODIMP FormulaOleObject::EnumFormatEtc(DWORD, IEnumFORMATETC** enumFormatE
     return E_NOTIMPL;
 }
 
-STDMETHODIMP FormulaOleObject::DAdvise(FORMATETC*, DWORD, IAdviseSink*, DWORD* connection)
+STDMETHODIMP FormulaOleObject::DAdvise(FORMATETC* format, DWORD adviseFlags, IAdviseSink* adviseSink, DWORD* connection)
 {
     if (connection == nullptr)
     {
         return E_POINTER;
     }
 
-    *connection = 0;
-    return OLE_E_ADVISENOTSUPPORTED;
+    if (format == nullptr || adviseSink == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    HRESULT queryResult = QueryGetData(format);
+    if (FAILED(queryResult))
+    {
+        return queryResult;
+    }
+
+    dataAdviseSink_ = adviseSink;
+    dataAdviseFormat_ = *format;
+    dataAdviseFlags_ = adviseFlags;
+    *connection = 1;
+    return S_OK;
 }
 
-STDMETHODIMP FormulaOleObject::DUnadvise(DWORD)
+STDMETHODIMP FormulaOleObject::DUnadvise(DWORD connection)
 {
-    return OLE_E_ADVISENOTSUPPORTED;
+    if (connection != 1 || dataAdviseSink_ == nullptr)
+    {
+        return OLE_E_NOCONNECTION;
+    }
+
+    dataAdviseSink_.Release();
+    dataAdviseFormat_ = {};
+    dataAdviseFlags_ = 0;
+    return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::EnumDAdvise(IEnumSTATDATA** enumAdvise)
@@ -591,7 +651,7 @@ STDMETHODIMP FormulaOleObject::EnumDAdvise(IEnumSTATDATA** enumAdvise)
     }
 
     *enumAdvise = nullptr;
-    return OLE_E_ADVISENOTSUPPORTED;
+    return S_FALSE;
 }
 
 STDMETHODIMP FormulaOleObject::Draw(DWORD drawAspect, LONG, void*, DVTARGETDEVICE*, HDC, HDC drawContext, LPCRECTL bounds, LPCRECTL, BOOL(__stdcall*)(ULONG_PTR), ULONG_PTR)

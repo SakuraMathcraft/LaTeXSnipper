@@ -36,6 +36,11 @@ public sealed class WordRibbonCallbacks
         FireAndForgetSerial(ct => _controller.InsertOmmlAsync(ct));
     }
 
+    public void OnInsertFromTaskPane(object control)
+    {
+        FireAndForgetSerial(ct => _controller.InsertFromTaskPaneAsync(ct));
+    }
+
     public void OnInsertInline(object control)
     {
         FireAndForgetSerial(ct => _controller.InsertInlineAsync(ct));

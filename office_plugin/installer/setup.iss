@@ -63,8 +63,6 @@ Source: "..\hosts\WordVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.Core.dll"; 
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinForms.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
-Source: "..\hosts\WordVstoAddIn\bin\{#Config}\MathJax-3.2.2\*"; \
-  DestDir: "{app}\Word\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\runtimes\*"; \
   DestDir: "{app}\Word\runtimes"; Flags: ignoreversion recursesubdirs
 
@@ -91,8 +89,6 @@ Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.Core.
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinForms.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
-Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\MathJax-3.2.2\*"; \
-  DestDir: "{app}\PowerPoint\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\runtimes\*"; \
   DestDir: "{app}\PowerPoint\runtimes"; Flags: ignoreversion recursesubdirs
 
@@ -113,6 +109,10 @@ Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion
 
+; ===== Shared MathJax runtime =====
+Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\MathJax-3.2.2\*"; \
+  DestDir: "{app}\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
+
 ; ===== EditorAssets (shared, installed alongside both hosts) =====
 Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\Word\EditorAssets"; Flags: ignoreversion recursesubdirs
@@ -125,7 +125,7 @@ Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePl
 Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
-  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml"
+  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,MathJax-3.2.2\*"
 Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\OleFormulaRenderer\EditorAssets"; Flags: ignoreversion recursesubdirs
 

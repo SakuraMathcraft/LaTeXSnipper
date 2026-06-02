@@ -86,12 +86,18 @@ public:
     STDMETHOD(HandsOffStorage)() override;
 
 private:
+    void NotifyPresentationChanged();
+
     volatile LONG refCount_ = 1;
     ATL::CComPtr<IOleClientSite> clientSite_;
     ATL::CComPtr<IStorage> storage_;
+    ATL::CComPtr<IAdviseSink> objectAdviseSink_;
     ATL::CComPtr<IAdviseSink> viewAdviseSink_;
+    ATL::CComPtr<IAdviseSink> dataAdviseSink_;
     DWORD viewAdviseAspects_ = 0;
     DWORD viewAdviseFlags_ = 0;
+    FORMATETC dataAdviseFormat_{};
+    DWORD dataAdviseFlags_ = 0;
     DWORD cacheConnection_ = 1;
     FormulaPresentation presentation_;
     bool dirty_ = false;

@@ -38,7 +38,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
     }
 
-    public Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float width, float height, CancellationToken cancellationToken)
+    public Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float scale, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (image == null)
@@ -51,13 +51,23 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        if (scale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale), "Shape scale must be positive.");
+        }
+
         dynamic slide = GetActiveSlide();
-        float targetWidth = width > 0 ? width : image.WidthPoints;
-        float targetHeight = height > 0 ? height : image.HeightPoints;
-        return InsertPictureAtAsync(slide, image, metadata, left, top, targetWidth, targetHeight);
+        return InsertPictureAtAsync(
+            slide,
+            image,
+            metadata,
+            left,
+            top,
+            image.WidthPoints * scale,
+            image.HeightPoints * scale);
     }
 
-    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken)
+    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, double renderScale, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (metadata == null)
@@ -72,10 +82,10 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
-        return InsertOleObjectAtAsync(slide, metadata, presentation, insertionPoint.Left, insertionPoint.Top);
+        return InsertOleObjectAtAsync(slide, metadata, presentation, renderScale, insertionPoint.Left, insertionPoint.Top);
     }
 
-    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float width, float height, CancellationToken cancellationToken)
+    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, OlePresentationResult presentation, double renderScale, float left, float top, float shapeScale, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (metadata == null)
@@ -88,10 +98,21 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(presentation));
         }
 
+        if (shapeScale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(shapeScale), "Shape scale must be positive.");
+        }
+
         dynamic slide = GetActiveSlide();
-        float targetWidth = width > 0 ? width : (float)presentation.WidthPoints;
-        float targetHeight = height > 0 ? height : (float)presentation.HeightPoints;
-        return InsertOleObjectAtAsync(slide, metadata, presentation, left, top, targetWidth, targetHeight);
+        return InsertOleObjectAtAsync(
+            slide,
+            metadata,
+            presentation,
+            renderScale,
+            left,
+            top,
+            (float)presentation.WidthPoints * shapeScale,
+            (float)presentation.HeightPoints * shapeScale);
     }
 
     private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top)
@@ -102,16 +123,16 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float width, float height)
     {
         dynamic picture = slide.Shapes.AddPicture(image.Path, MsoFalse, MsoTrue, left, top, width, height);
-        PowerPointFormulaMetadataStore.ApplyToShape(picture, metadata);
+        PowerPointFormulaMetadataStore.ApplyToShape(picture, metadata, image.WidthPoints, image.HeightPoints, renderScale: 1);
         return Task.CompletedTask;
     }
 
-    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, float left, float top)
+    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, double renderScale, float left, float top)
     {
-        return InsertOleObjectAtAsync(slide, metadata, presentation, left, top, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
+        return InsertOleObjectAtAsync(slide, metadata, presentation, renderScale, left, top, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
     }
 
-    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float width, float height)
+    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, double renderScale, float left, float top, float width, float height)
     {
         OleFormulaPendingPayloadStore.SavePendingPayload(metadata, presentation);
         dynamic shape = slide.Shapes.AddOLEObject(
@@ -126,7 +147,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             0,
             string.Empty,
             MsoFalse);
-        PowerPointFormulaMetadataStore.ApplyToShape(shape, metadata);
+        PowerPointFormulaMetadataStore.ApplyToShape(shape, metadata, (float)presentation.WidthPoints, (float)presentation.HeightPoints, renderScale);
         return Task.CompletedTask;
     }
 
@@ -137,17 +158,12 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.FromResult(ReadMetadataFromShape(shape));
     }
 
-    public (float Left, float Top, float Width, float Height) GetSelectedShapeBounds()
+    public (float Left, float Top, float ShapeScale, double RenderScale) GetSelectedShapeFrame()
     {
         dynamic shape = GetSelectedShape();
-        try
-        {
-            return ((float)shape.Left, (float)shape.Top, (float)shape.Width, (float)shape.Height);
-        }
-        catch
-        {
-            return (DefaultLeftPoints, DefaultTopPoints, 0, 0);
-        }
+        float naturalWidth = ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
+        double renderScale = ReadRequiredDoubleTag(shape, PowerPointFormulaMetadataStore.RenderScaleTag);
+        return ((float)shape.Left, (float)shape.Top, (float)shape.Width / naturalWidth, renderScale);
     }
 
     public Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken)
@@ -294,6 +310,28 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         {
             return string.Empty;
         }
+    }
+
+    private static float ReadRequiredFloatTag(dynamic shape, string tagName)
+    {
+        string value = ReadTag(shape, tagName);
+        if (!float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float result) || result <= 0)
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return result;
+    }
+
+    private static double ReadRequiredDoubleTag(dynamic shape, string tagName)
+    {
+        string value = ReadTag(shape, tagName);
+        if (!double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double result) || result <= 0)
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return result;
     }
 
     private dynamic GetActiveSlide()

@@ -45,6 +45,11 @@ public sealed class WordPluginController
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
     }
 
+    public async Task InsertFromTaskPaneAsync(CancellationToken cancellationToken)
+    {
+        await InsertOmmlAsync(cancellationToken);
+    }
+
     public Task InsertInlineAsync(CancellationToken cancellationToken)
     {
         return OpenEditorForInsertAsync(new WordFormulaOptions(display: false, NumberingMode.None, string.Empty), cancellationToken);
@@ -285,7 +290,7 @@ public sealed class WordPluginController
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 1.2
+            FontScale = 1.2 * WordPluginSettings.Load().OleScale
         };
         RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(

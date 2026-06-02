@@ -55,7 +55,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private static void AttachTaskPaneCommands(WordStatusTaskPaneControl pane, WordRibbonCallbacks callbacks)
         {
             pane.ConnectRequested += (_, _) => callbacks.OnConnect(pane);
-            pane.InsertRequested += (_, _) => callbacks.OnInsertOmml(pane);
+            pane.InsertRequested += (_, _) => callbacks.OnInsertFromTaskPane(pane);
             pane.ScreenshotOcrRequested += (_, _) => callbacks.OnScreenshotOcr(pane);
             pane.RenumberRequested += (_, _) => callbacks.OnRenumberAll(pane);
         }
