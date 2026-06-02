@@ -17,6 +17,8 @@ internal static class SvgPathDataParser
         PointF start = PointF.Empty;
         PointF lastQuadraticControl = PointF.Empty;
         PointF lastCubicControl = PointF.Empty;
+        bool lastWasQuadratic = false;
+        bool lastWasCubic = false;
         char command = '\0';
 
         while (tokenizer.HasMore)
@@ -33,6 +35,9 @@ internal static class SvgPathDataParser
                 case 'M':
                     current = ReadPoint(tokenizer, current, relative);
                     start = current;
+                    path.StartFigure();
+                    lastWasQuadratic = false;
+                    lastWasCubic = false;
                     while (tokenizer.NextIsNumber)
                     {
                         PointF point = ReadPoint(tokenizer, current, relative);
@@ -49,6 +54,8 @@ internal static class SvgPathDataParser
                         current = point;
                     }
 
+                    lastWasQuadratic = false;
+                    lastWasCubic = false;
                     break;
                 case 'H':
                     while (tokenizer.NextIsNumber)
@@ -64,6 +71,8 @@ internal static class SvgPathDataParser
                         current = point;
                     }
 
+                    lastWasQuadratic = false;
+                    lastWasCubic = false;
                     break;
                 case 'V':
                     while (tokenizer.NextIsNumber)
@@ -79,6 +88,8 @@ internal static class SvgPathDataParser
                         current = point;
                     }
 
+                    lastWasQuadratic = false;
+                    lastWasCubic = false;
                     break;
                 case 'Q':
                     while (tokenizer.NextIsNumber)
@@ -90,17 +101,21 @@ internal static class SvgPathDataParser
                         lastQuadraticControl = control;
                     }
 
+                    lastWasQuadratic = true;
+                    lastWasCubic = false;
                     break;
                 case 'T':
                     while (tokenizer.NextIsNumber)
                     {
-                        PointF control = Reflect(current, lastQuadraticControl);
+                        PointF control = lastWasQuadratic ? Reflect(current, lastQuadraticControl) : current;
                         PointF end = ReadPoint(tokenizer, current, relative);
                         AddQuadratic(path, current, control, end);
                         current = end;
                         lastQuadraticControl = control;
+                        lastWasQuadratic = true;
                     }
 
+                    lastWasCubic = false;
                     break;
                 case 'C':
                     while (tokenizer.NextIsNumber)
@@ -113,22 +128,28 @@ internal static class SvgPathDataParser
                         lastCubicControl = control2;
                     }
 
+                    lastWasQuadratic = false;
+                    lastWasCubic = true;
                     break;
                 case 'S':
                     while (tokenizer.NextIsNumber)
                     {
-                        PointF control1 = Reflect(current, lastCubicControl);
+                        PointF control1 = lastWasCubic ? Reflect(current, lastCubicControl) : current;
                         PointF control2 = ReadPoint(tokenizer, current, relative);
                         PointF end = ReadPoint(tokenizer, current, relative);
                         path.AddBezier(current, control1, control2, end);
                         current = end;
                         lastCubicControl = control2;
+                        lastWasCubic = true;
                     }
 
+                    lastWasQuadratic = false;
                     break;
                 case 'Z':
                     path.CloseFigure();
                     current = start;
+                    lastWasQuadratic = false;
+                    lastWasCubic = false;
                     break;
                 default:
                     throw new NotSupportedException("Unsupported SVG path command: " + command);

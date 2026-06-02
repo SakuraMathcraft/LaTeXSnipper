@@ -53,7 +53,9 @@ public sealed class MathJaxAssetResolver
                 explicitRoot,
                 Path.Combine(explicitRoot, MathJaxRootName),
                 Path.Combine(assemblyDirectory, MathJaxRootName),
-                Path.Combine(baseDirectory, MathJaxRootName)
+                Path.Combine(baseDirectory, MathJaxRootName),
+                Path.GetFullPath(Path.Combine(assemblyDirectory, "..", MathJaxRootName)),
+                Path.GetFullPath(Path.Combine(baseDirectory, "..", MathJaxRootName))
             };
         }
 
@@ -61,6 +63,8 @@ public sealed class MathJaxAssetResolver
         {
             Path.Combine(assemblyDirectory, MathJaxRootName),
             Path.Combine(baseDirectory, MathJaxRootName),
+            Path.GetFullPath(Path.Combine(assemblyDirectory, "..", MathJaxRootName)),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", MathJaxRootName)),
             Path.GetFullPath(Path.Combine(assemblyDirectory, "..\\..\\..\\..\\src\\assets", MathJaxRootName)),
             Path.GetFullPath(Path.Combine(baseDirectory, "..\\..\\..\\..\\src\\assets", MathJaxRootName))
         };

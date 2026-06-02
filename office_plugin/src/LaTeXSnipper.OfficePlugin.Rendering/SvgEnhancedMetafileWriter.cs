@@ -6,6 +6,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Xml.Linq;
@@ -16,6 +17,7 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 internal static class SvgEnhancedMetafileWriter
 {
     private const int Dpi = 1200;
+    private const int PointsPerInch = 72;
 
     public static byte[] Write(RenderResult intermediateRender, CancellationToken cancellationToken)
     {
@@ -31,41 +33,49 @@ internal static class SvgEnhancedMetafileWriter
         int widthPixels = Math.Max(1, PointsToPixels(intermediateRender.WidthPoints));
         int heightPixels = Math.Max(1, PointsToPixels(intermediateRender.HeightPoints));
 
-        using var referenceBitmap = new Bitmap(1, 1);
-        using Graphics referenceGraphics = Graphics.FromImage(referenceBitmap);
-        IntPtr hdc = referenceGraphics.GetHdc();
+        using var stream = new MemoryStream();
+        IntPtr screen = GetDC(IntPtr.Zero);
+        if (screen == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("Cannot acquire a screen device context for EMF rendering.");
+        }
+
         try
         {
-            using var stream = new MemoryStream();
             using (var metafile = new Metafile(
                 stream,
-                hdc,
+                screen,
                 new RectangleF(0, 0, widthPixels, heightPixels),
                 MetafileFrameUnit.Pixel,
-                EmfType.EmfPlusDual))
-            using (Graphics graphics = Graphics.FromImage(metafile))
+                EmfType.EmfPlusDual,
+                "LaTeXSnipper Formula"))
             {
-                graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                graphics.CompositingQuality = CompositingQuality.HighQuality;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                using Graphics graphics = Graphics.FromImage(metafile);
+                ConfigureGraphics(graphics);
                 using var rootTransform = new Matrix();
+                rootTransform.Translate(-viewBox.X, -viewBox.Y, MatrixOrder.Append);
                 rootTransform.Scale(
                     widthPixels / Math.Max(1f, viewBox.Width),
                     heightPixels / Math.Max(1f, viewBox.Height),
                     MatrixOrder.Append);
-                rootTransform.Translate(-viewBox.X, -viewBox.Y, MatrixOrder.Prepend);
-                var paths = CollectPaths(root);
-                DrawElement(root, graphics, paths, rootTransform, cancellationToken);
+                DrawElement(root, graphics, CollectPaths(root), rootTransform, cancellationToken);
             }
-
-            return stream.ToArray();
         }
         finally
         {
-            referenceGraphics.ReleaseHdc(hdc);
+            ReleaseDC(IntPtr.Zero, screen);
         }
+
+        return stream.ToArray();
+    }
+
+    private static void ConfigureGraphics(Graphics graphics)
+    {
+        graphics.PageUnit = GraphicsUnit.Pixel;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
     }
 
     private static Dictionary<string, GraphicsPath> CollectPaths(XElement root)
@@ -111,6 +121,10 @@ internal static class SvgEnhancedMetafileWriter
         {
             DrawUseElement(element, graphics, paths, transform);
         }
+        else if (element.Name.LocalName == "rect")
+        {
+            DrawRectElement(element, graphics, transform);
+        }
 
         foreach (XElement child in element.Elements())
         {
@@ -133,14 +147,66 @@ internal static class SvgEnhancedMetafileWriter
         }
 
         using GraphicsPath path = (GraphicsPath)sourcePath.Clone();
+        using Matrix positionedTransform = inheritedTransform.Clone();
+        float x = ParseOptionalFloat(element.Attribute("x")?.Value);
+        float y = ParseOptionalFloat(element.Attribute("y")?.Value);
+        if (x != 0 || y != 0)
+        {
+            using var translate = new Matrix();
+            translate.Translate(x, y, MatrixOrder.Append);
+            positionedTransform.Multiply(translate, MatrixOrder.Prepend);
+        }
+
+        path.Transform(positionedTransform);
+        graphics.FillPath(Brushes.Black, path);
+    }
+
+    private static void DrawRectElement(XElement element, Graphics graphics, Matrix inheritedTransform)
+    {
+        float x = ParseOptionalFloat(element.Attribute("x")?.Value);
+        float y = ParseOptionalFloat(element.Attribute("y")?.Value);
+        float width = ParseOptionalFloat(element.Attribute("width")?.Value);
+        float height = ParseOptionalFloat(element.Attribute("height")?.Value);
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        using var path = new GraphicsPath(FillMode.Winding);
+        path.AddRectangle(new RectangleF(x, y, width, height));
         path.Transform(inheritedTransform);
-        using var brush = new SolidBrush(Color.Black);
-        graphics.FillPath(brush, path);
+        graphics.FillPath(Brushes.Black, path);
     }
 
     private static int PointsToPixels(double points)
     {
-        return (int)Math.Ceiling(points / 72d * Dpi);
+        return (int)Math.Ceiling(points / PointsPerInch * Dpi);
+    }
+
+    internal static float ParseFloat(string value)
+    {
+        return float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture);
+    }
+
+    private static float ParseOptionalFloat(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        string trimmed = value!.Trim();
+        if (trimmed.EndsWith("em", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith("ex", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith("pt", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed.Substring(0, trimmed.Length - 2);
+        }
+
+        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed)
+            ? parsed
+            : 0;
     }
 
     private readonly struct SvgViewBox
@@ -173,9 +239,10 @@ internal static class SvgEnhancedMetafileWriter
         }
     }
 
-    internal static float ParseFloat(string value)
-    {
-        return float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture);
-    }
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
 }
 #endif

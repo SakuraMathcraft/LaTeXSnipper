@@ -118,6 +118,7 @@ internal sealed class WordSettingsWindow : Form
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["numberPlacement"] = settings.NumberPlacement.ToString(),
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
+            ["oleScale"] = settings.OleScale,
         });
         string script =
             "(function(payload){" +
@@ -153,10 +154,21 @@ internal sealed class WordSettingsWindow : Form
         string backend = message.TryGetValue("insertionBackend", out object rawBackend)
             ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
+        string scaleText = message.TryGetValue("oleScale", out object rawScale)
+            ? Convert.ToString(rawScale, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
         FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.WordOmml.ToString()
             ? FormulaInsertionBackend.WordOmml
             : FormulaInsertionBackend.Ole;
-        var settings = new WordPluginSettings(placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right, insertionBackend);
+        if (!double.TryParse(scaleText, NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) ||
+            !WordPluginSettings.IsValidOleScale(scale))
+        {
+            MessageBox.Show(this, "OLE initial scale must be greater than 0 and less than or equal to 5.", WordAddInText.Get("ErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _ = SendSettingsAsync();
+            return;
+        }
+
+        var settings = new WordPluginSettings(placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right, insertionBackend, scale);
         settings.Save();
         _ = SendSettingsAsync();
     }

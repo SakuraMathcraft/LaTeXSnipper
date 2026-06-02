@@ -12,6 +12,7 @@ public sealed class PowerPointImageFileStore
     private const float PointsPerInch = 72f;
     private const float DefaultDpi = 180f;
     private const float MaxFormulaWidthPoints = 420f;
+    private static readonly TimeSpan TemporaryFileLifetime = TimeSpan.FromDays(7);
 
     private static readonly Regex SvgViewBoxPattern = new(
         @"viewBox\s*=\s*""(?<x>[-\d.]+)\s+(?<y>[-\d.]+)\s+(?<w>[-\d.]+)\s+(?<h>[-\d.]+)""",
@@ -28,6 +29,8 @@ public sealed class PowerPointImageFileStore
 
     public PowerPointRenderedImage SaveConversionResult(PowerPointConversionResult conversion)
     {
+        CleanupExpiredFiles();
+
         // Determine crop bounds from PNG, then apply to SVG
         RectangleF? cropSvg = null;
         float? pngDpiX = null;
@@ -85,6 +88,7 @@ public sealed class PowerPointImageFileStore
         }
 
         Directory.CreateDirectory(_directory);
+        CleanupExpiredFiles();
         string fileName = "formula-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".png";
         string path = Path.Combine(_directory, fileName);
 
@@ -170,6 +174,7 @@ public sealed class PowerPointImageFileStore
         cleaned = SvgViewBoxPattern.Replace(cleaned, "viewBox=\"" + croppedViewBox + "\"", 1);
 
         Directory.CreateDirectory(_directory);
+        CleanupExpiredFiles();
         string fileName = "formula-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".svg";
         string path = Path.Combine(_directory, fileName);
         File.WriteAllText(path, cleaned, System.Text.Encoding.UTF8);
@@ -184,6 +189,36 @@ public sealed class PowerPointImageFileStore
         }
 
         return new PowerPointRenderedImage(path, widthPoints, heightPoints);
+    }
+
+    private void CleanupExpiredFiles()
+    {
+        try
+        {
+            if (!Directory.Exists(_directory))
+            {
+                return;
+            }
+
+            DateTime threshold = DateTime.UtcNow - TemporaryFileLifetime;
+            foreach (string file in Directory.GetFiles(_directory, "*.*"))
+            {
+                string extension = Path.GetExtension(file);
+                if (!string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(extension, ".svg", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (File.GetLastWriteTimeUtc(file) < threshold)
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static (float X, float Y, float W, float H) ParseSvgViewBoxFull(string svg)

@@ -25,7 +25,7 @@ internal static class SvgTransformParser
             string name = match.Groups["name"].Value;
             float[] args = ParseArgs(match.Groups["args"].Value);
             using Matrix local = CreateMatrix(name, args);
-            result.Multiply(local, MatrixOrder.Append);
+            result.Multiply(local, MatrixOrder.Prepend);
         }
 
         return result;
