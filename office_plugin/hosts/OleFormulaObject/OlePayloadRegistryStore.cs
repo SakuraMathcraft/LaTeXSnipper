@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Web.Script.Serialization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using Microsoft.Win32;
 
 namespace LaTeXSnipper.OfficePlugin.OleFormulaObject;
@@ -36,13 +38,26 @@ internal static class OlePayloadRegistryStore
         return root.TryGetValue("latex", out object value) ? Convert.ToString(value) ?? string.Empty : string.Empty;
     }
 
-    public static string WithLatex(string payloadJson, string latex)
+    public static string WithPresentation(string payloadJson, string latex, string rendererVersion, OlePresentationResult presentation)
     {
+        if (presentation == null)
+        {
+            throw new ArgumentNullException(nameof(presentation));
+        }
+
         var serializer = new JavaScriptSerializer();
         Dictionary<string, object> root = string.IsNullOrWhiteSpace(payloadJson)
             ? new Dictionary<string, object>()
             : serializer.Deserialize<Dictionary<string, object>>(payloadJson);
         root["latex"] = latex;
+        root["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString();
+        root["rendererVersion"] = rendererVersion;
+        root["widthPoints"] = presentation.WidthPoints.ToString(CultureInfo.InvariantCulture);
+        root["heightPoints"] = presentation.HeightPoints.ToString(CultureInfo.InvariantCulture);
+        root["baselinePoints"] = presentation.BaselinePoints.ToString(CultureInfo.InvariantCulture);
+        root["presentationKind"] = presentation.PresentationKind.ToString();
+        root["presentationMimeType"] = presentation.MimeType;
+        root["presentationPayloadBase64"] = Convert.ToBase64String(presentation.Payload);
         return serializer.Serialize(root);
     }
 }

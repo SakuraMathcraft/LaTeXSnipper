@@ -1,8 +1,8 @@
 #include <windows.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,3,5,0
- PRODUCTVERSION 2,3,5,0
+ FILEVERSION 2,3,2,0
+ PRODUCTVERSION 2,3,2,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -19,11 +19,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "SakuraMathcraft"
             VALUE "FileDescription", "LaTeXSnipper OLE Formula Object Handler"
-            VALUE "FileVersion", "2.3.5.0"
+            VALUE "FileVersion", "2.3.2.0"
             VALUE "InternalName", "LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler"
             VALUE "OriginalFilename", "LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"
             VALUE "ProductName", "LaTeXSnipper Office Plugin"
-            VALUE "ProductVersion", "2.3.5.0"
+            VALUE "ProductVersion", "2.3.2.0"
         END
     END
     BLOCK "VarFileInfo"

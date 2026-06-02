@@ -80,9 +80,10 @@ internal sealed class MathJaxSvgRenderResponse
             throw new InvalidOperationException("MathJax returned an empty SVG payload.");
         }
 
-        double widthPoints = CssLengthToPoints(GetString(root, "widthEx"));
-        double heightPoints = CssLengthToPoints(GetString(root, "heightEx"));
-        double baselinePoints = ExtractVerticalAlignPoints(GetString(root, "style"));
+        double scale = ReadScale(root);
+        double widthPoints = CssLengthToPoints(GetString(root, "widthEx")) * scale;
+        double heightPoints = CssLengthToPoints(GetString(root, "heightEx")) * scale;
+        double baselinePoints = ExtractVerticalAlignPoints(GetString(root, "style")) * scale;
         string version = GetString(root, "version");
         return new MathJaxSvgRenderResponse(svg, widthPoints, heightPoints, baselinePoints, version, GetWarnings(root));
     }
@@ -111,6 +112,18 @@ internal sealed class MathJaxSvgRenderResponse
 
         return warnings;
     }
+
+    private static double ReadScale(Dictionary<string, object> root)
+    {
+        if (!root.TryGetValue("scale", out object value))
+        {
+            return 1;
+        }
+
+        return double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) && scale > 0
+            ? scale
+            : 1;
+    }
 #else
     private static MathJaxSvgRenderResponse ParseObject(JsonElement root)
     {
@@ -120,9 +133,10 @@ internal sealed class MathJaxSvgRenderResponse
             throw new InvalidOperationException("MathJax returned an empty SVG payload.");
         }
 
-        double widthPoints = CssLengthToPoints(GetString(root, "widthEx"));
-        double heightPoints = CssLengthToPoints(GetString(root, "heightEx"));
-        double baselinePoints = ExtractVerticalAlignPoints(GetString(root, "style"));
+        double scale = ReadScale(root);
+        double widthPoints = CssLengthToPoints(GetString(root, "widthEx")) * scale;
+        double heightPoints = CssLengthToPoints(GetString(root, "heightEx")) * scale;
+        double baselinePoints = ExtractVerticalAlignPoints(GetString(root, "style")) * scale;
         string version = GetString(root, "version");
         return new MathJaxSvgRenderResponse(svg, widthPoints, heightPoints, baselinePoints, version, GetWarnings(root));
     }
@@ -155,6 +169,21 @@ internal sealed class MathJaxSvgRenderResponse
         }
 
         return warnings;
+    }
+
+    private static double ReadScale(JsonElement root)
+    {
+        if (!root.TryGetProperty("scale", out JsonElement value))
+        {
+            return 1;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out double number) && number > 0)
+        {
+            return number;
+        }
+
+        return 1;
     }
 #endif
 

@@ -10,7 +10,9 @@ public interface IWordApplicationAdapter
 
     Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
 
-    Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
+    Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
+
+    Task UpdateOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
 
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 

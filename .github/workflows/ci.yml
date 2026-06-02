@@ -200,9 +200,9 @@ jobs:
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
-          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
 
       - name: Setup Typst

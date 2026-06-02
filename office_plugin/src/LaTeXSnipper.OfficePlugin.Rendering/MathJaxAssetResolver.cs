@@ -7,7 +7,7 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 public sealed class MathJaxAssetResolver
 {
     private const string MathJaxRootName = "MathJax-3.2.2";
-    private const string MathJaxBundleRelativePath = "es5\\tex-svg-full.js";
+    private const string MathJaxBundleRelativePath = "es5\\tex-mml-svg.js";
 
     private readonly string? _explicitRoot;
 
@@ -22,7 +22,7 @@ public sealed class MathJaxAssetResolver
         string bundle = Path.Combine(root, MathJaxBundleRelativePath);
         if (!File.Exists(bundle))
         {
-            throw new FileNotFoundException("MathJax TeX SVG bundle was not found.", bundle);
+            throw new FileNotFoundException("MathJax TeX/MathML SVG bundle was not found.", bundle);
         }
 
         return bundle;

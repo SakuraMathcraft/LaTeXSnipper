@@ -203,7 +203,7 @@ jobs:
         shell: pwsh
         run: |
           $source = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.release_tag }}" } else { "${{ github.ref }}" }
-          if ($source -match 'v(\d+\.\d+\.\d+.*)$') {
+          if ($source -match 'v?(\d+\.\d+\.\d+)') {
             $ver = $matches[1]
           } else {
             $ver = (Get-Content -Raw Inno\latexsnipper.iss | Select-String 'MyAppVersion\s+"([^"]+)"').Matches.Groups[1].Value
@@ -240,9 +240,9 @@ jobs:
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
           $subjects = @('CN=LaTeXSnipper Office Plugin VSTO')
           $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -in $subjects } | Sort-Object NotAfter -Descending | Select-Object -First 1

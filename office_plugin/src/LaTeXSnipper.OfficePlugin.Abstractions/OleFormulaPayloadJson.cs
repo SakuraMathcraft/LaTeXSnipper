@@ -7,11 +7,16 @@ namespace LaTeXSnipper.OfficePlugin.Abstractions;
 
 public static class OleFormulaPayloadJson
 {
-    public static string Serialize(FormulaMetadata metadata)
+    public static string Serialize(FormulaMetadata metadata, OlePresentationResult presentation)
     {
         if (metadata == null)
         {
             throw new ArgumentNullException(nameof(metadata));
+        }
+
+        if (presentation == null)
+        {
+            throw new ArgumentNullException(nameof(presentation));
         }
 
         var dto = new Dictionary<string, object?>
@@ -25,9 +30,12 @@ public static class OleFormulaPayloadJson
             ["numberText"] = metadata.NumberText,
             ["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString(),
             ["rendererVersion"] = "MathJax-3.2.2",
-            ["widthPoints"] = 180d.ToString(CultureInfo.InvariantCulture),
-            ["heightPoints"] = 42d.ToString(CultureInfo.InvariantCulture),
-            ["baselinePoints"] = 28d.ToString(CultureInfo.InvariantCulture)
+            ["widthPoints"] = presentation.WidthPoints.ToString(CultureInfo.InvariantCulture),
+            ["heightPoints"] = presentation.HeightPoints.ToString(CultureInfo.InvariantCulture),
+            ["baselinePoints"] = presentation.BaselinePoints.ToString(CultureInfo.InvariantCulture),
+            ["presentationKind"] = presentation.PresentationKind.ToString(),
+            ["presentationMimeType"] = presentation.MimeType,
+            ["presentationPayloadBase64"] = Convert.ToBase64String(presentation.Payload)
         };
         var builder = new StringBuilder();
         builder.Append('{');

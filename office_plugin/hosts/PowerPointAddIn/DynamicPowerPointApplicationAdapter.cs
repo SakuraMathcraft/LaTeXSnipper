@@ -38,7 +38,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
     }
 
-    public Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, CancellationToken cancellationToken)
+    public Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float width, float height, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (image == null)
@@ -52,10 +52,12 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         }
 
         dynamic slide = GetActiveSlide();
-        return InsertPictureAtAsync(slide, image, metadata, left, top);
+        float targetWidth = width > 0 ? width : image.WidthPoints;
+        float targetHeight = height > 0 ? height : image.HeightPoints;
+        return InsertPictureAtAsync(slide, image, metadata, left, top, targetWidth, targetHeight);
     }
 
-    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (metadata == null)
@@ -63,12 +65,17 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        if (presentation == null)
+        {
+            throw new ArgumentNullException(nameof(presentation));
+        }
+
         dynamic slide = GetActiveSlide();
-        InsertionPoint insertionPoint = GetInsertionPoint(slide, 180, 48);
-        return InsertOleObjectAtAsync(slide, metadata, insertionPoint.Left, insertionPoint.Top);
+        InsertionPoint insertionPoint = GetInsertionPoint(slide, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
+        return InsertOleObjectAtAsync(slide, metadata, presentation, insertionPoint.Left, insertionPoint.Top);
     }
 
-    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, float left, float top, CancellationToken cancellationToken)
+    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float width, float height, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (metadata == null)
@@ -76,21 +83,49 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        if (presentation == null)
+        {
+            throw new ArgumentNullException(nameof(presentation));
+        }
+
         dynamic slide = GetActiveSlide();
-        return InsertOleObjectAtAsync(slide, metadata, left, top);
+        float targetWidth = width > 0 ? width : (float)presentation.WidthPoints;
+        float targetHeight = height > 0 ? height : (float)presentation.HeightPoints;
+        return InsertOleObjectAtAsync(slide, metadata, presentation, left, top, targetWidth, targetHeight);
     }
 
     private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top)
     {
-        dynamic picture = slide.Shapes.AddPicture(image.Path, MsoFalse, MsoTrue, left, top, image.WidthPoints, image.HeightPoints);
+        return InsertPictureAtAsync(slide, image, metadata, left, top, image.WidthPoints, image.HeightPoints);
+    }
+
+    private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float width, float height)
+    {
+        dynamic picture = slide.Shapes.AddPicture(image.Path, MsoFalse, MsoTrue, left, top, width, height);
         PowerPointFormulaMetadataStore.ApplyToShape(picture, metadata);
         return Task.CompletedTask;
     }
 
-    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, float left, float top)
+    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, float left, float top)
     {
-        OleFormulaPendingPayloadStore.SavePendingPayload(metadata);
-        dynamic shape = slide.Shapes.AddOLEObject(left, top, 180f, 48f, OleFormulaProgId, string.Empty, MsoFalse, string.Empty, 0, string.Empty, MsoFalse);
+        return InsertOleObjectAtAsync(slide, metadata, presentation, left, top, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
+    }
+
+    private static Task InsertOleObjectAtAsync(dynamic slide, FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float width, float height)
+    {
+        OleFormulaPendingPayloadStore.SavePendingPayload(metadata, presentation);
+        dynamic shape = slide.Shapes.AddOLEObject(
+            left,
+            top,
+            width,
+            height,
+            OleFormulaProgId,
+            string.Empty,
+            MsoFalse,
+            string.Empty,
+            0,
+            string.Empty,
+            MsoFalse);
         PowerPointFormulaMetadataStore.ApplyToShape(shape, metadata);
         return Task.CompletedTask;
     }
@@ -102,16 +137,16 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.FromResult(ReadMetadataFromShape(shape));
     }
 
-    public (float Left, float Top) GetSelectedShapePosition()
+    public (float Left, float Top, float Width, float Height) GetSelectedShapeBounds()
     {
         dynamic shape = GetSelectedShape();
         try
         {
-            return ((float)shape.Left, (float)shape.Top);
+            return ((float)shape.Left, (float)shape.Top, (float)shape.Width, (float)shape.Height);
         }
         catch
         {
-            return (DefaultLeftPoints, DefaultTopPoints);
+            return (DefaultLeftPoints, DefaultTopPoints, 0, 0);
         }
     }
 

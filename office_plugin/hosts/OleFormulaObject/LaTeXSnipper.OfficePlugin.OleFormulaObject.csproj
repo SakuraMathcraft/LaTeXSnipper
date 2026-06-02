@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\LaTeXSnipper.OfficePlugin.Editor.csproj" />
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Rendering\LaTeXSnipper.OfficePlugin.Rendering.csproj" />
   </ItemGroup>
 
@@ -14,16 +15,21 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
-  </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <OutputType>WinExe</OutputType>
     <Prefer32Bit>false</Prefer32Bit>
     <RootNamespace>LaTeXSnipper.OfficePlugin.OleFormulaObject</RootNamespace>
     <AssemblyName>LaTeXSnipper.OfficePlugin.OleFormulaObject</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\installer\icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\installer\icon.ico">
+      <Link>icon.ico</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>

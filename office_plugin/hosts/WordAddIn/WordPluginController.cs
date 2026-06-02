@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Bridge;
 using LaTeXSnipper.OfficePlugin.Editor;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -15,6 +16,8 @@ public sealed class WordPluginController
     private readonly IWordApplicationAdapter _wordAdapter;
     private readonly IWordStatusSink _statusSink;
     private readonly IWordFormulaOptionsProvider _optionsProvider;
+    private readonly IFormulaRenderer _oleIntermediateRenderer;
+    private readonly OlePresentationPipeline _olePresentationPipeline;
     private FormulaMetadata? _currentFormula;
     private WordFormulaOptions? _pendingEditorInsertOptions;
 
@@ -22,12 +25,16 @@ public sealed class WordPluginController
         FormulaEditorSession editorSession,
         BridgeClient bridgeClient,
         IWordApplicationAdapter wordAdapter,
+        IFormulaRenderer oleIntermediateRenderer,
+        OlePresentationPipeline olePresentationPipeline,
         IWordStatusSink? statusSink = null,
         IWordFormulaOptionsProvider? optionsProvider = null)
     {
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
         _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
         _wordAdapter = wordAdapter ?? throw new ArgumentNullException(nameof(wordAdapter));
+        _oleIntermediateRenderer = oleIntermediateRenderer ?? throw new ArgumentNullException(nameof(oleIntermediateRenderer));
+        _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullWordStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultWordFormulaOptionsProvider.Instance;
     }
@@ -238,7 +245,8 @@ public sealed class WordPluginController
         {
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
-            await _wordAdapter.InsertOleFormulaObjectAsync(oleMetadata, IsDisplay(oleMetadata), cancellationToken);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
+            await _wordAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, IsDisplay(oleMetadata), cancellationToken);
             _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
             return;
         }
@@ -256,7 +264,12 @@ public sealed class WordPluginController
         WordPluginSettings settings = WordPluginSettings.Load();
         if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
         {
-            throw new NotSupportedException("OLE formula update is not connected yet.");
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
+            FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
+            await _wordAdapter.UpdateOleFormulaObjectAsync(oleMetadata.Identity.EquationId, oleMetadata, presentation, IsDisplay(oleMetadata), cancellationToken);
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+            return;
         }
 
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
@@ -266,6 +279,18 @@ public sealed class WordPluginController
         string equationOoxml = WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(conversion.Omml, metadata);
         await _wordAdapter.UpdateFormulaAsync(metadata.Identity.EquationId, ooxml, equationOoxml, metadata, IsDisplay(metadata), cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+    }
+
+    private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
+        {
+            FontScale = 1.2
+        };
+        RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
+        return await _olePresentationPipeline.RenderAsync(
+            new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
+            cancellationToken);
     }
 
     private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
@@ -286,6 +311,10 @@ public sealed class WordPluginController
         }
 
         await InsertRenderedFormulaAsync(metadata, cancellationToken);
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
     }
 
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(

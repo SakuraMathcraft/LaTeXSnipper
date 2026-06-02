@@ -16,7 +16,14 @@ window.LaTeXSnipperMathJax = {
   version: (window.MathJax && window.MathJax.version) || '3.2.2',
   render: function(input) {
     const adaptor = MathJax.startup.adaptor;
-    const container = MathJax.tex2svg(input.latex || '', { display: input.displayMode !== 'Inline' });
+    const source = input.latex || '';
+    const display = input.displayMode !== 'Inline';
+    const scale = Number(input.fontScale) > 0 ? Number(input.fontScale) : 1;
+    const trimmed = source.trim();
+    const isMathMl = /^<math(\s|>|:)/i.test(trimmed);
+    const container = isMathMl && MathJax.mathml2svg
+      ? MathJax.mathml2svg(trimmed, { display: display })
+      : MathJax.tex2svg(source, { display: display });
     const node = adaptor.firstChild(container);
     const svg = adaptor.outerHTML(node);
     const width = adaptor.getAttribute(node, 'width') || '0ex';
@@ -27,6 +34,7 @@ window.LaTeXSnipperMathJax = {
       widthEx: width,
       heightEx: height,
       style: style,
+      scale: scale,
       version: this.version,
       warnings: []
     };
