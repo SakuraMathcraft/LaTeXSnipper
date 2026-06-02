@@ -94,21 +94,19 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 Type.Missing,
                 Type.Missing,
                 range);
-            WrapOleInlineShape(inlineShape, metadata);
+            TagOleInlineShape(inlineShape, metadata);
             WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
-            MoveSelectionAfterInsertedFormula(metadata, display);
+            MoveSelectionAfterInlineShape(inlineShape, metadata.Identity.EquationId, display);
         });
 
         return Task.CompletedTask;
     }
 
-    private void WrapOleInlineShape(dynamic inlineShape, FormulaMetadata metadata)
+    private static void TagOleInlineShape(dynamic inlineShape, FormulaMetadata metadata)
     {
-        dynamic control = _wordApplication.ActiveDocument.ContentControls.Add(WdContentControlRichText, inlineShape.Range);
-        control.Tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
-        control.Title = "LaTeXSnipper Equation";
-        control.LockContentControl = true;
-        control.LockContents = false;
+        string tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
+        TryCom(() => inlineShape.AlternativeText = tag);
+        TryCom(() => inlineShape.Title = "LaTeXSnipper Equation");
     }
 
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
@@ -241,6 +239,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         AddSelectedFormulasFromRange(formulas, seen, range);
         AddSelectedFormulasFromNumberedTables(formulas, seen, range);
         AddSelectedFormulasOverlappingRange(formulas, seen, range);
+        AddSelectedOleInlineShapes(formulas, seen, range);
         if (formulas.Count == 0)
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
@@ -312,6 +311,73 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         catch
         {
         }
+    }
+
+    private void AddSelectedOleInlineShapes(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)
+    {
+        try
+        {
+            dynamic inlineShapes = range.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(i));
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            dynamic inlineShapes = _wordApplication.Selection.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(i));
+            }
+        }
+        catch
+        {
+        }
+
+        int selectionStart = GetRangeStart(range);
+        int selectionEnd = GetRangeEnd(range);
+        try
+        {
+            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic inlineShape = inlineShapes.Item(i);
+                dynamic shapeRange = inlineShape.Range;
+                if (RangesIntersectOrContainPoint(selectionStart, selectionEnd, GetRangeStart(shapeRange), GetRangeEnd(shapeRange)))
+                {
+                    AddSelectedOleInlineShape(formulas, seen, inlineShape);
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void AddSelectedOleInlineShape(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)
+    {
+        if (candidate == null)
+        {
+            return;
+        }
+
+        dynamic inlineShape = candidate;
+        string equationId = GetOleInlineShapeEquationId(inlineShape);
+        if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
+        {
+            return;
+        }
+
+        FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId);
+        formulas.Add(new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true));
     }
 
     private void AddSelectedFormula(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)
@@ -767,6 +833,33 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         EnsureSelectionOutsideFormula(equationId);
     }
 
+    private void MoveSelectionAfterInlineShape(object inlineShape, string equationId, bool display)
+    {
+        dynamic shape = inlineShape;
+        int insertionPoint = GetRangeEnd(shape.Range);
+        if (display)
+        {
+            dynamic paragraphRange = shape.Range.Paragraphs.Item(1).Range;
+            insertionPoint = GetRangeEnd(paragraphRange);
+            bool paragraphInserted = TryInsertParagraphAfter(paragraphRange);
+            if (paragraphInserted &&
+                (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1)))
+            {
+                return;
+            }
+        }
+
+        if (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1))
+        {
+            return;
+        }
+
+        dynamic target = CreateDocumentRange(insertionPoint, insertionPoint);
+        target.Select();
+        MoveSelectionRight();
+        EnsureSelectionOutsideFormula(equationId);
+    }
+
     private bool TryMoveSelectionOutsideFormula(int position)
     {
         try
@@ -912,6 +1005,12 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
     private void DeleteFormula(SelectedWordFormula selected)
     {
+        if (selected.IsOleInlineShape)
+        {
+            DeleteOleInlineShape(selected);
+            return;
+        }
+
         dynamic control = selected.ContentControl;
         string equationId = selected.Metadata.Identity.EquationId;
         object? table = TryGetNumberedTable(control, equationId)
@@ -930,6 +1029,14 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             dynamic backup = metadataControl;
             backup.Delete(true);
         }
+    }
+
+    private void DeleteOleInlineShape(SelectedWordFormula selected)
+    {
+        string equationId = selected.Metadata.Identity.EquationId;
+        WordFormulaMetadataStore.Delete(_wordApplication.ActiveDocument, equationId);
+        dynamic inlineShape = selected.ContentControl;
+        inlineShape.Delete();
     }
 
     private void DeleteNumberedTableBlock(object table)
@@ -1174,6 +1281,28 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
         }
 
+        try
+        {
+            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic inlineShape = inlineShapes.Item(i);
+                if (string.IsNullOrWhiteSpace(GetOleInlineShapeEquationId(inlineShape)))
+                {
+                    continue;
+                }
+
+                if (RangesIntersectOrContainPoint(rangeStart, rangeEnd, GetRangeStart(inlineShape.Range), GetRangeEnd(inlineShape.Range)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
         return false;
     }
 
@@ -1324,6 +1453,19 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return string.IsNullOrWhiteSpace(equationId)
             ? WordFormulaMetadataStore.EquationIdFromMetadataTag(tag)
             : equationId;
+    }
+
+    private static string GetOleInlineShapeEquationId(dynamic inlineShape)
+    {
+        try
+        {
+            string tag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
+            return WordFormulaMetadataStore.EquationIdFromTag(tag);
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static bool IsEquationControl(dynamic control)

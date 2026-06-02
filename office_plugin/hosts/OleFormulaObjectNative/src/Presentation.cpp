@@ -164,7 +164,14 @@ std::wstring QuoteArgument(const std::wstring& value)
 std::wstring GetExecutableDirectory()
 {
     wchar_t modulePath[MAX_PATH]{};
-    DWORD length = GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+    HMODULE module = nullptr;
+    DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    if (!GetModuleHandleExW(flags, reinterpret_cast<LPCWSTR>(&GetExecutableDirectory), &module))
+    {
+        module = nullptr;
+    }
+
+    DWORD length = GetModuleFileNameW(module, modulePath, MAX_PATH);
     std::wstring directory(modulePath, length);
     size_t slash = directory.find_last_of(L"\\/");
     return slash == std::wstring::npos ? L"." : directory.substr(0, slash);
@@ -251,7 +258,7 @@ std::wstring ResolveRendererPath()
         return fullPath;
     }
 
-    std::wstring dev = GetExecutableDirectory() + L"\\..\\..\\..\\..\\..\\OleFormulaObject\\bin\\Release\\net48\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
+    std::wstring dev = GetExecutableDirectory() + L"\\..\\..\\..\\..\\OleFormulaObject\\bin\\Release\\net48\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
     if (GetFullPathNameW(dev.c_str(), MAX_PATH, fullPath, nullptr) > 0 && GetFileAttributesW(fullPath) != INVALID_FILE_ATTRIBUTES)
     {
         return fullPath;

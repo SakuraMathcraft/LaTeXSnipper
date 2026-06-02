@@ -53,8 +53,8 @@ if %ERRORLEVEL% neq 0 (
   exit /b 1
 )
 
-:: Step 4: Build native OLE formula object for 64-bit and 32-bit Office
-echo [4/5] Building native OLE formula object...
+:: Step 4: Build native OLE formula object handler for 64-bit and 32-bit Office
+echo [4/5] Building native OLE formula object handler...
 set MSBUILD_EXE=
 if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
   for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -find MSBuild\Current\Bin\amd64\MSBuild.exe`) do (
@@ -75,21 +75,9 @@ if not defined MSBUILD_EXE (
   exit /b 1
 )
 
-"%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj" /p:Configuration=%CONFIG% /p:Platform=x64 /m
-if %ERRORLEVEL% neq 0 (
-  echo ERROR: Native OLE x64 build failed.
-  exit /b 1
-)
-
 "%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj" /p:Configuration=%CONFIG% /p:Platform=x64 /m
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Native OLE handler x64 build failed.
-  exit /b 1
-)
-
-"%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj" /p:Configuration=%CONFIG% /p:Platform=Win32 /m
-if %ERRORLEVEL% neq 0 (
-  echo ERROR: Native OLE x86 build failed.
   exit /b 1
 )
 

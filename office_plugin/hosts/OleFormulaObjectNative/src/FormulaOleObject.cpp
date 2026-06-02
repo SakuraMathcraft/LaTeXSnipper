@@ -104,7 +104,7 @@ LONG GetNativeOleLockCount()
 }
 
 FormulaOleObject::FormulaOleObject()
-    : presentation_(CreatePresentationFromPayloadWithoutRendering(ConsumePendingPayload()))
+    : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
 {
     if (presentation_.latex.empty())
     {

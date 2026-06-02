@@ -50,10 +50,10 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 | `hosts/PowerPointVstoAddIn` | Thin VSTO shell loaded by PowerPoint |
 | `installer/` | Inno Setup 6 installer script, build batch, assets |
 | `tools/` | PowerShell registration and build scripts |
-| `hosts/OleFormulaObjectNative/` | Native C++ COM/OLE local server registered as the Office formula object for 32-bit and 64-bit Office |
-| `hosts/OleFormulaObject/` | Managed renderer diagnostics and MathJax integration candidate for OLE payload generation |
+| `hosts/OleFormulaObjectNative/` | Native C++ COM/OLE in-proc handler DLL registered as the Office formula object for 32-bit and 64-bit Office |
+| `hosts/OleFormulaObject/` | Managed MathJax renderer/editor helper used by the OLE handler for EMF payload generation |
 
-Shared libraries target `net48;net9.0`. Host projects target `net48` (VSTO requirement). VSTO projects require Visual Studio MSBuild; they are excluded from the `.slnx` solution file. The OLE formula object uses a native Visual C++/ATL project and is built separately for x64 and Win32.
+Shared libraries target `net48;net9.0`. Host projects target `net48` (VSTO requirement). VSTO projects require Visual Studio MSBuild; they are excluded from the `.slnx` solution file. The OLE formula object uses a native Visual C++/ATL handler DLL and is built separately for x64 and Win32.
 
 ## Build
 
@@ -73,13 +73,13 @@ MSBuild is auto-discovered via `vswhere` in the registration scripts. No hardcod
 .\tools\Register-PowerPointVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
 ```
 
-### Native OLE formula object
+### Native OLE formula object handler
 
 Requires Visual Studio 2022 with the Visual C++ ATL components:
 
 ```powershell
-& "D:\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe" .\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=x64 /m
-& "D:\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe" .\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+& "D:\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe" .\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+& "D:\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe" .\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
 ```
 
 ### Installer
