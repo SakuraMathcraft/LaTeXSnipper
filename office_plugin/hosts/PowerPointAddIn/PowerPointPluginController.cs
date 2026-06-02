@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Bridge;
 using LaTeXSnipper.OfficePlugin.Editor;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
@@ -17,14 +18,20 @@ public sealed class PowerPointPluginController
     private readonly IPowerPointStatusSink _statusSink;
     private readonly IPowerPointFormulaOptionsProvider _optionsProvider;
     private readonly PowerPointImageFileStore _imageFileStore;
+    private readonly IFormulaRenderer _oleIntermediateRenderer;
+    private readonly OlePresentationPipeline _olePresentationPipeline;
     private float _loadedShapeLeft;
     private float _loadedShapeTop;
+    private float _loadedShapeWidth;
+    private float _loadedShapeHeight;
     private bool _hasLoadedShapePosition;
 
     public PowerPointPluginController(
         FormulaEditorSession editorSession,
         BridgeClient bridgeClient,
         IPowerPointApplicationAdapter powerPointAdapter,
+        IFormulaRenderer oleIntermediateRenderer,
+        OlePresentationPipeline olePresentationPipeline,
         IPowerPointStatusSink? statusSink = null,
         IPowerPointFormulaOptionsProvider? optionsProvider = null,
         PowerPointImageFileStore? imageFileStore = null)
@@ -32,6 +39,8 @@ public sealed class PowerPointPluginController
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
         _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
         _powerPointAdapter = powerPointAdapter ?? throw new ArgumentNullException(nameof(powerPointAdapter));
+        _oleIntermediateRenderer = oleIntermediateRenderer ?? throw new ArgumentNullException(nameof(oleIntermediateRenderer));
+        _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullPowerPointStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultPowerPointFormulaOptionsProvider.Instance;
         _imageFileStore = imageFileStore ?? new PowerPointImageFileStore();
@@ -60,7 +69,7 @@ public sealed class PowerPointPluginController
         }
 
         FormulaMetadata metadata = CreateMetadata(latex);
-        await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, cancellationToken);
+        await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, width: 0, height: 0, cancellationToken);
     }
 
     public async Task AcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
@@ -77,6 +86,8 @@ public sealed class PowerPointPluginController
             hasPosition: _hasLoadedShapePosition,
             left: _loadedShapeLeft,
             top: _loadedShapeTop,
+            width: _loadedShapeWidth,
+            height: _loadedShapeHeight,
             cancellationToken);
 
         _hasLoadedShapePosition = false;
@@ -92,6 +103,8 @@ public sealed class PowerPointPluginController
         bool hasPosition,
         float left,
         float top,
+        float width,
+        float height,
         CancellationToken cancellationToken)
     {
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
@@ -99,14 +112,15 @@ public sealed class PowerPointPluginController
         {
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OleInsertingStatus"));
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
             if (updateMode && hasPosition)
             {
                 await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
-                await _powerPointAdapter.InsertOleFormulaObjectAtPositionAsync(oleMetadata, left, top, cancellationToken);
+                await _powerPointAdapter.InsertOleFormulaObjectAtPositionAsync(oleMetadata, presentation, left, top, width, height, cancellationToken);
             }
             else
             {
-                await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, cancellationToken);
+            await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, cancellationToken);
             }
 
             _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedStatus"));
@@ -118,11 +132,11 @@ public sealed class PowerPointPluginController
         PowerPointConversionResult conversion = PowerPointConversionParser.ParseConversionResponse(responseJson);
         PowerPointRenderedImage image = _imageFileStore.SaveConversionResult(conversion);
 
-        if (updateMode && hasPosition)
-        {
-            await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
-            await _powerPointAdapter.InsertFormulaImageAtPositionAsync(image, metadata, left, top, cancellationToken);
-        }
+            if (updateMode && hasPosition)
+            {
+                await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+                await _powerPointAdapter.InsertFormulaImageAtPositionAsync(image, metadata, left, top, width, height, cancellationToken);
+            }
         else
         {
             await _powerPointAdapter.InsertFormulaImageAsync(image, metadata, cancellationToken);
@@ -134,7 +148,7 @@ public sealed class PowerPointPluginController
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
     {
         FormulaMetadata selected = await _powerPointAdapter.LoadSelectedFormulaAsync(cancellationToken);
-        (_loadedShapeLeft, _loadedShapeTop) = _powerPointAdapter.GetSelectedShapePosition();
+        (_loadedShapeLeft, _loadedShapeTop, _loadedShapeWidth, _loadedShapeHeight) = _powerPointAdapter.GetSelectedShapeBounds();
         _hasLoadedShapePosition = true;
         await _editorSession.OpenForEditAsync(selected, cancellationToken);
         _statusSink.SetCurrentFormula(selected.Latex, updateMode: true);
@@ -228,6 +242,18 @@ public sealed class PowerPointPluginController
             string.Empty,
             RenderEngineKind.Image,
             schemaVersion: 1);
+    }
+
+    private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
+        {
+            FontScale = 3
+        };
+        RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
+        return await _olePresentationPipeline.RenderAsync(
+            new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
+            cancellationToken);
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)

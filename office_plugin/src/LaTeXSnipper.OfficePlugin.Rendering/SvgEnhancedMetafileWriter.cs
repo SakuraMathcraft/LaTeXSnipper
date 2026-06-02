@@ -15,7 +15,7 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 
 internal static class SvgEnhancedMetafileWriter
 {
-    private const int Dpi = 600;
+    private const int Dpi = 1200;
 
     public static byte[] Write(RenderResult intermediateRender, CancellationToken cancellationToken)
     {
@@ -46,6 +46,9 @@ internal static class SvgEnhancedMetafileWriter
             using (Graphics graphics = Graphics.FromImage(metafile))
             {
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.CompositingQuality = CompositingQuality.HighQuality;
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                 using var rootTransform = new Matrix();
                 rootTransform.Scale(
@@ -100,7 +103,7 @@ internal static class SvgEnhancedMetafileWriter
         {
             using (local)
             {
-                transform.Multiply(local, MatrixOrder.Append);
+                transform.Multiply(local, MatrixOrder.Prepend);
             }
         }
 

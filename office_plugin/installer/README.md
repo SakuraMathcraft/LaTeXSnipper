@@ -26,7 +26,7 @@ Output: `office_plugin\dist\OfficePluginSetup-2.3.2.exe`
 4. Writes HKLM registry keys with `|vstolocal` manifest URIs (versionless + Office 16.0 + WOW6432Node for 32/64-bit)
 5. Cleans stale Office-plugin VSTO metadata, resiliency, and uninstall entries left over from previous installs
 6. Writes VSTO security inclusion entries to HKLM and to the installing user's HKCU
-7. Registers native x64 and x86 OLE formula-object local servers for matching Office bitness
+7. Registers native x64 and x86 OLE formula-object in-process handlers for matching Office bitness
 8. Uninstaller removes all files and plugin registry keys, plus cleans per-user and per-machine VSTO metadata, Office resiliency, and OLE formula-object registration
 
 The installer does not run `VSTOInstaller.exe /Install`; registration is the explicit HKLM Addins keys plus VSTO trust entries above. Cleanup matches Office-plugin identifiers only and does not remove the LaTeXSnipper desktop client registry keys.

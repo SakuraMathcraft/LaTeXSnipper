@@ -1,14 +1,21 @@
+#if NET48
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
-namespace LaTeXSnipper.OfficePlugin.WordAddIn;
+namespace LaTeXSnipper.OfficePlugin.Editor;
 
 public sealed class MathLiveFormulaEditor : IFormulaEditor
 {
+    private readonly MathLiveFormulaEditorOptions _options;
     private MathLiveFormulaEditorForm? _activeForm;
+
+    public MathLiveFormulaEditor(MathLiveFormulaEditorOptions options)
+    {
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+    }
 
     public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
 
@@ -20,6 +27,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
     {
         cancellationToken.ThrowIfCancellationRequested();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
+        form.CloseOnCommit = false;
         form.Configure(initialFormula, updateMode);
         form.Show();
         if (form.WindowState == FormWindowState.Minimized)
@@ -43,6 +51,24 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return Task.FromResult(true);
     }
 
+    public FormulaEditorAcceptedEventArgs? ShowModal(FormulaMetadata initialFormula, bool updateMode)
+    {
+        if (initialFormula == null)
+        {
+            throw new ArgumentNullException(nameof(initialFormula));
+        }
+
+        using var form = new MathLiveFormulaEditorForm(_options)
+        {
+            CloseOnCommit = true
+        };
+        form.Configure(initialFormula, updateMode);
+        form.EditorError += OnEditorError;
+        form.ShowDialog();
+        form.EditorError -= OnEditorError;
+        return form.AcceptedFormula;
+    }
+
     private MathLiveFormulaEditorForm GetOrCreateForm()
     {
         if (_activeForm != null && !_activeForm.IsDisposed)
@@ -50,7 +76,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
             return _activeForm;
         }
 
-        _activeForm = new MathLiveFormulaEditorForm();
+        _activeForm = new MathLiveFormulaEditorForm(_options);
         _activeForm.FormulaAccepted += OnFormulaAccepted;
         _activeForm.EditorCancelled += OnEditorCancelled;
         _activeForm.EditorError += OnEditorError;
@@ -65,8 +91,6 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     private void OnFormClosed(object? sender, FormClosedEventArgs e)
     {
-        EditorCancelled?.Invoke(this, EventArgs.Empty);
-
         if (_activeForm == null)
         {
             return;
@@ -89,3 +113,4 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         EditorError?.Invoke(this, message);
     }
 }
+#endif

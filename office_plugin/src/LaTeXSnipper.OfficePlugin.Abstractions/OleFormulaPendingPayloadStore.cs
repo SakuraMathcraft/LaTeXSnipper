@@ -9,7 +9,7 @@ public static class OleFormulaPendingPayloadStore
     private const string KeyPath = @"Software\LaTeXSnipper\OfficePlugin\OleFormulaObject";
     private const string PendingPayloadValue = "PendingPayload";
 
-    public static void SavePendingPayload(FormulaMetadata metadata)
+    public static void SavePendingPayload(FormulaMetadata metadata, OlePresentationResult presentation)
     {
         if (metadata == null)
         {
@@ -18,7 +18,7 @@ public static class OleFormulaPendingPayloadStore
 
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(KeyPath)
             ?? throw new InvalidOperationException("Cannot open OLE formula payload registry key.");
-        key.SetValue(PendingPayloadValue, OleFormulaPayloadJson.Serialize(metadata), RegistryValueKind.String);
+        key.SetValue(PendingPayloadValue, OleFormulaPayloadJson.Serialize(metadata, presentation), RegistryValueKind.String);
     }
 }
 #endif

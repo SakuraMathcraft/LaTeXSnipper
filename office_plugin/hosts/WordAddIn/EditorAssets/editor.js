@@ -376,6 +376,11 @@ function setStatus(text) {
 }
 
 function currentLatex() {
+  const source = latexSource.value.trim();
+  if (isMathMlSource(source)) {
+    return source;
+  }
+
   return mathfield?.getValue("latex-expanded")?.trim() || "";
 }
 
@@ -384,8 +389,19 @@ function syncSource() {
 }
 
 function setLatex(latex) {
-  mathfield.setValue(latex || "", { silenceNotifications: true });
+  const source = latex || "";
+  if (isMathMlSource(source.trim())) {
+    latexSource.value = source;
+    mathfield.setValue("", { silenceNotifications: true });
+    return;
+  }
+
+  mathfield.setValue(source, { silenceNotifications: true });
   syncSource();
+}
+
+function isMathMlSource(source) {
+  return /^<math(\s|>|:)/i.test(source);
 }
 
 function insertLatex(latex) {
@@ -518,7 +534,11 @@ async function bootstrap() {
   host.appendChild(mathfield);
   mathfield.addEventListener("input", syncSource);
   latexSource.addEventListener("input", () => {
-    mathfield.setValue(latexSource.value || "", { silenceNotifications: true });
+    const source = latexSource.value || "";
+    if (!isMathMlSource(source.trim())) {
+      mathfield.setValue(source, { silenceNotifications: true });
+    }
+
     mathfield.focus();
   });
   cancelButton.addEventListener("click", () => send({ type: "cancel" }));

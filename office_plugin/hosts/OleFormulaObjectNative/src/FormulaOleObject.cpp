@@ -104,7 +104,7 @@ LONG GetNativeOleLockCount()
 }
 
 FormulaOleObject::FormulaOleObject()
-    : presentation_(CreatePresentationFromPayloadWithoutRendering(ConsumePendingPayload()))
+    : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
 {
     if (presentation_.latex.empty())
     {
@@ -250,7 +250,7 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
 STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite*, LONG, HWND parentWindow, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
-    if (verb == OLEIVERB_SHOW || verb == OLEIVERB_PRIMARY)
+    if (verb == OLEIVERB_SHOW)
     {
         if (viewAdviseSink_ != nullptr)
         {
@@ -260,7 +260,7 @@ STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite*, LONG, H
         return S_OK;
     }
 
-    if (verb == OLEIVERB_OPEN)
+    if (verb == OLEIVERB_PRIMARY || verb == OLEIVERB_OPEN)
     {
         StoreEditorPayload(presentation_.payloadJson);
         std::wstring renderer = ResolveRendererPath();
@@ -445,10 +445,7 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
 
     *status = OLEMISC_RECOMPOSEONRESIZE
         | OLEMISC_CANTLINKINSIDE
-        | OLEMISC_INSIDEOUT
-        | OLEMISC_ACTIVATEWHENVISIBLE
-        | OLEMISC_SETCLIENTSITEFIRST
-        | OLEMISC_ALWAYSRUN;
+        | OLEMISC_SETCLIENTSITEFIRST;
     return S_OK;
 }
 

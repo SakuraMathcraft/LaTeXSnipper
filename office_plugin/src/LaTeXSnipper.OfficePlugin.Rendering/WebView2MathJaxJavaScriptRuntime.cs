@@ -1,16 +1,17 @@
+#if NET48
 using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using LaTeXSnipper.OfficePlugin.Rendering;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace LaTeXSnipper.OfficePlugin.OleFormulaObject;
+namespace LaTeXSnipper.OfficePlugin.Rendering;
 
-internal sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime, IDisposable
+public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime, IDisposable
 {
+    private readonly string _hostName;
     private readonly Thread _uiThread;
     private readonly TaskCompletionSource<Form> _hostReady = new TaskCompletionSource<Form>();
     private readonly TaskCompletionSource<WebView2> _webViewReady = new TaskCompletionSource<WebView2>();
@@ -18,12 +19,18 @@ internal sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRunti
     private bool _initialized;
     private bool _disposed;
 
-    public WebView2MathJaxJavaScriptRuntime()
+    public WebView2MathJaxJavaScriptRuntime(string hostName)
     {
+        if (string.IsNullOrWhiteSpace(hostName))
+        {
+            throw new ArgumentException("Host name is required.", nameof(hostName));
+        }
+
+        _hostName = hostName;
         _uiThread = new Thread(RunUiThread)
         {
             IsBackground = true,
-            Name = "LaTeXSnipper OLE MathJax"
+            Name = "LaTeXSnipper " + hostName + " MathJax"
         };
         _uiThread.SetApartmentState(ApartmentState.STA);
         _uiThread.Start();
@@ -47,8 +54,8 @@ internal sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRunti
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "LaTeXSnipper",
                 "OfficePlugin",
-                "OleFormulaObject",
-                "WebView2");
+                _hostName,
+                "MathJaxWebView2");
             CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
             await webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
@@ -99,7 +106,6 @@ internal sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRunti
     {
         try
         {
-            ApplicationBootstrap.Initialize();
             var hostForm = new Form
             {
                 ShowInTaskbar = false,
@@ -185,3 +191,4 @@ internal sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRunti
         return completion.Task;
     }
 }
+#endif

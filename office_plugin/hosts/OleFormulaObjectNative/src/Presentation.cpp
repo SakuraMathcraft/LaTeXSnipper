@@ -1,12 +1,12 @@
 #include "Presentation.h"
 
+#include "OleFormulaIds.h"
 #include "Win32Check.h"
 
 #include <algorithm>
-#include <fstream>
-#include <iterator>
+#include <cmath>
+#include <cstdlib>
 #include <shlwapi.h>
-#include <sstream>
 
 namespace
 {
@@ -19,6 +19,11 @@ constexpr int kEmfDpi = 144;
 int PointsToHimetric(int points)
 {
     return MulDiv(points, kHimetricPerInch, kPointsPerInch);
+}
+
+int PointsToHimetric(double points)
+{
+    return static_cast<int>(std::lround(points * kHimetricPerInch / kPointsPerInch));
 }
 
 int PointsToPixels(int points)
@@ -142,96 +147,103 @@ std::wstring ExtractJsonString(const std::wstring& json, const std::wstring& pro
     return value;
 }
 
-std::wstring QuoteArgument(const std::wstring& value)
+double ExtractJsonNumber(const std::wstring& json, const std::wstring& propertyName)
 {
-    std::wstring quoted = L"\"";
+    std::wstring text = ExtractJsonString(json, propertyName);
+    if (text.empty())
+    {
+        return 0;
+    }
+
+    wchar_t* end = nullptr;
+    double value = wcstod(text.c_str(), &end);
+    return end == text.c_str() ? 0 : value;
+}
+
+int DecodeBase64Char(wchar_t ch)
+{
+    if (ch >= L'A' && ch <= L'Z')
+    {
+        return static_cast<int>(ch - L'A');
+    }
+
+    if (ch >= L'a' && ch <= L'z')
+    {
+        return static_cast<int>(ch - L'a') + 26;
+    }
+
+    if (ch >= L'0' && ch <= L'9')
+    {
+        return static_cast<int>(ch - L'0') + 52;
+    }
+
+    if (ch == L'+')
+    {
+        return 62;
+    }
+
+    if (ch == L'/')
+    {
+        return 63;
+    }
+
+    return -1;
+}
+
+std::vector<BYTE> DecodeBase64(const std::wstring& value)
+{
+    std::vector<BYTE> bytes;
+    int buffer = 0;
+    int bits = -8;
     for (wchar_t ch : value)
     {
-        if (ch == L'"')
+        if (ch == L'=')
         {
-            quoted += L"\\\"";
+            break;
         }
-        else
+
+        int decoded = DecodeBase64Char(ch);
+        if (decoded < 0)
         {
-            quoted.push_back(ch);
+            continue;
+        }
+
+        buffer = (buffer << 6) | decoded;
+        bits += 6;
+        if (bits >= 0)
+        {
+            bytes.push_back(static_cast<BYTE>((buffer >> bits) & 0xFF));
+            bits -= 8;
         }
     }
 
-    quoted.push_back(L'"');
-    return quoted;
+    return bytes;
+}
+
+void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* presentation)
+{
+    double widthPoints = ExtractJsonNumber(payloadJson, L"widthPoints");
+    double heightPoints = ExtractJsonNumber(payloadJson, L"heightPoints");
+    if (widthPoints > 0 && heightPoints > 0)
+    {
+        presentation->himetricSize = {PointsToHimetric(widthPoints), PointsToHimetric(heightPoints)};
+    }
 }
 
 std::wstring GetExecutableDirectory()
 {
     wchar_t modulePath[MAX_PATH]{};
-    DWORD length = GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+    HMODULE module = nullptr;
+    DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    if (!GetModuleHandleExW(flags, reinterpret_cast<LPCWSTR>(&GetExecutableDirectory), &module))
+    {
+        module = nullptr;
+    }
+
+    DWORD length = GetModuleFileNameW(module, modulePath, MAX_PATH);
     std::wstring directory(modulePath, length);
     size_t slash = directory.find_last_of(L"\\/");
     return slash == std::wstring::npos ? L"." : directory.substr(0, slash);
-}
-
-std::vector<BYTE> ReadBinaryFile(const std::wstring& path)
-{
-    std::ifstream input(path, std::ios::binary);
-    if (!input)
-    {
-        return {};
-    }
-
-    return std::vector<BYTE>(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-}
-
-std::vector<BYTE> TryRenderEmfWithHelper(const std::wstring& latex)
-{
-    std::wstring renderer = ResolveRendererPath();
-    if (renderer.empty())
-    {
-        return {};
-    }
-
-    wchar_t tempDirectory[MAX_PATH]{};
-    if (GetTempPathW(MAX_PATH, tempDirectory) == 0)
-    {
-        return {};
-    }
-
-    wchar_t tempFile[MAX_PATH]{};
-    if (GetTempFileNameW(tempDirectory, L"lsf", 0, tempFile) == 0)
-    {
-        return {};
-    }
-
-    DeleteFileW(tempFile);
-    std::wstring outputPath = std::wstring(tempFile) + L".emf";
-    std::wstring commandLine = QuoteArgument(renderer) + L" /RenderEmf " + QuoteArgument(latex) + L" /Output " + QuoteArgument(outputPath);
-
-    STARTUPINFOW startup{};
-    startup.cb = sizeof(startup);
-    startup.dwFlags = STARTF_USESHOWWINDOW;
-    startup.wShowWindow = SW_HIDE;
-    PROCESS_INFORMATION process{};
-    std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
-    mutableCommand.push_back(L'\0');
-    BOOL created = CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process);
-    if (!created)
-    {
-        return {};
-    }
-
-    DWORD waitResult = WaitForSingleObject(process.hProcess, 20000);
-    DWORD exitCode = 1;
-    GetExitCodeProcess(process.hProcess, &exitCode);
-    CloseHandle(process.hThread);
-    CloseHandle(process.hProcess);
-    if (waitResult != WAIT_OBJECT_0 || exitCode != 0)
-    {
-        DeleteFileW(outputPath.c_str());
-        return {};
-    }
-
-    std::vector<BYTE> bytes = ReadBinaryFile(outputPath);
-    DeleteFileW(outputPath.c_str());
-    return bytes;
 }
 }
 
@@ -251,7 +263,7 @@ std::wstring ResolveRendererPath()
         return fullPath;
     }
 
-    std::wstring dev = GetExecutableDirectory() + L"\\..\\..\\..\\..\\..\\OleFormulaObject\\bin\\Release\\net48\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
+    std::wstring dev = GetExecutableDirectory() + L"\\..\\..\\..\\..\\OleFormulaObject\\bin\\Release\\net48\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
     if (GetFullPathNameW(dev.c_str(), MAX_PATH, fullPath, nullptr) > 0 && GetFileAttributesW(fullPath) != INVALID_FILE_ATTRIBUTES)
     {
         return fullPath;
@@ -299,23 +311,43 @@ FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex)
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson)
 {
     std::wstring latex = ExtractJsonString(payloadJson, L"latex");
-    FormulaPresentation presentation = CreatePlaceholderPresentation(latex);
+    FormulaPresentation presentation{};
+    presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
     presentation.payloadJson = payloadJson;
-    std::vector<BYTE> rendered = TryRenderEmfWithHelper(presentation.latex);
-    if (!rendered.empty())
+    presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
+    ApplyPayloadSize(payloadJson, &presentation);
+
+    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
+    if (!payloadPresentation.empty())
     {
-        presentation.enhancedMetafile = std::move(rendered);
+        presentation.enhancedMetafile = std::move(payloadPresentation);
+        return presentation;
     }
 
-    return presentation;
+    FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
+    placeholder.payloadJson = payloadJson;
+    return placeholder;
 }
 
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson)
 {
     std::wstring latex = ExtractJsonString(payloadJson, L"latex");
-    FormulaPresentation presentation = CreatePlaceholderPresentation(latex);
+    FormulaPresentation presentation{};
+    presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
     presentation.payloadJson = payloadJson;
-    return presentation;
+    presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
+    ApplyPayloadSize(payloadJson, &presentation);
+
+    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
+    if (!payloadPresentation.empty())
+    {
+        presentation.enhancedMetafile = std::move(payloadPresentation);
+        return presentation;
+    }
+
+    FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
+    placeholder.payloadJson = payloadJson;
+    return placeholder;
 }
 
 HENHMETAFILE CopyEnhMetaFileFromBytes(const std::vector<BYTE>& bytes)

@@ -1,3 +1,4 @@
+#if NET48
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -9,12 +10,11 @@ using LaTeXSnipper.OfficePlugin.Abstractions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
+namespace LaTeXSnipper.OfficePlugin.Editor;
 
-internal sealed class PowerPointFormulaEditorForm : Form
+internal sealed class MathLiveFormulaEditorForm : Form
 {
-    private const string EditorHostName = "latexsnipper-powerpoint.officeplugin.local";
-
+    private readonly MathLiveFormulaEditorOptions _options;
     private readonly WebView2 _webView;
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private FormulaMetadata? _currentInitialFormula;
@@ -23,15 +23,19 @@ internal sealed class PowerPointFormulaEditorForm : Form
     private bool _webViewReady;
     private bool _configurationPending;
 
-    public PowerPointFormulaEditorForm()
+    public MathLiveFormulaEditorForm(MathLiveFormulaEditorOptions options)
     {
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         Text = "LaTeXSnipper";
         Width = 1180;
         Height = 760;
         MinimumSize = new System.Drawing.Size(920, 560);
         StartPosition = FormStartPosition.CenterScreen;
         ShowInTaskbar = true;
-        Icon = PowerPointPluginIcon.Load();
+        if (_options.Icon != null)
+        {
+            Icon = _options.Icon;
+        }
 
         _webView = new WebView2
         {
@@ -46,6 +50,10 @@ internal sealed class PowerPointFormulaEditorForm : Form
     public event EventHandler? EditorCancelled;
 
     public event EventHandler<string>? EditorError;
+
+    public bool CloseOnCommit { get; set; }
+
+    public FormulaEditorAcceptedEventArgs? AcceptedFormula { get; private set; }
 
     public void Configure(FormulaMetadata? initialFormula, bool updateMode)
     {
@@ -79,12 +87,12 @@ internal sealed class PowerPointFormulaEditorForm : Form
         }
 
         _initializing = true;
-        string assetsRoot = ResolveAssetsRoot();
+        string assetsRoot = MathLiveAssetResolver.FindAssetRoot(_options, "editor.html");
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",
             "OfficePlugin",
-            "WebView2");
+            _options.WebViewUserDataFolderName);
         Directory.CreateDirectory(userDataFolder);
 
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
@@ -92,12 +100,12 @@ internal sealed class PowerPointFormulaEditorForm : Form
         _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            EditorHostName,
+            _options.EditorHostName,
             assetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + EditorHostName + "/editor.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        _webView.Source = new Uri("https://" + _options.EditorHostName + "/editor.html?_=" + DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -124,7 +132,7 @@ internal sealed class PowerPointFormulaEditorForm : Form
         {
             ["type"] = "init",
             ["latex"] = _currentInitialFormula?.Latex ?? string.Empty,
-            ["display"] = true,
+            ["display"] = _options.ForceDisplayMode || _currentInitialFormula?.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
         });
@@ -148,7 +156,7 @@ internal sealed class PowerPointFormulaEditorForm : Form
         if (type == "cancel")
         {
             EditorCancelled?.Invoke(this, EventArgs.Empty);
-            Hide();
+            Commit(DialogResult.Cancel);
             return;
         }
 
@@ -163,13 +171,24 @@ internal sealed class PowerPointFormulaEditorForm : Form
             return;
         }
 
-        FormulaAccepted?.Invoke(this, new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim()));
-        Hide();
+        bool display = _options.ForceDisplayMode ||
+            !message.TryGetValue("display", out object rawDisplay) ||
+            Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
+        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display);
+        FormulaAccepted?.Invoke(this, AcceptedFormula);
+        Commit(DialogResult.OK);
     }
 
-    private static string ResolveAssetsRoot()
+    private void Commit(DialogResult result)
     {
-        return InstalledAssetResolver.FindAssetRoot("editor.html")
-            ?? throw new DirectoryNotFoundException("MathLive editor assets were not found.");
+        if (CloseOnCommit)
+        {
+            DialogResult = result;
+            Close();
+            return;
+        }
+
+        Hide();
     }
 }
+#endif

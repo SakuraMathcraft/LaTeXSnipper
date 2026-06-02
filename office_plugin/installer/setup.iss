@@ -1,6 +1,6 @@
-; LaTeXSnipper Office Plugin - Inno Setup Installer
+﻿; LaTeXSnipper Office Plugin - Inno Setup Installer
 ; Build: iscc /DVersion=%VERSION% /DConfig=Release installer.iss
-;   or for Debug: iscc /DVersion=0.0.0 /DConfig=Debug installer.iss
+;   or for Debug: iscc /DVersion=2.3.2 /DConfig=Debug installer.iss
 
 #define AppName "LaTeXSnipper Office Plugin"
 #define AppPublisher "SakuraMathcraft"
@@ -9,7 +9,7 @@
 #define PowerPointAddInName "LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn"
 
 #ifndef Version
-  #define Version "0.0.0"
+  #define Version "2.3.2"
 #endif
 #ifndef Config
   #define Config "Release"
@@ -55,12 +55,18 @@ Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Bridge.d
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Editor.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
+Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Rendering.dll"; \
+  DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\Microsoft.Office.Tools.Common.v4.0.Utilities.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.Core.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinForms.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
+Source: "..\hosts\WordVstoAddIn\bin\{#Config}\MathJax-3.2.2\*"; \
+  DestDir: "{app}\Word\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
+Source: "..\hosts\WordVstoAddIn\bin\{#Config}\runtimes\*"; \
+  DestDir: "{app}\Word\runtimes"; Flags: ignoreversion recursesubdirs
 
 ; ===== PowerPoint VSTO Add-in =====
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.vsto"; \
@@ -77,12 +83,18 @@ Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Br
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Editor.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
+Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Rendering.dll"; \
+  DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Office.Tools.Common.v4.0.Utilities.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.Core.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\Microsoft.Web.WebView2.WinForms.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
+Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\MathJax-3.2.2\*"; \
+  DestDir: "{app}\PowerPoint\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
+Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\runtimes\*"; \
+  DestDir: "{app}\PowerPoint\runtimes"; Flags: ignoreversion recursesubdirs
 
 ; ===== Certificate =====
 Source: "vsto-signing.cer"; DestDir: "{app}"; Flags: ignoreversion
@@ -99,6 +111,7 @@ Source: "..\tools\ForceClean.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; ===== Icon =====
 Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
+Source: "icon.ico"; DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion
 
 ; ===== EditorAssets (shared, installed alongside both hosts) =====
 Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
@@ -106,17 +119,15 @@ Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
 Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\PowerPoint\EditorAssets"; Flags: ignoreversion recursesubdirs
 
-; ===== OLE formula object local server =====
-Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
+; ===== OLE formula object handler =====
 Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
-Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
   DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml"
+Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
+  DestDir: "{app}\OleFormulaRenderer\EditorAssets"; Flags: ignoreversion recursesubdirs
 
 [Registry]
 ; ===== Word Add-in (versionless path) =====
@@ -305,6 +316,70 @@ Root: HKLM; Subkey: "Software\WOW6432Node\Microsoft\Office\ClickToRun\REGISTRY\M
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
   ValueType: string; ValueName: "EnableLocalMachineVSTO"; ValueData: "1"; Flags: uninsdeletevalue
 
+; ===== OLE formula object, 64-bit Office =====
+Root: HKLM64; Subkey: "Software\Classes\LaTeXSnipper.Formula"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\LaTeXSnipper.Formula\CLSID"; \
+  ValueType: string; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\LaTeXSnipper.Formula.1"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\LaTeXSnipper.Formula.1\CLSID"; \
+  ValueType: string; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; \
+  ValueType: string; ValueName: "AppID"; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\ProgID"; \
+  ValueType: string; ValueData: "LaTeXSnipper.Formula.1"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\VersionIndependentProgID"; \
+  ValueType: string; ValueData: "LaTeXSnipper.Formula"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\InprocServer32"; \
+  ValueType: string; ValueData: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\InprocServer32"; \
+  ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
+  ValueType: string; ValueData: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Insertable"; \
+  ValueType: string; ValueData: ""; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
+  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
+  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey; Check: IsWin64
+Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Verb\0"; \
+  ValueType: string; ValueData: "&Edit,0,0"; Flags: uninsdeletekey; Check: IsWin64
+
+; ===== OLE formula object, 32-bit Office =====
+Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula\CLSID"; \
+  ValueType: string; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula.1"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula.1\CLSID"; \
+  ValueType: string; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; \
+  ValueType: string; ValueData: "LaTeXSnipper Formula"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"; \
+  ValueType: string; ValueName: "AppID"; ValueData: "{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}"
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\ProgID"; \
+  ValueType: string; ValueData: "LaTeXSnipper.Formula.1"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\VersionIndependentProgID"; \
+  ValueType: string; ValueData: "LaTeXSnipper.Formula"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\InprocServer32"; \
+  ValueType: string; ValueData: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\InprocServer32"; \
+  ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
+  ValueType: string; ValueData: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Insertable"; \
+  ValueType: string; ValueData: ""; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
+  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
+  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Verb\0"; \
+  ValueType: string; ValueData: "&Edit,0,0"; Flags: uninsdeletekey
+
 [Run]
 ; Trust the self-signed VSTO manifest certificate.
 Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{app}\vsto-signing.cer"""; \
@@ -330,30 +405,13 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-ExecutionPolicy Bypass -File ""{app}\WriteVstoInclusions.ps1"" -ManifestPath ""{app}\PowerPoint\{#PowerPointAddInName}.vsto"" -Target HKCU"; \
   StatusMsg: "{cm:RegisteringPowerPoint}"; Flags: runhidden runasoriginaluser
 
-; Register the out-of-proc OLE formula object.
-; Remove stale per-user registrations first because HKCU\Software\Classes
-; overrides the machine-wide registration used by the installer.
-Filename: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  Parameters: "/UnregServer"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden runasoriginaluser; Check: IsWin64
-
-Filename: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  Parameters: "/UnregServer"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden runasoriginaluser
-
-Filename: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  Parameters: "/RegServerMachine"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden; Check: IsWin64
-
-Filename: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
-  Parameters: "/RegServerMachine"; StatusMsg: "{cm:RegisteringOleFormulaObject}"; Flags: runhidden
-
 [CustomMessages]
 InstallingCertificate=Installing add-in certificate to Trusted Publisher store...
 RegisteringWord=Registering Word add-in...
 RegisteringPowerPoint=Registering PowerPoint add-in...
-RegisteringOleFormulaObject=Registering LaTeXSnipper formula object...
 chinesesimplified.InstallingCertificate=正在将加载项证书安装到受信任的发布者存储...
 chinesesimplified.RegisteringWord=正在注册 Word 加载项...
 chinesesimplified.RegisteringPowerPoint=正在注册 PowerPoint 加载项...
-chinesesimplified.RegisteringOleFormulaObject=正在注册 LaTeXSnipper 公式对象...
 
 [Code]
 function VstoInstallerExists: Boolean;
@@ -401,19 +459,6 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    if IsWin64 then
-    begin
-      Exec(ExpandConstant('{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
-           '/UnregServerMachine',
-           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Log('OLE x64 unregister exited with code ' + IntToStr(ResultCode));
-    end;
-
-    Exec(ExpandConstant('{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe'),
-         '/UnregServerMachine',
-         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Log('OLE x86 unregister exited with code ' + IntToStr(ResultCode));
-
     Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
          '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\ForceClean.ps1" -InstallRoot "' + ExpandConstant('{app}') + '"',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -466,6 +511,10 @@ begin
   CleanClickOnceStore(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Deployment\SubscriptionStore');
   CleanClickOnceStore(HKEY_CURRENT_USER, 'Software\Microsoft\VSTO\SolutionMetadata');
   CleanClickOnceStore(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Deployment\ActivationData');
+
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\LaTeXSnipper.Formula');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\LaTeXSnipper.Formula.1');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}');
 end;
 
 procedure HideVstoUninstallEntries;
@@ -497,3 +546,5 @@ begin
     Log('LaTeXSnipper Office Plugin v{#Version} installed to ' + ExpandConstant('{app}'));
   end;
 end;
+
+
