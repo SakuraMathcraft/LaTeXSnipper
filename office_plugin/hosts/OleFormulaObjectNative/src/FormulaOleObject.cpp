@@ -10,15 +10,86 @@
 #include <comdef.h>
 #include <new>
 #include <shellapi.h>
+#include <vector>
 
 namespace
 {
 volatile LONG g_objectCount = 0;
 volatile LONG g_lockCount = 0;
 
+void LogInterfaceQuery(REFIID iid, HRESULT result)
+{
+    LPOLESTR iidText = nullptr;
+    if (FAILED(StringFromIID(iid, &iidText)))
+    {
+        return;
+    }
+
+    wchar_t message[160]{};
+    swprintf_s(message, L"FormulaOleObject QueryInterface %s -> 0x%08X", iidText, static_cast<unsigned int>(result));
+    WriteNativeOleLog(message);
+    CoTaskMemFree(iidText);
+}
+
 HRESULT ValidateContentAspect(DWORD aspect)
 {
     return aspect == DVASPECT_CONTENT ? S_OK : DV_E_DVASPECT;
+}
+
+HGLOBAL CreateMetaFilePictFromEnhancedMetafile(const FormulaPresentation& presentation)
+{
+    HENHMETAFILE enhancedMetafile = CopyEnhMetaFileFromBytes(presentation.enhancedMetafile);
+    if (enhancedMetafile == nullptr)
+    {
+        return nullptr;
+    }
+
+    HDC screen = GetDC(nullptr);
+    if (screen == nullptr)
+    {
+        DeleteEnhMetaFile(enhancedMetafile);
+        return nullptr;
+    }
+
+    UINT byteCount = GetWinMetaFileBits(enhancedMetafile, 0, nullptr, MM_ANISOTROPIC, screen);
+    std::vector<BYTE> bytes(byteCount);
+    if (byteCount == 0 || GetWinMetaFileBits(enhancedMetafile, byteCount, bytes.data(), MM_ANISOTROPIC, screen) == 0)
+    {
+        ReleaseDC(nullptr, screen);
+        DeleteEnhMetaFile(enhancedMetafile);
+        return nullptr;
+    }
+
+    ReleaseDC(nullptr, screen);
+    DeleteEnhMetaFile(enhancedMetafile);
+
+    HMETAFILE metafile = SetMetaFileBitsEx(byteCount, bytes.data());
+    if (metafile == nullptr)
+    {
+        return nullptr;
+    }
+
+    HGLOBAL handle = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(METAFILEPICT));
+    if (handle == nullptr)
+    {
+        DeleteMetaFile(metafile);
+        return nullptr;
+    }
+
+    auto* picture = static_cast<METAFILEPICT*>(GlobalLock(handle));
+    if (picture == nullptr)
+    {
+        GlobalFree(handle);
+        DeleteMetaFile(metafile);
+        return nullptr;
+    }
+
+    picture->mm = MM_ANISOTROPIC;
+    picture->xExt = presentation.himetricSize.cx;
+    picture->yExt = presentation.himetricSize.cy;
+    picture->hMF = metafile;
+    GlobalUnlock(handle);
+    return handle;
 }
 }
 
@@ -33,7 +104,7 @@ LONG GetNativeOleLockCount()
 }
 
 FormulaOleObject::FormulaOleObject()
-    : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
+    : presentation_(CreatePresentationFromPayloadWithoutRendering(ConsumePendingPayload()))
 {
     if (presentation_.latex.empty())
     {
@@ -69,6 +140,22 @@ STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
     {
         *object = static_cast<IViewObject*>(this);
     }
+    else if (iid == IID_IViewObject2)
+    {
+        *object = static_cast<IViewObject2*>(this);
+    }
+    else if (iid == IID_IRunnableObject)
+    {
+        *object = static_cast<IRunnableObject*>(this);
+    }
+    else if (iid == IID_IOleCache)
+    {
+        *object = static_cast<IOleCache*>(this);
+    }
+    else if (iid == IID_IExternalConnection)
+    {
+        *object = static_cast<IExternalConnection*>(this);
+    }
     else if (iid == IID_IPersist || iid == IID_IPersistStorage)
     {
         *object = static_cast<IPersistStorage*>(this);
@@ -76,10 +163,12 @@ STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
     else
     {
         *object = nullptr;
+        LogInterfaceQuery(iid, E_NOINTERFACE);
         return E_NOINTERFACE;
     }
 
     AddRef();
+    LogInterfaceQuery(iid, S_OK);
     return S_OK;
 }
 
@@ -101,6 +190,7 @@ STDMETHODIMP_(ULONG) FormulaOleObject::Release()
 
 STDMETHODIMP FormulaOleObject::SetClientSite(IOleClientSite* clientSite)
 {
+    WriteNativeOleLog(L"FormulaOleObject SetClientSite.");
     clientSite_ = clientSite;
     return S_OK;
 }
@@ -159,7 +249,18 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
 
 STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite*, LONG, HWND parentWindow, LPCRECT)
 {
-    if (verb == OLEIVERB_PRIMARY || verb == OLEIVERB_SHOW || verb == OLEIVERB_OPEN)
+    WriteNativeOleLog(L"FormulaOleObject DoVerb.");
+    if (verb == OLEIVERB_SHOW || verb == OLEIVERB_PRIMARY)
+    {
+        if (viewAdviseSink_ != nullptr)
+        {
+            viewAdviseSink_->OnViewChange(DVASPECT_CONTENT, -1);
+        }
+
+        return S_OK;
+    }
+
+    if (verb == OLEIVERB_OPEN)
     {
         StoreEditorPayload(presentation_.payloadJson);
         std::wstring renderer = ResolveRendererPath();
@@ -330,6 +431,7 @@ STDMETHODIMP FormulaOleObject::EnumAdvise(IEnumSTATDATA** enumAdvise)
 
 STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
 {
+    WriteNativeOleLog(L"FormulaOleObject GetMiscStatus.");
     if (status == nullptr)
     {
         return E_POINTER;
@@ -341,7 +443,12 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_RECOMPOSEONRESIZE | OLEMISC_CANTLINKINSIDE | OLEMISC_INSIDEOUT;
+    *status = OLEMISC_RECOMPOSEONRESIZE
+        | OLEMISC_CANTLINKINSIDE
+        | OLEMISC_INSIDEOUT
+        | OLEMISC_ACTIVATEWHENVISIBLE
+        | OLEMISC_SETCLIENTSITEFIRST
+        | OLEMISC_ALWAYSRUN;
     return S_OK;
 }
 
@@ -352,6 +459,7 @@ STDMETHODIMP FormulaOleObject::SetColorScheme(LOGPALETTE*)
 
 STDMETHODIMP FormulaOleObject::GetData(FORMATETC* format, STGMEDIUM* medium)
 {
+    WriteNativeOleLog(L"FormulaOleObject GetData.");
     if (format == nullptr || medium == nullptr)
     {
         return E_POINTER;
@@ -363,14 +471,28 @@ STDMETHODIMP FormulaOleObject::GetData(FORMATETC* format, STGMEDIUM* medium)
         return queryResult;
     }
 
-    HENHMETAFILE metafile = CopyEnhMetaFileFromBytes(presentation_.enhancedMetafile);
-    if (metafile == nullptr)
+    if (format->cfFormat == CF_ENHMETAFILE)
+    {
+        HENHMETAFILE metafile = CopyEnhMetaFileFromBytes(presentation_.enhancedMetafile);
+        if (metafile == nullptr)
+        {
+            return E_FAIL;
+        }
+
+        medium->tymed = TYMED_ENHMF;
+        medium->hEnhMetaFile = metafile;
+        medium->pUnkForRelease = nullptr;
+        return S_OK;
+    }
+
+    HGLOBAL metafilePict = CreateMetaFilePictFromEnhancedMetafile(presentation_);
+    if (metafilePict == nullptr)
     {
         return E_FAIL;
     }
 
-    medium->tymed = TYMED_ENHMF;
-    medium->hEnhMetaFile = metafile;
+    medium->tymed = TYMED_MFPICT;
+    medium->hMetaFilePict = metafilePict;
     medium->pUnkForRelease = nullptr;
     return S_OK;
 }
@@ -387,17 +509,27 @@ STDMETHODIMP FormulaOleObject::QueryGetData(FORMATETC* format)
         return E_POINTER;
     }
 
-    if (format->cfFormat != CF_ENHMETAFILE)
+    wchar_t message[160]{};
+    swprintf_s(
+        message,
+        L"FormulaOleObject QueryGetData cf=%u tymed=0x%08X aspect=%u lindex=%ld",
+        static_cast<unsigned int>(format->cfFormat),
+        static_cast<unsigned int>(format->tymed),
+        static_cast<unsigned int>(format->dwAspect),
+        format->lindex);
+    WriteNativeOleLog(message);
+
+    if (format->cfFormat == CF_ENHMETAFILE)
     {
-        return DV_E_FORMATETC;
+        return (format->tymed & TYMED_ENHMF) == 0 ? DV_E_TYMED : ValidateContentAspect(format->dwAspect);
     }
 
-    if ((format->tymed & TYMED_ENHMF) == 0)
+    if (format->cfFormat == CF_METAFILEPICT)
     {
-        return DV_E_TYMED;
+        return (format->tymed & TYMED_MFPICT) == 0 ? DV_E_TYMED : ValidateContentAspect(format->dwAspect);
     }
 
-    return ValidateContentAspect(format->dwAspect);
+    return DV_E_FORMATETC;
 }
 
 STDMETHODIMP FormulaOleObject::GetCanonicalFormatEtc(FORMATETC*, FORMATETC* output)
@@ -412,9 +544,19 @@ STDMETHODIMP FormulaOleObject::GetCanonicalFormatEtc(FORMATETC*, FORMATETC* outp
     return DATA_S_SAMEFORMATETC;
 }
 
-STDMETHODIMP FormulaOleObject::SetData(FORMATETC*, STGMEDIUM*, BOOL)
+STDMETHODIMP FormulaOleObject::SetData(FORMATETC* format, STGMEDIUM* medium, BOOL release)
 {
-    return E_NOTIMPL;
+    if (format == nullptr || medium == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    if (release)
+    {
+        ReleaseStgMedium(medium);
+    }
+
+    return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::EnumFormatEtc(DWORD, IEnumFORMATETC** enumFormatEtc)
@@ -457,6 +599,7 @@ STDMETHODIMP FormulaOleObject::EnumDAdvise(IEnumSTATDATA** enumAdvise)
 
 STDMETHODIMP FormulaOleObject::Draw(DWORD drawAspect, LONG, void*, DVTARGETDEVICE*, HDC, HDC drawContext, LPCRECTL bounds, LPCRECTL, BOOL(__stdcall*)(ULONG_PTR), ULONG_PTR)
 {
+    WriteNativeOleLog(L"FormulaOleObject Draw.");
     HRESULT aspectResult = ValidateContentAspect(drawAspect);
     if (FAILED(aspectResult))
     {
@@ -509,6 +652,7 @@ STDMETHODIMP FormulaOleObject::Unfreeze(DWORD)
 
 STDMETHODIMP FormulaOleObject::SetAdvise(DWORD aspects, DWORD advf, IAdviseSink* adviseSink)
 {
+    WriteNativeOleLog(L"FormulaOleObject SetAdvise.");
     viewAdviseAspects_ = aspects;
     viewAdviseFlags_ = advf;
     viewAdviseSink_ = adviseSink;
@@ -535,6 +679,126 @@ STDMETHODIMP FormulaOleObject::GetAdvise(DWORD* aspects, DWORD* advf, IAdviseSin
     return S_OK;
 }
 
+STDMETHODIMP FormulaOleObject::GetExtent(DWORD drawAspect, LONG, DVTARGETDEVICE*, SIZEL* size)
+{
+    if (size == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    HRESULT aspectResult = ValidateContentAspect(drawAspect);
+    if (FAILED(aspectResult))
+    {
+        return aspectResult;
+    }
+
+    size->cx = presentation_.himetricSize.cx;
+    size->cy = presentation_.himetricSize.cy;
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::GetRunningClass(LPCLSID classId)
+{
+    if (classId == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *classId = CLSID_LaTeXSnipperFormula;
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::Run(LPBINDCTX)
+{
+    WriteNativeOleLog(L"FormulaOleObject Run.");
+    return S_OK;
+}
+
+STDMETHODIMP_(BOOL) FormulaOleObject::IsRunning()
+{
+    WriteNativeOleLog(L"FormulaOleObject IsRunning.");
+    return TRUE;
+}
+
+STDMETHODIMP FormulaOleObject::LockRunning(BOOL lock, BOOL)
+{
+    WriteNativeOleLog(L"FormulaOleObject LockRunning.");
+    if (lock)
+    {
+        InterlockedIncrement(&g_lockCount);
+    }
+    else
+    {
+        InterlockedDecrement(&g_lockCount);
+    }
+
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::SetContainedObject(BOOL)
+{
+    WriteNativeOleLog(L"FormulaOleObject SetContainedObject.");
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::Cache(FORMATETC* format, DWORD, DWORD* connection)
+{
+    WriteNativeOleLog(L"FormulaOleObject Cache.");
+    if (connection == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    if (format != nullptr && format->cfFormat != 0)
+    {
+        HRESULT queryResult = QueryGetData(format);
+        if (FAILED(queryResult))
+        {
+            return queryResult;
+        }
+    }
+
+    *connection = cacheConnection_++;
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::Uncache(DWORD)
+{
+    WriteNativeOleLog(L"FormulaOleObject Uncache.");
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::EnumCache(IEnumSTATDATA** enumStatData)
+{
+    WriteNativeOleLog(L"FormulaOleObject EnumCache.");
+    if (enumStatData == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *enumStatData = nullptr;
+    return E_NOTIMPL;
+}
+
+STDMETHODIMP FormulaOleObject::InitCache(IDataObject*)
+{
+    WriteNativeOleLog(L"FormulaOleObject InitCache.");
+    return S_OK;
+}
+
+STDMETHODIMP_(DWORD) FormulaOleObject::AddConnection(DWORD, DWORD)
+{
+    WriteNativeOleLog(L"FormulaOleObject AddConnection.");
+    return static_cast<DWORD>(InterlockedIncrement(&g_lockCount));
+}
+
+STDMETHODIMP_(DWORD) FormulaOleObject::ReleaseConnection(DWORD, DWORD, BOOL)
+{
+    WriteNativeOleLog(L"FormulaOleObject ReleaseConnection.");
+    LONG value = InterlockedDecrement(&g_lockCount);
+    return value < 0 ? 0 : static_cast<DWORD>(value);
+}
+
 STDMETHODIMP FormulaOleObject::GetClassID(CLSID* classId)
 {
     if (classId == nullptr)
@@ -553,13 +817,28 @@ STDMETHODIMP FormulaOleObject::IsDirty()
 
 STDMETHODIMP FormulaOleObject::InitNew(IStorage* storage)
 {
-    HRESULT result = SavePresentationToStorage(storage, presentation_);
-    if (SUCCEEDED(result))
+    WriteNativeOleLog(L"FormulaOleObject InitNew.");
+    if (storage == nullptr)
     {
-        dirty_ = false;
+        return E_POINTER;
     }
 
-    return result;
+    HRESULT result = WriteClassStg(storage, CLSID_LaTeXSnipperFormula);
+    if (FAILED(result))
+    {
+        return result;
+    }
+
+    CLIPFORMAT nativeFormat = static_cast<CLIPFORMAT>(RegisterClipboardFormatW(kFormulaFriendlyName));
+    result = WriteFmtUserTypeStg(storage, nativeFormat, const_cast<LPOLESTR>(kFormulaFriendlyName));
+    if (FAILED(result))
+    {
+        return result;
+    }
+
+    storage_ = storage;
+    dirty_ = true;
+    return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::Load(IStorage* storage)
@@ -568,6 +847,7 @@ STDMETHODIMP FormulaOleObject::Load(IStorage* storage)
     HRESULT result = LoadPresentationFromStorage(storage, &loaded);
     if (SUCCEEDED(result))
     {
+        storage_ = storage;
         presentation_ = std::move(loaded);
         dirty_ = false;
     }
@@ -588,11 +868,17 @@ STDMETHODIMP FormulaOleObject::Save(IStorage* storage, BOOL)
 
 STDMETHODIMP FormulaOleObject::SaveCompleted(IStorage*)
 {
+    if (storage_ != nullptr)
+    {
+        storage_->Commit(STGC_DEFAULT);
+    }
+
     return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::HandsOffStorage()
 {
+    storage_.Release();
     return S_OK;
 }
 

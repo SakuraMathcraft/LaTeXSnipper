@@ -81,9 +81,21 @@ if %ERRORLEVEL% neq 0 (
   exit /b 1
 )
 
+"%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj" /p:Configuration=%CONFIG% /p:Platform=x64 /m
+if %ERRORLEVEL% neq 0 (
+  echo ERROR: Native OLE handler x64 build failed.
+  exit /b 1
+)
+
 "%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectNative.vcxproj" /p:Configuration=%CONFIG% /p:Platform=Win32 /m
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Native OLE x86 build failed.
+  exit /b 1
+)
+
+"%MSBUILD_EXE%" "%PLUGIN_ROOT%\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj" /p:Configuration=%CONFIG% /p:Platform=Win32 /m
+if %ERRORLEVEL% neq 0 (
+  echo ERROR: Native OLE handler x86 build failed.
   exit /b 1
 )
 

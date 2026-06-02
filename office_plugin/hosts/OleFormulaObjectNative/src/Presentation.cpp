@@ -310,6 +310,14 @@ FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJso
     return presentation;
 }
 
+FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson)
+{
+    std::wstring latex = ExtractJsonString(payloadJson, L"latex");
+    FormulaPresentation presentation = CreatePlaceholderPresentation(latex);
+    presentation.payloadJson = payloadJson;
+    return presentation;
+}
+
 HENHMETAFILE CopyEnhMetaFileFromBytes(const std::vector<BYTE>& bytes)
 {
     if (bytes.empty())

@@ -24,7 +24,7 @@ void WriteNativeOleLog(const wchar_t* message)
         return;
     }
 
-    CreateDirectoryW(directory, nullptr);
+    SHCreateDirectoryExW(nullptr, directory, nullptr);
 
     wchar_t path[MAX_PATH]{};
     if (FAILED(StringCchPrintfW(path, MAX_PATH, L"%s\\ole-native.log", directory)))

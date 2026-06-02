@@ -109,7 +109,11 @@ Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
 ; ===== OLE formula object local server =====
 Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
   DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
+Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
+  DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe"; \
+  DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
+Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
   DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml"

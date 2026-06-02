@@ -14,6 +14,7 @@ dist/
 node_modules/
 office_plugin/**/bin/
 office_plugin/**/obj/
+office_plugin/**/obj-handler/
 office_plugin/**/*.user.props
 office_plugin/**/*.pfx
 office_plugin/installer/vsto-signing.cer

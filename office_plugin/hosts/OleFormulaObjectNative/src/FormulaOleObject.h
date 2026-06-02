@@ -9,7 +9,10 @@
 class FormulaOleObject final
     : public IOleObject
     , public IDataObject
-    , public IViewObject
+    , public IViewObject2
+    , public IRunnableObject
+    , public IOleCache
+    , public IExternalConnection
     , public IPersistStorage
 {
 public:
@@ -58,6 +61,21 @@ public:
     STDMETHOD(Unfreeze)(DWORD freeze) override;
     STDMETHOD(SetAdvise)(DWORD aspects, DWORD advf, IAdviseSink* adviseSink) override;
     STDMETHOD(GetAdvise)(DWORD* aspects, DWORD* advf, IAdviseSink** adviseSink) override;
+    STDMETHOD(GetExtent)(DWORD drawAspect, LONG index, DVTARGETDEVICE* targetDevice, SIZEL* size) override;
+
+    STDMETHOD(GetRunningClass)(LPCLSID classId) override;
+    STDMETHOD(Run)(LPBINDCTX bindContext) override;
+    STDMETHOD_(BOOL, IsRunning)() override;
+    STDMETHOD(LockRunning)(BOOL lock, BOOL lastUnlockCloses) override;
+    STDMETHOD(SetContainedObject)(BOOL contained) override;
+
+    STDMETHOD(Cache)(FORMATETC* format, DWORD adviseFlags, DWORD* connection) override;
+    STDMETHOD(Uncache)(DWORD connection) override;
+    STDMETHOD(EnumCache)(IEnumSTATDATA** enumStatData) override;
+    STDMETHOD(InitCache)(IDataObject* dataObject) override;
+
+    STDMETHOD_(DWORD, AddConnection)(DWORD extension, DWORD reserved) override;
+    STDMETHOD_(DWORD, ReleaseConnection)(DWORD extension, DWORD reserved, BOOL lastReleaseCloses) override;
 
     STDMETHOD(GetClassID)(CLSID* classId) override;
     STDMETHOD(IsDirty)() override;
@@ -70,9 +88,11 @@ public:
 private:
     volatile LONG refCount_ = 1;
     ATL::CComPtr<IOleClientSite> clientSite_;
+    ATL::CComPtr<IStorage> storage_;
     ATL::CComPtr<IAdviseSink> viewAdviseSink_;
     DWORD viewAdviseAspects_ = 0;
     DWORD viewAdviseFlags_ = 0;
+    DWORD cacheConnection_ = 1;
     FormulaPresentation presentation_;
     bool dirty_ = false;
 };
