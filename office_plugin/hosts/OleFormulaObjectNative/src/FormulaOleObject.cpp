@@ -175,6 +175,10 @@ STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
     {
         *object = static_cast<IRunnableObject*>(this);
     }
+    else if (iid == IID_IOleWindow || iid == IID_IOleInPlaceObject)
+    {
+        *object = static_cast<IOleInPlaceObject*>(this);
+    }
     else if (iid == IID_IOleCache)
     {
         *object = static_cast<IOleCache*>(this);
@@ -428,6 +432,39 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
 }
 
 STDMETHODIMP FormulaOleObject::SetColorScheme(LOGPALETTE*)
+{
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::GetWindow(HWND* hwnd)
+{
+    if (hwnd == nullptr) return E_POINTER;
+    *hwnd = nullptr;
+    return E_NOTIMPL;
+}
+
+STDMETHODIMP FormulaOleObject::ContextSensitiveHelp(BOOL)
+{
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::InPlaceDeactivate()
+{
+    WriteNativeOleLog(L"FormulaOleObject InPlaceDeactivate.");
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::UIDeactivate()
+{
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::SetObjectRects(LPCRECT, LPCRECT)
+{
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::ReactivateAndUndo()
 {
     return S_OK;
 }
