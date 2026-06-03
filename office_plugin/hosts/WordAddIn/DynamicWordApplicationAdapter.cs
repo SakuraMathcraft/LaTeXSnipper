@@ -556,20 +556,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
             FormulaMetadata metadata = LoadFormulaMetadata(control, equationId);
             formulas.Add(new SelectedWordFormula(candidate, metadata));
-            return;
         }
-
-        object? oleInlineShape = TryFindOleInlineShapeById(equationId);
-        if (oleInlineShape != null)
-        {
-            FormulaMetadata metadata = LoadFormulaMetadata((dynamic)oleInlineShape, equationId);
-            formulas.Add(new SelectedWordFormula(oleInlineShape, metadata, isOleInlineShape: true));
-            return;
-        }
-
-        object equationControl = FindFormulaControlById(equationId);
-        FormulaMetadata managedMetadata = LoadFormulaMetadata((dynamic)equationControl, equationId);
-        formulas.Add(new SelectedWordFormula(equationControl, managedMetadata));
     }
 
     private static bool IsNumberControl(dynamic control)
