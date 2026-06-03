@@ -816,6 +816,7 @@ const GROUPS = [
       ["二次变分", "[X,X]_t = \\lim_{|\\Pi|\\to0}\\sum_{i}(X_{t_i}-X_{t_{i-1}})^2", "Quadratic variation"],
       ["遍历定理", "\\frac1T\\int_0^T X_t\\,dt \\xrightarrow{a.s.} \\mathbb{E}[X_0]", "Ergodic theorem"],
       ["Doob 停时", "\\mathbb{E}[X_\\tau] = \\mathbb{E}[X_0]", "Doob optional stopping"],
+      ["大偏差", "\\mathbb{P}(\\bar X_n > a) \\asymp e^{-nI(a)}", "Large deviation"],
     ],
   },
   {
