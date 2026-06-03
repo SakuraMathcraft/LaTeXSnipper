@@ -418,8 +418,7 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_STATIC
-        | OLEMISC_CANTLINKINSIDE
+    *status = OLEMISC_CANTLINKINSIDE
         | OLEMISC_RENDERINGISDEVICEINDEPENDENT
         | OLEMISC_NOUIACTIVATE
         | OLEMISC_IGNOREACTIVATEWHENVISIBLE
