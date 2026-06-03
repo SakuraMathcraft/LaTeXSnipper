@@ -101,7 +101,6 @@ const GROUPS = [
       ["行列式", "matrix:vmatrix", "Determinant"],
       ["圆括号矩阵", "matrix:pmatrix", "Parenthesized matrix"],
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
-      ["\\operatorname{}", "\\operatorname{#?}", "Operator name"],
     ],
   },
   {
@@ -882,6 +881,15 @@ const GROUPS = [
       ["标准模型", "\\mathrm{SU}(3)_C\\times\\mathrm{SU}(2)_L\\times\\mathrm{U}(1)_Y", "Standard model"],
       ["Pauli 矩阵", "\\sigma_1 = \\begin{pmatrix}0&1\\\\1&0\\end{pmatrix}", "Pauli matrix"],
       ["Gamma 矩阵", "\\{\\gamma^\\mu,\\gamma^\\nu\\} = 2\\eta^{\\mu\\nu}", "Gamma matrices"],
+      ["热传导", "\\frac{dQ}{dt} = -kA\\frac{dT}{dx}", "Heat conduction"],
+      ["斯特藩-玻尔兹曼", "j = \\sigma T^4", "Stefan-Boltzmann law"],
+      ["费米-狄拉克", "f(E) = \\frac{1}{e^{(E-\\mu)/kT}+1}", "Fermi-Dirac"],
+      ["玻色-爱因斯坦", "f(E) = \\frac{1}{e^{(E-\\mu)/kT}-1}", "Bose-Einstein"],
+      ["质量亏损", "\\Delta E = \\Delta m\\,c^2", "Mass defect"],
+      ["透镜方程", "\\frac{1}{f} = \\frac{1}{u} + \\frac{1}{v}", "Lens equation"],
+      ["瑞利判据", "\\theta = 1.22\\frac{\\lambda}{D}", "Rayleigh criterion"],
+      ["玻尔半径", "a_0 = \\frac{4\\pi\\varepsilon_0\\hbar^2}{m_e e^2}", "Bohr radius"],
+      ["里德伯公式", "\\frac{1}{\\lambda} = R\\!\\left(\\frac{1}{n_1^2}-\\frac{1}{n_2^2}\\right)", "Rydberg formula"],
     ],
   },
   {
