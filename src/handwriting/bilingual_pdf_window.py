@@ -296,7 +296,7 @@ _ENGINE_ITEMS = [
 ]
 
 
-class BilingualPdfWindow(QDialog):
+class BilingualPdfWindow(QWidget):
     def __init__(self, cfg=None, parent=None):
         super().__init__(parent)
         self.cfg = cfg

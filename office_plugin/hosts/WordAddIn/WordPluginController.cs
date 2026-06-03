@@ -9,7 +9,7 @@ using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
-public sealed class WordPluginController
+public sealed class WordPluginController : IDisposable
 {
     private readonly FormulaEditorSession _editorSession;
     private readonly BridgeClient _bridgeClient;
@@ -20,6 +20,7 @@ public sealed class WordPluginController
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private FormulaMetadata? _currentFormula;
     private WordFormulaOptions? _pendingEditorInsertOptions;
+    private bool _disposed;
 
     public WordPluginController(
         FormulaEditorSession editorSession,
@@ -41,8 +42,19 @@ public sealed class WordPluginController
 
     public async Task InsertOmmlAsync(CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         FormulaMetadata metadata = await CreateMetadataFromDraftAsync(null, _optionsProvider.CurrentLatex, previous: null, cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
+    }
+
+    public async Task WarmUpAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        await _editorSession.WarmUpAsync(cancellationToken);
+        if (_oleIntermediateRenderer is MathJaxSvgRenderer mathJaxRenderer)
+        {
+            await mathJaxRenderer.WarmUpAsync(cancellationToken);
+        }
     }
 
     public async Task InsertFromTaskPaneAsync(CancellationToken cancellationToken)
@@ -120,6 +132,7 @@ public sealed class WordPluginController
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         FormulaMetadata selected = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
         FormulaMetadata initial = IsSameFormula(_currentFormula, selected) ? _currentFormula! : selected;
         await _editorSession.OpenForEditAsync(initial, cancellationToken);
@@ -208,7 +221,7 @@ public sealed class WordPluginController
             return;
         }
 
-        FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, FormatNumber(0));
+        FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(0));
         await UpdateRenderedFormulaAsync(numbered, cancellationToken);
         await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         _currentFormula = numbered;
@@ -290,7 +303,7 @@ public sealed class WordPluginController
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 1.2 * WordPluginSettings.Load().OleScale
+            FontScale = 1.2
         };
         RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
@@ -311,7 +324,7 @@ public sealed class WordPluginController
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
             int nextNumber = _wordAdapter.GetNextAutomaticNumber();
-            metadata = WithNumbering(metadata, NumberingMode.Automatic, FormatNumber(nextNumber));
+            metadata = WithNumbering(metadata, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(nextNumber));
             _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
         }
 
@@ -358,7 +371,7 @@ public sealed class WordPluginController
         {
             numberText = previous?.NumberingMode == NumberingMode.Automatic && !string.IsNullOrWhiteSpace(previous.NumberText)
                 ? previous.NumberText
-                : FormatNumber(0);
+                : WordAutomaticNumberFormatter.Format(0);
         }
         else if (numberingMode == NumberingMode.Manual)
         {
@@ -447,17 +460,36 @@ public sealed class WordPluginController
             metadata.SchemaVersion);
     }
 
-    private static string FormatNumber(int number)
-    {
-        return "(" + number.ToString(CultureInfo.InvariantCulture) + ")";
-    }
-
     private void ResetDraftState(bool resetOptions)
     {
         _currentFormula = null;
         if (resetOptions)
         {
             _optionsProvider.ResetFormulaDraft();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _editorSession.Dispose();
+        _bridgeClient.Dispose();
+        if (_oleIntermediateRenderer is IDisposable disposableRenderer)
+        {
+            disposableRenderer.Dispose();
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(WordPluginController));
         }
     }
 }

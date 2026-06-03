@@ -117,8 +117,9 @@ internal sealed class WordSettingsWindow : Form
             ["type"] = "init",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["numberPlacement"] = settings.NumberPlacement.ToString(),
+            ["numberFormat"] = settings.NumberFormat.ToString(),
+            ["numberEnclosure"] = settings.NumberEnclosure.ToString(),
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
-            ["oleScale"] = settings.OleScale,
         });
         string script =
             "(function(payload){" +
@@ -154,21 +155,26 @@ internal sealed class WordSettingsWindow : Form
         string backend = message.TryGetValue("insertionBackend", out object rawBackend)
             ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        string scaleText = message.TryGetValue("oleScale", out object rawScale)
-            ? Convert.ToString(rawScale, CultureInfo.InvariantCulture) ?? string.Empty
-            : string.Empty;
         FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.WordOmml.ToString()
             ? FormulaInsertionBackend.WordOmml
             : FormulaInsertionBackend.Ole;
-        if (!double.TryParse(scaleText, NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) ||
-            !WordPluginSettings.IsValidOleScale(scale))
-        {
-            MessageBox.Show(this, "OLE initial scale must be greater than 0 and less than or equal to 5.", WordAddInText.Get("ErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-            _ = SendSettingsAsync();
-            return;
-        }
-
-        var settings = new WordPluginSettings(placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right, insertionBackend, scale);
+        string formatRaw = message.TryGetValue("numberFormat", out object rawFormat)
+            ? Convert.ToString(rawFormat, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
+        string enclosureRaw = message.TryGetValue("numberEnclosure", out object rawEnclosure)
+            ? Convert.ToString(rawEnclosure, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
+        WordNumberFormat numberFormat = Enum.TryParse(formatRaw, out WordNumberFormat parsedFormat)
+            ? parsedFormat
+            : WordNumberFormat.Arabic;
+        WordNumberEnclosure numberEnclosure = Enum.TryParse(enclosureRaw, out WordNumberEnclosure parsedEnclosure)
+            ? parsedEnclosure
+            : WordNumberEnclosure.Parentheses;
+        var settings = new WordPluginSettings(
+            placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
+            insertionBackend,
+            numberFormat,
+            numberEnclosure);
         settings.Save();
         _ = SendSettingsAsync();
     }

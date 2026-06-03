@@ -16,4 +16,3 @@ FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex);
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson);
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson);
 HENHMETAFILE CopyEnhMetaFileFromBytes(const std::vector<BYTE>& bytes);
-std::wstring ResolveRendererPath();

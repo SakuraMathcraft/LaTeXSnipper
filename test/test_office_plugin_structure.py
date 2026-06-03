@@ -28,7 +28,10 @@ def test_office_plugin_foundation_is_modular() -> None:
         project_text = project_file.read_text(encoding="utf-8")
         assert project_file.is_file()
         assert "<TargetFrameworks>net48;net9.0</TargetFrameworks>" in project_text
-        assert "<PackageReference" not in project_text
+        if project in {"LaTeXSnipper.OfficePlugin.Rendering", "LaTeXSnipper.OfficePlugin.Editor"}:
+            assert 'PackageReference Include="Microsoft.Web.WebView2"' in project_text
+        else:
+            assert "<PackageReference" not in project_text
         for filename in expected_files:
             assert (project_root / filename).is_file()
 
@@ -62,9 +65,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (host_root / "WordNumberPlacement.cs").is_file()
     assert (host_root / "WordPluginSettings.cs").is_file()
     assert (host_root / "WordSettingsWindow.cs").is_file()
-    assert (host_root / "MathLiveFormulaEditor.cs").is_file()
-    assert (host_root / "MathLiveFormulaEditorForm.cs").is_file()
-    assert (host_root / "FormulaEditorAcceptedEventArgs.cs").is_file()
+    assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").is_file()
+    assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").is_file()
+    assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaEditorAcceptedEventArgs.cs").is_file()
     assert (host_root / "EditorAssets" / "editor.html").is_file()
     assert (host_root / "EditorAssets" / "taskpane.html").is_file()
     assert (host_root / "EditorAssets" / "taskpane.css").is_file()
@@ -138,7 +141,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "RenumberAutomaticFormulasAsync" in adapter
     assert "ReplaceNumberControlText" in adapter
     assert "FindSelectedFormulas" in adapter
-    assert "AddSelectedFormulasOverlappingRange" in adapter
+    assert "AddSelectedFormulasOverlappingRange" not in adapter
     assert "RangesOverlap" in adapter
     assert "DeleteFormula" in adapter
     assert "CountAutoNumberedFormulasAsync" not in adapter
@@ -231,7 +234,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "<w:r><w:t>" in omml_builder
     assert "</m:t></m:r></m:oMath>" not in omml_builder
     assert "icon.ico" in project_text
-    assert "WordPluginIcon.Load" in (host_root / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
+    shared_editor_form = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
+    assert "_options.Icon" in shared_editor_form
+    assert "WordPluginIcon.Load" in factory
     assert "WordPluginIcon.Load" in (host_root / "OfficePluginHelp.cs").read_text(encoding="utf-8")
     settings_window = (host_root / "WordSettingsWindow.cs").read_text(encoding="utf-8")
     assert "WebView2" in settings_window
@@ -240,14 +245,20 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "src\", \"assets\", \"icon.ico" not in icon
     assert "Path.Combine(baseDirectory, \"icon.ico\")" in icon
     assert "WinFormsFormulaEditor" not in factory
-    assert "ShowDialog" not in (host_root / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
-    assert "MinimizeBox = false" not in (host_root / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
+    assert "ShowDialog" not in (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
+    assert "MinimizeBox = false" not in shared_editor_form
     editor_html = (host_root / "EditorAssets" / "editor.html").read_text(encoding="utf-8")
     editor_js = (host_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
     editor_css = (host_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
     assert "displayMode" not in editor_html
     assert "display: true" in editor_js
-    assert "event.ctrlKey" not in editor_js
+    assert 'event.key === "Enter"' in editor_js
+    assert "!event.ctrlKey" in editor_js
+    assert 'event.key === "Escape"' in editor_js
+    assert "mathVirtualKeyboard?.hide()" in editor_js
+    escape_block = editor_js.split('if (event.key === "Escape") {', 1)[1].split('if (event.key === "Enter"', 1)[0]
+    assert "hideVirtualKeyboard();" in escape_block
+    assert 'send({ type: "cancel" })' not in escape_block
     assert "symbol-grid" in editor_html
     assert "flex-direction: column" in editor_css
     assert "border: 1px solid transparent" in editor_css
@@ -343,10 +354,158 @@ def test_office_plugin_hosts_are_explicit_scaffolds() -> None:
         assert "Responsibilities" in text or "VSTO shell" in text
 
     ole_text = (PLUGIN / "hosts" / "OleFormulaObject" / "README.md").read_text(encoding="utf-8")
-    assert "double-click" in ole_text
+    assert "double-click" not in ole_text
+    assert "Render stored OLE formula payloads" in ole_text
     assert "MathJax" in ole_text
     assert "EMF/GDI" in ole_text
     assert "must not be inserted into Office as normal pictures" in ole_text
+
+
+def test_ole_objects_are_registered_as_static_display_objects() -> None:
+    setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
+    native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
+    force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
+    word_adapter_text = (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.cs").read_text(encoding="utf-8")
+
+    assert "Verb\\0" not in setup_text
+    assert "\\Insertable" not in setup_text
+    assert 'DestDir: "{app}\\OleFormulaRenderer\\EditorAssets"' not in setup_text
+    assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\\*,EditorAssets\\*"' in setup_text
+    assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion' not in setup_text.replace('DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs', "")
+    assert "<Link>icon.ico</Link>" not in (PLUGIN / "hosts" / "OleFormulaObject" / "LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj").read_text(encoding="utf-8")
+    assert 'ValueData: "672280"' in setup_text
+    assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
+    assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
+    assert "OLEMISC_STATIC" in native_text
+    assert "OLEMISC_NOUIACTIVATE" in native_text
+    assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
+    assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
+    assert "STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)" in native_text
+    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return S_OK;" in native_text
+    assert "*enumOleVerb = nullptr;" in native_text
+    assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
+    assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
+    assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text
+    assert "inlineShape.LockAspectRatio = true" in word_adapter_text
+    assert "heightScale = naturalHeight > 0" in word_adapter_text
+    add_ole_method = word_adapter_text.split("private dynamic AddOleInlineShapeAtRange", 1)[1].split("private dynamic ReplaceOleInlineShape", 1)[0]
+    insert_method = word_adapter_text.split("public Task InsertOleFormulaObjectAsync", 1)[1].split("public Task UpdateOleFormulaObjectAsync", 1)[0]
+    assert "SaveOleNaturalSize" not in add_ole_method
+    assert "SaveOleNaturalSize(metadata.Identity.EquationId, presentation);" in insert_method
+    assert "legacy" not in (PLUGIN / "hosts" / "OleFormulaObject" / "README.md").read_text(encoding="utf-8").lower()
+    assert "legacy" not in (PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
+    assert "legacy" not in (PLUGIN / "hosts" / "PowerPointAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
+
+
+def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
+    setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
+    ci_text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    release_text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "ArchitecturesInstallIn64BitMode=x64compatible" in setup_text
+    assert "OleFormulaObject\\x64" in setup_text
+    assert "OleFormulaObject\\x86" in setup_text
+    assert "OleFormulaObject\\arm64" not in setup_text
+    assert "Software\\Microsoft\\Office\\Word\\Addins" in setup_text
+    assert "Software\\Microsoft\\Office\\16.0\\Word\\Addins" in setup_text
+    assert "Software\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
+    assert "Software\\Microsoft\\Office\\16.0\\PowerPoint\\Addins" in setup_text
+    assert "ClickToRun\\REGISTRY\\MACHINE\\Software\\Microsoft\\Office\\Word\\Addins" in setup_text
+    assert "ClickToRun\\REGISTRY\\MACHINE\\Software\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
+    assert "WOW6432Node\\Microsoft\\Office\\Word\\Addins" in setup_text
+    assert "WOW6432Node\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
+    assert "Run Office plugin tests" not in ci_text
+    assert "Run Office plugin tests" not in release_text
+    assert "Install test runner" not in release_text
+
+
+def test_office_plugin_help_describes_current_paths() -> None:
+    for host in ("WordAddIn", "PowerPointAddIn"):
+        help_html = (PLUGIN / "hosts" / host / "EditorAssets" / "help.html").read_text(encoding="utf-8")
+        assert "EMF+Dual vector preview" in help_html
+        assert "Compatibility PNG" not in help_html
+        assert "PNG image insertion" in help_html
+        assert "side pane is not an update entry point" in help_html
+        assert "32-bit and 64-bit Windows desktop Office only" in help_html
+        assert "Office 2024 / 2021 / 2019" in help_html
+        assert "Office LTSC 2024 / 2021" in help_html
+
+
+def test_editor_and_mathjax_are_preheated_and_reused() -> None:
+    editor_interface = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "IFormulaEditor.cs").read_text(encoding="utf-8")
+    editor_session = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "FormulaEditorSession.cs").read_text(encoding="utf-8")
+    editor = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
+    editor_form = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
+    mathjax_renderer = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "MathJaxSvgRenderer.cs").read_text(encoding="utf-8")
+    word_controller = (PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs").read_text(encoding="utf-8")
+    power_point_controller = (PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs").read_text(encoding="utf-8")
+    word_vsto = (PLUGIN / "hosts" / "WordVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
+    power_point_vsto = (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
+
+    assert "Task WarmUpAsync(CancellationToken cancellationToken);" in editor_interface
+    assert "public sealed class FormulaEditorSession : IDisposable" in editor_session
+    assert "return _editor.WarmUpAsync(cancellationToken);" in editor_session
+    assert "public Task WarmUpAsync(CancellationToken cancellationToken)" in editor
+    assert "return GetOrCreateForm().WarmUpAsync();" in editor
+    assert "DisposeForShutdown" in editor
+    assert "_activeForm = null;" in editor
+    assert "public Task WarmUpAsync()" in editor_form
+    assert "_warmUpTask ??= InitializeAsync();" in editor_form
+    assert "e.Cancel = true;" in editor_form
+    assert "Hide();" in editor_form
+    assert "editor.html?_=" not in editor_form
+    assert "DateTime.UtcNow.Ticks" not in editor_form
+    assert "new Uri(\"https://\" + _options.EditorHostName + \"/editor.html\")" in editor_form
+    assert "public Task WarmUpAsync(CancellationToken cancellationToken)" in mathjax_renderer
+    assert "return EnsureInitializedAsync(cancellationToken);" in mathjax_renderer
+    assert "public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable" in mathjax_renderer
+    for controller in (word_controller, power_point_controller):
+        assert "public async Task WarmUpAsync(CancellationToken cancellationToken)" in controller
+        assert "await _editorSession.WarmUpAsync(cancellationToken);" in controller
+        assert "await mathJaxRenderer.WarmUpAsync(cancellationToken);" in controller
+        assert "public void Dispose()" in controller
+        assert "_editorSession.Dispose();" in controller
+    for vsto in (word_vsto, power_point_vsto):
+        assert "_ = WarmUpControllerAsync(controller, statusPaneControl);" in vsto
+        assert "await controller.WarmUpAsync(timeout.Token);" in vsto
+        assert "controller?.Dispose();" in vsto
+
+
+def test_word_load_selected_is_selection_first() -> None:
+    adapter = (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.cs").read_text(encoding="utf-8")
+    find_selected = adapter.split("private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()", 1)[1].split("private void AddSelectedFormulasFromRange", 1)[0]
+    selected_ole = adapter.split("private void AddSelectedOleInlineShapes", 1)[1].split("private void AddSelectedOleInlineShape", 1)[0]
+    selected_formula = adapter.split("private void AddSelectedFormula", 1)[1].split("private object FindFormulaControlById", 1)[0]
+
+    assert "AddSelectedFormulasOverlappingRange" not in adapter
+    assert "AddSelectedFormulasOverlappingRange" not in find_selected
+    assert "ActiveDocument.ContentControls" not in find_selected
+    assert "ActiveDocument.InlineShapes" not in selected_ole
+    assert "TryFindOleInlineShapeById" not in selected_formula
+    assert "FindFormulaControlById" not in selected_formula
+
+
+def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
+    writer = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgEnhancedMetafileWriter.cs").read_text(encoding="utf-8")
+    path_parser = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgPathDataParser.cs").read_text(encoding="utf-8")
+    transform_parser = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgTransformParser.cs").read_text(encoding="utf-8")
+
+    assert "EmfType.EmfPlusDual" in writer
+    assert "new RectangleF" in writer
+    assert "GraphicsPath" in writer
+    assert "FillPath" in writer
+    assert "DrawString" not in writer
+    assert "DrawText" not in writer
+    assert "Math.Round" not in writer
+    assert "Math.Ceiling(points / PointsPerInch * Dpi)" in writer
+    assert "AddBezier" in path_parser
+    assert "AddQuadratic" in path_parser
+    assert "PointF" in path_parser
+    assert "float.Parse" in path_parser
+    assert "matrix|translate|scale" in transform_parser
+    assert "rotate" not in transform_parser
+    assert "arc" not in path_parser.lower()
+    assert "case 'A'" not in path_parser
 
 
 def test_office_plugin_build_outputs_are_ignored() -> None:

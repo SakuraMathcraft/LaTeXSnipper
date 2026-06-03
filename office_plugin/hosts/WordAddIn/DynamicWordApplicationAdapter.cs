@@ -93,6 +93,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 ? InsertPlainOleInlineShape(range, metadata, presentation, display)
                 : InsertNumberedOleInlineShape(range, metadata, presentation);
             WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+            SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
             if (metadata.NumberingMode != NumberingMode.None)
             {
                 object? table = TryGetNumberedTableFromNumberControl(_wordApplication.ActiveDocument, metadata.Identity.EquationId)
@@ -135,8 +136,9 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 table.Delete();
                 dynamic range = CreateDocumentRange(insertionPoint, insertionPoint);
                 dynamic inserted = InsertPlainOleInlineShape(range, metadata, presentation, display);
-                RestoreInlineShapeSize(inserted, originalWidth, originalHeight);
+                ApplyUserScaleToReplacement(inserted, metadata.Identity.EquationId, originalWidth, originalHeight, presentation);
                 WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+                SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
                 MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
                 return;
             }
@@ -147,8 +149,9 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 inlineShape.Delete();
                 dynamic range = CreateDocumentRange(insertionPoint, insertionPoint);
                 dynamic inserted = InsertNumberedOleInlineShape(range, metadata, presentation);
-                RestoreInlineShapeSize(inserted, originalWidth, originalHeight);
+                ApplyUserScaleToReplacement(inserted, metadata.Identity.EquationId, originalWidth, originalHeight, presentation);
                 WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+                SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
                 object? table = TryGetNumberedTableFromNumberControl(_wordApplication.ActiveDocument, metadata.Identity.EquationId)
                     ?? TryGetNumberedTableFromRange(inserted.Range);
                 if (table != null)
@@ -162,7 +165,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             }
 
             dynamic replacement = ReplaceOleInlineShape(inlineShape, metadata, presentation);
-            RestoreInlineShapeSize(replacement, originalWidth, originalHeight);
+            ApplyUserScaleToReplacement(replacement, metadata.Identity.EquationId, originalWidth, originalHeight, presentation);
             if (metadata.NumberingMode != NumberingMode.None)
             {
                 ReplaceNumberControlTextById(metadata.Identity.EquationId, metadata.NumberText);
@@ -170,6 +173,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             }
 
             WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+            SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
             MoveSelectionAfterInlineShape(replacement, metadata.Identity.EquationId, display);
         });
 
@@ -254,8 +258,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
     private static void ResizeOleInlineShape(dynamic inlineShape, OlePresentationResult presentation)
     {
-        TryCom(() => inlineShape.Width = presentation.WidthPoints);
-        TryCom(() => inlineShape.Height = presentation.HeightPoints);
+        SetOleInlineShapeSize(inlineShape, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
     }
 
     private static (float Width, float Height) GetInlineShapeSize(object inlineShape)
@@ -271,15 +274,38 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return (width, height);
     }
 
-    private static void RestoreInlineShapeSize(dynamic inlineShape, float width, float height)
+    private void ApplyUserScaleToReplacement(dynamic inlineShape, string equationId, float originalWidth, float originalHeight, OlePresentationResult presentation)
+    {
+        float shapeScale = 1f;
+        if (WordFormulaMetadataStore.TryLoadOleNaturalSize(_wordApplication.ActiveDocument, equationId, out double naturalWidth, out double naturalHeight))
+        {
+            float widthScale = naturalWidth > 0 ? originalWidth / (float)naturalWidth : 1f;
+            float heightScale = naturalHeight > 0 ? originalHeight / (float)naturalHeight : 1f;
+            shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));
+        }
+
+        SetOleInlineShapeSize(
+            inlineShape,
+            (float)presentation.WidthPoints * shapeScale,
+            (float)presentation.HeightPoints * shapeScale);
+    }
+
+    private static void SetOleInlineShapeSize(dynamic inlineShape, float width, float height)
     {
         if (width <= 0 || height <= 0)
         {
             throw new InvalidOperationException("OLE formula object size is invalid.");
         }
 
-        TryCom(() => inlineShape.Width = width);
-        TryCom(() => inlineShape.Height = height);
+        TryCom(() => inlineShape.LockAspectRatio = true);
+        inlineShape.Width = width;
+        inlineShape.Height = height;
+        TryCom(() => inlineShape.LockAspectRatio = true);
+    }
+
+    private void SaveOleNaturalSize(string equationId, OlePresentationResult presentation)
+    {
+        WordFormulaMetadataStore.SaveOleNaturalSize(_wordApplication.ActiveDocument, equationId, presentation.WidthPoints, presentation.HeightPoints);
     }
 
     private static void TagOleInlineShape(dynamic inlineShape, FormulaMetadata metadata)
@@ -349,7 +375,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 }
 
                 number++;
-                string numberText = "(" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")";
+                string numberText = WordAutomaticNumberFormatter.Format(number);
                 ReplaceNumberControlText(entry.NumberControl, numberText);
                 FormulaMetadata renumbered = new FormulaMetadata(
                     entry.Metadata.Identity,
@@ -418,7 +444,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         AddSelectedFormula(formulas, seen, TryGetParentContentControl(range));
         AddSelectedFormulasFromRange(formulas, seen, range);
         AddSelectedFormulasFromNumberedTables(formulas, seen, range);
-        AddSelectedFormulasOverlappingRange(formulas, seen, range);
         AddSelectedOleInlineShapes(formulas, seen, range);
         if (formulas.Count == 0)
         {
@@ -465,34 +490,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         }
     }
 
-    private void AddSelectedFormulasOverlappingRange(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)
-    {
-        int selectionStart = GetRangeStart(range);
-        int selectionEnd = GetRangeEnd(range);
-        if (selectionEnd <= selectionStart)
-        {
-            return;
-        }
-
-        try
-        {
-            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic control = controls.Item(i);
-                dynamic controlRange = control.Range;
-                if (RangesOverlap(GetRangeStart(controlRange), GetRangeEnd(controlRange), selectionStart, selectionEnd))
-                {
-                    AddSelectedFormula(formulas, seen, control);
-                }
-            }
-        }
-        catch
-        {
-        }
-    }
-
     private void AddSelectedOleInlineShapes(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)
     {
         try
@@ -521,25 +518,6 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
         }
 
-        int selectionStart = GetRangeStart(range);
-        int selectionEnd = GetRangeEnd(range);
-        try
-        {
-            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
-            int count = Convert.ToInt32(inlineShapes.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic inlineShape = inlineShapes.Item(i);
-                dynamic shapeRange = inlineShape.Range;
-                if (RangesIntersectOrContainPoint(selectionStart, selectionEnd, GetRangeStart(shapeRange), GetRangeEnd(shapeRange)))
-                {
-                    AddSelectedOleInlineShape(formulas, seen, inlineShape);
-                }
-            }
-        }
-        catch
-        {
-        }
     }
 
     private void AddSelectedOleInlineShape(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)
@@ -578,20 +556,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
             FormulaMetadata metadata = LoadFormulaMetadata(control, equationId);
             formulas.Add(new SelectedWordFormula(candidate, metadata));
-            return;
         }
-
-        object? oleInlineShape = TryFindOleInlineShapeById(equationId);
-        if (oleInlineShape != null)
-        {
-            FormulaMetadata metadata = LoadFormulaMetadata((dynamic)oleInlineShape, equationId);
-            formulas.Add(new SelectedWordFormula(oleInlineShape, metadata, isOleInlineShape: true));
-            return;
-        }
-
-        object equationControl = FindFormulaControlById(equationId);
-        FormulaMetadata managedMetadata = LoadFormulaMetadata((dynamic)equationControl, equationId);
-        formulas.Add(new SelectedWordFormula(equationControl, managedMetadata));
     }
 
     private object FindFormulaControlById(string equationId)

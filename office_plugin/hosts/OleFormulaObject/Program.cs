@@ -1,11 +1,7 @@
 using System;
-using System.Drawing;
-using System.IO;
-using System.Windows.Forms;
 using System.Text;
 using System.Threading;
 using LaTeXSnipper.OfficePlugin.Abstractions;
-using LaTeXSnipper.OfficePlugin.Editor;
 using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.OleFormulaObject;
@@ -17,11 +13,6 @@ internal static class Program
     {
         try
         {
-            if (HasSwitch(args, "/EditPayload"))
-            {
-                return EditPayload();
-            }
-
             string? renderLatex = GetSwitchValue(args, "/RenderSvg");
             if (renderLatex != null)
             {
@@ -36,7 +27,7 @@ internal static class Program
             }
 
             TryWriteLine(OleFormulaObjectIds.FriendlyName + " OLE local server");
-            TryWriteLine("Use /RenderSvg <latex>, /RenderEmf <latex> /Output <path>, or /EditPayload.");
+            TryWriteLine("Use /RenderSvg <latex> or /RenderEmf <latex> /Output <path>.");
             return 0;
         }
         catch (Exception ex)
@@ -44,75 +35,6 @@ internal static class Program
             TryWriteError(ex.Message);
             return 1;
         }
-    }
-
-    private static int EditPayload()
-    {
-        string payloadJson = OlePayloadRegistryStore.ReadEditorPayload();
-        string latex = OlePayloadRegistryStore.ReadLatex(payloadJson);
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        var editor = new MathLiveFormulaEditor(CreateEditorOptions());
-        FormulaEditorAcceptedEventArgs? accepted = editor.ShowModal(CreateEditorMetadata(latex), updateMode: true);
-        if (accepted == null)
-        {
-            return 2;
-        }
-
-        string updatedPayload = RenderPayloadAsync(payloadJson, accepted.Latex).GetAwaiter().GetResult();
-        OlePayloadRegistryStore.SaveEditorPayloadResult(updatedPayload);
-        return 0;
-    }
-
-    private static FormulaMetadata CreateEditorMetadata(string latex)
-    {
-        return new FormulaMetadata(
-            new FormulaIdentity("ole-object", Guid.NewGuid().ToString("N")),
-            latex,
-            FormulaDisplayMode.Display,
-            NumberingMode.None,
-            string.Empty,
-            RenderEngineKind.MathJaxSvg,
-            schemaVersion: 1);
-    }
-
-    private static MathLiveFormulaEditorOptions CreateEditorOptions()
-    {
-        return new MathLiveFormulaEditorOptions(
-            "latexsnipper-ole.officeplugin.local",
-            "OleFormulaObjectEditorWebView2",
-            new[]
-            {
-                @"office_plugin\hosts\WordAddIn\EditorAssets",
-                @"office_plugin\hosts\PowerPointAddIn\EditorAssets",
-            },
-            Array.Empty<string>())
-        {
-            ForceDisplayMode = true,
-            Icon = LoadIcon()
-        };
-    }
-
-    private static Icon? LoadIcon()
-    {
-        string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico");
-        return File.Exists(path) ? new Icon(path) : null;
-    }
-
-    private static async System.Threading.Tasks.Task<string> RenderPayloadAsync(string payloadJson, string latex)
-    {
-        using var runtime = new WebView2MathJaxJavaScriptRuntime("OleFormulaObject");
-        var renderer = new MathJaxSvgRenderer(runtime);
-        var request = new RenderRequest(latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
-        {
-            FontScale = 1.2
-        };
-        RenderResult intermediate = await renderer.RenderAsync(request, CancellationToken.None).ConfigureAwait(true);
-        var presentationRenderer = new EnhancedMetafilePresentationRenderer();
-        OlePresentationResult presentation = await presentationRenderer.RenderPresentationAsync(
-            new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
-            CancellationToken.None).ConfigureAwait(false);
-        return OlePayloadRegistryStore.WithPresentation(payloadJson, latex, intermediate.RendererVersion, presentation);
     }
 
     private static async System.Threading.Tasks.Task<int> RenderSvgAsync(string latex)
@@ -187,19 +109,6 @@ internal static class Program
         catch (Exception)
         {
         }
-    }
-
-    private static bool HasSwitch(string[] args, string switchName)
-    {
-        foreach (string arg in args)
-        {
-            if (string.Equals(arg, switchName, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string? GetSwitchValue(string[] args, string switchName)

@@ -7,7 +7,7 @@ using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Rendering;
 
-public sealed class MathJaxSvgRenderer : IFormulaRenderer
+public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
 {
     public const string SvgMimeType = "image/svg+xml";
 
@@ -16,6 +16,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer
     private readonly ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult> _cache = new ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult>();
     private readonly SemaphoreSlim _initializeLock = new SemaphoreSlim(1, 1);
     private bool _initialized;
+    private bool _disposed;
 
     public MathJaxSvgRenderer(IMathJaxJavaScriptRuntime runtime, MathJaxAssetResolver? assetResolver = null)
     {
@@ -25,8 +26,14 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer
 
     public RenderEngineKind Engine => RenderEngineKind.MathJaxSvg;
 
+    public Task WarmUpAsync(CancellationToken cancellationToken)
+    {
+        return EnsureInitializedAsync(cancellationToken);
+    }
+
     public async Task<RenderResult> RenderAsync(RenderRequest request, CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         if (request == null)
         {
             throw new ArgumentNullException(nameof(request));
@@ -67,6 +74,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         if (_initialized)
         {
             return;
@@ -94,5 +102,28 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer
     {
         TimeSpan timeout = request.Timeout <= TimeSpan.Zero ? OfficeCommandTimeouts.Render : request.Timeout;
         return new CancellationTokenSource(timeout);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _initializeLock.Dispose();
+        if (_runtime is IDisposable disposableRuntime)
+        {
+            disposableRuntime.Dispose();
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(MathJaxSvgRenderer));
+        }
     }
 }

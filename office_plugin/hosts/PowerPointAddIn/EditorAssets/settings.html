@@ -18,30 +18,20 @@
     <section class="panel accent-panel">
       <div>
         <h2 data-i18n="backendTitle">公式插入方式</h2>
-        <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象；需要兼容旧演示文稿时可切换为旧 PNG 方式。</p>
+        <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象；也可切换为 PNG 图片方式。</p>
       </div>
       <div class="segmented" role="radiogroup" aria-label="Formula insertion backend">
         <button type="button" data-backend="Ole" data-i18n="backendOle">OLE 对象</button>
-        <button type="button" data-backend="PowerPointCompatibility" data-i18n="backendLegacy">旧 PNG</button>
+        <button type="button" data-backend="PowerPointCompatibility" data-i18n="backendPng">PNG 图片</button>
       </div>
-    </section>
-
-    <section class="panel accent-panel">
-      <div>
-        <h2 data-i18n="oleScaleTitle">OLE 公式缩放</h2>
-        <p class="hint" data-i18n="oleScaleHint">只影响新插入的 OLE 公式尺寸。</p>
-      </div>
-      <label class="field-row">
-        <input id="oleScale" type="number" min="0.1" max="5" step="0.1">
-      </label>
-      <p class="hint" data-i18n="oleScaleRange">范围：大于 0，且不超过 5。无效输入会恢复为当前有效倍率。</p>
     </section>
 
     <section class="panel">
       <h2 data-i18n="editorTitle">编辑器键盘行为</h2>
       <div class="key-list">
+        <div><kbd>Enter</kbd><span data-i18n="acceptShortcut">插入或更新当前公式</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><span data-i18n="newlineShortcut">在公式编辑器中换行</span></div>
-        <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">关闭编辑器，不应用更改</span></div>
+        <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">收回 MathLive 虚拟键盘</span></div>
       </div>
     </section>
 

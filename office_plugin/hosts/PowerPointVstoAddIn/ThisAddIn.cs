@@ -37,11 +37,33 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 ribbonCallbacks = new PowerPointRibbonCallbacks(controller, visibleStatusSink, ShowStatusPane);
                 AttachTaskPaneCommands(statusPaneControl, ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
+                _ = WarmUpControllerAsync(controller, statusPaneControl);
             }
         }
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
+            controller?.Dispose();
+            controller = null;
+        }
+
+        private static async System.Threading.Tasks.Task WarmUpControllerAsync(
+            PowerPointPluginController controller,
+            IPowerPointStatusSink statusSink)
+        {
+            try
+            {
+                using var timeout = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(20));
+                await controller.WarmUpAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("CommandTimeoutStatus"));
+            }
+            catch (Exception exc)
+            {
+                statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            }
         }
 
         private void InternalStartup()

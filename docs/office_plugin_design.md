@@ -7,9 +7,9 @@
 - Persistent native Ribbon in Word and PowerPoint.
 - No web manifest, sideload catalog, tenant deployment requirement, or localhost HTTPS static site.
 - Default insertion through LaTeXSnipper OLE formula objects in both Word and PowerPoint.
-- User-selectable insertion backend in settings: OLE by default, with existing Word OMML and PowerPoint compatibility backends available only as explicit alternatives.
-- OLE formulas must behave like MathType or AxMath objects: embedded in the document, clear when scaled, double-click editable, and self-contained after saving and reopening the Office file.
-- The OLE path must not depend on the desktop Bridge for TeX conversion. Bridge remains for screenshot recognition, client connection, and legacy compatibility backends.
+- User-selectable insertion backend in settings: OLE by default, with Word OMML and PowerPoint PNG image insertion available only as explicit alternatives.
+- OLE formulas must be embedded in the document, clear when scaled, managed through Ribbon/editor commands, and self-contained after saving and reopening the Office file.
+- The OLE path must not depend on the desktop Bridge for TeX conversion. Bridge remains for screenshot recognition, client connection, Word OMML, and PowerPoint PNG image insertion.
 - Per-formula metadata is stored with the embedded object: LaTeX source, display mode, numbering mode, render options, object identity, schema version, and renderer version.
 
 ## Non-Negotiable OLE Rules
@@ -18,8 +18,8 @@
 - The OLE object is a true Office embedded object, not a pasted bitmap, grouped shape, hidden task pane state, or VSTO-only wrapper.
 - OLE rendering uses a vector-first MathJax pipeline, but SVG is only an intermediate renderer output. Office presentation must be an OLE object view, preferably EMF or direct GDI/vector drawing through OLE view interfaces.
 - A formula must remain sharp under Office zoom, presentation scaling, printing, PDF export, and high-DPI displays.
-- Double-click activation must open the LaTeXSnipper formula editor for that exact embedded object.
-- Editing an OLE object must update the object in place without replacing unrelated Office content.
+- Office may still send OLE activation verbs while handling embedded objects. The native OLE handler treats those verbs as no-op display activation; editing is entered through the host Ribbon "load selected" command and the shared editor.
+- Editing an OLE object must preserve the user's object scale and must not replace unrelated Office content.
 - Formula source and metadata must travel with the document. Loading or editing must not require transient task pane state.
 - Numbering state belongs to the formula object or the host-side document wrapper around it, never to the editor UI alone.
 - Do not add fallback branches for historical broken formats. If an old experimental object format exists, migrate it through one explicit migration path or leave it unsupported with a clear message.
@@ -30,11 +30,11 @@
 |---|---|
 | VSTO host shell | Word and PowerPoint startup, Ribbon registration, Office lifetime hooks |
 | Host workflow core | Editor command handling, backend selection, insertion/update/delete workflows |
-| OLE object server | Out-of-proc COM/OLE server, object activation, persistence, redraw, in-place update |
+| OLE object handler | Native in-process COM/OLE handler, object persistence, no-op activation, redraw |
 | MathJax renderer | LaTeX to intermediate SVG and metrics without requiring Bridge conversion |
 | OLE presentation renderer | Intermediate vector output to Office-safe EMF/GDI presentation |
 | Rendering pipeline | Engine-neutral render requests, metrics, vector payloads, presentation cache keys, timeout handling |
-| Bridge client | Screenshot recognition, desktop-client connection, and legacy OMML/image backend support |
+| Bridge client | Screenshot recognition, desktop-client connection, Word OMML, and PowerPoint PNG image insertion |
 | Editor session | Formula editor state and command surface |
 | Installer | VSTO/OLE registration, Office bitness handling, runtime checks, uninstall cleanup |
 
@@ -46,22 +46,22 @@ Insertion mode is a user setting shared by Word and PowerPoint where the host su
 |---|---:|---:|---:|---:|---|
 | OLE MathJax | Yes | Yes | Yes | No | Durable editable formula object |
 | Word OMML | No | Yes | No | Yes | Native Word compatibility path |
-| PowerPoint compatibility | No | No | Explicit legacy only | Yes | Existing compatibility path until OLE is stable |
+| PowerPoint PNG image | No | No | Yes | Yes | Explicit image insertion backend |
 
 The UI must make OLE the normal path. Alternative backends are advanced compatibility settings, not separate primary workflows. Switching the default affects newly inserted formulas only; it must not rewrite existing objects unless the user explicitly converts selected formulas.
 
 ## OLE Object Model
 
-The LaTeXSnipper formula object is implemented as an out-of-proc COM/OLE local server.
+The LaTeXSnipper formula object is implemented as a native in-process COM/OLE handler.
 
 Required COM/OLE behavior:
 
 - Register a stable `CLSID` and `ProgID`, for example `LaTeXSnipper.Formula`.
-- Register `LocalServer32`, `Insertable`, friendly display name, default icon, and file/type metadata required by Office object insertion.
+- Register `InprocServer32`, friendly display name, default icon, ProgID, and static display OLE metadata required by Office object insertion.
 - Implement the OLE persistence interfaces needed for embedded object save and reopen.
-- Implement activation so double-clicking the object opens the LaTeXSnipper editor with the object's stored metadata.
+- Implement activation verbs as no-op success returns. The host add-ins own editing through Ribbon load/update commands.
 - Implement redraw so Office can request a fresh presentation after edit, zoom, print, export, or theme changes.
-- Keep the OLE server independent of Office bitness. Out-of-proc activation avoids separate in-process 32-bit and 64-bit COM DLLs.
+- Provide separate 32-bit and 64-bit native handler builds so both Office bitnesses can activate the object.
 
 Stored object payload:
 
@@ -133,7 +133,7 @@ PowerPoint uses the same OLE object backend by default. New PowerPoint formula i
 1. Ribbon is loaded by the VSTO shell.
 2. The controller reads the user's insertion backend setting. OLE is selected by default.
 3. For OLE, the host creates a LaTeXSnipper OLE object and inserts it as an embedded object on the current slide.
-4. The OLE object owns source persistence, double-click editing, EMF/GDI presentation, and redraw.
+4. The OLE object owns source persistence, EMF/GDI presentation, and redraw. Editing is routed through Ribbon load/update commands.
 5. PowerPoint shape metadata is used only to find and manage selected LaTeXSnipper objects.
 
 PowerPoint document-wide automatic numbering remains out of scope unless the host can prove stable slide-order semantics. Manual numbering can be stored in the OLE object, but broad renumbering must not be presented as supported until the implementation is reliable.
@@ -155,7 +155,7 @@ LATEXSNIPPER_OFFICE_BRIDGE_URL
 LATEXSNIPPER_OFFICE_BRIDGE_TOKEN
 ```
 
-Legacy Word OMML conversion may continue to use:
+Word OMML conversion uses:
 
 ```text
 POST /convert/latex
@@ -173,8 +173,8 @@ Ribbon labels, tooltips, dialog buttons, settings, and user-facing errors must g
 
 - Detect installed Office bitness for VSTO registration.
 - Install/register Word and PowerPoint VSTO plugins.
-- Install/register the out-of-proc LaTeXSnipper OLE formula object.
-- Register OLE under both 32-bit and 64-bit COM views when needed so 32-bit and 64-bit Office can activate the local server.
+- Install/register the native LaTeXSnipper OLE formula object handler.
+- Register OLE under both 32-bit and 64-bit COM views when needed so 32-bit and 64-bit Office can activate the handler.
 - Keep OLE registration independent from the desktop LaTeXSnipper client registry keys.
 - Check VSTO Runtime and WebView2 Runtime only when required by the selected host/editor implementation.
 - Remove VSTO, OLE, shortcut, and temporary registration state during uninstall.
@@ -199,9 +199,9 @@ Ribbon labels, tooltips, dialog buttons, settings, and user-facing errors must g
 3. Build SVG-to-EMF or direct GDI/vector OLE presentation generation.
 4. Build the out-of-proc COM/OLE local server skeleton and registration.
 5. Insert, save, reopen, and redraw a simple embedded OLE formula in Word.
-6. Add double-click activation and in-place update through the LaTeXSnipper editor.
+6. Add Ribbon-driven load/update through the shared LaTeXSnipper editor.
 7. Add Word numbering wrappers around OLE formulas without rerendering for number-only changes.
 8. Insert, save, reopen, and redraw OLE formulas in PowerPoint.
 9. Add settings to switch between OLE and explicit compatibility backends.
 10. Update installer registration and uninstall cleanup for 32-bit and 64-bit Office.
-11. Keep legacy Word OMML and PowerPoint compatibility paths isolated behind the backend setting.
+11. Keep Word OMML and PowerPoint PNG image paths isolated behind backend settings.

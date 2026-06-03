@@ -107,7 +107,6 @@ Source: "..\tools\ForceClean.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; ===== Icon =====
 Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
-Source: "icon.ico"; DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion
 
 ; ===== Shared MathJax runtime =====
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\MathJax-3.2.2\*"; \
@@ -125,9 +124,7 @@ Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePl
 Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
-  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,MathJax-3.2.2\*"
-Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
-  DestDir: "{app}\OleFormulaRenderer\EditorAssets"; Flags: ignoreversion recursesubdirs
+  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\*,EditorAssets\*"
 
 [Registry]
 ; ===== Word Add-in (versionless path) =====
@@ -339,14 +336,10 @@ Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B
   ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Check: IsWin64
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
   ValueType: string; ValueData: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey; Check: IsWin64
-Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Insertable"; \
-  ValueType: string; ValueData: ""; Flags: uninsdeletekey; Check: IsWin64
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
-  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey; Check: IsWin64
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey; Check: IsWin64
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
-  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey; Check: IsWin64
-Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Verb\0"; \
-  ValueType: string; ValueData: "&Edit,0,0"; Flags: uninsdeletekey; Check: IsWin64
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey; Check: IsWin64
 
 ; ===== OLE formula object, 32-bit Office =====
 Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula"; \
@@ -371,14 +364,10 @@ Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B
   ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
   ValueType: string; ValueData: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey
-Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Insertable"; \
-  ValueType: string; ValueData: ""; Flags: uninsdeletekey
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
-  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
-  ValueType: string; ValueData: "133521"; Flags: uninsdeletekey
-Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\Verb\0"; \
-  ValueType: string; ValueData: "&Edit,0,0"; Flags: uninsdeletekey
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey
 
 [Run]
 ; Trust the self-signed VSTO manifest certificate.
@@ -515,6 +504,12 @@ begin
   RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\LaTeXSnipper.Formula');
   RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\LaTeXSnipper.Formula.1');
   RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\Classes\LaTeXSnipper.Formula');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\Classes\LaTeXSnipper.Formula.1');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\WOW6432Node\Classes\LaTeXSnipper.Formula');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\WOW6432Node\Classes\LaTeXSnipper.Formula.1');
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'Software\WOW6432Node\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}');
 end;
 
 procedure HideVstoUninstallEntries;

@@ -76,6 +76,27 @@ h2 {
   gap: 8px;
 }
 
+.numbering-grid {
+  display: grid;
+  gap: 10px;
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+select {
+  min-height: 34px;
+  border: 1px solid #bac8da;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
 button {
   min-height: 34px;
   border: 1px solid #bac8da;

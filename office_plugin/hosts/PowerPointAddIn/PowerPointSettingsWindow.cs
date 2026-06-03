@@ -118,7 +118,6 @@ internal sealed class PowerPointSettingsWindow : Form
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["platform"] = "powerpoint",
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
-            ["oleScale"] = settings.OleScale,
         });
         string script =
             "(function(payload){" +
@@ -151,21 +150,10 @@ internal sealed class PowerPointSettingsWindow : Form
         string backend = message.TryGetValue("insertionBackend", out object rawBackend)
             ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        string scaleText = message.TryGetValue("oleScale", out object rawScale)
-            ? Convert.ToString(rawScale, CultureInfo.InvariantCulture) ?? string.Empty
-            : string.Empty;
         FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.PowerPointCompatibility.ToString()
             ? FormulaInsertionBackend.PowerPointCompatibility
             : FormulaInsertionBackend.Ole;
-        if (!double.TryParse(scaleText, NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) ||
-            !PowerPointPluginSettings.IsValidOleScale(scale))
-        {
-            MessageBox.Show(this, "OLE initial scale must be greater than 0 and less than or equal to 5.", PowerPointAddInText.Get("ErrorTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-            _ = SendSettingsAsync();
-            return;
-        }
-
-        new PowerPointPluginSettings(insertionBackend, scale).Save();
+        new PowerPointPluginSettings(insertionBackend).Save();
         _ = SendSettingsAsync();
     }
 
