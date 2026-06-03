@@ -4,6 +4,37 @@
 #include <strsafe.h>
 #include <iterator>
 
+namespace
+{
+constexpr DWORD kMaxLogBytes = 1024 * 1024;
+
+void RotateLogIfNeeded(const wchar_t* path)
+{
+    WIN32_FILE_ATTRIBUTE_DATA attributes{};
+    if (!GetFileAttributesExW(path, GetFileExInfoStandard, &attributes))
+    {
+        return;
+    }
+
+    LARGE_INTEGER size{};
+    size.HighPart = static_cast<LONG>(attributes.nFileSizeHigh);
+    size.LowPart = attributes.nFileSizeLow;
+    if (size.QuadPart < kMaxLogBytes)
+    {
+        return;
+    }
+
+    wchar_t rotatedPath[MAX_PATH]{};
+    if (FAILED(StringCchPrintfW(rotatedPath, MAX_PATH, L"%s.old", path)))
+    {
+        return;
+    }
+
+    DeleteFileW(rotatedPath);
+    MoveFileExW(path, rotatedPath, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+}
+}
+
 void WriteNativeOleLog(const wchar_t* message)
 {
     wchar_t enabled[8]{};
@@ -31,6 +62,8 @@ void WriteNativeOleLog(const wchar_t* message)
     {
         return;
     }
+
+    RotateLogIfNeeded(path);
 
     HANDLE file = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE)

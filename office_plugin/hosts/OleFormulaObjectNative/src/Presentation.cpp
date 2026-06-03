@@ -230,46 +230,6 @@ void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* pres
     }
 }
 
-std::wstring GetExecutableDirectory()
-{
-    wchar_t modulePath[MAX_PATH]{};
-    HMODULE module = nullptr;
-    DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-    if (!GetModuleHandleExW(flags, reinterpret_cast<LPCWSTR>(&GetExecutableDirectory), &module))
-    {
-        module = nullptr;
-    }
-
-    DWORD length = GetModuleFileNameW(module, modulePath, MAX_PATH);
-    std::wstring directory(modulePath, length);
-    size_t slash = directory.find_last_of(L"\\/");
-    return slash == std::wstring::npos ? L"." : directory.substr(0, slash);
-}
-}
-
-std::wstring ResolveRendererPath()
-{
-    wchar_t configured[MAX_PATH]{};
-    DWORD configuredLength = GetEnvironmentVariableW(L"LATEXSNIPPER_OLE_RENDERER", configured, MAX_PATH);
-    if (configuredLength > 0 && GetFileAttributesW(configured) != INVALID_FILE_ATTRIBUTES)
-    {
-        return configured;
-    }
-
-    std::wstring installed = GetExecutableDirectory() + L"\\..\\..\\OleFormulaRenderer\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
-    wchar_t fullPath[MAX_PATH]{};
-    if (GetFullPathNameW(installed.c_str(), MAX_PATH, fullPath, nullptr) > 0 && GetFileAttributesW(fullPath) != INVALID_FILE_ATTRIBUTES)
-    {
-        return fullPath;
-    }
-
-    std::wstring dev = GetExecutableDirectory() + L"\\..\\..\\..\\..\\OleFormulaObject\\bin\\Release\\net48\\LaTeXSnipper.OfficePlugin.OleFormulaObject.exe";
-    if (GetFullPathNameW(dev.c_str(), MAX_PATH, fullPath, nullptr) > 0 && GetFileAttributesW(fullPath) != INVALID_FILE_ATTRIBUTES)
-    {
-        return fullPath;
-    }
-
-    return L"";
 }
 
 FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex)

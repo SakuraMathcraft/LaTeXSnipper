@@ -15,6 +15,7 @@ internal static class WordFormulaMetadataStore
     public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
     private const string EquationTagBackupSeparator = "|";
     private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
+    private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
 
     public static string BuildEquationTag(string equationId, FormulaMetadata? metadata = null)
@@ -157,15 +158,53 @@ internal static class WordFormulaMetadataStore
 
     public static void Delete(dynamic document, string equationId)
     {
-        string key = BuildStorageKey(equationId);
+        DeleteVariable(document, BuildStorageKey(equationId));
+        DeleteVariable(document, BuildOleNaturalSizeStorageKey(equationId));
+    }
+
+    public static void SaveOleNaturalSize(dynamic document, string equationId, double widthPoints, double heightPoints)
+    {
+        if (widthPoints <= 0 || heightPoints <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(widthPoints), "OLE natural size must be positive.");
+        }
+
+        var serializer = new JavaScriptSerializer();
+        string json = serializer.Serialize(new Dictionary<string, object>
+        {
+            ["widthPoints"] = widthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["heightPoints"] = heightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+        SaveVariable(document, BuildOleNaturalSizeStorageKey(equationId), json);
+    }
+
+    public static bool TryLoadOleNaturalSize(dynamic document, string equationId, out double widthPoints, out double heightPoints)
+    {
+        widthPoints = 0;
+        heightPoints = 0;
         try
         {
-            dynamic variable = document.Variables.Item(key);
-            variable.Delete();
+            dynamic variable = document.Variables.Item(BuildOleNaturalSizeStorageKey(equationId));
+            var serializer = new JavaScriptSerializer();
+            var dto = serializer.Deserialize<Dictionary<string, object>>(Convert.ToString(variable.Value) ?? string.Empty);
+            widthPoints = ReadDouble(dto, "widthPoints");
+            heightPoints = ReadDouble(dto, "heightPoints");
+            return widthPoints > 0 && heightPoints > 0;
         }
         catch
         {
+            return false;
         }
+    }
+
+    private static string BuildOleNaturalSizeStorageKey(string equationId)
+    {
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            throw new ArgumentException("Equation ID is required.", nameof(equationId));
+        }
+
+        return OleNaturalSizeVariablePrefix + equationId;
     }
 
     public static string Serialize(FormulaMetadata metadata)
@@ -313,6 +352,14 @@ internal static class WordFormulaMetadataStore
         return int.TryParse(Convert.ToString(value), out int parsed) ? parsed : fallback;
     }
 
+    private static double ReadDouble(Dictionary<string, object> dto, string key)
+    {
+        return dto.TryGetValue(key, out object value)
+            && double.TryParse(Convert.ToString(value), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
+            ? parsed
+            : 0;
+    }
+
     private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key, TEnum fallback)
         where TEnum : struct
     {
@@ -349,6 +396,32 @@ internal static class WordFormulaMetadataStore
         catch
         {
             variables.Add(AutoNumberCounterKey, text);
+        }
+    }
+
+    private static void SaveVariable(dynamic document, string key, string value)
+    {
+        dynamic variables = document.Variables;
+        try
+        {
+            dynamic variable = variables.Item(key);
+            variable.Value = value;
+        }
+        catch
+        {
+            variables.Add(key, value);
+        }
+    }
+
+    private static void DeleteVariable(dynamic document, string key)
+    {
+        try
+        {
+            dynamic variable = document.Variables.Item(key);
+            variable.Delete();
+        }
+        catch
+        {
         }
     }
 }

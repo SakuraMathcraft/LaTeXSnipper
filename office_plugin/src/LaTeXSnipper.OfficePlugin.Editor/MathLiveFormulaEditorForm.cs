@@ -22,6 +22,10 @@ internal sealed class MathLiveFormulaEditorForm : Form
     private bool _initializing;
     private bool _webViewReady;
     private bool _configurationPending;
+    private bool _committed;
+    private bool _restoredDraftForCurrentConfiguration;
+    private bool _shutdownDisposing;
+    private Task? _warmUpTask;
 
     public MathLiveFormulaEditorForm(MathLiveFormulaEditorOptions options)
     {
@@ -43,6 +47,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
         };
         Controls.Add(_webView);
         Load += OnLoad;
+        Resize += OnResize;
+        FormClosing += OnFormClosing;
     }
 
     public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
@@ -55,11 +61,25 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public FormulaEditorAcceptedEventArgs? AcceptedFormula { get; private set; }
 
+    public Task WarmUpAsync()
+    {
+        _warmUpTask ??= InitializeAsync();
+        return _warmUpTask;
+    }
+
+    public void DisposeForShutdown()
+    {
+        _shutdownDisposing = true;
+        Close();
+    }
+
     public void Configure(FormulaMetadata? initialFormula, bool updateMode)
     {
         _currentInitialFormula = initialFormula;
         _currentUpdateMode = updateMode;
         _configurationPending = true;
+        _committed = false;
+        _restoredDraftForCurrentConfiguration = false;
         if (_webViewReady)
         {
             _ = ApplyConfigurationAsync();
@@ -70,7 +90,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
     {
         try
         {
-            await InitializeAsync().ConfigureAwait(true);
+            await WarmUpAsync().ConfigureAwait(true);
         }
         catch (Exception exc)
         {
@@ -105,7 +125,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.Source = new Uri("https://" + _options.EditorHostName + "/editor.html?_=" + DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture));
+        _webView.Source = new Uri("https://" + _options.EditorHostName + "/editor.html");
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -155,7 +175,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         string type = Convert.ToString(rawType) ?? string.Empty;
         if (type == "cancel")
         {
-            EditorCancelled?.Invoke(this, EventArgs.Empty);
+            NotifyEditorCancelled();
             Commit(DialogResult.Cancel);
             return;
         }
@@ -179,8 +199,48 @@ internal sealed class MathLiveFormulaEditorForm : Form
         Commit(DialogResult.OK);
     }
 
+    private void OnResize(object? sender, EventArgs e)
+    {
+        if (WindowState == FormWindowState.Minimized)
+        {
+            NotifyEditorCancelled();
+        }
+    }
+
+    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (!_shutdownDisposing)
+        {
+            if (!_committed)
+            {
+                NotifyEditorCancelled();
+            }
+
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
+        if (!_committed)
+        {
+            NotifyEditorCancelled();
+        }
+    }
+
+    private void NotifyEditorCancelled()
+    {
+        if (!_currentUpdateMode || _restoredDraftForCurrentConfiguration)
+        {
+            return;
+        }
+
+        _restoredDraftForCurrentConfiguration = true;
+        EditorCancelled?.Invoke(this, EventArgs.Empty);
+    }
+
     private void Commit(DialogResult result)
     {
+        _committed = true;
         if (CloseOnCommit)
         {
             DialogResult = result;

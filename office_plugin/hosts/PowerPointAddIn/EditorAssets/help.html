@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -93,27 +93,27 @@
       <h3>OLE 与 OMML</h3>
       <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 Word OMML。</p>
       <h3>加载、更新和删除</h3>
-      <p>选中受管理公式后用 Ribbon 加载到编辑器修改，双击 OLE 对象也会打开同一套 MathLive 编辑器。编辑器提交后更新原公式；侧边栏不会承担更新入口。删除同时移除公式和元数据。</p>
+      <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。删除同时移除公式和元数据。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
       <h3>自动编号与重编号</h3>
       <p>自动编号用于把未编号的 Word 公式转换为自动编号公式；重编号按文档顺序更新自动编号文本，不重新渲染公式。编号位置设置只影响新插入的编号公式和之后自动编号的普通公式。</p>
-      <h3>OLE 初始倍率</h3>
-      <p>“OLE 公式缩放”只影响新插入公式，范围为大于 0 且不超过 5。更新已有 OLE 公式时保留用户在 Office 中手动拉伸出的对象倍率。</p>
+      <h3>OLE 对象尺寸</h3>
+      <p>Word OLE 公式使用固定渲染基线。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
       <p>点击后等待桌面端截图结果，再次点击可取消。</p>
     </section>
 
     <section class="platform-powerpoint">
       <h2>PowerPoint 功能</h2>
-      <h3>OLE 与兼容 PNG</h3>
-      <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到兼容 PNG。</p>
+      <h3>OLE 与 PNG 图片</h3>
+      <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 PNG 图片方式。</p>
       <h3>加载和删除</h3>
       <p>选中受管理公式后用 Ribbon 加载到同一套 MathLive 编辑器修改。编辑器提交后替换原位置公式，并保留用户在幻灯片中手动拉伸出的对象倍率。删除同时移除形状和元数据。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区，不负责更新已有公式。</p>
-      <h3>OLE 初始倍率</h3>
-      <p>“OLE 公式缩放”只影响新插入公式，范围为大于 0 且不超过 5。</p>
+      <h3>OLE 对象尺寸</h3>
+      <p>PowerPoint OLE 公式使用固定渲染基线。更新已有 OLE 公式时保留用户在幻灯片中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
       <p>点击后等待桌面端截图结果，识别后的 LaTeX 自动填入编辑器。再次点击可取消。</p>
     </section>
@@ -125,7 +125,7 @@
         <tbody>
           <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
           <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。公式附带 LaTeX 源码、显示模式、编号模式等管理元数据。</td></tr>
-          <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；兼容 PNG 是可选插入后端。元数据写入形状标签（<code>shape.Tags</code>）。</td></tr>
+          <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。元数据写入形状标签（<code>shape.Tags</code>）。</td></tr>
           <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
           <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。</td></tr>
         </tbody>
@@ -180,27 +180,27 @@
       <h3>OLE and OMML</h3>
       <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. Word OMML remains available in settings.</p>
       <h3>Load, Update, Delete</h3>
-      <p>Use the Ribbon to load a managed formula into the editor. Double-clicking an OLE formula opens the same MathLive editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Deletion removes both formula and metadata.</p>
+      <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Deletion removes both formula and metadata.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
       <h3>Auto Numbering &amp; Renumber</h3>
       <p>Auto Number converts an unnumbered Word formula into an automatically numbered formula; Renumber updates automatic numbers in document order without re-rendering. Number placement affects newly inserted numbered formulas and ordinary formulas numbered later.</p>
-      <h3>OLE Initial Scale</h3>
-      <p>OLE Formula Scale only affects newly inserted formulas. The valid range is greater than 0 and no more than 5. Updating an existing OLE formula preserves the object stretch factor manually set in Office.</p>
+      <h3>OLE Object Size</h3>
+      <p>Word OLE formulas use a fixed rendering baseline. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
       <h3>Screenshot OCR</h3>
       <p>Click to wait for the next desktop screenshot; click again to cancel.</p>
     </section>
 
     <section class="platform-powerpoint">
       <h2>PowerPoint Features</h2>
-      <h3>OLE and Compatibility PNG</h3>
-      <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. Compatibility PNG remains available in settings.</p>
+      <h3>OLE and PNG Image</h3>
+      <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. PNG image insertion remains available in settings.</p>
       <h3>Load and Delete</h3>
       <p>Use the Ribbon to load a managed formula into the same MathLive editor. After editing, the new formula replaces the original at the same position and preserves the object stretch factor manually set on the slide. Deleting removes both shape and metadata.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft and is not an update entry point.</p>
-      <h3>OLE Initial Scale</h3>
-      <p>OLE Formula Scale only affects newly inserted formulas. The valid range is greater than 0 and no more than 5.</p>
+      <h3>OLE Object Size</h3>
+      <p>PowerPoint OLE formulas use a fixed rendering baseline. Updating an existing OLE formula preserves the object stretch factor manually set on the slide.</p>
       <h3>Screenshot OCR</h3>
       <p>Click to wait for the next desktop screenshot; recognized LaTeX is loaded into the editor. Click again to cancel.</p>
     </section>
@@ -212,7 +212,7 @@
         <tbody>
           <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
           <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend. Metadata stores LaTeX source, display mode, and numbering mode.</td></tr>
-          <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; compatibility PNG is an optional backend. Metadata is stored in shape tags.</td></tr>
+          <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend. Metadata is stored in shape tags.</td></tr>
           <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
           <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview.</td></tr>
         </tbody>
@@ -241,3 +241,4 @@
   </script>
 </body>
 </html>
+

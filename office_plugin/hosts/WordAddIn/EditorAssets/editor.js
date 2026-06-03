@@ -508,6 +508,11 @@ function accept() {
   send({ type: "accept", latex, display: true });
 }
 
+function hideVirtualKeyboard() {
+  window.mathVirtualKeyboard?.hide();
+  mathfield?.focus();
+}
+
 function configureText() {
   document.documentElement.lang = locale.startsWith("zh") ? "zh-CN" : "en";
   cancelButton.textContent = strings().cancel;
@@ -546,7 +551,13 @@ async function bootstrap() {
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      send({ type: "cancel" });
+      hideVirtualKeyboard();
+      return;
+    }
+
+    if (event.key === "Enter" && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      event.preventDefault();
+      accept();
     }
   });
   configureText();

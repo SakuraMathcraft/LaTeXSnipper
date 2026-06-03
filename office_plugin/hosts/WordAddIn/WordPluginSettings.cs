@@ -6,41 +6,45 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed class WordPluginSettings
 {
-    public const double MinOleScaleExclusive = 0;
-    public const double MaxOleScale = 5;
-
     private const string RegistryPath = @"Software\LaTeXSnipper\OfficePlugin";
     private const string NumberPlacementValue = "NumberPlacement";
+    private const string NumberFormatValue = "NumberFormat";
+    private const string NumberEnclosureValue = "NumberEnclosure";
     private const string InsertionBackendValue = "WordInsertionBackend";
-    private const string OleScaleValue = "WordOleScale";
 
-    public WordPluginSettings(WordNumberPlacement numberPlacement, FormulaInsertionBackend insertionBackend, double oleScale)
+    public WordPluginSettings(
+        WordNumberPlacement numberPlacement,
+        FormulaInsertionBackend insertionBackend,
+        WordNumberFormat numberFormat,
+        WordNumberEnclosure numberEnclosure)
     {
-        ValidateOleScale(oleScale);
         NumberPlacement = numberPlacement;
         InsertionBackend = insertionBackend;
-        OleScale = oleScale;
+        NumberFormat = numberFormat;
+        NumberEnclosure = numberEnclosure;
     }
 
     public WordNumberPlacement NumberPlacement { get; }
 
     public FormulaInsertionBackend InsertionBackend { get; }
 
-    public double OleScale { get; }
+    public WordNumberFormat NumberFormat { get; }
+
+    public WordNumberEnclosure NumberEnclosure { get; }
 
     public static WordPluginSettings Load()
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-        string raw = key?.GetValue(NumberPlacementValue) as string ?? string.Empty;
+        string placementRaw = key?.GetValue(NumberPlacementValue) as string ?? string.Empty;
         string backendRaw = key?.GetValue(InsertionBackendValue) as string ?? string.Empty;
-        string scaleRaw = key?.GetValue(OleScaleValue) as string ?? string.Empty;
         FormulaInsertionBackend backend = backendRaw == FormulaInsertionBackend.WordOmml.ToString()
             ? FormulaInsertionBackend.WordOmml
             : FormulaInsertionBackend.Ole;
-        double scale = double.TryParse(scaleRaw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsedScale) && IsValidOleScale(parsedScale)
-            ? parsedScale
-            : 1;
-        return new WordPluginSettings(raw == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right, backend, scale);
+        return new WordPluginSettings(
+            placementRaw == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
+            backend,
+            ReadEnum(key, NumberFormatValue, WordNumberFormat.Arabic),
+            ReadEnum(key, NumberEnclosureValue, WordNumberEnclosure.Parentheses));
     }
 
     public void Save()
@@ -49,19 +53,14 @@ public sealed class WordPluginSettings
             ?? throw new InvalidOperationException("Unable to open LaTeXSnipper Office plugin settings.");
         key.SetValue(NumberPlacementValue, NumberPlacement.ToString(), RegistryValueKind.String);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
-        key.SetValue(OleScaleValue, OleScale.ToString(System.Globalization.CultureInfo.InvariantCulture), RegistryValueKind.String);
+        key.SetValue(NumberFormatValue, NumberFormat.ToString(), RegistryValueKind.String);
+        key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);
     }
 
-    public static bool IsValidOleScale(double value)
+    private static T ReadEnum<T>(RegistryKey? key, string valueName, T defaultValue)
+        where T : struct
     {
-        return value > MinOleScaleExclusive && value <= MaxOleScale;
-    }
-
-    public static void ValidateOleScale(double value)
-    {
-        if (!IsValidOleScale(value))
-        {
-            throw new ArgumentOutOfRangeException(nameof(value), "OLE initial scale must be greater than 0 and less than or equal to 5.");
-        }
+        string raw = key?.GetValue(valueName) as string ?? string.Empty;
+        return Enum.TryParse(raw, ignoreCase: false, out T parsed) ? parsed : defaultValue;
     }
 }

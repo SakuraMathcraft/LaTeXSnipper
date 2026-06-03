@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\LaTeXSnipper.OfficePlugin.Editor.csproj" />
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Rendering\LaTeXSnipper.OfficePlugin.Rendering.csproj" />
   </ItemGroup>
 
@@ -10,9 +9,6 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -24,12 +20,5 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\installer\icon.ico</ApplicationIcon>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="..\..\installer\icon.ico">
-      <Link>icon.ico</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 
 </Project>

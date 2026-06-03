@@ -11,6 +11,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 {
     private readonly MathLiveFormulaEditorOptions _options;
     private MathLiveFormulaEditorForm? _activeForm;
+    private bool _disposed;
 
     public MathLiveFormulaEditor(MathLiveFormulaEditorOptions options)
     {
@@ -23,8 +24,16 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     public event EventHandler<string>? EditorError;
 
+    public Task WarmUpAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        return GetOrCreateForm().WarmUpAsync();
+    }
+
     public Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
         form.CloseOnCommit = false;
@@ -41,6 +50,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     public Task<bool> UpdateDraftIfOpenAsync(FormulaMetadata draft, bool updateMode, CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
         if (_activeForm == null || _activeForm.IsDisposed || !_activeForm.Visible)
         {
@@ -49,24 +59,6 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
         _activeForm.Configure(draft, updateMode);
         return Task.FromResult(true);
-    }
-
-    public FormulaEditorAcceptedEventArgs? ShowModal(FormulaMetadata initialFormula, bool updateMode)
-    {
-        if (initialFormula == null)
-        {
-            throw new ArgumentNullException(nameof(initialFormula));
-        }
-
-        using var form = new MathLiveFormulaEditorForm(_options)
-        {
-            CloseOnCommit = true
-        };
-        form.Configure(initialFormula, updateMode);
-        form.EditorError += OnEditorError;
-        form.ShowDialog();
-        form.EditorError -= OnEditorError;
-        return form.AcceptedFormula;
     }
 
     private MathLiveFormulaEditorForm GetOrCreateForm()
@@ -82,6 +74,20 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         _activeForm.EditorError += OnEditorError;
         _activeForm.FormClosed += OnFormClosed;
         return _activeForm;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        if (_activeForm != null && !_activeForm.IsDisposed)
+        {
+            _activeForm.DisposeForShutdown();
+        }
     }
 
     private void OnFormulaAccepted(object? sender, FormulaEditorAcceptedEventArgs e)
@@ -111,6 +117,14 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
     private void OnEditorError(object? sender, string message)
     {
         EditorError?.Invoke(this, message);
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(MathLiveFormulaEditor));
+        }
     }
 }
 #endif

@@ -5,13 +5,18 @@ using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Editor;
 
-public sealed class FormulaEditorSession
+public sealed class FormulaEditorSession : IDisposable
 {
     private readonly IFormulaEditor _editor;
 
     public FormulaEditorSession(IFormulaEditor editor)
     {
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
+    }
+
+    public Task WarmUpAsync(CancellationToken cancellationToken)
+    {
+        return _editor.WarmUpAsync(cancellationToken);
     }
 
     public Task<FormulaMetadata?> OpenForInsertAsync(CancellationToken cancellationToken)
@@ -47,5 +52,10 @@ public sealed class FormulaEditorSession
         }
 
         return _editor.UpdateDraftIfOpenAsync(draft, updateMode, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _editor.Dispose();
     }
 }

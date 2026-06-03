@@ -9,8 +9,6 @@
 #include <atlconv.h>
 #include <comdef.h>
 #include <new>
-#include <shellapi.h>
-#include <thread>
 #include <vector>
 
 namespace
@@ -276,71 +274,9 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
     return QueryInterface(IID_IDataObject, reinterpret_cast<void**>(dataObject));
 }
 
-STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite*, LONG, HWND parentWindow, LPCRECT)
+STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
-    if (verb == OLEIVERB_SHOW)
-    {
-        if (viewAdviseSink_ != nullptr)
-        {
-            viewAdviseSink_->OnViewChange(DVASPECT_CONTENT, -1);
-        }
-
-        return S_OK;
-    }
-
-    if (verb == OLEIVERB_PRIMARY || verb == OLEIVERB_OPEN)
-    {
-        StoreEditorPayload(presentation_.payloadJson);
-        std::wstring renderer = ResolveRendererPath();
-        if (renderer.empty())
-        {
-            return OLEOBJ_S_CANNOT_DOVERB_NOW;
-        }
-
-        SHELLEXECUTEINFOW executeInfo{};
-        executeInfo.cbSize = sizeof(executeInfo);
-        executeInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
-        executeInfo.hwnd = parentWindow;
-        executeInfo.lpVerb = L"open";
-        executeInfo.lpFile = renderer.c_str();
-        executeInfo.lpParameters = L"/EditPayload";
-        executeInfo.nShow = SW_SHOWNORMAL;
-        if (!ShellExecuteExW(&executeInfo))
-        {
-            return OLEOBJ_S_CANNOT_DOVERB_NOW;
-        }
-
-        if (executeInfo.hProcess != nullptr)
-        {
-            AddRef();
-            HANDLE process = executeInfo.hProcess;
-            std::wstring currentPayload = presentation_.payloadJson;
-            std::thread([this, process, currentPayload]() {
-                CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-                WaitForSingleObject(process, INFINITE);
-                CloseHandle(process);
-
-                std::wstring updatedPayload = ConsumeEditorPayloadResult();
-                if (!updatedPayload.empty() && updatedPayload != currentPayload)
-                {
-                    FormulaPresentation updatedPresentation = CreatePresentationFromPayload(updatedPayload);
-                    if (!updatedPresentation.latex.empty())
-                    {
-                        presentation_ = std::move(updatedPresentation);
-                        dirty_ = true;
-                        NotifyPresentationChanged();
-                    }
-                }
-
-                CoUninitialize();
-                Release();
-            }).detach();
-        }
-
-        return S_OK;
-    }
-
     return S_OK;
 }
 
@@ -351,7 +287,8 @@ STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
         return E_POINTER;
     }
 
-    return OleRegEnumVerbs(CLSID_LaTeXSnipperFormula, enumOleVerb);
+    *enumOleVerb = nullptr;
+    return OLEOBJ_E_NOVERBS;
 }
 
 STDMETHODIMP FormulaOleObject::Update()
@@ -481,8 +418,11 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_RECOMPOSEONRESIZE
+    *status = OLEMISC_STATIC
         | OLEMISC_CANTLINKINSIDE
+        | OLEMISC_RENDERINGISDEVICEINDEPENDENT
+        | OLEMISC_NOUIACTIVATE
+        | OLEMISC_IGNOREACTIVATEWHENVISIBLE
         | OLEMISC_SETCLIENTSITEFIRST;
     return S_OK;
 }

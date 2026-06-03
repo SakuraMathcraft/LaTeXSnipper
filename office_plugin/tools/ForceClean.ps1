@@ -234,15 +234,18 @@ foreach ($root in $uninstallRoots) {
 # 5.1 Clean only plugin settings under the shared LaTeXSnipper vendor key.
 Remove-RegistryTree -Path "HKCU:\Software\LaTeXSnipper\OfficePlugin" -Message "Removed plugin settings"
 
-# 5.2 Clean stale per-user OLE formula registrations. HKCU\Software\Classes
-# overrides HKLM\Software\Classes, so old development registrations can prevent
-# Office from activating the installed native OLE server.
+# 5.2 Clean stale OLE formula registrations before the installer writes the
+# current static display-only server registration.
 foreach ($progId in $OleFormulaProgIds) {
-    Remove-RegistryTree -Path "HKCU:\Software\Classes\$progId" -Message "Removed per-user OLE ProgID"
-    Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\$progId" -Message "Removed per-user OLE ProgID"
+    Remove-RegistryTree -Path "HKCU:\Software\Classes\$progId" -Message "Removed OLE ProgID"
+    Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\$progId" -Message "Removed OLE ProgID"
+    Remove-RegistryTree -Path "HKLM:\Software\Classes\$progId" -Message "Removed OLE ProgID"
+    Remove-RegistryTree -Path "HKLM:\Software\WOW6432Node\Classes\$progId" -Message "Removed OLE ProgID"
 }
-Remove-RegistryTree -Path "HKCU:\Software\Classes\CLSID\$OleFormulaClassId" -Message "Removed per-user OLE CLSID"
-Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\CLSID\$OleFormulaClassId" -Message "Removed per-user OLE CLSID"
+Remove-RegistryTree -Path "HKCU:\Software\Classes\CLSID\$OleFormulaClassId" -Message "Removed OLE CLSID"
+Remove-RegistryTree -Path "HKCU:\Software\Classes\WOW6432Node\CLSID\$OleFormulaClassId" -Message "Removed OLE CLSID"
+Remove-RegistryTree -Path "HKLM:\Software\Classes\CLSID\$OleFormulaClassId" -Message "Removed OLE CLSID"
+Remove-RegistryTree -Path "HKLM:\Software\WOW6432Node\Classes\CLSID\$OleFormulaClassId" -Message "Removed OLE CLSID"
 
 # 6. Clean Office Resiliency records
 foreach ($app in $Apps) {
@@ -373,6 +376,27 @@ if ($RemoveInstallDir) {
                 Write-Host "Failed to remove install directory: $dir -> $($_.Exception.Message)"
             }
         }
+    }
+}
+
+# 10. Clean plugin-owned local caches and temporary rendered PowerPoint files
+$localPluginRoot = Join-Path $env:LocalAppData "LaTeXSnipper\OfficePlugin"
+if (Test-Path $localPluginRoot) {
+    try {
+        Remove-Item -LiteralPath $localPluginRoot -Recurse -Force -ErrorAction Stop
+        Write-Host "Removed local plugin cache: $localPluginRoot"
+    } catch {
+        Write-Host "Failed to remove local plugin cache: $localPluginRoot -> $($_.Exception.Message)"
+    }
+}
+
+$powerPointTempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "LaTeXSnipper\OfficePlugin\PowerPoint"
+if (Test-Path $powerPointTempRoot) {
+    try {
+        Remove-Item -LiteralPath $powerPointTempRoot -Recurse -Force -ErrorAction Stop
+        Write-Host "Removed PowerPoint temp files: $powerPointTempRoot"
+    } catch {
+        Write-Host "Failed to remove PowerPoint temp files: $powerPointTempRoot -> $($_.Exception.Message)"
     }
 }
 
