@@ -518,6 +518,23 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
         }
 
+        try
+        {
+            dynamic tables = range.Tables;
+            int tableCount = Convert.ToInt32(tables.Count);
+            for (int i = 1; i <= tableCount; i++)
+            {
+                dynamic inlineShapes = tables.Item(i).Range.InlineShapes;
+                int count = Convert.ToInt32(inlineShapes.Count);
+                for (int j = 1; j <= count; j++)
+                {
+                    AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(j));
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void AddSelectedOleInlineShape(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)
