@@ -97,7 +97,7 @@ const GROUPS = [
       ["分段", "matrix:cases", "Cases"],
       ["矩阵", "matrix:matrix", "Matrix"],
       ["方括号矩阵", "matrix:bmatrix", "Bracketed matrix"],
-      ["海森矩阵", "matrix:bmatrix", "Hessian matrix"],
+      ["海森矩阵", "\\mathbf{H} = \\begin{bmatrix} \\frac{\\partial^2 #?}{\\partial #?^2} & \\frac{\\partial^2 #?}{\\partial #?\\partial #?} \\\\ \\frac{\\partial^2 #?}{\\partial #?\\partial #?} & \\frac{\\partial^2 #?}{\\partial #?^2} \\end{bmatrix}", "Hessian matrix"],
       ["行列式", "matrix:vmatrix", "Determinant"],
       ["圆括号矩阵", "matrix:pmatrix", "Parenthesized matrix"],
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
