@@ -714,7 +714,7 @@ STDMETHODIMP FormulaOleObject::Run(LPBINDCTX)
 STDMETHODIMP_(BOOL) FormulaOleObject::IsRunning()
 {
     WriteNativeOleLog(L"FormulaOleObject IsRunning.");
-    return TRUE;
+    return FALSE;
 }
 
 STDMETHODIMP FormulaOleObject::LockRunning(BOOL lock, BOOL)
