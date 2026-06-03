@@ -890,6 +890,7 @@ const GROUPS = [
       ["瑞利判据", "\\theta = 1.22\\frac{\\lambda}{D}", "Rayleigh criterion"],
       ["玻尔半径", "a_0 = \\frac{4\\pi\\varepsilon_0\\hbar^2}{m_e e^2}", "Bohr radius"],
       ["里德伯公式", "\\frac{1}{\\lambda} = R\\!\\left(\\frac{1}{n_1^2}-\\frac{1}{n_2^2}\\right)", "Rydberg formula"],
+      ["玻尔模型", "E_n = -\\frac{13.6\\,\\mathrm{eV}}{n^2}", "Bohr model"],
     ],
   },
   {
