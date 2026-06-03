@@ -277,7 +277,7 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
 STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
-    return S_OK;
+    return OLEOBJ_S_CANNOT_DOVERB_NOW;
 }
 
 STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
@@ -418,7 +418,8 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_CANTLINKINSIDE
+    *status = OLEMISC_STATIC
+        | OLEMISC_CANTLINKINSIDE
         | OLEMISC_RENDERINGISDEVICEINDEPENDENT
         | OLEMISC_NOUIACTIVATE
         | OLEMISC_IGNOREACTIVATEWHENVISIBLE
