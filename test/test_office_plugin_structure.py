@@ -373,7 +373,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\\*,EditorAssets\\*"' in setup_text
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion' not in setup_text.replace('DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs', "")
     assert "<Link>icon.ico</Link>" not in (PLUGIN / "hosts" / "OleFormulaObject" / "LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj").read_text(encoding="utf-8")
-    assert 'ValueData: "706075"' in setup_text
+    assert 'ValueData: "229395"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "OLEMISC_STATIC" in native_text
