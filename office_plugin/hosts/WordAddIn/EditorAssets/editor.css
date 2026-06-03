@@ -83,7 +83,7 @@ math-field {
 .library {
   display: grid;
   grid-template-columns: 76px 1fr;
-  grid-template-rows: 24px 34px 1fr;
+  grid-template-rows: 30px 34px 1fr;
   grid-column: 1;
   grid-row: 1;
   overflow: hidden;
@@ -101,8 +101,8 @@ math-field {
 
 .global-search {
   width: 100%;
-  height: 20px;
-  padding: 0 6px;
+  height: 26px;
+  padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 3px;
   background: #fff;
