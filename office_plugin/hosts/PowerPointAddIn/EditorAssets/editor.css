@@ -83,20 +83,46 @@ math-field {
 .library {
   display: grid;
   grid-template-columns: 76px 1fr;
-  grid-template-rows: 34px 1fr;
+  grid-template-rows: 24px 34px 1fr;
   grid-column: 1;
   grid-row: 1;
   overflow: hidden;
 }
 
+.library-search {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line);
+  background: #f0f2f6;
+}
+
+.global-search {
+  width: 100%;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+}
+
+.global-search:focus {
+  border-color: var(--accent);
+}
+
 .library-tabs {
   grid-column: 1;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: stretch;
-  padding: 6px 5px;
+  padding: 4px 5px;
   border-right: 1px solid var(--line);
   background: #f7f9fc;
   overflow-x: hidden;
@@ -125,7 +151,7 @@ math-field {
 
 .library-title {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -139,7 +165,7 @@ math-field {
 .symbol-search {
   flex: 1;
   min-width: 60px;
-  max-width: 160px;
+  max-width: 140px;
   height: 22px;
   margin-left: auto;
   padding: 0 6px;
@@ -158,7 +184,7 @@ math-field {
 
 .symbol-grid {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   align-content: start;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
@@ -172,6 +198,16 @@ math-field {
 }
 
 .symbol-grid button,
+.global-group-label {
+  grid-column: 1 / -1;
+  padding: 6px 2px 2px;
+  color: #1f3d70;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 3px;
+}
+
 .matrix-row button {
   min-width: 0;
   min-height: 32px;

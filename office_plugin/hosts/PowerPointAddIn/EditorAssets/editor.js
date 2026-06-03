@@ -101,11 +101,7 @@ const GROUPS = [
       ["行列式", "matrix:vmatrix", "Determinant"],
       ["圆括号矩阵", "matrix:pmatrix", "Parenthesized matrix"],
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
-      ["连分数", "\\cfrac{#?}{#?}", "Continued fraction"],
-      ["增广矩阵", "\\left(\\begin{array}{#?|#?} #? \\\\ #? \\end{array}\\right)", "Augmented matrix"],
       ["\\operatorname{}", "\\operatorname{#?}", "Operator name"],
-      ["\\substack", "\\sum_{\\substack{#?\\\\#?}}", "Substack"],
-      ["\\sideset", "\\sideset{_{#?}}{^{#?}}\\sum", "Sideset"],
     ],
   },
   {
@@ -1004,6 +1000,7 @@ const tabs = document.getElementById("libraryTabs");
 const titleText = document.getElementById("libraryTitleText");
 const grid = document.getElementById("symbolGrid");
 const searchInput = document.getElementById("symbolSearch");
+const globalSearch = document.getElementById("globalSearch");
 
 function strings() {
   return locale.startsWith("zh") ? STRINGS.zh : STRINGS.en;
@@ -1134,6 +1131,37 @@ function matchItem(item, query) {
 
 searchInput.addEventListener("input", () => {
   if (_currentGroup) renderGrid(_currentGroup, searchInput.value);
+});
+
+function renderGlobalResults(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) { selectGroup(_currentGroup || GROUPS[0]); return; }
+  grid.className = "symbol-grid structures";
+  grid.replaceChildren();
+  for (const group of GROUPS) {
+    const hits = group.items.filter(item => matchItem(item, q));
+    if (!hits.length) continue;
+    const label = document.createElement("div");
+    label.className = "global-group-label";
+    label.textContent = groupTitle(group);
+    grid.appendChild(label);
+    for (const item of hits) {
+      if (group.structures && String(item[1]).startsWith("matrix:")) {
+        grid.appendChild(createMatrixControl(displayLabel(item), item[1].slice("matrix:".length)));
+        continue;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = displayLabel(item);
+      button.title = item[2] ? `${item[2]}\n${item[1]}` : item[1];
+      button.addEventListener("click", () => insertLatex(item[1]));
+      grid.appendChild(button);
+    }
+  }
+}
+
+globalSearch.addEventListener("input", () => {
+  renderGlobalResults(globalSearch.value);
 });
 
 function createMatrixControl(label, env) {
