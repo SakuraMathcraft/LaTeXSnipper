@@ -197,7 +197,6 @@ math-field {
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
 }
 
-.symbol-grid button,
 .global-group-label {
   grid-column: 1 / -1;
   padding: 6px 2px 2px;
@@ -208,6 +207,7 @@ math-field {
   margin-bottom: 3px;
 }
 
+.symbol-grid button,
 .matrix-row button {
   min-width: 0;
   min-height: 32px;
