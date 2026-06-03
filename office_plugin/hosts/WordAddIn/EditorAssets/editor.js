@@ -88,16 +88,16 @@ const GROUPS = [
       ["求和", "\\sum_{#?}^{#?} #?", "Summation"],
       ["积分", "\\int_{#?}^{#?} #?\\,d#?", "Integral"],
       ["极限", "\\lim_{#? \\to #?} #?", "Limit"],
+      ["乘积", "\\prod_{#?}^{#?} #?", "Product"],
+      ["二项式", "\\binom{#?}{#?}", "Binomial"],
       ["对齐", "\\begin{aligned} #? &= #? \\\\ #? &= #? \\end{aligned}", "Aligned equations"],
       ["分段", "matrix:cases", "Cases"],
       ["矩阵", "matrix:matrix", "Matrix"],
       ["方括号矩阵", "matrix:bmatrix", "Bracketed matrix"],
+      ["海森矩阵", "matrix:bmatrix", "Hessian matrix"],
       ["行列式", "matrix:vmatrix", "Determinant"],
       ["圆括号矩阵", "matrix:pmatrix", "Parenthesized matrix"],
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
-      ["乘积", "\\prod_{#?}^{#?} #?", "Product"],
-      ["二项式", "\\binom{#?}{#?}", "Binomial"],
-      ["海森", "\\mathbf{H} = \\begin{bmatrix} \\frac{\\partial^2 f}{\\partial x_i \\partial x_j} \\end{bmatrix}", "Hessian"],
     ],
   },
   {
@@ -649,7 +649,7 @@ const statusText = document.getElementById("statusText");
 const cancelButton = document.getElementById("cancelButton");
 const acceptButton = document.getElementById("acceptButton");
 const tabs = document.getElementById("libraryTabs");
-const title = document.getElementById("libraryTitle");
+const titleText = document.getElementById("libraryTitleText");
 const grid = document.getElementById("symbolGrid");
 const searchInput = document.getElementById("symbolSearch");
 
@@ -737,7 +737,7 @@ function selectGroup(group) {
     button.classList.toggle("active", button.dataset.group === group.id);
   }
 
-  title.textContent = groupTitle(group);
+  titleText.textContent = groupTitle(group);
   renderGrid(group, "");
 }
 
