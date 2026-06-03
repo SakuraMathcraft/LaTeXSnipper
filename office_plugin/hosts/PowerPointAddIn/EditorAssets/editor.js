@@ -97,6 +97,7 @@ const GROUPS = [
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
       ["乘积", "\\prod_{#?}^{#?} #?", "Product"],
       ["二项式", "\\binom{#?}{#?}", "Binomial"],
+      ["海森", "\\mathbf{H} = \\begin{bmatrix} \\frac{\\partial^2 f}{\\partial x_i \\partial x_j} \\end{bmatrix}", "Hessian"],
     ],
   },
   {
@@ -131,7 +132,6 @@ const GROUPS = [
       ["泰勒", "\\sum_{n=0}^{\\infty} \\frac{#?^{(n)}(#?)}{n!}(x-#?)^n", "Taylor expansion"],
       ["方向导数", "\\nabla_{\\mathbf{v}} f", "Directional derivative"],
       ["雅可比", "\\frac{\\partial(#?,\\ldots)}{\\partial(#?,\\ldots)}", "Jacobian"],
-      ["海森", "\\mathbf{H} = \\begin{bmatrix} \\frac{\\partial^2 f}{\\partial x_i \\partial x_j} \\end{bmatrix}", "Hessian"],
       ["链式法则", "\\frac{d}{dt}f(\\mathbf{r}(t)) = \\nabla f\\cdot\\mathbf{r}'(t)", "Chain rule"],
       ["全微分", "df = \\frac{\\partial f}{\\partial x}dx + \\frac{\\partial f}{\\partial y}dy", "Total differential"],
       ["隐函数", "\\frac{dy}{dx} = -\\frac{\\partial F/\\partial x}{\\partial F/\\partial y}", "Implicit function"],
@@ -514,6 +514,7 @@ const acceptButton = document.getElementById("acceptButton");
 const tabs = document.getElementById("libraryTabs");
 const title = document.getElementById("libraryTitle");
 const grid = document.getElementById("symbolGrid");
+const searchInput = document.getElementById("symbolSearch");
 
 function strings() {
   return locale.startsWith("zh") ? STRINGS.zh : STRINGS.en;
@@ -590,15 +591,26 @@ function insertMatrix(env, rows = 2, cols = 2) {
   syncSource();
 }
 
+let _currentGroup = null;
+
 function selectGroup(group) {
+  _currentGroup = group;
+  searchInput.value = "";
   for (const button of tabs.querySelectorAll("button")) {
     button.classList.toggle("active", button.dataset.group === group.id);
   }
 
   title.textContent = groupTitle(group);
+  renderGrid(group, "");
+}
+
+function renderGrid(group, query) {
   grid.className = group.structures ? "symbol-grid structures" : "symbol-grid";
   grid.replaceChildren();
+  const q = query.trim().toLowerCase();
   for (const item of group.items) {
+    if (q && !matchItem(item, q)) continue;
+
     if (group.structures && String(item[1]).startsWith("matrix:")) {
       grid.appendChild(createMatrixControl(displayLabel(item), item[1].slice("matrix:".length)));
       continue;
@@ -612,6 +624,16 @@ function selectGroup(group) {
     grid.appendChild(button);
   }
 }
+
+function matchItem(item, query) {
+  const label = displayLabel(item).toLowerCase();
+  const latex = item[1].toLowerCase();
+  return label.includes(query) || latex.includes(query);
+}
+
+searchInput.addEventListener("input", () => {
+  if (_currentGroup) renderGrid(_currentGroup, searchInput.value);
+});
 
 function createMatrixControl(label, env) {
   const isCases = env === "cases";

@@ -128,11 +128,32 @@ math-field {
   grid-row: 1;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  gap: 6px;
+  padding: 0 6px 0 10px;
   border-bottom: 1px solid var(--line);
   color: #1f3d70;
   font-size: 14px;
   font-weight: 600;
+}
+
+.symbol-search {
+  flex: 1;
+  min-width: 60px;
+  max-width: 160px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #f7f9fc;
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+}
+
+.symbol-search:focus {
+  border-color: var(--accent);
+  background: #fff;
 }
 
 .symbol-grid {
