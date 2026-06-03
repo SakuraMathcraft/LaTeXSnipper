@@ -262,8 +262,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "symbol-grid" in editor_html
     assert "flex-direction: column" in editor_css
     assert "border: 1px solid transparent" in editor_css
-    assert "calculus" in editor_js
-    assert "linear" in editor_js
+    assert "analysis:" in editor_js
+    assert "algebra:" in editor_js
     assert "probability" in editor_js
     assert editor_js.count("matrix:vmatrix") == 1
 
@@ -373,7 +373,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\\*,EditorAssets\\*"' in setup_text
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion' not in setup_text.replace('DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs', "")
     assert "<Link>icon.ico</Link>" not in (PLUGIN / "hosts" / "OleFormulaObject" / "LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj").read_text(encoding="utf-8")
-    assert 'ValueData: "672280"' in setup_text
+    assert 'ValueData: "706075"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "OLEMISC_STATIC" in native_text
@@ -381,7 +381,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)" in native_text
-    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return S_OK;" in native_text
+    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return OLEOBJ_S_CANNOT_DOVERB_NOW;" in native_text
     assert "*enumOleVerb = nullptr;" in native_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
