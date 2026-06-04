@@ -715,7 +715,6 @@ const GROUPS = [
       ["Sacks-Uhlenbeck", "\\text{harmonic maps exist after }\\alpha\\text{-energy approximation}", "Sacks-Uhlenbeck theorem"],
       ["Eells-Sampson", "K_N\\le0\\implies\\text{harmonic representative exists}", "Eells-Sampson theorem"],
       ["Huisken 单调性", "\\frac{d}{dt}\\int_{M_t}\\rho_{x_0,t_0}\\,d\\mu_t\\le0", "Huisken monotonicity formula"],
-      ["ℝℙⁿ", "\\mathbb{RP}^n", "Real projective space"],
     ],
   },
   {
@@ -1462,7 +1461,6 @@ const GROUPS = [
       ["D 膜", "X^i|_{\\partial\\Sigma}=x^i_0", "D-brane"],
       ["AdS/CFT", "Z_{\\mathrm{string}}[\\phi_0]=\\left\\langle e^{\\int \\phi_0\\mathcal O}\\right\\rangle_{\\mathrm{CFT}}", "AdS/CFT"],
       ["Einstein-Hilbert", "S=\\frac{1}{16\\pi G}\\int d^4x\\sqrt{-g}\\,R", "Einstein-Hilbert action"],
-      ["Planck 长度", "\\ell_P = \\sqrt{\\frac{\\hbar G}{c^3}}", "Planck length"],
     ],
   },
   {
