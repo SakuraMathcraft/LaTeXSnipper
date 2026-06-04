@@ -1578,6 +1578,7 @@ const GROUPS = [
 let mathfield = null;
 let locale = "zh";
 let mode = "insert";
+let submitting = false;
 let pendingInit = null;
 let libraryState = loadLibraryState();
 
@@ -1622,6 +1623,12 @@ function send(message) {
 
 function setStatus(text) {
   statusText.textContent = text || "";
+}
+
+function setSubmitting(value) {
+  submitting = Boolean(value);
+  acceptButton.disabled = submitting;
+  cancelButton.disabled = submitting;
 }
 
 function currentLatex() {
@@ -1882,6 +1889,10 @@ function buildLibrary() {
 }
 
 function accept() {
+  if (submitting) {
+    return;
+  }
+
   const latex = currentLatex();
   if (!latex) {
     setStatus(strings().latexRequired);
@@ -1893,7 +1904,6 @@ function accept() {
 
 function hideVirtualKeyboard() {
   window.mathVirtualKeyboard?.hide();
-  mathfield?.focus();
 }
 
 function configureText() {
@@ -1909,16 +1919,13 @@ function applyInit(payload) {
   mode = payload?.mode === "update" ? "update" : "insert";
   configureText();
   setLatex(payload?.latex || "");
-  mathfield?.focus();
 }
 
 async function bootstrap() {
   MathfieldElement.fontsDirectory = new URL("./vendor/fonts", window.location.href).href;
   mathfield = new MathfieldElement();
   mathfield.smartFence = true;
-  mathfield.smartMode = false;
   mathfield.mathVirtualKeyboardPolicy = "onfocus";
-  mathfield.defaultMode = "math";
   host.appendChild(mathfield);
   mathfield.addEventListener("input", syncSource);
   latexSource.addEventListener("input", () => {
@@ -1926,8 +1933,6 @@ async function bootstrap() {
     if (!isMathMlSource(source.trim())) {
       mathfield.setValue(source, { silenceNotifications: true });
     }
-
-    mathfield.focus();
   });
   cancelButton.addEventListener("click", () => send({ type: "cancel" }));
   acceptButton.addEventListener("click", accept);
@@ -1949,7 +1954,6 @@ async function bootstrap() {
     pendingInit = null;
     window.__latexSnipperPendingInit = null;
   }
-  mathfield.focus();
 }
 
 window.LaTeXSnipperEditor = {
@@ -1960,6 +1964,8 @@ window.LaTeXSnipperEditor = {
       pendingInit = null;
     }
   },
+  setStatus,
+  setSubmitting,
 };
 
 bootstrap().catch((error) => setStatus(String(error)));

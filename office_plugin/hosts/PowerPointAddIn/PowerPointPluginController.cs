@@ -20,6 +20,7 @@ public sealed class PowerPointPluginController : IDisposable
     private readonly PowerPointImageFileStore _imageFileStore;
     private readonly IFormulaRenderer _oleIntermediateRenderer;
     private readonly OlePresentationPipeline _olePresentationPipeline;
+    private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private float _loadedShapeLeft;
     private float _loadedShapeTop;
     private float _loadedShapeScale;
@@ -53,6 +54,60 @@ public sealed class PowerPointPluginController : IDisposable
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("ConnectedBridgeStatus"));
     }
 
+    public async Task<bool> TryRunCommandAsync(Func<CancellationToken, Task> command, CancellationToken cancellationToken)
+    {
+        if (command == null)
+        {
+            throw new ArgumentNullException(nameof(command));
+        }
+
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!await _commandGate.WaitAsync(0, cancellationToken).ConfigureAwait(true))
+        {
+            return false;
+        }
+
+        try
+        {
+            await command(cancellationToken).ConfigureAwait(true);
+            return true;
+        }
+        finally
+        {
+            _commandGate.Release();
+        }
+    }
+
+    public async Task<FormulaEditorSubmissionResult> TryAcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
+    {
+        try
+        {
+            bool acceptedCommand = await TryRunCommandAsync(
+                ct => AcceptEditorFormulaAsync(accepted, ct),
+                cancellationToken).ConfigureAwait(true);
+            if (!acceptedCommand)
+            {
+                string busyMessage = PowerPointAddInText.Get("WorkingStatus");
+                _statusSink.Post(PowerPointStatusKind.Info, busyMessage);
+                return FormulaEditorSubmissionResult.Rejected(busyMessage);
+            }
+
+            return FormulaEditorSubmissionResult.Accepted();
+        }
+        catch (OperationCanceledException)
+        {
+            string message = PowerPointAddInText.Get("CommandTimeoutStatus");
+            _statusSink.Post(PowerPointStatusKind.Error, message);
+            return FormulaEditorSubmissionResult.Rejected(message);
+        }
+        catch (Exception exc)
+        {
+            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            return FormulaEditorSubmissionResult.Rejected(exc.Message);
+        }
+    }
+
     public async Task WarmUpAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -67,7 +122,7 @@ public sealed class PowerPointPluginController : IDisposable
     {
         ThrowIfDisposed();
         _hasLoadedShapePosition = false;
-        FormulaMetadata draft = CreateMetadata(string.Empty);
+        FormulaMetadata draft = CreateEditorDraft();
         await _editorSession.OpenForInsertAsync(draft, cancellationToken);
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("EditorReadyStatus"));
     }
@@ -255,6 +310,18 @@ public sealed class PowerPointPluginController : IDisposable
             schemaVersion: 1);
     }
 
+    private static FormulaMetadata CreateEditorDraft()
+    {
+        return new FormulaMetadata(
+            new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
+            string.Empty,
+            FormulaDisplayMode.Display,
+            NumberingMode.None,
+            string.Empty,
+            RenderEngineKind.Image,
+            schemaVersion: 1);
+    }
+
     private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
@@ -298,6 +365,8 @@ public sealed class PowerPointPluginController : IDisposable
         {
             disposableRenderer.Dispose();
         }
+
+        _commandGate.Dispose();
     }
 
     private void ThrowIfDisposed()

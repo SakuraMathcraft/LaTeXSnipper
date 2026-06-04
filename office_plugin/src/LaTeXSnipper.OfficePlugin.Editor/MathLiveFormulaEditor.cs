@@ -18,7 +18,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
-    public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
+    public event Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? FormulaSubmitting;
 
     public event EventHandler? EditorCancelled;
 
@@ -69,7 +69,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         }
 
         _activeForm = new MathLiveFormulaEditorForm(_options);
-        _activeForm.FormulaAccepted += OnFormulaAccepted;
+        _activeForm.FormulaSubmitting += OnFormulaSubmittingAsync;
         _activeForm.EditorCancelled += OnEditorCancelled;
         _activeForm.EditorError += OnEditorError;
         _activeForm.FormClosed += OnFormClosed;
@@ -90,9 +90,12 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         }
     }
 
-    private void OnFormulaAccepted(object? sender, FormulaEditorAcceptedEventArgs e)
+    private Task<FormulaEditorSubmissionResult> OnFormulaSubmittingAsync(FormulaEditorAcceptedEventArgs e)
     {
-        FormulaAccepted?.Invoke(this, e);
+        Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? handler = FormulaSubmitting;
+        return handler == null
+            ? Task.FromResult(FormulaEditorSubmissionResult.Rejected("Formula submit handler is not connected."))
+            : handler(e);
     }
 
     private void OnFormClosed(object? sender, FormClosedEventArgs e)
@@ -102,7 +105,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
             return;
         }
 
-        _activeForm.FormulaAccepted -= OnFormulaAccepted;
+        _activeForm.FormulaSubmitting -= OnFormulaSubmittingAsync;
         _activeForm.EditorCancelled -= OnEditorCancelled;
         _activeForm.EditorError -= OnEditorError;
         _activeForm.FormClosed -= OnFormClosed;

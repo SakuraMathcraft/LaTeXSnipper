@@ -11,7 +11,6 @@ public sealed class PowerPointRibbonCallbacks
     private readonly PowerPointPluginController _controller;
     private readonly IPowerPointStatusSink _statusSink;
     private readonly Action? _showTaskPane;
-    private int _runningCommand;
     private CancellationTokenSource? _ocrCancellation;
     private int _ocrRunning;
 
@@ -81,12 +80,6 @@ public sealed class PowerPointRibbonCallbacks
 
     private void FireAndForgetSerial(Func<CancellationToken, Task> action)
     {
-        if (Interlocked.Exchange(ref _runningCommand, 1) == 1)
-        {
-            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
-            return;
-        }
-
         _ = RunSerialAsync(action);
     }
 
@@ -95,9 +88,16 @@ public sealed class PowerPointRibbonCallbacks
         try
         {
             using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
-            _statusSink.SetBusy(true);
-            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
-            await action(timeout.Token);
+            bool ran = await _controller.TryRunCommandAsync(async ct =>
+            {
+                _statusSink.SetBusy(true);
+                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
+                await action(ct).ConfigureAwait(true);
+            }, timeout.Token).ConfigureAwait(true);
+            if (!ran)
+            {
+                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
+            }
         }
         catch (OperationCanceledException)
         {
@@ -110,7 +110,6 @@ public sealed class PowerPointRibbonCallbacks
         finally
         {
             _statusSink.SetBusy(false);
-            Interlocked.Exchange(ref _runningCommand, 0);
         }
     }
 
@@ -120,7 +119,13 @@ public sealed class PowerPointRibbonCallbacks
         {
             _statusSink.SetOcrActive(true);
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OcrWaitingStatus"));
-            await _controller.RecognizeScreenshotAsync(cancellation.Token);
+            bool ran = await _controller.TryRunCommandAsync(
+                ct => _controller.RecognizeScreenshotAsync(ct),
+                cancellation.Token).ConfigureAwait(true);
+            if (!ran)
+            {
+                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
+            }
         }
         catch (OperationCanceledException)
         {

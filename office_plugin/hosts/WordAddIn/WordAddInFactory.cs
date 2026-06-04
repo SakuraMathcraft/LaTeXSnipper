@@ -33,21 +33,10 @@ public static class WordAddInFactory
             olePresentationPipeline,
             statusSink,
             optionsProvider);
-        editor.FormulaAccepted += async (_, accepted) =>
+        editor.FormulaSubmitting += async accepted =>
         {
-            try
-            {
-                using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
-                await controller.AcceptEditorFormulaAsync(accepted, timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                statusSink.Post(WordStatusKind.Error, WordAddInText.Get("CommandTimeoutStatus"));
-            }
-            catch (Exception exc)
-            {
-                statusSink.Post(WordStatusKind.Error, exc.Message);
-            }
+            using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
+            return await controller.TryAcceptEditorFormulaAsync(accepted, timeout.Token).ConfigureAwait(true);
         };
         editor.EditorCancelled += (_, _) => optionsProvider?.ResetFormulaDraft();
         editor.EditorError += (_, message) => statusSink.Post(WordStatusKind.Error, message);

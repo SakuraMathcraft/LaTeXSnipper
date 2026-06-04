@@ -11,6 +11,10 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed class WordPluginController : IDisposable
 {
+    private const double OleBaseFontPoints = 10.5;
+    private const double MinimumOleFontScale = 0.5;
+    private const double MaximumOleFontScale = 5;
+
     private readonly FormulaEditorSession _editorSession;
     private readonly BridgeClient _bridgeClient;
     private readonly IWordApplicationAdapter _wordAdapter;
@@ -18,6 +22,7 @@ public sealed class WordPluginController : IDisposable
     private readonly IWordFormulaOptionsProvider _optionsProvider;
     private readonly IFormulaRenderer _oleIntermediateRenderer;
     private readonly OlePresentationPipeline _olePresentationPipeline;
+    private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private FormulaMetadata? _currentFormula;
     private WordFormulaOptions? _pendingEditorInsertOptions;
     private bool _disposed;
@@ -45,6 +50,60 @@ public sealed class WordPluginController : IDisposable
         ThrowIfDisposed();
         FormulaMetadata metadata = await CreateMetadataFromDraftAsync(null, _optionsProvider.CurrentLatex, previous: null, cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
+    }
+
+    public async Task<bool> TryRunCommandAsync(Func<CancellationToken, Task> command, CancellationToken cancellationToken)
+    {
+        if (command == null)
+        {
+            throw new ArgumentNullException(nameof(command));
+        }
+
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!await _commandGate.WaitAsync(0, cancellationToken).ConfigureAwait(true))
+        {
+            return false;
+        }
+
+        try
+        {
+            await command(cancellationToken).ConfigureAwait(true);
+            return true;
+        }
+        finally
+        {
+            _commandGate.Release();
+        }
+    }
+
+    public async Task<FormulaEditorSubmissionResult> TryAcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
+    {
+        try
+        {
+            bool acceptedCommand = await TryRunCommandAsync(
+                ct => AcceptEditorFormulaAsync(accepted, ct),
+                cancellationToken).ConfigureAwait(true);
+            if (!acceptedCommand)
+            {
+                string busyMessage = WordAddInText.Get("WorkingStatus");
+                _statusSink.Post(WordStatusKind.Info, busyMessage);
+                return FormulaEditorSubmissionResult.Rejected(busyMessage);
+            }
+
+            return FormulaEditorSubmissionResult.Accepted();
+        }
+        catch (OperationCanceledException)
+        {
+            string message = WordAddInText.Get("CommandTimeoutStatus");
+            _statusSink.Post(WordStatusKind.Error, message);
+            return FormulaEditorSubmissionResult.Rejected(message);
+        }
+        catch (Exception exc)
+        {
+            _statusSink.Post(WordStatusKind.Error, exc.Message);
+            return FormulaEditorSubmissionResult.Rejected(exc.Message);
+        }
     }
 
     public async Task WarmUpAsync(CancellationToken cancellationToken)
@@ -221,6 +280,12 @@ public sealed class WordPluginController : IDisposable
             return;
         }
 
+        if (selected.DisplayMode != FormulaDisplayMode.Display)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("AutoNumberDisplayOnlyStatus"));
+            return;
+        }
+
         FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(0));
         await UpdateRenderedFormulaAsync(numbered, cancellationToken);
         await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
@@ -303,7 +368,7 @@ public sealed class WordPluginController : IDisposable
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 1.2
+            FontScale = GetOleFontScale()
         };
         RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
@@ -311,10 +376,17 @@ public sealed class WordPluginController : IDisposable
             cancellationToken);
     }
 
+    private double GetOleFontScale()
+    {
+        double fontSize = _wordAdapter.GetCurrentFontSizePoints();
+        double scale = fontSize / OleBaseFontPoints;
+        return Math.Max(MinimumOleFontScale, Math.Min(MaximumOleFontScale, scale));
+    }
+
     private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
     {
         _pendingEditorInsertOptions = options;
-        FormulaMetadata draft = CreateMetadataFromOptions(null, string.Empty, previous: null, options);
+        FormulaMetadata draft = CreateEditorDraftFromOptions(options);
         await _editorSession.OpenForInsertAsync(draft, cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("EditorReadyStatus"));
     }
@@ -394,6 +466,22 @@ public sealed class WordPluginController : IDisposable
             RenderEngineKind.Omml,
             schemaVersion: previous?.SchemaVersion ?? 1);
         return metadata;
+    }
+
+    private static FormulaMetadata CreateEditorDraftFromOptions(WordFormulaOptions options)
+    {
+        NumberingMode numberingMode = options.NumberingMode;
+        FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
+            ? FormulaDisplayMode.Display
+            : FormulaDisplayMode.Inline;
+        return new FormulaMetadata(
+            new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
+            string.Empty,
+            displayMode,
+            numberingMode,
+            options.ManualNumber.Trim(),
+            RenderEngineKind.Omml,
+            schemaVersion: 1);
     }
 
     private static FormulaMetadata CreateDefaultFormula(string latex)
@@ -483,6 +571,8 @@ public sealed class WordPluginController : IDisposable
         {
             disposableRenderer.Dispose();
         }
+
+        _commandGate.Dispose();
     }
 
     private void ThrowIfDisposed()
