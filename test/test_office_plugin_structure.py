@@ -264,8 +264,152 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "border: 1px solid transparent" in editor_css
     assert "analysis:" in editor_js
     assert "algebra:" in editor_js
+    assert "numberTheory:" in editor_js
+    assert 'id: "numberTheory"' in editor_js
+    assert "accents:" not in editor_js
+    assert 'id: "accents"' not in editor_js
+    assert "latexSnipperEditorLibraryState" in editor_js
+    assert "function loadLibraryState" in editor_js
+    assert "function saveLibraryState" in editor_js
+    assert "function restoreGridScroll" in editor_js
+    assert "preserveScroll" in editor_js
+    assert "preserveGlobalSearch" in editor_js
+    assert "selectGroup(GROUPS[0])" not in editor_js
+    assert '["\\\\bigl( \\\\bigr)"' not in editor_js
+    assert '"( ) 大"' not in editor_js
+    assert '"[ ] 大"' not in editor_js
+    assert '"|ₓ"' in editor_js
+    assert '"⏟"' in editor_js
+    assert '"⎛ ⎞"' in editor_js
+    assert '"⟪ ⟫"' in editor_js
+    assert '"≞"' in editor_js
+    assert '"≝"' in editor_js
+    assert '"≟"' in editor_js
+    assert '["\\\\overset{!}{=}"' not in editor_js
+    assert '["\\\\overset{\\\\text{def}}{=}"' not in editor_js
+    assert '["\\\\overset{?}{=}"' not in editor_js
+    assert '"𝒫(A)"' in editor_js
+    assert '"𝟙_A"' in editor_js
+    assert '"△"' in editor_js
+    assert '"幂集"' not in editor_js
+    assert '"指示函数"' not in editor_js
+    assert '"对称差"' not in editor_js
+    assert '"section": "数学分析 / 实分析 - 概念 / 性质"' in editor_js
+    assert '"section": "PDE / 变分法 / 微局部 - 定理 / 公式"' in editor_js
+    assert '"section": "群论 / 伽罗瓦理论 - 定理 / 公式"' in editor_js
+    assert '"section": "曲线曲面 / 黎曼几何 - 定理 / 公式"' in editor_js
+    assert '"section": "微分拓扑 / Morse 理论 / 流形拓扑 - 定理 / 公式"' in editor_js
+    assert '"section": "初等数论 - 定理 / 公式"' in editor_js
+    assert '"section": "解析数论 - 定理 / 公式"' in editor_js
+    assert '"section": "代数数论 / 算术几何 - 定理 / 公式"' in editor_js
+    assert '"section": "模形式 / 表示 - 定理 / 公式"' in editor_js
+    assert "function isSectionItem(item)" in editor_js
+    assert 'className = "symbol-section-label"' in editor_js
+    assert "if (isSectionItem(item)) return false;" in editor_js
+    assert "Stone-Weierstrass" in editor_js
+    assert "Mikhlin 乘子" in editor_js
+    assert "De Giorgi-Nash-Moser" in editor_js
+    assert "Runge 定理" in editor_js
+    assert "T(1) 定理" in editor_js
+    assert "Harnack 不等式" in editor_js
+    assert "微分中值定理" in editor_js
+    assert "第一积分中值" in editor_js
+    assert "Newton-Leibniz" in editor_js
+    assert "Galois 基本定理" in editor_js
+    assert "Peter-Weyl" in editor_js
+    assert "Auslander-Buchsbaum" in editor_js
+    assert "Grothendieck-Riemann-Roch" in editor_js
+    assert "线性无关" in editor_js
+    assert "基扩张定理" in editor_js
+    assert "Gauss-Bonnet-Chern" in editor_js
+    assert "Toponogov 比较" in editor_js
+    assert "Uhlenbeck 紧性" in editor_js
+    assert "点到直线距离" in editor_js
+    assert "曲面参数化" in editor_js
+    assert "Poincaré-Hopf" in editor_js
+    assert "庞加莱-霍普夫指标" in editor_js
+    assert "Atiyah-Hirzebruch 谱序列" in editor_js
+    assert "Adams-Novikov" in editor_js
+    assert "Kirby 演算" in editor_js
+    assert "Baum-Connes" in editor_js
+    assert "子空间拓扑" in editor_js
+    assert "路径提升" in editor_js
+    assert "二次互反律" in editor_js
+    assert "素数定理" in editor_js
+    assert "类数公式" in editor_js
+    assert "模性定理" in editor_js
+    assert "Langlands 对应" in editor_js
     assert "probability" in editor_js
+    assert '"section": "经典力学 / 分析力学"' in editor_js
+    assert '"section": "连续介质 / 流体 / 声学"' in editor_js
+    assert '"section": "电路 / 电磁学"' in editor_js
+    assert '"section": "光学 / 波动"' in editor_js
+    assert '"section": "热学 / 热力学 / 统计物理"' in editor_js
+    assert '"section": "量子力学 / 原子物理"' in editor_js
+    assert '"section": "狭义相对论 / 广义相对论 / 宇宙学"' in editor_js
+    assert '"section": "量子场论 / 粒子物理 / 规范理论"' in editor_js
+    assert '"section": "凝聚态 / 固体物理 / 材料"' in editor_js
+    assert '"section": "核物理 / 等离子体 / 天体物理"' in editor_js
+    assert '"section": "弦论 / 量子引力"' in editor_js
+    assert "Navier-Stokes" in editor_js
+    assert "Einstein 方程" in editor_js
+    assert "Yang-Mills" in editor_js
+    assert "AdS/CFT" in editor_js
+    assert '"section": "初等函数"' in editor_js
+    assert '"section": "Gamma / Beta / Zeta / 数论函数"' in editor_js
+    assert '"section": "Bessel / Airy / 正交多项式"' in editor_js
+    assert '"section": "超几何 / q-函数 / 模函数"' in editor_js
+    assert '"section": "阶跃 / 分布 / 病态函数"' in editor_js
+    assert '"Γ"' in editor_js
+    assert '"ζ"' in editor_js
+    assert '"Jν"' in editor_js
+    assert '"Ai"' in editor_js
+    assert '"₂F₁"' in editor_js
+    assert '"j(τ)"' in editor_js
+    assert '"W(x)"' in editor_js
+    assert '"R(x)"' in editor_js
+    assert '"D(x)"' in editor_js
+    assert '"C(x)"' in editor_js
+    assert '"多对数"' not in editor_js
+    assert '"Euler φ"' not in editor_js
+    functions_block = editor_js.split('id: "functions"', 1)[1].split("],\n  },", 1)[0]
+    assert "\\\\Gamma(z)=\\\\int_0^\\\\infty" in editor_js
+    assert "B(x,y)=\\\\int_0^1" in editor_js
+    assert "\\\\zeta(s)=\\\\sum_{n=1}^\\\\infty" in editor_js
+    assert "{}_2F_1(a,b;c;z)=\\\\sum" in editor_js
+    assert "\\\\wp(z;\\\\Lambda)=" in editor_js
+    assert "W(x)=\\\\sum_{n=0}^{\\\\infty}" in editor_js
+    assert "D(x)=\\\\begin{cases}1,&x\\\\in\\\\mathbb Q" in editor_js
+    assert "\\Gamma(#?)" not in functions_block
+    assert "B(#?,#?)" not in functions_block
+    assert "{}_2F_1(#?,#?;#?;#?)" not in functions_block
+    assert "W(#?)" not in functions_block
     assert editor_js.count("matrix:vmatrix") == 1
+    assert editor_css.count(".symbol-section-label") == 2
+
+    expected_math_sections = {
+        "analysis": ("调和分析 / Fourier 分析", "PDE / 变分法 / 微局部", "泛函分析 / 算子理论"),
+        "algebra": ("同调代数 / 范畴论", "表示论 / 李理论", "代数几何 / 非交换代数"),
+        "geometry": ("微分流形 / 张量几何", "辛几何 / 接触几何 / Poisson", "几何分析 / 全局分析 / 规范理论"),
+        "topology": ("同伦论 / 谱序列 / 稳定同伦", "纤维丛 / 示性类 / K 理论", "低维拓扑 / 纽结 / 几何拓扑"),
+        "numberTheory": ("初等数论", "解析数论", "代数数论 / 算术几何", "模形式 / 表示"),
+    }
+    minimum_section_counts = {
+        "analysis": 12,
+        "algebra": 12,
+        "geometry": 12,
+        "topology": 12,
+        "numberTheory": 8,
+    }
+    for group_id, expected_sections in expected_math_sections.items():
+        group_block = editor_js.split(f'id: "{group_id}"', 1)[1].split("],\n  },", 1)[0]
+        for section in expected_sections:
+            assert section in group_block
+        assert group_block.count('"section": "') >= minimum_section_counts[group_id]
+
+    power_point_root = PLUGIN / "hosts" / "PowerPointAddIn"
+    assert editor_js == (power_point_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
+    assert editor_css == (power_point_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
 
     help_html = (host_root / "EditorAssets" / "help.html").read_text(encoding="utf-8")
     assert "LaTeXSnipper Office 插件" in help_html
@@ -373,7 +517,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\\*,EditorAssets\\*"' in setup_text
     assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion' not in setup_text.replace('DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs', "")
     assert "<Link>icon.ico</Link>" not in (PLUGIN / "hosts" / "OleFormulaObject" / "LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj").read_text(encoding="utf-8")
-    assert 'ValueData: "229395"' in setup_text
+    assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "OLEMISC_STATIC" in native_text
@@ -381,7 +525,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)" in native_text
-    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return OLEOBJ_S_CANNOT_DOVERB_NOW;" in native_text
+    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return S_OK;" in native_text
     assert "*enumOleVerb = nullptr;" in native_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
@@ -512,4 +656,3 @@ def test_office_plugin_build_outputs_are_ignored() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "office_plugin/**/bin/" in gitignore
     assert "office_plugin/**/obj/" in gitignore
-

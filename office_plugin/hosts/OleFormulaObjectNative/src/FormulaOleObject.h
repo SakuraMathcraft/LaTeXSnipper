@@ -14,7 +14,6 @@ class FormulaOleObject final
     , public IOleCache
     , public IExternalConnection
     , public IPersistStorage
-    , public IOleInPlaceObject
 {
 public:
     FormulaOleObject();
@@ -85,15 +84,6 @@ public:
     STDMETHOD(Save)(IStorage* storage, BOOL sameAsLoad) override;
     STDMETHOD(SaveCompleted)(IStorage* storage) override;
     STDMETHOD(HandsOffStorage)() override;
-
-    // IOleWindow
-    STDMETHOD(GetWindow)(HWND* hwnd) override;
-    STDMETHOD(ContextSensitiveHelp)(BOOL enterMode) override;
-    // IOleInPlaceObject
-    STDMETHOD(InPlaceDeactivate)() override;
-    STDMETHOD(UIDeactivate)() override;
-    STDMETHOD(SetObjectRects)(LPCRECT positionRect, LPCRECT clipRect) override;
-    STDMETHOD(ReactivateAndUndo)() override;
 
 private:
     void NotifyPresentationChanged();

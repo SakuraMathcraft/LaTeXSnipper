@@ -175,10 +175,6 @@ STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
     {
         *object = static_cast<IRunnableObject*>(this);
     }
-    else if (iid == IID_IOleWindow || iid == IID_IOleInPlaceObject)
-    {
-        *object = static_cast<IOleInPlaceObject*>(this);
-    }
     else if (iid == IID_IOleCache)
     {
         *object = static_cast<IOleCache*>(this);
@@ -281,7 +277,7 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
 STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
-    return OLEOBJ_S_CANNOT_DOVERB_NOW;
+    return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
@@ -432,39 +428,6 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
 }
 
 STDMETHODIMP FormulaOleObject::SetColorScheme(LOGPALETTE*)
-{
-    return S_OK;
-}
-
-STDMETHODIMP FormulaOleObject::GetWindow(HWND* hwnd)
-{
-    if (hwnd == nullptr) return E_POINTER;
-    *hwnd = nullptr;
-    return E_NOTIMPL;
-}
-
-STDMETHODIMP FormulaOleObject::ContextSensitiveHelp(BOOL)
-{
-    return S_OK;
-}
-
-STDMETHODIMP FormulaOleObject::InPlaceDeactivate()
-{
-    WriteNativeOleLog(L"FormulaOleObject InPlaceDeactivate.");
-    return S_OK;
-}
-
-STDMETHODIMP FormulaOleObject::UIDeactivate()
-{
-    return S_OK;
-}
-
-STDMETHODIMP FormulaOleObject::SetObjectRects(LPCRECT, LPCRECT)
-{
-    return S_OK;
-}
-
-STDMETHODIMP FormulaOleObject::ReactivateAndUndo()
 {
     return S_OK;
 }
@@ -751,7 +714,7 @@ STDMETHODIMP FormulaOleObject::Run(LPBINDCTX)
 STDMETHODIMP_(BOOL) FormulaOleObject::IsRunning()
 {
     WriteNativeOleLog(L"FormulaOleObject IsRunning.");
-    return FALSE;
+    return TRUE;
 }
 
 STDMETHODIMP FormulaOleObject::LockRunning(BOOL lock, BOOL)

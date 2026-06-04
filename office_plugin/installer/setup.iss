@@ -337,9 +337,9 @@ Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
   ValueType: string; ValueData: "{app}\OleFormulaObject\x64\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey; Check: IsWin64
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
-  ValueType: string; ValueData: "229395"; Flags: uninsdeletekey; Check: IsWin64
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey; Check: IsWin64
 Root: HKLM64; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
-  ValueType: string; ValueData: "229395"; Flags: uninsdeletekey; Check: IsWin64
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey; Check: IsWin64
 
 ; ===== OLE formula object, 32-bit Office =====
 Root: HKLM32; Subkey: "Software\Classes\LaTeXSnipper.Formula"; \
@@ -365,9 +365,9 @@ Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\DefaultIcon"; \
   ValueType: string; ValueData: "{app}\OleFormulaObject\x86\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll,0"; Flags: uninsdeletekey
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus"; \
-  ValueType: string; ValueData: "229395"; Flags: uninsdeletekey
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey
 Root: HKLM32; Subkey: "Software\Classes\CLSID\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}\MiscStatus\1"; \
-  ValueType: string; ValueData: "229395"; Flags: uninsdeletekey
+  ValueType: string; ValueData: "672280"; Flags: uninsdeletekey
 
 [Run]
 ; Trust the self-signed VSTO manifest certificate.
