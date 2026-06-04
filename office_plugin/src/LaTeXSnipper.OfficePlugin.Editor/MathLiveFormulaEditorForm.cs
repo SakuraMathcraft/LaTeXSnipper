@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -14,9 +15,15 @@ namespace LaTeXSnipper.OfficePlugin.Editor;
 
 internal sealed class MathLiveFormulaEditorForm : Form
 {
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
     private readonly MathLiveFormulaEditorOptions _options;
     private readonly WebView2 _webView;
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
+    private readonly IntPtr _ownerWindow;
     private FormulaMetadata? _currentInitialFormula;
     private bool _currentUpdateMode;
     private bool _initializing;
@@ -30,6 +37,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
     public MathLiveFormulaEditorForm(MathLiveFormulaEditorOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        // Capture the foreground window (Office host) so we can restore focus later
+        try { _ownerWindow = GetForegroundWindow(); } catch { _ownerWindow = IntPtr.Zero; }
         Text = "LaTeXSnipper";
         Width = 1180;
         Height = 760;
@@ -347,6 +356,16 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
 
         Hide();
+        if (_ownerWindow != IntPtr.Zero)
+        {
+            try
+            {
+                SetForegroundWindow(_ownerWindow);
+            }
+            catch
+            {
+            }
+        }
     }
 }
 #endif
