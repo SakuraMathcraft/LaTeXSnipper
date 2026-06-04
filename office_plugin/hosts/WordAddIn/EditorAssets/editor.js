@@ -1028,7 +1028,7 @@ const GROUPS = [
       ["⋂", "\\bigcap"], ["⋃", "\\bigcup"], ["⋀", "\\bigwedge"], ["⋁", "\\bigvee"],
       ["⨁", "\\bigoplus"], ["⨂", "\\bigotimes"], ["⨆", "\\bigsqcup"], ["⨄", "\\biguplus"],
       ["⨉", "\\bigtimes"], ["∐", "\\amalg"],
-      ["⨍", "\\intsl"],
+      ["⨍", "\\intsl"], ["⨀", "\\bigodot"],
     ],
   },
   {
