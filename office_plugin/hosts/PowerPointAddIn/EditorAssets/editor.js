@@ -140,6 +140,8 @@ const GROUPS = [
       ["x̄", "\\overline{#?}", "Overline"],
       ["x⃗", "\\overrightarrow{#?}", "overrightarrow"],
       ["x⃖", "\\overleftarrow{#?}", "overleftarrow"],
+      ["⎰", "\\lmoustache", "Left moustache"],
+      ["⎱", "\\rmoustache", "Right moustache"],
     ],
   },
   {
