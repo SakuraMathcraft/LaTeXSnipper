@@ -101,7 +101,6 @@ const GROUPS = [
       ["行列式", "matrix:vmatrix", "Determinant"],
       ["圆括号矩阵", "matrix:pmatrix", "Parenthesized matrix"],
       ["花括号矩阵", "matrix:Bmatrix", "Braced matrix"],
-      ["\\text{}", "\\text{#?}", "Text mode"],
     ],
   },
   {
