@@ -1017,6 +1017,7 @@ const GROUPS = [
       ["′", "^{\\prime}"], ["″", "^{\\prime\\prime}"], ["‴", "^{\\prime\\prime\\prime}"],
       ["≀", "\\wr"], ["⋆", "\\star"],
       ["∔", "\\dotplus"], ["⋉", "\\ltimes"], ["⋊", "\\rtimes"],
+      ["⊝", "\\circleddash"],
     ],
   },
   {
@@ -1058,6 +1059,8 @@ const GROUPS = [
       ["↚", "\\nleftarrow"], ["↛", "\\nrightarrow"],
       ["⇍", "\\nLeftarrow"], ["⇏", "\\nRightarrow"],
       ["↮", "\\nleftrightarrow"],
+      ["↕", "\\updownarrow"], ["⇕", "\\Updownarrow"],
+      ["⟰", "\\Uparrow"], ["⟱", "\\Downarrow"],
     ],
   },
   {
