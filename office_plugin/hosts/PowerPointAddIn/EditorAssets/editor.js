@@ -1020,6 +1020,10 @@ const GROUPS = [
       ["≀", "\\wr"], ["⋆", "\\star"],
       ["∔", "\\dotplus"], ["⋉", "\\ltimes"], ["⋊", "\\rtimes"],
       ["⊝", "\\circleddash"],
+      ["⊼", "\\barwedge"], ["⊻", "\\veebar"],
+      ["⊠", "\\boxtimes"],
+      ["⋋", "\\leftthreetimes"], ["⋌", "\\rightthreetimes"],
+      ["⋏", "\\curlywedge"], ["⋎", "\\curlyvee"],
     ],
   },
   {
@@ -1063,6 +1067,10 @@ const GROUPS = [
       ["↮", "\\nleftrightarrow"],
       ["↕", "\\updownarrow"], ["⇕", "\\Updownarrow"],
       ["⟰", "\\Uparrow"], ["⟱", "\\Downarrow"],
+      ["⇚", "\\Lleftarrow"], ["⇛", "\\Rrightarrow"],
+      ["↞", "\\twoheadleftarrow"],
+      ["↰", "\\Lsh"], ["↱", "\\Rsh"],
+      ["↭", "\\leftrightsquigarrow"],
     ],
   },
   {
