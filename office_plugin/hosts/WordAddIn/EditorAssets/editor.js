@@ -1081,6 +1081,8 @@ const GROUPS = [
       ["|A∪B|", "|A\\cup B| = |A|+|B|-|A\\cap B|", "Inclusion-exclusion"],
       ["𝔠", "\\mathfrak{c} = 2^{\\aleph_0}", "Continuum"],
       ["⊤", "\\top"], ["⊥", "\\bot"],
+      ["⋐", "\\Subset", "Double subset"],
+      ["⋑", "\\Supset", "Double superset"],
     ],
   },
   {
