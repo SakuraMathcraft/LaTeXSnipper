@@ -102,28 +102,24 @@ public static class WordOmmlDocumentBuilder
     private static string BuildNumberedDisplayBody(string omml, FormulaMetadata metadata, WordNumberPlacement numberPlacement)
     {
         string equationId = metadata.Identity.EquationId;
-        string numberCell =
-            "<w:tc><w:tcPr><w:tcW w:w=\"750\" w:type=\"pct\"/><w:vAlign w:val=\"center\"/></w:tcPr><w:p><w:pPr>" + ParagraphSpacing() + "<w:jc w:val=\"" + (numberPlacement == WordNumberPlacement.Left ? "left" : "right") + "\"/></w:pPr>" +
-            WrapNumberContentControl(WordFormulaMetadataStore.BuildNumberTag(equationId), WordFormulaMetadataStore.BuildNumberAlias(equationId), metadata.NumberText) +
-            "</w:p></w:tc>";
-        string blankCell = "<w:tc><w:tcPr><w:tcW w:w=\"750\" w:type=\"pct\"/><w:vAlign w:val=\"center\"/></w:tcPr><w:p><w:pPr>" + ParagraphSpacing() + "</w:pPr></w:p></w:tc>";
+        string numberControl = WrapNumberContentControl(
+            WordFormulaMetadataStore.BuildNumberTag(equationId),
+            WordFormulaMetadataStore.BuildNumberAlias(equationId),
+            metadata.NumberText);
+        string equationControl = WrapEquationContentControl(omml, metadata, inlineMath: true);
+        string leftNumber = numberPlacement == WordNumberPlacement.Left ? numberControl : string.Empty;
+        string rightNumber = numberPlacement == WordNumberPlacement.Right ? numberControl : string.Empty;
         return
-            "<w:tbl><w:tblPr>" +
-            "<w:tblW w:w=\"5000\" w:type=\"pct\"/>" +
-            "<w:jc w:val=\"center\"/>" +
-            "<w:tblInd w:w=\"0\" w:type=\"dxa\"/>" +
-            "<w:tblLayout w:type=\"fixed\"/>" +
-            "<w:tblBorders><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/><w:insideH w:val=\"nil\"/><w:insideV w:val=\"nil\"/></w:tblBorders>" +
-            "<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar>" +
-            "</w:tblPr>" +
-            "<w:tblGrid><w:gridCol w:w=\"1500\"/><w:gridCol w:w=\"7000\"/><w:gridCol w:w=\"1500\"/></w:tblGrid>" +
-            "<w:tr><w:trPr><w:trHeight w:val=\"0\" w:hRule=\"auto\"/></w:trPr>" +
-            (numberPlacement == WordNumberPlacement.Left ? numberCell : blankCell) +
-            "<w:tc><w:tcPr><w:tcW w:w=\"3500\" w:type=\"pct\"/><w:vAlign w:val=\"center\"/></w:tcPr><w:p><w:pPr>" + ParagraphSpacing() + "<w:jc w:val=\"center\"/></w:pPr>" +
-            WrapEquationContentControl(omml, metadata, inlineMath: true) +
-            "</w:p></w:tc>" +
-            (numberPlacement == WordNumberPlacement.Left ? blankCell : numberCell) +
-            "</w:tr></w:tbl>";
+            "<w:p><w:pPr>" + ParagraphSpacing() +
+            "<w:jc w:val=\"left\"/>" +
+            "<w:tabs><w:tab w:val=\"center\" w:pos=\"4680\"/><w:tab w:val=\"right\" w:pos=\"9360\"/></w:tabs>" +
+            "</w:pPr>" +
+            leftNumber +
+            "<w:r><w:tab/></w:r>" +
+            equationControl +
+            (numberPlacement == WordNumberPlacement.Right ? "<w:r><w:tab/></w:r>" : string.Empty) +
+            rightNumber +
+            "</w:p>";
     }
 
     private static string WrapEquationContentControl(string omml, FormulaMetadata metadata, bool inlineMath)

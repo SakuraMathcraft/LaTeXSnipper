@@ -68,6 +68,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").is_file()
     assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").is_file()
     assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaEditorAcceptedEventArgs.cs").is_file()
+    assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaEditorSubmissionResult.cs").is_file()
     assert (host_root / "EditorAssets" / "editor.html").is_file()
     assert (host_root / "EditorAssets" / "taskpane.html").is_file()
     assert (host_root / "EditorAssets" / "taskpane.css").is_file()
@@ -77,6 +78,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     bridge_client = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Bridge" / "BridgeClient.cs").read_text(encoding="utf-8")
     assert "http://127.0.0.1:28765/" in factory
     assert "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN" in factory
+    assert "FormulaSubmitting" in factory
+    assert "FormulaAccepted" not in factory
+    assert "TryAcceptEditorFormulaAsync" in factory
     assert "ConfigAsync" in bridge_client
     assert "EnsureConfiguredAsync" in bridge_client
     assert "https://localhost:8765/" not in factory
@@ -148,23 +152,35 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LoadAllManagedFormulasAsync" not in adapter
     assert "MoveSelectionAfterInlineControl" in adapter
     assert "MoveSelectionAfterDisplayParagraph" in adapter
-    assert "MoveSelectionAfterTable" in adapter
+    assert "MoveSelectionAfterTable" not in adapter
     assert "MoveSelectionAfterContentControl" in adapter
     assert "TryMoveSelectionOutsideFormula" in adapter
     assert "RangeTouchesManagedFormula" in adapter
     assert "Selection.SetRange" in adapter
     assert "ExecuteWithScreenUpdatingSuspended" in adapter
     assert "ResolveInsertionTargetRange" in adapter
-    assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" in adapter
-    assert "TryGetNumberedTableFromPreviousParagraph" in adapter
-    assert "TryGetNumberedTableBeforeParagraph" in adapter
+    assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" not in adapter
+    assert "TryGetNumberedTableFromPreviousParagraph" not in adapter
+    assert "TryGetNumberedTableBeforeParagraph" not in adapter
     assert "CreateInsertionRangeAfterNumberedTable" not in adapter
     assert "IsInsideManagedContent" not in adapter
-    assert "TypeParagraph" in adapter
+    assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" in adapter
     assert "GetContainingParagraphRange(control)" in adapter
-    assert "NormalizeNumberedTable" in adapter
+    assert "NormalizeNumberedTable" not in adapter
+    assert "ApplyNumberedParagraphLayout" in adapter
+    assert "TabStops.Add" in adapter
+    assert "ClearParagraphContent(paragraphRange)" in adapter
+    assert "ReplaceParagraphWithNumberedFormula(control, ooxml)" in adapter
+    assert "paragraphRange.Delete()" in adapter
+    assert "InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata)" in adapter
+    assert "return CreateDocumentRange(insertionPoint, insertionPoint)" in adapter
+    assert "ApplyNumberedOleInlineShapeBaseline" in adapter
+    assert "DeleteNumberedParagraphBlock" in adapter
+    assert "GetCurrentFontSizePoints" in adapter
+    assert "ApplyOleInlineShapeBaseline" in adapter
+    assert "inlineShape.Range.Font.Position = -baseline" in adapter
     assert "MoveSelectionAfterDisplayRange" not in adapter
     assert "OnUpdateSelected" not in callbacks
     assert "OnScreenshotOcr" in callbacks
@@ -176,6 +192,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "CancelScreenshotOcr" in callbacks
     assert "CancelScreenshotOcrAsync" in callbacks
     assert "RunScreenshotOcrAsync" in callbacks
+    assert "TryRunCommandAsync" in callbacks
+    assert "_runningCommand" not in callbacks
     assert "OcrWaitingStatus" in callbacks
     assert "OcrRecognizingStatus" in addin_text
     assert "OcrCanceledStatus" in callbacks
@@ -209,21 +227,34 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "width: max-content" in taskpane_css
     assert "min-height: 44px" in taskpane_css
     assert "CreateDefaultLatex" in controller
+    assert "CreateEditorDraftFromOptions" in controller
+    assert "AutoNumberDisplayOnlyStatus" in controller
+    assert "selected.DisplayMode != FormulaDisplayMode.Display" in controller
     assert "CancelScreenshotOcrAsync" in controller
     assert "BridgeRecognitionProgress.RunScreenshotOcrAsync" in controller
     assert "InsertInlineAsync" in controller
     assert "InsertDisplayAsync" in controller
     assert "InsertNumberedAsync" in controller
     assert "OpenEditorForInsertAsync" in controller
+    assert "GetOleFontScale" in controller
+    assert "GetCurrentFontSizePoints" in controller
+    assert "FontScale = 1.2" not in controller
     assert "_pendingEditorInsertOptions" in controller
     assert "ShowSettingsAsync" in controller
     assert "UpdateDraftIfOpenAsync" in controller
+    assert "SemaphoreSlim _commandGate" in controller
+    assert "TryRunCommandAsync" in controller
+    assert "TryAcceptEditorFormulaAsync" in controller
+    assert "WaitAsync(0" in controller
     assert "OpenEditorAsync" not in controller
     assert "OfficePluginHelp.Open" in controller
     assert "RenumberAutomaticFormulasAsync" in controller
     assert "ResetDraftState" in controller
     assert "ApplyFormulaMetadata(metadata" not in controller
     assert "e^{i\\\\pi}+1=0" in controller
+    open_editor_method = controller.split("private async Task OpenEditorForInsertAsync", 1)[1].split("private async Task InsertAndRenumberIfNeededAsync", 1)[0]
+    assert "CreateDefaultLatex" not in open_editor_method
+    assert "string.Empty" in controller.split("private static FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static FormulaMetadata CreateDefaultFormula", 1)[0]
     omml_builder = (host_root / "WordOmmlDocumentBuilder.cs").read_text(encoding="utf-8")
     assert "BuildFlatOpcDocument(string omml, FormulaMetadata metadata" in omml_builder
     assert "NormalizeOmmlForInlineRun" in omml_builder
@@ -231,11 +262,22 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "w:vanish" not in omml_builder
     assert "WrapNumberContentControl" in omml_builder
     assert "WordNumberPlacement" in omml_builder
+    assert "<w:tbl" not in omml_builder
+    assert "<w:tabs>" in omml_builder
     assert "<w:r><w:t>" in omml_builder
     assert "</m:t></m:r></m:oMath>" not in omml_builder
     assert "icon.ico" in project_text
     shared_editor_form = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
+    shared_editor = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
     assert "_options.Icon" in shared_editor_form
+    assert "FormulaSubmitting" in shared_editor
+    assert "FormulaAccepted" not in shared_editor
+    assert "SetSubmittingAsync(true)" in shared_editor_form
+    assert "SetSubmittingAsync(false)" in shared_editor_form
+    assert "TrySetSubmittingAsync(false)" in shared_editor_form
+    assert "ExecuteEditorScriptAsync" in shared_editor_form
+    assert "if (InvokeRequired)" in shared_editor_form
+    assert "FormulaEditorSubmissionResult" in shared_editor_form
     assert "WordPluginIcon.Load" in factory
     assert "WordPluginIcon.Load" in (host_root / "OfficePluginHelp.cs").read_text(encoding="utf-8")
     settings_window = (host_root / "WordSettingsWindow.cs").read_text(encoding="utf-8")
@@ -252,10 +294,27 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     editor_css = (host_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
     assert "displayMode" not in editor_html
     assert "display: true" in editor_js
+    assert "let submitting = false" in editor_js
+    assert "function setSubmitting" in editor_js
+    assert "acceptButton.disabled = submitting" in editor_js
+    assert "cancelButton.disabled = submitting" in editor_js
+    assert "if (submitting)" in editor_js
+    assert "setStatus," in editor_js
+    assert "setSubmitting," in editor_js
     assert 'event.key === "Enter"' in editor_js
     assert "!event.ctrlKey" in editor_js
     assert 'event.key === "Escape"' in editor_js
+    assert "mathfield.defaultMode" not in editor_js
+    assert "mathfield.smartMode = false" not in editor_js
     assert "mathVirtualKeyboard?.hide()" in editor_js
+    apply_init_block = editor_js.split("function applyInit", 1)[1].split("async function bootstrap", 1)[0]
+    assert "mathfield?.focus()" not in apply_init_block
+    bootstrap_tail = editor_js.split("if (pendingInit || window.__latexSnipperPendingInit)", 1)[1].split("}", 1)[0]
+    assert "mathfield.focus()" not in bootstrap_tail
+    latex_source_handler = editor_js.split('latexSource.addEventListener("input"', 1)[1].split('cancelButton.addEventListener("click"', 1)[0]
+    assert "mathfield.focus()" not in latex_source_handler
+    hide_keyboard = editor_js.split("function hideVirtualKeyboard()", 1)[1].split("function configureText()", 1)[0]
+    assert "mathfield.focus()" not in hide_keyboard
     escape_block = editor_js.split('if (event.key === "Escape") {', 1)[1].split('if (event.key === "Enter"', 1)[0]
     assert "hideVirtualKeyboard();" in escape_block
     assert 'send({ type: "cancel" })' not in escape_block
@@ -408,6 +467,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
         assert group_block.count('"section": "') >= minimum_section_counts[group_id]
 
     power_point_root = PLUGIN / "hosts" / "PowerPointAddIn"
+    ppt_controller = (power_point_root / "PowerPointPluginController.cs").read_text(encoding="utf-8")
+    assert "CreateEditorDraft" in ppt_controller
+    insert_formula_method = ppt_controller.split("public async Task InsertFormulaAsync", 1)[1].split("public async Task InsertFormulaFromTaskPaneAsync", 1)[0]
+    assert "DefaultLatex" not in insert_formula_method
     assert editor_js == (power_point_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
     assert editor_css == (power_point_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
 
@@ -570,6 +633,11 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Compatibility PNG" not in help_html
         assert "PNG image insertion" in help_html
         assert "side pane is not an update entry point" in help_html
+        assert "Ctrl+Enter keeps its MathLive line-break behavior" in help_html
+        assert "Esc does not close the editor" in help_html
+        assert "editor submissions are serialized with Office commands" in help_html
+        assert "Numbered formulas do not use Word tables" in help_html
+        assert "Auto Number only applies to unnumbered display equations" in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
         assert "Office 2024 / 2021 / 2019" in help_html
         assert "Office LTSC 2024 / 2021" in help_html
@@ -607,8 +675,13 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
         assert "public async Task WarmUpAsync(CancellationToken cancellationToken)" in controller
         assert "await _editorSession.WarmUpAsync(cancellationToken);" in controller
         assert "await mathJaxRenderer.WarmUpAsync(cancellationToken);" in controller
+        assert "SemaphoreSlim _commandGate" in controller
+        assert "TryRunCommandAsync" in controller
+        assert "TryAcceptEditorFormulaAsync" in controller
+        assert "WaitAsync(0" in controller
         assert "public void Dispose()" in controller
         assert "_editorSession.Dispose();" in controller
+        assert "_commandGate.Dispose();" in controller
     for vsto in (word_vsto, power_point_vsto):
         assert "_ = WarmUpControllerAsync(controller, statusPaneControl);" in vsto
         assert "await controller.WarmUpAsync(timeout.Token);" in vsto

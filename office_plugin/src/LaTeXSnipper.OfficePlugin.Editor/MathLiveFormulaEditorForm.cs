@@ -51,7 +51,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         FormClosing += OnFormClosing;
     }
 
-    public event EventHandler<FormulaEditorAcceptedEventArgs>? FormulaAccepted;
+    public event Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? FormulaSubmitting;
 
     public event EventHandler? EditorCancelled;
 
@@ -161,30 +161,43 @@ internal sealed class MathLiveFormulaEditorForm : Form
             "if(window.LaTeXSnipperEditor){window.LaTeXSnipperEditor.init(payload);}" +
             "else{window.__latexSnipperPendingInit=payload;}" +
             "})(" + payload + ");";
-        await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
+        await ExecuteEditorScriptAsync(script).ConfigureAwait(true);
     }
 
-    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
-        if (message == null || !message.TryGetValue("type", out object rawType))
+        try
         {
-            return;
-        }
+            Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
+            if (message == null || !message.TryGetValue("type", out object rawType))
+            {
+                return;
+            }
 
-        string type = Convert.ToString(rawType) ?? string.Empty;
-        if (type == "cancel")
+            string type = Convert.ToString(rawType) ?? string.Empty;
+            if (type == "cancel")
+            {
+                NotifyEditorCancelled();
+                Commit(DialogResult.Cancel);
+                return;
+            }
+
+            if (type != "accept")
+            {
+                return;
+            }
+
+            await SubmitAcceptedFormulaAsync(message).ConfigureAwait(true);
+        }
+        catch (Exception exc)
         {
-            NotifyEditorCancelled();
-            Commit(DialogResult.Cancel);
-            return;
+            EditorError?.Invoke(this, exc.Message);
+            await TrySetSubmittingAsync(false).ConfigureAwait(true);
         }
+    }
 
-        if (type != "accept")
-        {
-            return;
-        }
-
+    private async Task SubmitAcceptedFormulaAsync(Dictionary<string, object> message)
+    {
         string latex = message.TryGetValue("latex", out object rawLatex) ? Convert.ToString(rawLatex) ?? string.Empty : string.Empty;
         if (string.IsNullOrWhiteSpace(latex))
         {
@@ -195,8 +208,93 @@ internal sealed class MathLiveFormulaEditorForm : Form
             !message.TryGetValue("display", out object rawDisplay) ||
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
         AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display);
-        FormulaAccepted?.Invoke(this, AcceptedFormula);
-        Commit(DialogResult.OK);
+        await SetSubmittingAsync(true).ConfigureAwait(true);
+        FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
+        if (result.Success)
+        {
+            await SetSubmittingAsync(false).ConfigureAwait(true);
+            Commit(DialogResult.OK);
+            return;
+        }
+
+        await SetSubmittingAsync(false).ConfigureAwait(true);
+        await SetStatusAsync(result.Message).ConfigureAwait(true);
+    }
+
+    private Task<FormulaEditorSubmissionResult> SubmitFormulaAsync(FormulaEditorAcceptedEventArgs accepted)
+    {
+        Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? handler = FormulaSubmitting;
+        return handler == null
+            ? Task.FromResult(FormulaEditorSubmissionResult.Rejected("Formula submit handler is not connected."))
+            : handler(accepted);
+    }
+
+    private async Task SetSubmittingAsync(bool submitting)
+    {
+        if (!_webViewReady)
+        {
+            return;
+        }
+
+        string payload = _serializer.Serialize(submitting);
+        await ExecuteEditorScriptAsync(
+            "window.LaTeXSnipperEditor&&window.LaTeXSnipperEditor.setSubmitting(" + payload + ");").ConfigureAwait(true);
+    }
+
+    private async Task TrySetSubmittingAsync(bool submitting)
+    {
+        try
+        {
+            await SetSubmittingAsync(submitting).ConfigureAwait(true);
+        }
+        catch (Exception exc)
+        {
+            EditorError?.Invoke(this, exc.Message);
+        }
+    }
+
+    private async Task SetStatusAsync(string message)
+    {
+        if (!_webViewReady || string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        string payload = _serializer.Serialize(message);
+        await ExecuteEditorScriptAsync(
+            "window.LaTeXSnipperEditor&&window.LaTeXSnipperEditor.setStatus(" + payload + ");").ConfigureAwait(true);
+    }
+
+    private Task ExecuteEditorScriptAsync(string script)
+    {
+        if (InvokeRequired)
+        {
+            var completion = new TaskCompletionSource<object?>();
+            BeginInvoke(new Action(async () =>
+            {
+                try
+                {
+                    if (_webViewReady && _webView.CoreWebView2 != null)
+                    {
+                        await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
+                    }
+
+                    completion.SetResult(null);
+                }
+                catch (Exception exc)
+                {
+                    completion.SetException(exc);
+                }
+            }));
+            return completion.Task;
+        }
+
+        if (!_webViewReady || _webView.CoreWebView2 == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
 
     private void OnResize(object? sender, EventArgs e)
