@@ -30,6 +30,10 @@
       <Link>EditorAssets\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets\**\*">
+      <Link>EditorSharedAssets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

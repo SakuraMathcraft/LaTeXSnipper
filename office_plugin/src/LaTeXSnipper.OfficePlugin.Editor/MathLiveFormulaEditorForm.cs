@@ -201,6 +201,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
         _initializing = true;
         string assetsRoot = MathLiveAssetResolver.FindAssetRoot(_options, "editor.html");
+        string sharedAssetsRoot = MathLiveAssetResolver.FindSharedAssetRoot(_options, "symbol-library.js");
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",
@@ -215,6 +216,10 @@ internal sealed class MathLiveFormulaEditorForm : Form
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             _options.EditorHostName,
             assetsRoot,
+            CoreWebView2HostResourceAccessKind.Allow);
+        _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            _options.SharedEditorHostName,
+            sharedAssetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;

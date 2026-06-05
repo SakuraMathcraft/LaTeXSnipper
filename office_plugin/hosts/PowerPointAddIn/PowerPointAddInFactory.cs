@@ -57,8 +57,10 @@ public static class PowerPointAddInFactory
     {
         return new MathLiveFormulaEditorOptions(
             "latexsnipper-powerpoint.officeplugin.local",
+            "latexsnipper-editor-shared.officeplugin.local",
             "PowerPointEditorWebView2",
             new[] { @"office_plugin\hosts\PowerPointAddIn\EditorAssets" },
+            new[] { @"office_plugin\src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets" },
             new[]
             {
                 @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
