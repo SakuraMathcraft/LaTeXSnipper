@@ -27,71 +27,6 @@
 
 ---
 
-## Overview
-
-**LaTeXSnipper** is no longer just a "screenshot formula -> LaTeX" utility.
-It is a desktop workspace built for end-to-end math content workflows:
-
-- Capture and recognize mathematical content from screenshots
-- Continue editing and computing in the integrated math workbench
-- Handwrite expressions in a dedicated canvas and convert to LaTeX
-- Send results back to the main editor or copy to clipboard
-
----
-
-## Feature Walkthrough
-
-### Math Workbench
-
-<img width="1308" height="834" alt="数学工作台-暗色" src="https://github.com/user-attachments/assets/320a84b3-293d-4947-bc95-fbac88b1f664" />
-
-The Math Workbench supports a complete workflow:
-
-1. Capture and recognize formulas from the main window
-2. Load results into the workbench in one click
-3. Edit expressions in the `MathLive` area
-4. Use the virtual math keyboard for fractions, superscripts, integrals, series, and more
-5. Run `Compute / Simplify / Numeric / Expand / Factor / Solve`
-6. Write results back to the editor or copy as LaTeX / MathJSON
-
-### Auto Typesetting Document Window
-
-<img width="1919" height="1014" alt="v2 3深色" src="https://github.com/user-attachments/assets/c6dffd39-26d9-4e54-aba9-a4b010d3603e" />
-
-The Auto Typesetting Document Window supports source-level editing with synchronized preview:
-
-1. Open "Auto Typesetting" from the handwriting window
-2. Edit full source in the left `TeX Document` pane
-3. Insert complex expressions with the built-in formula editor
-4. Compile and preview PDF directly
-5. Navigate bi-directionally between source and PDF via SyncTeX
-6. Export `.tex` or `PDF` when needed
-
-### Handwriting Recognition
-
-<img width="1408" height="916" alt="手写识别readme" src="https://github.com/user-attachments/assets/3fe98e41-218e-452c-96c1-cc805ab3e0f2" />
-
-The handwriting window supports the following flow:
-
-1. Open "Handwriting Recognition" from the main window
-2. Write formulas directly on an isolated canvas
-3. Trigger MathCraft mixed OCR automatically after pen-up, so handwritten text and formulas can be kept together
-4. See live `LaTeX output` and rendered preview on the right
-5. Use "Auto Typesetting" when handwritten notes contain document text, Chinese or English labels, and multi-line formulas
-6. Copy LaTeX directly or insert it back into the main editor
-
-### PDF Recognition and Bilingual Reading
-
-The main window includes PDF recognition and a separate bilingual reading tool:
-
-1. Use "PDF Recognition" to select page count, output format, and render DPI
-2. Built-in MathCraft PDF recognition uses mixed mode for text and formula recovery
-3. External PDF recognition supports OpenAI-compatible, Ollama, and MinerU providers
-4. Save editable Markdown or LaTeX results from the PDF result window
-5. Use "Bilingual Reading" to open a text-layer PDF, view the current page, and translate with Argos, Azure, Google Cloud, or DeepL
-
----
-
 ## Core Features
 
 | Feature | Description |
@@ -139,13 +74,6 @@ The workbench currently covers common scenarios such as:
 - Limits
 - Derivatives
 - Numeric approximation and constant recognition
-
-For heavy expressions, the engine uses automatic fallback:
-
-1. Try frontend `Compute Engine` first
-2. Switch to local advanced engine on timeout/failure/unreliable results
-3. Use `SymPy/mpmath` for robust fallback
-4. Recover closed forms for selected known constants from numeric output
 
 ---
 
@@ -232,22 +160,6 @@ python src/main.py
 | Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
 | macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
 
-Close/background behavior follows each desktop platform. Windows hides the main
-window to the system tray when it is closed. Linux does the same when a system
-tray is available, and asks before exiting if no tray is available. macOS keeps
-the app running when the main window is closed/minimized; Dock or menu Quit is
-the explicit exit path. The macOS global hotkey uses Carbon and normally does
-not require Accessibility permission, while screenshot capture requires Screen
-Recording permission.
-
-The dependency wizard manages Python dependency layers only. It does not install
-or uninstall system packages. On Linux, tools such as `grim`, `maim`, and
-`gnome-screenshot` can improve screenshot fallback behavior, but they are
-installed by the user or distribution package manager, not by LaTeXSnipper.
-The default screenshot shortcut is `Ctrl+F` on all three platforms. The shortcut
-setting currently accepts `Ctrl+letter` and `Ctrl+Shift+letter` combinations so
-custom shortcuts remain inside the cross-platform supported set. Linux global
-shortcuts are still subject to desktop environment and Wayland compositor policy.
 Linux and macOS both create optional runtime dependency environments in the
 user state directory, so they need a usable system Python 3.10+ with venv/pip
 support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
@@ -257,91 +169,6 @@ usable `python3`.
 The dependency wizard shows its UI before running `ensurepip`, `pip` upgrade,
 or `setuptools`/`wheel` repair; those steps run after the user starts dependency
 installation.
-
-### Packaging
-
-Windows packaging:
-
-- `LaTeXSnipper.spec`
-- `Inno/latexsnipper.iss`
-- `scripts/build_store_msix.ps1`
-
-Linux packaging:
-
-- `LaTeXSnipper-linux.spec`
-- `scripts/build_deb.sh`
-- `packaging/debian/`
-
-macOS packaging:
-
-- `LaTeXSnipper-macos.spec`
-- `scripts/build_macos.sh`
-
-Linux/macOS build scripts prepare isolated, platform-scoped build runtimes under
-`tools/deps/`, for example `tools/deps/python311-linux-x86_64`. The Windows IDE
-interpreter is `tools/deps/python311`. The repository-root `python311` directory
-is treated as a template runtime and must not be mutated by packaging scripts.
-
-GitHub Actions release builds run the platform package jobs in one workflow:
-
-- Windows: Inno desktop installer; SignPath-signed artifacts are preferred, with unsigned fallbacks when signing is unavailable.
-- Linux: Debian/Ubuntu `.deb` package from `scripts/build_deb.sh`.
-- macOS: `.app.zip` and `.dmg` artifacts from `scripts/build_macos.sh`.
-
-The active Office integration is the Windows-native `office_plugin`. Its installer owns persistent Word/PowerPoint registration, Ribbon resources, OLE object registration, shortcut integration, and the native Bridge endpoint.
-
-The release workflow expects these GitHub Actions variables:
-`SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
-`SIGNPATH_SIGNING_POLICY_SLUG`, and
-`SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`. It also requires the
-`SIGNPATH_API_TOKEN` secret. The SignPath artifact configuration is mirrored in
-`.signpath/artifact-configurations/windows-installer.xml`; copy that XML file
-into the matching SignPath project artifact configuration.
-
----
-
-## Project Structure
-
-```text
-LaTeXSnipper/
-|-- mathcraft_ocr/                 # Standalone MathCraft OCR runtime and CLI
-|-- src/
-|   |-- main.py                    # Main desktop application entry
-|   |-- backend/                   # OCR wrapper, CUDA diagnostics, capture, platform services
-|   |-- bootstrap/                 # Dependency wizard and runtime verification
-|   |-- capture/                   # Screenshot capture controllers
-|   |-- core/                      # Document composition, export contracts, restart contracts
-|   |-- cross_platform/            # OS-specific screenshot and platform helpers
-|   |-- editor/                    # Math workbench and formula editing UI
-|   |-- exporting/                 # Formula, Markdown, Pandoc, and document export helpers
-|   |-- handwriting/               # Handwriting canvas, PDF preview, document tools
-|   |-- preview/                   # MathJax preview and render helpers
-|   |-- recognition/               # OCR and PDF recognition controllers
-|   |-- runtime/                   # Startup, config, history, logging, distribution, runtime helpers
-|   |-- ui/                        # Main window, settings, dialogs, and UI controllers
-|   |-- update/                    # GitHub release update checks and installer launch flow
-|   |-- workers/                   # Background worker helpers
-|   `-- assets/                    # Icons and bundled web/math resources
-|-- tools/
-|   `-- deps/                      # Local developer/build dependency environment
-|-- user_manual/                   # Local manual source and generated PDF
-|-- office_plugin/                  # Windows-native Office plugin foundation
-|-- docs/office_plugin_design.md   # Windows-native Office plugin target design
-|-- Inno/                          # GitHub Release installer scripts
-|-- packaging/                     # Debian and MSIX packaging resources
-|-- scripts/                       # Build, release, and regression utilities
-|-- docs/                          # Design and architecture notes
-|-- LaTeXSnipper.spec              # PyInstaller GitHub build (Windows)
-|-- LaTeXSnipper-linux.spec        # PyInstaller Linux build
-|-- LaTeXSnipper-macos.spec        # PyInstaller macOS build
-|-- pyproject.toml
-|-- requirements.txt
-|-- requirements-linux.txt
-|-- requirements-macos.txt
-|-- requirements-build.txt
-|-- version_info.txt
-`-- README.md
-```
 
 ---
 
@@ -368,41 +195,8 @@ Before requesting review, run:
 Cross-platform PRs must not change the Windows dependency surface or installer
 behavior unless Windows is explicitly in scope and separately validated.
 
-Recommended focus areas:
-
-- Handwriting UX
-- Math workbench UX
-- Advanced solver stability
-- Packaged runtime verification
-- Theme consistency across windows
-
 ---
 
 ## License
 
 This project is open-sourced under the [MIT License](LICENSE).
-
----
-
-## Acknowledgements
-
-Special thanks to:
-
-- [pix2tex](https://github.com/lukas-blecher/LaTeX-OCR)
-- [MathLive](https://github.com/arnog/mathlive)
-- [MathLive Compute Engine](https://mathlive.io/compute-engine/)
-- [SymPy](https://www.sympy.org/)
-- [mpmath](https://mpmath.org/)
-- [MathJax](https://www.mathjax.org/)
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)
-- [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)
-
----
-
-<div align="center">
-
-| Download | Issues | Discussions | Wiki |
-|---|---|---|---|
-| [Latest Release](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) | [Open an Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues) | [Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions) | [Project Wiki](https://github.com/SakuraMathcraft/LaTeXSnipper/wiki) |
-
-</div>
