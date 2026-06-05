@@ -21,6 +21,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
+    private int _undoRecordDepth;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -73,6 +74,39 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         public Action Delete { get; }
     }
 
+    private sealed class UndoRecordScope : IDisposable
+    {
+        private readonly DynamicWordApplicationAdapter _owner;
+        private readonly bool _started;
+        private bool _disposed;
+
+        public UndoRecordScope(DynamicWordApplicationAdapter owner)
+        {
+            _owner = owner;
+            if (_owner._undoRecordDepth == 0)
+            {
+                _started = _owner.TryStartUndoRecord();
+            }
+
+            _owner._undoRecordDepth++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _owner._undoRecordDepth = Math.Max(0, _owner._undoRecordDepth - 1);
+            if (_started && _owner._undoRecordDepth == 0)
+            {
+                _owner.TryEndUndoRecord();
+            }
+        }
+    }
+
     public DynamicWordApplicationAdapter(object wordApplication)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
@@ -96,6 +130,11 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         return Task.CompletedTask;
     }
 
+    public IDisposable BeginUndoRecord()
+    {
+        return new UndoRecordScope(this);
+    }
+
     public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -114,7 +153,9 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             dynamic selection = _wordApplication.Selection;
             dynamic range = ResolveInsertionTargetRange(selection);
             ValidateInsertionTarget(range);
+            double fontSizePoints = ReadPointSize(range.Font.Size);
             range.InsertXML(ooxml);
+            ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSizePoints);
             ApplyNumberControlVerticalAlignmentById(metadata);
             WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
             MoveSelectionAfterInsertedFormula(metadata, display);
@@ -328,13 +369,37 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         TryCom(() => control.Range.Font.Position = offset);
     }
 
+    private double ReadManagedEquationFontSize(object contentControl)
+    {
+        dynamic control = contentControl;
+        double fontSize = ReadPointSize(control.Range.Font.Size);
+        return fontSize > 0 ? fontSize : GetCurrentFontSizePoints();
+    }
+
+    private void ApplyManagedEquationFontSizeById(string equationId, double fontSizePoints)
+    {
+        if (fontSizePoints <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            dynamic control = FindFormulaControlById(equationId);
+            TryCom(() => control.Range.Font.Size = fontSizePoints);
+        }
+        catch
+        {
+        }
+    }
+
     private static double CalculateNumberVerticalOffset(FormulaMetadata metadata, double renderedHeightPoints)
     {
         double heightOffset = renderedHeightPoints > 0
-            ? Math.Max(0, (renderedHeightPoints - WordOleBaseFontPoints) * 0.18)
+            ? Math.Max(0, (renderedHeightPoints - WordOleBaseFontPoints) / 2)
             : 0;
         double rowOffset = Math.Max(0, EstimateFormulaRows(metadata.Latex) - 1) * WordOleBaseFontPoints * 0.65;
-        return Math.Min(14, Math.Max(heightOffset, rowOffset));
+        return Math.Max(heightOffset, rowOffset);
     }
 
     private static int EstimateFormulaRows(string latex)
@@ -523,7 +588,12 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         ValidateManagedEquationInput(equationOoxml, metadata);
         cancellationToken.ThrowIfCancellationRequested();
         object control = FindFormulaControlById(equationId);
-        ExecuteWithScreenUpdatingSuspended(() => ReplaceFormulaContent(control, ooxml, equationOoxml, metadata));
+        double fontSizePoints = ReadManagedEquationFontSize(control);
+        ExecuteWithScreenUpdatingSuspended(() =>
+        {
+            ReplaceFormulaContent(control, ooxml, equationOoxml, metadata);
+            ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSizePoints);
+        });
         return Task.CompletedTask;
     }
 
@@ -1678,7 +1748,11 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
         try
         {
-            undoRecordStarted = TryStartUndoRecord();
+            if (_undoRecordDepth == 0)
+            {
+                undoRecordStarted = TryStartUndoRecord();
+            }
+
             action();
         }
         finally

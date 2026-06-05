@@ -35,6 +35,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
+        RecreateVisibleForm();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
         form.CloseOnCommit = false;
         form.Configure(initialFormula, updateMode);
@@ -75,6 +76,22 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         _activeForm.EditorError += OnEditorError;
         _activeForm.FormClosed += OnFormClosed;
         return _activeForm;
+    }
+
+    private void RecreateVisibleForm()
+    {
+        if (_activeForm == null || _activeForm.IsDisposed || !_activeForm.Visible)
+        {
+            return;
+        }
+
+        MathLiveFormulaEditorForm form = _activeForm;
+        form.FormulaSubmitting -= OnFormulaSubmittingAsync;
+        form.EditorCancelled -= OnEditorCancelled;
+        form.EditorError -= OnEditorError;
+        form.FormClosed -= OnFormClosed;
+        _activeForm = null;
+        form.DisposeForShutdown();
     }
 
     public void Dispose()

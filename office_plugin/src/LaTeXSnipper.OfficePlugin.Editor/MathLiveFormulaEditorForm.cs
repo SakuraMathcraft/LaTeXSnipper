@@ -305,7 +305,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
         if (result.Success)
         {
-            await SetSubmittingAsync(false).ConfigureAwait(true);
             Commit(DialogResult.OK);
             return;
         }
@@ -395,7 +394,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         if (WindowState == FormWindowState.Minimized)
         {
             NotifyEditorCancelled();
-            RestoreInputLanguage();
+            RestoreInputLanguageAfterHide();
         }
     }
 
@@ -410,7 +409,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
             e.Cancel = true;
             Hide();
-            RestoreInputLanguage();
+            RestoreInputLanguageAfterHide();
             return;
         }
 
@@ -419,7 +418,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             NotifyEditorCancelled();
         }
 
-        RestoreInputLanguage();
+        RestoreInputLanguageAfterHide();
     }
 
     private void NotifyEditorCancelled()
@@ -444,7 +443,13 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
 
         Hide();
+        RestoreInputLanguageAfterHide();
+    }
+
+    private void RestoreInputLanguageAfterHide()
+    {
         RestoreInputLanguage();
+        _ = RestoreInputLanguageAfterDelayAsync();
     }
 
     private void RestoreInputLanguage()
@@ -475,6 +480,12 @@ internal sealed class MathLiveFormulaEditorForm : Form
         catch
         {
         }
+    }
+
+    private async Task RestoreInputLanguageAfterDelayAsync()
+    {
+        await Task.Delay(150).ConfigureAwait(true);
+        RestoreInputLanguage();
     }
 
     private static bool TryReadImeState(IntPtr hWnd, out bool open, out int conversion, out int sentence)

@@ -166,6 +166,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "RangeTouchesManagedFormula" in adapter
     assert "Selection.SetRange" in adapter
     assert "ExecuteWithScreenUpdatingSuspended" in adapter
+    assert "BeginUndoRecord" in adapter
+    assert "UndoRecordScope" in adapter
+    assert "_undoRecordDepth" in adapter
     assert "ResolveInsertionTargetRange" in adapter
     assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" not in adapter
     assert "TryGetNumberedTableFromPreviousParagraph" not in adapter
@@ -188,13 +191,20 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ApplyNumberControlVerticalAlignment" in adapter
     assert "CalculateNumberVerticalOffset" in adapter
     assert "EstimateFormulaRows" in adapter
+    assert "(renderedHeightPoints - WordOleBaseFontPoints) / 2" in adapter
+    assert "Math.Min(14" not in adapter
+    assert "* 0.18" not in adapter
     assert "ApplyNumberedOleInlineShapeBaseline" in adapter
     assert "DeleteNumberedParagraphBlock" not in adapter
     assert "DeleteNumberedFormulaById" in adapter
     assert "AddAdjacentTabDeletionTargets" in adapter
     assert "TryStartUndoRecord" in adapter
     assert "StartCustomRecord(\"LaTeXSnipper\")" in adapter
+    assert "using (_wordAdapter.BeginUndoRecord())" in controller
     assert "GetCurrentFontSizePoints" in adapter
+    assert "ApplyManagedEquationFontSizeById" in adapter
+    assert "ReadManagedEquationFontSize" in adapter
+    assert "control.Range.Font.Size = fontSizePoints" in adapter
     assert "ApplyOleInlineShapeBaseline" in adapter
     assert "inlineShape.Range.Font.Position = -baseline" in adapter
     assert "ResetSelectionFormulaTextFormatting" in adapter
@@ -305,6 +315,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "_options.Icon" in shared_editor_form
     assert "FormulaSubmitting" in shared_editor
     assert "FormulaAccepted" not in shared_editor
+    assert "RecreateVisibleForm()" in shared_editor
+    assert "form.DisposeForShutdown()" in shared_editor
     assert "SetSubmittingAsync(true)" in shared_editor_form
     assert "SetSubmittingAsync(false)" in shared_editor_form
     assert "TrySetSubmittingAsync(false)" in shared_editor_form
@@ -329,6 +341,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "display: true" in editor_js
     assert "let submitting = false" in editor_js
     assert "function setSubmitting" in editor_js
+    assert "setSubmitting(false);" in editor_js
     assert "acceptButton.disabled = submitting" in editor_js
     assert "cancelButton.disabled = submitting" in editor_js
     assert "if (submitting)" in editor_js

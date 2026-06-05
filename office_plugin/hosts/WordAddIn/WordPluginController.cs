@@ -27,6 +27,28 @@ public sealed class WordPluginController : IDisposable
     private WordFormulaOptions? _pendingEditorInsertOptions;
     private bool _disposed;
 
+    private sealed class PreparedWordFormula
+    {
+        public PreparedWordFormula(FormulaMetadata metadata, bool display, OlePresentationResult? olePresentation, string? ooxml, string? equationOoxml)
+        {
+            Metadata = metadata;
+            Display = display;
+            OlePresentation = olePresentation;
+            Ooxml = ooxml;
+            EquationOoxml = equationOoxml;
+        }
+
+        public FormulaMetadata Metadata { get; }
+
+        public bool Display { get; }
+
+        public OlePresentationResult? OlePresentation { get; }
+
+        public string? Ooxml { get; }
+
+        public string? EquationOoxml { get; }
+    }
+
     public WordPluginController(
         FormulaEditorSession editorSession,
         BridgeClient bridgeClient,
@@ -208,7 +230,11 @@ public sealed class WordPluginController : IDisposable
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
     {
         FormulaMetadata metadata = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
-        await _wordAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await _wordAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+        }
+
         if (IsSameFormula(_currentFormula, metadata))
         {
             _currentFormula = null;
@@ -290,8 +316,7 @@ public sealed class WordPluginController : IDisposable
         }
 
         FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(0));
-        await UpdateRenderedFormulaAsync(numbered, cancellationToken);
-        await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
@@ -299,7 +324,11 @@ public sealed class WordPluginController : IDisposable
 
     public async Task RenumberAllAsync(CancellationToken cancellationToken)
     {
-        int number = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        int number;
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            number = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
 
         string message = number == 0
             ? WordAddInText.Get("NoNumberedStatus")
@@ -326,26 +355,33 @@ public sealed class WordPluginController : IDisposable
     private async Task InsertRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
-        WordPluginSettings settings = WordPluginSettings.Load();
-        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: false, cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
         {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
-            FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
-            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
-            await _wordAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, IsDisplay(oleMetadata), cancellationToken);
-            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
-            return;
+            await InsertPreparedFormulaAsync(prepared, cancellationToken);
         }
-
-        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
-        string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
-        BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
-        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), WordPluginSettings.Load().NumberPlacement);
-        await _wordAdapter.InsertManagedEquationAsync(ooxml, metadata, IsDisplay(metadata), cancellationToken);
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
     }
 
     private async Task UpdateRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: true, cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+        }
+    }
+
+    private async Task UpdateRenderedFormulaAndRenumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: true, cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
+    }
+
+    private async Task<PreparedWordFormula> PrepareRenderedFormulaAsync(FormulaMetadata metadata, bool includeEquationOoxml, CancellationToken cancellationToken)
     {
         WordPluginSettings settings = WordPluginSettings.Load();
         if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
@@ -353,17 +389,40 @@ public sealed class WordPluginController : IDisposable
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
-            await _wordAdapter.UpdateOleFormulaObjectAsync(oleMetadata.Identity.EquationId, oleMetadata, presentation, IsDisplay(oleMetadata), cancellationToken);
-            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
-            return;
+            return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null);
         }
 
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
         string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
         BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
-        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), WordPluginSettings.Load().NumberPlacement);
-        string equationOoxml = WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(conversion.Omml, metadata);
-        await _wordAdapter.UpdateFormulaAsync(metadata.Identity.EquationId, ooxml, equationOoxml, metadata, IsDisplay(metadata), cancellationToken);
+        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
+        string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(conversion.Omml, metadata) : null;
+        return new PreparedWordFormula(metadata, IsDisplay(metadata), null, ooxml, equationOoxml);
+    }
+
+    private async Task InsertPreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken)
+    {
+        if (prepared.OlePresentation != null)
+        {
+            await _wordAdapter.InsertOleFormulaObjectAsync(prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+            return;
+        }
+
+        await _wordAdapter.InsertManagedEquationAsync(prepared.Ooxml!, prepared.Metadata, prepared.Display, cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+    }
+
+    private async Task UpdatePreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken)
+    {
+        if (prepared.OlePresentation != null)
+        {
+            await _wordAdapter.UpdateOleFormulaObjectAsync(prepared.Metadata.Identity.EquationId, prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+            return;
+        }
+
+        await _wordAdapter.UpdateFormulaAsync(prepared.Metadata.Identity.EquationId, prepared.Ooxml!, prepared.EquationOoxml!, prepared.Metadata, prepared.Display, cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
     }
 
@@ -396,17 +455,27 @@ public sealed class WordPluginController : IDisposable
 
     private async Task InsertAndRenumberIfNeededAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
+        int nextNumber = 0;
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
-            int nextNumber = _wordAdapter.GetNextAutomaticNumber();
+            nextNumber = _wordAdapter.GetNextAutomaticNumber();
             metadata = WithNumbering(metadata, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(nextNumber));
-            _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
         }
 
-        await InsertRenderedFormulaAsync(metadata, cancellationToken);
-        if (metadata.NumberingMode == NumberingMode.Automatic)
+        await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: false, cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
         {
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+            if (metadata.NumberingMode == NumberingMode.Automatic)
+            {
+                _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
+            }
+
+            await InsertPreparedFormulaAsync(prepared, cancellationToken);
+            if (metadata.NumberingMode == NumberingMode.Automatic)
+            {
+                await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+            }
         }
     }
 

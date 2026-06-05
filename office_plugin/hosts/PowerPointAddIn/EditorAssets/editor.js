@@ -1917,6 +1917,7 @@ function configureText() {
 function applyInit(payload) {
   locale = String(payload?.locale || "zh").toLowerCase();
   mode = payload?.mode === "update" ? "update" : "insert";
+  setSubmitting(false);
   configureText();
   setLatex(payload?.latex || "");
 }

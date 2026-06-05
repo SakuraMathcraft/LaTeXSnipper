@@ -82,7 +82,7 @@
       <h2>快速开始</h2>
       <div class="grid">
         <div class="mini"><h3>1. 启动桌面端</h3><p>打开 LaTeXSnipper 桌面端，在设置中启用 Office 插件功能。</p></div>
-        <div class="mini"><h3>2. 打开编辑器</h3><p>Ribbon 插入按钮会打开空白 MathLive 编辑器，不会默认填入欧拉公式，也不会主动聚焦输入区切换输入法。</p></div>
+        <div class="mini"><h3>2. 打开编辑器</h3><p>使用 Ribbon 插入按钮打开 MathLive 编辑器，输入或选择需要插入的公式。</p></div>
         <div class="mini"><h3>3. 插入到文档</h3><p>默认使用 OLE 公式对象插入。侧边栏只负责独立草稿和新插入；更新公式只从编辑器窗口提交。</p></div>
       </div>
       <div class="callout">如果请求失败，请确认桌面端正在运行且 Office 插件功能已开启。</div>
@@ -134,7 +134,7 @@
           <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。公式附带 LaTeX 源码、显示模式、编号模式等管理元数据。</td></tr>
           <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。元数据写入形状标签（<code>shape.Tags</code>）。</td></tr>
           <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
-          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。插入模式默认空白打开，不主动聚焦 MathLive 输入区；编辑器提交与 Office 命令统一串行化。</td></tr>
+          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
         </tbody>
       </table>
     </section>
@@ -176,7 +176,7 @@
       <h2>Quick Start</h2>
       <div class="grid">
         <div class="mini"><h3>1. Start the client</h3><p>Open LaTeXSnipper and enable Office plugin in settings.</p></div>
-        <div class="mini"><h3>2. Open the editor</h3><p>Ribbon insert buttons open a blank MathLive editor. The editor no longer preloads Euler's identity or forces focus into the input area.</p></div>
+        <div class="mini"><h3>2. Open the editor</h3><p>Use Ribbon insert buttons to open the MathLive editor, then type or choose the formula to insert.</p></div>
         <div class="mini"><h3>3. Insert into Office</h3><p>OLE formula objects are the default. The side pane owns an independent draft for new insertions; formula updates are submitted only from the editor window.</p></div>
       </div>
       <div class="callout">If requests fail, make sure the desktop client is running and Office plugin is enabled.</div>
@@ -228,7 +228,7 @@
           <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend. Metadata stores LaTeX source, display mode, and numbering mode.</td></tr>
           <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend. Metadata is stored in shape tags.</td></tr>
           <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
-          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Insert mode opens blank and does not force focus into the MathLive input area; editor submissions are serialized with Office commands.</td></tr>
+          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Editor submissions are serialized with Office commands.</td></tr>
         </tbody>
       </table>
     </section>
