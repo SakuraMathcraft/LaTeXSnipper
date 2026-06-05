@@ -329,7 +329,7 @@ public sealed class PowerPointPluginController : IDisposable
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 2.0
+            FontScale = 3.0
         };
         RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
