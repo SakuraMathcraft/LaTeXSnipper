@@ -250,7 +250,7 @@
     const params = new URLSearchParams(location.search);
     const platform = params.get("platform") || "word";
     document.body.className = "app-" + platform;
-    const language = (navigator.language || "").toLowerCase();
+    const language = (params.get("locale") || "zh-CN").toLowerCase();
     document.documentElement.lang = language.startsWith("zh") ? "zh-CN" : "en";
   </script>
 </body>

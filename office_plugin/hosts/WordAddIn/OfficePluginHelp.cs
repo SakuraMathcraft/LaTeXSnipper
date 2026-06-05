@@ -89,7 +89,9 @@ internal static class OfficePluginHelp
                 HelpHostName,
                 assetsRoot,
                 CoreWebView2HostResourceAccessKind.Allow);
-            _webView.Source = new Uri("https://" + HelpHostName + "/help.html?platform=word&_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            string locale = Uri.EscapeDataString(System.Globalization.CultureInfo.CurrentUICulture.Name);
+            string cacheKey = DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _webView.Source = new Uri("https://" + HelpHostName + "/help.html?platform=word&locale=" + locale + "&_=" + cacheKey);
         }
 
         private static string ResolveAssetsRoot()
