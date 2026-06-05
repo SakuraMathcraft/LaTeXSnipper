@@ -200,13 +200,3 @@ behavior unless Windows is explicitly in scope and separately validated.
 ## License
 
 This project is open-sourced under the [MIT License](LICENSE).
-
----
-
-<div align="center">
-
-| Download | Issues | Discussions | Wiki |
-|---|---|---|---|
-| [Latest Release](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) | [Open an Issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues) | [Discussions](https://github.com/SakuraMathcraft/LaTeXSnipper/discussions) | [Project Wiki](https://github.com/SakuraMathcraft/LaTeXSnipper/wiki) |
-
-</div>
