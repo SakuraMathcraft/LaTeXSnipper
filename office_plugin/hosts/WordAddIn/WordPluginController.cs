@@ -50,6 +50,7 @@ public sealed class WordPluginController : IDisposable
         ThrowIfDisposed();
         FormulaMetadata metadata = await CreateMetadataFromDraftAsync(null, _optionsProvider.CurrentLatex, previous: null, cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
+        await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     public async Task<bool> TryRunCommandAsync(Func<CancellationToken, Task> command, CancellationToken cancellationToken)
@@ -174,6 +175,7 @@ public sealed class WordPluginController : IDisposable
                 _pendingEditorInsertOptions = null;
                 ResetDraftState(resetOptions: true);
                 _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("UnchangedStatus"));
+                await _wordAdapter.ActivateForEditingAsync(cancellationToken);
                 return;
             }
 
@@ -187,6 +189,7 @@ public sealed class WordPluginController : IDisposable
         _currentFormula = metadata;
         _pendingEditorInsertOptions = null;
         ResetDraftState(resetOptions: accepted.UpdateMode);
+        await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)

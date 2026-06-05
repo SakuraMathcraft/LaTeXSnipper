@@ -156,12 +156,6 @@ internal static class WordFormulaMetadataStore
         }
     }
 
-    public static void Delete(dynamic document, string equationId)
-    {
-        DeleteVariable(document, BuildStorageKey(equationId));
-        DeleteVariable(document, BuildOleNaturalSizeStorageKey(equationId));
-    }
-
     public static void SaveOleNaturalSize(dynamic document, string equationId, double widthPoints, double heightPoints)
     {
         if (widthPoints <= 0 || heightPoints <= 0)
@@ -282,7 +276,7 @@ internal static class WordFormulaMetadataStore
         return null;
     }
 
-    private static FormulaMetadata? DeserializeMetadataFromEquationTag(string tag)
+    public static FormulaMetadata? DeserializeMetadataFromEquationTag(string tag)
     {
         int separatorIndex = tag.IndexOf(EquationTagBackupSeparator, StringComparison.Ordinal);
         if (separatorIndex < 0 || separatorIndex == tag.Length - 1)
@@ -413,15 +407,4 @@ internal static class WordFormulaMetadataStore
         }
     }
 
-    private static void DeleteVariable(dynamic document, string key)
-    {
-        try
-        {
-            dynamic variable = document.Variables.Item(key);
-            variable.Delete();
-        }
-        catch
-        {
-        }
-    }
 }

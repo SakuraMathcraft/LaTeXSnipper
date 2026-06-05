@@ -149,13 +149,7 @@ public sealed class WordRibbonCallbacks
         {
             _statusSink.SetOcrActive(true);
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrWaitingStatus"));
-            bool ran = await _controller.TryRunCommandAsync(
-                ct => _controller.RecognizeScreenshotAsync(ct),
-                cancellation.Token).ConfigureAwait(true);
-            if (!ran)
-            {
-                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("WorkingStatus"));
-            }
+            await _controller.RecognizeScreenshotAsync(cancellation.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

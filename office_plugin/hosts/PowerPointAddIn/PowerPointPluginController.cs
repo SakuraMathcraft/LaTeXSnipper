@@ -137,6 +137,7 @@ public sealed class PowerPointPluginController : IDisposable
 
         FormulaMetadata metadata = CreateMetadata(latex);
         await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, scale: 1, cancellationToken);
+        await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     public async Task AcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
@@ -161,6 +162,8 @@ public sealed class PowerPointPluginController : IDisposable
         {
             _optionsProvider.ResetFormulaDraft();
         }
+
+        await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     private async Task ConvertAndInsertAsync(

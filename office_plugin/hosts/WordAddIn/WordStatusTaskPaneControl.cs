@@ -19,7 +19,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private readonly WebView2 _webView;
     private string _currentLatex = DefaultLatex;
-    private bool _displayMode = true;
+    private bool _displayMode;
     private bool _autoNumber;
     private string _manualNumber = string.Empty;
     private FormulaDraftState? _savedDraftState;
@@ -110,7 +110,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
         {
             FormulaDraftState? saved = _savedDraftState;
             _currentLatex = saved?.Latex ?? DefaultLatex;
-            _displayMode = saved?.DisplayMode ?? true;
+            _displayMode = saved?.DisplayMode ?? false;
             _autoNumber = saved?.AutoNumber ?? false;
             _manualNumber = saved?.ManualNumber ?? string.Empty;
             _savedDraftState = null;

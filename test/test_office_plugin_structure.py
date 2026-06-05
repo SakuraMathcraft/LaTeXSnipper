@@ -76,6 +76,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (host_root / "EditorAssets" / "help.html").is_file()
     factory = (host_root / "WordAddInFactory.cs").read_text(encoding="utf-8")
     bridge_client = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Bridge" / "BridgeClient.cs").read_text(encoding="utf-8")
+    editor = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
+    editor_form = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
     assert "http://127.0.0.1:28765/" in factory
     assert "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN" in factory
     assert "FormulaSubmitting" in factory
@@ -84,6 +86,12 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ConfigAsync" in bridge_client
     assert "EnsureConfiguredAsync" in bridge_client
     assert "https://localhost:8765/" not in factory
+    assert "CaptureInputLanguage()" in editor
+    assert "InputLanguage.CurrentInputLanguage" in editor_form
+    assert "WmInputLangChangeRequest" in editor_form
+    assert "ImmGetConversionStatus" in editor_form
+    assert "ImmSetConversionStatus" in editor_form
+    assert "RestoreInputLanguage()" in editor_form
 
     ribbon = (host_root / "Ribbon" / "WordRibbon.xml").read_text(encoding="utf-8")
     assert "LaTeXSnipperTab" in ribbon
@@ -167,6 +175,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" in adapter
+    assert "TryLoadFormulaTagMetadata" in adapter
+    assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedTable" not in adapter
     assert "ApplyNumberedParagraphLayout" in adapter
@@ -175,12 +185,29 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ReplaceParagraphWithNumberedFormula(control, ooxml)" in adapter
     assert "paragraphRange.Delete()" in adapter
     assert "InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata)" in adapter
-    assert "return CreateDocumentRange(insertionPoint, insertionPoint)" in adapter
+    assert "ApplyNumberControlVerticalAlignment" in adapter
+    assert "CalculateNumberVerticalOffset" in adapter
+    assert "EstimateFormulaRows" in adapter
     assert "ApplyNumberedOleInlineShapeBaseline" in adapter
-    assert "DeleteNumberedParagraphBlock" in adapter
+    assert "DeleteNumberedParagraphBlock" not in adapter
+    assert "DeleteNumberedFormulaById" in adapter
+    assert "AddAdjacentTabDeletionTargets" in adapter
+    assert "TryStartUndoRecord" in adapter
+    assert "StartCustomRecord(\"LaTeXSnipper\")" in adapter
     assert "GetCurrentFontSizePoints" in adapter
     assert "ApplyOleInlineShapeBaseline" in adapter
     assert "inlineShape.Range.Font.Position = -baseline" in adapter
+    assert "ResetSelectionFormulaTextFormatting" in adapter
+    assert "NormalizePlainTextBaselineAroundRange" in adapter
+    assert "LoadManagedFormulaSpans" in adapter
+    assert "ResetPlainTextBaseline" in adapter
+    assert "_wordApplication.Selection.Font.Position = 0" in adapter
+    assert "_wordApplication.Selection.Font.Superscript = 0" in adapter
+    assert "_wordApplication.Selection.Font.Subscript = 0" in adapter
+    assert "ActivateForEditingAsync" in adapter
+    assert "_wordApplication.ActiveWindow.Activate()" in adapter
+    assert "_wordApplication.ActiveWindow.SetFocus()" in adapter
+    assert "_wordApplication.Selection.Range.Select()" not in adapter
     assert "MoveSelectionAfterDisplayRange" not in adapter
     assert "OnUpdateSelected" not in callbacks
     assert "OnScreenshotOcr" in callbacks
@@ -193,6 +220,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "CancelScreenshotOcrAsync" in callbacks
     assert "RunScreenshotOcrAsync" in callbacks
     assert "TryRunCommandAsync" in callbacks
+    assert "ct => _controller.RecognizeScreenshotAsync(ct)" not in callbacks
     assert "_runningCommand" not in callbacks
     assert "OcrWaitingStatus" in callbacks
     assert "OcrRecognizingStatus" in addin_text
@@ -210,7 +238,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "statusIcon" not in taskpane_html
     assert 'textContent = "OK"' not in taskpane_js
     assert "DefaultLatex = \"e^{i\\\\pi}+1=0\"" in taskpane
-    assert "_displayMode = true" in taskpane
+    assert "private bool _displayMode;" in taskpane
+    assert "saved?.DisplayMode ?? false" in taskpane
+    assert 'id="displayMode" type="checkbox" checked' not in taskpane_html
+    assert "display: false" in taskpane_js
+    assert "els.displayMode.checked = Boolean(payload.display)" in taskpane_js
     assert "IWordFormulaOptionsProvider" in taskpane
     assert "NumberingMode.Manual" in taskpane
     assert "ConnectRequested" in taskpane
@@ -245,6 +277,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "SemaphoreSlim _commandGate" in controller
     assert "TryRunCommandAsync" in controller
     assert "TryAcceptEditorFormulaAsync" in controller
+    assert "ActivateForEditingAsync" in controller
     assert "WaitAsync(0" in controller
     assert "OpenEditorAsync" not in controller
     assert "OfficePluginHelp.Open" in controller

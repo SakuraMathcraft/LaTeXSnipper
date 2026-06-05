@@ -38,6 +38,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         MathLiveFormulaEditorForm form = GetOrCreateForm();
         form.CloseOnCommit = false;
         form.Configure(initialFormula, updateMode);
+        form.CaptureInputLanguage();
         form.Show();
         if (form.WindowState == FormWindowState.Minimized)
         {

@@ -8,6 +8,8 @@ public interface IWordApplicationAdapter
 {
     Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
 
+    Task ActivateForEditingAsync(CancellationToken cancellationToken);
+
     double GetCurrentFontSizePoints();
 
     Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);

@@ -6,6 +6,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public interface IPowerPointApplicationAdapter
 {
+    Task ActivateForEditingAsync(CancellationToken cancellationToken);
+
     Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
 
     Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float scale, CancellationToken cancellationToken);
