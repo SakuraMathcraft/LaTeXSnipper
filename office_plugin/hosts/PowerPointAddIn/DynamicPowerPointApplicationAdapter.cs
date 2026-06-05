@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -15,9 +16,33 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
     private readonly dynamic _application;
 
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
     public DynamicPowerPointApplicationAdapter(object application)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
+    }
+
+    public Task ActivateForEditingAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        TryCom(() => _application.Activate());
+        TryCom(() => _application.ActiveWindow.Activate());
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_application.ActiveWindow.HWND))));
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_application.HWND))));
+        return Task.CompletedTask;
+    }
+
+    private static void TryCom(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch
+        {
+        }
     }
 
     public Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken)

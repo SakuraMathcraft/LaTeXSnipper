@@ -115,8 +115,12 @@ Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\MathJax-3.2.2\*"; \
 ; ===== EditorAssets (shared, installed alongside both hosts) =====
 Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\Word\EditorAssets"; Flags: ignoreversion recursesubdirs
+Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorSharedAssets\*"; \
+  DestDir: "{app}\Word\EditorSharedAssets"; Flags: ignoreversion recursesubdirs
 Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
   DestDir: "{app}\PowerPoint\EditorAssets"; Flags: ignoreversion recursesubdirs
+Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorSharedAssets\*"; \
+  DestDir: "{app}\PowerPoint\EditorSharedAssets"; Flags: ignoreversion recursesubdirs
 
 ; ===== OLE formula object handler =====
 Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \

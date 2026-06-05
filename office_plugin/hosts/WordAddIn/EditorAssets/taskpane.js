@@ -4,7 +4,7 @@ const DEFAULT_LATEX = "e^{i\\pi}+1=0";
 
 const state = {
   latex: DEFAULT_LATEX,
-  display: true,
+  display: false,
   autoNumber: false,
   manualNumber: "",
   busy: false,
@@ -110,7 +110,7 @@ function applyState(payload) {
     applyLabels(payload.strings);
     document.documentElement.lang = String(payload.locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
     setLatex(payload.latex || DEFAULT_LATEX);
-    els.displayMode.checked = payload.display !== false;
+    els.displayMode.checked = Boolean(payload.display);
     els.autoNumber.checked = Boolean(payload.autoNumber);
     els.manualNumber.value = payload.manualNumber || "";
   } finally {

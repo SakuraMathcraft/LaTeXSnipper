@@ -57,8 +57,10 @@ public static class WordAddInFactory
     {
         return new MathLiveFormulaEditorOptions(
             "latexsnipper-word.officeplugin.local",
+            "latexsnipper-editor-shared.officeplugin.local",
             "WordEditorWebView2",
             new[] { @"office_plugin\hosts\WordAddIn\EditorAssets" },
+            new[] { @"office_plugin\src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets" },
             new[]
             {
                 @"Software\Microsoft\Office\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",

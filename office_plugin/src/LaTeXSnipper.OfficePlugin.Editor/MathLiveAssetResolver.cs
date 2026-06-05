@@ -1,5 +1,6 @@
 #if NET48
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Win32;
 
@@ -9,8 +10,22 @@ internal static class MathLiveAssetResolver
 {
     public static string FindAssetRoot(MathLiveFormulaEditorOptions options, string assetFile)
     {
+        return FindAssetRoot(options.DevAssetRelativePaths, options.RegistryPaths, "EditorAssets", assetFile);
+    }
+
+    public static string FindSharedAssetRoot(MathLiveFormulaEditorOptions options, string assetFile)
+    {
+        return FindAssetRoot(options.SharedDevAssetRelativePaths, options.RegistryPaths, "EditorSharedAssets", assetFile);
+    }
+
+    private static string FindAssetRoot(
+        IReadOnlyList<string> devAssetRelativePaths,
+        IReadOnlyList<string> registryPaths,
+        string copiedFolderName,
+        string assetFile)
+    {
         string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, "EditorAssets");
+        string copied = Path.Combine(baseDirectory, copiedFolderName);
         if (File.Exists(Path.Combine(copied, assetFile)))
         {
             return copied;
@@ -19,7 +34,7 @@ internal static class MathLiveAssetResolver
         string? current = baseDirectory;
         for (int i = 0; i < 8 && current != null; i++)
         {
-            foreach (string relativePath in options.DevAssetRelativePaths)
+            foreach (string relativePath in devAssetRelativePaths)
             {
                 string candidate = Path.Combine(current, relativePath);
                 if (File.Exists(Path.Combine(candidate, assetFile)))
@@ -33,7 +48,7 @@ internal static class MathLiveAssetResolver
 
         foreach (RegistryKey root in new[] { Registry.LocalMachine, Registry.CurrentUser })
         {
-            foreach (string subPath in options.RegistryPaths)
+            foreach (string subPath in registryPaths)
             {
                 string? manifestDirectory = GetManifestDirectory(root, subPath);
                 if (manifestDirectory == null)
@@ -41,7 +56,7 @@ internal static class MathLiveAssetResolver
                     continue;
                 }
 
-                string candidate = Path.Combine(manifestDirectory, "EditorAssets");
+                string candidate = Path.Combine(manifestDirectory, copiedFolderName);
                 if (File.Exists(Path.Combine(candidate, assetFile)))
                 {
                     return candidate;

@@ -137,6 +137,7 @@ public sealed class PowerPointPluginController : IDisposable
 
         FormulaMetadata metadata = CreateMetadata(latex);
         await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, scale: 1, cancellationToken);
+        await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     public async Task AcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
@@ -161,6 +162,8 @@ public sealed class PowerPointPluginController : IDisposable
         {
             _optionsProvider.ResetFormulaDraft();
         }
+
+        await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     private async Task ConvertAndInsertAsync(
@@ -326,7 +329,7 @@ public sealed class PowerPointPluginController : IDisposable
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 2.0
+            FontScale = 3.0
         };
         RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(

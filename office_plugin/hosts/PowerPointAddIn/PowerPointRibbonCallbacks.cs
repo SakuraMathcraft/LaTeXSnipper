@@ -119,13 +119,7 @@ public sealed class PowerPointRibbonCallbacks
         {
             _statusSink.SetOcrActive(true);
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OcrWaitingStatus"));
-            bool ran = await _controller.TryRunCommandAsync(
-                ct => _controller.RecognizeScreenshotAsync(ct),
-                cancellation.Token).ConfigureAwait(true);
-            if (!ran)
-            {
-                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("WorkingStatus"));
-            }
+            await _controller.RecognizeScreenshotAsync(cancellation.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

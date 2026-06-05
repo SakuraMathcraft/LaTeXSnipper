@@ -82,7 +82,7 @@
       <h2>快速开始</h2>
       <div class="grid">
         <div class="mini"><h3>1. 启动桌面端</h3><p>打开 LaTeXSnipper 桌面端，在设置中启用 Office 插件功能。</p></div>
-        <div class="mini"><h3>2. 打开编辑器</h3><p>Ribbon 插入按钮会打开空白 MathLive 编辑器，不会默认填入欧拉公式，也不会主动聚焦输入区切换输入法。</p></div>
+        <div class="mini"><h3>2. 打开编辑器</h3><p>使用 Ribbon 插入按钮打开 MathLive 编辑器，输入或选择需要插入的公式。</p></div>
         <div class="mini"><h3>3. 插入到文档</h3><p>默认使用 OLE 公式对象插入。侧边栏只负责独立草稿和新插入；更新公式只从编辑器窗口提交。</p></div>
       </div>
       <div class="callout">如果请求失败，请确认桌面端正在运行且 Office 插件功能已开启。</div>
@@ -98,13 +98,13 @@
       <h3>OLE 与 OMML</h3>
       <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 Word OMML。</p>
       <h3>加载、更新和删除</h3>
-      <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。删除同时移除公式和元数据。编辑器提交、加载所选、删除、重编号、OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
+      <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。编辑器提交、加载所选、删除、重编号、OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
       <h3>自动编号与重编号</h3>
       <p>自动编号只对未编号的行间公式生效，不会把行内公式转换为编号公式。重编号按文档顺序更新自动编号文本，不重新渲染公式。编号位置设置只影响新插入的编号公式和之后自动编号的普通行间公式。</p>
       <h3>带编号公式布局</h3>
-      <p>带编号公式不使用 Word 表格。公式和编号位于同一个普通段落中：公式通过居中制表位对齐，编号按设置放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
+      <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
       <h3>OLE 对象尺寸</h3>
       <p>Word OLE 公式使用固定渲染基线。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
@@ -116,7 +116,7 @@
       <h3>OLE 与 PNG 图片</h3>
       <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 PNG 图片方式。</p>
       <h3>加载和删除</h3>
-      <p>选中受管理公式后用 Ribbon 加载到同一套 MathLive 编辑器修改。编辑器提交后替换原位置公式，并保留用户在幻灯片中手动拉伸出的对象倍率。删除同时移除形状和元数据。编辑器提交、加载所选、删除和 OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
+      <p>选中受管理公式后用 Ribbon 加载到同一套 MathLive 编辑器修改。编辑器提交后替换原位置公式，并保留用户在幻灯片中手动拉伸出的对象倍率。编辑器提交、加载所选、删除和 OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区，不负责更新已有公式。</p>
       <h3>OLE 对象尺寸</h3>
@@ -131,10 +131,10 @@
         <thead><tr><th>项目</th><th>实现</th></tr></thead>
         <tbody>
           <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
-          <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。公式附带 LaTeX 源码、显示模式、编号模式等管理元数据。</td></tr>
-          <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。元数据写入形状标签（<code>shape.Tags</code>）。</td></tr>
+          <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。</td></tr>
+          <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。</td></tr>
           <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
-          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。插入模式默认空白打开，不主动聚焦 MathLive 输入区；编辑器提交与 Office 命令统一串行化。</td></tr>
+          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
         </tbody>
       </table>
     </section>
@@ -142,9 +142,8 @@
     <section>
       <h2>边界说明</h2>
       <ul>
-        <li>只有由 LaTeXSnipper 插入并保留元数据的公式才能被插件管理。</li>
-        <li>普通 Office 公式没有 LaTeXSnipper 元数据，插件不会猜测其 LaTeX 来源。</li>
-        <li>复制粘贴后元数据丢失的公式无法继续维护。</li>
+        <li>只有由 LaTeXSnipper 插入的受管理公式才能被插件加载、更新、删除和重编号。</li>
+        <li>普通 Office 公式不会被自动转换为 LaTeXSnipper 公式。</li>
         <li>如果加载项未显示，请关闭 Office，重新运行安装包进行修复或重新安装，然后再打开 Office。</li>
       </ul>
     </section>
@@ -176,7 +175,7 @@
       <h2>Quick Start</h2>
       <div class="grid">
         <div class="mini"><h3>1. Start the client</h3><p>Open LaTeXSnipper and enable Office plugin in settings.</p></div>
-        <div class="mini"><h3>2. Open the editor</h3><p>Ribbon insert buttons open a blank MathLive editor. The editor no longer preloads Euler's identity or forces focus into the input area.</p></div>
+        <div class="mini"><h3>2. Open the editor</h3><p>Use Ribbon insert buttons to open the MathLive editor, then type or choose the formula to insert.</p></div>
         <div class="mini"><h3>3. Insert into Office</h3><p>OLE formula objects are the default. The side pane owns an independent draft for new insertions; formula updates are submitted only from the editor window.</p></div>
       </div>
       <div class="callout">If requests fail, make sure the desktop client is running and Office plugin is enabled.</div>
@@ -192,13 +191,13 @@
       <h3>OLE and OMML</h3>
       <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. Word OMML remains available in settings.</p>
       <h3>Load, Update, Delete</h3>
-      <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Deletion removes both formula and metadata. Editor submit, load selected, delete, renumber, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
+      <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Editor submit, load selected, delete, renumber, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
       <h3>Auto Numbering &amp; Renumber</h3>
       <p>Auto Number only applies to unnumbered display equations, so inline equations are never converted into numbered formulas. Renumber updates automatic numbers in document order without re-rendering. Number placement affects newly inserted numbered formulas and ordinary display formulas numbered later.</p>
       <h3>Numbered Formula Layout</h3>
-      <p>Numbered formulas do not use Word tables. The formula and number live in a normal paragraph: the formula is aligned by a center tab stop, and the number is placed at the left or right edge according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
+      <p>Numbered formulas center the formula and place the number on the left or right according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
       <h3>OLE Object Size</h3>
       <p>Word OLE formulas use a fixed rendering baseline. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
       <h3>Screenshot OCR</h3>
@@ -210,7 +209,7 @@
       <h3>OLE and PNG Image</h3>
       <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. PNG image insertion remains available in settings.</p>
       <h3>Load and Delete</h3>
-      <p>Use the Ribbon to load a managed formula into the same MathLive editor. After editing, the new formula replaces the original at the same position and preserves the object stretch factor manually set on the slide. Deleting removes both shape and metadata. Editor submit, load selected, delete, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
+      <p>Use the Ribbon to load a managed formula into the same MathLive editor. After editing, the new formula replaces the original at the same position and preserves the object stretch factor manually set on the slide. Editor submit, load selected, delete, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft and is not an update entry point.</p>
       <h3>OLE Object Size</h3>
@@ -225,10 +224,10 @@
         <thead><tr><th>Area</th><th>Implementation</th></tr></thead>
         <tbody>
           <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
-          <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend. Metadata stores LaTeX source, display mode, and numbering mode.</td></tr>
-          <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend. Metadata is stored in shape tags.</td></tr>
+          <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend.</td></tr>
+          <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend.</td></tr>
           <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
-          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Insert mode opens blank and does not force focus into the MathLive input area; editor submissions are serialized with Office commands.</td></tr>
+          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Editor submissions are serialized with Office commands.</td></tr>
         </tbody>
       </table>
     </section>
@@ -236,9 +235,8 @@
     <section>
       <h2>Boundaries</h2>
       <ul>
-        <li>Only formulas inserted by LaTeXSnipper with metadata can be managed by the plugin.</li>
-        <li>Plain Office equations lack LaTeXSnipper metadata; the plugin does not guess their LaTeX source.</li>
-        <li>Formulas that lose metadata after copy-paste cannot be managed.</li>
+        <li>Only managed formulas inserted by LaTeXSnipper can be loaded, updated, deleted, and renumbered by the plugin.</li>
+        <li>Plain Office equations are not automatically converted into LaTeXSnipper formulas.</li>
         <li>If the add-in does not appear, close Office, run the installer again to repair or reinstall the add-in, then reopen Office.</li>
       </ul>
     </section>
@@ -250,7 +248,7 @@
     const params = new URLSearchParams(location.search);
     const platform = params.get("platform") || "word";
     document.body.className = "app-" + platform;
-    const language = (navigator.language || "").toLowerCase();
+    const language = (params.get("locale") || "zh-CN").toLowerCase();
     document.documentElement.lang = language.startsWith("zh") ? "zh-CN" : "en";
   </script>
 </body>

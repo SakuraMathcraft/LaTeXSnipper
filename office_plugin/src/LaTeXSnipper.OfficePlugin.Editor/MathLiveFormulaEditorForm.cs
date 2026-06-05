@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -25,7 +26,78 @@ internal sealed class MathLiveFormulaEditorForm : Form
     private bool _committed;
     private bool _restoredDraftForCurrentConfiguration;
     private bool _shutdownDisposing;
+    private InputLanguageSnapshot? _inputLanguageBeforeActivation;
     private Task? _warmUpTask;
+
+    private const int WmInputLangChangeRequest = 0x0050;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr processId);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("imm32.dll")]
+    private static extern IntPtr ImmGetContext(IntPtr hWnd);
+
+    [DllImport("imm32.dll")]
+    private static extern bool ImmReleaseContext(IntPtr hWnd, IntPtr hImc);
+
+    [DllImport("imm32.dll")]
+    private static extern bool ImmGetOpenStatus(IntPtr hImc);
+
+    [DllImport("imm32.dll")]
+    private static extern bool ImmSetOpenStatus(IntPtr hImc, bool open);
+
+    [DllImport("imm32.dll")]
+    private static extern bool ImmGetConversionStatus(IntPtr hImc, out int conversion, out int sentence);
+
+    [DllImport("imm32.dll")]
+    private static extern bool ImmSetConversionStatus(IntPtr hImc, int conversion, int sentence);
+
+    private sealed class InputLanguageSnapshot
+    {
+        public InputLanguageSnapshot(
+            InputLanguage inputLanguage,
+            IntPtr foregroundWindow,
+            IntPtr keyboardLayout,
+            bool hasImeState,
+            bool imeOpen,
+            int imeConversion,
+            int imeSentence)
+        {
+            InputLanguage = inputLanguage;
+            ForegroundWindow = foregroundWindow;
+            KeyboardLayout = keyboardLayout;
+            HasImeState = hasImeState;
+            ImeOpen = imeOpen;
+            ImeConversion = imeConversion;
+            ImeSentence = imeSentence;
+        }
+
+        public InputLanguage InputLanguage { get; }
+
+        public IntPtr ForegroundWindow { get; }
+
+        public IntPtr KeyboardLayout { get; }
+
+        public bool HasImeState { get; }
+
+        public bool ImeOpen { get; }
+
+        public int ImeConversion { get; }
+
+        public int ImeSentence { get; }
+    }
 
     public MathLiveFormulaEditorForm(MathLiveFormulaEditorOptions options)
     {
@@ -86,6 +158,27 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
     }
 
+    public void CaptureInputLanguage()
+    {
+        IntPtr foregroundWindow = GetForegroundWindow();
+        IntPtr keyboardLayout = foregroundWindow == IntPtr.Zero
+            ? InputLanguage.CurrentInputLanguage.Handle
+            : GetKeyboardLayout(GetWindowThreadProcessId(foregroundWindow, IntPtr.Zero));
+        bool hasImeState = TryReadImeState(
+            foregroundWindow,
+            out bool imeOpen,
+            out int imeConversion,
+            out int imeSentence);
+        _inputLanguageBeforeActivation = new InputLanguageSnapshot(
+            InputLanguage.CurrentInputLanguage,
+            foregroundWindow,
+            keyboardLayout,
+            hasImeState,
+            imeOpen,
+            imeConversion,
+            imeSentence);
+    }
+
     private async void OnLoad(object? sender, EventArgs e)
     {
         try
@@ -108,6 +201,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
         _initializing = true;
         string assetsRoot = MathLiveAssetResolver.FindAssetRoot(_options, "editor.html");
+        string sharedAssetsRoot = MathLiveAssetResolver.FindSharedAssetRoot(_options, "symbol-library.js");
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",
@@ -122,6 +216,10 @@ internal sealed class MathLiveFormulaEditorForm : Form
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             _options.EditorHostName,
             assetsRoot,
+            CoreWebView2HostResourceAccessKind.Allow);
+        _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            _options.SharedEditorHostName,
+            sharedAssetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -212,7 +310,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
         if (result.Success)
         {
-            await SetSubmittingAsync(false).ConfigureAwait(true);
             Commit(DialogResult.OK);
             return;
         }
@@ -302,6 +399,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         if (WindowState == FormWindowState.Minimized)
         {
             NotifyEditorCancelled();
+            RestoreInputLanguageAfterHide();
         }
     }
 
@@ -316,6 +414,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
             e.Cancel = true;
             Hide();
+            RestoreInputLanguageAfterHide();
             return;
         }
 
@@ -323,6 +422,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
         {
             NotifyEditorCancelled();
         }
+
+        RestoreInputLanguageAfterHide();
     }
 
     private void NotifyEditorCancelled()
@@ -347,6 +448,100 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
 
         Hide();
+        RestoreInputLanguageAfterHide();
+    }
+
+    private void RestoreInputLanguageAfterHide()
+    {
+        RestoreInputLanguage();
+        _ = RestoreInputLanguageAfterDelayAsync();
+    }
+
+    private void RestoreInputLanguage()
+    {
+        if (_inputLanguageBeforeActivation == null)
+        {
+            return;
+        }
+
+        try
+        {
+            InputLanguage.CurrentInputLanguage = _inputLanguageBeforeActivation.InputLanguage;
+            if (_inputLanguageBeforeActivation.KeyboardLayout != IntPtr.Zero)
+            {
+                _ = ActivateKeyboardLayout(_inputLanguageBeforeActivation.KeyboardLayout, 0);
+            }
+
+            if (_inputLanguageBeforeActivation.ForegroundWindow != IntPtr.Zero)
+            {
+                _ = PostMessage(
+                    _inputLanguageBeforeActivation.ForegroundWindow,
+                    WmInputLangChangeRequest,
+                    IntPtr.Zero,
+                    _inputLanguageBeforeActivation.KeyboardLayout);
+                RestoreImeState(_inputLanguageBeforeActivation);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task RestoreInputLanguageAfterDelayAsync()
+    {
+        await Task.Delay(150).ConfigureAwait(true);
+        RestoreInputLanguage();
+    }
+
+    private static bool TryReadImeState(IntPtr hWnd, out bool open, out int conversion, out int sentence)
+    {
+        open = false;
+        conversion = 0;
+        sentence = 0;
+        if (hWnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        IntPtr hImc = ImmGetContext(hWnd);
+        if (hImc == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            open = ImmGetOpenStatus(hImc);
+            return ImmGetConversionStatus(hImc, out conversion, out sentence);
+        }
+        finally
+        {
+            _ = ImmReleaseContext(hWnd, hImc);
+        }
+    }
+
+    private static void RestoreImeState(InputLanguageSnapshot snapshot)
+    {
+        if (!snapshot.HasImeState)
+        {
+            return;
+        }
+
+        IntPtr hImc = ImmGetContext(snapshot.ForegroundWindow);
+        if (hImc == IntPtr.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = ImmSetOpenStatus(hImc, snapshot.ImeOpen);
+            _ = ImmSetConversionStatus(hImc, snapshot.ImeConversion, snapshot.ImeSentence);
+        }
+        finally
+        {
+            _ = ImmReleaseContext(snapshot.ForegroundWindow, hImc);
+        }
     }
 }
 #endif

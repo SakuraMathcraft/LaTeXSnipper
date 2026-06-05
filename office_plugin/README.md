@@ -1,6 +1,6 @@
 # LaTeXSnipper Native Office Plugin
 
-Native Windows VSTO add-in for Word and PowerPoint. The target architecture uses LaTeXSnipper OLE formula objects as the default insertion backend and communicates with the LaTeXSnipper desktop client through a local Bridge at `127.0.0.1:28765` for screenshot recognition and explicit compatibility paths.
+Native Windows VSTO add-in for Word and PowerPoint. The target architecture uses LaTeXSnipper OLE formula objects as the default insertion backend and communicates with the LaTeXSnipper desktop client through a local Bridge at `127.0.0.1:28765` for screenshot recognition, OMML conversion, and PNG formula insertion.
 
 The OLE backend is not an image insertion path. MathJax SVG output is an internal layout/vector intermediate; the Office-facing OLE presentation must be EMF or GDI/vector drawing so formulas stay sharp in older Office versions, printing, PDF export, and zooming.
 
@@ -25,7 +25,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 ### PowerPoint
 - Default OLE formula object insertion target
-- Compatibility formula insertion behind explicit backend settings
+- PNG formula insertion behind explicit backend settings
 - Load and delete managed formulas
 - Screenshot OCR via desktop Bridge
 - Inserted formulas replace the original at the same position
@@ -42,11 +42,11 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 |---|---|
 | `src/LaTeXSnipper.OfficePlugin.Abstractions` | Stable contracts shared by hosts, renderer, editor, Bridge |
 | `src/LaTeXSnipper.OfficePlugin.Bridge` | HTTP boundary to the desktop Bridge |
-| `src/LaTeXSnipper.OfficePlugin.Rendering` | Engine-neutral render pipeline for MathJax intermediate rendering, OLE presentation generation, and compatibility backends |
+| `src/LaTeXSnipper.OfficePlugin.Rendering` | Engine-neutral render pipeline for MathJax intermediate rendering, OLE presentation generation, and PNG rendering |
 | `src/LaTeXSnipper.OfficePlugin.Editor` | Formula editor session boundary |
 | `hosts/WordAddIn` | Word host workflow core: Ribbon XML, backend selection, OMML compatibility, controller, editor |
 | `hosts/WordVstoAddIn` | Thin VSTO shell loaded by Word |
-| `hosts/PowerPointAddIn` | PowerPoint host workflow core: Ribbon XML, backend selection, compatibility insertion, controller, editor |
+| `hosts/PowerPointAddIn` | PowerPoint host workflow core: Ribbon XML, backend selection, PNG insertion, controller, editor |
 | `hosts/PowerPointVstoAddIn` | Thin VSTO shell loaded by PowerPoint |
 | `installer/` | Inno Setup 6 installer script, build batch, assets |
 | `tools/` | PowerShell registration and build scripts |

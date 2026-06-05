@@ -20,13 +20,6 @@ The script builds the VSTO shell, trusts the current-user dev signing
 certificate for VSTO/ClickOnce, registers Word add-in keys for Office 16.0 and
 the versionless Office path, and runs `VSTOInstaller.exe` silently.
 
-To verify Word can enumerate and connect the add-in from the command line, close
-all existing Word windows first and run:
-
-```powershell
-.\tools\Test-WordVstoAddIn.ps1
-```
-
 VSTO requires signed ClickOnce manifests even for local development. Keep the
 machine-specific test certificate outside version control by creating
 `LaTeXSnipper.OfficePlugin.WordVstoAddIn.user.props` next to the project file:

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -20,6 +21,10 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
+    private int _undoRecordDepth;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private sealed class NumberedFormulaEntry
     {
@@ -40,6 +45,68 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         public int Start { get; }
     }
 
+    private sealed class ManagedRangeSpan
+    {
+        public ManagedRangeSpan(int start, int end)
+        {
+            Start = start;
+            End = end;
+        }
+
+        public int Start { get; }
+
+        public int End { get; }
+    }
+
+    private sealed class DeletionTarget
+    {
+        public DeletionTarget(int start, int end, Action delete)
+        {
+            Start = start;
+            End = end;
+            Delete = delete;
+        }
+
+        public int Start { get; }
+
+        public int End { get; }
+
+        public Action Delete { get; }
+    }
+
+    private sealed class UndoRecordScope : IDisposable
+    {
+        private readonly DynamicWordApplicationAdapter _owner;
+        private readonly bool _started;
+        private bool _disposed;
+
+        public UndoRecordScope(DynamicWordApplicationAdapter owner)
+        {
+            _owner = owner;
+            if (_owner._undoRecordDepth == 0)
+            {
+                _started = _owner.TryStartUndoRecord();
+            }
+
+            _owner._undoRecordDepth++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _owner._undoRecordDepth = Math.Max(0, _owner._undoRecordDepth - 1);
+            if (_started && _owner._undoRecordDepth == 0)
+            {
+                _owner.TryEndUndoRecord();
+            }
+        }
+    }
+
     public DynamicWordApplicationAdapter(object wordApplication)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
@@ -49,6 +116,23 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     {
         double fontSize = ReadPointSize(_wordApplication.Selection.Font.Size);
         return fontSize > 0 ? fontSize : WordOleBaseFontPoints;
+    }
+
+    public Task ActivateForEditingAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        TryCom(() => _wordApplication.Activate());
+        TryCom(() => _wordApplication.ActiveWindow.Activate());
+        TryCom(() => _wordApplication.ActiveWindow.SetFocus());
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd))));
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.Hwnd))));
+        ResetSelectionFormulaTextFormatting();
+        return Task.CompletedTask;
+    }
+
+    public IDisposable BeginUndoRecord()
+    {
+        return new UndoRecordScope(this);
     }
 
     public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)
@@ -69,7 +153,10 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             dynamic selection = _wordApplication.Selection;
             dynamic range = ResolveInsertionTargetRange(selection);
             ValidateInsertionTarget(range);
+            double fontSizePoints = ReadPointSize(range.Font.Size);
             range.InsertXML(ooxml);
+            ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSizePoints);
+            ApplyNumberControlVerticalAlignmentById(metadata);
             WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
             MoveSelectionAfterInsertedFormula(metadata, display);
         });
@@ -157,6 +244,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
             {
                 ApplyNumberedOleInlineShapeBaseline(replacement, presentation, replacementScale);
                 ReplaceNumberControlTextById(metadata.Identity.EquationId, metadata.NumberText);
+                ApplyNumberControlVerticalAlignmentById(metadata, presentation.HeightPoints * replacementScale);
                 NormalizeNumberedParagraph(metadata.Identity.EquationId);
             }
 
@@ -200,12 +288,15 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         cursor = CreateDocumentRange(GetRangeEnd(inlineShape.Range), GetRangeEnd(inlineShape.Range));
         if (placement == WordNumberPlacement.Left)
         {
-            _ = InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata);
+            ApplyNumberControlVerticalAlignment(
+                InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata),
+                metadata,
+                presentation.HeightPoints);
         }
         else
         {
             InsertTextAtRange(cursor, "\t");
-            _ = InsertNumberControlAtRange(cursor, metadata);
+            ApplyNumberControlVerticalAlignment(InsertNumberControlAtRange(cursor, metadata), metadata, presentation.HeightPoints);
         }
 
         NormalizeNumberedParagraph(metadata.Identity.EquationId);
@@ -257,8 +348,100 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         TryCom(() => control.Tag = WordFormulaMetadataStore.BuildNumberTag(metadata.Identity.EquationId));
         TryCom(() => control.Title = WordFormulaMetadataStore.BuildNumberAlias(metadata.Identity.EquationId));
         TryCom(() => control.Range.Text = metadata.NumberText);
-        int insertionPoint = GetRangeEnd(control.Range);
-        return CreateDocumentRange(insertionPoint, insertionPoint);
+        return control;
+    }
+
+    private void ApplyNumberControlVerticalAlignmentById(FormulaMetadata metadata, double renderedHeightPoints = 0)
+    {
+        object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, metadata.Identity.EquationId);
+        if (numberControl != null)
+        {
+            ApplyNumberControlVerticalAlignment(numberControl, metadata, renderedHeightPoints);
+        }
+    }
+
+    private static void ApplyNumberControlVerticalAlignment(object numberControl, FormulaMetadata metadata, double renderedHeightPoints = 0)
+    {
+        double offset = CalculateNumberVerticalOffset(metadata, renderedHeightPoints);
+        dynamic control = numberControl;
+        TryCom(() => control.Range.Font.Superscript = 0);
+        TryCom(() => control.Range.Font.Subscript = 0);
+        TryCom(() => control.Range.Font.Position = offset);
+    }
+
+    private double ReadManagedEquationFontSize(object contentControl)
+    {
+        dynamic control = contentControl;
+        double fontSize = ReadPointSize(control.Range.Font.Size);
+        return fontSize > 0 ? fontSize : GetCurrentFontSizePoints();
+    }
+
+    private void ApplyManagedEquationFontSizeById(string equationId, double fontSizePoints)
+    {
+        if (fontSizePoints <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            dynamic control = FindFormulaControlById(equationId);
+            TryCom(() => control.Range.Font.Size = fontSizePoints);
+        }
+        catch
+        {
+        }
+    }
+
+    private static double CalculateNumberVerticalOffset(FormulaMetadata metadata, double renderedHeightPoints)
+    {
+        double heightOffset = renderedHeightPoints > 0
+            ? Math.Max(0, (renderedHeightPoints - WordOleBaseFontPoints) / 2)
+            : 0;
+        double rowOffset = Math.Max(0, EstimateFormulaRows(metadata.Latex) - 1) * WordOleBaseFontPoints * 0.65;
+        return Math.Max(heightOffset, rowOffset);
+    }
+
+    private static int EstimateFormulaRows(string latex)
+    {
+        if (string.IsNullOrWhiteSpace(latex))
+        {
+            return 1;
+        }
+
+        return Math.Max(ContainsMultilineEnvironment(latex) ? 2 : 1, CountLatexLineBreaks(latex) + 1);
+    }
+
+    private static bool ContainsMultilineEnvironment(string latex)
+    {
+        return ContainsOrdinal(latex, @"\begin{aligned}")
+            || ContainsOrdinal(latex, @"\begin{gathered}")
+            || ContainsOrdinal(latex, @"\begin{cases}")
+            || ContainsOrdinal(latex, @"\begin{matrix}")
+            || ContainsOrdinal(latex, @"\begin{pmatrix}")
+            || ContainsOrdinal(latex, @"\begin{bmatrix}")
+            || ContainsOrdinal(latex, @"\begin{vmatrix}")
+            || ContainsOrdinal(latex, @"\begin{Vmatrix}");
+    }
+
+    private static bool ContainsOrdinal(string value, string fragment)
+    {
+        return value.IndexOf(fragment, StringComparison.Ordinal) >= 0;
+    }
+
+    private static int CountLatexLineBreaks(string latex)
+    {
+        int count = 0;
+        for (int index = 0; index < latex.Length - 1; index++)
+        {
+            if (latex[index] == '\\' && latex[index + 1] == '\\')
+            {
+                count++;
+                index++;
+            }
+        }
+
+        return count;
     }
 
     private void ApplyNumberedParagraphLayout(dynamic range)
@@ -405,7 +588,12 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         ValidateManagedEquationInput(equationOoxml, metadata);
         cancellationToken.ThrowIfCancellationRequested();
         object control = FindFormulaControlById(equationId);
-        ExecuteWithScreenUpdatingSuspended(() => ReplaceFormulaContent(control, ooxml, equationOoxml, metadata));
+        double fontSizePoints = ReadManagedEquationFontSize(control);
+        ExecuteWithScreenUpdatingSuspended(() =>
+        {
+            ReplaceFormulaContent(control, ooxml, equationOoxml, metadata);
+            ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSizePoints);
+        });
         return Task.CompletedTask;
     }
 
@@ -462,6 +650,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                     numberText,
                     entry.Metadata.RenderEngine,
                     entry.Metadata.SchemaVersion);
+                ApplyNumberControlVerticalAlignment(entry.NumberControl, renumbered);
                 WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, renumbered);
             }
         });
@@ -694,11 +883,13 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         {
             ReplaceNumberedFormulaControl(control, equationOoxml);
             ReplaceNumberControlText(numberControl, metadata.NumberText);
+            ApplyNumberControlVerticalAlignment(numberControl, metadata);
             NormalizeNumberedParagraph(metadata.Identity.EquationId);
         }
         else if (metadata.NumberingMode != NumberingMode.None)
         {
             ReplaceParagraphWithNumberedFormula(control, ooxml);
+            ApplyNumberControlVerticalAlignmentById(metadata);
             NormalizeNumberedParagraph(metadata.Identity.EquationId);
         }
         else
@@ -708,6 +899,10 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         }
 
         WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        if (metadata.NumberingMode == NumberingMode.None && metadata.DisplayMode == FormulaDisplayMode.Inline)
+        {
+            NormalizePlainTextBaselineByFormulaId(metadata.Identity.EquationId);
+        }
     }
 
     private void ReplaceFormulaContent(object contentControl, string ooxml, FormulaMetadata metadata)
@@ -767,6 +962,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
             if (!display)
             {
+                NormalizePlainTextBaselineAroundRange(control.Range);
                 MoveSelectionAfterInlineControl(control, equationId);
                 return;
             }
@@ -831,12 +1027,22 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
         if (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1))
         {
+            if (!display)
+            {
+                NormalizePlainTextBaselineAroundRange(shape.Range);
+            }
+
             return;
         }
 
         dynamic target = CreateDocumentRange(insertionPoint, insertionPoint);
         target.Select();
         MoveSelectionRight();
+        if (!display)
+        {
+            NormalizePlainTextBaselineAroundRange(shape.Range);
+        }
+
         EnsureSelectionOutsideFormula(equationId);
     }
 
@@ -860,6 +1066,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
                 target.Select();
             }
 
+            ResetSelectionFormulaTextFormatting();
             return true;
         }
         catch
@@ -913,10 +1120,131 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         try
         {
             _wordApplication.Selection.MoveRight(WdCharacter, 1, WdMove);
+            ResetSelectionFormulaTextFormatting();
         }
         catch
         {
         }
+    }
+
+    private void ResetSelectionFormulaTextFormatting()
+    {
+        TryCom(() => _wordApplication.Selection.Font.Position = 0);
+        TryCom(() => _wordApplication.Selection.Font.Superscript = 0);
+        TryCom(() => _wordApplication.Selection.Font.Subscript = 0);
+    }
+
+    private void NormalizePlainTextBaselineAroundRange(dynamic anchorRange)
+    {
+        try
+        {
+            NormalizePlainTextBaselineInParagraph(anchorRange.Paragraphs.Item(1).Range);
+        }
+        catch
+        {
+        }
+    }
+
+    private void NormalizePlainTextBaselineByFormulaId(string equationId)
+    {
+        try
+        {
+            NormalizePlainTextBaselineAroundRange(((dynamic)FindFormulaControlById(equationId)).Range);
+        }
+        catch
+        {
+        }
+    }
+
+    private void NormalizePlainTextBaselineInParagraph(dynamic paragraphRange)
+    {
+        int paragraphStart = GetRangeStart(paragraphRange);
+        int paragraphEnd = Math.Max(paragraphStart, GetRangeEnd(paragraphRange) - 1);
+        if (paragraphEnd <= paragraphStart)
+        {
+            return;
+        }
+
+        List<ManagedRangeSpan> managedSpans = LoadManagedFormulaSpans(paragraphStart, paragraphEnd);
+        managedSpans.Sort((left, right) => left.Start.CompareTo(right.Start));
+        int plainStart = paragraphStart;
+        foreach (ManagedRangeSpan span in managedSpans)
+        {
+            int spanStart = Math.Max(paragraphStart, span.Start);
+            int spanEnd = Math.Min(paragraphEnd, span.End);
+            if (spanStart > plainStart)
+            {
+                ResetPlainTextBaseline(CreateDocumentRange(plainStart, spanStart));
+            }
+
+            plainStart = Math.Max(plainStart, spanEnd);
+        }
+
+        if (plainStart < paragraphEnd)
+        {
+            ResetPlainTextBaseline(CreateDocumentRange(plainStart, paragraphEnd));
+        }
+    }
+
+    private List<ManagedRangeSpan> LoadManagedFormulaSpans(int paragraphStart, int paragraphEnd)
+    {
+        var spans = new List<ManagedRangeSpan>();
+        try
+        {
+            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            int count = Convert.ToInt32(controls.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic control = controls.Item(i);
+                if (!IsManagedControl(control))
+                {
+                    continue;
+                }
+
+                AddManagedSpanIfInParagraph(spans, control.Range, paragraphStart, paragraphEnd);
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic inlineShape = inlineShapes.Item(i);
+                if (string.IsNullOrWhiteSpace(GetOleInlineShapeEquationId(inlineShape)))
+                {
+                    continue;
+                }
+
+                AddManagedSpanIfInParagraph(spans, inlineShape.Range, paragraphStart, paragraphEnd);
+            }
+        }
+        catch
+        {
+        }
+
+        return spans;
+    }
+
+    private static void AddManagedSpanIfInParagraph(List<ManagedRangeSpan> spans, dynamic range, int paragraphStart, int paragraphEnd)
+    {
+        int start = GetRangeStart(range);
+        int end = GetRangeEnd(range);
+        if (RangesOverlap(paragraphStart, paragraphEnd, start, end))
+        {
+            spans.Add(new ManagedRangeSpan(start, end));
+        }
+    }
+
+    private static void ResetPlainTextBaseline(dynamic range)
+    {
+        TryCom(() => range.Font.Position = 0);
+        TryCom(() => range.Font.Superscript = 0);
+        TryCom(() => range.Font.Subscript = 0);
     }
 
     private static dynamic GetContainingParagraphRange(dynamic control)
@@ -953,10 +1281,9 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         dynamic control = selected.ContentControl;
         string equationId = selected.Metadata.Identity.EquationId;
         object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
-        WordFormulaMetadataStore.Delete(_wordApplication.ActiveDocument, equationId);
         if (selected.Metadata.NumberingMode != NumberingMode.None)
         {
-            DeleteNumberedParagraphBlock(control);
+            DeleteNumberedFormulaById(equationId);
             DeleteMetadataControl(metadataControl);
             return;
         }
@@ -968,23 +1295,99 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private void DeleteOleInlineShape(SelectedWordFormula selected)
     {
         string equationId = selected.Metadata.Identity.EquationId;
-        WordFormulaMetadataStore.Delete(_wordApplication.ActiveDocument, equationId);
         dynamic inlineShape = selected.ContentControl;
         object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
         if (numberControl != null)
         {
-            DeleteNumberedParagraphBlock(numberControl);
+            DeleteNumberedFormulaById(equationId);
             return;
         }
 
         inlineShape.Delete();
     }
 
-    private static void DeleteNumberedParagraphBlock(object anchor)
+    private void DeleteNumberedFormulaById(string equationId)
     {
-        dynamic control = anchor;
-        dynamic paragraphRange = GetContainingParagraphRange(control);
-        paragraphRange.Delete();
+        var targets = new List<DeletionTarget>();
+        object? equationControl = TryGetEquationControlById(equationId);
+        object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
+        object? oleInlineShape = TryFindOleInlineShapeById(equationId);
+        if (equationControl != null)
+        {
+            AddContentControlDeletionTarget(targets, equationControl);
+        }
+
+        if (numberControl != null)
+        {
+            AddContentControlDeletionTarget(targets, numberControl);
+        }
+
+        if (oleInlineShape != null)
+        {
+            AddOleDeletionTarget(targets, oleInlineShape);
+        }
+
+        DeleteTargetsInDocumentOrder(targets);
+    }
+
+    private void AddContentControlDeletionTarget(ICollection<DeletionTarget> targets, object control)
+    {
+        dynamic item = control;
+        AddAdjacentTabDeletionTargets(targets, item.Range);
+        int start = GetRangeStart(item.Range);
+        int end = GetRangeEnd(item.Range);
+        Action delete = () => item.Delete(true);
+        targets.Add(new DeletionTarget(start, end, delete));
+    }
+
+    private void AddOleDeletionTarget(ICollection<DeletionTarget> targets, object inlineShape)
+    {
+        dynamic item = inlineShape;
+        AddAdjacentTabDeletionTargets(targets, item.Range);
+        int start = GetRangeStart(item.Range);
+        int end = GetRangeEnd(item.Range);
+        Action delete = () => item.Delete();
+        targets.Add(new DeletionTarget(start, end, delete));
+    }
+
+    private void AddAdjacentTabDeletionTargets(ICollection<DeletionTarget> targets, dynamic range)
+    {
+        int start = GetRangeStart(range);
+        int end = GetRangeEnd(range);
+        AddTabDeletionTarget(targets, start - 1, start);
+        AddTabDeletionTarget(targets, end, end + 1);
+    }
+
+    private void AddTabDeletionTarget(ICollection<DeletionTarget> targets, int start, int end)
+    {
+        int safeStart = ClampDocumentPosition(start);
+        int safeEnd = ClampDocumentPosition(end);
+        if (safeEnd <= safeStart)
+        {
+            return;
+        }
+
+        dynamic range = CreateDocumentRange(safeStart, safeEnd);
+        string text = Convert.ToString(range.Text) ?? string.Empty;
+        if (text == "\t")
+        {
+            targets.Add(new DeletionTarget(safeStart, safeEnd, () => CreateDocumentRange(safeStart, safeEnd).Delete()));
+        }
+    }
+
+    private static void DeleteTargetsInDocumentOrder(List<DeletionTarget> targets)
+    {
+        targets.Sort((left, right) => right.Start.CompareTo(left.Start));
+        var deleted = new HashSet<string>(StringComparer.Ordinal);
+        foreach (DeletionTarget target in targets)
+        {
+            string key = target.Start.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" +
+                target.End.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (deleted.Add(key))
+            {
+                target.Delete();
+            }
+        }
     }
 
     private static void DeleteMetadataControl(object? metadataControl)
@@ -1018,7 +1421,60 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
         }
         catch
         {
+            FormulaMetadata? tagMetadata = TryLoadFormulaTagMetadata(control, equationId);
+            if (tagMetadata != null)
+            {
+                WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, tagMetadata);
+                return tagMetadata;
+            }
+
             return CreateRecoveredFormulaMetadata(control, equationId);
+        }
+    }
+
+    private static FormulaMetadata? TryLoadFormulaTagMetadata(dynamic control, string equationId)
+    {
+        FormulaMetadata? tagMetadata = TryLoadFormulaTagMetadataValue(ReadControlTag(control));
+        if (tagMetadata != null && tagMetadata.Identity.EquationId == equationId)
+        {
+            return tagMetadata;
+        }
+
+        tagMetadata = TryLoadFormulaTagMetadataValue(ReadAlternativeText(control));
+        return tagMetadata != null && tagMetadata.Identity.EquationId == equationId ? tagMetadata : null;
+    }
+
+    private static FormulaMetadata? TryLoadFormulaTagMetadataValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return WordFormulaMetadataStore.DeserializeMetadataFromEquationTag(value);
+    }
+
+    private static string ReadControlTag(dynamic control)
+    {
+        try
+        {
+            return Convert.ToString(control.Tag) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string ReadAlternativeText(dynamic control)
+    {
+        try
+        {
+            return Convert.ToString(control.AlternativeText) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
         }
     }
 
@@ -1097,6 +1553,28 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     private static object? TryGetNumberControlById(dynamic document, string equationId)
     {
         return TryGetControlByTag(document, WordFormulaMetadataStore.BuildNumberTag(equationId));
+    }
+
+    private object? TryGetEquationControlById(string equationId)
+    {
+        try
+        {
+            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            int count = Convert.ToInt32(controls.Count);
+            for (int i = 1; i <= count; i++)
+            {
+                dynamic control = controls.Item(i);
+                if (GetEquationControlId(control) == equationId)
+                {
+                    return control;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
 
     private static object? TryGetMetadataControlById(dynamic document, string equationId)
@@ -1257,6 +1735,7 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
     {
         bool restore = false;
         bool original = true;
+        bool undoRecordStarted = false;
         try
         {
             original = Convert.ToBoolean(_wordApplication.ScreenUpdating);
@@ -1269,15 +1748,44 @@ public sealed class DynamicWordApplicationAdapter : IWordApplicationAdapter
 
         try
         {
+            if (_undoRecordDepth == 0)
+            {
+                undoRecordStarted = TryStartUndoRecord();
+            }
+
             action();
         }
         finally
         {
+            if (undoRecordStarted)
+            {
+                TryEndUndoRecord();
+            }
+
             if (restore)
             {
                 TryCom(() => _wordApplication.ScreenUpdating = original);
             }
         }
+    }
+
+    private bool TryStartUndoRecord()
+    {
+        try
+        {
+            dynamic undoRecord = _wordApplication.UndoRecord;
+            undoRecord.StartCustomRecord("LaTeXSnipper");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void TryEndUndoRecord()
+    {
+        TryCom(() => _wordApplication.UndoRecord.EndCustomRecord());
     }
 
     private static void TryCom(Action action)

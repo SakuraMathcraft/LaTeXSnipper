@@ -76,6 +76,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (host_root / "EditorAssets" / "help.html").is_file()
     factory = (host_root / "WordAddInFactory.cs").read_text(encoding="utf-8")
     bridge_client = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Bridge" / "BridgeClient.cs").read_text(encoding="utf-8")
+    editor = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
+    editor_form = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs").read_text(encoding="utf-8")
     assert "http://127.0.0.1:28765/" in factory
     assert "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN" in factory
     assert "FormulaSubmitting" in factory
@@ -84,6 +86,12 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ConfigAsync" in bridge_client
     assert "EnsureConfiguredAsync" in bridge_client
     assert "https://localhost:8765/" not in factory
+    assert "CaptureInputLanguage()" in editor
+    assert "InputLanguage.CurrentInputLanguage" in editor_form
+    assert "WmInputLangChangeRequest" in editor_form
+    assert "ImmGetConversionStatus" in editor_form
+    assert "ImmSetConversionStatus" in editor_form
+    assert "RestoreInputLanguage()" in editor_form
 
     ribbon = (host_root / "Ribbon" / "WordRibbon.xml").read_text(encoding="utf-8")
     assert "LaTeXSnipperTab" in ribbon
@@ -158,6 +166,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "RangeTouchesManagedFormula" in adapter
     assert "Selection.SetRange" in adapter
     assert "ExecuteWithScreenUpdatingSuspended" in adapter
+    assert "BeginUndoRecord" in adapter
+    assert "UndoRecordScope" in adapter
+    assert "_undoRecordDepth" in adapter
     assert "ResolveInsertionTargetRange" in adapter
     assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" not in adapter
     assert "TryGetNumberedTableFromPreviousParagraph" not in adapter
@@ -167,6 +178,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" in adapter
+    assert "TryLoadFormulaTagMetadata" in adapter
+    assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedTable" not in adapter
     assert "ApplyNumberedParagraphLayout" in adapter
@@ -175,12 +188,36 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ReplaceParagraphWithNumberedFormula(control, ooxml)" in adapter
     assert "paragraphRange.Delete()" in adapter
     assert "InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata)" in adapter
-    assert "return CreateDocumentRange(insertionPoint, insertionPoint)" in adapter
+    assert "ApplyNumberControlVerticalAlignment" in adapter
+    assert "CalculateNumberVerticalOffset" in adapter
+    assert "EstimateFormulaRows" in adapter
+    assert "(renderedHeightPoints - WordOleBaseFontPoints) / 2" in adapter
+    assert "Math.Min(14" not in adapter
+    assert "* 0.18" not in adapter
     assert "ApplyNumberedOleInlineShapeBaseline" in adapter
-    assert "DeleteNumberedParagraphBlock" in adapter
+    assert "DeleteNumberedParagraphBlock" not in adapter
+    assert "DeleteNumberedFormulaById" in adapter
+    assert "AddAdjacentTabDeletionTargets" in adapter
+    assert "TryStartUndoRecord" in adapter
+    assert "StartCustomRecord(\"LaTeXSnipper\")" in adapter
+    assert "using (_wordAdapter.BeginUndoRecord())" in controller
     assert "GetCurrentFontSizePoints" in adapter
+    assert "ApplyManagedEquationFontSizeById" in adapter
+    assert "ReadManagedEquationFontSize" in adapter
+    assert "control.Range.Font.Size = fontSizePoints" in adapter
     assert "ApplyOleInlineShapeBaseline" in adapter
     assert "inlineShape.Range.Font.Position = -baseline" in adapter
+    assert "ResetSelectionFormulaTextFormatting" in adapter
+    assert "NormalizePlainTextBaselineAroundRange" in adapter
+    assert "LoadManagedFormulaSpans" in adapter
+    assert "ResetPlainTextBaseline" in adapter
+    assert "_wordApplication.Selection.Font.Position = 0" in adapter
+    assert "_wordApplication.Selection.Font.Superscript = 0" in adapter
+    assert "_wordApplication.Selection.Font.Subscript = 0" in adapter
+    assert "ActivateForEditingAsync" in adapter
+    assert "_wordApplication.ActiveWindow.Activate()" in adapter
+    assert "_wordApplication.ActiveWindow.SetFocus()" in adapter
+    assert "_wordApplication.Selection.Range.Select()" not in adapter
     assert "MoveSelectionAfterDisplayRange" not in adapter
     assert "OnUpdateSelected" not in callbacks
     assert "OnScreenshotOcr" in callbacks
@@ -193,6 +230,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "CancelScreenshotOcrAsync" in callbacks
     assert "RunScreenshotOcrAsync" in callbacks
     assert "TryRunCommandAsync" in callbacks
+    assert "ct => _controller.RecognizeScreenshotAsync(ct)" not in callbacks
     assert "_runningCommand" not in callbacks
     assert "OcrWaitingStatus" in callbacks
     assert "OcrRecognizingStatus" in addin_text
@@ -210,7 +248,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "statusIcon" not in taskpane_html
     assert 'textContent = "OK"' not in taskpane_js
     assert "DefaultLatex = \"e^{i\\\\pi}+1=0\"" in taskpane
-    assert "_displayMode = true" in taskpane
+    assert "private bool _displayMode;" in taskpane
+    assert "saved?.DisplayMode ?? false" in taskpane
+    assert 'id="displayMode" type="checkbox" checked' not in taskpane_html
+    assert "display: false" in taskpane_js
+    assert "els.displayMode.checked = Boolean(payload.display)" in taskpane_js
     assert "IWordFormulaOptionsProvider" in taskpane
     assert "NumberingMode.Manual" in taskpane
     assert "ConnectRequested" in taskpane
@@ -245,6 +287,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "SemaphoreSlim _commandGate" in controller
     assert "TryRunCommandAsync" in controller
     assert "TryAcceptEditorFormulaAsync" in controller
+    assert "ActivateForEditingAsync" in controller
     assert "WaitAsync(0" in controller
     assert "OpenEditorAsync" not in controller
     assert "OfficePluginHelp.Open" in controller
@@ -272,6 +315,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "_options.Icon" in shared_editor_form
     assert "FormulaSubmitting" in shared_editor
     assert "FormulaAccepted" not in shared_editor
+    assert "RecreateVisibleForm()" in shared_editor
+    assert "form.DisposeForShutdown()" in shared_editor
     assert "SetSubmittingAsync(true)" in shared_editor_form
     assert "SetSubmittingAsync(false)" in shared_editor_form
     assert "TrySetSubmittingAsync(false)" in shared_editor_form
@@ -296,6 +341,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "display: true" in editor_js
     assert "let submitting = false" in editor_js
     assert "function setSubmitting" in editor_js
+    assert "setSubmitting(false);" in editor_js
     assert "acceptButton.disabled = submitting" in editor_js
     assert "cancelButton.disabled = submitting" in editor_js
     assert "if (submitting)" in editor_js
@@ -321,12 +367,15 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "symbol-grid" in editor_html
     assert "flex-direction: column" in editor_css
     assert "border: 1px solid transparent" in editor_css
-    assert "analysis:" in editor_js
-    assert "algebra:" in editor_js
-    assert "numberTheory:" in editor_js
-    assert 'id: "numberTheory"' in editor_js
+    shared_symbol_library = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "EditorAssets" / "symbol-library.js").read_text(encoding="utf-8")
+    assert "window.LaTeXSnipperEditorSymbols" in editor_js
+    assert "window.LaTeXSnipperEditorSymbols" in shared_symbol_library
+    assert "analysis:" in shared_symbol_library
+    assert "algebra:" in shared_symbol_library
+    assert "numberTheory:" in shared_symbol_library
+    assert 'id: "numberTheory"' in shared_symbol_library
     assert "accents:" not in editor_js
-    assert 'id: "accents"' not in editor_js
+    assert 'id: "accents"' not in shared_symbol_library
     assert "latexSnipperEditorLibraryState" in editor_js
     assert "function loadLibraryState" in editor_js
     assert "function saveLibraryState" in editor_js
@@ -334,116 +383,116 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "preserveScroll" in editor_js
     assert "preserveGlobalSearch" in editor_js
     assert "selectGroup(GROUPS[0])" not in editor_js
-    assert '["\\\\bigl( \\\\bigr)"' not in editor_js
-    assert '"( ) 大"' not in editor_js
-    assert '"[ ] 大"' not in editor_js
-    assert '"|ₓ"' in editor_js
-    assert '"⏟"' in editor_js
-    assert '"⎛ ⎞"' in editor_js
-    assert '"⟪ ⟫"' in editor_js
-    assert '"≞"' in editor_js
-    assert '"≝"' in editor_js
-    assert '"≟"' in editor_js
-    assert '["\\\\overset{!}{=}"' not in editor_js
-    assert '["\\\\overset{\\\\text{def}}{=}"' not in editor_js
-    assert '["\\\\overset{?}{=}"' not in editor_js
-    assert '"𝒫(A)"' in editor_js
-    assert '"𝟙_A"' in editor_js
-    assert '"△"' in editor_js
-    assert '"幂集"' not in editor_js
-    assert '"指示函数"' not in editor_js
-    assert '"对称差"' not in editor_js
-    assert '"section": "数学分析 / 实分析 - 概念 / 性质"' in editor_js
-    assert '"section": "PDE / 变分法 / 微局部 - 定理 / 公式"' in editor_js
-    assert '"section": "群论 / 伽罗瓦理论 - 定理 / 公式"' in editor_js
-    assert '"section": "曲线曲面 / 黎曼几何 - 定理 / 公式"' in editor_js
-    assert '"section": "微分拓扑 / Morse 理论 / 流形拓扑 - 定理 / 公式"' in editor_js
-    assert '"section": "初等数论 - 定理 / 公式"' in editor_js
-    assert '"section": "解析数论 - 定理 / 公式"' in editor_js
-    assert '"section": "代数数论 / 算术几何 - 定理 / 公式"' in editor_js
-    assert '"section": "模形式 / 表示 - 定理 / 公式"' in editor_js
+    assert '["\\\\bigl( \\\\bigr)"' not in shared_symbol_library
+    assert '"( ) 大"' not in shared_symbol_library
+    assert '"[ ] 大"' not in shared_symbol_library
+    assert '"|ₓ"' in shared_symbol_library
+    assert '"⏟"' in shared_symbol_library
+    assert '"⎛ ⎞"' in shared_symbol_library
+    assert '"⟪ ⟫"' in shared_symbol_library
+    assert '"≞"' in shared_symbol_library
+    assert '"≝"' in shared_symbol_library
+    assert '"≟"' in shared_symbol_library
+    assert '["\\\\overset{!}{=}"' not in shared_symbol_library
+    assert '["\\\\overset{\\\\text{def}}{=}"' not in shared_symbol_library
+    assert '["\\\\overset{?}{=}"' not in shared_symbol_library
+    assert '"𝒫(A)"' in shared_symbol_library
+    assert '"𝟙_A"' in shared_symbol_library
+    assert '"△"' in shared_symbol_library
+    assert '"幂集"' not in shared_symbol_library
+    assert '"指示函数"' not in shared_symbol_library
+    assert '"对称差"' not in shared_symbol_library
+    assert '"section": "数学分析 / 实分析 - 概念 / 性质"' in shared_symbol_library
+    assert '"section": "PDE / 变分法 / 微局部 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "群论 / 伽罗瓦理论 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "曲线曲面 / 黎曼几何 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "微分拓扑 / Morse 理论 / 流形拓扑 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "初等数论 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "解析数论 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "代数数论 / 算术几何 - 定理 / 公式"' in shared_symbol_library
+    assert '"section": "模形式 / 表示 - 定理 / 公式"' in shared_symbol_library
     assert "function isSectionItem(item)" in editor_js
     assert 'className = "symbol-section-label"' in editor_js
     assert "if (isSectionItem(item)) return false;" in editor_js
-    assert "Stone-Weierstrass" in editor_js
-    assert "Mikhlin 乘子" in editor_js
-    assert "De Giorgi-Nash-Moser" in editor_js
-    assert "Runge 定理" in editor_js
-    assert "T(1) 定理" in editor_js
-    assert "Harnack 不等式" in editor_js
-    assert "微分中值定理" in editor_js
-    assert "第一积分中值" in editor_js
-    assert "Newton-Leibniz" in editor_js
-    assert "Galois 基本定理" in editor_js
-    assert "Peter-Weyl" in editor_js
-    assert "Auslander-Buchsbaum" in editor_js
-    assert "Grothendieck-Riemann-Roch" in editor_js
-    assert "线性无关" in editor_js
-    assert "基扩张定理" in editor_js
-    assert "Gauss-Bonnet-Chern" in editor_js
-    assert "Toponogov 比较" in editor_js
-    assert "Uhlenbeck 紧性" in editor_js
-    assert "点到直线距离" in editor_js
-    assert "曲面参数化" in editor_js
-    assert "Poincaré-Hopf" in editor_js
-    assert "庞加莱-霍普夫指标" in editor_js
-    assert "Atiyah-Hirzebruch 谱序列" in editor_js
-    assert "Adams-Novikov" in editor_js
-    assert "Kirby 演算" in editor_js
-    assert "Baum-Connes" in editor_js
-    assert "子空间拓扑" in editor_js
-    assert "路径提升" in editor_js
-    assert "二次互反律" in editor_js
-    assert "素数定理" in editor_js
-    assert "类数公式" in editor_js
-    assert "模性定理" in editor_js
-    assert "Langlands 对应" in editor_js
-    assert "probability" in editor_js
-    assert '"section": "经典力学 / 分析力学"' in editor_js
-    assert '"section": "连续介质 / 流体 / 声学"' in editor_js
-    assert '"section": "电路 / 电磁学"' in editor_js
-    assert '"section": "光学 / 波动"' in editor_js
-    assert '"section": "热学 / 热力学 / 统计物理"' in editor_js
-    assert '"section": "量子力学 / 原子物理"' in editor_js
-    assert '"section": "狭义相对论 / 广义相对论 / 宇宙学"' in editor_js
-    assert '"section": "量子场论 / 粒子物理 / 规范理论"' in editor_js
-    assert '"section": "凝聚态 / 固体物理 / 材料"' in editor_js
-    assert '"section": "核物理 / 等离子体 / 天体物理"' in editor_js
-    assert '"section": "弦论 / 量子引力"' in editor_js
-    assert "Navier-Stokes" in editor_js
-    assert "Einstein 方程" in editor_js
-    assert "Yang-Mills" in editor_js
-    assert "AdS/CFT" in editor_js
-    assert '"section": "初等函数"' in editor_js
-    assert '"section": "Gamma / Beta / Zeta / 数论函数"' in editor_js
-    assert '"section": "Bessel / Airy / 正交多项式"' in editor_js
-    assert '"section": "超几何 / q-函数 / 模函数"' in editor_js
-    assert '"section": "阶跃 / 分布 / 病态函数"' in editor_js
-    assert '"Γ"' in editor_js
-    assert '"ζ"' in editor_js
-    assert '"Jν"' in editor_js
-    assert '"Ai"' in editor_js
-    assert '"₂F₁"' in editor_js
-    assert '"j(τ)"' in editor_js
-    assert '"W(x)"' in editor_js
-    assert '"R(x)"' in editor_js
-    assert '"D(x)"' in editor_js
-    assert '"C(x)"' in editor_js
-    assert '"多对数"' not in editor_js
-    assert '"Euler φ"' not in editor_js
-    functions_block = editor_js.split('id: "functions"', 1)[1].split("],\n  },", 1)[0]
-    assert "\\\\Gamma(z)=\\\\int_0^\\\\infty" in editor_js
-    assert "B(x,y)=\\\\int_0^1" in editor_js
-    assert "\\\\zeta(s)=\\\\sum_{n=1}^\\\\infty" in editor_js
-    assert "{}_2F_1(a,b;c;z)=\\\\sum" in editor_js
-    assert "\\\\wp(z;\\\\Lambda)=" in editor_js
-    assert "W(x)=\\\\sum_{n=0}^{\\\\infty}" in editor_js
-    assert "D(x)=\\\\begin{cases}1,&x\\\\in\\\\mathbb Q" in editor_js
+    assert "Stone-Weierstrass" in shared_symbol_library
+    assert "Mikhlin 乘子" in shared_symbol_library
+    assert "De Giorgi-Nash-Moser" in shared_symbol_library
+    assert "Runge 定理" in shared_symbol_library
+    assert "T(1) 定理" in shared_symbol_library
+    assert "Harnack 不等式" in shared_symbol_library
+    assert "微分中值定理" in shared_symbol_library
+    assert "第一积分中值" in shared_symbol_library
+    assert "Newton-Leibniz" in shared_symbol_library
+    assert "Galois 基本定理" in shared_symbol_library
+    assert "Peter-Weyl" in shared_symbol_library
+    assert "Auslander-Buchsbaum" in shared_symbol_library
+    assert "Grothendieck-Riemann-Roch" in shared_symbol_library
+    assert "线性无关" in shared_symbol_library
+    assert "基扩张定理" in shared_symbol_library
+    assert "Gauss-Bonnet-Chern" in shared_symbol_library
+    assert "Toponogov 比较" in shared_symbol_library
+    assert "Uhlenbeck 紧性" in shared_symbol_library
+    assert "点到直线距离" in shared_symbol_library
+    assert "曲面参数化" in shared_symbol_library
+    assert "Poincaré-Hopf" in shared_symbol_library
+    assert "庞加莱-霍普夫指标" in shared_symbol_library
+    assert "Atiyah-Hirzebruch 谱序列" in shared_symbol_library
+    assert "Adams-Novikov" in shared_symbol_library
+    assert "Kirby 演算" in shared_symbol_library
+    assert "Baum-Connes" in shared_symbol_library
+    assert "子空间拓扑" in shared_symbol_library
+    assert "路径提升" in shared_symbol_library
+    assert "二次互反律" in shared_symbol_library
+    assert "素数定理" in shared_symbol_library
+    assert "类数公式" in shared_symbol_library
+    assert "模性定理" in shared_symbol_library
+    assert "Langlands 对应" in shared_symbol_library
+    assert "probability" in shared_symbol_library
+    assert '"section": "经典力学 / 分析力学"' in shared_symbol_library
+    assert '"section": "连续介质 / 流体 / 声学"' in shared_symbol_library
+    assert '"section": "电路 / 电磁学"' in shared_symbol_library
+    assert '"section": "光学 / 波动"' in shared_symbol_library
+    assert '"section": "热学 / 热力学 / 统计物理"' in shared_symbol_library
+    assert '"section": "量子力学 / 原子物理"' in shared_symbol_library
+    assert '"section": "狭义相对论 / 广义相对论 / 宇宙学"' in shared_symbol_library
+    assert '"section": "量子场论 / 粒子物理 / 规范理论"' in shared_symbol_library
+    assert '"section": "凝聚态 / 固体物理 / 材料"' in shared_symbol_library
+    assert '"section": "核物理 / 等离子体 / 天体物理"' in shared_symbol_library
+    assert '"section": "弦论 / 量子引力"' in shared_symbol_library
+    assert "Navier-Stokes" in shared_symbol_library
+    assert "Einstein 方程" in shared_symbol_library
+    assert "Yang-Mills" in shared_symbol_library
+    assert "AdS/CFT" in shared_symbol_library
+    assert '"section": "初等函数"' in shared_symbol_library
+    assert '"section": "Gamma / Beta / Zeta / 数论函数"' in shared_symbol_library
+    assert '"section": "Bessel / Airy / 正交多项式"' in shared_symbol_library
+    assert '"section": "超几何 / q-函数 / 模函数"' in shared_symbol_library
+    assert '"section": "阶跃 / 分布 / 病态函数"' in shared_symbol_library
+    assert '"Γ"' in shared_symbol_library
+    assert '"ζ"' in shared_symbol_library
+    assert '"Jν"' in shared_symbol_library
+    assert '"Ai"' in shared_symbol_library
+    assert '"₂F₁"' in shared_symbol_library
+    assert '"j(τ)"' in shared_symbol_library
+    assert '"W(x)"' in shared_symbol_library
+    assert '"R(x)"' in shared_symbol_library
+    assert '"D(x)"' in shared_symbol_library
+    assert '"C(x)"' in shared_symbol_library
+    assert '"多对数"' not in shared_symbol_library
+    assert '"Euler φ"' not in shared_symbol_library
+    functions_block = shared_symbol_library.split('id: "functions"', 1)[1].split("],\n  },", 1)[0]
+    assert "\\\\Gamma(z)=\\\\int_0^\\\\infty" in shared_symbol_library
+    assert "B(x,y)=\\\\int_0^1" in shared_symbol_library
+    assert "\\\\zeta(s)=\\\\sum_{n=1}^\\\\infty" in shared_symbol_library
+    assert "{}_2F_1(a,b;c;z)=\\\\sum" in shared_symbol_library
+    assert "\\\\wp(z;\\\\Lambda)=" in shared_symbol_library
+    assert "W(x)=\\\\sum_{n=0}^{\\\\infty}" in shared_symbol_library
+    assert "D(x)=\\\\begin{cases}1,&x\\\\in\\\\mathbb Q" in shared_symbol_library
     assert "\\Gamma(#?)" not in functions_block
     assert "B(#?,#?)" not in functions_block
     assert "{}_2F_1(#?,#?;#?;#?)" not in functions_block
     assert "W(#?)" not in functions_block
-    assert editor_js.count("matrix:vmatrix") == 1
+    assert shared_symbol_library.count("matrix:vmatrix") == 1
     assert editor_css.count(".symbol-section-label") == 2
 
     expected_math_sections = {
@@ -461,7 +510,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
         "numberTheory": 8,
     }
     for group_id, expected_sections in expected_math_sections.items():
-        group_block = editor_js.split(f'id: "{group_id}"', 1)[1].split("],\n  },", 1)[0]
+        group_block = shared_symbol_library.split(f'id: "{group_id}"', 1)[1].split("],\n  },", 1)[0]
         for section in expected_sections:
             assert section in group_block
         assert group_block.count('"section": "') >= minimum_section_counts[group_id]
@@ -537,20 +586,17 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "RibbonIconFactory.cs" not in project_text
 
     register_script = PLUGIN / "tools" / "Register-WordVstoAddIn.ps1"
-    smoke_script = PLUGIN / "tools" / "Test-WordVstoAddIn.ps1"
     shared_registration = PLUGIN / "tools" / "OfficeVstoRegistration.ps1"
     register_text = register_script.read_text(encoding="utf-8")
-    smoke_text = smoke_script.read_text(encoding="utf-8")
     shared_registration_text = shared_registration.read_text(encoding="utf-8")
     assert register_script.is_file()
-    assert smoke_script.is_file()
     assert shared_registration.is_file()
     assert "Invoke-OfficeVstoRegistration" in register_text
     assert "RegisterOfficeAddin" in shared_registration_text
     assert "TrustedPublisher" in shared_registration_text
     assert "CommandLineSafe" in shared_registration_text
     assert "VSTOInstaller.exe" in shared_registration_text
-    assert "COMAddIns" in smoke_text
+    assert "COMAddIns" not in register_text
 
 
 def test_office_plugin_hosts_are_explicit_scaffolds() -> None:
@@ -635,8 +681,8 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "side pane is not an update entry point" in help_html
         assert "Ctrl+Enter keeps its MathLive line-break behavior" in help_html
         assert "Esc does not close the editor" in help_html
-        assert "editor submissions are serialized with Office commands" in help_html
-        assert "Numbered formulas do not use Word tables" in help_html
+        assert "Editor submissions are serialized with Office commands" in help_html
+        assert "Numbered formulas center the formula and place the number" in help_html
         assert "Auto Number only applies to unnumbered display equations" in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
         assert "Office 2024 / 2021 / 2019" in help_html

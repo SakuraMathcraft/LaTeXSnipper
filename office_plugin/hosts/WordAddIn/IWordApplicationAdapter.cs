@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -7,6 +8,10 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 public interface IWordApplicationAdapter
 {
     Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
+
+    Task ActivateForEditingAsync(CancellationToken cancellationToken);
+
+    IDisposable BeginUndoRecord();
 
     double GetCurrentFontSizePoints();
 
