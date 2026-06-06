@@ -109,7 +109,7 @@ Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 
 ; ===== Shared MathJax runtime =====
-Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\MathJax-3.2.2\*"; \
+Source: "..\hosts\WordAddIn\bin\{#Config}\net48\MathJax-3.2.2\*"; \
   DestDir: "{app}\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
 
 ; ===== EditorAssets (shared, installed alongside both hosts) =====
@@ -127,8 +127,6 @@ Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePl
   DestDir: "{app}\OleFormulaObject\x64"; Flags: ignoreversion
 Source: "..\hosts\OleFormulaObjectNative\bin\Win32\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \
   DestDir: "{app}\OleFormulaObject\x86"; Flags: ignoreversion
-Source: "..\hosts\OleFormulaObject\bin\{#Config}\net48\*"; \
-  DestDir: "{app}\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\*,EditorAssets\*"
 
 [Registry]
 ; ===== Word Add-in (versionless path) =====

@@ -257,7 +257,8 @@ math-field {
   gap: 4px;
 }
 
-.matrix-row.cases {
+.matrix-row.cases,
+.matrix-row.square {
   grid-template-columns: 52px 1fr;
 }
 

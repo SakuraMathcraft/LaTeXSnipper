@@ -45,18 +45,21 @@
 
 ---
 
-## Office Integration Direction
+## Microsoft Office Plugin
 
-The active Office integration is the Windows-native `office_plugin` line. It targets Windows desktop Office:
+LaTeXSnipper provides a released Windows plugin for desktop Microsoft Word and PowerPoint:
 
-- Word: native OMML insertion and LaTeXSnipper OLE formula objects
-- PowerPoint: current compatible image insertion and LaTeXSnipper OLE formula objects
-- Local TeX rendering pipeline for self-rendered formula objects
-- Per-formula persisted LaTeX source, render options, numbering data, and object identity
-- Native Ribbon, shortcuts, double-click editing, update, delete, and renumber workflows
-- Native Bridge endpoint defaults to `http://127.0.0.1:28765/`
+- Word OLE and native OMML formula insertion
+- PowerPoint OLE and PNG formula insertion
+- Shared MathLive editor and extensive symbol/formula library
+- Formula loading, update, deletion, automatic numbering, and renumbering
+- Persisted LaTeX source, rendering options, numbering data, and formula identity
+- Local vector rendering for OLE formulas
+- Screenshot recognition through the local desktop Bridge
 
-See [Windows native Office plugin design](docs/office_plugin_design.md).
+Download `OfficePluginSetup-<version>.exe` from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases). The plugin supports 32-bit and 64-bit desktop Office 2019, 2021, 2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+
+See the [Office plugin documentation](office_plugin/README.md) for requirements and release build details.
 
 ---
 

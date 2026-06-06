@@ -26,3 +26,19 @@ def test_desktop_mathlive_editor_uses_local_runtime_assets() -> None:
     assert (MATHLIVE / "vendor" / "compute-engine.min.esm.js").is_file()
     assert (MATHLIVE / "vendor" / "compute-engine.LICENSE.txt").is_file()
     assert any((MATHLIVE / "vendor" / "fonts").glob("*.woff2"))
+
+
+def test_workbench_uses_current_mathlive_keyboard_policy() -> None:
+    app = (MATHLIVE / "app.js").read_text(encoding="utf-8")
+    snippets = (ROOT / "src" / "editor" / "latex_snippet_panel.py").read_text(encoding="utf-8")
+
+    assert "mathfield.mode === 'latex'" in app
+    assert "mathfield.executeCommand('addRowAfter')" in app
+    assert "const MULTILINE_TEMPLATE = '\\\\begin{aligned}#@\\\\\\\\#?\\\\end{aligned}';" in app
+    assert "event.stopImmediatePropagation();" in app
+    assert "insertToMain();" in app
+    assert "previousSuggestion" not in app
+    assert "nextSuggestion" not in app
+    assert "getCompletionPopup" not in app
+    assert "换行  (Enter)" in snippets
+    assert "换行  (Shift+Enter)" not in snippets

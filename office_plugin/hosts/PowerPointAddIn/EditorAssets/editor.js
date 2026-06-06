@@ -4,6 +4,14 @@ if (!window.LaTeXSnipperEditorSymbols) {
   throw new Error("LaTeXSnipper editor symbol library was not loaded.");
 }
 
+if (!window.LaTeXSnipperMathfieldInput) {
+  throw new Error("LaTeXSnipper MathLive input configuration was not loaded.");
+}
+
+if (!window.LaTeXSnipperMatrixTemplates) {
+  throw new Error("LaTeXSnipper matrix templates were not loaded.");
+}
+
 const { STRINGS, GROUPS } = window.LaTeXSnipperEditorSymbols;
 let mathfield = null;
 let locale = "zh";
@@ -96,31 +104,12 @@ function insertLatex(latex) {
     return;
   }
 
-  mathfield.insert(latex, { format: "latex" });
-  mathfield.focus();
+  window.LaTeXSnipperMathfieldInput.insertTemplate(mathfield, latex);
   syncSource();
 }
 
 function insertMatrix(env, rows = 2, cols = 2) {
-  if (env === "cases") {
-    cols = 2;
-  }
-
-  if (env === "hessian") {
-    const body = Array.from({ length: rows }, (_, i) =>
-      Array.from({ length: cols }, (_, j) =>
-        `\\frac{\\partial^2 #?}{\\partial #?_{${i + 1}}\\partial #?_{${j + 1}}}`
-      ).join(" & ")
-    ).join(" \\\\ ");
-    mathfield.insert(`\\begin{bmatrix} ${body} \\end{bmatrix}`, { format: "latex" });
-    mathfield.focus();
-    syncSource();
-    return;
-  }
-
-  const body = Array.from({ length: rows }, () => Array.from({ length: cols }, () => "#?").join(" & ")).join(" \\\\ ");
-  mathfield.insert(`\\begin{${env}} ${body} \\end{${env}}`, { format: "latex" });
-  mathfield.focus();
+  window.LaTeXSnipperMatrixTemplates.insert(mathfield, env, rows, cols);
   syncSource();
 }
 
@@ -194,13 +183,18 @@ function renderGrid(group, query) {
       continue;
     }
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = displayLabel(item);
-    button.title = item[2] ? `${item[2]}\n${item[1]}` : item[1];
-    button.addEventListener("click", () => insertLatex(item[1]));
-    grid.appendChild(button);
+    grid.appendChild(createSymbolButton(item));
   }
+}
+
+function createSymbolButton(item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = displayLabel(item);
+  button.title = item[2] ? `${item[2]}\n${item[1]}` : item[1];
+  button.addEventListener("pointerdown", event => event.preventDefault());
+  button.addEventListener("click", () => insertLatex(item[1]));
+  return button;
 }
 
 function matchItem(item, query) {
@@ -234,12 +228,7 @@ function renderGlobalResults(query) {
         grid.appendChild(createMatrixControl(displayLabel(item), item[1].slice("matrix:".length)));
         continue;
       }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = displayLabel(item);
-      button.title = item[2] ? `${item[2]}\n${item[1]}` : item[1];
-      button.addEventListener("click", () => insertLatex(item[1]));
-      grid.appendChild(button);
+      grid.appendChild(createSymbolButton(item));
     }
   }
 }
@@ -258,8 +247,9 @@ grid.addEventListener("scroll", () => {
 
 function createMatrixControl(label, env) {
   const isCases = env === "cases";
+  const isSquare = ["identity", "diagonal"].includes(env);
   const row = document.createElement("div");
-  row.className = isCases ? "matrix-row cases" : "matrix-row";
+  row.className = `matrix-row${isCases ? " cases" : ""}${isSquare ? " square" : ""}`;
 
   const rowSelect = document.createElement("select");
   rowSelect.title = strings().rows;
@@ -269,7 +259,7 @@ function createMatrixControl(label, env) {
   row.appendChild(rowSelect);
 
   let colSelect = null;
-  if (!isCases) {
+  if (!isCases && !isSquare) {
     colSelect = document.createElement("select");
     colSelect.title = strings().columns;
     for (let i = 1; i <= 10; i++) {
@@ -357,6 +347,7 @@ async function bootstrap() {
   mathfield = new MathfieldElement();
   mathfield.smartFence = true;
   mathfield.mathVirtualKeyboardPolicy = "onfocus";
+  window.LaTeXSnipperMathfieldInput.configure(mathfield, accept);
   host.appendChild(mathfield);
   mathfield.addEventListener("input", syncSource);
   latexSource.addEventListener("input", () => {
@@ -374,7 +365,7 @@ async function bootstrap() {
       return;
     }
 
-    if (event.key === "Enter" && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+    if (event.key === "Enter" && event.shiftKey && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
       accept();
     }
