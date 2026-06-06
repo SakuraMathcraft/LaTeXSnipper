@@ -17,11 +17,11 @@
 [![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
 [![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
 
-[FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-
 ### Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
+
+[FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
 
 </div>
 
@@ -95,8 +95,6 @@ Optional Pandoc export formats are enabled after installing the `PANDOC` layer i
 - GitHub Markdown, CommonMark, reStructuredText
 - MediaWiki, DokuWiki, Org-mode, Textile, Jira Wiki, and man page output
 
-Pandoc is optional. If it is not installed, the core recognition, editing, handwriting, preview, and built-in export formats continue to work normally.
-
 ---
 
 ## Quick Start
@@ -166,9 +164,6 @@ support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
 macOS users should install Python through Homebrew (`brew install python`) or
 the official python.org macOS installer when the system does not provide a
 usable `python3`.
-The dependency wizard shows its UI before running `ensurepip`, `pip` upgrade,
-or `setuptools`/`wheel` repair; those steps run after the user starts dependency
-installation.
 
 ---
 
@@ -191,9 +186,6 @@ Before requesting review, run:
 .\tools\deps\python311\python.exe -m pyright
 .\tools\deps\python311\python.exe -m compileall -q src mathcraft_ocr test
 ```
-
-Cross-platform PRs must not change the Windows dependency surface or installer
-behavior unless Windows is explicitly in scope and separately validated.
 
 ---
 
