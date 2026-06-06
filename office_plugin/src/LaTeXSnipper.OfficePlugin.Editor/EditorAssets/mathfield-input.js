@@ -36,6 +36,10 @@
         return;
       }
 
+      if (!event.shiftKey && mathfield.mode === "latex") {
+        return;
+      }
+
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.shiftKey) {

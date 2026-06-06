@@ -48,6 +48,7 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     assert 'const VISIBLE_MATH_SPACE = "\\\\,";' in shared_input
     assert '"addRowAfter"' in shared_input
     assert "\\\\begin{aligned}#@\\\\\\\\#?\\\\end{aligned}" in shared_input
+    assert 'mathfield.mode === "latex"' in shared_input
     assert "event.shiftKey" in shared_input
     assert "onAccept();" in shared_input
 
@@ -832,19 +833,11 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "COMAddIns" not in register_text
 
 
-def test_office_plugin_hosts_are_explicit_scaffolds() -> None:
-    for host in ("WordAddIn", "WordVstoAddIn", "PowerPointAddIn", "OleFormulaObject"):
-        readme = PLUGIN / "hosts" / host / "README.md"
-        text = readme.read_text(encoding="utf-8")
-        assert readme.is_file()
-        assert "Responsibilities" in text or "VSTO shell" in text
-
-    ole_text = (PLUGIN / "hosts" / "OleFormulaObject" / "README.md").read_text(encoding="utf-8")
-    assert "double-click" not in ole_text
-    assert "Render stored OLE formula payloads" in ole_text
-    assert "MathJax" in ole_text
-    assert "EMF/GDI" in ole_text
-    assert "must not be inserted into Office as normal pictures" in ole_text
+def test_office_plugin_keeps_only_current_module_documentation() -> None:
+    assert not (PLUGIN / "hosts" / "OleFormulaObject").exists()
+    assert not (PLUGIN / "hosts" / "WordVstoAddIn" / "README.md").exists()
+    assert not (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "README.md").exists()
+    assert not (PLUGIN / "tools" / "Register-OfficeVstoAddIns.ps1").exists()
 
 
 def test_ole_objects_are_registered_as_static_display_objects() -> None:
@@ -855,10 +848,8 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
 
     assert "Verb\\0" not in setup_text
     assert "\\Insertable" not in setup_text
-    assert 'DestDir: "{app}\\OleFormulaRenderer\\EditorAssets"' not in setup_text
-    assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs; Excludes: "*.pdb,*.xml,icon.ico,Microsoft.Web.WebView2.Wpf.dll,MathJax-3.2.2\\*,EditorAssets\\*"' in setup_text
-    assert 'DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion' not in setup_text.replace('DestDir: "{app}\\OleFormulaRenderer"; Flags: ignoreversion recursesubdirs', "")
-    assert "<Link>icon.ico</Link>" not in (PLUGIN / "hosts" / "OleFormulaObject" / "LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj").read_text(encoding="utf-8")
+    assert "OleFormulaRenderer" not in setup_text
+    assert 'Source: "..\\hosts\\WordAddIn\\bin\\{#Config}\\net48\\MathJax-3.2.2\\*"' in setup_text
     assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
@@ -878,7 +869,6 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     insert_method = word_adapter_text.split("public Task InsertOleFormulaObjectAsync", 1)[1].split("public Task UpdateOleFormulaObjectAsync", 1)[0]
     assert "SaveOleNaturalSize" not in add_ole_method
     assert "SaveOleNaturalSize(metadata.Identity.EquationId, presentation);" in insert_method
-    assert "legacy" not in (PLUGIN / "hosts" / "OleFormulaObject" / "README.md").read_text(encoding="utf-8").lower()
     assert "legacy" not in (PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
     assert "legacy" not in (PLUGIN / "hosts" / "PowerPointAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
 

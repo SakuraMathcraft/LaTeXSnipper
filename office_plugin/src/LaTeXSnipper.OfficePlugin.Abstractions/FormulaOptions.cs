@@ -33,9 +33,3 @@ public enum OlePresentationKind
     EnhancedMetafile,
     DirectGdi
 }
-
-public enum OfficeHostKind
-{
-    Word,
-    PowerPoint
-}

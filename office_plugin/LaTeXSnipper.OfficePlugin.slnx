@@ -6,7 +6,6 @@
     <Project Path="src/LaTeXSnipper.OfficePlugin.Rendering/LaTeXSnipper.OfficePlugin.Rendering.csproj" />
   </Folder>
   <Folder Name="/hosts/">
-    <Project Path="hosts/OleFormulaObject/LaTeXSnipper.OfficePlugin.OleFormulaObject.csproj" />
     <Project Path="hosts/PowerPointAddIn/LaTeXSnipper.OfficePlugin.PowerPointAddIn.csproj" />
     <Project Path="hosts/WordAddIn/LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
   </Folder>
