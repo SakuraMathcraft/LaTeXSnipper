@@ -12,6 +12,7 @@ const mathjsonOutput = document.getElementById('mathjson-output');
 const resultOutput = document.getElementById('result-output');
 const host = document.getElementById('mathfield-host');
 const resultRenderHost = document.getElementById('result-render-host');
+const MULTILINE_TEMPLATE = '\\begin{aligned}#@\\\\#?\\end{aligned}';
 
 const RESERVED_SOLVE_TOKENS = new Set([
   'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'sqrt', 'frac', 'left', 'right',
@@ -334,137 +335,51 @@ function isMathfieldActive() {
   );
 }
 
-function isVisibleElement(el) {
-  if (!el) return false;
-  const rect = el.getBoundingClientRect?.();
-  const style = window.getComputedStyle?.(el);
-  return !!rect && rect.width > 0 && rect.height > 0 && style?.display !== 'none' && style?.visibility !== 'hidden';
-}
+function addMathRow() {
+  const before = currentLatex();
+  mathfield.executeCommand('addRowAfter');
+  if (currentLatex() !== before) return;
 
-function getCompletionPopup() {
-  const selectors = [
-    '.ML__autocomplete',
-    '.ML__menu',
-    '.ML__popover',
-    'mathfield-menu',
-    '[role="listbox"]',
-    '[role="menu"]',
-  ];
-  for (const selector of selectors) {
-    const node = Array.from(document.querySelectorAll(selector)).find(isVisibleElement);
-    if (node) return node;
-  }
-  return null;
-}
-
-function isCompletionPopupOpen() {
-  return !!getCompletionPopup();
-}
-
-function getCompletionItems() {
-  const popup = getCompletionPopup();
-  if (!popup) return [];
-  const selectors = [
-    '[role="option"]',
-    '[role="menuitem"]',
-    'button',
-    'li',
-    '.ML__item',
-    '.ML__autocomplete-item',
-    '.item',
-  ];
-  const seen = new Set();
-  const items = [];
-  selectors.forEach((selector) => {
-    popup.querySelectorAll(selector).forEach((node) => {
-      if (!isVisibleElement(node) || seen.has(node)) return;
-      const text = node.textContent?.trim();
-      if (!text) return;
-      seen.add(node);
-      items.push(node);
-    });
+  mathfield.executeCommand('selectAll');
+  mathfield.insert(MULTILINE_TEMPLATE, {
+    format: 'latex',
+    insertionMode: 'replaceSelection',
+    selectionMode: 'placeholder',
   });
-  return items;
-}
-
-function getCompletionIndex(items) {
-  const selectedIndex = items.findIndex((item) =>
-    item.getAttribute?.('aria-selected') === 'true' ||
-    item.classList?.contains('is-selected') ||
-    item.classList?.contains('selected') ||
-    item.classList?.contains('active') ||
-    item.classList?.contains('is-active') ||
-    item.classList?.contains('highlighted') ||
-    item.classList?.contains('ML__selected')
-  );
-  return selectedIndex >= 0 ? selectedIndex : 0;
-}
-
-function markCompletionSelection(items, index) {
-  items.forEach((item, itemIndex) => {
-    const active = itemIndex === index;
-    if (item.setAttribute) item.setAttribute('aria-selected', active ? 'true' : 'false');
-    const classes = ['is-selected', 'selected', 'active', 'is-active', 'highlighted', 'ML__selected'];
-    classes.forEach((className) => item.classList?.toggle(className, active));
-    if (active) item.scrollIntoView?.({ block: 'nearest' });
-  });
-}
-
-function moveCompletionSelection(delta) {
-  const items = getCompletionItems();
-  if (!items.length) return false;
-  const current = getCompletionIndex(items);
-  const next = (current + delta + items.length) % items.length;
-  markCompletionSelection(items, next);
-  return true;
-}
-
-function commitCompletionSelection(index = null) {
-  const items = getCompletionItems();
-  if (!items.length) return false;
-  const targetIndex = index == null ? getCompletionIndex(items) : index;
-  const item = items[targetIndex];
-  if (!item) return false;
-  item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-  item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-  item.click?.();
-  return true;
 }
 
 function routeArrowKeyToMathfield(event) {
   if (!isMathfieldActive()) return;
-  if (event.key === 'Enter' && event.shiftKey) {
+
+  if (
+    event.key === 'Enter' &&
+    event.shiftKey &&
+    !event.isComposing &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
     event.preventDefault();
-    event.stopPropagation();
-    insertSnippet('newline');
+    event.stopImmediatePropagation();
+    insertToMain();
     return;
   }
-  if (isCompletionPopupOpen()) {
-    if (event.key === 'ArrowUp') {
-      const handled = mathfield?.executeCommand?.('previousSuggestion');
-      if (handled !== false || moveCompletionSelection(-1)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      return;
-    }
-    if (event.key === 'ArrowDown') {
-      const handled = mathfield?.executeCommand?.('nextSuggestion');
-      if (handled !== false || moveCompletionSelection(1)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      return;
-    }
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      const handled = mathfield?.executeCommand?.('complete');
-      if (handled !== false || commitCompletionSelection()) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      return;
-    }
+
+  if (mathfield.mode === 'latex') return;
+
+  if (
+    event.key === 'Enter' &&
+    !event.isComposing &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    addMathRow();
+    return;
   }
+
   const commandMap = {
     ArrowLeft: 'moveToPreviousChar',
     ArrowRight: 'moveToNextChar',
