@@ -12,6 +12,7 @@ const mathjsonOutput = document.getElementById('mathjson-output');
 const resultOutput = document.getElementById('result-output');
 const host = document.getElementById('mathfield-host');
 const resultRenderHost = document.getElementById('result-render-host');
+const VISIBLE_MATH_SPACE = '\\,';
 const MULTILINE_TEMPLATE = '\\begin{aligned}#@\\\\#?\\end{aligned}';
 
 const RESERVED_SOLVE_TOKENS = new Set([
@@ -348,8 +349,22 @@ function addMathRow() {
   });
 }
 
-function routeArrowKeyToMathfield(event) {
+function hideVirtualKeyboard() {
+  try {
+    mathfield?.executeCommand?.('hideVirtualKeyboard');
+  } finally {
+    syncKeyboardState();
+  }
+}
+
+function handleMathfieldKeydown(event) {
   if (!isMathfieldActive()) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    hideVirtualKeyboard();
+    return;
+  }
 
   if (
     event.key === 'Enter' &&
@@ -377,26 +392,6 @@ function routeArrowKeyToMathfield(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     addMathRow();
-    return;
-  }
-
-  const commandMap = {
-    ArrowLeft: 'moveToPreviousChar',
-    ArrowRight: 'moveToNextChar',
-    ArrowUp: 'moveUp',
-    ArrowDown: 'moveDown',
-  };
-  const command = commandMap[event.key];
-  if (!command) return;
-  try {
-    const handled = mathfield?.executeCommand?.(command);
-    if (handled !== false) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  } catch (_) {
-    // Ignore and allow default behavior if the current MathLive build
-    // does not support one of these selectors.
   }
 }
 
@@ -761,6 +756,7 @@ async function bootstrap() {
     mathfield = new MathfieldElement();
     mathfield.tabIndex = 0;
     mathfield.mathVirtualKeyboardPolicy = 'onfocus';
+    mathfield.mathModeSpace = VISIBLE_MATH_SPACE;
     mathfield.smartFence = true;
     mathfield.smartMode = false;
     mathfield.style.overflowX = 'auto';
@@ -781,7 +777,7 @@ async function bootstrap() {
       setStatus('正在编辑');
       syncKeyboardState();
     });
-    mathfield.addEventListener('keydown', routeArrowKeyToMathfield, true);
+    mathfield.addEventListener('keydown', handleMathfieldKeydown, true);
     mathfield.addEventListener('focusin', () => queueMicrotask(syncKeyboardState));
     mathfield.addEventListener('focusout', () => setTimeout(syncKeyboardState, 0));
 

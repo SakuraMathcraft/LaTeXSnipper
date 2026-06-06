@@ -34,11 +34,18 @@ def test_workbench_uses_current_mathlive_keyboard_policy() -> None:
 
     assert "mathfield.mode === 'latex'" in app
     assert "mathfield.executeCommand('addRowAfter')" in app
+    assert "const VISIBLE_MATH_SPACE = '\\\\,';" in app
+    assert "mathfield.mathModeSpace = VISIBLE_MATH_SPACE;" in app
     assert "const MULTILINE_TEMPLATE = '\\\\begin{aligned}#@\\\\\\\\#?\\\\end{aligned}';" in app
     assert "event.stopImmediatePropagation();" in app
     assert "insertToMain();" in app
+    assert "hideVirtualKeyboard" in app
     assert "previousSuggestion" not in app
     assert "nextSuggestion" not in app
     assert "getCompletionPopup" not in app
+    assert "moveToPreviousChar" not in app
+    assert "moveToNextChar" not in app
+    assert "moveUp" not in app
+    assert "moveDown" not in app
     assert "换行  (Enter)" in snippets
     assert "换行  (Shift+Enter)" not in snippets
