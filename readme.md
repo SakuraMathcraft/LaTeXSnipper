@@ -53,7 +53,7 @@ The active Office integration is the Windows-native `office_plugin` line. It tar
 - PowerPoint: current compatible image insertion and LaTeXSnipper OLE formula objects
 - Local TeX rendering pipeline for self-rendered formula objects
 - Per-formula persisted LaTeX source, render options, numbering data, and object identity
-- Native Ribbon, shortcuts, double-click editing, update, delete, and renumber workflows
+- Native Ribbon, shortcuts, update, delete, and renumber workflows
 - Native Bridge endpoint defaults to `http://127.0.0.1:28765/`
 
 See [Windows native Office plugin design](docs/office_plugin_design.md).

@@ -32,7 +32,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 ### Shared
 - WebView2-based MathLive formula editor (task pane + standalone window)
-- 16-category symbol library (Greek, structures, delimiters, calculus, linear algebra, relations, operators, arrows, sets, functions, probability, chemistry, physics, accents, misc)
+- 18-category symbol library (Greek, structures, delimiters, analysis, algebra, geometry, topology, number theory, relations, operators, arrows, sets, functions, probability, chemistry, physics, misc)
 - Bilingual Ribbon (Chinese / English) with placeholder localization
 - Status task pane with connection test and formula preview
 

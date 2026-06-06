@@ -36,6 +36,238 @@ def test_office_plugin_foundation_is_modular() -> None:
             assert (project_root / filename).is_file()
 
 
+def test_office_editor_uses_shared_mathfield_input_policy() -> None:
+    shared_input = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "mathfield-input.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'const VISIBLE_MATH_SPACE = "\\\\,";' in shared_input
+    assert '"addRowAfter"' in shared_input
+    assert "\\\\begin{aligned}#@\\\\\\\\#?\\\\end{aligned}" in shared_input
+    assert "event.shiftKey" in shared_input
+    assert "onAccept();" in shared_input
+
+    for host_name in ("WordAddIn", "PowerPointAddIn"):
+        assets = PLUGIN / "hosts" / host_name / "EditorAssets"
+        editor_html = (assets / "editor.html").read_text(encoding="utf-8")
+        editor_js = (assets / "editor.js").read_text(encoding="utf-8")
+
+        assert "mathfield-input.js" in editor_html
+        assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
+        assert (
+            'event.key === "Enter" && event.shiftKey'
+            in editor_js
+        )
+        assert (
+            'event.key === "Enter" && !event.isComposing'
+            not in editor_js
+        )
+
+
+def test_office_editor_matrix_templates_are_shared_and_ordered() -> None:
+    shared_assets = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+    )
+    matrix_templates = (shared_assets / "matrix-templates.js").read_text(encoding="utf-8")
+    symbol_library = (shared_assets / "symbol-library.js").read_text(encoding="utf-8")
+
+    for template_name in ("jacobian", "hessian", "identity", "diagonal", "augmented"):
+        assert f'environment === "{template_name}"' in matrix_templates
+    assert "rows,\n        cols," in matrix_templates
+
+    for latex in (
+        "\\\\overset{#?}{#@}",
+        "\\\\underset{#?}{#@}",
+        "\\\\vec{#@}",
+    ):
+        assert symbol_library.count(latex) == 1
+
+    for latex in (
+        "\\\\overset{\\\\scriptscriptstyle -}{#@}",
+        "\\\\overset{\\\\wedge}{#@}",
+        "\\\\overset{\\\\sim}{#@}",
+        "\\\\overset{\\\\cdot}{#@}",
+        "\\\\overset{\\\\scriptscriptstyle \\\\bullet\\\\!\\\\bullet}{#@}",
+        "\\\\overset{\\\\vee}{#@}",
+    ):
+        assert symbol_library.count(latex) == 1
+
+    for latex in (
+        "\\\\bar{#@}",
+        "\\\\hat{#@}",
+        "\\\\tilde{#@}",
+        "\\\\dot{#@}",
+        "\\\\ddot{#@}",
+        "\\\\check{#@}",
+    ):
+        assert latex not in symbol_library
+
+    ordered_entries = (
+        "matrix:bmatrix",
+        "matrix:pmatrix",
+        "matrix:Bmatrix",
+        "matrix:jacobian",
+        "matrix:hessian",
+        "matrix:identity",
+        "matrix:diagonal",
+        "matrix:augmented",
+        "matrix:vmatrix",
+    )
+    positions = [symbol_library.index(entry) for entry in ordered_entries]
+    assert positions == sorted(positions)
+
+    for host_name in ("WordAddIn", "PowerPointAddIn"):
+        assets = PLUGIN / "hosts" / host_name / "EditorAssets"
+        editor_html = (assets / "editor.html").read_text(encoding="utf-8")
+        editor_js = (assets / "editor.js").read_text(encoding="utf-8")
+
+        assert "matrix-templates.js" in editor_html
+        assert "LaTeXSnipperMatrixTemplates.insert(mathfield, env, rows, cols)" in editor_js
+        assert "LaTeXSnipperMathfieldInput.insertTemplate(mathfield, latex)" in editor_js
+        assert 'button.addEventListener("pointerdown", event => event.preventDefault())' in editor_js
+        assert '["identity", "diagonal"].includes(env)' in editor_js
+        assert '" square"' in editor_js
+        editor_css = (assets / "editor.css").read_text(encoding="utf-8")
+        assert ".matrix-row.square" in editor_css
+
+
+def test_office_editor_symbol_group_counts_and_shortcuts() -> None:
+    symbol_library = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "symbol-library.js"
+    ).read_text(encoding="utf-8")
+
+    assert '["{x∈A|P}", "\\\\left\\\\{#?\\\\in#?\\\\mid#?\\\\right\\\\}"' in symbol_library
+    assert '["A×B", "#?\\\\times#?"' in symbol_library
+    assert '["⟷", "\\\\longleftrightarrow"]' in symbol_library
+    assert '["→ᵃ", "\\\\xrightarrow{#?}"' in symbol_library
+    expected_counts = {
+        "greek": 52,
+        "structures": 43,
+        "delimiters": 36,
+        "relations": 112,
+        "operators": 64,
+        "bigops": 20,
+        "arrows": 68,
+        "sets": 40,
+        "misc": 56,
+    }
+    for group_id, expected_count in expected_counts.items():
+        group = symbol_library.split(f'id: "{group_id}"', 1)[1].split("\n  {", 1)[0]
+        assert group.count('["') == expected_count
+
+    assert '"\\\\omicron"' in symbol_library
+    assert '"\\\\Upsilon"' in symbol_library
+    assert '"\\\\varTheta"' in symbol_library
+    assert '"\\\\varDelta"' in symbol_library
+    greek_group = symbol_library.split('id: "greek"', 1)[1].split("\n  {", 1)[0]
+    assert '["Ϝ", "Ϝ"]' in greek_group
+    for latex in (
+        "\\\\Sampi",
+        "\\\\sampi",
+        "\\\\backepsilon",
+        "\\\\varGamma",
+        "\\\\varLambda",
+        "\\\\varPi",
+    ):
+        assert f'"{latex}"' in greek_group
+    for latex in (
+        "\\\\partial",
+        "\\\\nabla",
+        "\\\\infty",
+        "\\\\aleph",
+        "\\\\beth",
+        "\\\\gimel",
+        "\\\\daleth",
+    ):
+        assert f'"{latex}"' not in greek_group
+
+    operators_group = symbol_library.split('id: "operators"', 1)[1].split("\n  {", 1)[0]
+    assert operators_group.count('"\\\\dotplus"') == 1
+    for latex in ("\\\\partial", "\\\\nabla", "\\\\intercal"):
+        assert f'"{latex}"' in operators_group
+    for latex in ("\\\\smallsmile", "\\\\smallfrown"):
+        assert f'"{latex}"' not in operators_group
+
+    relations_group = symbol_library.split('id: "relations"', 1)[1].split("\n  {", 1)[0]
+    for latex in (
+        "\\\\mid",
+        "\\\\nmid",
+        "\\\\smallsmile",
+        "\\\\smallfrown",
+        "\\\\lneqq",
+        "\\\\gneqq",
+    ):
+        assert relations_group.count(f'"{latex}"') == 1
+
+    bigops_group = symbol_library.split('id: "bigops"', 1)[1].split("\n  {", 1)[0]
+    for latex in ("\\\\sum", "\\\\prod", "\\\\int", "\\\\smallint", "\\\\bigcup"):
+        assert f'"{latex}"' in bigops_group
+    for latex in ("\\\\sumint", "\\\\bigtimes", "\\\\amalg", "\\\\intsl", "\\\\intBar"):
+        assert f'"{latex}"' not in bigops_group
+
+    misc_group = symbol_library.split('id: "misc"', 1)[1].split("\n  {", 1)[0]
+    for latex in (
+        "\\\\spadesuit",
+        "\\\\heartsuit",
+        "\\\\clubsuit",
+        "\\\\diamondsuit",
+        "\\\\copyright",
+        "\\\\yen",
+        "\\\\Finv",
+        "\\\\Game",
+        "\\\\diagup",
+        "\\\\blacktriangledown",
+    ):
+        assert f'"{latex}"' in misc_group
+    for latex in ("\\\\times", "\\\\dag", "\\\\ddag", "\\\\triangle"):
+        assert f'"{latex}"' not in misc_group
+
+    chemistry_group = symbol_library.split('id: "chemistry"', 1)[1].split("\n  {", 1)[0]
+    assert "\\\\ce{ #?" not in chemistry_group
+    assert "\\\\ce{#?" not in chemistry_group
+    for latex in (
+        "\\\\mathrm{#?}",
+        "\\\\mathrm{#?}\\\\rightarrow\\\\mathrm{#?}",
+        "\\\\mathrm{#?}\\\\rightleftharpoons\\\\mathrm{#?}",
+        "\\\\mathrm{#?}\\\\xrightarrow[#?]{#?}\\\\mathrm{#?}",
+        "{}^{#?}_{#?}\\\\mathrm{#?}",
+    ):
+        assert f'"{latex}"' in chemistry_group
+
+    assert '"\\\\overleftrightarrow{#@}"' in symbol_library
+    assert '"\\\\enclose{horizontalstrike}{#@}"' in symbol_library
+    assert '"\\\\sout{#?}"' not in symbol_library
+    assert '"\\\\textwarning"' not in symbol_library
+    assert '"\\\\textcelsius"' not in symbol_library
+    assert '"\\\\textfahrenheit"' not in symbol_library
+    assert '"\\\\diameter"' not in symbol_library
+    for latex in ("\\\\mho", "\\\\Bbbk", "\\\\circledS", "\\\\maltese", "\\\\backprime"):
+        assert f'"{latex}"' in symbol_library
+
+    for host_name in ("WordAddIn", "PowerPointAddIn"):
+        assets = PLUGIN / "hosts" / host_name / "EditorAssets"
+        settings_html = (assets / "settings.html").read_text(encoding="utf-8")
+        settings_js = (assets / "settings.js").read_text(encoding="utf-8")
+
+        assert "<kbd>Shift</kbd>" in settings_html
+        assert "<kbd>Ctrl</kbd>" not in settings_html
+        assert "新建数学行" in settings_js
+        assert "start a new math row" in settings_js
+        assert "在公式编辑器中换行" not in settings_js
+        assert "insert a line break in the formula editor" not in settings_js
+
+
 def test_word_addin_host_has_first_workflow_surface() -> None:
     slnx = (PLUGIN / "LaTeXSnipper.OfficePlugin.slnx").read_text(encoding="utf-8")
     host_root = PLUGIN / "hosts" / "WordAddIn"
@@ -387,7 +619,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert '"( ) 大"' not in shared_symbol_library
     assert '"[ ] 大"' not in shared_symbol_library
     assert '"|ₓ"' in shared_symbol_library
-    assert '"⏟"' in shared_symbol_library
+    assert '"\\\\underbrace{#@}_{#?}"' in shared_symbol_library
     assert '"⎛ ⎞"' in shared_symbol_library
     assert '"⟪ ⟫"' in shared_symbol_library
     assert '"≞"' in shared_symbol_library
@@ -535,7 +767,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     settings_js = (host_root / "EditorAssets" / "settings.js").read_text(encoding="utf-8")
     assert "LaTeXSnipper Office 插件设置" in settings_html
     assert "LaTeXSnipper Office Plugin Settings" in settings_js
-    assert "Ctrl" in settings_html
+    assert "Shift" in settings_html
+    assert "Ctrl" not in settings_html
     assert "Enter" in settings_html
     assert "Esc" in settings_html
     assert "<img" not in settings_html
@@ -679,7 +912,9 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Compatibility PNG" not in help_html
         assert "PNG image insertion" in help_html
         assert "side pane is not an update entry point" in help_html
-        assert "Ctrl+Enter keeps its MathLive line-break behavior" in help_html
+        assert "Press Enter in the MathLive field to start a new math row" in help_html
+        assert "Press Shift+Enter to insert or update the formula" in help_html
+        assert "Space inserts a mathematical thin space" in help_html
         assert "Esc does not close the editor" in help_html
         assert "Editor submissions are serialized with Office commands" in help_html
         assert "Numbered formulas center the formula and place the number" in help_html

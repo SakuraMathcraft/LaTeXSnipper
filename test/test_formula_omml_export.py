@@ -4,7 +4,21 @@ from __future__ import annotations
 
 import pytest
 
-from exporting.formula_converters import _find_mml2omml_xsl, latex_to_omml
+from exporting.formula_converters import (
+    _find_mml2omml_xsl,
+    _latex2mathml_compatible,
+    latex_to_mathml,
+    latex_to_omml,
+)
+
+
+def test_mathlive_horizontal_strike_is_normalized_for_latex2mathml() -> None:
+    assert (
+        _latex2mathml_compatible(r"\enclose{horizontalstrike}{x+y}")
+        == r"\sout{x+y}"
+    )
+    mathml = latex_to_mathml(r"\enclose{horizontalstrike}{x+y}")
+    assert '<menclose notation="horizontalstrike">' in mathml
 
 
 def test_latex_to_omml_returns_real_omml_for_simple_formula() -> None:

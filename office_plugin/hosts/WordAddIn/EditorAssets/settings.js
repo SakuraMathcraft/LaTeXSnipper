@@ -21,7 +21,7 @@ const TEXT = {
     enclosureNone: "无",
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
-    newlineShortcut: "在公式编辑器中换行",
+    newlineShortcut: "新建数学行",
     cancelShortcut: "收回 MathLive 虚拟键盘",
   },
   en: {
@@ -46,7 +46,7 @@ const TEXT = {
     enclosureNone: "None",
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
-    newlineShortcut: "insert a line break in the formula editor",
+    newlineShortcut: "start a new math row",
     cancelShortcut: "hide the MathLive virtual keyboard",
   },
 };
