@@ -9,7 +9,7 @@ using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
-public sealed class WordPluginController : IDisposable
+public sealed partial class WordPluginController : IDisposable
 {
     private const double OleBaseFontPoints = 10.5;
     private const double MinimumOleFontScale = 0.5;
@@ -20,7 +20,8 @@ public sealed class WordPluginController : IDisposable
     private readonly IWordApplicationAdapter _wordAdapter;
     private readonly IWordStatusSink _statusSink;
     private readonly IWordFormulaOptionsProvider _optionsProvider;
-    private readonly IFormulaRenderer _oleIntermediateRenderer;
+    private readonly MathJaxSvgRenderer _mathJaxRenderer;
+    private readonly MathMlToOmmlConverter _ommlConverter;
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private FormulaMetadata? _currentFormula;
@@ -53,15 +54,17 @@ public sealed class WordPluginController : IDisposable
         FormulaEditorSession editorSession,
         BridgeClient bridgeClient,
         IWordApplicationAdapter wordAdapter,
-        IFormulaRenderer oleIntermediateRenderer,
+        MathJaxSvgRenderer mathJaxRenderer,
         OlePresentationPipeline olePresentationPipeline,
         IWordStatusSink? statusSink = null,
-        IWordFormulaOptionsProvider? optionsProvider = null)
+        IWordFormulaOptionsProvider? optionsProvider = null,
+        MathMlToOmmlConverter? ommlConverter = null)
     {
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
         _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
         _wordAdapter = wordAdapter ?? throw new ArgumentNullException(nameof(wordAdapter));
-        _oleIntermediateRenderer = oleIntermediateRenderer ?? throw new ArgumentNullException(nameof(oleIntermediateRenderer));
+        _mathJaxRenderer = mathJaxRenderer ?? throw new ArgumentNullException(nameof(mathJaxRenderer));
+        _ommlConverter = ommlConverter ?? new MathMlToOmmlConverter();
         _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullWordStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultWordFormulaOptionsProvider.Instance;
@@ -133,10 +136,7 @@ public sealed class WordPluginController : IDisposable
     {
         ThrowIfDisposed();
         await _editorSession.WarmUpAsync(cancellationToken);
-        if (_oleIntermediateRenderer is MathJaxSvgRenderer mathJaxRenderer)
-        {
-            await mathJaxRenderer.WarmUpAsync(cancellationToken);
-        }
+        await _mathJaxRenderer.WarmUpAsync(cancellationToken);
     }
 
     public async Task InsertFromTaskPaneAsync(CancellationToken cancellationToken)
@@ -381,22 +381,28 @@ public sealed class WordPluginController : IDisposable
         }
     }
 
-    private async Task<PreparedWordFormula> PrepareRenderedFormulaAsync(FormulaMetadata metadata, bool includeEquationOoxml, CancellationToken cancellationToken)
+    private async Task<PreparedWordFormula> PrepareRenderedFormulaAsync(
+        FormulaMetadata metadata,
+        bool includeEquationOoxml,
+        CancellationToken cancellationToken,
+        FormulaInsertionBackend? backendOverride = null)
     {
         WordPluginSettings settings = WordPluginSettings.Load();
-        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        FormulaInsertionBackend backend = backendOverride ?? settings.InsertionBackend;
+        string renderedLatex = BuildFormattedLatex(metadata);
+        if (backend == FormulaInsertionBackend.Ole)
         {
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
-            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, renderedLatex, cancellationToken);
             return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null);
         }
 
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
-        string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, IsDisplay(metadata), new[] { "omml" }, cancellationToken);
-        BridgeConversionResult conversion = BridgeConversionParser.ParseConvertLatexResponse(responseJson);
-        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(conversion.Omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
-        string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(conversion.Omml, metadata) : null;
+        string mathMl = await _mathJaxRenderer.ConvertToMathMlAsync(renderedLatex, metadata.DisplayMode, cancellationToken);
+        string omml = _ommlConverter.Convert(mathMl);
+        string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
+        string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(omml, metadata) : null;
         return new PreparedWordFormula(metadata, IsDisplay(metadata), null, ooxml, equationOoxml);
     }
 
@@ -426,13 +432,17 @@ public sealed class WordPluginController : IDisposable
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
     }
 
-    private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    private async Task<OlePresentationResult> RenderOlePresentationAsync(
+        FormulaMetadata metadata,
+        string renderedLatex,
+        CancellationToken cancellationToken)
     {
-        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
+        var request = new RenderRequest(renderedLatex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = GetOleFontScale()
+            FontScale = GetOleFontScale() * metadata.FontScale,
+            FontWeightPercent = metadata.FontWeightPercent
         };
-        RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
+        RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
             new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
             cancellationToken);
@@ -479,6 +489,30 @@ public sealed class WordPluginController : IDisposable
         }
     }
 
+    private static string BuildFormattedLatex(FormulaMetadata metadata)
+    {
+        string latex = metadata.Latex;
+        switch (metadata.FontStyle)
+        {
+            case FormulaFontStyle.RomanUpright:
+                latex = "\\mathrm{" + latex + "}";
+                break;
+            case FormulaFontStyle.Bold:
+                latex = "\\boldsymbol{" + latex + "}";
+                break;
+            case FormulaFontStyle.Italic:
+                latex = "\\mathit{" + latex + "}";
+                break;
+        }
+
+        if (!string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        {
+            latex = "\\color{" + metadata.FontColor + "}{" + latex + "}";
+        }
+
+        return latex;
+    }
+
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
         FormulaIdentity? identity,
         string latex,
@@ -495,7 +529,11 @@ public sealed class WordPluginController : IDisposable
                 previous.NumberingMode,
                 previous.NumberText,
                 previous.RenderEngine,
-                previous.SchemaVersion));
+                previous.SchemaVersion,
+                previous.FontColor,
+                previous.FontStyle,
+                previous.FontScale,
+                previous.FontWeightPercent));
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
@@ -529,6 +567,7 @@ public sealed class WordPluginController : IDisposable
         FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
+        WordPluginSettings settings = WordPluginSettings.Load();
         FormulaMetadata metadata = new FormulaMetadata(
             identity ?? new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -536,7 +575,11 @@ public sealed class WordPluginController : IDisposable
             numberingMode,
             numberText,
             RenderEngineKind.Omml,
-            schemaVersion: previous?.SchemaVersion ?? 1);
+            schemaVersion: previous?.SchemaVersion ?? 1,
+            previous?.FontColor ?? settings.FormulaColor,
+            previous?.FontStyle ?? settings.FormulaFontStyle,
+            previous?.FontScale ?? settings.FormulaScale,
+            previous?.FontWeightPercent ?? settings.FormulaWeightPercent);
         return metadata;
     }
 
@@ -546,6 +589,7 @@ public sealed class WordPluginController : IDisposable
         FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
+        WordPluginSettings settings = WordPluginSettings.Load();
         return new FormulaMetadata(
             new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
             string.Empty,
@@ -553,7 +597,11 @@ public sealed class WordPluginController : IDisposable
             numberingMode,
             options.ManualNumber.Trim(),
             RenderEngineKind.Omml,
-            schemaVersion: 1);
+            schemaVersion: 1,
+            settings.FormulaColor,
+            settings.FormulaFontStyle,
+            settings.FormulaScale,
+            settings.FormulaWeightPercent);
     }
 
     private static FormulaMetadata CreateDefaultFormula(string latex)
@@ -605,7 +653,11 @@ public sealed class WordPluginController : IDisposable
             numberingMode,
             numberText,
             metadata.RenderEngine,
-            metadata.SchemaVersion);
+            metadata.SchemaVersion,
+            metadata.FontColor,
+            metadata.FontStyle,
+            metadata.FontScale,
+            metadata.FontWeightPercent);
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -617,7 +669,11 @@ public sealed class WordPluginController : IDisposable
             metadata.NumberingMode,
             metadata.NumberText,
             renderEngine,
-            metadata.SchemaVersion);
+            metadata.SchemaVersion,
+            metadata.FontColor,
+            metadata.FontStyle,
+            metadata.FontScale,
+            metadata.FontWeightPercent);
     }
 
     private void ResetDraftState(bool resetOptions)
@@ -639,10 +695,7 @@ public sealed class WordPluginController : IDisposable
         _disposed = true;
         _editorSession.Dispose();
         _bridgeClient.Dispose();
-        if (_oleIntermediateRenderer is IDisposable disposableRenderer)
-        {
-            disposableRenderer.Dispose();
-        }
+        _mathJaxRenderer.Dispose();
 
         _commandGate.Dispose();
     }

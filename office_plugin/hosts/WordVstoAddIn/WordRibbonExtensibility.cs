@@ -81,5 +81,15 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
             callbacks?.OnHelp(control);
         }
 
+        public void OnConvertSelectedToOle(IRibbonControl control) => callbacks?.OnConvertSelectedToOle(control);
+        public void OnConvertSelectedToOmml(IRibbonControl control) => callbacks?.OnConvertSelectedToOmml(control);
+        public void OnConvertAllToOle(IRibbonControl control) => callbacks?.OnConvertAllToOle(control);
+        public void OnConvertAllToOmml(IRibbonControl control) => callbacks?.OnConvertAllToOmml(control);
+        public void OnInsertReference(IRibbonControl control) => callbacks?.OnInsertReference(control);
+        public void OnInsertChapterBoundary(IRibbonControl control) => callbacks?.OnInsertChapterBoundary(control);
+        public void OnInsertSectionBoundary(IRibbonControl control) => callbacks?.OnInsertSectionBoundary(control);
+        public void OnFormatSelected(IRibbonControl control) => callbacks?.OnFormatSelected(control);
+        public void OnFormatAll(IRibbonControl control) => callbacks?.OnFormatAll(control);
+
     }
 }

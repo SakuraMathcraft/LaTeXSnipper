@@ -12,18 +12,42 @@ public static class WordAutomaticNumberFormatter
         return Format(number, settings.NumberFormat, settings.NumberEnclosure);
     }
 
+    public static string Format(int chapter, int section, int equation, WordPluginSettings settings)
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (settings.IncludeChapter)
+        {
+            parts.Add(chapter.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (settings.IncludeSection)
+        {
+            parts.Add(section.ToString(CultureInfo.InvariantCulture));
+        }
+
+        parts.Add(FormatBody(equation, settings.NumberFormat));
+        return Enclose(string.Join(settings.NumberSeparator, parts), settings.NumberEnclosure);
+    }
+
     public static string Format(int number, WordNumberFormat format, WordNumberEnclosure enclosure)
     {
-        string body = format switch
+        return Enclose(FormatBody(number, format), enclosure);
+    }
+
+    private static string FormatBody(int number, WordNumberFormat format)
+    {
+        return format switch
         {
-            WordNumberFormat.SectionArabic => "1." + number.ToString(CultureInfo.InvariantCulture),
             WordNumberFormat.LowerRoman => ToRoman(number).ToLowerInvariant(),
             WordNumberFormat.UpperRoman => ToRoman(number),
             WordNumberFormat.LowerLetter => ToLetters(number).ToLowerInvariant(),
             WordNumberFormat.UpperLetter => ToLetters(number),
             _ => number.ToString(CultureInfo.InvariantCulture),
         };
+    }
 
+    private static string Enclose(string body, WordNumberEnclosure enclosure)
+    {
         return enclosure switch
         {
             WordNumberEnclosure.SquareBrackets => "[" + body + "]",

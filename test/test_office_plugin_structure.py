@@ -9,6 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "office_plugin"
 
 
+def read_word_adapter_sources() -> str:
+    host_root = PLUGIN / "hosts" / "WordAddIn"
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(host_root.glob("DynamicWordApplicationAdapter*.cs"))
+    )
+
+
 def test_office_plugin_foundation_is_modular() -> None:
     assert (PLUGIN / "LaTeXSnipper.OfficePlugin.slnx").is_file()
     assert (PLUGIN / "Directory.Build.props").is_file()
@@ -51,6 +59,19 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     assert 'mathfield.mode === "latex"' in shared_input
     assert "event.shiftKey" in shared_input
     assert "onAccept();" in shared_input
+    for shortcut in ("f:", "r:", "h:", "l:", "j:"):
+        assert shortcut in shared_input
+    for menu_id in (
+        "add-row-before",
+        "add-row-after",
+        "add-column-before",
+        "add-column-after",
+        "delete-row",
+        "delete-column",
+    ):
+        assert f'"{menu_id}"' in shared_input
+    assert 'document.addEventListener("menu-select"' in shared_input
+    assert "event.preventDefault();" in shared_input
 
     for host_name in ("WordAddIn", "PowerPointAddIn"):
         assets = PLUGIN / "hosts" / host_name / "EditorAssets"
@@ -59,6 +80,7 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
 
         assert "mathfield-input.js" in editor_html
         assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
+        assert "LaTeXSnipperMathfieldInput.setDefaultFontStyle" in editor_js
         assert (
             'event.key === "Enter" && event.shiftKey'
             in editor_js
@@ -262,7 +284,8 @@ def test_office_editor_symbol_group_counts_and_shortcuts() -> None:
         settings_js = (assets / "settings.js").read_text(encoding="utf-8")
 
         assert "<kbd>Shift</kbd>" in settings_html
-        assert "<kbd>Ctrl</kbd>" not in settings_html
+        for key in ("F", "R", "H", "L", "J"):
+            assert f"<kbd>{key}</kbd>" in settings_html
         assert "新建数学行" in settings_js
         assert "start a new math row" in settings_js
         assert "在公式编辑器中换行" not in settings_js
@@ -325,6 +348,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ImmGetConversionStatus" in editor_form
     assert "ImmSetConversionStatus" in editor_form
     assert "RestoreInputLanguage()" in editor_form
+    assert "RestoreInputLanguageWhenOwnerIsForegroundAsync" in editor_form
+    assert "GetForegroundWindow() == snapshot.ForegroundWindow" in editor_form
 
     ribbon = (host_root / "Ribbon" / "WordRibbon.xml").read_text(encoding="utf-8")
     assert "LaTeXSnipperTab" in ribbon
@@ -366,7 +391,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert 'getImage="GetImage"' not in ribbon
 
     metadata_store = (host_root / "WordFormulaMetadataStore.cs").read_text(encoding="utf-8")
-    adapter = (host_root / "DynamicWordApplicationAdapter.cs").read_text(encoding="utf-8")
+    adapter = read_word_adapter_sources()
     callbacks = (host_root / "WordRibbonCallbacks.cs").read_text(encoding="utf-8")
     addin_text = (host_root / "WordAddInText.cs").read_text(encoding="utf-8")
     taskpane = (host_root / "WordStatusTaskPaneControl.cs").read_text(encoding="utf-8")
@@ -403,6 +428,12 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "UndoRecordScope" in adapter
     assert "_undoRecordDepth" in adapter
     assert "ResolveInsertionTargetRange" in adapter
+    assert "ResolveInsertionTargetRange(selection, display)" in adapter
+    assert "ResolveManagedEquationInsertionRange" in adapter
+    assert "return insertionPoint.Paragraphs.Item(1).Range;" in adapter
+    assert "dynamic range = ResolveManagedEquationInsertionRange(selection, display);" in adapter
+    assert "ParagraphHasContent" in adapter
+    assert "TryMoveSelectionToFollowingParagraph" in adapter
     assert "TryResolveAfterEmptyParagraphFollowingNumberedTable" not in adapter
     assert "TryGetNumberedTableFromPreviousParagraph" not in adapter
     assert "TryGetNumberedTableBeforeParagraph" not in adapter
@@ -411,14 +442,15 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" in adapter
-    assert "TryLoadFormulaTagMetadata" in adapter
+    assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedTable" not in adapter
     assert "ApplyNumberedParagraphLayout" in adapter
     assert "TabStops.Add" in adapter
     assert "ClearParagraphContent(paragraphRange)" in adapter
-    assert "ReplaceParagraphWithNumberedFormula(control, ooxml)" in adapter
+    assert "ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId)" in adapter
+    assert "RemoveEmptyParagraphBeforeFollowingContent" in adapter
     assert "paragraphRange.Delete()" in adapter
     assert "InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata)" in adapter
     assert "ApplyNumberControlVerticalAlignment" in adapter
@@ -533,8 +565,13 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "string.Empty" in controller.split("private static FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static FormulaMetadata CreateDefaultFormula", 1)[0]
     omml_builder = (host_root / "WordOmmlDocumentBuilder.cs").read_text(encoding="utf-8")
     assert "BuildFlatOpcDocument(string omml, FormulaMetadata metadata" in omml_builder
-    assert "NormalizeOmmlForInlineRun" in omml_builder
-    assert "BuildEquationTag(equationId, metadata)" in omml_builder
+    assert "ExtractEquationOmml" in omml_builder
+    assert "XElement.Parse" in omml_builder
+    assert 'element.Name.LocalName == "oMath"' in omml_builder
+    assert "Regex.Match" not in omml_builder
+    assert "BuildEquationTag(equationId)" in omml_builder
+    assert "BuildEquationTag(equationId, metadata)" not in omml_builder
+    assert "inlineMath" not in omml_builder
     assert "w:vanish" not in omml_builder
     assert "WrapNumberContentControl" in omml_builder
     assert "WordNumberPlacement" in omml_builder
@@ -769,7 +806,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LaTeXSnipper Office 插件设置" in settings_html
     assert "LaTeXSnipper Office Plugin Settings" in settings_js
     assert "Shift" in settings_html
-    assert "Ctrl" not in settings_html
+    for key in ("F", "R", "H", "L", "J"):
+        assert f"<kbd>{key}</kbd>" in settings_html
     assert "Enter" in settings_html
     assert "Esc" in settings_html
     assert "<img" not in settings_html
@@ -844,7 +882,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
-    word_adapter_text = (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.cs").read_text(encoding="utf-8")
+    word_adapter_text = read_word_adapter_sources()
 
     assert "Verb\\0" not in setup_text
     assert "\\Insertable" not in setup_text
@@ -945,7 +983,7 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
     for controller in (word_controller, power_point_controller):
         assert "public async Task WarmUpAsync(CancellationToken cancellationToken)" in controller
         assert "await _editorSession.WarmUpAsync(cancellationToken);" in controller
-        assert "await mathJaxRenderer.WarmUpAsync(cancellationToken);" in controller
+        assert "await _mathJaxRenderer.WarmUpAsync(cancellationToken);" in controller
         assert "SemaphoreSlim _commandGate" in controller
         assert "TryRunCommandAsync" in controller
         assert "TryAcceptEditorFormulaAsync" in controller
@@ -959,8 +997,87 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
         assert "controller?.Dispose();" in vsto
 
 
+def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
+    script_builder = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "MathJaxRenderScriptBuilder.cs"
+    ).read_text(encoding="utf-8")
+    runtime = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "WebView2MathJaxJavaScriptRuntime.cs"
+    ).read_text(encoding="utf-8")
+    response = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "MathJaxSvgRenderResponse.cs"
+    ).read_text(encoding="utf-8")
+    mathlive = (ROOT / "src" / "assets" / "mathlive" / "vendor" / "mathlive.min.mjs").read_text(
+        encoding="utf-8"
+    )
+
+    for package in ("bbox", "boldsymbol", "color", "mhchem"):
+        assert f"'[tex]/{package}'" in script_builder
+    assert "normalizeMathLiveLatex" in script_builder
+    assert ".replace(/\\\\bm" in script_builder
+    assert "'\\\\bbox[' + color.content.trim()" in script_builder
+    assert ".replace(/(^|[^\\\\])\\$/g, '$1')" in script_builder
+    assert "MathJax rendering failed:" in response
+    assert "SetVirtualHostNameToFolderMapping" in runtime
+    assert "MathJax-script" in runtime
+    assert "File.ReadAllText(mathJaxBundlePath)" not in runtime
+    assert 'version="0.110.0"' in mathlive
+    assert "toMathMl: function(input)" in script_builder
+    assert "MathJax.startup.document.toMML(root)" in script_builder
+    for host in ("WordAddIn", "PowerPointAddIn"):
+        project = (
+            PLUGIN / "hosts" / host / f"LaTeXSnipper.OfficePlugin.{host}.csproj"
+        ).read_text(encoding="utf-8")
+        vendor_item = project.split(
+            '<Content Include="..\\..\\..\\src\\assets\\mathlive\\vendor\\**\\*">', 1
+        )[1].split("</Content>", 1)[0]
+        assert "<CopyToOutputDirectory>Always</CopyToOutputDirectory>" in vendor_item
+
+
+def test_office_native_conversion_paths_use_local_mathjax() -> None:
+    word_controller = (PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs").read_text(encoding="utf-8")
+    omml_converter = (PLUGIN / "hosts" / "WordAddIn" / "MathMlToOmmlConverter.cs").read_text(encoding="utf-8")
+    power_point_controller = (
+        PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
+    ).read_text(encoding="utf-8")
+    png_rasterizer = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgPngRasterizer.cs"
+    ).read_text(encoding="utf-8")
+
+    assert "ConvertToMathMlAsync" in word_controller
+    assert 'new[] { "omml" }' not in word_controller
+    assert "MML2OMML.XSL" in omml_converter
+    assert "XslCompiledTransform" in omml_converter
+    assert "SvgPngRasterizer.Rasterize" in power_point_controller
+    assert 'new[] { "png" }' not in power_point_controller
+    assert "SvgVectorGraphicsRenderer.Draw" in png_rasterizer
+
+
+def test_powerpoint_uses_one_initial_scale_for_ole_and_png() -> None:
+    controller = (
+        PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
+    ).read_text(encoding="utf-8")
+    assert "private const double InitialFormulaScale = 2.5;" in controller
+    assert controller.count("FontScale = InitialFormulaScale") == 2
+    assert "FontScale = 3.0" not in controller
+
+
+def test_word_large_ole_selection_remains_selection_first() -> None:
+    adapter = read_word_adapter_sources()
+    selected = adapter.split("private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()", 1)[1].split(
+        "private void AddSelectedFormulasFromRange", 1
+    )[0]
+    anchor = adapter.split("private void AddSelectedOleInlineShapesFromAnchor", 1)[1].split(
+        "private void AddSelectedOleInlineShape", 1
+    )[0]
+    assert "AddSelectedOleInlineShapesFromAnchor" in selected
+    assert "selectionType != 7 && selectionType != 8" in anchor
+    assert "selectionRange.Paragraphs.Item(1).Range" in anchor
+    assert "ActiveDocument.InlineShapes" not in anchor
+
+
 def test_word_load_selected_is_selection_first() -> None:
-    adapter = (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.cs").read_text(encoding="utf-8")
+    adapter = read_word_adapter_sources()
     find_selected = adapter.split("private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()", 1)[1].split("private void AddSelectedFormulasFromRange", 1)[0]
     selected_ole = adapter.split("private void AddSelectedOleInlineShapes", 1)[1].split("private void AddSelectedOleInlineShape", 1)[0]
     selected_formula = adapter.split("private void AddSelectedFormula", 1)[1].split("private object FindFormulaControlById", 1)[0]
@@ -971,17 +1088,36 @@ def test_word_load_selected_is_selection_first() -> None:
     assert "ActiveDocument.InlineShapes" not in selected_ole
     assert "TryFindOleInlineShapeById" not in selected_formula
     assert "FindFormulaControlById" not in selected_formula
+    assert "selectionType != 6 && selectionType != 7 && selectionType != 8" in adapter
+    assert "inlineShape.AlternativeText = tag;" in adapter
+    assert "Word did not preserve the OLE formula identifier." in adapter
+    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" not in adapter
 
 
 def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
     writer = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgEnhancedMetafileWriter.cs").read_text(encoding="utf-8")
+    vector_renderer = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgVectorGraphicsRenderer.cs"
+    ).read_text(encoding="utf-8")
     path_parser = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgPathDataParser.cs").read_text(encoding="utf-8")
     transform_parser = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Rendering" / "SvgTransformParser.cs").read_text(encoding="utf-8")
 
     assert "EmfType.EmfPlusDual" in writer
     assert "new RectangleF" in writer
-    assert "GraphicsPath" in writer
-    assert "FillPath" in writer
+    assert "SvgVectorGraphicsRenderer.Draw" in writer
+    assert "GraphicsPath" in vector_renderer
+    assert "batch.Path.AddPath" in vector_renderer
+    assert "graphics.FillPath(brush, batch.Path)" in vector_renderer
+    assert "ApplyNestedViewport" in vector_renderer
+    assert "CreateNestedViewportClip" in vector_renderer
+    assert "graphics.SetClip(batch.Clip, CombineMode.Intersect)" in vector_renderer
+    assert 'element.Name.LocalName == "svg" && element.Parent != null' in vector_renderer
+    assert 'element.Name.LocalName == "text"' in vector_renderer
+    assert "path.AddString(" in vector_renderer
+    assert '"Microsoft YaHei", "SimSun", "Segoe UI"' in vector_renderer
+    assert "ResolvePaint" in vector_renderer
+    assert "ColorTranslator.FromHtml" in vector_renderer
+    assert "new SolidBrush(batch.Color)" in vector_renderer
     assert "DrawString" not in writer
     assert "DrawText" not in writer
     assert "Math.Round" not in writer
@@ -1000,3 +1136,55 @@ def test_office_plugin_build_outputs_are_ignored() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "office_plugin/**/bin/" in gitignore
     assert "office_plugin/**/obj/" in gitignore
+
+
+def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    ribbon = (host / "Ribbon" / "WordRibbon.xml").read_text(encoding="utf-8")
+    callbacks = (host / "WordRibbonCallbacks.cs").read_text(encoding="utf-8")
+    controller = (host / "WordPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
+    operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(encoding="utf-8")
+    metadata = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaMetadata.cs").read_text(encoding="utf-8")
+    settings = (host / "WordPluginSettings.cs").read_text(encoding="utf-8")
+    numbering = (host / "WordAutomaticNumberFormatter.cs").read_text(encoding="utf-8")
+
+    for tab_id in (
+        "LaTeXSnipperConversionTab",
+        "LaTeXSnipperReferenceTab",
+        "LaTeXSnipperNumberingTab",
+        "LaTeXSnipperFormattingTab",
+    ):
+        assert f'id="{tab_id}"' in ribbon
+    for callback in (
+        "OnConvertSelectedToOle",
+        "OnConvertAllToOle",
+        "OnConvertSelectedToOmml",
+        "OnConvertAllToOmml",
+        "OnInsertReference",
+        "OnInsertChapterBoundary",
+        "OnInsertSectionBoundary",
+        "OnFormatSelected",
+        "OnFormatAll",
+    ):
+        assert callback in ribbon
+        assert callback in callbacks
+
+    assert "ConvertAsync(bool all" in controller
+    assert "FormatAsync(bool all" in controller
+    assert "LoadAllFormulasAsync" in operations
+    assert "ReferencePlaceholderTag" in operations
+    assert '" REF " + bookmarkName + " \\\\h "' in operations
+    assert "UpdateFormulaReferences" in operations
+    assert "ChapterBoundaryTag" in operations
+    assert "SectionBoundaryTag" in operations
+    assert "FontColor" in metadata
+    assert "FontStyle" in metadata
+    assert "FontScale" in metadata
+    assert "FontWeightPercent" in metadata
+    assert "FormulaFontStyle" in settings
+    assert "FormulaWeightPercent" in settings
+    assert "IncludeChapter" in settings
+    assert "IncludeSection" in settings
+    assert "NumberSeparator" in settings
+    assert "string.Join(settings.NumberSeparator, parts)" in numbering
+    assert "SectionArabic" not in numbering

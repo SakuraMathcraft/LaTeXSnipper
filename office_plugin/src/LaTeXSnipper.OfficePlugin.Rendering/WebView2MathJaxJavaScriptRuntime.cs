@@ -11,6 +11,9 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 
 public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime, IDisposable
 {
+    private const string MathJaxVirtualHostName = "mathjax.latexsnipper.local";
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(15);
+
     private readonly string _hostName;
     private readonly Thread _uiThread;
     private readonly TaskCompletionSource<Form> _hostReady = new TaskCompletionSource<Form>();
@@ -36,7 +39,11 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         _uiThread.Start();
     }
 
-    public Task InitializeAsync(string mathJaxBundlePath, string bootstrapScript, CancellationToken cancellationToken)
+    public Task InitializeAsync(
+        string mathJaxBundlePath,
+        string configurationScript,
+        string bootstrapScript,
+        CancellationToken cancellationToken)
     {
         if (_initialized)
         {
@@ -60,11 +67,15 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             await webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            await NavigateToStringAsync(webView, "<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>").ConfigureAwait(true);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            string mathJaxBundle = File.ReadAllText(mathJaxBundlePath);
-            await webView.CoreWebView2.ExecuteScriptAsync(mathJaxBundle).ConfigureAwait(true);
+            string mathJaxRoot = Directory.GetParent(Directory.GetParent(mathJaxBundlePath)!.FullName)!.FullName;
+            webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                MathJaxVirtualHostName,
+                mathJaxRoot,
+                CoreWebView2HostResourceAccessKind.DenyCors);
+            string bundleRelativePath = GetVirtualBundlePath(mathJaxRoot, mathJaxBundlePath);
+            string html = BuildHostHtml(configurationScript, bundleRelativePath);
+            await NavigateToStringAsync(webView, html).ConfigureAwait(true);
+            await WaitForMathJaxStartupAsync(webView, cancellationToken).ConfigureAwait(true);
             await webView.CoreWebView2.ExecuteScriptAsync(bootstrapScript).ConfigureAwait(true);
             _initialized = true;
         }, cancellationToken);
@@ -189,6 +200,42 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         webView.NavigationCompleted += handler;
         webView.NavigateToString(html);
         return completion.Task;
+    }
+
+    private static string GetVirtualBundlePath(string mathJaxRoot, string mathJaxBundlePath)
+    {
+        string relativePath = mathJaxBundlePath.Substring(mathJaxRoot.Length)
+            .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Replace(Path.DirectorySeparatorChar, '/');
+        return "https://" + MathJaxVirtualHostName + "/" + relativePath;
+    }
+
+    private static string BuildHostHtml(string configurationScript, string bundleUri)
+    {
+        return "<!doctype html><html><head><meta charset=\"utf-8\"><script>"
+            + configurationScript
+            + "</script><script id=\"MathJax-script\" src=\""
+            + bundleUri
+            + "\"></script></head><body></body></html>";
+    }
+
+    private static async Task WaitForMathJaxStartupAsync(WebView2 webView, CancellationToken cancellationToken)
+    {
+        DateTime deadline = DateTime.UtcNow + StartupTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string ready = await webView.CoreWebView2.ExecuteScriptAsync(
+                "Boolean(window.LaTeXSnipperMathJaxStartupReady)").ConfigureAwait(true);
+            if (string.Equals(ready, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            await Task.Delay(50, cancellationToken).ConfigureAwait(true);
+        }
+
+        throw new TimeoutException("MathJax startup timed out.");
     }
 }
 #endif

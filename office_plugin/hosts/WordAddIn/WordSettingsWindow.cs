@@ -120,6 +120,13 @@ internal sealed class WordSettingsWindow : Form
             ["numberFormat"] = settings.NumberFormat.ToString(),
             ["numberEnclosure"] = settings.NumberEnclosure.ToString(),
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
+            ["includeChapter"] = settings.IncludeChapter,
+            ["includeSection"] = settings.IncludeSection,
+            ["numberSeparator"] = settings.NumberSeparator,
+            ["formulaColor"] = settings.FormulaColor,
+            ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
+            ["formulaScale"] = settings.FormulaScale,
+            ["formulaWeightPercent"] = settings.FormulaWeightPercent,
         });
         string script =
             "(function(payload){" +
@@ -170,13 +177,57 @@ internal sealed class WordSettingsWindow : Form
         WordNumberEnclosure numberEnclosure = Enum.TryParse(enclosureRaw, out WordNumberEnclosure parsedEnclosure)
             ? parsedEnclosure
             : WordNumberEnclosure.Parentheses;
+        bool includeChapter = ReadBoolean(message, "includeChapter");
+        bool includeSection = ReadBoolean(message, "includeSection");
+        string numberSeparator = ReadString(message, "numberSeparator", ".");
+        string formulaColor = ReadString(message, "formulaColor", "#000000");
+        string fontStyleRaw = ReadString(message, "formulaFontStyle", FormulaFontStyle.Italic.ToString());
+        FormulaFontStyle formulaFontStyle = Enum.TryParse(fontStyleRaw, out FormulaFontStyle parsedFontStyle)
+            ? parsedFontStyle
+            : FormulaFontStyle.Italic;
+        double formulaScale = ReadDouble(message, "formulaScale", 1);
+        int formulaWeightPercent = ReadWeightPercent(message);
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
             numberFormat,
-            numberEnclosure);
+            numberEnclosure,
+            includeChapter,
+            includeSection,
+            numberSeparator,
+            formulaColor,
+            formulaFontStyle,
+            formulaScale,
+            formulaWeightPercent);
         settings.Save();
         _ = SendSettingsAsync();
+    }
+
+    private static string ReadString(Dictionary<string, object> message, string key, string fallback)
+    {
+        string value = message.TryGetValue(key, out object raw)
+            ? Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static bool ReadBoolean(Dictionary<string, object> message, string key)
+    {
+        return message.TryGetValue(key, out object raw) && Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
+    }
+
+    private static double ReadDouble(Dictionary<string, object> message, string key, double fallback)
+    {
+        string value = ReadString(message, key, fallback.ToString(CultureInfo.InvariantCulture));
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static int ReadWeightPercent(Dictionary<string, object> message)
+    {
+        int value = Convert.ToInt32(ReadDouble(message, "formulaWeightPercent", 0));
+        return value is 5 or 10 or 15 ? value : 0;
     }
 
     private static string ResolveAssetsRoot()

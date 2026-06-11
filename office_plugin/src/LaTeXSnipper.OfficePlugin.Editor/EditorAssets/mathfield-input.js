@@ -3,6 +3,21 @@
 
   const VISIBLE_MATH_SPACE = "\\,";
   const MULTILINE_TEMPLATE = "\\begin{aligned}#@\\\\#?\\end{aligned}";
+  const TEMPLATE_SHORTCUTS = Object.freeze({
+    f: "\\frac{#0}{#?}",
+    r: "\\sqrt{#0}",
+    h: "#0^{#?}",
+    l: "#0_{#?}",
+    j: "#0_{#?}^{#?}",
+  });
+  const MATRIX_MENU_COMMANDS = Object.freeze({
+    "add-row-before": "addRowBefore",
+    "add-row-after": "addRowAfter",
+    "add-column-before": "addColumnBefore",
+    "add-column-after": "addColumnAfter",
+    "delete-row": "removeRow",
+    "delete-column": "removeColumn",
+  });
 
   function latex(mathfield) {
     return mathfield.getValue("latex-expanded");
@@ -25,7 +40,27 @@
 
   function configure(mathfield, onAccept) {
     mathfield.mathModeSpace = VISIBLE_MATH_SPACE;
+    document.addEventListener("menu-select", (event) => {
+      const command = MATRIX_MENU_COMMANDS[event.detail?.id];
+      if (!command) {
+        return;
+      }
+
+      event.preventDefault();
+      mathfield.executeCommand(command);
+      mathfield.focus();
+    });
     mathfield.addEventListener("keydown", (event) => {
+      const shortcut = event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey
+        ? TEMPLATE_SHORTCUTS[event.key.toLowerCase()]
+        : null;
+      if (shortcut && !event.isComposing && mathfield.mode !== "latex") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        insertTemplate(mathfield, shortcut);
+        return;
+      }
+
       if (
         event.key !== "Enter"
         || event.isComposing
@@ -60,5 +95,18 @@
     mathfield.focus();
   }
 
-  window.LaTeXSnipperMathfieldInput = Object.freeze({ configure, insertTemplate });
+  function setDefaultFontStyle(mathfield, fontStyle) {
+    const style = {
+      RomanUpright: { variant: "normal", variantStyle: "up" },
+      Bold: { variant: "normal", variantStyle: "bold" },
+      Italic: { variant: "main", variantStyle: "italic" },
+    }[fontStyle] || { variant: "main", variantStyle: "italic" };
+    mathfield.onInsertStyle = () => ({ ...style });
+  }
+
+  window.LaTeXSnipperMathfieldInput = Object.freeze({
+    configure,
+    insertTemplate,
+    setDefaultFontStyle,
+  });
 })();

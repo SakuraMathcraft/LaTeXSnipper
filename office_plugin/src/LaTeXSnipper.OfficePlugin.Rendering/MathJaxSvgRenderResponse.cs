@@ -74,6 +74,7 @@ internal sealed class MathJaxSvgRenderResponse
 #if NET48
     private static MathJaxSvgRenderResponse ParseObject(Dictionary<string, object> root)
     {
+        ThrowIfError(root);
         string svg = GetString(root, "svg");
         if (string.IsNullOrWhiteSpace(svg))
         {
@@ -91,6 +92,15 @@ internal sealed class MathJaxSvgRenderResponse
     private static string GetString(Dictionary<string, object> root, string propertyName)
     {
         return root.TryGetValue(propertyName, out object value) ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty : string.Empty;
+    }
+
+    private static void ThrowIfError(Dictionary<string, object> root)
+    {
+        string error = GetString(root, "error");
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            throw new InvalidOperationException("MathJax rendering failed: " + error);
+        }
     }
 
     private static IReadOnlyList<string> GetWarnings(Dictionary<string, object> root)
@@ -127,6 +137,7 @@ internal sealed class MathJaxSvgRenderResponse
 #else
     private static MathJaxSvgRenderResponse ParseObject(JsonElement root)
     {
+        ThrowIfError(root);
         string svg = GetString(root, "svg");
         if (string.IsNullOrWhiteSpace(svg))
         {
@@ -146,6 +157,15 @@ internal sealed class MathJaxSvgRenderResponse
         return root.TryGetProperty(propertyName, out JsonElement value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static void ThrowIfError(JsonElement root)
+    {
+        string error = GetString(root, "error");
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            throw new InvalidOperationException("MathJax rendering failed: " + error);
+        }
     }
 
     private static IReadOnlyList<string> GetWarnings(JsonElement root)

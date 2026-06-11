@@ -11,6 +11,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public sealed class PowerPointPluginController : IDisposable
 {
     internal const string DefaultLatex = "e^{i\\pi}+1=0";
+    private const double InitialFormulaScale = 2.5;
 
     private readonly FormulaEditorSession _editorSession;
     private readonly BridgeClient _bridgeClient;
@@ -18,7 +19,7 @@ public sealed class PowerPointPluginController : IDisposable
     private readonly IPowerPointStatusSink _statusSink;
     private readonly IPowerPointFormulaOptionsProvider _optionsProvider;
     private readonly PowerPointImageFileStore _imageFileStore;
-    private readonly IFormulaRenderer _oleIntermediateRenderer;
+    private readonly MathJaxSvgRenderer _mathJaxRenderer;
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private float _loadedShapeLeft;
@@ -31,7 +32,7 @@ public sealed class PowerPointPluginController : IDisposable
         FormulaEditorSession editorSession,
         BridgeClient bridgeClient,
         IPowerPointApplicationAdapter powerPointAdapter,
-        IFormulaRenderer oleIntermediateRenderer,
+        MathJaxSvgRenderer mathJaxRenderer,
         OlePresentationPipeline olePresentationPipeline,
         IPowerPointStatusSink? statusSink = null,
         IPowerPointFormulaOptionsProvider? optionsProvider = null,
@@ -40,7 +41,7 @@ public sealed class PowerPointPluginController : IDisposable
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
         _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
         _powerPointAdapter = powerPointAdapter ?? throw new ArgumentNullException(nameof(powerPointAdapter));
-        _oleIntermediateRenderer = oleIntermediateRenderer ?? throw new ArgumentNullException(nameof(oleIntermediateRenderer));
+        _mathJaxRenderer = mathJaxRenderer ?? throw new ArgumentNullException(nameof(mathJaxRenderer));
         _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullPowerPointStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultPowerPointFormulaOptionsProvider.Instance;
@@ -112,10 +113,7 @@ public sealed class PowerPointPluginController : IDisposable
     {
         ThrowIfDisposed();
         await _editorSession.WarmUpAsync(cancellationToken);
-        if (_oleIntermediateRenderer is MathJaxSvgRenderer mathJaxRenderer)
-        {
-            await mathJaxRenderer.WarmUpAsync(cancellationToken);
-        }
+        await _mathJaxRenderer.WarmUpAsync(cancellationToken);
     }
 
     public async Task InsertFormulaAsync(CancellationToken cancellationToken)
@@ -196,9 +194,13 @@ public sealed class PowerPointPluginController : IDisposable
         }
 
         _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("ConvertingStatus"));
-        string responseJson = await _bridgeClient.ConvertLatexAsync(metadata.Latex, display: true, new[] { "png" }, cancellationToken);
-        PowerPointConversionResult conversion = PowerPointConversionParser.ParseConversionResponse(responseJson);
-        PowerPointRenderedImage image = _imageFileStore.SaveConversionResult(conversion);
+        var imageRequest = new RenderRequest(metadata.Latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
+        {
+            FontScale = InitialFormulaScale
+        };
+        RenderResult svg = await _mathJaxRenderer.RenderAsync(imageRequest, cancellationToken);
+        byte[] png = SvgPngRasterizer.Rasterize(svg, cancellationToken);
+        PowerPointRenderedImage image = _imageFileStore.SavePng(png, svg.WidthPoints, svg.HeightPoints);
 
         if (updateMode && hasPosition)
         {
@@ -329,9 +331,9 @@ public sealed class PowerPointPluginController : IDisposable
     {
         var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = 3.0
+            FontScale = InitialFormulaScale
         };
-        RenderResult intermediate = await _oleIntermediateRenderer.RenderAsync(request, cancellationToken);
+        RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
             new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
             cancellationToken);
@@ -364,10 +366,7 @@ public sealed class PowerPointPluginController : IDisposable
         _disposed = true;
         _editorSession.Dispose();
         _bridgeClient.Dispose();
-        if (_oleIntermediateRenderer is IDisposable disposableRenderer)
-        {
-            disposableRenderer.Dispose();
-        }
+        _mathJaxRenderer.Dispose();
 
         _commandGate.Dispose();
     }

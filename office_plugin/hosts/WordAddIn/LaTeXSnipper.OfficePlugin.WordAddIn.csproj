@@ -15,6 +15,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,7 +29,7 @@
     </Content>
     <Content Include="..\..\..\src\assets\mathlive\vendor\**\*">
       <Link>EditorAssets\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets\**\*">
       <Link>EditorSharedAssets\%(RecursiveDir)%(Filename)%(Extension)</Link>
