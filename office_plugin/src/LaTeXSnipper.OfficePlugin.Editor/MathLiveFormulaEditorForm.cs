@@ -253,6 +253,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             ["display"] = _options.ForceDisplayMode || _currentInitialFormula?.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
+            ["fontStyle"] = (_currentInitialFormula?.FontStyle ?? FormulaFontStyle.Italic).ToString(),
         });
         string script =
             "(function(payload){" +
@@ -454,7 +455,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
     private void RestoreInputLanguageAfterHide()
     {
         RestoreInputLanguage();
-        _ = RestoreInputLanguageAfterDelayAsync();
+        _ = RestoreInputLanguageWhenOwnerIsForegroundAsync();
     }
 
     private void RestoreInputLanguage()
@@ -487,9 +488,25 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
     }
 
-    private async Task RestoreInputLanguageAfterDelayAsync()
+    private async Task RestoreInputLanguageWhenOwnerIsForegroundAsync()
     {
-        await Task.Delay(150).ConfigureAwait(true);
+        InputLanguageSnapshot? snapshot = _inputLanguageBeforeActivation;
+        if (snapshot == null)
+        {
+            return;
+        }
+
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            if (GetForegroundWindow() == snapshot.ForegroundWindow)
+            {
+                RestoreInputLanguage();
+                return;
+            }
+
+            await Task.Delay(50).ConfigureAwait(true);
+        }
+
         RestoreInputLanguage();
     }
 

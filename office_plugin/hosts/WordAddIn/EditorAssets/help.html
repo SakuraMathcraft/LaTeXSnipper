@@ -90,7 +90,7 @@
 
     <section>
       <h2>编辑器快捷键</h2>
-      <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
+      <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。Ctrl+F、Ctrl+R、Ctrl+H、Ctrl+L、Ctrl+J 分别插入分式、根号、上标、下标和上下标。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
     </section>
 
     <section class="platform-word">
@@ -102,7 +102,9 @@
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
       <h3>自动编号与重编号</h3>
-      <p>自动编号只对未编号的行间公式生效，不会把行内公式转换为编号公式。重编号按文档顺序更新自动编号文本，不重新渲染公式。编号位置设置只影响新插入的编号公式和之后自动编号的普通行间公式。</p>
+      <p>自动编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；“编号”选项卡可插入章或节边界，后续编号会递归重置。</p>
+      <h3>转换、引用与格式化</h3>
+      <p>“转换”支持所选公式或全文公式在 Word OMML 与 OLE 之间原位转换。“引用”先插入占位符，再单击公式编号创建 Word 交叉引用；重编号时引用域同步更新。“格式化”将设置中的默认字体、颜色、粗细度和大小应用于所选公式或全文公式。</p>
       <h3>带编号公式布局</h3>
       <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
       <h3>OLE 对象尺寸</h3>
@@ -133,7 +135,7 @@
           <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
           <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。</td></tr>
           <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。</td></tr>
-          <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
+          <tr><td>连接方式</td><td>公式在插件内本地渲染；截图识别通过本机 Bridge（<code>127.0.0.1:28765</code>）连接桌面端。</td></tr>
           <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
         </tbody>
       </table>
@@ -183,7 +185,7 @@
 
     <section>
       <h2>Editor Shortcuts</h2>
-      <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
+      <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Ctrl+F, Ctrl+R, Ctrl+H, Ctrl+L, and Ctrl+J insert a fraction, root, superscript, subscript, and combined scripts. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
     </section>
 
     <section class="platform-word">
@@ -195,7 +197,9 @@
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
       <h3>Auto Numbering &amp; Renumber</h3>
-      <p>Auto Number only applies to unnumbered display equations, so inline equations are never converted into numbered formulas. Renumber updates automatic numbers in document order without re-rendering. Number placement affects newly inserted numbered formulas and ordinary display formulas numbered later.</p>
+      <p>Auto Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters.</p>
+      <h3>Conversion, References &amp; Formatting</h3>
+      <p>Convert selected formulas or the whole document between Word OMML and OLE. Insert Reference creates a placeholder; clicking a managed formula number creates a Word cross-reference that updates during renumbering. Formatting applies the configured default font, color, weight, and size to selected formulas or all formulas.</p>
       <h3>Numbered Formula Layout</h3>
       <p>Numbered formulas center the formula and place the number on the left or right according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
       <h3>OLE Object Size</h3>
@@ -226,7 +230,7 @@
           <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
           <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend.</td></tr>
           <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend.</td></tr>
-          <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
+          <tr><td>Connection</td><td>Formulas render locally inside the plugin. Screenshot OCR uses the desktop client through the local Bridge at <code>127.0.0.1:28765</code>.</td></tr>
           <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Editor submissions are serialized with Office commands.</td></tr>
         </tbody>
       </table>

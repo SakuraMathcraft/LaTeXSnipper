@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Web.Script.Serialization;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
@@ -13,24 +12,18 @@ internal static class WordFormulaMetadataStore
     public const string NumberControlAliasPrefix = "LaTeXSnipperEqNum-";
     public const string MetadataControlTagPrefix = "latexsnipper-eqm-";
     public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
-    private const string EquationTagBackupSeparator = "|";
     private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
     private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
 
-    public static string BuildEquationTag(string equationId, FormulaMetadata? metadata = null)
+    public static string BuildEquationTag(string equationId)
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        if (metadata == null)
-        {
-            return EquationTagPrefix + equationId;
-        }
-
-        return EquationTagPrefix + equationId + EquationTagBackupSeparator + EncodeMetadata(metadata);
+        return EquationTagPrefix + equationId;
     }
 
     public static string EquationIdFromTag(string tag)
@@ -40,9 +33,7 @@ internal static class WordFormulaMetadataStore
             return string.Empty;
         }
 
-        string value = tag.Substring(EquationTagPrefix.Length);
-        int separatorIndex = value.IndexOf(EquationTagBackupSeparator, StringComparison.Ordinal);
-        return separatorIndex < 0 ? value : value.Substring(0, separatorIndex);
+        return tag.Substring(EquationTagPrefix.Length);
     }
 
     public static string BuildNumberTag(string equationId)
@@ -214,18 +205,16 @@ internal static class WordFormulaMetadataStore
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
             ["renderEngine"] = metadata.RenderEngine.ToString(),
+            ["fontColor"] = metadata.FontColor,
+            ["fontStyle"] = metadata.FontStyle.ToString(),
+            ["fontScale"] = metadata.FontScale,
+            ["fontWeightPercent"] = metadata.FontWeightPercent,
         };
         return serializer.Serialize(dto);
     }
 
     private static FormulaMetadata? TryLoadBackup(dynamic document, string equationId)
     {
-        FormulaMetadata? equationTagBackup = TryLoadEquationTagBackup(document, equationId);
-        if (equationTagBackup != null)
-        {
-            return equationTagBackup;
-        }
-
         try
         {
             dynamic controls = document.ContentControls;
@@ -249,56 +238,6 @@ internal static class WordFormulaMetadataStore
         }
 
         return null;
-    }
-
-    private static FormulaMetadata? TryLoadEquationTagBackup(dynamic document, string equationId)
-    {
-        try
-        {
-            dynamic controls = document.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic control = controls.Item(i);
-                string tag = Convert.ToString(control.Tag) ?? string.Empty;
-                if (EquationIdFromTag(tag) != equationId)
-                {
-                    continue;
-                }
-
-                return DeserializeMetadataFromEquationTag(tag);
-            }
-        }
-        catch
-        {
-        }
-
-        return null;
-    }
-
-    public static FormulaMetadata? DeserializeMetadataFromEquationTag(string tag)
-    {
-        int separatorIndex = tag.IndexOf(EquationTagBackupSeparator, StringComparison.Ordinal);
-        if (separatorIndex < 0 || separatorIndex == tag.Length - 1)
-        {
-            return null;
-        }
-
-        try
-        {
-            string encoded = tag.Substring(separatorIndex + EquationTagBackupSeparator.Length);
-            string json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-            return Deserialize(json);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static string EncodeMetadata(FormulaMetadata metadata)
-    {
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(Serialize(metadata)));
     }
 
     private static string CleanContentControlText(string value)
@@ -328,7 +267,11 @@ internal static class WordFormulaMetadataStore
             ReadEnum(dto, "numberingMode", NumberingMode.None),
             ReadString(dto, "numberText"),
             ReadEnum(dto, "renderEngine", RenderEngineKind.Omml),
-            ReadInt(dto, "schemaVersion", 1));
+            ReadInt(dto, "schemaVersion", 1),
+            ReadString(dto, "fontColor"),
+            ReadEnum(dto, "fontStyle", FormulaFontStyle.Italic),
+            ReadDouble(dto, "fontScale"),
+            ReadInt(dto, "fontWeightPercent", 0));
     }
 
     private static string ReadString(Dictionary<string, object> dto, string key)

@@ -37,14 +37,21 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 ribbonCallbacks = new WordRibbonCallbacks(controller, visibleStatusSink, ShowStatusPane);
                 AttachTaskPaneCommands(statusPaneControl, ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
+                Application.WindowSelectionChange += OnWindowSelectionChange;
                 _ = WarmUpControllerAsync(controller, statusPaneControl);
             }
         }
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
+            Application.WindowSelectionChange -= OnWindowSelectionChange;
             controller?.Dispose();
             controller = null;
+        }
+
+        private void OnWindowSelectionChange(Microsoft.Office.Interop.Word.Selection selection)
+        {
+            ribbonCallbacks?.OnSelectionChanged();
         }
 
         private static async System.Threading.Tasks.Task WarmUpControllerAsync(

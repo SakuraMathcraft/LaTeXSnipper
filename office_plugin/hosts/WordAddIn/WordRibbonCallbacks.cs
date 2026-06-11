@@ -87,6 +87,23 @@ public sealed class WordRibbonCallbacks
         FireAndForgetSerial(ct => _controller.RenumberAllAsync(ct));
     }
 
+    public void OnConvertSelectedToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOleAsync(ct));
+    public void OnConvertSelectedToOmml(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOmmlAsync(ct));
+    public void OnConvertAllToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertAllToOleAsync(ct));
+    public void OnConvertAllToOmml(object control) => FireAndForgetSerial(ct => _controller.ConvertAllToOmmlAsync(ct));
+    public void OnInsertReference(object control) => FireAndForgetSerial(ct => _controller.InsertReferenceAsync(ct));
+    public void OnInsertChapterBoundary(object control) => FireAndForgetSerial(ct => _controller.InsertChapterBoundaryAsync(ct));
+    public void OnInsertSectionBoundary(object control) => FireAndForgetSerial(ct => _controller.InsertSectionBoundaryAsync(ct));
+    public void OnFormatSelected(object control) => FireAndForgetSerial(ct => _controller.FormatSelectedAsync(ct));
+    public void OnFormatAll(object control) => FireAndForgetSerial(ct => _controller.FormatAllAsync(ct));
+
+    public void OnSelectionChanged()
+    {
+        _ = _controller.TryRunCommandAsync(
+            ct => _controller.HandleSelectionChangedAsync(ct),
+            CancellationToken.None);
+    }
+
     public void OnShowTaskPane(object control)
     {
         _showTaskPane?.Invoke();

@@ -1,6 +1,7 @@
 using System;
+using System.Linq;
 using System.Security;
-using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
@@ -83,7 +84,7 @@ public static class WordOmmlDocumentBuilder
     private static string BuildInlineBody(string omml, FormulaMetadata metadata)
     {
         return "<w:p>" +
-            WrapEquationContentControl(omml, metadata, inlineMath: true) +
+            WrapEquationContentControl(omml, metadata) +
             "</w:p>";
     }
 
@@ -95,7 +96,7 @@ public static class WordOmmlDocumentBuilder
         }
 
         return "<w:p><w:pPr>" + ParagraphSpacing() + "<w:jc w:val=\"center\"/></w:pPr>" +
-            WrapEquationContentControl(omml, metadata, inlineMath: false) +
+            WrapEquationContentControl(omml, metadata) +
             "</w:p>";
     }
 
@@ -106,7 +107,7 @@ public static class WordOmmlDocumentBuilder
             WordFormulaMetadataStore.BuildNumberTag(equationId),
             WordFormulaMetadataStore.BuildNumberAlias(equationId),
             metadata.NumberText);
-        string equationControl = WrapEquationContentControl(omml, metadata, inlineMath: true);
+        string equationControl = WrapEquationContentControl(omml, metadata);
         string leftNumber = numberPlacement == WordNumberPlacement.Left ? numberControl : string.Empty;
         string rightNumber = numberPlacement == WordNumberPlacement.Right ? numberControl : string.Empty;
         return
@@ -122,15 +123,15 @@ public static class WordOmmlDocumentBuilder
             "</w:p>";
     }
 
-    private static string WrapEquationContentControl(string omml, FormulaMetadata metadata, bool inlineMath)
+    private static string WrapEquationContentControl(string omml, FormulaMetadata metadata)
     {
         string equationId = metadata.Identity.EquationId;
         return
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
-            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId, metadata)) + "\"/>" +
+            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId)) + "\"/>" +
             "</w:sdtPr><w:sdtContent>" +
-            (inlineMath ? NormalizeOmmlForInlineRun(omml) : NormalizeOmmlForWord(omml)) +
+            ExtractEquationOmml(omml) +
             "</w:sdtContent></w:sdt>";
     }
 
@@ -150,11 +151,18 @@ public static class WordOmmlDocumentBuilder
         return omml.Replace(" xmlns:mml=\"http://www.w3.org/1998/Math/MathML\"", string.Empty);
     }
 
-    private static string NormalizeOmmlForInlineRun(string omml)
+    private static string ExtractEquationOmml(string omml)
     {
-        string normalized = NormalizeOmmlForWord(omml);
-        Match match = Regex.Match(normalized, "<m:oMath(?:\\s[^>]*)?>.*?</m:oMath>", RegexOptions.Singleline);
-        return match.Success ? match.Value : normalized;
+        XElement root = XElement.Parse(NormalizeOmmlForWord(omml), LoadOptions.PreserveWhitespace);
+        XElement? equation = root.Name.LocalName == "oMath"
+            ? root
+            : root.Descendants().FirstOrDefault(element => element.Name.LocalName == "oMath");
+        if (equation == null)
+        {
+            throw new InvalidOperationException("OMML does not contain an m:oMath equation.");
+        }
+
+        return equation.ToString(SaveOptions.DisableFormatting);
     }
 
     private static string ParagraphSpacing()

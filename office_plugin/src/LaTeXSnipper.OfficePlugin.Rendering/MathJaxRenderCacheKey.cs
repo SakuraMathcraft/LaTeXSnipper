@@ -12,6 +12,7 @@ internal sealed class MathJaxRenderCacheKey : IEquatable<MathJaxRenderCacheKey>
         TargetDpi = request.TargetDpi;
         Theme = request.Theme ?? string.Empty;
         FontScale = request.FontScale;
+        FontWeightPercent = request.FontWeightPercent;
         RendererVersion = rendererVersion ?? string.Empty;
     }
 
@@ -25,6 +26,8 @@ internal sealed class MathJaxRenderCacheKey : IEquatable<MathJaxRenderCacheKey>
 
     public double FontScale { get; }
 
+    public int FontWeightPercent { get; }
+
     public string RendererVersion { get; }
 
     public bool Equals(MathJaxRenderCacheKey? other)
@@ -35,6 +38,7 @@ internal sealed class MathJaxRenderCacheKey : IEquatable<MathJaxRenderCacheKey>
             && TargetDpi == other.TargetDpi
             && Theme == other.Theme
             && FontScale.Equals(other.FontScale)
+            && FontWeightPercent == other.FontWeightPercent
             && RendererVersion == other.RendererVersion;
     }
 
@@ -53,6 +57,7 @@ internal sealed class MathJaxRenderCacheKey : IEquatable<MathJaxRenderCacheKey>
             hash = hash * 31 + TargetDpi.GetHashCode();
             hash = hash * 31 + Theme.GetHashCode();
             hash = hash * 31 + FontScale.GetHashCode();
+            hash = hash * 31 + FontWeightPercent;
             hash = hash * 31 + RendererVersion.GetHashCode();
             return hash;
         }

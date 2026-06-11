@@ -9,6 +9,11 @@ const TEXT = {
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
     newlineShortcut: "新建数学行",
+    fractionShortcut: "插入分式",
+    rootShortcut: "插入根号",
+    superscriptShortcut: "插入上标",
+    subscriptShortcut: "插入下标",
+    scriptsShortcut: "插入上下标",
     cancelShortcut: "收回 MathLive 虚拟键盘",
   },
   en: {
@@ -21,6 +26,11 @@ const TEXT = {
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
     newlineShortcut: "start a new math row",
+    fractionShortcut: "insert a fraction",
+    rootShortcut: "insert a square root",
+    superscriptShortcut: "insert a superscript",
+    subscriptShortcut: "insert a subscript",
+    scriptsShortcut: "insert superscript and subscript",
     cancelShortcut: "hide the MathLive virtual keyboard",
   },
 };

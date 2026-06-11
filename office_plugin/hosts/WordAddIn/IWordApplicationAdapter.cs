@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -23,6 +24,10 @@ public interface IWordApplicationAdapter
 
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<FormulaMetadata>> LoadSelectedFormulasAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<FormulaMetadata>> LoadAllFormulasAsync(CancellationToken cancellationToken);
+
     Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
 
     Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
@@ -32,5 +37,11 @@ public interface IWordApplicationAdapter
     int GetNextAutomaticNumber();
 
     void SetNextAutomaticNumber(int number);
+
+    Task InsertReferencePlaceholderAsync(CancellationToken cancellationToken);
+
+    Task<bool> CompletePendingReferenceAsync(CancellationToken cancellationToken);
+
+    Task InsertNumberingBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken);
 
 }

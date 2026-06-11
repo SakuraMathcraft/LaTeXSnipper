@@ -339,6 +339,10 @@ function applyInit(payload) {
   mode = payload?.mode === "update" ? "update" : "insert";
   setSubmitting(false);
   configureText();
+  window.LaTeXSnipperMathfieldInput.setDefaultFontStyle(
+    mathfield,
+    payload?.fontStyle || "Italic",
+  );
   setLatex(payload?.latex || "");
 }
 

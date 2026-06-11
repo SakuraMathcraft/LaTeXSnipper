@@ -40,7 +40,6 @@
           <span data-i18n="formatLabel">编号格式</span>
           <select id="numberFormat">
             <option value="Arabic" data-i18n="formatArabic">1</option>
-            <option value="SectionArabic" data-i18n="formatSectionArabic">1.1</option>
             <option value="LowerRoman" data-i18n="formatLowerRoman">i</option>
             <option value="UpperRoman" data-i18n="formatUpperRoman">I</option>
             <option value="LowerLetter" data-i18n="formatLowerLetter">a</option>
@@ -57,6 +56,42 @@
           </select>
         </label>
       </div>
+      <div class="numbering-grid">
+        <label><input id="includeChapter" type="checkbox"><span data-i18n="includeChapter">包含章编号</span></label>
+        <label><input id="includeSection" type="checkbox"><span data-i18n="includeSection">包含节编号</span></label>
+        <label>
+          <span data-i18n="separatorLabel">层级分隔符</span>
+          <input id="numberSeparator" type="text" maxlength="3" value=".">
+        </label>
+      </div>
+    </section>
+
+    <section class="panel accent-panel">
+      <div>
+        <h2 data-i18n="formattingTitle">公式格式化</h2>
+        <p class="hint" data-i18n="formattingHint">“格式化”选项卡将这些值应用于所选公式或全文公式。</p>
+      </div>
+      <div class="numbering-grid">
+        <label><span data-i18n="colorLabel">字体颜色</span><input id="formulaColor" type="color" value="#000000"></label>
+        <label>
+          <span data-i18n="fontStyleLabel">默认字体</span>
+          <select id="formulaFontStyle">
+            <option value="RomanUpright" data-i18n="fontRomanUpright">罗马正体</option>
+            <option value="Bold" data-i18n="fontBold">粗体</option>
+            <option value="Italic" data-i18n="fontItalic">斜体</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="weightLabel">粗细度</span>
+          <select id="formulaWeightPercent">
+            <option value="0">0%</option>
+            <option value="5">5%</option>
+            <option value="10">10%</option>
+            <option value="15">15%</option>
+          </select>
+        </label>
+        <label><span data-i18n="scaleLabel">大小倍率</span><input id="formulaScale" type="number" min="0.5" max="5" step="0.1" value="1"></label>
+      </div>
     </section>
 
     <section class="panel">
@@ -64,6 +99,11 @@
       <div class="key-list">
         <div><kbd>Enter</kbd><span data-i18n="newlineShortcut">新建数学行</span></div>
         <div><kbd>Shift</kbd><span>+</span><kbd>Enter</kbd><span data-i18n="acceptShortcut">插入或更新当前公式</span></div>
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>F</kbd><span data-i18n="fractionShortcut">插入分式</span></div>
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd><span data-i18n="rootShortcut">插入根号</span></div>
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>H</kbd><span data-i18n="superscriptShortcut">插入上标</span></div>
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>L</kbd><span data-i18n="subscriptShortcut">插入下标</span></div>
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>J</kbd><span data-i18n="scriptsShortcut">插入上下标</span></div>
         <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">收回 MathLive 虚拟键盘</span></div>
       </div>
     </section>

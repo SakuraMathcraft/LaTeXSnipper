@@ -12,7 +12,11 @@ public sealed class FormulaMetadata
         NumberingMode numberingMode,
         string numberText,
         RenderEngineKind renderEngine,
-        int schemaVersion)
+        int schemaVersion,
+        string fontColor = "#000000",
+        FormulaFontStyle fontStyle = FormulaFontStyle.Italic,
+        double fontScale = 1,
+        int fontWeightPercent = 0)
     {
         Identity = identity;
         Latex = latex ?? string.Empty;
@@ -21,6 +25,10 @@ public sealed class FormulaMetadata
         NumberText = numberText ?? string.Empty;
         RenderEngine = renderEngine;
         SchemaVersion = schemaVersion;
+        FontColor = string.IsNullOrWhiteSpace(fontColor) ? "#000000" : fontColor;
+        FontStyle = fontStyle;
+        FontScale = fontScale > 0 ? fontScale : 1;
+        FontWeightPercent = fontWeightPercent is 5 or 10 or 15 ? fontWeightPercent : 0;
     }
 
     public FormulaIdentity Identity { get; }
@@ -36,4 +44,12 @@ public sealed class FormulaMetadata
     public RenderEngineKind RenderEngine { get; }
 
     public int SchemaVersion { get; }
+
+    public string FontColor { get; }
+
+    public FormulaFontStyle FontStyle { get; }
+
+    public double FontScale { get; }
+
+    public int FontWeightPercent { get; }
 }

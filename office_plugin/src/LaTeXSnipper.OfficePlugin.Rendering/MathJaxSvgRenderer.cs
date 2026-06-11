@@ -72,6 +72,25 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
         return _cache.GetOrAdd(new MathJaxRenderCacheKey(request, result.RendererVersion), result);
     }
 
+    public async Task<string> ConvertToMathMlAsync(
+        string latex,
+        FormulaDisplayMode displayMode,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        if (string.IsNullOrWhiteSpace(latex))
+        {
+            throw new ArgumentException("LaTeX is required.", nameof(latex));
+        }
+
+        using var timeout = new CancellationTokenSource(OfficeCommandTimeouts.Render);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        await EnsureInitializedAsync(linked.Token).ConfigureAwait(false);
+        string script = MathJaxRenderScriptBuilder.BuildMathMlScript(latex, displayMode);
+        string responseJson = await _runtime.EvaluateAsync(script, linked.Token).ConfigureAwait(false);
+        return MathJaxMathMlResponse.Parse(responseJson).MathMl;
+    }
+
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -89,7 +108,11 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
             }
 
             string bundle = _assetResolver.ResolveTexSvgBundle();
-            await _runtime.InitializeAsync(bundle, MathJaxRenderScriptBuilder.BuildBootstrapScript(), cancellationToken).ConfigureAwait(false);
+            await _runtime.InitializeAsync(
+                bundle,
+                MathJaxRenderScriptBuilder.BuildConfigurationScript(),
+                MathJaxRenderScriptBuilder.BuildBootstrapScript(),
+                cancellationToken).ConfigureAwait(false);
             _initialized = true;
         }
         finally

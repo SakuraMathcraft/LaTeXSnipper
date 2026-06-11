@@ -90,7 +90,7 @@
 
     <section>
       <h2>编辑器快捷键</h2>
-      <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
+      <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。Ctrl+F、Ctrl+R、Ctrl+H、Ctrl+L、Ctrl+J 分别插入分式、根号、上标、下标和上下标。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
     </section>
 
     <section class="platform-word">
@@ -133,7 +133,7 @@
           <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
           <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。</td></tr>
           <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。</td></tr>
-          <tr><td>连接方式</td><td>HTTP 连接本机 Bridge（<code>127.0.0.1:28765</code>），LaTeX 转换和截图识别均由桌面端完成。</td></tr>
+          <tr><td>连接方式</td><td>公式在插件内本地渲染；截图识别通过本机 Bridge（<code>127.0.0.1:28765</code>）连接桌面端。</td></tr>
           <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
         </tbody>
       </table>
@@ -183,7 +183,7 @@
 
     <section>
       <h2>Editor Shortcuts</h2>
-      <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
+      <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Ctrl+F, Ctrl+R, Ctrl+H, Ctrl+L, and Ctrl+J insert a fraction, root, superscript, subscript, and combined scripts. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
     </section>
 
     <section class="platform-word">
@@ -226,7 +226,7 @@
           <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
           <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend.</td></tr>
           <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend.</td></tr>
-          <tr><td>Connection</td><td>HTTP to local Bridge at <code>127.0.0.1:28765</code>; LaTeX conversion and OCR run on the desktop client.</td></tr>
+          <tr><td>Connection</td><td>Formulas render locally inside the plugin. Screenshot OCR uses the desktop client through the local Bridge at <code>127.0.0.1:28765</code>.</td></tr>
           <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Editor submissions are serialized with Office commands.</td></tr>
         </tbody>
       </table>
