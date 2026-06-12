@@ -35,6 +35,14 @@
                   imageMso="Delete"
                   onAction="OnDeleteSelected" />
         </group>
+        <group id="LaTeXSnipperPowerPointConversionGroup" label="{ConversionGroup}">
+          <button id="PowerPointConvertSelectedToOle" label="{ToOleButton}" supertip="{ToOleTip}" size="large" imageMso="ObjectEditDialog" onAction="OnConvertSelectedToOle" />
+          <button id="PowerPointConvertSelectedToPng" label="{ToPngButton}" supertip="{ToPngTip}" size="large" imageMso="PictureInsertFromFile" onAction="OnConvertSelectedToPng" />
+        </group>
+        <group id="LaTeXSnipperPowerPointFormattingGroup" label="{FormattingGroup}">
+          <button id="PowerPointFormatSelectedButton" label="{FormatSelectedButton}" supertip="{FormatSelectedTip}" size="large" imageMso="FormatPainter" onAction="OnFormatSelected" />
+          <button id="PowerPointFormatAllButton" label="{FormatAllButton}" supertip="{FormatAllTip}" size="large" imageMso="FontDialog" onAction="OnFormatAll" />
+        </group>
         <group id="LaTeXSnipperPowerPointToolsGroup" label="{ToolsGroup}">
           <button id="PowerPointShowTaskPaneButton"
                   label="{ShowTaskPaneButton}"

@@ -91,6 +91,31 @@ button:hover {
   background: #f6f9ff;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-grid label,
+.color-control {
+  display: grid;
+  gap: 6px;
+}
+
+.color-control {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+input[type="color"],
+select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #bac8da;
+  border-radius: 5px;
+  background: #fff;
+}
+
 .segmented button.active {
   border-color: #77a2e8;
   background: var(--accent-soft);

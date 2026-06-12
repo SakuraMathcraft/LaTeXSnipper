@@ -31,7 +31,6 @@ public static class OleFormulaPayloadJson
             ["fontColor"] = metadata.FontColor,
             ["fontStyle"] = metadata.FontStyle,
             ["fontScale"] = metadata.FontScale.ToString(CultureInfo.InvariantCulture),
-            ["fontWeightPercent"] = metadata.FontWeightPercent,
             ["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString(),
             ["rendererVersion"] = "MathJax-3.2.2",
             ["widthPoints"] = presentation.WidthPoints.ToString(CultureInfo.InvariantCulture),

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -218,8 +220,7 @@ public sealed partial class WordPluginController : IDisposable
     {
         ThrowIfDisposed();
         FormulaMetadata selected = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
-        FormulaMetadata initial = IsSameFormula(_currentFormula, selected) ? _currentFormula! : selected;
-        await _editorSession.OpenForEditAsync(initial, cancellationToken);
+        await _editorSession.OpenForEditAsync(selected, cancellationToken);
         _pendingEditorInsertOptions = null;
         _currentFormula = selected;
         _optionsProvider.ApplyFormulaMetadata(selected, updateMode: true);
@@ -229,13 +230,13 @@ public sealed partial class WordPluginController : IDisposable
 
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
     {
-        FormulaMetadata metadata = await _wordAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        IReadOnlyList<string> deletedEquationIds;
         using (_wordAdapter.BeginUndoRecord())
         {
-            await _wordAdapter.DeleteSelectedFormulaAsync(cancellationToken);
+            deletedEquationIds = await _wordAdapter.DeleteSelectedFormulaAsync(cancellationToken);
         }
 
-        if (IsSameFormula(_currentFormula, metadata))
+        if (_currentFormula != null && deletedEquationIds.Contains(_currentFormula.Identity.EquationId))
         {
             _currentFormula = null;
         }
@@ -347,7 +348,12 @@ public sealed partial class WordPluginController : IDisposable
     public Task ShowSettingsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        WordSettingsWindow.Open();
+        WordSettingsWindow.Open(() =>
+        {
+            _ = TryRunCommandAsync(
+                ct => _wordAdapter.ApplyNumberingBoundaryVisibilityAsync(ct),
+                CancellationToken.None);
+        });
         _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("SettingsStatus"));
         return Task.CompletedTask;
     }
@@ -385,20 +391,28 @@ public sealed partial class WordPluginController : IDisposable
         FormulaMetadata metadata,
         bool includeEquationOoxml,
         CancellationToken cancellationToken,
-        FormulaInsertionBackend? backendOverride = null)
+        FormulaInsertionBackend? backendOverride = null,
+        bool reportProgress = true)
     {
         WordPluginSettings settings = WordPluginSettings.Load();
         FormulaInsertionBackend backend = backendOverride ?? settings.InsertionBackend;
         string renderedLatex = BuildFormattedLatex(metadata);
         if (backend == FormulaInsertionBackend.Ole)
         {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
+            if (reportProgress)
+            {
+                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
+            }
+
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, renderedLatex, cancellationToken);
             return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null);
         }
 
-        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
+        if (reportProgress)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
+        }
         string mathMl = await _mathJaxRenderer.ConvertToMathMlAsync(renderedLatex, metadata.DisplayMode, cancellationToken);
         string omml = _ommlConverter.Convert(mathMl);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
@@ -439,8 +453,7 @@ public sealed partial class WordPluginController : IDisposable
     {
         var request = new RenderRequest(renderedLatex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = GetOleFontScale() * metadata.FontScale,
-            FontWeightPercent = metadata.FontWeightPercent
+            FontScale = GetOleFontScale() * metadata.FontScale
         };
         RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
@@ -476,15 +489,10 @@ public sealed partial class WordPluginController : IDisposable
         PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: false, cancellationToken);
         using (_wordAdapter.BeginUndoRecord())
         {
-            if (metadata.NumberingMode == NumberingMode.Automatic)
-            {
-                _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
-            }
-
             await InsertPreparedFormulaAsync(prepared, cancellationToken);
             if (metadata.NumberingMode == NumberingMode.Automatic)
             {
-                await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+                _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
             }
         }
     }
@@ -494,6 +502,8 @@ public sealed partial class WordPluginController : IDisposable
         string latex = metadata.Latex;
         switch (metadata.FontStyle)
         {
+            case FormulaFontStyle.TeX:
+                break;
             case FormulaFontStyle.RomanUpright:
                 latex = "\\mathrm{" + latex + "}";
                 break;
@@ -532,8 +542,7 @@ public sealed partial class WordPluginController : IDisposable
                 previous.SchemaVersion,
                 previous.FontColor,
                 previous.FontStyle,
-                previous.FontScale,
-                previous.FontWeightPercent));
+                previous.FontScale));
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
@@ -578,8 +587,7 @@ public sealed partial class WordPluginController : IDisposable
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
             previous?.FontStyle ?? settings.FormulaFontStyle,
-            previous?.FontScale ?? settings.FormulaScale,
-            previous?.FontWeightPercent ?? settings.FormulaWeightPercent);
+            previous?.FontScale ?? 1);
         return metadata;
     }
 
@@ -600,8 +608,7 @@ public sealed partial class WordPluginController : IDisposable
             schemaVersion: 1,
             settings.FormulaColor,
             settings.FormulaFontStyle,
-            settings.FormulaScale,
-            settings.FormulaWeightPercent);
+            fontScale: 1);
     }
 
     private static FormulaMetadata CreateDefaultFormula(string latex)
@@ -656,8 +663,7 @@ public sealed partial class WordPluginController : IDisposable
             metadata.SchemaVersion,
             metadata.FontColor,
             metadata.FontStyle,
-            metadata.FontScale,
-            metadata.FontWeightPercent);
+            metadata.FontScale);
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -672,8 +678,7 @@ public sealed partial class WordPluginController : IDisposable
             metadata.SchemaVersion,
             metadata.FontColor,
             metadata.FontStyle,
-            metadata.FontScale,
-            metadata.FontWeightPercent);
+            metadata.FontScale);
     }
 
     private void ResetDraftState(bool resetOptions)

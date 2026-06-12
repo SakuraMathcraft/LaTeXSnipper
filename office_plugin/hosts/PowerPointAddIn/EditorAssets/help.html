@@ -61,7 +61,7 @@
   <main class="lang-zh">
     <header>
       <h1>LaTeXSnipper Office 插件</h1>
-      <p class="lead">在 Word 和 PowerPoint 中插入、编辑和维护由 LaTeXSnipper 管理的原生公式。</p>
+      <p class="lead">在 Word 和 PowerPoint 中插入、编辑、转换和维护 LaTeXSnipper 公式。</p>
     </header>
 
     <section>
@@ -85,7 +85,7 @@
         <div class="mini"><h3>2. 打开编辑器</h3><p>使用 Ribbon 插入按钮打开 MathLive 编辑器，输入或选择需要插入的公式。</p></div>
         <div class="mini"><h3>3. 插入到文档</h3><p>默认使用 OLE 公式对象插入。侧边栏只负责独立草稿和新插入；更新公式只从编辑器窗口提交。</p></div>
       </div>
-      <div class="callout">如果请求失败，请确认桌面端正在运行且 Office 插件功能已开启。</div>
+      <div class="callout">公式编辑与渲染在插件内本地完成；截图识别需要本机 LaTeXSnipper 桌面端。</div>
     </section>
 
     <section>
@@ -102,11 +102,13 @@
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
       <h3>自动编号与重编号</h3>
-      <p>自动编号只对未编号的行间公式生效，不会把行内公式转换为编号公式。重编号按文档顺序更新自动编号文本，不重新渲染公式。编号位置设置只影响新插入的编号公式和之后自动编号的普通行间公式。</p>
+      <p>自动编号只对未编号的行间公式生效。可组合章、节、公式三级编号并选择层级分隔符；章、节边界会递归重置后续编号，也可分别隐藏。</p>
+      <h3>转换、引用与格式化</h3>
+      <p>“转换”将当前选中的单个受管理公式在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落。“引用”创建 Word REF 交叉引用，重编号时引用域同步更新。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小。</p>
       <h3>带编号公式布局</h3>
       <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
       <h3>OLE 对象尺寸</h3>
-      <p>Word OLE 公式使用固定渲染基线。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
+      <p>新公式按光标处正文大小计算自然尺寸。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
       <p>点击后等待桌面端截图结果，再次点击可取消。</p>
     </section>
@@ -119,8 +121,10 @@
       <p>选中受管理公式后用 Ribbon 加载到同一套 MathLive 编辑器修改。编辑器提交后替换原位置公式，并保留用户在幻灯片中手动拉伸出的对象倍率。编辑器提交、加载所选、删除和 OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区，不负责更新已有公式。</p>
+      <h3>转换与格式化</h3>
+      <p>“转换”在当前选中的单个受管理公式上切换 OLE 与 PNG，不移动同页其他对象。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小。</p>
       <h3>OLE 对象尺寸</h3>
-      <p>PowerPoint OLE 公式使用固定渲染基线。更新已有 OLE 公式时保留用户在幻灯片中手动拉伸出的对象倍率。</p>
+      <p>新插入的 OLE 与 PNG 使用相同的初始倍率。更新已有公式时保留用户在幻灯片中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
       <p>点击后等待桌面端截图结果，识别后的 LaTeX 自动填入编辑器。再次点击可取消。</p>
     </section>
@@ -154,7 +158,7 @@
   <main class="lang-en">
     <header>
       <h1>LaTeXSnipper Office Plugin</h1>
-      <p class="lead">Insert, edit, and maintain native formulas managed by LaTeXSnipper in Word and PowerPoint.</p>
+      <p class="lead">Insert, edit, convert, and maintain LaTeXSnipper formulas in Word and PowerPoint.</p>
     </header>
 
     <section>
@@ -178,7 +182,7 @@
         <div class="mini"><h3>2. Open the editor</h3><p>Use Ribbon insert buttons to open the MathLive editor, then type or choose the formula to insert.</p></div>
         <div class="mini"><h3>3. Insert into Office</h3><p>OLE formula objects are the default. The side pane owns an independent draft for new insertions; formula updates are submitted only from the editor window.</p></div>
       </div>
-      <div class="callout">If requests fail, make sure the desktop client is running and Office plugin is enabled.</div>
+      <div class="callout">Formula editing and rendering are local to the add-in. Screenshot OCR requires the local LaTeXSnipper desktop client.</div>
     </section>
 
     <section>
@@ -195,11 +199,13 @@
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
       <h3>Auto Numbering &amp; Renumber</h3>
-      <p>Auto Number only applies to unnumbered display equations, so inline equations are never converted into numbered formulas. Renumber updates automatic numbers in document order without re-rendering. Number placement affects newly inserted numbered formulas and ordinary display formulas numbered later.</p>
+      <p>Auto Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator; chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
+      <h3>Conversion, References &amp; Formatting</h3>
+      <p>Conversion replaces exactly one selected managed formula in place between Word OMML and OLE without touching adjacent text or paragraphs. References use Word REF fields and stay synchronized when formulas are renumbered. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size.</p>
       <h3>Numbered Formula Layout</h3>
       <p>Numbered formulas center the formula and place the number on the left or right according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
       <h3>OLE Object Size</h3>
-      <p>Word OLE formulas use a fixed rendering baseline. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
+      <p>New formulas derive their natural size from the text at the insertion point. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
       <h3>Screenshot OCR</h3>
       <p>Click to wait for the next desktop screenshot; click again to cancel.</p>
     </section>
@@ -212,8 +218,10 @@
       <p>Use the Ribbon to load a managed formula into the same MathLive editor. After editing, the new formula replaces the original at the same position and preserves the object stretch factor manually set on the slide. Editor submit, load selected, delete, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft and is not an update entry point.</p>
+      <h3>Conversion and Formatting</h3>
+      <p>Conversion switches exactly one selected managed formula between OLE and PNG without moving other slide objects. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size.</p>
       <h3>OLE Object Size</h3>
-      <p>PowerPoint OLE formulas use a fixed rendering baseline. Updating an existing OLE formula preserves the object stretch factor manually set on the slide.</p>
+      <p>New OLE and PNG formulas use the same initial scale. Updating an existing formula preserves the object stretch factor manually set on the slide.</p>
       <h3>Screenshot OCR</h3>
       <p>Click to wait for the next desktop screenshot; recognized LaTeX is loaded into the editor. Click again to cancel.</p>
     </section>

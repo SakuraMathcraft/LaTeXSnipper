@@ -1,11 +1,19 @@
 const TEXT = {
   zh: {
     title: "LaTeXSnipper Office 插件设置",
-    subtitle: "配置公式插入方式和编辑器键盘行为。",
     backendTitle: "公式插入方式",
-    backendHint: "默认使用 OLE 公式对象；也可切换为 PNG 图片方式。",
+    backendHint: "默认使用 OLE 公式对象，也可切换为 PNG 图片。",
     backendOle: "OLE 对象",
     backendPng: "PNG 图片",
+    formulaDefaultsTitle: "公式默认属性",
+    formulaDefaultsHint: "这些设置应用于新插入公式和格式化命令。",
+    colorLabel: "字体颜色",
+    resetColor: "恢复黑色",
+    fontStyleLabel: "默认字体",
+    fontTeX: "TeX 原生字体",
+    fontRomanUpright: "罗马正体",
+    fontBold: "粗体",
+    fontItalic: "斜体",
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
     newlineShortcut: "新建数学行",
@@ -18,11 +26,19 @@ const TEXT = {
   },
   en: {
     title: "LaTeXSnipper Office Plugin Settings",
-    subtitle: "Configure formula insertion and editor keyboard behavior.",
     backendTitle: "Formula Insertion",
     backendHint: "OLE formula objects are the default. PNG image insertion is also available.",
     backendOle: "OLE Object",
     backendPng: "PNG Image",
+    formulaDefaultsTitle: "Default Formula Properties",
+    formulaDefaultsHint: "These settings apply to new formulas and formatting commands.",
+    colorLabel: "Font color",
+    resetColor: "Reset to black",
+    fontStyleLabel: "Default font",
+    fontTeX: "Native TeX",
+    fontRomanUpright: "Roman Upright",
+    fontBold: "Bold",
+    fontItalic: "Italic",
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
     newlineShortcut: "start a new math row",
@@ -37,8 +53,13 @@ const TEXT = {
 
 let locale = "zh";
 let insertionBackend = "Ole";
+let formulaColor = "#000000";
+let formulaFontStyle = "TeX";
 
 const backendButtons = Array.from(document.querySelectorAll("[data-backend]"));
+const formulaColorInput = document.getElementById("formulaColor");
+const resetFormulaColorButton = document.getElementById("resetFormulaColor");
+const formulaFontStyleSelect = document.getElementById("formulaFontStyle");
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -56,25 +77,51 @@ function send(message) {
   window.chrome?.webview?.postMessage(message);
 }
 
-function renderBackend() {
+function render() {
   backendButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.backend === insertionBackend);
   });
+  formulaColorInput.value = formulaColor;
+  formulaFontStyleSelect.value = formulaFontStyle;
+}
+
+function save() {
+  send({ type: "save", insertionBackend, formulaColor, formulaFontStyle });
 }
 
 function init(payload) {
   locale = String(payload?.locale || navigator.language || "zh").toLowerCase();
-  insertionBackend = payload?.insertionBackend === "PowerPointCompatibility" ? "PowerPointCompatibility" : "Ole";
+  insertionBackend = payload?.insertionBackend === "PowerPointCompatibility"
+    ? "PowerPointCompatibility"
+    : "Ole";
+  formulaColor = payload?.formulaColor || "#000000";
+  formulaFontStyle = payload?.formulaFontStyle || "TeX";
   applyText();
-  renderBackend();
+  render();
 }
 
 backendButtons.forEach((button) => {
   button.addEventListener("click", () => {
     insertionBackend = button.dataset.backend;
-    renderBackend();
-    send({ type: "save", insertionBackend });
+    render();
+    save();
   });
+});
+
+formulaColorInput.addEventListener("change", () => {
+  formulaColor = formulaColorInput.value;
+  save();
+});
+
+resetFormulaColorButton.addEventListener("click", () => {
+  formulaColor = "#000000";
+  render();
+  save();
+});
+
+formulaFontStyleSelect.addEventListener("change", () => {
+  formulaFontStyle = formulaFontStyleSelect.value;
+  save();
 });
 
 window.LaTeXSnipperSettings = { init };
@@ -82,5 +129,5 @@ if (window.__latexSnipperSettingsInit) {
   init(window.__latexSnipperSettingsInit);
   window.__latexSnipperSettingsInit = null;
 } else {
-  init({ locale: navigator.language, insertionBackend });
+  init({ locale: navigator.language, insertionBackend, formulaColor, formulaFontStyle });
 }

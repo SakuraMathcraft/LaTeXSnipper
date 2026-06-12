@@ -8,10 +8,12 @@ using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
-public sealed class PowerPointPluginController : IDisposable
+public sealed partial class PowerPointPluginController : IDisposable
 {
     internal const string DefaultLatex = "e^{i\\pi}+1=0";
     private const double InitialFormulaScale = 2.5;
+    private const double ImageHorizontalPaddingPoints = 1.5;
+    private const double ImageVerticalPaddingPoints = 0.5;
 
     private readonly FormulaEditorSession _editorSession;
     private readonly BridgeClient _bridgeClient;
@@ -133,7 +135,7 @@ public sealed class PowerPointPluginController : IDisposable
             latex = DefaultLatex;
         }
 
-        FormulaMetadata metadata = CreateMetadata(latex);
+        FormulaMetadata metadata = CreateMetadata(latex, previous: null);
         await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, scale: 1, cancellationToken);
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
@@ -145,7 +147,17 @@ public sealed class PowerPointPluginController : IDisposable
             throw new ArgumentNullException(nameof(accepted));
         }
 
-        FormulaMetadata metadata = CreateMetadata(accepted.Latex);
+        FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
+        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
+        if (previous != null && IsSameRenderedFormula(previous, metadata))
+        {
+            _hasLoadedShapePosition = false;
+            _optionsProvider.ResetFormulaDraft();
+            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("UnchangedStatus"));
+            await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
+            return;
+        }
+
         await ConvertAndInsertAsync(
             metadata,
             updateMode: accepted.UpdateMode,
@@ -189,30 +201,29 @@ public sealed class PowerPointPluginController : IDisposable
                 await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, cancellationToken);
             }
 
-            _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedStatus"));
+            _statusSink.Post(
+                PowerPointStatusKind.Success,
+                PowerPointAddInText.Get(updateMode ? "UpdatedStatus" : "InsertedFormulaStatus"));
             return;
         }
 
         _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("ConvertingStatus"));
-        var imageRequest = new RenderRequest(metadata.Latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
-        {
-            FontScale = InitialFormulaScale
-        };
-        RenderResult svg = await _mathJaxRenderer.RenderAsync(imageRequest, cancellationToken);
-        byte[] png = SvgPngRasterizer.Rasterize(svg, cancellationToken);
-        PowerPointRenderedImage image = _imageFileStore.SavePng(png, svg.WidthPoints, svg.HeightPoints);
+        FormulaMetadata imageMetadata = WithRenderEngine(metadata, RenderEngineKind.Image);
+        PowerPointRenderedImage image = await RenderImageAsync(imageMetadata, cancellationToken);
 
         if (updateMode && hasPosition)
         {
             await _powerPointAdapter.DeleteSelectedFormulaAsync(cancellationToken);
-            await _powerPointAdapter.InsertFormulaImageAtPositionAsync(image, metadata, left, top, scale, cancellationToken);
+            await _powerPointAdapter.InsertFormulaImageAtPositionAsync(image, imageMetadata, left, top, scale, cancellationToken);
         }
         else
         {
-            await _powerPointAdapter.InsertFormulaImageAsync(image, metadata, cancellationToken);
+            await _powerPointAdapter.InsertFormulaImageAsync(image, imageMetadata, cancellationToken);
         }
 
-        _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedStatus"));
+        _statusSink.Post(
+            PowerPointStatusKind.Success,
+            PowerPointAddInText.Get(updateMode ? "UpdatedStatus" : "InsertedImageStatus"));
     }
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
@@ -275,7 +286,7 @@ public sealed class PowerPointPluginController : IDisposable
             return;
         }
 
-        FormulaMetadata recognized = CreateMetadata(latex);
+        FormulaMetadata recognized = CreateMetadata(latex, previous: null);
         await _editorSession.UpdateDraftIfOpenAsync(recognized, updateMode: false, cancellationToken);
         _statusSink.SetCurrentFormula(recognized.Latex, updateMode: false);
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("OcrLoadedStatus"));
@@ -302,21 +313,26 @@ public sealed class PowerPointPluginController : IDisposable
         return Task.CompletedTask;
     }
 
-    private static FormulaMetadata CreateMetadata(string latex)
+    private static FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous)
     {
         string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? DefaultLatex : latex.Trim();
+        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         return new FormulaMetadata(
-            new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
+            previous?.Identity ?? new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
             normalizedLatex,
             FormulaDisplayMode.Display,
             NumberingMode.None,
             string.Empty,
-            RenderEngineKind.Image,
-            schemaVersion: 1);
+            previous?.RenderEngine ?? RenderEngineKind.Image,
+            schemaVersion: previous?.SchemaVersion ?? 1,
+            previous?.FontColor ?? settings.FormulaColor,
+            previous?.FontStyle ?? settings.FormulaFontStyle,
+            previous?.FontScale ?? 1);
     }
 
     private static FormulaMetadata CreateEditorDraft()
     {
+        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         return new FormulaMetadata(
             new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
             string.Empty,
@@ -324,12 +340,14 @@ public sealed class PowerPointPluginController : IDisposable
             NumberingMode.None,
             string.Empty,
             RenderEngineKind.Image,
-            schemaVersion: 1);
+            schemaVersion: 1,
+            settings.FormulaColor,
+            settings.FormulaFontStyle);
     }
 
     private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
-        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
+        var request = new RenderRequest(BuildFormattedLatex(metadata), metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
             FontScale = InitialFormulaScale
         };
@@ -337,6 +355,45 @@ public sealed class PowerPointPluginController : IDisposable
         return await _olePresentationPipeline.RenderAsync(
             new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
             cancellationToken);
+    }
+
+    private async Task<PowerPointRenderedImage> RenderImageAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        var request = new RenderRequest(BuildFormattedLatex(metadata), FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
+        {
+            FontScale = InitialFormulaScale
+        };
+        RenderResult svg = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
+        byte[] png = SvgPngRasterizer.Rasterize(
+            svg,
+            cancellationToken,
+            horizontalPaddingPoints: ImageHorizontalPaddingPoints,
+            verticalPaddingPoints: ImageVerticalPaddingPoints);
+        return _imageFileStore.SavePng(
+            png,
+            svg.WidthPoints + ImageHorizontalPaddingPoints * 2,
+            svg.HeightPoints + ImageVerticalPaddingPoints * 2);
+    }
+
+    private static string BuildFormattedLatex(FormulaMetadata metadata)
+    {
+        string latex = metadata.Latex;
+        switch (metadata.FontStyle)
+        {
+            case FormulaFontStyle.RomanUpright:
+                latex = "\\mathrm{" + latex + "}";
+                break;
+            case FormulaFontStyle.Bold:
+                latex = "\\boldsymbol{" + latex + "}";
+                break;
+            case FormulaFontStyle.Italic:
+                latex = "\\mathit{" + latex + "}";
+                break;
+        }
+
+        return string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase)
+            ? latex
+            : "\\color{" + metadata.FontColor + "}{" + latex + "}";
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -348,7 +405,19 @@ public sealed class PowerPointPluginController : IDisposable
             metadata.NumberingMode,
             metadata.NumberText,
             renderEngine,
-            metadata.SchemaVersion);
+            metadata.SchemaVersion,
+            metadata.FontColor,
+            metadata.FontStyle,
+            metadata.FontScale);
+    }
+
+    private static bool IsSameRenderedFormula(FormulaMetadata left, FormulaMetadata right)
+    {
+        return string.Equals(left.Latex.Trim(), right.Latex.Trim(), StringComparison.Ordinal)
+            && left.DisplayMode == right.DisplayMode
+            && string.Equals(left.FontColor, right.FontColor, StringComparison.OrdinalIgnoreCase)
+            && left.FontStyle == right.FontStyle
+            && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
     }
 
     private static bool IsOcrAlreadyWaiting(string message)

@@ -14,6 +14,7 @@ internal static class WordFormulaMetadataStore
     public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
     private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
     private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
+    private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
 
     public static string BuildEquationTag(string equationId)
@@ -182,6 +183,36 @@ internal static class WordFormulaMetadataStore
         }
     }
 
+    public static void SaveOmmlNaturalFontSize(dynamic document, string equationId, double fontSizePoints)
+    {
+        if (fontSizePoints <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fontSizePoints), "OMML natural font size must be positive.");
+        }
+
+        SaveVariable(
+            document,
+            OmmlNaturalFontSizeVariablePrefix + equationId,
+            fontSizePoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static bool TryLoadOmmlNaturalFontSize(dynamic document, string equationId, out double fontSizePoints)
+    {
+        fontSizePoints = 0;
+        try
+        {
+            dynamic variable = document.Variables.Item(OmmlNaturalFontSizeVariablePrefix + equationId);
+            fontSizePoints = Convert.ToDouble(
+                variable.Value,
+                System.Globalization.CultureInfo.InvariantCulture);
+            return fontSizePoints > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string BuildOleNaturalSizeStorageKey(string equationId)
     {
         if (string.IsNullOrWhiteSpace(equationId))
@@ -208,7 +239,6 @@ internal static class WordFormulaMetadataStore
             ["fontColor"] = metadata.FontColor,
             ["fontStyle"] = metadata.FontStyle.ToString(),
             ["fontScale"] = metadata.FontScale,
-            ["fontWeightPercent"] = metadata.FontWeightPercent,
         };
         return serializer.Serialize(dto);
     }
@@ -269,9 +299,8 @@ internal static class WordFormulaMetadataStore
             ReadEnum(dto, "renderEngine", RenderEngineKind.Omml),
             ReadInt(dto, "schemaVersion", 1),
             ReadString(dto, "fontColor"),
-            ReadEnum(dto, "fontStyle", FormulaFontStyle.Italic),
-            ReadDouble(dto, "fontScale"),
-            ReadInt(dto, "fontWeightPercent", 0));
+            ReadEnum(dto, "fontStyle", FormulaFontStyle.TeX),
+            ReadDouble(dto, "fontScale"));
     }
 
     private static string ReadString(Dictionary<string, object> dto, string key)

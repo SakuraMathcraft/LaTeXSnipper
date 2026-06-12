@@ -9,6 +9,10 @@ public static class PowerPointFormulaMetadataStore
     public const string LatexTag = "LaTeXSnipperLatex";
     public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
     public const string SchemaVersionTag = "LaTeXSnipperSchemaVersion";
+    public const string RenderEngineTag = "LaTeXSnipperRenderEngine";
+    public const string FontColorTag = "LaTeXSnipperFontColor";
+    public const string FontStyleTag = "LaTeXSnipperFontStyle";
+    public const string FontScaleTag = "LaTeXSnipperFontScale";
     public const string NaturalWidthPointsTag = "LaTeXSnipperNaturalWidthPoints";
     public const string NaturalHeightPointsTag = "LaTeXSnipperNaturalHeightPoints";
     public const string ImagePathTag = "LaTeXSnipperImagePath";
@@ -30,6 +34,10 @@ public static class PowerPointFormulaMetadataStore
         shape.Tags.Add(LatexTag, metadata.Latex);
         shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
         shape.Tags.Add(SchemaVersionTag, metadata.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        shape.Tags.Add(RenderEngineTag, metadata.RenderEngine.ToString());
+        shape.Tags.Add(FontColorTag, metadata.FontColor);
+        shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString());
+        shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(NaturalWidthPointsTag, naturalWidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(NaturalHeightPointsTag, naturalHeightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }

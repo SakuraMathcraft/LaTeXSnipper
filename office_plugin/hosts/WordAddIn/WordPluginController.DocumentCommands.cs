@@ -10,22 +10,12 @@ public sealed partial class WordPluginController
 {
     public Task ConvertSelectedToOleAsync(CancellationToken cancellationToken)
     {
-        return ConvertAsync(all: false, FormulaInsertionBackend.Ole, cancellationToken);
-    }
-
-    public Task ConvertAllToOleAsync(CancellationToken cancellationToken)
-    {
-        return ConvertAsync(all: true, FormulaInsertionBackend.Ole, cancellationToken);
+        return ConvertSelectedAsync(FormulaInsertionBackend.Ole, cancellationToken);
     }
 
     public Task ConvertSelectedToOmmlAsync(CancellationToken cancellationToken)
     {
-        return ConvertAsync(all: false, FormulaInsertionBackend.WordOmml, cancellationToken);
-    }
-
-    public Task ConvertAllToOmmlAsync(CancellationToken cancellationToken)
-    {
-        return ConvertAsync(all: true, FormulaInsertionBackend.WordOmml, cancellationToken);
+        return ConvertSelectedAsync(FormulaInsertionBackend.WordOmml, cancellationToken);
     }
 
     public Task FormatSelectedAsync(CancellationToken cancellationToken)
@@ -58,64 +48,124 @@ public sealed partial class WordPluginController
         return InsertBoundaryAsync(WordNumberingBoundary.Section, cancellationToken);
     }
 
-    private async Task ConvertAsync(bool all, FormulaInsertionBackend target, CancellationToken cancellationToken)
+    private async Task ConvertSelectedAsync(FormulaInsertionBackend target, CancellationToken cancellationToken)
     {
-        IReadOnlyList<FormulaMetadata> formulas = all
-            ? await _wordAdapter.LoadAllFormulasAsync(cancellationToken)
-            : await _wordAdapter.LoadSelectedFormulasAsync(cancellationToken);
+        IReadOnlyList<WordFormulaEntry> formulas = await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+        if (formulas.Count != 1)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SingleFormulaRequired"));
+        }
+
+        RenderEngineKind targetEngine = target == FormulaInsertionBackend.Ole
+            ? RenderEngineKind.MathJaxSvg
+            : RenderEngineKind.Omml;
+        int convertedCount = 0;
         using (_wordAdapter.BeginUndoRecord())
         {
-            foreach (FormulaMetadata formula in formulas)
+            foreach (WordFormulaEntry entry in formulas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FormulaMetadata converted = WithRenderEngine(
-                    formula,
-                    target == FormulaInsertionBackend.Ole ? RenderEngineKind.MathJaxSvg : RenderEngineKind.Omml);
+                FormulaMetadata formula = entry.Metadata;
+                if (formula.RenderEngine == targetEngine)
+                {
+                    continue;
+                }
+
+                FormulaMetadata converted = WithRenderEngine(formula, targetEngine);
                 PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
                     converted,
                     includeEquationOoxml: true,
                     cancellationToken,
                     target);
                 await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+                convertedCount++;
             }
         }
 
+        if (convertedCount == 0)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoConversionNeededStatus"));
+            return;
+        }
+
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ConvertedStatus")
-            .Replace("{count}", formulas.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            .Replace("{count}", convertedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
     {
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("WorkingStatus"));
+        if (all)
+        {
+            await ResetAllNaturalSizesAsync(cancellationToken);
+            return;
+        }
+
         WordPluginSettings settings = WordPluginSettings.Load();
-        IReadOnlyList<FormulaMetadata> formulas = all
-            ? await _wordAdapter.LoadAllFormulasAsync(cancellationToken)
-            : await _wordAdapter.LoadSelectedFormulasAsync(cancellationToken);
+        IReadOnlyList<WordFormulaEntry> formulas = await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+        int formattedCount = 0;
         using (_wordAdapter.BeginUndoRecord())
         {
-            foreach (FormulaMetadata formula in formulas)
+            foreach (WordFormulaEntry entry in formulas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FormulaMetadata formatted = WithFormat(
-                    formula,
-                    new WordFormulaFormat(
-                        settings.FormulaColor,
-                        settings.FormulaFontStyle,
-                        settings.FormulaScale,
-                        settings.FormulaWeightPercent));
-                FormulaInsertionBackend backend = formula.RenderEngine == RenderEngineKind.MathJaxSvg
-                    ? FormulaInsertionBackend.Ole
-                    : FormulaInsertionBackend.WordOmml;
-                PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
-                    formatted,
-                    includeEquationOoxml: true,
-                    cancellationToken,
-                    backend);
-                await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+                FormulaMetadata formula = entry.Metadata;
+                if (!NeedsFormatting(formula, settings))
+                {
+                    continue;
+                }
+
+                FormulaMetadata formatted = WithDefaultStyle(formula, settings);
+                if (formula.RenderEngine == RenderEngineKind.MathJaxSvg)
+                {
+                    PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
+                        formatted,
+                        includeEquationOoxml: false,
+                        cancellationToken,
+                        FormulaInsertionBackend.Ole,
+                        reportProgress: false);
+                    await _wordAdapter.ResetOleFormulaObjectAsync(
+                        formatted.Identity.EquationId,
+                        formatted,
+                        prepared.OlePresentation!,
+                        prepared.Display,
+                        cancellationToken);
+                }
+                else
+                {
+                    await _wordAdapter.ResetManagedEquationFormattingAsync(formatted, cancellationToken);
+                }
+
+                formattedCount++;
             }
         }
 
+        if (formattedCount == 0)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingNeededStatus"));
+            return;
+        }
+
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("FormattedStatus")
-            .Replace("{count}", formulas.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            .Replace("{count}", formattedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private async Task ResetAllNaturalSizesAsync(CancellationToken cancellationToken)
+    {
+        int formattedCount;
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            formattedCount = await _wordAdapter.ResetCustomFormulaSizesAsync(cancellationToken);
+        }
+
+        if (formattedCount == 0)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingNeededStatus"));
+            return;
+        }
+
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("FormattedStatus")
+            .Replace("{count}", formattedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     private async Task InsertBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken)
@@ -127,19 +177,27 @@ public sealed partial class WordPluginController
         }
     }
 
-    private static FormulaMetadata WithFormat(FormulaMetadata metadata, WordFormulaFormat format)
+    private static FormulaMetadata WithDefaultStyle(FormulaMetadata metadata, WordPluginSettings settings)
     {
         return new FormulaMetadata(
             metadata.Identity,
-            metadata.Latex,
+            MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex),
             metadata.DisplayMode,
             metadata.NumberingMode,
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            format.Color,
-            format.FontStyle,
-            format.Scale,
-            format.WeightPercent);
+            settings.FormulaColor,
+            settings.FormulaFontStyle,
+            fontScale: 1);
+    }
+
+    private bool NeedsFormatting(FormulaMetadata metadata, WordPluginSettings settings)
+    {
+        return !string.Equals(metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
+            || metadata.FontStyle != settings.FormulaFontStyle
+            || Math.Abs(metadata.FontScale - 1) > 0.001
+            || MathLiveLatexStyleNormalizer.HasColorFormatting(metadata.Latex)
+            || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 }

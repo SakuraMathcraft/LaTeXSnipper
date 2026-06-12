@@ -8,6 +8,8 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 public sealed class EnhancedMetafilePresentationRenderer : IOlePresentationRenderer
 {
     public const string EmfMimeType = "application/x-emf";
+    private const double HorizontalPaddingPoints = 1.5;
+    private const double VerticalPaddingPoints = 0.5;
 
     public OlePresentationKind PresentationKind => OlePresentationKind.EnhancedMetafile;
 
@@ -25,9 +27,9 @@ public sealed class EnhancedMetafilePresentationRenderer : IOlePresentationRende
             OlePresentationKind.EnhancedMetafile,
             EmfMimeType,
             payload,
-            request.IntermediateRender.WidthPoints,
-            request.IntermediateRender.HeightPoints,
-            request.IntermediateRender.BaselinePoints);
+            request.IntermediateRender.WidthPoints + HorizontalPaddingPoints * 2,
+            request.IntermediateRender.HeightPoints + VerticalPaddingPoints * 2,
+            request.IntermediateRender.BaselinePoints + VerticalPaddingPoints);
         return Task.FromResult(result);
 #else
         throw new PlatformNotSupportedException("Enhanced Metafile rendering is only available in the Windows .NET Framework Office host.");

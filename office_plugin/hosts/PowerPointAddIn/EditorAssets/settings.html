@@ -9,20 +9,42 @@
 <body>
   <main class="shell">
     <header class="header">
-      <div>
-        <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
-        <p data-i18n="subtitle">配置公式插入方式和编辑器键盘行为。</p>
-      </div>
+      <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
     </header>
 
     <section class="panel accent-panel">
       <div>
         <h2 data-i18n="backendTitle">公式插入方式</h2>
-        <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象；也可切换为 PNG 图片方式。</p>
+        <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象，也可切换为 PNG 图片。</p>
       </div>
       <div class="segmented" role="radiogroup" aria-label="Formula insertion backend">
         <button type="button" data-backend="Ole" data-i18n="backendOle">OLE 对象</button>
         <button type="button" data-backend="PowerPointCompatibility" data-i18n="backendPng">PNG 图片</button>
+      </div>
+    </section>
+
+    <section class="panel accent-panel">
+      <div>
+        <h2 data-i18n="formulaDefaultsTitle">公式默认属性</h2>
+        <p class="hint" data-i18n="formulaDefaultsHint">这些设置应用于新插入公式和格式化命令。</p>
+      </div>
+      <div class="settings-grid">
+        <label>
+          <span data-i18n="colorLabel">字体颜色</span>
+          <span class="color-control">
+            <input id="formulaColor" type="color" value="#000000">
+            <button id="resetFormulaColor" type="button" data-i18n="resetColor">恢复黑色</button>
+          </span>
+        </label>
+        <label>
+          <span data-i18n="fontStyleLabel">默认字体</span>
+          <select id="formulaFontStyle">
+            <option value="TeX" data-i18n="fontTeX">TeX 原生字体</option>
+            <option value="RomanUpright" data-i18n="fontRomanUpright">罗马正体</option>
+            <option value="Bold" data-i18n="fontBold">粗体</option>
+            <option value="Italic" data-i18n="fontItalic">斜体</option>
+          </select>
+        </label>
       </div>
     </section>
 
@@ -39,7 +61,6 @@
         <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">收回 MathLive 虚拟键盘</span></div>
       </div>
     </section>
-
   </main>
   <script src="./settings.js"></script>
 </body>

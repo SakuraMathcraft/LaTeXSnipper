@@ -1,7 +1,6 @@
 const TEXT = {
   zh: {
     title: "LaTeXSnipper Office 插件设置",
-    subtitle: "配置公式插入方式和编号默认值。",
     backendTitle: "公式插入方式",
     backendHint: "默认使用 OLE 公式对象；也可切换为 Word OMML。",
     backendOle: "OLE 对象",
@@ -20,16 +19,19 @@ const TEXT = {
     enclosureNone: "无",
     includeChapter: "包含章编号",
     includeSection: "包含节编号",
+    hideChapterBoundary: "隐藏章分隔符",
+    hideSectionBoundary: "隐藏节分隔符",
     separatorLabel: "层级分隔符",
-    formattingTitle: "公式格式化",
-    formattingHint: "“格式化”选项卡将这些值应用于所选公式或全文公式。",
+    formulaDefaultsTitle: "公式默认属性",
+    formulaDefaultsHint: "这些设置仅影响新插入的公式。",
     colorLabel: "字体颜色",
+    resetToBlack: "恢复黑色",
+    resetToWhite: "恢复白色",
     fontStyleLabel: "默认字体",
+    fontTeX: "TeX 原生字体",
     fontRomanUpright: "罗马正体",
     fontBold: "粗体",
     fontItalic: "斜体",
-    weightLabel: "粗细度",
-    scaleLabel: "大小倍率",
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
     newlineShortcut: "新建数学行",
@@ -42,7 +44,6 @@ const TEXT = {
   },
   en: {
     title: "LaTeXSnipper Office Plugin Settings",
-    subtitle: "Configure formula insertion and numbering defaults.",
     backendTitle: "Formula Insertion",
     backendHint: "OLE formula objects are the default. Word OMML insertion is also available.",
     backendOle: "OLE Object",
@@ -61,16 +62,19 @@ const TEXT = {
     enclosureNone: "None",
     includeChapter: "Include chapter number",
     includeSection: "Include section number",
+    hideChapterBoundary: "Hide chapter boundaries",
+    hideSectionBoundary: "Hide section boundaries",
     separatorLabel: "Level separator",
-    formattingTitle: "Formula Formatting",
-    formattingHint: "The Formatting tab applies these values to selected formulas or all formulas.",
+    formulaDefaultsTitle: "Default Formula Properties",
+    formulaDefaultsHint: "These settings apply only to newly inserted formulas.",
     colorLabel: "Font color",
+    resetToBlack: "Reset to black",
+    resetToWhite: "Reset to white",
     fontStyleLabel: "Default font",
+    fontTeX: "Native TeX",
     fontRomanUpright: "Roman Upright",
     fontBold: "Bold",
     fontItalic: "Italic",
-    weightLabel: "Weight",
-    scaleLabel: "Size scale",
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
     newlineShortcut: "start a new math row",
@@ -91,11 +95,13 @@ let numberFormat = "Arabic";
 let numberEnclosure = "Parentheses";
 let includeChapter = false;
 let includeSection = false;
-let numberSeparator = ".";
+let hideChapterBoundary = false;
+let hideSectionBoundary = false;
+let numberSeparator = "-";
 let formulaColor = "#000000";
-let formulaFontStyle = "Italic";
-let formulaScale = 1;
-let formulaWeightPercent = 0;
+let defaultFormulaColor = "#000000";
+let useSystemFormulaColor = true;
+let formulaFontStyle = "TeX";
 
 const numberingPanel = document.getElementById("numberingPanel");
 const buttons = Array.from(document.querySelectorAll("[data-placement]"));
@@ -104,11 +110,12 @@ const numberFormatSelect = document.getElementById("numberFormat");
 const numberEnclosureSelect = document.getElementById("numberEnclosure");
 const includeChapterInput = document.getElementById("includeChapter");
 const includeSectionInput = document.getElementById("includeSection");
+const hideChapterBoundaryInput = document.getElementById("hideChapterBoundary");
+const hideSectionBoundaryInput = document.getElementById("hideSectionBoundary");
 const numberSeparatorInput = document.getElementById("numberSeparator");
 const formulaColorInput = document.getElementById("formulaColor");
+const resetFormulaColorButton = document.getElementById("resetFormulaColor");
 const formulaFontStyleSelect = document.getElementById("formulaFontStyle");
-const formulaScaleInput = document.getElementById("formulaScale");
-const formulaWeightPercentSelect = document.getElementById("formulaWeightPercent");
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -148,11 +155,14 @@ function renderNumberOptions() {
   numberEnclosureSelect.value = numberEnclosure;
   includeChapterInput.checked = includeChapter;
   includeSectionInput.checked = includeSection;
+  hideChapterBoundaryInput.checked = hideChapterBoundary;
+  hideSectionBoundaryInput.checked = hideSectionBoundary;
   numberSeparatorInput.value = numberSeparator;
   formulaColorInput.value = formulaColor;
+  resetFormulaColorButton.textContent = defaultFormulaColor === "#FFFFFF"
+    ? strings().resetToWhite
+    : strings().resetToBlack;
   formulaFontStyleSelect.value = formulaFontStyle;
-  formulaScaleInput.value = formulaScale;
-  formulaWeightPercentSelect.value = String(formulaWeightPercent);
 }
 
 function save() {
@@ -164,11 +174,12 @@ function save() {
     numberEnclosure,
     includeChapter,
     includeSection,
+    hideChapterBoundary,
+    hideSectionBoundary,
     numberSeparator,
     formulaColor,
+    useSystemFormulaColor,
     formulaFontStyle,
-    formulaScale,
-    formulaWeightPercent,
   });
 }
 
@@ -185,15 +196,19 @@ function init(payload) {
     : "Parentheses";
   includeChapter = Boolean(payload?.includeChapter);
   includeSection = Boolean(payload?.includeSection);
-  numberSeparator = String(payload?.numberSeparator || ".");
-  formulaColor = String(payload?.formulaColor || "#000000");
-  formulaFontStyle = ["RomanUpright", "Bold", "Italic"].includes(payload?.formulaFontStyle)
+  hideChapterBoundary = Boolean(payload?.hideChapterBoundary);
+  hideSectionBoundary = Boolean(payload?.hideSectionBoundary);
+  numberSeparator = ["-", ".", "·", ":", "/"].includes(payload?.numberSeparator)
+    ? payload.numberSeparator
+    : "-";
+  defaultFormulaColor = String(payload?.defaultFormulaColor || "#000000").toUpperCase();
+  useSystemFormulaColor = payload?.useSystemFormulaColor !== false;
+  formulaColor = useSystemFormulaColor
+    ? defaultFormulaColor
+    : String(payload?.formulaColor || defaultFormulaColor).toUpperCase();
+  formulaFontStyle = ["TeX", "RomanUpright", "Bold", "Italic"].includes(payload?.formulaFontStyle)
     ? payload.formulaFontStyle
-    : "Italic";
-  formulaScale = Math.max(0.5, Math.min(5, Number(payload?.formulaScale) || 1));
-  formulaWeightPercent = [0, 5, 10, 15].includes(Number(payload?.formulaWeightPercent))
-    ? Number(payload.formulaWeightPercent)
-    : 0;
+    : "TeX";
   applyText();
   applyPlatform();
   renderPlacement();
@@ -229,17 +244,21 @@ numberEnclosureSelect.addEventListener("change", () => {
 
 includeChapterInput.addEventListener("change", () => { includeChapter = includeChapterInput.checked; save(); });
 includeSectionInput.addEventListener("change", () => { includeSection = includeSectionInput.checked; save(); });
-numberSeparatorInput.addEventListener("change", () => { numberSeparator = numberSeparatorInput.value || "."; save(); });
-formulaColorInput.addEventListener("change", () => { formulaColor = formulaColorInput.value; save(); });
+hideChapterBoundaryInput.addEventListener("change", () => { hideChapterBoundary = hideChapterBoundaryInput.checked; save(); });
+hideSectionBoundaryInput.addEventListener("change", () => { hideSectionBoundary = hideSectionBoundaryInput.checked; save(); });
+numberSeparatorInput.addEventListener("change", () => { numberSeparator = numberSeparatorInput.value || "-"; save(); });
+formulaColorInput.addEventListener("change", () => {
+  formulaColor = formulaColorInput.value.toUpperCase();
+  useSystemFormulaColor = false;
+  save();
+});
+resetFormulaColorButton.addEventListener("click", () => {
+  formulaColor = defaultFormulaColor;
+  useSystemFormulaColor = true;
+  formulaColorInput.value = formulaColor;
+  save();
+});
 formulaFontStyleSelect.addEventListener("change", () => { formulaFontStyle = formulaFontStyleSelect.value; save(); });
-formulaWeightPercentSelect.addEventListener("change", () => {
-  formulaWeightPercent = Number(formulaWeightPercentSelect.value);
-  save();
-});
-formulaScaleInput.addEventListener("change", () => {
-  formulaScale = Math.max(0.5, Math.min(5, Number(formulaScaleInput.value) || 1));
-  save();
-});
 
 window.LaTeXSnipperSettings = { init };
 if (window.__latexSnipperSettingsInit) {

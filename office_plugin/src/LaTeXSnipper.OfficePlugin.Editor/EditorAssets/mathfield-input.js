@@ -96,17 +96,41 @@
   }
 
   function setDefaultFontStyle(mathfield, fontStyle) {
+    if (fontStyle === "TeX") {
+      mathfield.onInsertStyle = undefined;
+      return;
+    }
+
     const style = {
       RomanUpright: { variant: "normal", variantStyle: "up" },
       Bold: { variant: "normal", variantStyle: "bold" },
       Italic: { variant: "main", variantStyle: "italic" },
-    }[fontStyle] || { variant: "main", variantStyle: "italic" };
+    }[fontStyle];
+    if (!style) {
+      mathfield.onInsertStyle = undefined;
+      return;
+    }
+
     mathfield.onInsertStyle = () => ({ ...style });
+    mathfield.applyStyle(style);
+  }
+
+  function setDefaultColor(mathfield, fontColor) {
+    const color = /^#[0-9a-f]{6}$/i.test(String(fontColor || ""))
+      ? String(fontColor).toUpperCase()
+      : "#000000";
+    mathfield.style.color = color;
+    const red = Number.parseInt(color.slice(1, 3), 16);
+    const green = Number.parseInt(color.slice(3, 5), 16);
+    const blue = Number.parseInt(color.slice(5, 7), 16);
+    const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    mathfield.style.backgroundColor = luminance > 0.72 ? "#202124" : "#FFFFFF";
   }
 
   window.LaTeXSnipperMathfieldInput = Object.freeze({
     configure,
     insertTemplate,
+    setDefaultColor,
     setDefaultFontStyle,
   });
 })();
