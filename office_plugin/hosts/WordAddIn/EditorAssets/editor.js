@@ -339,11 +339,15 @@ function applyInit(payload) {
   mode = payload?.mode === "update" ? "update" : "insert";
   setSubmitting(false);
   configureText();
+  setLatex(payload?.latex || "");
   window.LaTeXSnipperMathfieldInput.setDefaultFontStyle(
     mathfield,
-    payload?.fontStyle || "Italic",
+    payload?.fontStyle || "TeX",
   );
-  setLatex(payload?.latex || "");
+  window.LaTeXSnipperMathfieldInput.setDefaultColor(
+    mathfield,
+    payload?.fontColor || "#000000",
+  );
 }
 
 async function bootstrap() {

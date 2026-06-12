@@ -15,11 +15,11 @@ internal static class MathJaxRenderScriptBuilder
 window.LaTeXSnipperMathJaxStartupReady = false;
 window.MathJax = {
   loader: {
-    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/mhchem']
+    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem']
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'mhchem']
+      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem']
     }
   },
   startup: {
@@ -111,9 +111,6 @@ window.LaTeXSnipperMathJax = {
       const originalSource = input.latex || '';
       const display = input.displayMode !== 'Inline';
       const scale = Number(input.fontScale) > 0 ? Number(input.fontScale) : 1;
-      const weight = [5, 10, 15].includes(Number(input.fontWeightPercent))
-        ? Number(input.fontWeightPercent)
-        : 0;
       const trimmed = originalSource.trim();
       const isMathMl = /^<math(\s|>|:)/i.test(trimmed);
       const source = isMathMl ? trimmed : this.normalizeMathLiveLatex(originalSource);
@@ -121,16 +118,6 @@ window.LaTeXSnipperMathJax = {
         ? MathJax.mathml2svg(source, { display: display })
         : MathJax.tex2svg(source, { display: display });
       const node = adaptor.firstChild(container);
-      adaptor.setAttribute(node, 'data-latexsnipper-weight', String(weight));
-      if (weight > 0) {
-        const viewBox = String(adaptor.getAttribute(node, 'viewBox') || '').trim().split(/\s+/).map(Number);
-        const viewBoxHeight = viewBox.length === 4 && Number.isFinite(viewBox[3]) ? viewBox[3] : 1000;
-        const strokeWidth = viewBoxHeight * weight / 1000;
-        adaptor.setAttribute(node, 'stroke', 'currentColor');
-        adaptor.setAttribute(node, 'stroke-width', String(strokeWidth));
-        adaptor.setAttribute(node, 'paint-order', 'stroke fill');
-        adaptor.setAttribute(node, 'stroke-linejoin', 'round');
-      }
       const svg = adaptor.outerHTML(node);
       const width = adaptor.getAttribute(node, 'width') || '0ex';
       const height = adaptor.getAttribute(node, 'height') || '0ex';
@@ -182,8 +169,7 @@ window.LaTeXSnipperMathJax = {
             displayMode = request.DisplayMode.ToString(),
             targetDpi = request.TargetDpi,
             theme = request.Theme,
-            fontScale = request.FontScale,
-            fontWeightPercent = request.FontWeightPercent
+            fontScale = request.FontScale
         };
 #if NET48
         string json = new JavaScriptSerializer().Serialize(payload);

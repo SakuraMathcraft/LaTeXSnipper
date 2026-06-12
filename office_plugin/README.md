@@ -20,13 +20,17 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - OLE formula insertion and update
 - Native OMML formula insertion (inline, display, numbered)
 - Load, update, and delete managed formulas
-- Automatic/custom numbering, deletion, and Renumber All
+- Chapter/section-aware automatic numbering, references, boundaries, and Renumber All
+- In-place conversion of one selected managed formula between OLE and OMML
+- Selected formula style reset and document-wide natural-size restoration
 - Screenshot OCR via desktop Bridge
 
 ### PowerPoint
 - OLE and PNG formula insertion
 - Load, update, and delete managed formulas
-- User-resized OLE formulas preserve their scale when updated
+- In-place conversion of one selected managed formula between OLE and PNG
+- Selected formula style reset and presentation-wide natural-size restoration
+- User-resized formulas preserve their scale when updated
 - Screenshot OCR via desktop Bridge
 
 ### Shared

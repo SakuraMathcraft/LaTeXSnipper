@@ -89,8 +89,6 @@ public sealed class WordRibbonCallbacks
 
     public void OnConvertSelectedToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOleAsync(ct));
     public void OnConvertSelectedToOmml(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOmmlAsync(ct));
-    public void OnConvertAllToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertAllToOleAsync(ct));
-    public void OnConvertAllToOmml(object control) => FireAndForgetSerial(ct => _controller.ConvertAllToOmmlAsync(ct));
     public void OnInsertReference(object control) => FireAndForgetSerial(ct => _controller.InsertReferenceAsync(ct));
     public void OnInsertChapterBoundary(object control) => FireAndForgetSerial(ct => _controller.InsertChapterBoundaryAsync(ct));
     public void OnInsertSectionBoundary(object control) => FireAndForgetSerial(ct => _controller.InsertSectionBoundaryAsync(ct));

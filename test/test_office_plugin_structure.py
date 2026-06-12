@@ -57,6 +57,8 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     assert '"addRowAfter"' in shared_input
     assert "\\\\begin{aligned}#@\\\\\\\\#?\\\\end{aligned}" in shared_input
     assert 'mathfield.mode === "latex"' in shared_input
+    assert "luminance > 0.72" in shared_input
+    assert 'mathfield.style.backgroundColor' in shared_input
     assert "event.shiftKey" in shared_input
     assert "onAccept();" in shared_input
     for shortcut in ("f:", "r:", "h:", "l:", "j:"):
@@ -307,7 +309,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (host_root / "WordRibbonXml.cs").is_file()
     assert (host_root / "WordPluginController.cs").is_file()
     assert (host_root / "WordOmmlDocumentBuilder.cs").is_file()
-    assert (host_root / "BridgeConversionParser.cs").is_file()
+    assert not (host_root / "BridgeConversionParser.cs").exists()
+    assert not (host_root / "BridgeConversionResult.cs").exists()
     assert (host_root / "BridgeRecognitionParser.cs").is_file()
     assert (host_root / "WordFormulaMetadataStore.cs").is_file()
     assert (host_root / "WordAddInText.cs").is_file()
@@ -451,7 +454,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ClearParagraphContent(paragraphRange)" in adapter
     assert "ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId)" in adapter
     assert "RemoveEmptyParagraphBeforeFollowingContent" in adapter
-    assert "paragraphRange.Delete()" in adapter
+    assert "paragraphRange.Delete()" not in adapter
+    assert "TryGetManagedNumberedFormulaTable" not in adapter
     assert "InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata)" in adapter
     assert "ApplyNumberControlVerticalAlignment" in adapter
     assert "CalculateNumberVerticalOffset" in adapter
@@ -947,6 +951,9 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Editor submissions are serialized with Office commands" in help_html
         assert "Numbered formulas center the formula and place the number" in help_html
         assert "Auto Number only applies to unnumbered display equations" in help_html
+        assert "exactly one selected managed formula" in help_html
+        assert "Format All only restores manually resized formulas to natural size" in help_html
+        assert "selected formulas or the whole document" not in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
         assert "Office 2024 / 2021 / 2019" in help_html
         assert "Office LTSC 2024 / 2021" in help_html
@@ -1011,7 +1018,7 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
         encoding="utf-8"
     )
 
-    for package in ("bbox", "boldsymbol", "color", "mhchem"):
+    for package in ("bbox", "boldsymbol", "color", "enclose", "mhchem"):
         assert f"'[tex]/{package}'" in script_builder
     assert "normalizeMathLiveLatex" in script_builder
     assert ".replace(/\\\\bm" in script_builder
@@ -1032,6 +1039,25 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
             '<Content Include="..\\..\\..\\src\\assets\\mathlive\\vendor\\**\\*">', 1
         )[1].split("</Content>", 1)[0]
         assert "<CopyToOutputDirectory>Always</CopyToOutputDirectory>" in vendor_item
+
+
+def test_editor_applies_formula_metadata_color() -> None:
+    editor_form = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs"
+    ).read_text(encoding="utf-8")
+    shared_input = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "mathfield-input.js"
+    ).read_text(encoding="utf-8")
+    assert '["fontColor"] = _currentInitialFormula?.FontColor ?? "#000000"' in editor_form
+    assert "function setDefaultColor(mathfield, fontColor)" in shared_input
+    assert "mathfield.style.color = color" in shared_input
+    for host in ("WordAddIn", "PowerPointAddIn"):
+        editor = (PLUGIN / "hosts" / host / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
+        assert "setDefaultColor(" in editor
 
 
 def test_office_native_conversion_paths_use_local_mathjax() -> None:
@@ -1060,6 +1086,100 @@ def test_powerpoint_uses_one_initial_scale_for_ole_and_png() -> None:
     assert "private const double InitialFormulaScale = 2.5;" in controller
     assert controller.count("FontScale = InitialFormulaScale") == 2
     assert "FontScale = 3.0" not in controller
+
+
+def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
+    host = PLUGIN / "hosts" / "PowerPointAddIn"
+    ribbon = (host / "Ribbon" / "PowerPointRibbon.xml").read_text(encoding="utf-8")
+    callbacks = (host / "PowerPointRibbonCallbacks.cs").read_text(encoding="utf-8")
+    vsto_callbacks = (
+        PLUGIN / "hosts" / "PowerPointVstoAddIn" / "PowerPointRibbonExtensibility.cs"
+    ).read_text(encoding="utf-8")
+    commands = (host / "PowerPointPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
+    adapter = (host / "DynamicPowerPointApplicationAdapter.cs").read_text(encoding="utf-8")
+    metadata = (host / "PowerPointFormulaMetadataStore.cs").read_text(encoding="utf-8")
+    settings = (host / "PowerPointPluginSettings.cs").read_text(encoding="utf-8")
+    settings_window = (host / "PowerPointSettingsWindow.cs").read_text(encoding="utf-8")
+    settings_html = (host / "EditorAssets" / "settings.html").read_text(encoding="utf-8")
+
+    assert ribbon.count("<tab ") == 1
+    assert 'id="LaTeXSnipperPowerPointConversionGroup"' in ribbon
+    assert 'id="LaTeXSnipperPowerPointFormattingGroup"' in ribbon
+    assert 'imageMso="ObjectEditDialog"' in ribbon
+    for callback in (
+        "OnConvertSelectedToOle",
+        "OnConvertSelectedToPng",
+        "OnFormatSelected",
+        "OnFormatAll",
+    ):
+        assert callback in ribbon
+        assert callback in callbacks
+        assert callback in vsto_callbacks
+
+    assert "ConvertAllToOleAsync" not in commands
+    assert "ConvertAllToPngAsync" not in commands
+    assert 'throw new InvalidOperationException(PowerPointAddInText.Get("SingleFormulaRequired"))' in commands
+    assert "LoadAllFormulaEntriesAsync" not in adapter
+    assert "ResetCustomFormulaSizesAsync" in adapter
+    assert "ResetCustomFormulaSizesAsync" in commands
+    full_format_branch = commands.split("if (all)", 1)[1].split(
+        "PowerPointPluginSettings settings",
+        1,
+    )[0]
+    assert "ResetCustomFormulaSizesAsync" in full_format_branch
+    assert "ReplaceEntryAsync" not in full_format_branch
+    assert "InsertOleFormulaObjectOnSlideAsync" in adapter
+    assert "InsertFormulaImageOnSlideAsync" in adapter
+    assert "entry.SlideIndex" in commands
+    assert "Math.Abs(entry.Scale - 1) > 0.01" in commands
+    assert "NoFormattingNeededStatus" in commands
+    for tag in ("RenderEngineTag", "FontColorTag", "FontStyleTag", "FontScaleTag"):
+        assert tag in metadata
+    assert "FormulaColor" in settings
+    assert "FormulaFontStyle" in settings
+    assert '["formulaColor"] = settings.FormulaColor' in settings_window
+    assert '["formulaFontStyle"] = settings.FormulaFontStyle.ToString()' in settings_window
+    assert 'id="formulaColor"' in settings_html
+    assert 'id="formulaFontStyle"' in settings_html
+
+
+def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
+    word_controller = (
+        PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs"
+    ).read_text(encoding="utf-8")
+    powerpoint_controller = (
+        PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
+    ).read_text(encoding="utf-8")
+    editor_form = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "MathLiveFormulaEditorForm.cs"
+    ).read_text(encoding="utf-8")
+
+    word_load = word_controller.split("public async Task LoadSelectedAsync", 1)[1].split(
+        "public async Task DeleteSelectedAsync",
+        1,
+    )[0]
+    powerpoint_load = powerpoint_controller.split(
+        "public async Task LoadSelectedAsync",
+        1,
+    )[1].split("public async Task DeleteSelectedAsync", 1)[0]
+    assert "OpenForEditAsync(selected" in word_load
+    assert "OpenForEditAsync(selected" in powerpoint_load
+    assert '["fontStyle"] = (_currentInitialFormula?.FontStyle' in editor_form
+    assert '["fontColor"] = _currentInitialFormula?.FontColor' in editor_form
+
+
+def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wrapper() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    commands = (host / "WordPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
+    adapter = read_word_adapter_sources()
+    assert "NeedsFormatting(formula, settings)" in commands
+    assert "_wordAdapter.HasCustomFormulaScale(metadata)" in commands
+    assert "NoFormattingNeededStatus" in commands
+    assert "control.Delete(true);" in adapter
+    assert "RemoveOmmlConversionSource(control, metadata)" in adapter
 
 
 def test_word_large_ole_selection_remains_selection_first() -> None:
@@ -1104,15 +1224,31 @@ def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
 
     assert "EmfType.EmfPlusDual" in writer
     assert "new RectangleF" in writer
+    assert "HorizontalPaddingPoints" in writer
+    assert "VerticalPaddingPoints" in writer
+    assert "graphics.TranslateTransform(horizontalPaddingPixels, verticalPaddingPixels)" in writer
     assert "SvgVectorGraphicsRenderer.Draw" in writer
     assert "GraphicsPath" in vector_renderer
     assert "batch.Path.AddPath" in vector_renderer
     assert "graphics.FillPath(brush, batch.Path)" in vector_renderer
+    assert "graphics.DrawPath(pen, batch.Path)" in vector_renderer
+    assert 'ResolvePaint(element, "stroke"' in vector_renderer
+    assert '"stroke-width"' in vector_renderer
     assert "ApplyNestedViewport" in vector_renderer
     assert "CreateNestedViewportClip" in vector_renderer
     assert "graphics.SetClip(batch.Clip, CombineMode.Intersect)" in vector_renderer
     assert 'element.Name.LocalName == "svg" && element.Parent != null' in vector_renderer
     assert 'element.Name.LocalName == "text"' in vector_renderer
+    assert 'element.Name.LocalName == "polygon"' in vector_renderer
+    assert 'element.Name.LocalName == "polyline"' in vector_renderer
+    assert 'element.Name.LocalName == "line"' in vector_renderer
+    assert 'element.Name.LocalName == "circle"' in vector_renderer
+    assert 'element.Name.LocalName == "ellipse"' in vector_renderer
+    assert "AddPolygonGeometry" in vector_renderer
+    assert "AddPolylineGeometry" in vector_renderer
+    assert "AddLineGeometry" in vector_renderer
+    assert "AddEllipseGeometry" in vector_renderer
+    assert "ParsePoints" in vector_renderer
     assert "path.AddString(" in vector_renderer
     assert '"Microsoft YaHei", "SimSun", "Segoe UI"' in vector_renderer
     assert "ResolvePaint" in vector_renderer
@@ -1144,22 +1280,33 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     callbacks = (host / "WordRibbonCallbacks.cs").read_text(encoding="utf-8")
     controller = (host / "WordPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
     operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(encoding="utf-8")
+    adapter = read_word_adapter_sources()
+    formatting = (host / "DynamicWordApplicationAdapter.Formatting.cs").read_text(encoding="utf-8")
+    metadata_store = (host / "WordFormulaMetadataStore.cs").read_text(encoding="utf-8")
     metadata = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaMetadata.cs").read_text(encoding="utf-8")
     settings = (host / "WordPluginSettings.cs").read_text(encoding="utf-8")
     numbering = (host / "WordAutomaticNumberFormatter.cs").read_text(encoding="utf-8")
 
-    for tab_id in (
-        "LaTeXSnipperConversionTab",
-        "LaTeXSnipperReferenceTab",
-        "LaTeXSnipperNumberingTab",
-        "LaTeXSnipperFormattingTab",
+    assert ribbon.count("<tab ") == 1
+    for group_id in (
+        "LaTeXSnipperConversionGroup",
+        "LaTeXSnipperReferenceGroup",
+        "LaTeXSnipperNumberingGroup",
+        "LaTeXSnipperFormattingGroup",
     ):
-        assert f'id="{tab_id}"' in ribbon
+        assert f'id="{group_id}"' in ribbon
+    assert 'id="ConvertToOleMenu"' not in ribbon
+    assert 'id="ConvertToOmmlMenu"' not in ribbon
+    assert 'id="SelectedToOleButton"' in ribbon
+    assert 'id="SelectedToOmmlButton"' in ribbon
+    assert 'imageMso="ObjectEditDialog"' in ribbon
+    assert 'imageMso="ConvertTextToTable"' in ribbon
+    assert 'id="FormattingSettingsButton"' not in ribbon
+    assert 'imageMso="ObjectEdit"' not in ribbon
+    assert 'imageMso="OutlineNumbering"' not in ribbon
     for callback in (
         "OnConvertSelectedToOle",
-        "OnConvertAllToOle",
         "OnConvertSelectedToOmml",
-        "OnConvertAllToOmml",
         "OnInsertReference",
         "OnInsertChapterBoundary",
         "OnInsertSectionBoundary",
@@ -1169,22 +1316,106 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         assert callback in ribbon
         assert callback in callbacks
 
-    assert "ConvertAsync(bool all" in controller
+    assert "ConvertSelectedAsync" in controller
+    assert 'throw new InvalidOperationException(WordAddInText.Get("SingleFormulaRequired"))' in controller
+    assert "ConvertAllToOleAsync" not in controller
+    assert "ConvertAllToOmmlAsync" not in controller
+    assert "NoConversionNeededStatus" in controller
     assert "FormatAsync(bool all" in controller
-    assert "LoadAllFormulasAsync" in operations
+    assert 'WordAddInText.Get("WorkingStatus")' in controller
+    assert "reportProgress: false" in controller
+    assert "MathLiveLatexStyleNormalizer.RemoveColorFormatting" in controller
+    assert "LoadAllFormulaEntriesAsync" not in operations
+    assert "LoadSelectedFormulaEntriesAsync" in adapter
+    assert ".OrderByDescending(item => item.Start)" in adapter
+    assert "ResetCustomFormulaSizesAsync" in controller
+    assert "ResetCustomFormulaSizesAsync" in formatting
+    natural_size_method = controller.split("private async Task ResetAllNaturalSizesAsync", 1)[1].split(
+        "private async Task InsertBoundaryAsync",
+        1,
+    )[0]
+    assert "PrepareRenderedFormulaAsync" not in natural_size_method
+    assert "SaveOmmlNaturalFontSize" in adapter
+    assert "TryLoadOmmlNaturalFontSize" in formatting
+    assert "OmmlNaturalFontSizeVariablePrefix" in metadata_store
+    assert "replacementOoxml = equationOoxml" in adapter
+    assert "metadata.NumberingMode == NumberingMode.None" in adapter
+    assert "replacementOoxml = equationOoxml" in adapter
+    remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
+        "public bool HasCustomFormulaScale",
+        1,
+    )[0]
+    assert "metadata.NumberingMode != NumberingMode.None" in remove_source
+    assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
+    assert "metadata.RenderEngine == actualRenderEngine" in adapter
+    assert "WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, corrected)" in adapter
     assert "ReferencePlaceholderTag" in operations
+    assert "ReferenceTagPrefix" in operations
     assert '" REF " + bookmarkName + " \\\\h "' in operations
+    assert "TryNavigateSelectedReference" not in operations
+    assert "TryDeleteSelectedCommandControl" in operations
+    assert "ActiveDocument.ContentControls" in operations
+    assert "Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync" in adapter
     assert "UpdateFormulaReferences" in operations
     assert "ChapterBoundaryTag" in operations
     assert "SectionBoundaryTag" in operations
     assert "FontColor" in metadata
     assert "FontStyle" in metadata
     assert "FontScale" in metadata
-    assert "FontWeightPercent" in metadata
+    assert "FontWeightPercent" not in metadata
     assert "FormulaFontStyle" in settings
-    assert "FormulaWeightPercent" in settings
+    assert "FormulaWeightPercent" not in settings
+    assert "FormulaScale" not in settings
     assert "IncludeChapter" in settings
     assert "IncludeSection" in settings
+    assert "HideChapterBoundary" in settings
+    assert "HideSectionBoundary" in settings
     assert "NumberSeparator" in settings
     assert "string.Join(settings.NumberSeparator, parts)" in numbering
     assert "SectionArabic" not in numbering
+    assert "LoadNumberingDocumentEntries(settings)" in adapter
+    renumber_method = adapter.split("public Task<int> RenumberAutomaticFormulasAsync", 1)[1].split(
+        "private void ReplaceFormulaContent",
+        1,
+    )[0]
+    assert "ApplyNumberingBoundaryVisibility(settings)" not in renumber_method
+    assert "return ordered" in operations
+
+
+def test_word_formula_color_default_tracks_windows_theme() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    defaults = (host / "WordFormulaColorDefaults.cs").read_text(encoding="utf-8")
+    settings = (host / "WordPluginSettings.cs").read_text(encoding="utf-8")
+    settings_window = (host / "WordSettingsWindow.cs").read_text(encoding="utf-8")
+    settings_js = (host / "EditorAssets" / "settings.js").read_text(encoding="utf-8")
+
+    assert "AppsUseLightTheme" in defaults
+    assert 'IsDarkMode() ? "#FFFFFF" : "#000000"' in defaults
+    assert "UseSystemFormulaColor" in settings
+    assert "defaultValue: true" in settings
+    assert '["defaultFormulaColor"] = WordFormulaColorDefaults.Current' in settings_window
+    assert '["useSystemFormulaColor"] = settings.UseSystemFormulaColor' in settings_window
+    assert "useSystemFormulaColor = false" in settings_js
+    assert "useSystemFormulaColor = true" in settings_js
+    assert "resetToWhite" in settings_js
+
+
+def test_word_dynamic_adapter_is_split_by_responsibility() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    main = host / "DynamicWordApplicationAdapter.cs"
+    expected_modules = (
+        "FormulaLifecycle",
+        "Selection",
+        "SelectionDiscovery",
+        "Numbering",
+        "Layout",
+        "Deletion",
+        "Metadata",
+        "ComInterop",
+    )
+
+    assert len(main.read_text(encoding="utf-8").splitlines()) < 180
+    for module in expected_modules:
+        path = host / f"DynamicWordApplicationAdapter.{module}.cs"
+        assert path.is_file()
+        assert "public sealed partial class DynamicWordApplicationAdapter" in path.read_text(encoding="utf-8")

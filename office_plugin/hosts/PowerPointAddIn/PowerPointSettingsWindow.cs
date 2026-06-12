@@ -118,6 +118,8 @@ internal sealed class PowerPointSettingsWindow : Form
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["platform"] = "powerpoint",
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
+            ["formulaColor"] = settings.FormulaColor,
+            ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
         });
         string script =
             "(function(payload){" +
@@ -153,7 +155,16 @@ internal sealed class PowerPointSettingsWindow : Form
         FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.PowerPointCompatibility.ToString()
             ? FormulaInsertionBackend.PowerPointCompatibility
             : FormulaInsertionBackend.Ole;
-        new PowerPointPluginSettings(insertionBackend).Save();
+        string formulaColor = message.TryGetValue("formulaColor", out object rawColor)
+            ? Convert.ToString(rawColor, CultureInfo.InvariantCulture) ?? "#000000"
+            : "#000000";
+        string fontStyleText = message.TryGetValue("formulaFontStyle", out object rawStyle)
+            ? Convert.ToString(rawStyle, CultureInfo.InvariantCulture) ?? FormulaFontStyle.TeX.ToString()
+            : FormulaFontStyle.TeX.ToString();
+        FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedStyle)
+            ? parsedStyle
+            : FormulaFontStyle.TeX;
+        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle).Save();
         _ = SendSettingsAsync();
     }
 

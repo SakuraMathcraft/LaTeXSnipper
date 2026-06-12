@@ -15,6 +15,8 @@ internal static class SvgEnhancedMetafileWriter
 {
     private const int Dpi = 1200;
     private const int PointsPerInch = 72;
+    private const double HorizontalPaddingPoints = 1.5;
+    private const double VerticalPaddingPoints = 0.5;
 
     public static byte[] Write(RenderResult intermediateRender, CancellationToken cancellationToken)
     {
@@ -23,8 +25,12 @@ internal static class SvgEnhancedMetafileWriter
             throw new ArgumentException("Enhanced Metafile presentation requires MathJax SVG intermediate render.", nameof(intermediateRender));
         }
 
-        int widthPixels = Math.Max(1, PointsToPixels(intermediateRender.WidthPoints));
-        int heightPixels = Math.Max(1, PointsToPixels(intermediateRender.HeightPoints));
+        int horizontalPaddingPixels = PointsToPixels(HorizontalPaddingPoints);
+        int verticalPaddingPixels = PointsToPixels(VerticalPaddingPoints);
+        int contentWidthPixels = Math.Max(1, PointsToPixels(intermediateRender.WidthPoints));
+        int contentHeightPixels = Math.Max(1, PointsToPixels(intermediateRender.HeightPoints));
+        int widthPixels = contentWidthPixels + horizontalPaddingPixels * 2;
+        int heightPixels = contentHeightPixels + verticalPaddingPixels * 2;
 
         using var stream = new MemoryStream();
         IntPtr screen = GetDC(IntPtr.Zero);
@@ -45,11 +51,12 @@ internal static class SvgEnhancedMetafileWriter
             {
                 using Graphics graphics = Graphics.FromImage(metafile);
                 ConfigureGraphics(graphics);
+                graphics.TranslateTransform(horizontalPaddingPixels, verticalPaddingPixels);
                 SvgVectorGraphicsRenderer.Draw(
                     intermediateRender,
                     graphics,
-                    widthPixels,
-                    heightPixels,
+                    contentWidthPixels,
+                    contentHeightPixels,
                     cancellationToken);
             }
         }

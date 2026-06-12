@@ -41,6 +41,26 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             callbacks?.OnDeleteSelected(control);
         }
 
+        public void OnConvertSelectedToOle(IRibbonControl control)
+        {
+            callbacks?.OnConvertSelectedToOle(control);
+        }
+
+        public void OnConvertSelectedToPng(IRibbonControl control)
+        {
+            callbacks?.OnConvertSelectedToPng(control);
+        }
+
+        public void OnFormatSelected(IRibbonControl control)
+        {
+            callbacks?.OnFormatSelected(control);
+        }
+
+        public void OnFormatAll(IRibbonControl control)
+        {
+            callbacks?.OnFormatAll(control);
+        }
+
         public void OnShowTaskPane(IRibbonControl control)
         {
             callbacks?.OnShowTaskPane(control);

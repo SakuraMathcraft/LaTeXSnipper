@@ -10,6 +10,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 public sealed partial class DynamicWordApplicationAdapter
 {
     private const string ReferencePlaceholderTag = "latexsnipper-reference-pending";
+    private const string ReferenceTagPrefix = "latexsnipper-reference:";
     private const string ChapterBoundaryTag = "latexsnipper-number-boundary-chapter";
     private const string SectionBoundaryTag = "latexsnipper-number-boundary-section";
     private object? _pendingReferenceControl;
@@ -28,43 +29,6 @@ public sealed partial class DynamicWordApplicationAdapter
         public NumberedFormulaEntry? Formula { get; }
 
         public WordNumberingBoundary? Boundary { get; }
-    }
-
-    public Task<IReadOnlyList<FormulaMetadata>> LoadAllFormulasAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var entries = new List<(int Start, FormulaMetadata Metadata)>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
-        int controlCount = Convert.ToInt32(controls.Count);
-        for (int index = 1; index <= controlCount; index++)
-        {
-            dynamic control = controls.Item(index);
-            string equationId = WordFormulaMetadataStore.EquationIdFromTag(Convert.ToString(control.Tag) ?? string.Empty);
-            if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
-            {
-                continue;
-            }
-
-            entries.Add((GetRangeStart(control.Range), LoadFormulaMetadata(control, equationId)));
-        }
-
-        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
-        int shapeCount = Convert.ToInt32(inlineShapes.Count);
-        for (int index = 1; index <= shapeCount; index++)
-        {
-            dynamic shape = inlineShapes.Item(index);
-            string equationId = GetOleInlineShapeEquationId(shape);
-            if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
-            {
-                continue;
-            }
-
-            entries.Add((GetRangeStart(shape.Range), LoadFormulaMetadata(shape, equationId)));
-        }
-
-        return Task.FromResult<IReadOnlyList<FormulaMetadata>>(
-            entries.OrderBy(entry => entry.Start).Select(entry => entry.Metadata).ToArray());
     }
 
     public Task InsertReferencePlaceholderAsync(CancellationToken cancellationToken)
@@ -112,8 +76,12 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic placeholder = _pendingReferenceControl;
         dynamic placeholderRange = placeholder.Range;
         placeholderRange.Text = string.Empty;
+        placeholderRange = placeholder.Range;
+        placeholderRange.End = Math.Max(Convert.ToInt32(placeholderRange.Start), Convert.ToInt32(placeholderRange.End) - 1);
+        placeholderRange.Collapse(1);
         document.Fields.Add(placeholderRange, -1, " REF " + bookmarkName + " \\h ", true);
-        TryCom(() => placeholder.Delete(false));
+        placeholder.Tag = ReferenceTagPrefix + equationId;
+        placeholder.Title = "LaTeXSnipper Formula Reference";
         _pendingReferenceControl = null;
         return Task.FromResult(true);
     }
@@ -129,7 +97,105 @@ public sealed partial class DynamicWordApplicationAdapter
         control.Range.Text = boundary == WordNumberingBoundary.Chapter
             ? WordAddInText.Get("ChapterBoundaryText")
             : WordAddInText.Get("SectionBoundaryText");
+        ApplyBoundaryVisibility(control, boundary, WordPluginSettings.Load());
         return Task.CompletedTask;
+    }
+
+    public Task ApplyNumberingBoundaryVisibilityAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ExecuteWithScreenUpdatingSuspended(() => ApplyNumberingBoundaryVisibility(WordPluginSettings.Load()));
+        return Task.CompletedTask;
+    }
+
+    private object? TryGetSelectedCommandControl()
+    {
+        dynamic selectionRange = _wordApplication.Selection.Range;
+        try
+        {
+            object? parent = selectionRange.ParentContentControl;
+            if (parent != null && IsCommandControlTag(ReadControlTag((dynamic)parent)))
+            {
+                return parent;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            dynamic controls = selectionRange.ContentControls;
+            int count = Convert.ToInt32(controls.Count);
+            for (int index = 1; index <= count; index++)
+            {
+                dynamic control = controls.Item(index);
+                if (IsCommandControlTag(ReadControlTag(control)))
+                {
+                    return control;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        int selectionStart = GetRangeStart(selectionRange);
+        int selectionEnd = GetRangeEnd(selectionRange);
+        dynamic documentControls = _wordApplication.ActiveDocument.ContentControls;
+        int documentControlCount = Convert.ToInt32(documentControls.Count);
+        for (int index = 1; index <= documentControlCount; index++)
+        {
+            dynamic control = documentControls.Item(index);
+            if (!IsCommandControlTag(ReadControlTag(control)))
+            {
+                continue;
+            }
+
+            int controlStart = GetRangeStart(control.Range);
+            int controlEnd = GetRangeEnd(control.Range);
+            bool selected = selectionStart == selectionEnd
+                ? selectionStart >= controlStart && selectionStart < controlEnd
+                : RangesOverlap(selectionStart, selectionEnd, controlStart, controlEnd);
+            if (selected)
+            {
+                return control;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsCommandControlTag(string tag)
+    {
+        return string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal)
+            || tag.StartsWith(ReferenceTagPrefix, StringComparison.Ordinal)
+            || string.Equals(tag, ChapterBoundaryTag, StringComparison.Ordinal)
+            || string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
+    }
+
+    private bool TryDeleteSelectedCommandControl()
+    {
+        object? selected = TryGetSelectedCommandControl();
+        if (selected == null)
+        {
+            return false;
+        }
+
+        dynamic control = selected;
+        string tag = ReadControlTag(control);
+        if (!IsCommandControlTag(tag))
+        {
+            return false;
+        }
+
+        if (string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal))
+        {
+            _pendingReferenceControl = null;
+        }
+
+        control.Delete(true);
+        return true;
     }
 
     private static string BuildReferenceBookmarkName(string equationId)
@@ -137,11 +203,17 @@ public sealed partial class DynamicWordApplicationAdapter
         return "LaTeXSnipperEq_" + equationId;
     }
 
-    private void UpdateFormulaReferences()
+    private void UpdateFormulaReferences(IReadOnlyList<NumberingDocumentEntry> entries)
     {
         dynamic document = _wordApplication.ActiveDocument;
-        foreach (NumberedFormulaEntry entry in LoadNumberedFormulaEntries())
+        foreach (NumberingDocumentEntry documentEntry in entries)
         {
+            NumberedFormulaEntry? entry = documentEntry.Formula;
+            if (entry == null)
+            {
+                continue;
+            }
+
             string bookmarkName = BuildReferenceBookmarkName(entry.EquationId);
             if (Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
             {
@@ -168,11 +240,12 @@ public sealed partial class DynamicWordApplicationAdapter
         return string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
     }
 
-    private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries()
+    private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries(WordPluginSettings settings)
     {
-        var entries = LoadNumberedFormulaEntries()
-            .Select(formula => new NumberingDocumentEntry(formula.Start, formula, null))
-            .ToList();
+        var entries = new List<NumberingDocumentEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        int previousStart = -1;
+        bool ordered = true;
         dynamic controls = _wordApplication.ActiveDocument.ContentControls;
         int count = Convert.ToInt32(controls.Count);
         for (int index = 1; index <= count; index++)
@@ -180,10 +253,58 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic control = controls.Item(index);
             if (IsNumberingBoundary(control, out WordNumberingBoundary boundary))
             {
-                entries.Add(new NumberingDocumentEntry(GetRangeStart(control.Range), null, boundary));
+                ApplyBoundaryVisibility(control, boundary, settings);
+                int start = GetRangeStart(control.Range);
+                ordered &= start >= previousStart;
+                previousStart = start;
+                entries.Add(new NumberingDocumentEntry(start, null, boundary));
+                continue;
             }
+
+            string tag = Convert.ToString(control.Tag) ?? string.Empty;
+            string equationId = WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
+            if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
+            {
+                continue;
+            }
+
+            FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+                _wordApplication.ActiveDocument,
+                equationId);
+            var formula = new NumberedFormulaEntry(
+                equationId,
+                control,
+                metadata,
+                GetRangeStart(control.Range));
+            ordered &= formula.Start >= previousStart;
+            previousStart = formula.Start;
+            entries.Add(new NumberingDocumentEntry(formula.Start, formula, null));
         }
 
-        return entries.OrderBy(entry => entry.Start).ToArray();
+        return ordered
+            ? entries
+            : entries.OrderBy(entry => entry.Start).ToArray();
+    }
+
+    private void ApplyNumberingBoundaryVisibility(WordPluginSettings settings)
+    {
+        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        int count = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic control = controls.Item(index);
+            if (IsNumberingBoundary(control, out WordNumberingBoundary boundary))
+            {
+                ApplyBoundaryVisibility(control, boundary, settings);
+            }
+        }
+    }
+
+    private static void ApplyBoundaryVisibility(dynamic control, WordNumberingBoundary boundary, WordPluginSettings settings)
+    {
+        bool hidden = boundary == WordNumberingBoundary.Chapter
+            ? settings.HideChapterBoundary
+            : settings.HideSectionBoundary;
+        TryCom(() => control.Range.Font.Hidden = hidden ? -1 : 0);
     }
 }

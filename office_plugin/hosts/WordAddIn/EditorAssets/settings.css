@@ -81,11 +81,45 @@ h2 {
   gap: 10px;
 }
 
+.numbering-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.numbering-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
 label {
   display: grid;
   gap: 5px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.check-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+}
+
+.check-option input {
+  margin: 0;
+}
+
+.color-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.color-control input {
+  width: 100%;
+  min-height: 34px;
 }
 
 select {

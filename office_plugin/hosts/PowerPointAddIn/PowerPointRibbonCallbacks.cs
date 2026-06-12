@@ -62,6 +62,14 @@ public sealed class PowerPointRibbonCallbacks
         FireAndForgetSerial(ct => _controller.DeleteSelectedAsync(ct));
     }
 
+    public void OnConvertSelectedToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOleAsync(ct));
+
+    public void OnConvertSelectedToPng(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToPngAsync(ct));
+
+    public void OnFormatSelected(object control) => FireAndForgetSerial(ct => _controller.FormatSelectedAsync(ct));
+
+    public void OnFormatAll(object control) => FireAndForgetSerial(ct => _controller.FormatAllAsync(ct));
+
     public void OnShowTaskPane(object control)
     {
         _showTaskPane?.Invoke();

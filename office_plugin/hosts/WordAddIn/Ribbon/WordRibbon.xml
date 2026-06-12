@@ -49,28 +49,13 @@
                   imageMso="Delete"
                   onAction="OnDeleteSelected" />
         </group>
-        <group id="LaTeXSnipperToolsGroup" label="{ToolsGroup}">
-          <button id="ShowTaskPaneButton" label="{ShowTaskPaneButton}" supertip="{ShowTaskPaneTip}" keytip="P" size="large" imageMso="ReviewingPane" onAction="OnShowTaskPane" />
-          <button id="SettingsButton" label="{SettingsButton}" supertip="{SettingsTip}" keytip="S" size="large" imageMso="AdvancedFileProperties" onAction="OnSettings" />
-          <button id="HelpButton" label="{HelpButton}" supertip="{HelpTip}" keytip="H" size="large" imageMso="Help" onAction="OnHelp" />
+        <group id="LaTeXSnipperConversionGroup" label="{ConversionGroup}">
+          <button id="SelectedToOleButton" label="{ToOleButton}" supertip="{ToOleSelectedTip}" size="large" imageMso="ObjectEditDialog" onAction="OnConvertSelectedToOle" />
+          <button id="SelectedToOmmlButton" label="{ToOmmlButton}" supertip="{ToOmmlSelectedTip}" size="large" imageMso="ConvertTextToTable" onAction="OnConvertSelectedToOmml" />
         </group>
-      </tab>
-      <tab id="LaTeXSnipperConversionTab" label="{ConversionTab}">
-        <group id="LaTeXSnipperConversionSelectedGroup" label="{SelectedScopeGroup}">
-          <button id="SelectedToOleButton" label="{ToOleButton}" supertip="{ToOleSelectedTip}" size="large" imageMso="ObjectEdit" onAction="OnConvertSelectedToOle" />
-          <button id="SelectedToOmmlButton" label="{ToOmmlButton}" supertip="{ToOmmlSelectedTip}" size="large" imageMso="EquationProfessional" onAction="OnConvertSelectedToOmml" />
-        </group>
-        <group id="LaTeXSnipperConversionAllGroup" label="{DocumentScopeGroup}">
-          <button id="AllToOleButton" label="{AllToOleButton}" supertip="{AllToOleTip}" size="large" imageMso="ObjectEdit" onAction="OnConvertAllToOle" />
-          <button id="AllToOmmlButton" label="{AllToOmmlButton}" supertip="{AllToOmmlTip}" size="large" imageMso="EquationInsertGallery" onAction="OnConvertAllToOmml" />
-        </group>
-      </tab>
-      <tab id="LaTeXSnipperReferenceTab" label="{ReferenceTab}">
         <group id="LaTeXSnipperReferenceGroup" label="{ReferenceGroup}">
           <button id="InsertReferenceButton" label="{InsertReferenceButton}" supertip="{InsertReferenceTip}" size="large" imageMso="CrossReferenceInsert" onAction="OnInsertReference" />
         </group>
-      </tab>
-      <tab id="LaTeXSnipperNumberingTab" label="{NumberingTab}">
         <group id="LaTeXSnipperNumberingGroup" label="{NumberingGroup}">
           <button id="AutoNumberButton"
                   label="{AutoNumberButton}"
@@ -88,15 +73,17 @@
                   onAction="OnRenumberAll" />
         </group>
         <group id="LaTeXSnipperBoundaryGroup" label="{BoundaryGroup}">
-          <button id="InsertChapterBoundaryButton" label="{InsertChapterBoundaryButton}" supertip="{InsertChapterBoundaryTip}" size="large" imageMso="OutlineNumbering" onAction="OnInsertChapterBoundary" />
+          <button id="InsertChapterBoundaryButton" label="{InsertChapterBoundaryButton}" supertip="{InsertChapterBoundaryTip}" size="large" imageMso="BookmarkInsert" onAction="OnInsertChapterBoundary" />
           <button id="InsertSectionBoundaryButton" label="{InsertSectionBoundaryButton}" supertip="{InsertSectionBoundaryTip}" size="large" imageMso="BreaksGallery" onAction="OnInsertSectionBoundary" />
         </group>
-      </tab>
-      <tab id="LaTeXSnipperFormattingTab" label="{FormattingTab}">
         <group id="LaTeXSnipperFormattingGroup" label="{FormattingGroup}">
           <button id="FormatSelectedButton" label="{FormatSelectedButton}" supertip="{FormatSelectedTip}" size="large" imageMso="FormatPainter" onAction="OnFormatSelected" />
           <button id="FormatAllButton" label="{FormatAllButton}" supertip="{FormatAllTip}" size="large" imageMso="FontDialog" onAction="OnFormatAll" />
-          <button id="FormattingSettingsButton" label="{SettingsButton}" supertip="{FormattingSettingsTip}" size="large" imageMso="FontColorPicker" onAction="OnSettings" />
+        </group>
+        <group id="LaTeXSnipperToolsGroup" label="{ToolsGroup}">
+          <button id="ShowTaskPaneButton" label="{ShowTaskPaneButton}" supertip="{ShowTaskPaneTip}" keytip="P" size="large" imageMso="ReviewingPane" onAction="OnShowTaskPane" />
+          <button id="SettingsButton" label="{SettingsButton}" supertip="{SettingsTip}" keytip="S" size="large" imageMso="AdvancedFileProperties" onAction="OnSettings" />
+          <button id="HelpButton" label="{HelpButton}" supertip="{HelpTip}" keytip="H" size="large" imageMso="Help" onAction="OnHelp" />
         </group>
       </tab>
     </tabs>

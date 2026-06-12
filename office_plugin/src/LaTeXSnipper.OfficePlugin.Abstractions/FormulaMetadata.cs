@@ -14,9 +14,8 @@ public sealed class FormulaMetadata
         RenderEngineKind renderEngine,
         int schemaVersion,
         string fontColor = "#000000",
-        FormulaFontStyle fontStyle = FormulaFontStyle.Italic,
-        double fontScale = 1,
-        int fontWeightPercent = 0)
+        FormulaFontStyle fontStyle = FormulaFontStyle.TeX,
+        double fontScale = 1)
     {
         Identity = identity;
         Latex = latex ?? string.Empty;
@@ -28,7 +27,6 @@ public sealed class FormulaMetadata
         FontColor = string.IsNullOrWhiteSpace(fontColor) ? "#000000" : fontColor;
         FontStyle = fontStyle;
         FontScale = fontScale > 0 ? fontScale : 1;
-        FontWeightPercent = fontWeightPercent is 5 or 10 or 15 ? fontWeightPercent : 0;
     }
 
     public FormulaIdentity Identity { get; }
@@ -50,6 +48,4 @@ public sealed class FormulaMetadata
     public FormulaFontStyle FontStyle { get; }
 
     public double FontScale { get; }
-
-    public int FontWeightPercent { get; }
 }

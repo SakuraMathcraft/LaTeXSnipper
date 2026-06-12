@@ -29,10 +29,6 @@ internal static class SvgVectorGraphicsRenderer
         var document = XDocument.Parse(svg);
         XElement root = document.Root ?? throw new InvalidOperationException("SVG root element was not found.");
         SvgViewBox viewBox = SvgViewBox.Parse(root.Attribute("viewBox")?.Value);
-        int weightPercent = ParseWeightPercent(root.Attribute("data-latexsnipper-weight")?.Value);
-        float outlineWidth = weightPercent == 0
-            ? 0
-            : heightPixels * weightPercent / 1000f;
         using var rootTransform = new Matrix();
         rootTransform.Translate(-viewBox.X, -viewBox.Y, MatrixOrder.Append);
         rootTransform.Scale(
@@ -48,6 +44,8 @@ internal static class SvgVectorGraphicsRenderer
             rootTransform,
             Color.Black,
             Color.Black,
+            Color.Transparent,
+            0,
             clip: null,
             paintBatches,
             cancellationToken);
@@ -59,17 +57,25 @@ internal static class SvgVectorGraphicsRenderer
                 graphics.SetClip(batch.Clip, CombineMode.Intersect);
             }
 
-            using var brush = new SolidBrush(batch.Color);
-            graphics.FillPath(brush, batch.Path);
-            if (outlineWidth > 0)
+            if (batch.StrokeWidth > 0)
             {
-                using var pen = new Pen(batch.Color, outlineWidth)
+                using var pen = new Pen(batch.Color, batch.StrokeWidth)
                 {
-                    LineJoin = LineJoin.Round,
-                    StartCap = LineCap.Round,
-                    EndCap = LineCap.Round
+                    LineJoin = LineJoin.Miter,
+                    StartCap = LineCap.Flat,
+                    EndCap = LineCap.Flat
                 };
+                if (batch.DashPattern != null)
+                {
+                    pen.DashPattern = batch.DashPattern;
+                }
+
                 graphics.DrawPath(pen, batch.Path);
+            }
+            else
+            {
+                using var brush = new SolidBrush(batch.Color);
+                graphics.FillPath(brush, batch.Path);
             }
             graphics.Restore(state);
             batch.Path.Dispose();
@@ -80,14 +86,6 @@ internal static class SvgVectorGraphicsRenderer
         {
             path.Dispose();
         }
-    }
-
-    private static int ParseWeightPercent(string? value)
-    {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
-            && parsed is 5 or 10 or 15
-            ? parsed
-            : 0;
     }
 
     private static Dictionary<string, GraphicsPath> CollectPaths(XElement root)
@@ -117,11 +115,18 @@ internal static class SvgVectorGraphicsRenderer
         Matrix inheritedTransform,
         Color inheritedFill,
         Color inheritedCurrentColor,
+        Color inheritedStroke,
+        float inheritedStrokeWidth,
         Region? clip,
         IList<PaintBatch> paintBatches,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (element.Name.LocalName == "defs")
+        {
+            return;
+        }
+
         using Matrix transform = inheritedTransform.Clone();
         Matrix? local = SvgTransformParser.Parse(element.Attribute("transform")?.Value);
         if (local != null)
@@ -141,13 +146,46 @@ internal static class SvgVectorGraphicsRenderer
 
         Color currentColor = ResolvePaint(element, "color", inheritedCurrentColor, inheritedCurrentColor);
         Color fill = ResolvePaint(element, "fill", inheritedFill, currentColor);
+        Color stroke = ResolvePaint(element, "stroke", inheritedStroke, currentColor);
+        float explicitStrokeWidth = ParseOptionalFloat(
+            element.Attribute("stroke-width")?.Value
+            ?? ReadStyleProperty(element.Attribute("style")?.Value, "stroke-width"));
+        float strokeWidth = explicitStrokeWidth > 0 ? explicitStrokeWidth : inheritedStrokeWidth;
+        float[]? dashPattern = ParseDashPattern(
+            element.Attribute("stroke-dasharray")?.Value
+            ?? ReadStyleProperty(element.Attribute("style")?.Value, "stroke-dasharray"),
+            strokeWidth);
         if (element.Name.LocalName == "use")
         {
             AddUseGeometry(element, paths, transform, fill, childClip, paintBatches);
         }
         else if (element.Name.LocalName == "rect")
         {
-            AddRectGeometry(element, transform, fill, childClip, paintBatches);
+            AddRectGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches);
+        }
+        else if (element.Name.LocalName == "path")
+        {
+            AddPathGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches);
+        }
+        else if (element.Name.LocalName == "polygon")
+        {
+            AddPolygonGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches);
+        }
+        else if (element.Name.LocalName == "polyline")
+        {
+            AddPolylineGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches);
+        }
+        else if (element.Name.LocalName == "line")
+        {
+            AddLineGeometry(element, transform, stroke, strokeWidth, dashPattern, childClip, paintBatches);
+        }
+        else if (element.Name.LocalName == "circle")
+        {
+            AddEllipseGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches, isCircle: true);
+        }
+        else if (element.Name.LocalName == "ellipse")
+        {
+            AddEllipseGeometry(element, transform, fill, stroke, strokeWidth, dashPattern, childClip, paintBatches, isCircle: false);
         }
         else if (element.Name.LocalName == "text")
         {
@@ -156,7 +194,17 @@ internal static class SvgVectorGraphicsRenderer
 
         foreach (XElement child in element.Elements())
         {
-            CollectGeometry(child, paths, transform, fill, currentColor, childClip, paintBatches, cancellationToken);
+            CollectGeometry(
+                child,
+                paths,
+                transform,
+                fill,
+                currentColor,
+                stroke,
+                strokeWidth,
+                childClip,
+                paintBatches,
+                cancellationToken);
         }
 
         if (!ReferenceEquals(childClip, clip))
@@ -249,6 +297,9 @@ internal static class SvgVectorGraphicsRenderer
         XElement element,
         Matrix inheritedTransform,
         Color fill,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
         Region? clip,
         IList<PaintBatch> paintBatches)
     {
@@ -264,7 +315,209 @@ internal static class SvgVectorGraphicsRenderer
         using var path = new GraphicsPath(FillMode.Winding);
         path.AddRectangle(new RectangleF(x, y, width, height));
         path.Transform(inheritedTransform);
-        AddPaintGeometry(paintBatches, fill, clip, path);
+        if (fill.A > 0)
+        {
+            AddPaintGeometry(paintBatches, fill, clip, path);
+        }
+
+        if (stroke.A > 0 && strokeWidth > 0)
+        {
+            AddPaintGeometry(
+                paintBatches,
+                stroke,
+                clip,
+                path,
+                strokeWidth * GetTransformScale(inheritedTransform),
+                dashPattern);
+        }
+    }
+
+    private static void AddPathGeometry(
+        XElement element,
+        Matrix inheritedTransform,
+        Color fill,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
+        Region? clip,
+        IList<PaintBatch> paintBatches)
+    {
+        string data = element.Attribute("d")?.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(data))
+        {
+            return;
+        }
+
+        using GraphicsPath path = SvgPathDataParser.Parse(data);
+        path.Transform(inheritedTransform);
+        if (fill.A > 0)
+        {
+            AddPaintGeometry(paintBatches, fill, clip, path);
+        }
+
+        if (stroke.A > 0 && strokeWidth > 0)
+        {
+            AddPaintGeometry(
+                paintBatches,
+                stroke,
+                clip,
+                path,
+                strokeWidth * GetTransformScale(inheritedTransform),
+                dashPattern);
+        }
+    }
+
+    private static void AddPolygonGeometry(
+        XElement element,
+        Matrix inheritedTransform,
+        Color fill,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
+        Region? clip,
+        IList<PaintBatch> paintBatches)
+    {
+        PointF[] points = ParsePoints(element.Attribute("points")?.Value);
+        if (points.Length < 3)
+        {
+            return;
+        }
+
+        using var path = new GraphicsPath(FillMode.Winding);
+        path.AddPolygon(points);
+        path.Transform(inheritedTransform);
+        if (fill.A > 0)
+        {
+            AddPaintGeometry(paintBatches, fill, clip, path);
+        }
+
+        if (stroke.A > 0 && strokeWidth > 0)
+        {
+            AddPaintGeometry(
+                paintBatches,
+                stroke,
+                clip,
+                path,
+                strokeWidth * GetTransformScale(inheritedTransform),
+                dashPattern);
+        }
+    }
+
+    private static void AddLineGeometry(
+        XElement element,
+        Matrix inheritedTransform,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
+        Region? clip,
+        IList<PaintBatch> paintBatches)
+    {
+        if (stroke.A == 0 || strokeWidth <= 0)
+        {
+            return;
+        }
+
+        var points = new[]
+        {
+            new PointF(
+                ParseOptionalFloat(element.Attribute("x1")?.Value),
+                ParseOptionalFloat(element.Attribute("y1")?.Value)),
+            new PointF(
+                ParseOptionalFloat(element.Attribute("x2")?.Value),
+                ParseOptionalFloat(element.Attribute("y2")?.Value)),
+        };
+        using var path = new GraphicsPath(FillMode.Winding);
+        path.AddLine(points[0], points[1]);
+        path.Transform(inheritedTransform);
+        AddPaintGeometry(
+            paintBatches,
+            stroke,
+            clip,
+            path,
+            strokeWidth * GetTransformScale(inheritedTransform),
+            dashPattern);
+    }
+
+    private static void AddPolylineGeometry(
+        XElement element,
+        Matrix inheritedTransform,
+        Color fill,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
+        Region? clip,
+        IList<PaintBatch> paintBatches)
+    {
+        PointF[] points = ParsePoints(element.Attribute("points")?.Value);
+        if (points.Length < 2)
+        {
+            return;
+        }
+
+        using var path = new GraphicsPath(FillMode.Winding);
+        path.AddLines(points);
+        path.Transform(inheritedTransform);
+        if (fill.A > 0)
+        {
+            AddPaintGeometry(paintBatches, fill, clip, path);
+        }
+
+        if (stroke.A > 0 && strokeWidth > 0)
+        {
+            AddPaintGeometry(
+                paintBatches,
+                stroke,
+                clip,
+                path,
+                strokeWidth * GetTransformScale(inheritedTransform),
+                dashPattern);
+        }
+    }
+
+    private static void AddEllipseGeometry(
+        XElement element,
+        Matrix inheritedTransform,
+        Color fill,
+        Color stroke,
+        float strokeWidth,
+        float[]? dashPattern,
+        Region? clip,
+        IList<PaintBatch> paintBatches,
+        bool isCircle)
+    {
+        float centerX = ParseOptionalFloat(element.Attribute("cx")?.Value);
+        float centerY = ParseOptionalFloat(element.Attribute("cy")?.Value);
+        float radiusX = ParseOptionalFloat(element.Attribute(isCircle ? "r" : "rx")?.Value);
+        float radiusY = isCircle
+            ? radiusX
+            : ParseOptionalFloat(element.Attribute("ry")?.Value);
+        if (radiusX <= 0 || radiusY <= 0)
+        {
+            return;
+        }
+
+        using var path = new GraphicsPath(FillMode.Winding);
+        path.AddEllipse(
+            centerX - radiusX,
+            centerY - radiusY,
+            radiusX * 2,
+            radiusY * 2);
+        path.Transform(inheritedTransform);
+        if (fill.A > 0)
+        {
+            AddPaintGeometry(paintBatches, fill, clip, path);
+        }
+
+        if (stroke.A > 0 && strokeWidth > 0)
+        {
+            AddPaintGeometry(
+                paintBatches,
+                stroke,
+                clip,
+                path,
+                strokeWidth * GetTransformScale(inheritedTransform),
+                dashPattern);
+        }
     }
 
     private static void AddTextGeometry(
@@ -340,22 +593,57 @@ internal static class SvgVectorGraphicsRenderer
         IList<PaintBatch> batches,
         Color color,
         Region? clip,
-        GraphicsPath geometry)
+        GraphicsPath geometry,
+        float strokeWidth = 0,
+        float[]? dashPattern = null)
     {
         PaintBatch batch;
         if (batches.Count > 0 &&
             batches[batches.Count - 1].Color.ToArgb() == color.ToArgb() &&
+            Math.Abs(batches[batches.Count - 1].StrokeWidth - strokeWidth) < 0.001f &&
+            DashPatternsMatch(batches[batches.Count - 1].DashPattern, dashPattern) &&
             RegionsMatch(batches[batches.Count - 1].Clip, clip))
         {
             batch = batches[batches.Count - 1];
         }
         else
         {
-            batch = new PaintBatch(color, clip);
+            batch = new PaintBatch(color, strokeWidth, dashPattern, clip);
             batches.Add(batch);
         }
 
         batch.Path.AddPath(geometry, connect: false);
+    }
+
+    private static bool DashPatternsMatch(float[]? left, float[]? right)
+    {
+        if (left == null || right == null)
+        {
+            return left == null && right == null;
+        }
+
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < left.Length; index++)
+        {
+            if (Math.Abs(left[index] - right[index]) > 0.001f)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static float GetTransformScale(Matrix transform)
+    {
+        float[] elements = transform.Elements;
+        float xScale = (float)Math.Sqrt((elements[0] * elements[0]) + (elements[1] * elements[1]));
+        float yScale = (float)Math.Sqrt((elements[2] * elements[2]) + (elements[3] * elements[3]));
+        return Math.Max(0.001f, (xScale + yScale) / 2f);
     }
 
     private static bool RegionsMatch(Region? left, Region? right)
@@ -465,6 +753,67 @@ internal static class SvgVectorGraphicsRenderer
             : 0;
     }
 
+    private static PointF[] ParsePoints(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<PointF>();
+        }
+
+        string[] values = value!.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        if (values.Length < 4 || values.Length % 2 != 0)
+        {
+            return Array.Empty<PointF>();
+        }
+
+        var points = new PointF[values.Length / 2];
+        for (int index = 0; index < values.Length; index += 2)
+        {
+            if (!float.TryParse(values[index], NumberStyles.Float, CultureInfo.InvariantCulture, out float x)
+                || !float.TryParse(values[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out float y))
+            {
+                return Array.Empty<PointF>();
+            }
+
+            points[index / 2] = new PointF(x, y);
+        }
+
+        return points;
+    }
+
+    private static float[]? ParseDashPattern(string? value, float strokeWidth)
+    {
+        if (string.IsNullOrWhiteSpace(value) ||
+            string.Equals(value!.Trim(), "none", StringComparison.OrdinalIgnoreCase) ||
+            strokeWidth <= 0)
+        {
+            return null;
+        }
+
+        string[] parts = value!.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        var pattern = new List<float>(parts.Length);
+        foreach (string part in parts)
+        {
+            float length = ParseOptionalFloat(part);
+            if (length > 0)
+            {
+                pattern.Add(Math.Max(0.1f, length / strokeWidth));
+            }
+        }
+
+        if (pattern.Count == 0)
+        {
+            return null;
+        }
+
+        if (pattern.Count % 2 != 0)
+        {
+            pattern.AddRange(pattern.ToArray());
+        }
+
+        return pattern.ToArray();
+    }
+
     private readonly struct SvgViewBox
     {
         private SvgViewBox(float x, float y, float width, float height)
@@ -498,14 +847,20 @@ internal static class SvgVectorGraphicsRenderer
 
     private sealed class PaintBatch
     {
-        public PaintBatch(Color color, Region? clip)
+        public PaintBatch(Color color, float strokeWidth, float[]? dashPattern, Region? clip)
         {
             Color = color;
+            StrokeWidth = strokeWidth;
+            DashPattern = dashPattern == null ? null : (float[])dashPattern.Clone();
             Clip = clip?.Clone();
             Path = new GraphicsPath(FillMode.Winding);
         }
 
         public Color Color { get; }
+
+        public float StrokeWidth { get; }
+
+        public float[]? DashPattern { get; }
 
         public Region? Clip { get; }
 

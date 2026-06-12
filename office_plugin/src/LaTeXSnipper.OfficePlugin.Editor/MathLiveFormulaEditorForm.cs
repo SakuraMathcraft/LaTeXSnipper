@@ -253,7 +253,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
             ["display"] = _options.ForceDisplayMode || _currentInitialFormula?.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
-            ["fontStyle"] = (_currentInitialFormula?.FontStyle ?? FormulaFontStyle.Italic).ToString(),
+            ["fontStyle"] = (_currentInitialFormula?.FontStyle ?? FormulaFontStyle.TeX).ToString(),
+            ["fontColor"] = _currentInitialFormula?.FontColor ?? "#000000",
         });
         string script =
             "(function(payload){" +

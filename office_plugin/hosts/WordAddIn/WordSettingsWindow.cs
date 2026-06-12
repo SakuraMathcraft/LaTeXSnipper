@@ -19,11 +19,13 @@ internal sealed class WordSettingsWindow : Form
 
     private readonly WebView2 _webView;
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
+    private Action _settingsSaved;
     private bool _initializing;
     private bool _webViewReady;
 
-    private WordSettingsWindow()
+    private WordSettingsWindow(Action settingsSaved)
     {
+        _settingsSaved = settingsSaved ?? throw new ArgumentNullException(nameof(settingsSaved));
         Text = WordAddInText.Get("SettingsTitle");
         Width = 760;
         Height = 640;
@@ -41,11 +43,15 @@ internal sealed class WordSettingsWindow : Form
         FormClosed += (_, _) => _window = null;
     }
 
-    public static void Open()
+    public static void Open(Action settingsSaved)
     {
         if (_window == null || _window.IsDisposed)
         {
-            _window = new WordSettingsWindow();
+            _window = new WordSettingsWindow(settingsSaved);
+        }
+        else
+        {
+            _window._settingsSaved = settingsSaved;
         }
 
         _window.Show();
@@ -122,11 +128,13 @@ internal sealed class WordSettingsWindow : Form
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
             ["includeChapter"] = settings.IncludeChapter,
             ["includeSection"] = settings.IncludeSection,
+            ["hideChapterBoundary"] = settings.HideChapterBoundary,
+            ["hideSectionBoundary"] = settings.HideSectionBoundary,
             ["numberSeparator"] = settings.NumberSeparator,
             ["formulaColor"] = settings.FormulaColor,
+            ["defaultFormulaColor"] = WordFormulaColorDefaults.Current,
+            ["useSystemFormulaColor"] = settings.UseSystemFormulaColor,
             ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
-            ["formulaScale"] = settings.FormulaScale,
-            ["formulaWeightPercent"] = settings.FormulaWeightPercent,
         });
         string script =
             "(function(payload){" +
@@ -179,14 +187,15 @@ internal sealed class WordSettingsWindow : Form
             : WordNumberEnclosure.Parentheses;
         bool includeChapter = ReadBoolean(message, "includeChapter");
         bool includeSection = ReadBoolean(message, "includeSection");
-        string numberSeparator = ReadString(message, "numberSeparator", ".");
-        string formulaColor = ReadString(message, "formulaColor", "#000000");
-        string fontStyleRaw = ReadString(message, "formulaFontStyle", FormulaFontStyle.Italic.ToString());
+        bool hideChapterBoundary = ReadBoolean(message, "hideChapterBoundary");
+        bool hideSectionBoundary = ReadBoolean(message, "hideSectionBoundary");
+        string numberSeparator = ReadString(message, "numberSeparator", "-");
+        string formulaColor = ReadString(message, "formulaColor", WordFormulaColorDefaults.Current);
+        bool useSystemFormulaColor = ReadBoolean(message, "useSystemFormulaColor");
+        string fontStyleRaw = ReadString(message, "formulaFontStyle", FormulaFontStyle.TeX.ToString());
         FormulaFontStyle formulaFontStyle = Enum.TryParse(fontStyleRaw, out FormulaFontStyle parsedFontStyle)
             ? parsedFontStyle
-            : FormulaFontStyle.Italic;
-        double formulaScale = ReadDouble(message, "formulaScale", 1);
-        int formulaWeightPercent = ReadWeightPercent(message);
+            : FormulaFontStyle.TeX;
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
@@ -194,12 +203,14 @@ internal sealed class WordSettingsWindow : Form
             numberEnclosure,
             includeChapter,
             includeSection,
+            hideChapterBoundary,
+            hideSectionBoundary,
             numberSeparator,
             formulaColor,
-            formulaFontStyle,
-            formulaScale,
-            formulaWeightPercent);
+            useSystemFormulaColor,
+            formulaFontStyle);
         settings.Save();
+        _settingsSaved();
         _ = SendSettingsAsync();
     }
 
@@ -214,20 +225,6 @@ internal sealed class WordSettingsWindow : Form
     private static bool ReadBoolean(Dictionary<string, object> message, string key)
     {
         return message.TryGetValue(key, out object raw) && Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
-    }
-
-    private static double ReadDouble(Dictionary<string, object> message, string key, double fallback)
-    {
-        string value = ReadString(message, key, fallback.ToString(CultureInfo.InvariantCulture));
-        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)
-            ? parsed
-            : fallback;
-    }
-
-    private static int ReadWeightPercent(Dictionary<string, object> message)
-    {
-        int value = Convert.ToInt32(ReadDouble(message, "formulaWeightPercent", 0));
-        return value is 5 or 10 or 15 ? value : 0;
     }
 
     private static string ResolveAssetsRoot()

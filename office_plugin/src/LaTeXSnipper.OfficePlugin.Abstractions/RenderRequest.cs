@@ -26,7 +26,5 @@ public sealed class RenderRequest
 
     public double FontScale { get; set; } = 1;
 
-    public int FontWeightPercent { get; set; }
-
     public TimeSpan Timeout { get; set; } = OfficeCommandTimeouts.Render;
 }

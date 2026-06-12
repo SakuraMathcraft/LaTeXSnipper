@@ -11,7 +11,6 @@
     <header class="header">
       <div>
         <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
-        <p data-i18n="subtitle">配置公式插入方式和编号默认值。</p>
       </div>
     </header>
 
@@ -31,66 +30,73 @@
         <h2 data-i18n="numberingTitle">带编号公式默认布局</h2>
         <p class="hint" data-i18n="numberingHint">此设置只影响新插入的编号公式，以及之后被自动编号的普通公式。</p>
       </div>
-      <div class="numbering-grid">
-        <div class="segmented" role="radiogroup" aria-label="Number placement">
-          <button type="button" id="rightNumber" data-placement="Right" data-i18n="numberRight">右编号</button>
-          <button type="button" id="leftNumber" data-placement="Left" data-i18n="numberLeft">左编号</button>
+      <div class="numbering-controls">
+        <div class="numbering-grid">
+          <div class="segmented" role="radiogroup" aria-label="Number placement">
+            <button type="button" id="rightNumber" data-placement="Right" data-i18n="numberRight">右编号</button>
+            <button type="button" id="leftNumber" data-placement="Left" data-i18n="numberLeft">左编号</button>
+          </div>
+          <label>
+            <span data-i18n="formatLabel">编号格式</span>
+            <select id="numberFormat">
+              <option value="Arabic" data-i18n="formatArabic">1</option>
+              <option value="LowerRoman" data-i18n="formatLowerRoman">i</option>
+              <option value="UpperRoman" data-i18n="formatUpperRoman">I</option>
+              <option value="LowerLetter" data-i18n="formatLowerLetter">a</option>
+              <option value="UpperLetter" data-i18n="formatUpperLetter">A</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="enclosureLabel">外框</span>
+            <select id="numberEnclosure">
+              <option value="Parentheses">( )</option>
+              <option value="SquareBrackets">[ ]</option>
+              <option value="Braces">{ }</option>
+              <option value="None" data-i18n="enclosureNone">无</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="separatorLabel">层级分隔符</span>
+            <select id="numberSeparator">
+              <option value="-">-</option>
+              <option value=".">.</option>
+              <option value="·">·</option>
+              <option value=":">:</option>
+              <option value="/">/</option>
+            </select>
+          </label>
         </div>
-        <label>
-          <span data-i18n="formatLabel">编号格式</span>
-          <select id="numberFormat">
-            <option value="Arabic" data-i18n="formatArabic">1</option>
-            <option value="LowerRoman" data-i18n="formatLowerRoman">i</option>
-            <option value="UpperRoman" data-i18n="formatUpperRoman">I</option>
-            <option value="LowerLetter" data-i18n="formatLowerLetter">a</option>
-            <option value="UpperLetter" data-i18n="formatUpperLetter">A</option>
-          </select>
-        </label>
-        <label>
-          <span data-i18n="enclosureLabel">外框</span>
-          <select id="numberEnclosure">
-            <option value="Parentheses">( )</option>
-            <option value="SquareBrackets">[ ]</option>
-            <option value="Braces">{ }</option>
-            <option value="None" data-i18n="enclosureNone">无</option>
-          </select>
-        </label>
-      </div>
-      <div class="numbering-grid">
-        <label><input id="includeChapter" type="checkbox"><span data-i18n="includeChapter">包含章编号</span></label>
-        <label><input id="includeSection" type="checkbox"><span data-i18n="includeSection">包含节编号</span></label>
-        <label>
-          <span data-i18n="separatorLabel">层级分隔符</span>
-          <input id="numberSeparator" type="text" maxlength="3" value=".">
-        </label>
+        <div class="numbering-options">
+          <label class="check-option"><input id="includeChapter" type="checkbox"><span data-i18n="includeChapter">包含章编号</span></label>
+          <label class="check-option"><input id="includeSection" type="checkbox"><span data-i18n="includeSection">包含节编号</span></label>
+          <label class="check-option"><input id="hideChapterBoundary" type="checkbox"><span data-i18n="hideChapterBoundary">隐藏章分隔符</span></label>
+          <label class="check-option"><input id="hideSectionBoundary" type="checkbox"><span data-i18n="hideSectionBoundary">隐藏节分隔符</span></label>
+        </div>
       </div>
     </section>
 
     <section class="panel accent-panel">
       <div>
-        <h2 data-i18n="formattingTitle">公式格式化</h2>
-        <p class="hint" data-i18n="formattingHint">“格式化”选项卡将这些值应用于所选公式或全文公式。</p>
+        <h2 data-i18n="formulaDefaultsTitle">公式默认属性</h2>
+        <p class="hint" data-i18n="formulaDefaultsHint">这些设置仅影响新插入的公式。</p>
       </div>
       <div class="numbering-grid">
-        <label><span data-i18n="colorLabel">字体颜色</span><input id="formulaColor" type="color" value="#000000"></label>
+        <label>
+          <span data-i18n="colorLabel">字体颜色</span>
+          <span class="color-control">
+            <input id="formulaColor" type="color" value="#000000">
+            <button id="resetFormulaColor" type="button">恢复默认</button>
+          </span>
+        </label>
         <label>
           <span data-i18n="fontStyleLabel">默认字体</span>
           <select id="formulaFontStyle">
+            <option value="TeX" data-i18n="fontTeX">TeX 原生字体</option>
             <option value="RomanUpright" data-i18n="fontRomanUpright">罗马正体</option>
             <option value="Bold" data-i18n="fontBold">粗体</option>
             <option value="Italic" data-i18n="fontItalic">斜体</option>
           </select>
         </label>
-        <label>
-          <span data-i18n="weightLabel">粗细度</span>
-          <select id="formulaWeightPercent">
-            <option value="0">0%</option>
-            <option value="5">5%</option>
-            <option value="10">10%</option>
-            <option value="15">15%</option>
-          </select>
-        </label>
-        <label><span data-i18n="scaleLabel">大小倍率</span><input id="formulaScale" type="number" min="0.5" max="5" step="0.1" value="1"></label>
       </div>
     </section>
 

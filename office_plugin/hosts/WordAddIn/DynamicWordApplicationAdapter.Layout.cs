@@ -1,0 +1,308 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using LaTeXSnipper.OfficePlugin.Abstractions;
+
+namespace LaTeXSnipper.OfficePlugin.WordAddIn;
+
+public sealed partial class DynamicWordApplicationAdapter
+{
+    private void ReplaceFormulaContent(object contentControl, string ooxml, string equationOoxml, FormulaMetadata metadata)
+    {
+        dynamic control = contentControl;
+        object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, metadata.Identity.EquationId);
+        if (metadata.NumberingMode != NumberingMode.None && numberControl != null)
+        {
+            ReplaceNumberedFormulaControl(control, equationOoxml);
+            ReplaceNumberControlText(numberControl, metadata.NumberText);
+            ApplyNumberControlVerticalAlignment(numberControl, metadata);
+            NormalizeNumberedParagraph(metadata.Identity.EquationId);
+        }
+        else if (metadata.NumberingMode != NumberingMode.None)
+        {
+            ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId);
+            ApplyNumberControlVerticalAlignmentById(metadata);
+            NormalizeNumberedParagraph(metadata.Identity.EquationId);
+        }
+        else
+        {
+            dynamic range = ResolveReplacementRange(control, metadata);
+            range.InsertXML(ooxml);
+        }
+
+        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        if (metadata.NumberingMode == NumberingMode.None && metadata.DisplayMode == FormulaDisplayMode.Inline)
+        {
+            NormalizePlainTextBaselineByFormulaId(metadata.Identity.EquationId);
+        }
+    }
+
+    private void ReplaceFormulaContent(object contentControl, string ooxml, FormulaMetadata metadata)
+    {
+        ReplaceFormulaContent(contentControl, ooxml, ooxml, metadata);
+    }
+
+    private void ReplaceParagraphWithNumberedFormula(object contentControl, string ooxml, string equationId)
+    {
+        dynamic control = contentControl;
+        dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
+        insertionRange.InsertXML(ooxml);
+        RemoveEmptyParagraphBeforeFollowingContent(equationId);
+    }
+
+    private static void ReplaceNumberedFormulaControl(object contentControl, string equationOoxml)
+    {
+        dynamic control = contentControl;
+        dynamic range = GetContainingParagraphRange(control);
+        range.InsertXML(equationOoxml);
+    }
+
+    private static dynamic ResolveReplacementRange(dynamic control, FormulaMetadata metadata)
+    {
+        if (metadata.DisplayMode == FormulaDisplayMode.Inline)
+        {
+            return control.Range;
+        }
+
+        dynamic paragraphRange = GetContainingParagraphRange(control);
+        int start = GetRangeStart(paragraphRange);
+        int end = Math.Max(start, GetRangeEnd(paragraphRange) - 1);
+        dynamic content = paragraphRange.Document.Range(start, end);
+        content.Delete();
+        return paragraphRange.Document.Range(start, start);
+    }
+
+    private void ValidateInsertionTarget(dynamic range)
+    {
+        if (RangeTouchesManagedFormula(range) || RangeIntersectsManagedFormula(range))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("InsertInsideFormulaError"));
+        }
+    }
+
+    private void MoveSelectionAfterInsertedFormula(FormulaMetadata metadata, bool display)
+    {
+        try
+        {
+            MoveSelectionAfterInsertedFormula(
+                FindFormulaControlById(metadata.Identity.EquationId),
+                metadata,
+                display);
+        }
+        catch
+        {
+        }
+    }
+
+    private void MoveSelectionAfterInsertedFormula(
+        object contentControl,
+        FormulaMetadata metadata,
+        bool display)
+    {
+        dynamic control = contentControl;
+        string equationId = metadata.Identity.EquationId;
+        if (metadata.NumberingMode != NumberingMode.None)
+        {
+            ApplyNumberedParagraphLayout(control.Range);
+            MoveSelectionAfterDisplayParagraph(control, equationId);
+            return;
+        }
+
+        if (!display)
+        {
+            NormalizePlainTextBaselineAroundRange(control.Range);
+            MoveSelectionAfterInlineControl(control, equationId);
+            return;
+        }
+
+        MoveSelectionAfterDisplayParagraph(control, equationId);
+    }
+
+    private void MoveSelectionAfterInlineControl(dynamic control, string equationId)
+    {
+        object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
+        MoveSelectionAfterContentControl(metadataControl ?? control, equationId);
+    }
+
+    private void MoveSelectionAfterDisplayParagraph(dynamic control, string equationId)
+    {
+        dynamic paragraphRange = GetContainingParagraphRange(control);
+        if (TryMoveSelectionToFollowingParagraph(paragraphRange))
+        {
+            return;
+        }
+
+        int insertionPoint = GetRangeEnd(paragraphRange);
+        bool paragraphInserted = TryInsertParagraphAfter(paragraphRange);
+        if (paragraphInserted &&
+            (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1)))
+        {
+            return;
+        }
+
+        EnsureSelectionOutsideFormula(equationId);
+    }
+
+    private void MoveSelectionAfterContentControl(object contentControl, string equationId)
+    {
+        dynamic control = contentControl;
+        int insertionPoint = Convert.ToInt32(control.Range.End);
+        if (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1))
+        {
+            return;
+        }
+
+        dynamic target = CreateDocumentRange(insertionPoint, insertionPoint);
+        target.Select();
+        MoveSelectionRight();
+        EnsureSelectionOutsideFormula(equationId);
+    }
+
+    private void MoveSelectionAfterInlineShape(object inlineShape, string equationId, bool display)
+    {
+        dynamic shape = inlineShape;
+        int insertionPoint = GetRangeEnd(shape.Range);
+        if (display)
+        {
+            dynamic paragraphRange = shape.Range.Paragraphs.Item(1).Range;
+            if (TryMoveSelectionToFollowingParagraph(paragraphRange))
+            {
+                return;
+            }
+
+            insertionPoint = GetRangeEnd(paragraphRange);
+            bool paragraphInserted = TryInsertParagraphAfter(paragraphRange);
+            if (paragraphInserted &&
+                (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1)))
+            {
+                return;
+            }
+        }
+
+        if (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1))
+        {
+            if (!display)
+            {
+                NormalizePlainTextBaselineAroundRange(shape.Range);
+            }
+
+            return;
+        }
+
+        dynamic target = CreateDocumentRange(insertionPoint, insertionPoint);
+        target.Select();
+        MoveSelectionRight();
+        if (!display)
+        {
+            NormalizePlainTextBaselineAroundRange(shape.Range);
+        }
+
+        EnsureSelectionOutsideFormula(equationId);
+    }
+
+    private bool TryMoveSelectionOutsideFormula(int position)
+    {
+        try
+        {
+            int safePosition = ClampDocumentPosition(position);
+            dynamic target = _wordApplication.ActiveDocument.Range(safePosition, safePosition);
+            if (RangeTouchesManagedFormula(target))
+            {
+                return false;
+            }
+
+            try
+            {
+                _wordApplication.Selection.SetRange(safePosition, safePosition);
+            }
+            catch
+            {
+                target.Select();
+            }
+
+            ResetSelectionFormulaTextFormatting();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void EnsureSelectionOutsideFormula(string equationId)
+    {
+        try
+        {
+            for (int i = 0; i < 12; i++)
+            {
+                dynamic range = _wordApplication.Selection.Range;
+                object? control = TryGetParentContentControl(range)
+                    ?? TryGetFirstManagedContentControl(range);
+                if (control == null)
+                {
+                    return;
+                }
+
+                if (GetEquationId((dynamic)control) != equationId)
+                {
+                    return;
+                }
+
+                MoveSelectionRight();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool TryInsertParagraphAfter(dynamic range)
+    {
+        try
+        {
+            range.InsertParagraphAfter();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void MoveSelectionRight()
+    {
+        try
+        {
+            _wordApplication.Selection.MoveRight(WdCharacter, 1, WdMove);
+            ResetSelectionFormulaTextFormatting();
+        }
+        catch
+        {
+        }
+    }
+
+    private static dynamic GetContainingParagraphRange(dynamic control)
+    {
+        dynamic paragraphs = control.Range.Paragraphs;
+        return paragraphs.Item(1).Range;
+    }
+
+    private void NormalizeNumberedParagraph(string equationId)
+    {
+        try
+        {
+            object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
+            if (numberControl == null)
+            {
+                return;
+            }
+
+            ApplyNumberedParagraphLayout(((dynamic)numberControl).Range);
+        }
+        catch
+        {
+        }
+    }
+}

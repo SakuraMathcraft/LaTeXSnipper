@@ -13,11 +13,12 @@ public sealed class WordPluginSettings
     private const string InsertionBackendValue = "WordInsertionBackend";
     private const string IncludeChapterValue = "NumberIncludeChapter";
     private const string IncludeSectionValue = "NumberIncludeSection";
+    private const string HideChapterBoundaryValue = "HideChapterBoundary";
+    private const string HideSectionBoundaryValue = "HideSectionBoundary";
     private const string NumberSeparatorValue = "NumberSeparator";
     private const string FormulaColorValue = "FormulaColor";
+    private const string UseSystemFormulaColorValue = "UseSystemFormulaColor";
     private const string FormulaFontStyleValue = "FormulaFontStyle";
-    private const string FormulaWeightPercentValue = "FormulaWeightPercent";
-    private const string FormulaScaleValue = "FormulaScale";
 
     public WordPluginSettings(
         WordNumberPlacement numberPlacement,
@@ -26,11 +27,12 @@ public sealed class WordPluginSettings
         WordNumberEnclosure numberEnclosure,
         bool includeChapter,
         bool includeSection,
+        bool hideChapterBoundary,
+        bool hideSectionBoundary,
         string numberSeparator,
         string formulaColor,
-        FormulaFontStyle formulaFontStyle,
-        double formulaScale,
-        int formulaWeightPercent)
+        bool useSystemFormulaColor,
+        FormulaFontStyle formulaFontStyle)
     {
         NumberPlacement = numberPlacement;
         InsertionBackend = insertionBackend;
@@ -38,11 +40,14 @@ public sealed class WordPluginSettings
         NumberEnclosure = numberEnclosure;
         IncludeChapter = includeChapter;
         IncludeSection = includeSection;
-        NumberSeparator = string.IsNullOrEmpty(numberSeparator) ? "." : numberSeparator;
-        FormulaColor = string.IsNullOrWhiteSpace(formulaColor) ? "#000000" : formulaColor;
+        HideChapterBoundary = hideChapterBoundary;
+        HideSectionBoundary = hideSectionBoundary;
+        NumberSeparator = NormalizeNumberSeparator(numberSeparator);
+        UseSystemFormulaColor = useSystemFormulaColor;
+        FormulaColor = useSystemFormulaColor
+            ? WordFormulaColorDefaults.Current
+            : string.IsNullOrWhiteSpace(formulaColor) ? WordFormulaColorDefaults.Current : formulaColor;
         FormulaFontStyle = formulaFontStyle;
-        FormulaScale = Math.Max(0.5, Math.Min(5, formulaScale));
-        FormulaWeightPercent = formulaWeightPercent is 5 or 10 or 15 ? formulaWeightPercent : 0;
     }
 
     public WordNumberPlacement NumberPlacement { get; }
@@ -57,15 +62,17 @@ public sealed class WordPluginSettings
 
     public bool IncludeSection { get; }
 
+    public bool HideChapterBoundary { get; }
+
+    public bool HideSectionBoundary { get; }
+
     public string NumberSeparator { get; }
 
     public string FormulaColor { get; }
 
+    public bool UseSystemFormulaColor { get; }
+
     public FormulaFontStyle FormulaFontStyle { get; }
-
-    public double FormulaScale { get; }
-
-    public int FormulaWeightPercent { get; }
 
     public static WordPluginSettings Load()
     {
@@ -82,11 +89,12 @@ public sealed class WordPluginSettings
             ReadEnum(key, NumberEnclosureValue, WordNumberEnclosure.Parentheses),
             ReadBoolean(key, IncludeChapterValue),
             ReadBoolean(key, IncludeSectionValue),
-            key?.GetValue(NumberSeparatorValue) as string ?? ".",
-            key?.GetValue(FormulaColorValue) as string ?? "#000000",
-            ReadEnum(key, FormulaFontStyleValue, FormulaFontStyle.Italic),
-            ReadDouble(key, FormulaScaleValue, 1),
-            ReadWeightPercent(key));
+            ReadBoolean(key, HideChapterBoundaryValue),
+            ReadBoolean(key, HideSectionBoundaryValue),
+            key?.GetValue(NumberSeparatorValue) as string ?? "-",
+            key?.GetValue(FormulaColorValue) as string ?? WordFormulaColorDefaults.Current,
+            ReadBoolean(key, UseSystemFormulaColorValue, defaultValue: true),
+            ReadEnum(key, FormulaFontStyleValue, FormulaFontStyle.TeX));
     }
 
     public void Save()
@@ -99,11 +107,12 @@ public sealed class WordPluginSettings
         key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);
         key.SetValue(IncludeChapterValue, IncludeChapter ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(IncludeSectionValue, IncludeSection ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(HideChapterBoundaryValue, HideChapterBoundary ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(HideSectionBoundaryValue, HideSectionBoundary ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(NumberSeparatorValue, NumberSeparator, RegistryValueKind.String);
         key.SetValue(FormulaColorValue, FormulaColor, RegistryValueKind.String);
+        key.SetValue(UseSystemFormulaColorValue, UseSystemFormulaColor ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(FormulaFontStyleValue, FormulaFontStyle.ToString(), RegistryValueKind.String);
-        key.SetValue(FormulaWeightPercentValue, FormulaWeightPercent, RegistryValueKind.DWord);
-        key.SetValue(FormulaScaleValue, FormulaScale.ToString(System.Globalization.CultureInfo.InvariantCulture), RegistryValueKind.String);
     }
 
     private static T ReadEnum<T>(RegistryKey? key, string valueName, T defaultValue)
@@ -113,22 +122,15 @@ public sealed class WordPluginSettings
         return Enum.TryParse(raw, ignoreCase: false, out T parsed) ? parsed : defaultValue;
     }
 
-    private static bool ReadBoolean(RegistryKey? key, string valueName)
+    private static bool ReadBoolean(RegistryKey? key, string valueName, bool defaultValue = false)
     {
-        return Convert.ToInt32(key?.GetValue(valueName) ?? 0) != 0;
+        object? value = key?.GetValue(valueName);
+        return value == null ? defaultValue : Convert.ToInt32(value) != 0;
     }
 
-    private static double ReadDouble(RegistryKey? key, string valueName, double fallback)
+    private static string NormalizeNumberSeparator(string value)
     {
-        string raw = Convert.ToString(key?.GetValue(valueName), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-        return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value)
-            ? value
-            : fallback;
+        return value is "-" or "." or "·" or ":" or "/" ? value : "-";
     }
 
-    private static int ReadWeightPercent(RegistryKey? key)
-    {
-        int value = Convert.ToInt32(key?.GetValue(FormulaWeightPercentValue) ?? 0);
-        return value is 5 or 10 or 15 ? value : 0;
-    }
 }
