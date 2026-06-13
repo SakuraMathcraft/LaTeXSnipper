@@ -17,6 +17,17 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()
     {
+        IReadOnlyList<SelectedWordFormula> formulas = CollectSelectedFormulas();
+        if (formulas.Count == 0)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        return formulas;
+    }
+
+    private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas()
+    {
         dynamic selection = _wordApplication.Selection;
         dynamic range = selection.Range;
         var formulas = new List<SelectedWordFormula>();
@@ -25,11 +36,6 @@ public sealed partial class DynamicWordApplicationAdapter
         AddSelectedFormulasFromRange(formulas, seen, range);
         AddSelectedOleInlineShapes(formulas, seen, range);
         AddSelectedOleInlineShapesFromAnchor(formulas, seen, selection, range);
-        if (formulas.Count == 0)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-        }
-
         return formulas;
     }
 
@@ -126,8 +132,42 @@ public sealed partial class DynamicWordApplicationAdapter
             return;
         }
 
-        FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
+        FormulaMetadata metadata = LoadFormulaMetadata(
+            inlineShape,
+            equationId,
+            RenderEngineKind.MathJaxSvg);
         formulas.Add(new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true));
+    }
+
+    private void AddOleInlineShapesInsideSelection(ICollection<SelectedWordFormula> formulas)
+    {
+        dynamic selectionRange = _wordApplication.Selection.Range;
+        int selectionStart = GetRangeStart(selectionRange);
+        int selectionEnd = GetRangeEnd(selectionRange);
+        if (selectionEnd <= selectionStart)
+        {
+            return;
+        }
+
+        var seen = new HashSet<string>(
+            formulas.Select(item => item.Metadata.Identity.EquationId),
+            StringComparer.Ordinal);
+        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        int count = Convert.ToInt32(inlineShapes.Count);
+        for (int i = 1; i <= count; i++)
+        {
+            dynamic inlineShape = inlineShapes.Item(i);
+            int shapeStart = GetRangeStart(inlineShape.Range);
+            int shapeEnd = GetRangeEnd(inlineShape.Range);
+            bool selected =
+                (shapeStart >= selectionStart && shapeStart < selectionEnd) ||
+                (shapeEnd > selectionStart && shapeEnd <= selectionEnd) ||
+                RangesOverlap(selectionStart, selectionEnd, shapeStart, shapeEnd);
+            if (selected)
+            {
+                AddSelectedOleInlineShape(formulas, seen, inlineShape);
+            }
+        }
     }
 
     private void AddSelectedFormula(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)

@@ -320,11 +320,7 @@ public sealed partial class WordPluginController : IDisposable
             selected,
             NumberingMode.Automatic,
             _wordAdapter.GetNextAutomaticNumberText());
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            await _wordAdapter.ApplyAutomaticNumberAsync(numbered, cancellationToken);
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
-        }
+        await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
@@ -374,6 +370,21 @@ public sealed partial class WordPluginController : IDisposable
         }
     }
 
+    private async Task UpdateRenderedFormulaAndRenumberAsync(
+        FormulaMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
+            metadata,
+            includeEquationOoxml: true,
+            cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
+    }
+
     private async Task<PreparedWordFormula> PrepareRenderedFormulaAsync(
         FormulaMetadata metadata,
         bool includeEquationOoxml,
@@ -403,7 +414,7 @@ public sealed partial class WordPluginController : IDisposable
 
         if (reportProgress)
         {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ConvertingStatus"));
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OmmlInsertingStatus"));
         }
         string mathMl = await _mathJaxRenderer.ConvertToMathMlAsync(renderedLatex, metadata.DisplayMode, cancellationToken);
         string omml = _ommlConverter.Convert(mathMl);
@@ -421,7 +432,11 @@ public sealed partial class WordPluginController : IDisposable
             return;
         }
 
-        await _wordAdapter.InsertManagedEquationAsync(prepared.Ooxml!, prepared.Metadata, prepared.Display, cancellationToken);
+        await _wordAdapter.InsertManagedEquationAsync(
+            prepared.Ooxml!,
+            prepared.Metadata,
+            prepared.Display,
+            cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OmmlInsertedStatus"));
     }
 

@@ -211,23 +211,40 @@ jobs:
           Write-Host "Office Plugin version: $ver"
           "version=$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Ensure VSTO MSBuild targets
+      - name: Ensure Office and ATL build tools
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vswhere -latest -products * -property installationPath
+          if (-not $vsPath) {
+            throw "Visual Studio was not found."
+          }
           Write-Host "Visual Studio: $vsPath"
-          $vsto = Join-Path $vsPath "MSBuild\Microsoft\VisualStudio\v17.0\OfficeTools\Microsoft.VisualStudio.Tools.Office.targets"
-          if (-not (Test-Path $vsto)) {
-            Write-Host "VSTO tools not found. Installing Office/SharePoint workload..."
+          $officePath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath
+          $atlPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
+          if (-not $officePath -or -not $atlPath) {
+            Write-Host "Installing required Office and ATL build tools..."
             $vsInstaller = Join-Path $vsPath "..\..\Installer\vs_installer.exe"
             if (-not (Test-Path $vsInstaller)) {
               $vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
             }
-            & $vsInstaller modify --installPath $vsPath --add Microsoft.VisualStudio.Workload.Office --quiet --norestart --wait
-            if ($LASTEXITCODE -ne 0) { throw "Failed to install VSTO tools." }
+            & $vsInstaller modify `
+              --installPath $vsPath `
+              --add Microsoft.VisualStudio.Workload.Office `
+              --add Microsoft.VisualStudio.Component.VC.ATL `
+              --quiet `
+              --norestart `
+              --wait
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to install Office and ATL build tools."
+            }
           }
-          Write-Host "VSTO tools are available."
+          $officePath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath
+          $atlPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
+          if (-not $officePath -or -not $atlPath) {
+            throw "Required Office or ATL build tools are unavailable after installation."
+          }
+          Write-Host "Office and ATL build tools are available."
 
       - name: Build Office plugin
         shell: pwsh

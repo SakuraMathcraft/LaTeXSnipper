@@ -20,7 +20,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const int WdAlignTabCenter = 1;
     private const int WdAlignTabRight = 2;
     private const int WdTabLeaderSpaces = 0;
-    private const int WdHorizontalPositionRelativeToTextBoundary = 7;
     private const int WdContentControlRichText = 0;
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
@@ -32,15 +31,23 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
 
     private sealed class NumberedFormulaEntry
     {
-        public NumberedFormulaEntry(string equationId, object numberControl, FormulaMetadata metadata, int start)
+        public NumberedFormulaEntry(
+            string equationId,
+            object formulaObject,
+            object numberControl,
+            FormulaMetadata metadata,
+            int start)
         {
             EquationId = equationId;
+            FormulaObject = formulaObject;
             NumberControl = numberControl;
             Metadata = metadata;
             Start = start;
         }
 
         public string EquationId { get; }
+
+        public object FormulaObject { get; }
 
         public object NumberControl { get; }
 
@@ -60,6 +67,19 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public int Start { get; }
 
         public int End { get; }
+    }
+
+    private sealed class IndexedFormulaObject
+    {
+        public IndexedFormulaObject(object value, RenderEngineKind renderEngine)
+        {
+            Value = value;
+            RenderEngine = renderEngine;
+        }
+
+        public object Value { get; }
+
+        public RenderEngineKind RenderEngine { get; }
     }
 
     private sealed class DeletionTarget

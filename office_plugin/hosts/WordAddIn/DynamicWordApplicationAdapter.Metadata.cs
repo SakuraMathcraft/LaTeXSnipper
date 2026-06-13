@@ -11,149 +11,47 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private void SaveFormulaMetadata(FormulaMetadata metadata)
     {
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
-        UpsertMetadataControl(metadata, metadataControls: null);
-    }
-
-    private void SaveNewFormulaMetadata(
-        FormulaMetadata metadata,
-        object formulaObject,
-        bool hasContentControlBoundary)
-    {
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
-        CreateMetadataControl(metadata, formulaObject, hasContentControlBoundary);
-    }
-
-    private void SaveFormulaMetadata(
-        FormulaMetadata metadata,
-        IDictionary<string, object> metadataControls)
-    {
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
-        UpsertMetadataControl(metadata, metadataControls);
-    }
-
-    private void UpsertMetadataControl(
-        FormulaMetadata metadata,
-        IDictionary<string, object>? metadataControls)
-    {
-        string equationId = metadata.Identity.EquationId;
-        object? existing = null;
-        if (metadataControls != null)
+        object? equationControl = TryGetEquationControlById(metadata.Identity.EquationId);
+        if (equationControl != null)
         {
-            metadataControls.TryGetValue(equationId, out existing);
-        }
-        else
-        {
-            existing = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
-        }
-
-        dynamic control;
-        if (existing != null)
-        {
-            control = existing;
-            TryCom(() => control.LockContents = false);
-        }
-        else
-        {
-            object? equationControl = TryGetEquationControlById(equationId);
-            if (equationControl != null)
-            {
-                control = CreateMetadataControl(metadata, equationControl, hasContentControlBoundary: true);
-            }
-            else
-            {
-                object? inlineShape = TryFindOleInlineShapeById(equationId);
-                if (inlineShape == null)
-                {
-                    throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-                }
-
-                control = CreateMetadataControl(metadata, inlineShape, hasContentControlBoundary: false);
-            }
-
-            if (metadataControls != null)
-            {
-                metadataControls[equationId] = control;
-            }
-
+            SaveFormulaMetadata(equationControl, metadata);
             return;
         }
 
-        WriteMetadataControl(control, metadata);
-    }
-
-    private dynamic CreateMetadataControl(
-        FormulaMetadata metadata,
-        object formulaObject,
-        bool hasContentControlBoundary)
-    {
-        string json = WordFormulaMetadataStore.Serialize(metadata);
-        int position = GetRangeEnd(((dynamic)formulaObject).Range) +
-            (hasContentControlBoundary ? 1 : 0);
-        position = ClampDocumentPosition(position);
-        dynamic insertionRange = CreateDocumentRange(position, position);
-        insertionRange.InsertAfter(json);
-        dynamic controlRange = CreateDocumentRange(position, position + json.Length);
-        dynamic control = controlRange.ContentControls.Add(WdContentControlRichText);
-        control.Tag = WordFormulaMetadataStore.BuildMetadataTag(metadata.Identity.EquationId);
-        control.Title = WordFormulaMetadataStore.BuildMetadataAlias(metadata.Identity.EquationId);
-        ApplyMetadataControlFormatting(control);
-        return control;
-    }
-
-    private static void WriteMetadataControl(dynamic control, FormulaMetadata metadata)
-    {
-        TryCom(() => control.Range.Font.Hidden = 0);
-        control.Range.Text = WordFormulaMetadataStore.Serialize(metadata);
-        ApplyMetadataControlFormatting(control);
-    }
-
-    private static void ApplyMetadataControlFormatting(dynamic control)
-    {
-        HideContentControlChrome(control);
-        TryCom(() => control.Range.Font.Hidden = -1);
-        TryCom(() => control.Range.Font.Size = 1);
-        TryCom(() => control.Range.Font.Position = 0);
-        TryCom(() => control.LockContents = true);
-    }
-
-    private Dictionary<string, object> LoadMetadataControlIndex()
-    {
-        var result = new Dictionary<string, object>(StringComparer.Ordinal);
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
-        int count = Convert.ToInt32(controls.Count);
-        for (int index = 1; index <= count; index++)
+        object? inlineShape = TryFindOleInlineShapeById(metadata.Identity.EquationId);
+        if (inlineShape == null)
         {
-            dynamic control = controls.Item(index);
-            string equationId = WordFormulaMetadataStore.EquationIdFromMetadataTag(
-                Convert.ToString(control.Tag) ?? string.Empty);
-            if (!string.IsNullOrWhiteSpace(equationId))
-            {
-                result[equationId] = control;
-            }
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        return result;
+        SaveFormulaMetadata(inlineShape, metadata);
     }
 
-    private FormulaMetadata LoadFormulaMetadata(
-        string equationId,
-        IReadOnlyDictionary<string, object> metadataControls)
+    private void SaveFormulaMetadata(object formulaObject, FormulaMetadata metadata)
     {
-        if (metadataControls.TryGetValue(equationId, out object control))
+        dynamic shape = formulaObject;
+        if (metadata.RenderEngine == RenderEngineKind.Omml)
         {
-            return WordFormulaMetadataStore.Deserialize(
-                CleanRangeText(ReadHiddenControlText(control)));
+            shape.Tag = WordFormulaMetadataStore.Save(
+                _wordApplication.ActiveDocument,
+                metadata);
+            return;
         }
 
-        return WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, equationId);
-    }
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
+                _wordApplication.ActiveDocument,
+                ReadFormulaObjectTag(shape),
+                out double naturalWidth,
+                out double naturalHeight))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
 
-    private static string ReadHiddenControlText(object contentControl)
-    {
-        dynamic range = ((dynamic)contentControl).Range.Duplicate;
-        TryCom(() => range.TextRetrievalMode.IncludeHiddenText = true);
-        return Convert.ToString(range.Text) ?? string.Empty;
+        shape.AlternativeText = WordFormulaMetadataStore.Save(
+            _wordApplication.ActiveDocument,
+            metadata,
+            naturalWidth,
+            naturalHeight);
     }
 
     private FormulaMetadata LoadFormulaMetadata(
@@ -161,24 +59,32 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId,
         RenderEngineKind actualRenderEngine)
     {
-        FormulaMetadata metadata;
+        FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+            _wordApplication.ActiveDocument,
+            ReadFormulaObjectTag(control));
+        if (!string.Equals(metadata.Identity.EquationId, equationId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        if (metadata.RenderEngine != actualRenderEngine)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return metadata;
+    }
+
+    private static string ReadFormulaObjectTag(dynamic formulaObject)
+    {
         try
         {
-            metadata = WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, equationId);
+            return Convert.ToString(formulaObject.AlternativeText) ?? string.Empty;
         }
         catch
         {
-            metadata = CreateRecoveredFormulaMetadata(control, equationId);
+            return Convert.ToString(formulaObject.Tag) ?? string.Empty;
         }
-
-        if (metadata.RenderEngine == actualRenderEngine)
-        {
-            return metadata;
-        }
-
-        FormulaMetadata corrected = WithRenderEngine(metadata, actualRenderEngine);
-        SaveFormulaMetadata(corrected);
-        return corrected;
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -208,29 +114,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private FormulaMetadata CreateRecoveredFormulaMetadata(dynamic control, string equationId)
-    {
-        string numberText = ReadNumberText(equationId);
-        NumberingMode numberingMode = string.IsNullOrWhiteSpace(numberText) ? NumberingMode.None : NumberingMode.Manual;
-        FormulaDisplayMode displayMode = numberingMode != NumberingMode.None || IsCenteredParagraph(control)
-            ? FormulaDisplayMode.Display
-            : FormulaDisplayMode.Inline;
-        return new FormulaMetadata(
-            new FormulaIdentity("active-document", equationId),
-            ReadFormulaText(control),
-            displayMode,
-            numberingMode,
-            numberText,
-            RenderEngineKind.Omml,
-            schemaVersion: 1);
-    }
-
-    private string ReadNumberText(string equationId)
-    {
-        object? control = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
-        return control == null ? string.Empty : CleanRangeText(((dynamic)control).Range.Text);
-    }
-
     private void ReplaceNumberControlTextById(string equationId, string numberText)
     {
         object? control = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
@@ -245,31 +128,6 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = numberControl;
         HideContentControlChrome(control);
         TryCom(() => control.Range.Text = numberText);
-    }
-
-    private static string ReadFormulaText(dynamic control)
-    {
-        try
-        {
-            return CleanRangeText(Convert.ToString(control.Range.Text) ?? string.Empty);
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static bool IsCenteredParagraph(dynamic control)
-    {
-        try
-        {
-            int alignment = Convert.ToInt32(control.Range.ParagraphFormat.Alignment);
-            return alignment == WdAlignParagraphCenter;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static string CleanRangeText(string value)
@@ -306,11 +164,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return null;
-    }
-
-    private static object? TryGetMetadataControlById(dynamic document, string equationId)
-    {
-        return TryGetControlByTag(document, WordFormulaMetadataStore.BuildMetadataTag(equationId));
     }
 
     private static object? TryGetControlByTag(dynamic document, string expectedTag)

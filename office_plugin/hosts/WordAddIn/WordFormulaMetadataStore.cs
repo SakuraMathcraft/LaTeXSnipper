@@ -10,23 +10,24 @@ internal static class WordFormulaMetadataStore
     public const string EquationTagPrefix = "latexsnipper-eq-";
     public const string NumberControlTagPrefix = "latexsnipper-eqn-";
     public const string NumberControlAliasPrefix = "LaTeXSnipperEqNum-";
-    public const string MetadataControlTagPrefix = "latexsnipper-eqm-";
-    public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
-    private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
-    private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
     private const string AutoNumberChapterKey = "LaTeXSnipper.AutoNumberChapter";
     private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
+    private const string MetadataSeparator = "|";
+    private const string MetadataVariablePrefix = "LS.E.";
+    private const int MaxWordTagLength = 64;
 
-    public static string BuildEquationTag(string equationId)
+    public static string BuildEquationTag(string equationId, string revision = "")
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return EquationTagPrefix + equationId;
+        return ValidateTagLength(
+            EquationTagPrefix + equationId +
+            (string.IsNullOrWhiteSpace(revision) ? string.Empty : MetadataSeparator + revision));
     }
 
     public static string EquationIdFromTag(string tag)
@@ -36,7 +37,28 @@ internal static class WordFormulaMetadataStore
             return string.Empty;
         }
 
-        return tag.Substring(EquationTagPrefix.Length);
+        string value = tag.Substring(EquationTagPrefix.Length);
+        int separatorIndex = value.IndexOf(MetadataSeparator, StringComparison.Ordinal);
+        return separatorIndex < 0 ? value : value.Substring(0, separatorIndex);
+    }
+
+    public static string Save(
+        dynamic document,
+        FormulaMetadata metadata,
+        double naturalWidthPoints = 0,
+        double naturalHeightPoints = 0)
+    {
+        string revision = Guid.NewGuid().ToString("N").Substring(0, 10);
+        SaveVariable(
+            document,
+            BuildMetadataStorageKey(metadata.Identity.EquationId, revision),
+            Serialize(metadata, naturalWidthPoints, naturalHeightPoints));
+        return BuildEquationTag(metadata.Identity.EquationId, revision);
+    }
+
+    public static FormulaMetadata Load(dynamic document, string tag)
+    {
+        return Deserialize(LoadPayload(document, tag));
     }
 
     public static string BuildNumberTag(string equationId)
@@ -46,7 +68,7 @@ internal static class WordFormulaMetadataStore
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return NumberControlTagPrefix + equationId;
+        return ValidateTagLength(NumberControlTagPrefix + equationId);
     }
 
     public static string BuildNumberAlias(string equationId)
@@ -56,27 +78,7 @@ internal static class WordFormulaMetadataStore
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return NumberControlAliasPrefix + equationId;
-    }
-
-    public static string BuildMetadataTag(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return MetadataControlTagPrefix + equationId;
-    }
-
-    public static string BuildMetadataAlias(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return MetadataControlAliasPrefix + equationId;
+        return ValidateTagLength(NumberControlAliasPrefix + equationId);
     }
 
     public static string EquationIdFromNumberTag(string tag)
@@ -89,101 +91,20 @@ internal static class WordFormulaMetadataStore
         return tag.Substring(NumberControlTagPrefix.Length);
     }
 
-    public static string EquationIdFromMetadataTag(string tag)
-    {
-        if (string.IsNullOrWhiteSpace(tag) || !tag.StartsWith(MetadataControlTagPrefix, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        return tag.Substring(MetadataControlTagPrefix.Length);
-    }
-
-    public static string BuildStorageKey(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return MetadataVariablePrefix + equationId;
-    }
-
-    public static void Save(dynamic document, FormulaMetadata metadata)
-    {
-        if (metadata == null)
-        {
-            throw new ArgumentNullException(nameof(metadata));
-        }
-
-        string key = BuildStorageKey(metadata.Identity.EquationId);
-        string json = Serialize(metadata);
-        dynamic variables = document.Variables;
-        try
-        {
-            dynamic variable = variables.Item(key);
-            variable.Value = json;
-        }
-        catch
-        {
-            try
-            {
-                variables.Add(key, json);
-            }
-            catch
-            {
-                // Embedded metadata controls are authoritative and support large formula sources.
-            }
-        }
-    }
-
-    public static FormulaMetadata Load(dynamic document, string equationId)
-    {
-        FormulaMetadata? embedded = TryLoadEmbedded(document, equationId);
-        if (embedded != null)
-        {
-            return embedded;
-        }
-
-        string key = BuildStorageKey(equationId);
-        try
-        {
-            dynamic variable = document.Variables.Item(key);
-            return Deserialize(Convert.ToString(variable.Value) ?? string.Empty);
-        }
-        catch (Exception exc)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
-        }
-    }
-
-    public static void SaveOleNaturalSize(dynamic document, string equationId, double widthPoints, double heightPoints)
-    {
-        if (widthPoints <= 0 || heightPoints <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(widthPoints), "OLE natural size must be positive.");
-        }
-
-        var serializer = new JavaScriptSerializer();
-        string json = serializer.Serialize(new Dictionary<string, object>
-        {
-            ["widthPoints"] = widthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["heightPoints"] = heightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        SaveVariable(document, BuildOleNaturalSizeStorageKey(equationId), json);
-    }
-
-    public static bool TryLoadOleNaturalSize(dynamic document, string equationId, out double widthPoints, out double heightPoints)
+    public static bool TryLoadOleNaturalSize(
+        dynamic document,
+        string tag,
+        out double widthPoints,
+        out double heightPoints)
     {
         widthPoints = 0;
         heightPoints = 0;
         try
         {
-            dynamic variable = document.Variables.Item(BuildOleNaturalSizeStorageKey(equationId));
             var serializer = new JavaScriptSerializer();
-            var dto = serializer.Deserialize<Dictionary<string, object>>(Convert.ToString(variable.Value) ?? string.Empty);
-            widthPoints = ReadDouble(dto, "widthPoints");
-            heightPoints = ReadDouble(dto, "heightPoints");
+            var dto = serializer.Deserialize<Dictionary<string, object>>(LoadPayload(document, tag));
+            widthPoints = ReadDouble(dto, "naturalWidthPoints");
+            heightPoints = ReadDouble(dto, "naturalHeightPoints");
             return widthPoints > 0 && heightPoints > 0;
         }
         catch
@@ -222,17 +143,10 @@ internal static class WordFormulaMetadataStore
         }
     }
 
-    private static string BuildOleNaturalSizeStorageKey(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return OleNaturalSizeVariablePrefix + equationId;
-    }
-
-    public static string Serialize(FormulaMetadata metadata)
+    public static string Serialize(
+        FormulaMetadata metadata,
+        double naturalWidthPoints = 0,
+        double naturalHeightPoints = 0)
     {
         var serializer = new JavaScriptSerializer();
         var dto = new Dictionary<string, object>
@@ -249,45 +163,46 @@ internal static class WordFormulaMetadataStore
             ["fontStyle"] = metadata.FontStyle.ToString(),
             ["fontScale"] = metadata.FontScale,
         };
+        if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
+        {
+            dto["naturalWidthPoints"] = naturalWidthPoints;
+            dto["naturalHeightPoints"] = naturalHeightPoints;
+        }
+
         return serializer.Serialize(dto);
     }
 
-    private static FormulaMetadata? TryLoadEmbedded(dynamic document, string equationId)
+    private static string LoadPayload(dynamic document, string tag)
     {
+        string equationId = EquationIdFromTag(tag);
+        string revision = RevisionFromTag(tag);
+        if (string.IsNullOrWhiteSpace(equationId) || string.IsNullOrWhiteSpace(revision))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
         try
         {
-            dynamic controls = document.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            string expectedTag = BuildMetadataTag(equationId);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic control = controls.Item(i);
-                string tag = Convert.ToString(control.Tag) ?? string.Empty;
-                if (!string.Equals(tag, expectedTag, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                dynamic range = control.Range.Duplicate;
-                range.TextRetrievalMode.IncludeHiddenText = true;
-                string json = CleanContentControlText(Convert.ToString(range.Text) ?? string.Empty);
-                return Deserialize(json);
-            }
+            dynamic variable = document.Variables.Item(BuildMetadataStorageKey(equationId, revision));
+            return Convert.ToString(variable.Value) ?? string.Empty;
         }
-        catch
+        catch (Exception exc)
         {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
         }
-
-        return null;
     }
 
-    private static string CleanContentControlText(string value)
+    private static string RevisionFromTag(string tag)
     {
-        return value
-            .Replace("\a", string.Empty)
-            .Replace("\r", string.Empty)
-            .Replace("\n", string.Empty)
-            .Trim();
+        int separatorIndex = tag.IndexOf(MetadataSeparator, StringComparison.Ordinal);
+        return separatorIndex < 0 || separatorIndex == tag.Length - 1
+            ? string.Empty
+            : tag.Substring(separatorIndex + MetadataSeparator.Length);
+    }
+
+    private static string BuildMetadataStorageKey(string equationId, string revision)
+    {
+        return MetadataVariablePrefix + equationId + "." + revision;
     }
 
     public static FormulaMetadata Deserialize(string json)
@@ -304,29 +219,35 @@ internal static class WordFormulaMetadataStore
         return new FormulaMetadata(
             new FormulaIdentity(documentId, equationId),
             ReadString(dto, "latex"),
-            ReadEnum(dto, "displayMode", FormulaDisplayMode.Display),
-            ReadEnum(dto, "numberingMode", NumberingMode.None),
+            ReadEnum<FormulaDisplayMode>(dto, "displayMode"),
+            ReadEnum<NumberingMode>(dto, "numberingMode"),
             ReadString(dto, "numberText"),
-            ReadEnum(dto, "renderEngine", RenderEngineKind.Omml),
-            ReadInt(dto, "schemaVersion", 1),
+            ReadEnum<RenderEngineKind>(dto, "renderEngine"),
+            ReadInt(dto, "schemaVersion"),
             ReadString(dto, "fontColor"),
-            ReadEnum(dto, "fontStyle", FormulaFontStyle.TeX),
-            ReadDouble(dto, "fontScale"));
+            ReadEnum<FormulaFontStyle>(dto, "fontStyle"),
+            ReadRequiredDouble(dto, "fontScale"));
     }
 
     private static string ReadString(Dictionary<string, object> dto, string key)
     {
-        return dto.TryGetValue(key, out object value) ? Convert.ToString(value) ?? string.Empty : string.Empty;
-    }
-
-    private static int ReadInt(Dictionary<string, object> dto, string key, int fallback)
-    {
         if (!dto.TryGetValue(key, out object value))
         {
-            return fallback;
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        return int.TryParse(Convert.ToString(value), out int parsed) ? parsed : fallback;
+        return Convert.ToString(value) ?? string.Empty;
+    }
+
+    private static int ReadInt(Dictionary<string, object> dto, string key)
+    {
+        if (!dto.TryGetValue(key, out object value) ||
+            !int.TryParse(Convert.ToString(value), out int parsed))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return parsed;
     }
 
     private static double ReadDouble(Dictionary<string, object> dto, string key)
@@ -337,15 +258,37 @@ internal static class WordFormulaMetadataStore
             : 0;
     }
 
-    private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key, TEnum fallback)
-        where TEnum : struct
+    private static double ReadRequiredDouble(Dictionary<string, object> dto, string key)
     {
-        if (!dto.TryGetValue(key, out object value))
+        double value = ReadDouble(dto, key);
+        if (value <= 0)
         {
-            return fallback;
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        return Enum.TryParse(Convert.ToString(value), ignoreCase: true, out TEnum parsed) ? parsed : fallback;
+        return value;
+    }
+
+    private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key)
+        where TEnum : struct
+    {
+        if (!dto.TryGetValue(key, out object value) ||
+            !Enum.TryParse(Convert.ToString(value), ignoreCase: true, out TEnum parsed))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return parsed;
+    }
+
+    private static string ValidateTagLength(string tag)
+    {
+        if (tag.Length > MaxWordTagLength)
+        {
+            throw new InvalidOperationException("Word formula tag exceeds the 64-character limit.");
+        }
+
+        return tag;
     }
 
     public static int GetAutoNumberCounter(dynamic document)

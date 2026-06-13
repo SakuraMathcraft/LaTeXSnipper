@@ -16,7 +16,6 @@ public sealed partial class DynamicWordApplicationAdapter
         {
             var numberControls = new Dictionary<string, object>(StringComparer.Ordinal);
             var equationControls = new List<object>();
-            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             dynamic controls = _wordApplication.ActiveDocument.ContentControls;
             int controlCount = Convert.ToInt32(controls.Count);
             for (int index = 1; index <= controlCount; index++)
@@ -57,7 +56,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 TryCom(() => control.Range.Font.Size = expectedSize);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+                    FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata);
                 }
 
@@ -78,7 +77,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
                 if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
                         _wordApplication.ActiveDocument,
-                        equationId,
+                        Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
                         out double naturalWidth,
                         out double naturalHeight))
                 {
@@ -96,7 +95,10 @@ public sealed partial class DynamicWordApplicationAdapter
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+                    FormulaMetadata metadata = LoadFormulaMetadata(
+                        inlineShape,
+                        equationId,
+                        RenderEngineKind.MathJaxSvg);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
                 }
 

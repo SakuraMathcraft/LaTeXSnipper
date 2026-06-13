@@ -115,7 +115,6 @@ public static class WordOmmlDocumentBuilder
         return
             "<w:p><w:pPr>" + ParagraphSpacing() +
             "<w:jc w:val=\"left\"/>" +
-            "<w:tabs><w:tab w:val=\"center\" w:pos=\"4680\"/><w:tab w:val=\"right\" w:pos=\"9360\"/></w:tabs>" +
             "</w:pPr>" +
             leftNumber +
             "<w:r><w:tab/></w:r>" +
@@ -127,12 +126,10 @@ public static class WordOmmlDocumentBuilder
 
     private static string WrapEquationContentControl(string omml, FormulaMetadata metadata)
     {
-        string equationId = metadata.Identity.EquationId;
         return
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
-            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId)) + "\"/>" +
-            "<w15:appearance w15:val=\"hidden\"/>" +
+            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId)) + "\"/>" +
             "</w:sdtPr><w:sdtContent>" +
             ExtractEquationOmml(omml) +
             "</w:sdtContent></w:sdt>";

@@ -12,15 +12,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private void ReplaceFormulaContent(object contentControl, string ooxml, string equationOoxml, FormulaMetadata metadata)
     {
         dynamic control = contentControl;
-        object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, metadata.Identity.EquationId);
-        if (metadata.NumberingMode != NumberingMode.None && numberControl != null)
-        {
-            ReplaceNumberedFormulaControl(control, equationOoxml);
-            ReplaceNumberControlText(numberControl, metadata.NumberText);
-            ApplyNumberControlVerticalAlignment(numberControl, metadata);
-            NormalizeNumberedParagraph(metadata.Identity.EquationId);
-        }
-        else if (metadata.NumberingMode != NumberingMode.None)
+        if (metadata.NumberingMode != NumberingMode.None)
         {
             ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId);
             ApplyNumberControlVerticalAlignmentById(metadata);
@@ -50,13 +42,6 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
         insertionRange.InsertXML(ooxml);
         RemoveEmptyParagraphBeforeFollowingContent(equationId);
-    }
-
-    private static void ReplaceNumberedFormulaControl(object contentControl, string equationOoxml)
-    {
-        dynamic control = contentControl;
-        dynamic range = GetContainingParagraphRange(control);
-        range.InsertXML(equationOoxml);
     }
 
     private static dynamic ResolveReplacementRange(dynamic control, FormulaMetadata metadata)
@@ -122,8 +107,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void MoveSelectionAfterInlineControl(dynamic control, string equationId)
     {
-        object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
-        MoveSelectionAfterContentControl(metadataControl ?? control, equationId);
+        MoveSelectionAfterContentControl(control, equationId);
     }
 
     private void MoveSelectionAfterDisplayParagraph(dynamic control, string equationId)

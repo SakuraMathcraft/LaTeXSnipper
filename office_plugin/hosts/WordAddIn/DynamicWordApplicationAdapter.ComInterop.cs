@@ -82,6 +82,11 @@ public sealed partial class DynamicWordApplicationAdapter
         TryCom(() => control.Appearance = 2);
     }
 
+    private static void ShowContentControlChrome(dynamic control)
+    {
+        TryCom(() => control.Appearance = 0);
+    }
+
     private static object? TryGetParentContentControl(dynamic range)
     {
         try
@@ -149,10 +154,7 @@ public sealed partial class DynamicWordApplicationAdapter
             return equationId;
         }
 
-        equationId = WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
-        return string.IsNullOrWhiteSpace(equationId)
-            ? WordFormulaMetadataStore.EquationIdFromMetadataTag(tag)
-            : equationId;
+        return WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
     }
 
     private static string GetOleInlineShapeEquationId(dynamic inlineShape)

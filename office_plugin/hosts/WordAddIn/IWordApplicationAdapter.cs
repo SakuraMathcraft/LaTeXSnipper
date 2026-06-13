@@ -16,7 +16,11 @@ public interface IWordApplicationAdapter
 
     double GetCurrentFontSizePoints();
 
-    Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
+    Task InsertManagedEquationAsync(
+        string ooxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken);
 
     Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
 
@@ -37,8 +41,6 @@ public interface IWordApplicationAdapter
     bool HasCustomFormulaScale(FormulaMetadata metadata);
 
     Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
-
-    Task ApplyAutomaticNumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken);
 
     Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 

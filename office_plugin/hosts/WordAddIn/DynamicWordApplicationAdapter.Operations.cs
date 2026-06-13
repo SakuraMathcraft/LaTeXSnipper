@@ -124,15 +124,17 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.CompletedTask;
     }
 
-    private object? TryGetSelectedCommandControl()
+    private IReadOnlyList<object> FindSelectedCommandControls()
     {
         dynamic selectionRange = _wordApplication.Selection.Range;
+        var controls = new List<object>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         try
         {
             object? parent = selectionRange.ParentContentControl;
             if (parent != null && IsCommandControlTag(ReadControlTag((dynamic)parent)))
             {
-                return parent;
+                AddSelectedCommandControl(controls, seen, parent!);
             }
         }
         catch
@@ -141,14 +143,14 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
-            dynamic controls = selectionRange.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
+            dynamic rangeControls = selectionRange.ContentControls;
+            int count = Convert.ToInt32(rangeControls.Count);
             for (int index = 1; index <= count; index++)
             {
-                dynamic control = controls.Item(index);
+                dynamic control = rangeControls.Item(index);
                 if (IsCommandControlTag(ReadControlTag(control)))
                 {
-                    return control;
+                    AddSelectedCommandControl(controls, seen, control);
                 }
             }
         }
@@ -175,11 +177,26 @@ public sealed partial class DynamicWordApplicationAdapter
                 : RangesOverlap(selectionStart, selectionEnd, controlStart, controlEnd);
             if (selected)
             {
-                return control;
+                AddSelectedCommandControl(controls, seen, control);
             }
         }
 
-        return null;
+        return controls;
+    }
+
+    private static void AddSelectedCommandControl(
+        ICollection<object> controls,
+        ISet<string> seen,
+        object candidate)
+    {
+        dynamic control = candidate;
+        string key = GetRangeStart(control.Range).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ":"
+            + GetRangeEnd(control.Range).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (seen.Add(key))
+        {
+            controls.Add(candidate);
+        }
     }
 
     private static bool IsCommandControlTag(string tag)
@@ -190,28 +207,16 @@ public sealed partial class DynamicWordApplicationAdapter
             || string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
     }
 
-    private bool TryDeleteSelectedCommandControl()
+    private void DeleteCommandControl(object selected)
     {
-        object? selected = TryGetSelectedCommandControl();
-        if (selected == null)
-        {
-            return false;
-        }
-
         dynamic control = selected;
         string tag = ReadControlTag(control);
-        if (!IsCommandControlTag(tag))
-        {
-            return false;
-        }
-
         if (string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal))
         {
             _pendingReferenceControl = null;
         }
 
         control.Delete(true);
-        return true;
     }
 
     private static string BuildReferenceBookmarkName(string equationId)
@@ -267,11 +272,35 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         var entries = new List<NumberingDocumentEntry>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
+        var formulaObjects = new Dictionary<string, IndexedFormulaObject>(StringComparer.Ordinal);
         int previousStart = -1;
         bool ordered = true;
         dynamic controls = _wordApplication.ActiveDocument.ContentControls;
         int count = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic control = controls.Item(index);
+            string equationId = GetEquationControlId(control);
+            if (!string.IsNullOrWhiteSpace(equationId))
+            {
+                formulaObjects[equationId] = new IndexedFormulaObject(control, RenderEngineKind.Omml);
+            }
+        }
+
+        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        int shapeCount = Convert.ToInt32(inlineShapes.Count);
+        for (int index = 1; index <= shapeCount; index++)
+        {
+            dynamic inlineShape = inlineShapes.Item(index);
+            string equationId = GetOleInlineShapeEquationId(inlineShape);
+            if (!string.IsNullOrWhiteSpace(equationId))
+            {
+                formulaObjects[equationId] = new IndexedFormulaObject(
+                    inlineShape,
+                    RenderEngineKind.MathJaxSvg);
+            }
+        }
+
         for (int index = 1; index <= count; index++)
         {
             dynamic control = controls.Item(index);
@@ -291,9 +320,18 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+            if (!formulaObjects.TryGetValue(equationId, out IndexedFormulaObject formulaObject))
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+            }
+
+            FormulaMetadata metadata = LoadFormulaMetadata(
+                formulaObject.Value,
+                equationId,
+                formulaObject.RenderEngine);
             var formula = new NumberedFormulaEntry(
                 equationId,
+                formulaObject.Value,
                 control,
                 metadata,
                 GetRangeStart(control.Range));

@@ -9,64 +9,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    public Task ApplyAutomaticNumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ExecuteWithScreenUpdatingSuspended(() =>
-        {
-            string equationId = metadata.Identity.EquationId;
-            object? formulaObject = TryFindOleInlineShapeById(equationId)
-                ?? TryGetEquationControlById(equationId);
-            if (formulaObject == null)
-            {
-                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-            }
-
-            dynamic formulaRange = ((dynamic)formulaObject).Range;
-            dynamic paragraphRange = formulaRange.Paragraphs.Item(1).Range;
-            int paragraphStart = GetRangeStart(paragraphRange);
-            WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
-            object numberControl;
-            if (placement == WordNumberPlacement.Left)
-            {
-                numberControl = InsertNumberControlAtRange(
-                    CreateDocumentRange(paragraphStart, paragraphStart),
-                    metadata);
-                dynamic cursor = CreateDocumentRange(
-                    GetRangeEnd(((dynamic)numberControl).Range),
-                    GetRangeEnd(((dynamic)numberControl).Range));
-                InsertTextAtRange(cursor, "\t");
-            }
-            else
-            {
-                CreateDocumentRange(paragraphStart, paragraphStart).Text = "\t";
-                formulaObject = TryFindOleInlineShapeById(equationId)
-                    ?? TryGetEquationControlById(equationId)
-                    ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-                formulaRange = ((dynamic)formulaObject).Range;
-                dynamic cursor = CreateDocumentRange(
-                    GetRangeEnd(formulaRange),
-                    GetRangeEnd(formulaRange));
-                InsertTextAtRange(cursor, "\t");
-                numberControl = InsertNumberControlAtRange(cursor, metadata);
-            }
-
-            formulaObject = TryFindOleInlineShapeById(equationId)
-                ?? TryGetEquationControlById(equationId)
-                ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-            formulaRange = ((dynamic)formulaObject).Range;
-            if (TryGetEquationControlById(equationId) is object equationControl)
-            {
-                HideContentControlChrome((dynamic)equationControl);
-            }
-
-            ApplyNumberedParagraphLayout(formulaRange, formulaRange);
-            ApplyNumberControlVerticalAlignment(numberControl, metadata);
-            SaveFormulaMetadata(metadata);
-        });
-        return Task.CompletedTask;
-    }
-
     public int GetNextAutomaticNumber()
     {
         return WordFormulaMetadataStore.GetAutoNumberCounter(_wordApplication.ActiveDocument);
@@ -99,7 +41,6 @@ public sealed partial class DynamicWordApplicationAdapter
         int count = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             foreach (NumberingDocumentEntry entry in entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -148,7 +89,7 @@ public sealed partial class DynamicWordApplicationAdapter
                     formula.Metadata.FontStyle,
                     formula.Metadata.FontScale);
                 ApplyNumberControlVerticalAlignment(formula.NumberControl, renumbered);
-                SaveFormulaMetadata(renumbered, metadataControls);
+                SaveFormulaMetadata(formula.FormulaObject, renumbered);
             }
 
             UpdateFormulaReferences(entries);

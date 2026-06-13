@@ -376,49 +376,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
     private static FormulaMetadata ReadMetadataFromShape(dynamic shape)
     {
-        string equationId = ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag);
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        string latex = ReadTag(shape, PowerPointFormulaMetadataStore.LatexTag);
-        string displayModeText = ReadTag(shape, PowerPointFormulaMetadataStore.DisplayModeTag);
-        string schemaVersionText = ReadTag(shape, PowerPointFormulaMetadataStore.SchemaVersionTag);
-        string renderEngineText = ReadTag(shape, PowerPointFormulaMetadataStore.RenderEngineTag);
-        string fontColor = ReadTag(shape, PowerPointFormulaMetadataStore.FontColorTag);
-        string fontStyleText = ReadTag(shape, PowerPointFormulaMetadataStore.FontStyleTag);
-        string fontScaleText = ReadTag(shape, PowerPointFormulaMetadataStore.FontScaleTag);
-
-        FormulaDisplayMode displayMode = displayModeText == "Inline" ? FormulaDisplayMode.Inline : FormulaDisplayMode.Display;
-        int schemaVersion = int.TryParse(schemaVersionText, out int version) ? version : 1;
-        RenderEngineKind renderEngine = Enum.TryParse(renderEngineText, out RenderEngineKind parsedEngine)
-            ? parsedEngine
-            : string.IsNullOrWhiteSpace(ReadTag(shape, PowerPointFormulaMetadataStore.ImagePathTag))
-                ? RenderEngineKind.MathJaxSvg
-                : RenderEngineKind.Image;
-        FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedStyle)
-            ? parsedStyle
-            : FormulaFontStyle.TeX;
-        double fontScale = double.TryParse(
-            fontScaleText,
-            System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture,
-            out double parsedScale)
-            ? parsedScale
-            : 1;
-
-        return new FormulaMetadata(
-            new FormulaIdentity("active-presentation", equationId),
-            latex,
-            displayMode,
-            NumberingMode.None,
-            string.Empty,
-            renderEngine,
-            schemaVersion,
-            string.IsNullOrWhiteSpace(fontColor) ? "#000000" : fontColor,
-            fontStyle,
-            fontScale);
+        return PowerPointFormulaMetadataStore.LoadFromShape(shape);
     }
 
     private static PowerPointFormulaEntry CreateEntry(dynamic shape, int slideIndex)
