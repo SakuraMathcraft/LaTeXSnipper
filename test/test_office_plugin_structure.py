@@ -884,10 +884,23 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert build_script.is_file()
     assert "VisualStudioForApplicationsBuild" in build_text
     assert "ManifestCertificateThumbprint" in build_text
+    assert "Microsoft.VisualStudio.Tools.Office.targets" in build_text
+    assert "/p:VSToolsPath=" in build_text
+    assert "/p:VisualStudioVersion=" in build_text
+    assert "Export-Certificate" in build_text
+    assert 'v17.0\\OfficeTools' not in build_text
     assert "RegisterOfficeAddin" not in build_text
     assert "VSTOInstaller.exe" not in build_text
     assert "HKCU:" not in build_text
     assert "HKLM:" not in build_text
+
+    native_build_script = PLUGIN / "tools" / "Build-NativeOleHandler.ps1"
+    native_build_text = native_build_script.read_text(encoding="utf-8")
+    assert native_build_script.is_file()
+    assert 'Where-Object { $_.Name -match "^v\\d+$" }' in native_build_text
+    assert 'foreach ($platform in @("x64", "Win32"))' in native_build_text
+    assert "/p:PlatformToolset=" in native_build_text
+    assert "WindowsUserModeDriver" not in native_build_text
 
 
 def test_office_plugin_keeps_only_current_module_documentation() -> None:
@@ -955,6 +968,21 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "Run Office plugin tests" not in release_text
     assert "Install test runner" in ci_text
     assert "Install test runner" not in release_text
+    assert '& .\\office_plugin\\installer\\build.bat "${{ steps.version.outputs.version }}" Release' in release_text
+    assert "Build-NativeOleHandler.ps1" in (PLUGIN / "installer" / "build.bat").read_text(
+        encoding="utf-8"
+    )
+    for obsolete_release_logic in (
+        "vs_BuildTools.exe",
+        "Ensure Office and ATL build tools",
+        "ManifestCertificateThumbprint",
+        "New-SelfSignedCertificate",
+        "PlatformToolset=$toolset",
+        "WordVstoAddIn.user.props",
+    ):
+        assert obsolete_release_logic not in release_text
+    assert "publish_assets:" in release_text
+    assert "github.event_name == 'workflow_dispatch' && inputs.publish_assets" in release_text
 
 
 def test_office_plugin_help_describes_current_paths() -> None:
