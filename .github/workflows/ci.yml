@@ -192,18 +192,9 @@ jobs:
       - name: Byte-compile cross-platform specs
         run: python -m py_compile LaTeXSnipper-linux.spec LaTeXSnipper-macos.spec
 
-      - name: Build Office plugin core
+      - name: Build Office plugin managed projects
         shell: pwsh
-        run: |
-          dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
-          if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
-          $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
-          if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
-          & $msbuild office_plugin\hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
-          if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
+        run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
 
       - name: Setup Typst
         shell: pwsh
