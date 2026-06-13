@@ -38,8 +38,6 @@ public interface IWordApplicationAdapter
 
     Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
-    Task ApplyAutomaticNumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken);
-
     Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 
     int GetNextAutomaticNumber();

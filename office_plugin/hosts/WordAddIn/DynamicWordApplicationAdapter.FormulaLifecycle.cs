@@ -424,8 +424,6 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic paragraphRange = range.Paragraphs.Item(1).Range;
         double contentWidth = GetPageContentWidthPoints();
-        double formulaWidth = formulaRange == null ? 0 : MeasureFormulaWidthPoints(formulaRange);
-        double formulaStart = Math.Max(0, (contentWidth - formulaWidth) / 2);
         TryCom(() => paragraphRange.ParagraphFormat.Alignment = 0);
         TryCom(() => paragraphRange.ParagraphFormat.SpaceBefore = 0);
         TryCom(() => paragraphRange.ParagraphFormat.SpaceAfter = 0);
@@ -433,73 +431,10 @@ public sealed partial class DynamicWordApplicationAdapter
         TryCom(() => paragraphRange.ParagraphFormat.DisableLineHeightGrid = true);
         TryCom(() => paragraphRange.ParagraphFormat.TabStops.ClearAll());
         TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(
-            formulaStart,
-            WdAlignTabLeft,
+            contentWidth / 2,
+            WdAlignTabCenter,
             WdTabLeaderSpaces));
         TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(contentWidth, WdAlignTabRight, WdTabLeaderSpaces));
-    }
-
-    private static double MeasureFormulaWidthPoints(dynamic range)
-    {
-        try
-        {
-            dynamic inlineShapes = range.InlineShapes;
-            if (Convert.ToInt32(inlineShapes.Count) > 0)
-            {
-                double width = Convert.ToDouble(inlineShapes.Item(1).Width);
-                if (IsValidFormulaWidth(width))
-                {
-                    return width;
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            dynamic equations = range.OMaths;
-            if (Convert.ToInt32(equations.Count) > 0)
-            {
-                double width = MeasureVisualRangeWidthPoints(equations.Item(1).Range);
-                if (IsValidFormulaWidth(width))
-                {
-                    return width;
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return MeasureVisualRangeWidthPoints(range);
-    }
-
-    private static double MeasureVisualRangeWidthPoints(dynamic range)
-    {
-        try
-        {
-            dynamic start = range.Duplicate;
-            dynamic end = range.Duplicate;
-            start.Collapse(1);
-            end.Collapse(0);
-            double startPosition = Convert.ToDouble(
-                start.Information[WdHorizontalPositionRelativeToTextBoundary]);
-            double endPosition = Convert.ToDouble(
-                end.Information[WdHorizontalPositionRelativeToTextBoundary]);
-            double width = endPosition - startPosition;
-            return IsValidFormulaWidth(width) ? width : 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static bool IsValidFormulaWidth(double width)
-    {
-        return width > 0 && width < 10000;
     }
 
     private double GetPageContentWidthPoints()

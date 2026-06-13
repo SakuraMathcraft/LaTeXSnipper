@@ -101,8 +101,8 @@
       <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。编辑器提交、加载所选、删除、重编号、OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
-      <h3>自动编号与重编号</h3>
-      <p>自动编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；Ribbon 可插入章或节边界，后续编号会递归重置。章、节分隔符可以分别隐藏，也可以选中后通过“删除所选”移除。</p>
+      <h3>添加编号与重编号</h3>
+      <p>添加编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；Ribbon 可插入章或节边界，后续编号会递归重置。章、节分隔符可以分别隐藏，也可以选中后通过“删除所选”移除。</p>
       <h3>转换、引用与格式化</h3>
       <p>“转换”将当前选中的单个受管理公式在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落。“引用”先插入占位符，再单击公式编号创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。引用占位符和编号边界均可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
       <h3>带编号公式布局</h3>
@@ -198,8 +198,8 @@
       <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Editor submit, load selected, delete, renumber, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
-      <h3>Auto Numbering &amp; Renumber</h3>
-      <p>Auto Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
+      <h3>Add Number &amp; Renumber</h3>
+      <p>Add Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
       <h3>Conversion, References &amp; Formatting</h3>
       <p>Conversion replaces exactly one selected managed formula in place between Word OMML and OLE without touching adjacent text or paragraphs. Insert Reference creates a placeholder; clicking a formula number creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Reference placeholders and numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
       <h3>Numbered Formula Layout</h3>

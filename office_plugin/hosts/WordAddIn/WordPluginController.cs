@@ -320,11 +320,7 @@ public sealed partial class WordPluginController : IDisposable
             selected,
             NumberingMode.Automatic,
             _wordAdapter.GetNextAutomaticNumberText());
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            await _wordAdapter.ApplyAutomaticNumberAsync(numbered, cancellationToken);
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
-        }
+        await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
@@ -371,6 +367,21 @@ public sealed partial class WordPluginController : IDisposable
         using (_wordAdapter.BeginUndoRecord())
         {
             await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+        }
+    }
+
+    private async Task UpdateRenderedFormulaAndRenumberAsync(
+        FormulaMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
+            metadata,
+            includeEquationOoxml: true,
+            cancellationToken);
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
     }
 

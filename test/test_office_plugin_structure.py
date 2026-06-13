@@ -962,13 +962,16 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Esc does not close the editor" in help_html
         assert "Editor submissions are serialized with Office commands" in help_html
         assert "Numbered formulas center the formula and place the number" in help_html
-        assert "Auto Number only applies to unnumbered display equations" in help_html
         assert "exactly one selected managed formula" in help_html
         assert "Format All only restores manually resized formulas to natural size" in help_html
         assert "selected formulas or the whole document" not in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
         assert "Office 2024 / 2021 / 2019" in help_html
         assert "Office LTSC 2024 / 2021" in help_html
+    word_help = (PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "help.html").read_text(
+        encoding="utf-8",
+    )
+    assert "Add Number only applies to unnumbered display equations" in word_help
 
 
 def test_editor_and_mathjax_are_preheated_and_reused() -> None:
@@ -1414,15 +1417,14 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "string.Join(settings.NumberSeparator, parts)" in numbering
     assert "SectionArabic" not in numbering
     assert "LoadNumberingDocumentEntries()" in adapter
-    assert "ApplyAutomaticNumberAsync" in adapter
-    assert "MeasureFormulaWidthPoints" in adapter
-    assert "range.InlineShapes" in adapter
-    assert "inlineShapes.Item(1).Width" in adapter
-    assert "range.OMaths" in adapter
-    assert "equations.Item(1).Range" in adapter
-    assert "WdHorizontalPositionRelativeToTextBoundary" in adapter
-    assert "Math.Max(0, (contentWidth - formulaWidth) / 2)" in adapter
-    assert "WdAlignTabCenter" not in adapter
+    assert "ApplyAutomaticNumberAsync" not in adapter
+    assert "ApplyAutomaticNumberAsync" not in (
+        host / "IWordApplicationAdapter.cs"
+    ).read_text(encoding="utf-8")
+    assert "MeasureFormulaWidthPoints" not in adapter
+    assert "WdHorizontalPositionRelativeToTextBoundary" not in adapter
+    assert "contentWidth / 2" in adapter
+    assert "WdAlignTabCenter" in adapter
     renumber_method = adapter.split("public Task<int> RenumberAutomaticFormulasAsync", 1)[1].split(
         "private void ReplaceFormulaContent",
         1,
@@ -1433,8 +1435,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         "public async Task RenumberAllAsync",
         1,
     )[0]
-    assert "ApplyAutomaticNumberAsync(numbered" in auto_number
-    assert "PrepareRenderedFormulaAsync" not in auto_number
+    assert "UpdateRenderedFormulaAndRenumberAsync(numbered" in auto_number
+    assert "PrepareRenderedFormulaAsync" in main_controller
+    assert "UpdatePreparedFormulaAsync(prepared" in main_controller
 
 
 def test_word_formula_color_default_tracks_windows_theme() -> None:
