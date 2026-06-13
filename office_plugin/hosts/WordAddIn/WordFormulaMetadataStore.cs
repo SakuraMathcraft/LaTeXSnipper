@@ -10,8 +10,6 @@ internal static class WordFormulaMetadataStore
     public const string EquationTagPrefix = "latexsnipper-eq-";
     public const string NumberControlTagPrefix = "latexsnipper-eqn-";
     public const string NumberControlAliasPrefix = "LaTeXSnipperEqNum-";
-    public const string MetadataControlTagPrefix = "latexsnipper-eqm-";
-    public const string MetadataControlAliasPrefix = "LaTeXSnipperEqMeta-";
     private const string MetadataVariablePrefix = "LaTeXSnipper.Equation.";
     private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
@@ -59,26 +57,6 @@ internal static class WordFormulaMetadataStore
         return NumberControlAliasPrefix + equationId;
     }
 
-    public static string BuildMetadataTag(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return MetadataControlTagPrefix + equationId;
-    }
-
-    public static string BuildMetadataAlias(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return MetadataControlAliasPrefix + equationId;
-    }
-
     public static string EquationIdFromNumberTag(string tag)
     {
         if (string.IsNullOrWhiteSpace(tag) || !tag.StartsWith(NumberControlTagPrefix, StringComparison.Ordinal))
@@ -87,16 +65,6 @@ internal static class WordFormulaMetadataStore
         }
 
         return tag.Substring(NumberControlTagPrefix.Length);
-    }
-
-    public static string EquationIdFromMetadataTag(string tag)
-    {
-        if (string.IsNullOrWhiteSpace(tag) || !tag.StartsWith(MetadataControlTagPrefix, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        return tag.Substring(MetadataControlTagPrefix.Length);
     }
 
     public static string BuildStorageKey(string equationId)
@@ -126,25 +94,12 @@ internal static class WordFormulaMetadataStore
         }
         catch
         {
-            try
-            {
-                variables.Add(key, json);
-            }
-            catch
-            {
-                // Embedded metadata controls are authoritative and support large formula sources.
-            }
+            variables.Add(key, json);
         }
     }
 
     public static FormulaMetadata Load(dynamic document, string equationId)
     {
-        FormulaMetadata? embedded = TryLoadEmbedded(document, equationId);
-        if (embedded != null)
-        {
-            return embedded;
-        }
-
         string key = BuildStorageKey(equationId);
         try
         {
@@ -250,44 +205,6 @@ internal static class WordFormulaMetadataStore
             ["fontScale"] = metadata.FontScale,
         };
         return serializer.Serialize(dto);
-    }
-
-    private static FormulaMetadata? TryLoadEmbedded(dynamic document, string equationId)
-    {
-        try
-        {
-            dynamic controls = document.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            string expectedTag = BuildMetadataTag(equationId);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic control = controls.Item(i);
-                string tag = Convert.ToString(control.Tag) ?? string.Empty;
-                if (!string.Equals(tag, expectedTag, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                dynamic range = control.Range.Duplicate;
-                range.TextRetrievalMode.IncludeHiddenText = true;
-                string json = CleanContentControlText(Convert.ToString(range.Text) ?? string.Empty);
-                return Deserialize(json);
-            }
-        }
-        catch
-        {
-        }
-
-        return null;
-    }
-
-    private static string CleanContentControlText(string value)
-    {
-        return value
-            .Replace("\a", string.Empty)
-            .Replace("\r", string.Empty)
-            .Replace("\n", string.Empty)
-            .Trim();
     }
 
     public static FormulaMetadata Deserialize(string json)

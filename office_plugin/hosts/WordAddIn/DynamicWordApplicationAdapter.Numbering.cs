@@ -41,7 +41,6 @@ public sealed partial class DynamicWordApplicationAdapter
         int count = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             foreach (NumberingDocumentEntry entry in entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -90,7 +89,7 @@ public sealed partial class DynamicWordApplicationAdapter
                     formula.Metadata.FontStyle,
                     formula.Metadata.FontScale);
                 ApplyNumberControlVerticalAlignment(formula.NumberControl, renumbered);
-                SaveFormulaMetadata(renumbered, metadataControls);
+                SaveFormulaMetadata(renumbered);
             }
 
             UpdateFormulaReferences(entries);

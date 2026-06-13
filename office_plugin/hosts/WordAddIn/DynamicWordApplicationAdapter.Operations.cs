@@ -272,7 +272,6 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         var entries = new List<NumberingDocumentEntry>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
         int previousStart = -1;
         bool ordered = true;
         dynamic controls = _wordApplication.ActiveDocument.ContentControls;
@@ -296,7 +295,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+            FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+                _wordApplication.ActiveDocument,
+                equationId);
             var formula = new NumberedFormulaEntry(
                 equationId,
                 control,

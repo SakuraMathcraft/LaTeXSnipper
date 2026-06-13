@@ -19,7 +19,6 @@ public sealed partial class DynamicWordApplicationAdapter
 
         dynamic control = selected.ContentControl;
         string equationId = selected.Metadata.Identity.EquationId;
-        object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
         if (selected.Metadata.NumberingMode != NumberingMode.None)
         {
             DeleteNumberedFormulaById(equationId);
@@ -27,7 +26,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         control.Delete(true);
-        DeleteMetadataControl(metadataControl);
     }
 
     private void DeleteOleInlineShape(SelectedWordFormula selected)
@@ -42,7 +40,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         inlineShape.Delete();
-        DeleteMetadataControl(TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId));
     }
 
     private void DeleteNumberedFormulaById(string equationId)
@@ -51,7 +48,6 @@ public sealed partial class DynamicWordApplicationAdapter
         object? equationControl = TryGetEquationControlById(equationId);
         object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
         object? oleInlineShape = TryFindOleInlineShapeById(equationId);
-        object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
         if (equationControl != null)
         {
             AddContentControlDeletionTarget(targets, equationControl);
@@ -67,11 +63,6 @@ public sealed partial class DynamicWordApplicationAdapter
             AddOleDeletionTarget(targets, oleInlineShape);
         }
 
-        if (metadataControl != null)
-        {
-            AddMetadataControlDeletionTarget(targets, metadataControl);
-        }
-
         DeleteTargetsInDocumentOrder(targets);
     }
 
@@ -83,16 +74,6 @@ public sealed partial class DynamicWordApplicationAdapter
         int end = GetRangeEnd(item.Range);
         Action delete = () => item.Delete(true);
         targets.Add(new DeletionTarget(start, end, delete));
-    }
-
-    private static void AddMetadataControlDeletionTarget(
-        ICollection<DeletionTarget> targets,
-        object control)
-    {
-        dynamic item = control;
-        int start = GetRangeStart(item.Range);
-        int end = GetRangeEnd(item.Range);
-        targets.Add(new DeletionTarget(start, end, () => item.Delete(true)));
     }
 
     private void AddOleDeletionTarget(ICollection<DeletionTarget> targets, object inlineShape)
@@ -143,17 +124,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 target.Delete();
             }
         }
-    }
-
-    private static void DeleteMetadataControl(object? metadataControl)
-    {
-        if (metadataControl == null)
-        {
-            return;
-        }
-
-        dynamic backup = metadataControl;
-        backup.Delete(true);
     }
 
     private static int GetFormulaStart(SelectedWordFormula formula)

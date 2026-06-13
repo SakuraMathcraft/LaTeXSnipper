@@ -30,7 +30,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 ? fontSizePoints
                 : WordOleBaseFontPoints * metadata.FontScale;
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
-            ShowContentControlTags((dynamic)equationControl);
+            ShowContentControlChrome((dynamic)equationControl);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                 _wordApplication.ActiveDocument,
                 metadata.Identity.EquationId,
@@ -41,7 +41,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 ApplyNumberControlVerticalAlignment(numberControl, metadata);
             }
 
-            SaveNewFormulaMetadata(metadata, equationControl, hasContentControlBoundary: true);
+            SaveFormulaMetadata(metadata);
             MoveSelectionAfterInsertedFormula(equationControl, metadata, display);
         });
 
@@ -69,7 +69,7 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic inlineShape = metadata.NumberingMode == NumberingMode.None
                 ? InsertPlainOleInlineShape(range, metadata, presentation, display)
                 : InsertNumberedOleInlineShape(range, metadata, presentation);
-            SaveNewFormulaMetadata(metadata, inlineShape, hasContentControlBoundary: false);
+            SaveFormulaMetadata(metadata);
             SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
             MoveSelectionAfterInlineShape(inlineShape, metadata.Identity.EquationId, display);
         });
@@ -322,7 +322,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic control = contentControl;
-        ShowContentControlTags(control);
+        ShowContentControlChrome(control);
         TryCom(() => control.Range.Font.Size = fontSizePoints);
     }
 
@@ -419,6 +419,9 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic paragraphRange = range.Paragraphs.Item(1).Range;
         double contentWidth = GetPageContentWidthPoints();
         TryCom(() => paragraphRange.ParagraphFormat.Alignment = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.LeftIndent = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.RightIndent = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.FirstLineIndent = 0);
         TryCom(() => paragraphRange.ParagraphFormat.SpaceBefore = 0);
         TryCom(() => paragraphRange.ParagraphFormat.SpaceAfter = 0);
         TryCom(() => paragraphRange.ParagraphFormat.LineSpacingRule = 0);

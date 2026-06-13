@@ -413,10 +413,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     project_text = project_file.read_text(encoding="utf-8")
     assert "latexsnipper-eq-" in metadata_store
     assert "latexsnipper-eqn-" in metadata_store
-    assert "latexsnipper-eqm-" in metadata_store
+    assert "latexsnipper-eqm-" not in metadata_store
     assert "LaTeXSnipper.Equation." in metadata_store
-    assert "TryLoadEmbedded" in metadata_store
-    assert "FormulaMetadata? embedded = TryLoadEmbedded(document, equationId)" in metadata_store
+    assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "UpdateFormulaAsync" in adapter
     assert "DeleteSelectedFormulaAsync" in adapter
@@ -591,7 +590,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "WrapNumberContentControl" in omml_builder
     assert "WordNumberPlacement" in omml_builder
     assert "<w:tbl" not in omml_builder
-    assert "<w:tabs>" in omml_builder
+    assert "<w:tabs>" not in omml_builder
+    assert "w:pos=\\\"4680\\\"" not in omml_builder
+    assert "w:pos=\\\"9360\\\"" not in omml_builder
+    assert "paragraphRange.ParagraphFormat.TabStops.Add" in adapter
     assert "<w:r><w:t>" in omml_builder
     assert "</m:t></m:r></m:oMath>" not in omml_builder
     assert "icon.ico" in project_text
@@ -1359,12 +1361,11 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert "metadata.NumberingMode == NumberingMode.None" in adapter
     assert "replacementOoxml = equationOoxml" in adapter
-    assert 'private const string InlineConversionAnchor = "\\u2060";' in adapter
-    assert "InsertInlineConversionAnchorAfter(inlineShape.Range);" in adapter
+    assert "InlineConversionAnchor" not in adapter
     assert "control.Delete(true)" in adapter
     assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
-        "private void InsertInlineConversionAnchorAfter",
+        "public bool HasCustomFormulaScale",
         1,
     )[0]
     assert "metadata.NumberingMode != NumberingMode.None" in remove_source
@@ -1373,14 +1374,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "InlineConversionAnchor" not in remove_source
     assert "metadata.RenderEngine == actualRenderEngine" in adapter
     assert "SaveFormulaMetadata(corrected)" in adapter
-    assert "SaveNewFormulaMetadata(metadata, equationControl, hasContentControlBoundary: true)" in adapter
-    assert "SaveNewFormulaMetadata(metadata, inlineShape, hasContentControlBoundary: false)" in adapter
-    assert "control.Range.Font.Hidden = -1" in adapter
-    assert "range.TextRetrievalMode.IncludeHiddenText = true" in adapter
-    assert "LoadMetadataControlIndex()" in adapter
-    assert "LoadFormulaMetadata(equationId, metadataControls)" in adapter
-    assert "AddMetadataControlDeletionTarget" in adapter
-    assert "DeleteMetadataControl(TryGetMetadataControlById" in adapter
+    assert "SaveNewFormulaMetadata" not in adapter
+    assert "LoadMetadataControlIndex" not in adapter
+    assert "AddMetadataControlDeletionTarget" not in adapter
     assert "GetNextAutomaticNumberText()" in main_controller
     assert "GetBackend(metadata.RenderEngine)" in main_controller
     assert "SetAutoNumberChapter" in adapter
@@ -1393,7 +1389,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "control.Range.Font.Position = 0" in operations
     assert "control.Range.Font.Superscript = 0" in operations
     assert "control.Range.Font.Subscript = 0" in operations
-    assert "Dictionary<string, object> metadataControls = LoadMetadataControlIndex()" in operations
+    assert "LoadMetadataControlIndex" not in operations
     assert "TryNavigateSelectedReference" not in operations
     assert "FindSelectedCommandControls" in operations
     assert "DeleteCommandControl" in operations
@@ -1491,20 +1487,12 @@ def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
     assert '"OmmlInsertedStatus" => "已插入 OMML 公式。"' in text
     assert 'WordAddInText.Get("OleInsertedStatus")' in controller
     assert 'WordAddInText.Get("OmmlInsertedStatus")' in controller
-    assert "HasContentAfterRangeInParagraph(inlineShape.Range)" in adapter
-    assert "MergeFollowingParagraphIntoFormulaParagraph" in adapter
-    ole_to_omml = adapter.split("if (ole != null)", 1)[1].split(
-        "object control = FindFormulaControlById",
-        1,
-    )[0]
-    assert "metadata.DisplayMode == FormulaDisplayMode.Inline" in ole_to_omml
-    assert "if (useInlineAnchor)" in ole_to_omml
-    assert "replacementOoxml = ooxml" in ole_to_omml
-    assert "insertionRange.InsertXML(replacementOoxml)" in ole_to_omml
+    assert "InlineConversionAnchor" not in adapter
+    assert "insertionRange.InsertXML(replacementOoxml)" in adapter
     assert "control.Delete(true)" in adapter
     assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
-        "private void InsertInlineConversionAnchorAfter",
+        "public bool HasCustomFormulaScale",
         1,
     )[0]
     assert "control.Delete(true)" in remove_source
@@ -1564,18 +1552,18 @@ def test_word_managed_content_control_chrome_matches_control_role() -> None:
 
     assert "private static void HideContentControlChrome" in interop
     assert "control.Appearance = 2" in interop
-    assert "private static void ShowContentControlTags" in interop
-    assert "control.Appearance = 1" in interop
+    assert "private static void ShowContentControlChrome" in interop
+    assert "control.Appearance = 0" in interop
     assert "ApplyBoundaryVisibility" in operations
     boundary_visibility = operations.split(
         "private static void ApplyBoundaryVisibility",
         1,
     )[1]
     assert "HideContentControlChrome(control)" in boundary_visibility
-    assert "HideContentControlChrome(control)" in metadata
+    assert "ApplyMetadataControlFormatting" not in metadata
     assert 'xmlns:w15=\\"http://schemas.microsoft.com/office/word/2012/wordml\\"' in builder
     assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 1
-    assert builder.count('<w15:appearance w15:val=\\"tags\\"/>') == 1
+    assert '<w15:appearance w15:val=\\"tags\\"/>' not in builder
 
 
 def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() -> None:
@@ -1591,7 +1579,7 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
     )[0]
     assert "range.InsertXML(ooxml)" in insert_method
     assert "ReplaceParagraphWithNumberedFormula(" not in insert_method
-    assert "ShowContentControlTags((dynamic)equationControl)" in lifecycle
+    assert "ShowContentControlChrome((dynamic)equationControl)" in lifecycle
     insert_command = controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(
         "private static string BuildFormattedLatex",
         1,
@@ -1600,7 +1588,7 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
     assert 'WordAddInText.Get("OmmlInsertingStatus")' in controller
 
 
-def test_word_large_metadata_is_not_blocked_by_document_variable_limits() -> None:
+def test_word_formula_metadata_does_not_create_hidden_document_controls() -> None:
     store = (
         PLUGIN / "hosts" / "WordAddIn" / "WordFormulaMetadataStore.cs"
     ).read_text(encoding="utf-8")
@@ -1610,4 +1598,5 @@ def test_word_large_metadata_is_not_blocked_by_document_variable_limits() -> Non
     )[0]
 
     assert "variables.Add(key, json);" in save
-    assert "Embedded metadata controls are authoritative" in save
+    assert "ContentControls.Add" not in store
+    assert "MetadataControlTagPrefix" not in store

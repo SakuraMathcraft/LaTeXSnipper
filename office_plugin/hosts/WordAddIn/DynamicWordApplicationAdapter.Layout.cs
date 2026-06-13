@@ -122,8 +122,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void MoveSelectionAfterInlineControl(dynamic control, string equationId)
     {
-        object? metadataControl = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
-        MoveSelectionAfterContentControl(metadataControl ?? control, equationId);
+        MoveSelectionAfterContentControl(control, equationId);
     }
 
     private void MoveSelectionAfterDisplayParagraph(dynamic control, string equationId)

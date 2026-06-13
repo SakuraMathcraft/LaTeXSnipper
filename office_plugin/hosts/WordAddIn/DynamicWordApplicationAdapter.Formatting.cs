@@ -16,7 +16,6 @@ public sealed partial class DynamicWordApplicationAdapter
         {
             var numberControls = new Dictionary<string, object>(StringComparer.Ordinal);
             var equationControls = new List<object>();
-            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             dynamic controls = _wordApplication.ActiveDocument.ContentControls;
             int controlCount = Convert.ToInt32(controls.Count);
             for (int index = 1; index <= controlCount; index++)
@@ -57,7 +56,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 TryCom(() => control.Range.Font.Size = expectedSize);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+                        _wordApplication.ActiveDocument,
+                        equationId);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata);
                 }
 
@@ -96,7 +97,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
+                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+                        _wordApplication.ActiveDocument,
+                        equationId);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
                 }
 
