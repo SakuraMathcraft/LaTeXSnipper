@@ -102,6 +102,12 @@ public sealed partial class DynamicWordApplicationAdapter
         int insertionPoint = GetRangeStart(control.Range);
         TryCom(() => control.LockContents = false);
         TryCom(() => control.LockContentControl = false);
+        dynamic equations = control.Range.OMaths;
+        for (int index = Convert.ToInt32(equations.Count); index >= 1; index--)
+        {
+            equations.Item(index).Remove();
+        }
+
         control.Range.Text = InlineConversionSlot;
         control.Delete(false);
         dynamic insertionRange = CreateDocumentRange(
@@ -168,16 +174,15 @@ public sealed partial class DynamicWordApplicationAdapter
             return false;
         }
 
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-            _wordApplication.ActiveDocument,
-            metadata.Identity.EquationId,
+        dynamic inlineShape = shape;
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+            Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
             out double naturalWidth,
             out double naturalHeight))
         {
             return false;
         }
 
-        dynamic inlineShape = shape;
         double width = Convert.ToDouble(inlineShape.Width, System.Globalization.CultureInfo.InvariantCulture);
         double height = Convert.ToDouble(inlineShape.Height, System.Globalization.CultureInfo.InvariantCulture);
         return Math.Abs(width / naturalWidth - 1) > 0.01

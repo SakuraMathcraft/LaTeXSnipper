@@ -922,11 +922,11 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text
     assert "inlineShape.LockAspectRatio = true" in word_adapter_text
-    assert "heightScale = naturalHeight > 0" in word_adapter_text
+    assert "heightScale = originalHeight / (float)naturalHeight" in word_adapter_text
     add_ole_method = word_adapter_text.split("private dynamic AddOleInlineShapeAtRange", 1)[1].split("private dynamic ReplaceOleInlineShape", 1)[0]
     insert_method = word_adapter_text.split("public Task InsertOleFormulaObjectAsync", 1)[1].split("public Task UpdateOleFormulaObjectAsync", 1)[0]
     assert "SaveOleNaturalSize" not in add_ole_method
-    assert "SaveOleNaturalSize(metadata.Identity.EquationId, presentation);" in insert_method
+    assert "SaveOleNaturalSize" not in insert_method
     assert "legacy" not in (PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
     assert "legacy" not in (PLUGIN / "hosts" / "PowerPointAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
 
@@ -1606,6 +1606,7 @@ def test_word_formula_metadata_does_not_create_hidden_document_controls() -> Non
 
     assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in metadata_adapter
     assert "equationControl).Tag = tag" in metadata_adapter
-    assert "inlineShape).AlternativeText = tag" in metadata_adapter
+    assert "shape.AlternativeText = WordFormulaMetadataStore.BuildEquationTag" in metadata_adapter
+    assert "TryLoadOleNaturalSizeFromEquationTag" in metadata_adapter
     assert "ContentControls.Add" not in store
     assert "MetadataControlTagPrefix" not in store

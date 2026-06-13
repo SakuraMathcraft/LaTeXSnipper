@@ -25,7 +25,20 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        ((dynamic)inlineShape).AlternativeText = tag;
+        dynamic shape = inlineShape;
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+                ReadFormulaObjectTag(shape),
+                out double naturalWidth,
+                out double naturalHeight))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        shape.AlternativeText = WordFormulaMetadataStore.BuildEquationTag(
+            metadata.Identity.EquationId,
+            metadata,
+            naturalWidth,
+            naturalHeight);
     }
 
     private FormulaMetadata LoadFormulaMetadata(

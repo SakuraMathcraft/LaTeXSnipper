@@ -175,6 +175,8 @@ public sealed partial class WordPluginController
             await _wordAdapter.InsertNumberingBoundaryAsync(boundary, cancellationToken);
             await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
+
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("BoundaryInsertedStatus"));
     }
 
     private static FormulaMetadata WithDefaultStyle(FormulaMetadata metadata, WordPluginSettings settings)

@@ -11,14 +11,17 @@ internal static class WordFormulaMetadataStore
     public const string EquationTagPrefix = "latexsnipper-eq-";
     public const string NumberControlTagPrefix = "latexsnipper-eqn-";
     public const string NumberControlAliasPrefix = "LaTeXSnipperEqNum-";
-    private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
     private const string AutoNumberChapterKey = "LaTeXSnipper.AutoNumberChapter";
     private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
     private const string MetadataSeparator = "|";
 
-    public static string BuildEquationTag(string equationId, FormulaMetadata? metadata = null)
+    public static string BuildEquationTag(
+        string equationId,
+        FormulaMetadata? metadata = null,
+        double naturalWidthPoints = 0,
+        double naturalHeightPoints = 0)
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
@@ -28,7 +31,8 @@ internal static class WordFormulaMetadataStore
         string tag = EquationTagPrefix + equationId;
         return metadata == null
             ? tag
-            : tag + MetadataSeparator + Convert.ToBase64String(Encoding.UTF8.GetBytes(Serialize(metadata)));
+            : tag + MetadataSeparator + Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(Serialize(metadata, naturalWidthPoints, naturalHeightPoints)));
     }
 
     public static string EquationIdFromTag(string tag)
@@ -45,14 +49,7 @@ internal static class WordFormulaMetadataStore
 
     public static FormulaMetadata LoadFromEquationTag(string tag)
     {
-        int separatorIndex = tag.IndexOf(MetadataSeparator, StringComparison.Ordinal);
-        if (separatorIndex < 0 || separatorIndex == tag.Length - 1)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        string encoded = tag.Substring(separatorIndex + MetadataSeparator.Length);
-        return Deserialize(Encoding.UTF8.GetString(Convert.FromBase64String(encoded)));
+        return Deserialize(DecodeEquationTag(tag));
     }
 
     public static string BuildNumberTag(string equationId)
@@ -85,33 +82,19 @@ internal static class WordFormulaMetadataStore
         return tag.Substring(NumberControlTagPrefix.Length);
     }
 
-    public static void SaveOleNaturalSize(dynamic document, string equationId, double widthPoints, double heightPoints)
-    {
-        if (widthPoints <= 0 || heightPoints <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(widthPoints), "OLE natural size must be positive.");
-        }
-
-        var serializer = new JavaScriptSerializer();
-        string json = serializer.Serialize(new Dictionary<string, object>
-        {
-            ["widthPoints"] = widthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["heightPoints"] = heightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        SaveVariable(document, BuildOleNaturalSizeStorageKey(equationId), json);
-    }
-
-    public static bool TryLoadOleNaturalSize(dynamic document, string equationId, out double widthPoints, out double heightPoints)
+    public static bool TryLoadOleNaturalSizeFromEquationTag(
+        string tag,
+        out double widthPoints,
+        out double heightPoints)
     {
         widthPoints = 0;
         heightPoints = 0;
         try
         {
-            dynamic variable = document.Variables.Item(BuildOleNaturalSizeStorageKey(equationId));
             var serializer = new JavaScriptSerializer();
-            var dto = serializer.Deserialize<Dictionary<string, object>>(Convert.ToString(variable.Value) ?? string.Empty);
-            widthPoints = ReadDouble(dto, "widthPoints");
-            heightPoints = ReadDouble(dto, "heightPoints");
+            var dto = serializer.Deserialize<Dictionary<string, object>>(DecodeEquationTag(tag));
+            widthPoints = ReadDouble(dto, "naturalWidthPoints");
+            heightPoints = ReadDouble(dto, "naturalHeightPoints");
             return widthPoints > 0 && heightPoints > 0;
         }
         catch
@@ -150,17 +133,10 @@ internal static class WordFormulaMetadataStore
         }
     }
 
-    private static string BuildOleNaturalSizeStorageKey(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return OleNaturalSizeVariablePrefix + equationId;
-    }
-
-    public static string Serialize(FormulaMetadata metadata)
+    public static string Serialize(
+        FormulaMetadata metadata,
+        double naturalWidthPoints = 0,
+        double naturalHeightPoints = 0)
     {
         var serializer = new JavaScriptSerializer();
         var dto = new Dictionary<string, object>
@@ -177,7 +153,25 @@ internal static class WordFormulaMetadataStore
             ["fontStyle"] = metadata.FontStyle.ToString(),
             ["fontScale"] = metadata.FontScale,
         };
+        if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
+        {
+            dto["naturalWidthPoints"] = naturalWidthPoints;
+            dto["naturalHeightPoints"] = naturalHeightPoints;
+        }
+
         return serializer.Serialize(dto);
+    }
+
+    private static string DecodeEquationTag(string tag)
+    {
+        int separatorIndex = tag.IndexOf(MetadataSeparator, StringComparison.Ordinal);
+        if (separatorIndex < 0 || separatorIndex == tag.Length - 1)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        string encoded = tag.Substring(separatorIndex + MetadataSeparator.Length);
+        return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
     }
 
     public static FormulaMetadata Deserialize(string json)
