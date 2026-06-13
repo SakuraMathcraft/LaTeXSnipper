@@ -296,6 +296,10 @@ jobs:
               -NotAfter (Get-Date).AddYears(5)
           }
           Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force
+          $thumb = $cert.Thumbprint
+          $props = "<Project xmlns=`"http://schemas.microsoft.com/developer/msbuild/2003`"><PropertyGroup><ManifestCertificateThumbprint>$thumb</ManifestCertificateThumbprint></PropertyGroup></Project>"
+          Set-Content -Path "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
+          Set-Content -Path "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
           $vstoProjects = @(
             "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.csproj",
             "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.csproj"
