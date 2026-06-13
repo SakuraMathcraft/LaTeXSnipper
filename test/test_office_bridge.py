@@ -6,12 +6,9 @@ import json
 import urllib.error
 import urllib.request
 
-import pytest
-
 from integration.office import OfficeBridgeServer
 from integration.office.bridge_auth import OfficeBridgeAuth
 from integration.office.bridge_contracts import OfficeBridgeError
-from integration.office.conversion_service import OfficeConversionService
 
 
 def test_office_bridge_auth_requires_bearer_token() -> None:
@@ -23,62 +20,8 @@ def test_office_bridge_auth_requires_bearer_token() -> None:
     assert not auth.verify_authorization("Bearer wrong-token")
 
 
-def test_office_conversion_service_uses_injected_converters() -> None:
-    service = OfficeConversionService(
-        normalize_latex=lambda value: value.strip("$"),
-        latex_to_omml=lambda value: f"<omml>{value}</omml>",
-        latex_to_svg=lambda value: f"<svg>{value}</svg>",
-    )
-
-    result = service.convert({"latex": "$x^2$", "targets": ["omml", "svg"]})
-
-    assert result["latex"] == "x^2"
-    assert result["omml"] == "<omml>x^2</omml>"
-    assert result["svg"] == "<svg>x^2</svg>"
-    assert result["warnings"] == []
-
-
-def test_office_conversion_service_caches_identical_requests() -> None:
-    calls = {"omml": 0, "svg": 0}
-
-    def to_omml(value: str) -> str:
-        calls["omml"] += 1
-        return f"<omml>{value}</omml>"
-
-    def to_svg(value: str) -> str:
-        calls["svg"] += 1
-        return f"<svg>{value}</svg>"
-
-    service = OfficeConversionService(
-        normalize_latex=lambda value: value.strip("$"),
-        latex_to_omml=to_omml,
-        latex_to_svg=to_svg,
-    )
-
-    first = service.convert({"latex": "$x^2$", "targets": ["omml", "svg"]})
-    first["warnings"].append("mutated caller copy")
-    second = service.convert({"latex": "$x^2$", "targets": ["omml", "svg"]})
-
-    assert second["omml"] == "<omml>x^2</omml>"
-    assert second["svg"] == "<svg>x^2</svg>"
-    assert second["warnings"] == []
-    assert calls == {"omml": 1, "svg": 1}
-
-
-def test_office_conversion_service_rejects_unknown_targets() -> None:
-    service = OfficeConversionService()
-
-    with pytest.raises(ValueError, match="unsupported conversion target"):
-        service.convert({"latex": "x", "targets": ["docx"]})
-
-
-def test_office_bridge_health_and_authenticated_conversion() -> None:
-    service = OfficeConversionService(
-        normalize_latex=lambda value: value,
-        latex_to_omml=lambda value: f"<omml>{value}</omml>",
-        latex_to_svg=lambda value: f"<svg>{value}</svg>",
-    )
-    server = OfficeBridgeServer(auth=OfficeBridgeAuth("test-token"), conversion_service=service)
+def test_office_bridge_health_and_config() -> None:
+    server = OfficeBridgeServer(auth=OfficeBridgeAuth("test-token"))
     server.start()
     try:
         health = _get_json(f"{server.base_url}/health")
@@ -90,18 +33,6 @@ def test_office_bridge_health_and_authenticated_conversion() -> None:
         assert config["result"]["bridge_url"] == server.base_url
         assert config["result"]["token"] == "test-token"
 
-        unauth = _post_json(f"{server.base_url}/convert/latex", {"latex": "x"})
-        assert unauth["status"] == 401
-        assert unauth["payload"]["error"]["code"] == "unauthorized"
-
-        converted = _post_json(
-            f"{server.base_url}/convert/latex",
-            {"latex": "x", "targets": ["omml", "svg"]},
-            token="test-token",
-        )
-        assert converted["status"] == 200
-        assert converted["payload"]["result"]["omml"] == "<omml>x</omml>"
-        assert converted["payload"]["result"]["svg"] == "<svg>x</svg>"
     finally:
         server.stop()
 

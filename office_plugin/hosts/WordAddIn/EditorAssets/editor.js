@@ -19,6 +19,11 @@ let mode = "insert";
 let submitting = false;
 let pendingInit = null;
 let libraryState = loadLibraryState();
+let sourceIsMathMl = false;
+let sourceSyncHandle = 0;
+let sourceSyncUsesIdleCallback = false;
+let caretVisibilityFrame = 0;
+let defaultFontStyle = "TeX";
 
 const host = document.getElementById("mathfieldHost");
 const latexSource = document.getElementById("latexSource");
@@ -70,28 +75,80 @@ function setSubmitting(value) {
 }
 
 function currentLatex() {
-  const source = latexSource.value.trim();
-  if (isMathMlSource(source)) {
-    return source;
+  if (sourceIsMathMl) {
+    return latexSource.value.trim();
   }
 
-  return mathfield?.getValue("latex-expanded")?.trim() || "";
+  const latex = mathfield?.getValue("latex-expanded")?.trim() || "";
+  return removeDefaultFontWrapper(latex);
 }
 
-function syncSource() {
+function removeDefaultFontWrapper(latex) {
+  const commands = {
+    RomanUpright: ["\\mathrm"],
+    Bold: ["\\mathbf", "\\boldsymbol"],
+    Italic: ["\\mathit"],
+  }[defaultFontStyle] || [];
+  for (const command of commands) {
+    const prefix = `${command}{`;
+    if (!latex.startsWith(prefix) || !latex.endsWith("}")) {
+      continue;
+    }
+
+    let depth = 0;
+    for (let index = prefix.length - 1; index < latex.length; index += 1) {
+      if (latex[index] === "{" && latex[index - 1] !== "\\") {
+        depth += 1;
+      } else if (latex[index] === "}" && latex[index - 1] !== "\\") {
+        depth -= 1;
+        if (depth === 0) {
+          return index === latex.length - 1
+            ? latex.slice(prefix.length, -1)
+            : latex;
+        }
+      }
+    }
+  }
+
+  return latex;
+}
+
+function syncSourceNow() {
+  sourceSyncHandle = 0;
+  sourceSyncUsesIdleCallback = false;
+  if (sourceIsMathMl) {
+    return;
+  }
+
   latexSource.value = currentLatex();
+}
+
+function scheduleSourceSync() {
+  if (sourceSyncHandle) {
+    if (sourceSyncUsesIdleCallback) {
+      window.cancelIdleCallback(sourceSyncHandle);
+    } else {
+      window.clearTimeout(sourceSyncHandle);
+    }
+  }
+
+  sourceSyncUsesIdleCallback = typeof window.requestIdleCallback === "function";
+  sourceSyncHandle = sourceSyncUsesIdleCallback
+    ? window.requestIdleCallback(syncSourceNow, { timeout: 800 })
+    : window.setTimeout(syncSourceNow, 180);
 }
 
 function setLatex(latex) {
   const source = latex || "";
-  if (isMathMlSource(source.trim())) {
+  sourceIsMathMl = isMathMlSource(source.trim());
+  if (sourceIsMathMl) {
     latexSource.value = source;
     mathfield.setValue("", { silenceNotifications: true });
     return;
   }
 
   mathfield.setValue(source, { silenceNotifications: true });
-  syncSource();
+  syncSourceNow();
 }
 
 function isMathMlSource(source) {
@@ -105,12 +162,43 @@ function insertLatex(latex) {
   }
 
   window.LaTeXSnipperMathfieldInput.insertTemplate(mathfield, latex);
-  syncSource();
+  scheduleSourceSync();
+  scheduleCaretVisibility();
 }
 
 function insertMatrix(env, rows = 2, cols = 2) {
   window.LaTeXSnipperMatrixTemplates.insert(mathfield, env, rows, cols);
-  syncSource();
+  scheduleSourceSync();
+  scheduleCaretVisibility();
+}
+
+function scheduleCaretVisibility() {
+  if (caretVisibilityFrame) {
+    return;
+  }
+
+  caretVisibilityFrame = window.requestAnimationFrame(() => {
+    caretVisibilityFrame = 0;
+    const caret = mathfield?.shadowRoot?.querySelector(".ML__caret, .ML__latex-caret");
+    if (!caret) {
+      return;
+    }
+
+    const viewport = host.getBoundingClientRect();
+    const caretRect = caret.getBoundingClientRect();
+    const padding = 20;
+    if (caretRect.bottom > viewport.bottom - padding) {
+      host.scrollTop += caretRect.bottom - viewport.bottom + padding;
+    } else if (caretRect.top < viewport.top + padding) {
+      host.scrollTop -= viewport.top - caretRect.top + padding;
+    }
+
+    if (caretRect.right > viewport.right - padding) {
+      host.scrollLeft += caretRect.right - viewport.right + padding;
+    } else if (caretRect.left < viewport.left + padding) {
+      host.scrollLeft -= viewport.left - caretRect.left + padding;
+    }
+  });
 }
 
 let _currentGroup = null;
@@ -337,17 +425,19 @@ function configureText() {
 function applyInit(payload) {
   locale = String(payload?.locale || "zh").toLowerCase();
   mode = payload?.mode === "update" ? "update" : "insert";
+  defaultFontStyle = payload?.fontStyle || "TeX";
   setSubmitting(false);
   configureText();
   setLatex(payload?.latex || "");
   window.LaTeXSnipperMathfieldInput.setDefaultFontStyle(
     mathfield,
-    payload?.fontStyle || "TeX",
+    defaultFontStyle,
   );
   window.LaTeXSnipperMathfieldInput.setDefaultColor(
     mathfield,
     payload?.fontColor || "#000000",
   );
+  scheduleCaretVisibility();
 }
 
 async function bootstrap() {
@@ -356,12 +446,19 @@ async function bootstrap() {
   mathfield.smartFence = true;
   mathfield.mathVirtualKeyboardPolicy = "onfocus";
   window.LaTeXSnipperMathfieldInput.configure(mathfield, accept);
+  mathfield.onScrollIntoView = scheduleCaretVisibility;
   host.appendChild(mathfield);
-  mathfield.addEventListener("input", syncSource);
+  mathfield.addEventListener("input", () => {
+    sourceIsMathMl = false;
+    scheduleSourceSync();
+    scheduleCaretVisibility();
+  });
   latexSource.addEventListener("input", () => {
     const source = latexSource.value || "";
-    if (!isMathMlSource(source.trim())) {
+    sourceIsMathMl = isMathMlSource(source.trim());
+    if (!sourceIsMathMl) {
       mathfield.setValue(source, { silenceNotifications: true });
+      scheduleCaretVisibility();
     }
   });
   cancelButton.addEventListener("click", () => send({ type: "cancel" }));

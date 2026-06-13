@@ -16,6 +16,8 @@ internal static class WordFormulaMetadataStore
     private const string OleNaturalSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
+    private const string AutoNumberChapterKey = "LaTeXSnipper.AutoNumberChapter";
+    private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
 
     public static string BuildEquationTag(string equationId)
     {
@@ -124,12 +126,25 @@ internal static class WordFormulaMetadataStore
         }
         catch
         {
-            variables.Add(key, json);
+            try
+            {
+                variables.Add(key, json);
+            }
+            catch
+            {
+                // Embedded metadata controls are authoritative and support large formula sources.
+            }
         }
     }
 
     public static FormulaMetadata Load(dynamic document, string equationId)
     {
+        FormulaMetadata? embedded = TryLoadEmbedded(document, equationId);
+        if (embedded != null)
+        {
+            return embedded;
+        }
+
         string key = BuildStorageKey(equationId);
         try
         {
@@ -138,12 +153,6 @@ internal static class WordFormulaMetadataStore
         }
         catch (Exception exc)
         {
-            FormulaMetadata? backup = TryLoadBackup(document, equationId);
-            if (backup != null)
-            {
-                return backup;
-            }
-
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
         }
     }
@@ -243,7 +252,7 @@ internal static class WordFormulaMetadataStore
         return serializer.Serialize(dto);
     }
 
-    private static FormulaMetadata? TryLoadBackup(dynamic document, string equationId)
+    private static FormulaMetadata? TryLoadEmbedded(dynamic document, string equationId)
     {
         try
         {
@@ -259,7 +268,9 @@ internal static class WordFormulaMetadataStore
                     continue;
                 }
 
-                string json = CleanContentControlText(Convert.ToString(control.Range.Text) ?? string.Empty);
+                dynamic range = control.Range.Duplicate;
+                range.TextRetrievalMode.IncludeHiddenText = true;
+                string json = CleanContentControlText(Convert.ToString(range.Text) ?? string.Empty);
                 return Deserialize(json);
             }
         }
@@ -352,17 +363,48 @@ internal static class WordFormulaMetadataStore
 
     public static void SetAutoNumberCounter(dynamic document, int value)
     {
-        string text = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        dynamic variables = document.Variables;
+        SetIntegerVariable(document, AutoNumberCounterKey, value);
+    }
+
+    public static int GetAutoNumberChapter(dynamic document)
+    {
+        return GetIntegerVariable(document, AutoNumberChapterKey, 1);
+    }
+
+    public static void SetAutoNumberChapter(dynamic document, int value)
+    {
+        SetIntegerVariable(document, AutoNumberChapterKey, value);
+    }
+
+    public static int GetAutoNumberSection(dynamic document)
+    {
+        return GetIntegerVariable(document, AutoNumberSectionKey, 1);
+    }
+
+    public static void SetAutoNumberSection(dynamic document, int value)
+    {
+        SetIntegerVariable(document, AutoNumberSectionKey, value);
+    }
+
+    private static int GetIntegerVariable(dynamic document, string key, int fallback)
+    {
         try
         {
-            dynamic variable = variables.Item(AutoNumberCounterKey);
-            variable.Value = text;
+            dynamic variable = document.Variables.Item(key);
+            return Convert.ToInt32(variable.Value, System.Globalization.CultureInfo.InvariantCulture);
         }
         catch
         {
-            variables.Add(AutoNumberCounterKey, text);
+            return fallback;
         }
+    }
+
+    private static void SetIntegerVariable(dynamic document, string key, int value)
+    {
+        SaveVariable(
+            document,
+            key,
+            value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static void SaveVariable(dynamic document, string key, string value)

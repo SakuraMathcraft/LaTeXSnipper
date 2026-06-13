@@ -10,14 +10,17 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdapter
 {
+    private const int WdColorAutomatic = -16777216;
     private const double WordOleBaseFontPoints = 10.5;
     private const int WdCollapseEnd = 0;
     private const int WdCharacter = 1;
     private const int WdMove = 0;
     private const int WdAlignParagraphCenter = 1;
+    private const int WdAlignTabLeft = 0;
     private const int WdAlignTabCenter = 1;
     private const int WdAlignTabRight = 2;
     private const int WdTabLeaderSpaces = 0;
+    private const int WdHorizontalPositionRelativeToTextBoundary = 7;
     private const int WdContentControlRichText = 0;
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 

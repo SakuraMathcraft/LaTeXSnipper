@@ -2,37 +2,10 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 import re
 
 _MATHML_SUM = "\u2211"
 _MATHML_INF = "\u221E"
-
-
-def latex_to_svg(latex: str) -> str:
-    """Convert a LaTeX formula to SVG with matplotlib mathtext."""
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        fig, ax = plt.subplots(figsize=(8, 1), dpi=150)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis("off")
-        ax.text(0.5, 0.5, f"${latex}$", ha="center", va="center", fontsize=16, transform=ax.transAxes)
-
-        svg_buffer = BytesIO()
-        plt.savefig(svg_buffer, format="svg", bbox_inches="tight", pad_inches=0.1, facecolor="white", edgecolor="none")
-        plt.close(fig)
-
-        svg_buffer.seek(0)
-        svg_str = svg_buffer.getvalue().decode("utf-8")
-        return svg_str.replace('<?xml version', '<!-- SVG from matplotlib -->\n<?xml version')
-    except Exception as e:
-        print(f"[ERROR] LaTeX to SVG conversion failed: {e}")
-        raise
 
 
 def _strip_math_delimiters(latex: str) -> str:

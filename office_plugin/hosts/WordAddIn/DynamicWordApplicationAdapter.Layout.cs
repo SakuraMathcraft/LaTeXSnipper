@@ -32,7 +32,7 @@ public sealed partial class DynamicWordApplicationAdapter
             range.InsertXML(ooxml);
         }
 
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        SaveFormulaMetadata(metadata);
         if (metadata.NumberingMode == NumberingMode.None && metadata.DisplayMode == FormulaDisplayMode.Inline)
         {
             NormalizePlainTextBaselineByFormulaId(metadata.Identity.EquationId);
@@ -105,7 +105,7 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId = metadata.Identity.EquationId;
         if (metadata.NumberingMode != NumberingMode.None)
         {
-            ApplyNumberedParagraphLayout(control.Range);
+            ApplyNumberedParagraphLayout(control.Range, control.Range);
             MoveSelectionAfterDisplayParagraph(control, equationId);
             return;
         }
@@ -299,7 +299,19 @@ public sealed partial class DynamicWordApplicationAdapter
                 return;
             }
 
-            ApplyNumberedParagraphLayout(((dynamic)numberControl).Range);
+            object? equationControl = TryGetEquationControlById(equationId);
+            if (equationControl != null)
+            {
+                ApplyNumberedParagraphLayout(
+                    ((dynamic)numberControl).Range,
+                    ((dynamic)equationControl).Range);
+                return;
+            }
+
+            object? inlineShape = TryFindOleInlineShapeById(equationId);
+            ApplyNumberedParagraphLayout(
+                ((dynamic)numberControl).Range,
+                inlineShape == null ? null : ((dynamic)inlineShape).Range);
         }
         catch
         {

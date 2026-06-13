@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
 using System.Text;
@@ -9,8 +8,7 @@ using System.Threading.Tasks;
 namespace LaTeXSnipper.OfficePlugin.Bridge;
 
 /// <summary>
-/// Small HTTP boundary to the LaTeXSnipper desktop bridge.
-/// Hosts keep Office automation separate from the local OCR/conversion service.
+/// HTTP boundary for desktop screenshot recognition.
 /// </summary>
 public sealed class BridgeClient : IDisposable
 {
@@ -41,17 +39,6 @@ public sealed class BridgeClient : IDisposable
     {
         await EnsureConfiguredAsync(cancellationToken).ConfigureAwait(false);
         return await HealthAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public Task<string> ConvertLatexAsync(string latex, IEnumerable<string> targets, CancellationToken cancellationToken)
-    {
-        return ConvertLatexAsync(latex, display: true, targets, cancellationToken);
-    }
-
-    public Task<string> ConvertLatexAsync(string latex, bool display, IEnumerable<string> targets, CancellationToken cancellationToken)
-    {
-        string payload = "{\"latex\":\"" + EscapeJson(latex ?? string.Empty) + "\",\"display\":" + SerializeBool(display) + ",\"targets\":[" + SerializeTargets(targets) + "]}";
-        return SendAsync(HttpMethod.Post, "convert/latex", payload, cancellationToken, requiresAuthentication: true);
     }
 
     public Task<string> ScreenshotOcrAsync(CancellationToken cancellationToken)
@@ -274,36 +261,4 @@ public sealed class BridgeClient : IDisposable
         }
     }
 
-    private static string SerializeTargets(IEnumerable<string> targets)
-    {
-        var builder = new StringBuilder();
-        bool first = true;
-        foreach (string target in targets)
-        {
-            if (!first)
-            {
-                builder.Append(',');
-            }
-
-            builder.Append('"').Append(EscapeJson(target ?? string.Empty)).Append('"');
-            first = false;
-        }
-
-        return builder.ToString();
-    }
-
-    private static string EscapeJson(string value)
-    {
-        return value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("\t", "\\t");
-    }
-
-    private static string SerializeBool(bool value)
-    {
-        return value ? "true" : "false";
-    }
 }

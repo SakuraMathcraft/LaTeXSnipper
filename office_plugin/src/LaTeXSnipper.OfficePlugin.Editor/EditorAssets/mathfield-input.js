@@ -112,7 +112,14 @@
     }
 
     mathfield.onInsertStyle = () => ({ ...style });
+    if (!mathfield.getValue("latex-expanded").trim()) {
+      return;
+    }
+
+    const selection = mathfield.selection;
+    mathfield.executeCommand("selectAll");
     mathfield.applyStyle(style);
+    mathfield.selection = selection;
   }
 
   function setDefaultColor(mathfield, fontColor) {

@@ -316,8 +316,15 @@ public sealed partial class WordPluginController : IDisposable
             return;
         }
 
-        FormulaMetadata numbered = WithNumbering(selected, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(0));
-        await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
+        FormulaMetadata numbered = WithNumbering(
+            selected,
+            NumberingMode.Automatic,
+            _wordAdapter.GetNextAutomaticNumberText());
+        using (_wordAdapter.BeginUndoRecord())
+        {
+            await _wordAdapter.ApplyAutomaticNumberAsync(numbered, cancellationToken);
+            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+        }
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
@@ -358,32 +365,12 @@ public sealed partial class WordPluginController : IDisposable
         return Task.CompletedTask;
     }
 
-    private async Task InsertRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
-    {
-        await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
-        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: false, cancellationToken);
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            await InsertPreparedFormulaAsync(prepared, cancellationToken);
-        }
-    }
-
     private async Task UpdateRenderedFormulaAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: true, cancellationToken);
         using (_wordAdapter.BeginUndoRecord())
         {
             await UpdatePreparedFormulaAsync(prepared, cancellationToken);
-        }
-    }
-
-    private async Task UpdateRenderedFormulaAndRenumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
-    {
-        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: true, cancellationToken);
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
     }
 
@@ -395,8 +382,13 @@ public sealed partial class WordPluginController : IDisposable
         bool reportProgress = true)
     {
         WordPluginSettings settings = WordPluginSettings.Load();
-        FormulaInsertionBackend backend = backendOverride ?? settings.InsertionBackend;
-        string renderedLatex = BuildFormattedLatex(metadata);
+        FormulaInsertionBackend backend = backendOverride
+            ?? (includeEquationOoxml
+                ? GetBackend(metadata.RenderEngine)
+                : settings.InsertionBackend);
+        string renderedLatex = BuildFormattedLatex(
+            metadata,
+            includeColor: backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor);
         if (backend == FormulaInsertionBackend.Ole)
         {
             if (reportProgress)
@@ -425,12 +417,12 @@ public sealed partial class WordPluginController : IDisposable
         if (prepared.OlePresentation != null)
         {
             await _wordAdapter.InsertOleFormulaObjectAsync(prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
-            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OleInsertedStatus"));
             return;
         }
 
         await _wordAdapter.InsertManagedEquationAsync(prepared.Ooxml!, prepared.Metadata, prepared.Display, cancellationToken);
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("InsertedStatus"));
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OmmlInsertedStatus"));
     }
 
     private async Task UpdatePreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken)
@@ -482,7 +474,10 @@ public sealed partial class WordPluginController : IDisposable
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
             nextNumber = _wordAdapter.GetNextAutomaticNumber();
-            metadata = WithNumbering(metadata, NumberingMode.Automatic, WordAutomaticNumberFormatter.Format(nextNumber));
+            metadata = WithNumbering(
+                metadata,
+                NumberingMode.Automatic,
+                _wordAdapter.GetNextAutomaticNumberText());
         }
 
         await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
@@ -497,7 +492,7 @@ public sealed partial class WordPluginController : IDisposable
         }
     }
 
-    private static string BuildFormattedLatex(FormulaMetadata metadata)
+    private static string BuildFormattedLatex(FormulaMetadata metadata, bool includeColor)
     {
         string latex = metadata.Latex;
         switch (metadata.FontStyle)
@@ -515,7 +510,8 @@ public sealed partial class WordPluginController : IDisposable
                 break;
         }
 
-        if (!string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        if (includeColor &&
+            !string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase))
         {
             latex = "\\color{" + metadata.FontColor + "}{" + latex + "}";
         }
@@ -623,11 +619,6 @@ public sealed partial class WordPluginController : IDisposable
             schemaVersion: 1);
     }
 
-    private static FormulaMetadata CreateDraftFormula(string latex)
-    {
-        return CreateDefaultFormula(string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim());
-    }
-
     private static string CreateDefaultLatex()
     {
         return "e^{i\\pi}+1=0";
@@ -636,11 +627,6 @@ public sealed partial class WordPluginController : IDisposable
     private static bool IsDisplay(FormulaMetadata metadata)
     {
         return metadata.DisplayMode == FormulaDisplayMode.Display;
-    }
-
-    private static bool IsSameFormula(FormulaMetadata? left, FormulaMetadata right)
-    {
-        return left != null && left.Identity.EquationId == right.Identity.EquationId;
     }
 
     private static bool IsSameRenderedFormula(FormulaMetadata left, FormulaMetadata right)
@@ -679,6 +665,13 @@ public sealed partial class WordPluginController : IDisposable
             metadata.FontColor,
             metadata.FontStyle,
             metadata.FontScale);
+    }
+
+    private static FormulaInsertionBackend GetBackend(RenderEngineKind renderEngine)
+    {
+        return renderEngine == RenderEngineKind.MathJaxSvg
+            ? FormulaInsertionBackend.Ole
+            : FormulaInsertionBackend.WordOmml;
     }
 
     private void ResetDraftState(bool resetOptions)

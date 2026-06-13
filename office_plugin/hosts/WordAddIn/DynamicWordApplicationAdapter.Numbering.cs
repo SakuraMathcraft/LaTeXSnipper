@@ -9,9 +9,78 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
+    public Task ApplyAutomaticNumberAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ExecuteWithScreenUpdatingSuspended(() =>
+        {
+            string equationId = metadata.Identity.EquationId;
+            object? formulaObject = TryFindOleInlineShapeById(equationId)
+                ?? TryGetEquationControlById(equationId);
+            if (formulaObject == null)
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+            }
+
+            dynamic formulaRange = ((dynamic)formulaObject).Range;
+            dynamic paragraphRange = formulaRange.Paragraphs.Item(1).Range;
+            int paragraphStart = GetRangeStart(paragraphRange);
+            WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
+            object numberControl;
+            if (placement == WordNumberPlacement.Left)
+            {
+                numberControl = InsertNumberControlAtRange(
+                    CreateDocumentRange(paragraphStart, paragraphStart),
+                    metadata);
+                dynamic cursor = CreateDocumentRange(
+                    GetRangeEnd(((dynamic)numberControl).Range),
+                    GetRangeEnd(((dynamic)numberControl).Range));
+                InsertTextAtRange(cursor, "\t");
+            }
+            else
+            {
+                CreateDocumentRange(paragraphStart, paragraphStart).Text = "\t";
+                formulaObject = TryFindOleInlineShapeById(equationId)
+                    ?? TryGetEquationControlById(equationId)
+                    ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+                formulaRange = ((dynamic)formulaObject).Range;
+                dynamic cursor = CreateDocumentRange(
+                    GetRangeEnd(formulaRange),
+                    GetRangeEnd(formulaRange));
+                InsertTextAtRange(cursor, "\t");
+                numberControl = InsertNumberControlAtRange(cursor, metadata);
+            }
+
+            formulaObject = TryFindOleInlineShapeById(equationId)
+                ?? TryGetEquationControlById(equationId)
+                ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+            formulaRange = ((dynamic)formulaObject).Range;
+            if (TryGetEquationControlById(equationId) is object equationControl)
+            {
+                HideContentControlChrome((dynamic)equationControl);
+            }
+
+            ApplyNumberedParagraphLayout(formulaRange, formulaRange);
+            ApplyNumberControlVerticalAlignment(numberControl, metadata);
+            SaveFormulaMetadata(metadata);
+        });
+        return Task.CompletedTask;
+    }
+
     public int GetNextAutomaticNumber()
     {
         return WordFormulaMetadataStore.GetAutoNumberCounter(_wordApplication.ActiveDocument);
+    }
+
+    public string GetNextAutomaticNumberText()
+    {
+        dynamic document = _wordApplication.ActiveDocument;
+        WordPluginSettings settings = WordPluginSettings.Load();
+        return WordAutomaticNumberFormatter.Format(
+            WordFormulaMetadataStore.GetAutoNumberChapter(document),
+            WordFormulaMetadataStore.GetAutoNumberSection(document),
+            WordFormulaMetadataStore.GetAutoNumberCounter(document),
+            settings);
     }
 
     public void SetNextAutomaticNumber(int number)
@@ -23,13 +92,14 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
         WordPluginSettings settings = WordPluginSettings.Load();
-        IReadOnlyList<NumberingDocumentEntry> entries = LoadNumberingDocumentEntries(settings);
+        IReadOnlyList<NumberingDocumentEntry> entries = LoadNumberingDocumentEntries();
         int chapter = settings.IncludeChapter ? 1 : 0;
         int section = settings.IncludeSection ? 1 : 0;
         int equation = 0;
         int count = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
+            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             foreach (NumberingDocumentEntry entry in entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -57,6 +127,14 @@ public sealed partial class DynamicWordApplicationAdapter
                 equation++;
                 count++;
                 string numberText = WordAutomaticNumberFormatter.Format(chapter, section, equation, settings);
+                string currentNumberText = CleanRangeText(
+                    Convert.ToString(((dynamic)formula.NumberControl).Range.Text) ?? string.Empty);
+                if (string.Equals(currentNumberText, numberText, StringComparison.Ordinal) &&
+                    string.Equals(formula.Metadata.NumberText, numberText, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 ReplaceNumberControlText(formula.NumberControl, numberText);
                 FormulaMetadata renumbered = new FormulaMetadata(
                     formula.Metadata.Identity,
@@ -70,13 +148,15 @@ public sealed partial class DynamicWordApplicationAdapter
                     formula.Metadata.FontStyle,
                     formula.Metadata.FontScale);
                 ApplyNumberControlVerticalAlignment(formula.NumberControl, renumbered);
-                WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, renumbered);
+                SaveFormulaMetadata(renumbered, metadataControls);
             }
 
             UpdateFormulaReferences(entries);
         });
 
         SetNextAutomaticNumber(equation + 1);
+        WordFormulaMetadataStore.SetAutoNumberChapter(_wordApplication.ActiveDocument, chapter);
+        WordFormulaMetadataStore.SetAutoNumberSection(_wordApplication.ActiveDocument, section);
         return Task.FromResult(count);
     }
 }

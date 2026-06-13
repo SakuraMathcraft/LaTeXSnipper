@@ -26,7 +26,7 @@ def test_office_plugin_foundation_is_modular() -> None:
     projects = {
         "LaTeXSnipper.OfficePlugin.Abstractions": ("FormulaMetadata.cs", "OfficeCommandTimeouts.cs"),
         "LaTeXSnipper.OfficePlugin.Bridge": ("BridgeClient.cs", "BridgeOptions.cs", "BridgeConfiguration.cs"),
-        "LaTeXSnipper.OfficePlugin.Rendering": ("FormulaRenderPipeline.cs", "RendererNotRegisteredException.cs"),
+        "LaTeXSnipper.OfficePlugin.Rendering": ("OlePresentationPipeline.cs", "OlePresentationRendererNotRegisteredException.cs"),
         "LaTeXSnipper.OfficePlugin.Editor": ("FormulaEditorSession.cs",),
     }
 
@@ -74,6 +74,8 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert f'"{menu_id}"' in shared_input
     assert 'document.addEventListener("menu-select"' in shared_input
     assert "event.preventDefault();" in shared_input
+    assert 'mathfield.executeCommand("selectAll")' in shared_input
+    assert "mathfield.selection = selection" in shared_input
 
     for host_name in ("WordAddIn", "PowerPointAddIn"):
         assets = PLUGIN / "hosts" / host_name / "EditorAssets"
@@ -83,6 +85,12 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert "mathfield-input.js" in editor_html
         assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
         assert "LaTeXSnipperMathfieldInput.setDefaultFontStyle" in editor_js
+        assert "scheduleSourceSync" in editor_js
+        assert "requestIdleCallback(syncSourceNow" in editor_js
+        assert "cancelIdleCallback(sourceSyncHandle)" in editor_js
+        assert "removeDefaultFontWrapper" in editor_js
+        assert "mathfield.onScrollIntoView = scheduleCaretVisibility" in editor_js
+        assert 'querySelector(".ML__caret, .ML__latex-caret")' in editor_js
         assert (
             'event.key === "Enter" && event.shiftKey'
             in editor_js
@@ -407,7 +415,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "latexsnipper-eqn-" in metadata_store
     assert "latexsnipper-eqm-" in metadata_store
     assert "LaTeXSnipper.Equation." in metadata_store
-    assert "TryLoadBackup" in metadata_store
+    assert "TryLoadEmbedded" in metadata_store
+    assert "FormulaMetadata? embedded = TryLoadEmbedded(document, equationId)" in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "UpdateFormulaAsync" in adapter
     assert "DeleteSelectedFormulaAsync" in adapter
@@ -425,6 +434,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "MoveSelectionAfterContentControl" in adapter
     assert "TryMoveSelectionOutsideFormula" in adapter
     assert "RangeTouchesManagedFormula" in adapter
+    assert "CollapsedRangeIntersectsManagedFormula" in adapter
+    assert "if (IsCollapsedRange(range))" in adapter
     assert "Selection.SetRange" in adapter
     assert "ExecuteWithScreenUpdatingSuspended" in adapter
     assert "BeginUndoRecord" in adapter
@@ -529,7 +540,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LoadSelectedRequested" not in taskpane
     assert "DeleteSelectedRequested" not in taskpane
     assert "previewField.readOnly" not in taskpane_js
-    assert 'previewField.addEventListener("input"' in taskpane_js
+    assert 'field.addEventListener("input"' in taskpane_js
     assert "resizePreview" in taskpane_js
     assert "ocrActive" in taskpane_js
     assert "cancelOcr" in taskpane_js
@@ -604,7 +615,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "settings.html" in settings_window
     assert "ShowDialog" not in settings_window
     assert "src\", \"assets\", \"icon.ico" not in icon
-    assert "Path.Combine(baseDirectory, \"icon.ico\")" in icon
+    assert "InstalledAssetResolver.FindInstallDirectory()" in icon
+    assert "AppDomain.CurrentDomain.BaseDirectory" not in icon
     assert "WinFormsFormulaEditor" not in factory
     assert "ShowDialog" not in (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
     assert "MinimizeBox = false" not in shared_editor_form
@@ -861,18 +873,15 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "GetSupertip" not in ribbon_adapter
     assert "RibbonIconFactory.cs" not in project_text
 
-    register_script = PLUGIN / "tools" / "Register-WordVstoAddIn.ps1"
-    shared_registration = PLUGIN / "tools" / "OfficeVstoRegistration.ps1"
-    register_text = register_script.read_text(encoding="utf-8")
-    shared_registration_text = shared_registration.read_text(encoding="utf-8")
-    assert register_script.is_file()
-    assert shared_registration.is_file()
-    assert "Invoke-OfficeVstoRegistration" in register_text
-    assert "RegisterOfficeAddin" in shared_registration_text
-    assert "TrustedPublisher" in shared_registration_text
-    assert "CommandLineSafe" in shared_registration_text
-    assert "VSTOInstaller.exe" in shared_registration_text
-    assert "COMAddIns" not in register_text
+    build_script = PLUGIN / "tools" / "Build-VstoAddIns.ps1"
+    build_text = build_script.read_text(encoding="utf-8")
+    assert build_script.is_file()
+    assert "VisualStudioForApplicationsBuild" in build_text
+    assert "ManifestCertificateThumbprint" in build_text
+    assert "RegisterOfficeAddin" not in build_text
+    assert "VSTOInstaller.exe" not in build_text
+    assert "HKCU:" not in build_text
+    assert "HKLM:" not in build_text
 
 
 def test_office_plugin_keeps_only_current_module_documentation() -> None:
@@ -880,6 +889,9 @@ def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "hosts" / "WordVstoAddIn" / "README.md").exists()
     assert not (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "README.md").exists()
     assert not (PLUGIN / "tools" / "Register-OfficeVstoAddIns.ps1").exists()
+    assert not (PLUGIN / "tools" / "Register-WordVstoAddIn.ps1").exists()
+    assert not (PLUGIN / "tools" / "Register-PowerPointVstoAddIn.ps1").exists()
+    assert not (PLUGIN / "tools" / "OfficeVstoRegistration.ps1").exists()
 
 
 def test_ole_objects_are_registered_as_static_display_objects() -> None:
@@ -1279,6 +1291,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     ribbon = (host / "Ribbon" / "WordRibbon.xml").read_text(encoding="utf-8")
     callbacks = (host / "WordRibbonCallbacks.cs").read_text(encoding="utf-8")
     controller = (host / "WordPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
+    main_controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
     operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(encoding="utf-8")
     adapter = read_word_adapter_sources()
     formatting = (host / "DynamicWordApplicationAdapter.Formatting.cs").read_text(encoding="utf-8")
@@ -1341,6 +1354,15 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert "metadata.NumberingMode == NumberingMode.None" in adapter
     assert "replacementOoxml = equationOoxml" in adapter
+    assert 'private const string InlineConversionAnchor = "\\u2060";' in adapter
+    assert "InsertInlineConversionAnchorAfter(inlineShape.Range);" in adapter
+    assert "ReplaceOmmlControlWithInlineConversionAnchor(control)" in adapter
+    assert "CreateDocumentRange(anchorStart, anchorStart).Text = InlineConversionAnchor" in adapter
+    assert "control.Delete(true)" in adapter
+    assert "ConvertMathAnchorToPlainText" in adapter
+    assert "dynamic equations = anchorRange.OMaths" in adapter
+    assert "equationRange.Delete()" in adapter
+    assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
         "public bool HasCustomFormulaScale",
         1,
@@ -1348,10 +1370,28 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "metadata.NumberingMode != NumberingMode.None" in remove_source
     assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
     assert "metadata.RenderEngine == actualRenderEngine" in adapter
-    assert "WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, corrected)" in adapter
+    assert "SaveFormulaMetadata(corrected)" in adapter
+    assert "SaveNewFormulaMetadata(metadata, equationControl, hasContentControlBoundary: true)" in adapter
+    assert "SaveNewFormulaMetadata(metadata, inlineShape, hasContentControlBoundary: false)" in adapter
+    assert "control.Range.Font.Hidden = -1" in adapter
+    assert "range.TextRetrievalMode.IncludeHiddenText = true" in adapter
+    assert "LoadMetadataControlIndex()" in adapter
+    assert "LoadFormulaMetadata(equationId, metadataControls)" in adapter
+    assert "AddMetadataControlDeletionTarget" in adapter
+    assert "DeleteMetadataControl(TryGetMetadataControlById" in adapter
+    assert "GetNextAutomaticNumberText()" in main_controller
+    assert "GetBackend(metadata.RenderEngine)" in main_controller
+    assert "SetAutoNumberChapter" in adapter
+    assert "SetAutoNumberSection" in adapter
     assert "ReferencePlaceholderTag" in operations
     assert "ReferenceTagPrefix" in operations
     assert '" REF " + bookmarkName + " \\\\h "' in operations
+    assert "ApplyReferenceControlFormatting" in operations
+    assert "HideContentControlChrome(control)" in operations
+    assert "control.Range.Font.Position = 0" in operations
+    assert "control.Range.Font.Superscript = 0" in operations
+    assert "control.Range.Font.Subscript = 0" in operations
+    assert "Dictionary<string, object> metadataControls = LoadMetadataControlIndex()" in operations
     assert "TryNavigateSelectedReference" not in operations
     assert "TryDeleteSelectedCommandControl" in operations
     assert "ActiveDocument.ContentControls" in operations
@@ -1373,13 +1413,23 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "NumberSeparator" in settings
     assert "string.Join(settings.NumberSeparator, parts)" in numbering
     assert "SectionArabic" not in numbering
-    assert "LoadNumberingDocumentEntries(settings)" in adapter
+    assert "LoadNumberingDocumentEntries()" in adapter
+    assert "ApplyAutomaticNumberAsync" in adapter
+    assert "MeasureRangeWidthPoints" in adapter
+    assert "WdHorizontalPositionRelativeToTextBoundary" in adapter
+    assert "formulaWidth > 0 ? WdAlignTabLeft : WdAlignTabCenter" in adapter
     renumber_method = adapter.split("public Task<int> RenumberAutomaticFormulasAsync", 1)[1].split(
         "private void ReplaceFormulaContent",
         1,
     )[0]
     assert "ApplyNumberingBoundaryVisibility(settings)" not in renumber_method
     assert "return ordered" in operations
+    auto_number = main_controller.split("public async Task AutoNumberSelectedAsync", 1)[1].split(
+        "public async Task RenumberAllAsync",
+        1,
+    )[0]
+    assert "ApplyAutomaticNumberAsync(numbered" in auto_number
+    assert "PrepareRenderedFormulaAsync" not in auto_number
 
 
 def test_word_formula_color_default_tracks_windows_theme() -> None:
@@ -1390,6 +1440,9 @@ def test_word_formula_color_default_tracks_windows_theme() -> None:
     settings_js = (host / "EditorAssets" / "settings.js").read_text(encoding="utf-8")
 
     assert "AppsUseLightTheme" in defaults
+    assert "OfficeThemeRegistryPath" in defaults
+    assert "OfficeThemeValue" in defaults
+    assert "Convert.ToInt32(officeTheme) == 2" in defaults
     assert 'IsDarkMode() ? "#FFFFFF" : "#000000"' in defaults
     assert "UseSystemFormulaColor" in settings
     assert "defaultValue: true" in settings
@@ -1398,6 +1451,61 @@ def test_word_formula_color_default_tracks_windows_theme() -> None:
     assert "useSystemFormulaColor = false" in settings_js
     assert "useSystemFormulaColor = true" in settings_js
     assert "resetToWhite" in settings_js
+    adapter = read_word_adapter_sources()
+    controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
+    assert "WdColorAutomatic" in adapter
+    assert "WordPluginSettings.Load().UseSystemFormulaColor" in adapter
+    assert "backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor" in controller
+
+
+def test_installed_asset_resolvers_do_not_trust_vsto_cache_location() -> None:
+    for host_name in ("WordAddIn", "PowerPointAddIn"):
+        resolver = (
+            PLUGIN / "hosts" / host_name / "InstalledAssetResolver.cs"
+        ).read_text(encoding="utf-8")
+        method = resolver.split("public static string? FindInstallDirectory()", 1)[1]
+
+        assert method.index("foreach (string subPath in RegistryPaths)") < method.index(
+            "Assembly.Location"
+        )
+        assert "Registry.LocalMachine.OpenSubKey(subPath)" in resolver
+        assert "ContainsHostAssets" in resolver
+        assert 'Directory.Exists(Path.Combine(directory!, "EditorAssets"))' in resolver
+
+
+def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    text = (host / "WordAddInText.cs").read_text(encoding="utf-8")
+    controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
+    adapter = read_word_adapter_sources()
+
+    assert '"OleInsertedStatus" => "已插入 OLE 公式。"' in text
+    assert '"OmmlInsertedStatus" => "已插入 OMML 公式。"' in text
+    assert 'WordAddInText.Get("OleInsertedStatus")' in controller
+    assert 'WordAddInText.Get("OmmlInsertedStatus")' in controller
+    assert "HasContentAfterRangeInParagraph(inlineShape.Range)" in adapter
+    assert "MergeFollowingParagraphIntoFormulaParagraph" in adapter
+    assert "ReplaceOmmlControlWithInlineConversionAnchor(control)" in adapter
+    assert "CreateDocumentRange(anchorStart, anchorStart).Text = InlineConversionAnchor" in adapter
+    assert "control.Delete(true)" in adapter
+    assert "ConvertMathAnchorToPlainText" in adapter
+    assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
+    remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
+        "private void InsertInlineConversionAnchorAfter",
+        1,
+    )[0]
+    assert "InsertInlineConversionAnchorAfter(control.Range)" not in remove_source
+    assert "control.Range.Text = InlineConversionAnchor" not in remove_source
+
+
+def test_word_taskpane_rebuilds_preview_when_restoring_draft() -> None:
+    taskpane = (
+        PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "taskpane.js"
+    ).read_text(encoding="utf-8")
+
+    assert "function createPreviewField(latex)" in taskpane
+    assert "els.previewHost.replaceChildren(field)" in taskpane
+    assert "setLatex(payload.latex || DEFAULT_LATEX, true)" in taskpane
 
 
 def test_word_dynamic_adapter_is_split_by_responsibility() -> None:
@@ -1419,3 +1527,49 @@ def test_word_dynamic_adapter_is_split_by_responsibility() -> None:
         path = host / f"DynamicWordApplicationAdapter.{module}.cs"
         assert path.is_file()
         assert "public sealed partial class DynamicWordApplicationAdapter" in path.read_text(encoding="utf-8")
+
+
+def test_word_number_controls_hide_content_control_chrome() -> None:
+    lifecycle = (
+        PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.FormulaLifecycle.cs"
+    ).read_text(encoding="utf-8")
+    alignment = lifecycle.split(
+        "private static void ApplyNumberControlVerticalAlignment",
+        1,
+    )[1].split("private double ReadManagedEquationFontSize", 1)[0]
+
+    assert "HideContentControlChrome(control)" in alignment
+    assert "control.Range.Font.Position = offset" in alignment
+
+
+def test_word_managed_content_controls_hide_chrome_consistently() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    interop = (host / "DynamicWordApplicationAdapter.ComInterop.cs").read_text(encoding="utf-8")
+    operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(encoding="utf-8")
+    metadata = (host / "DynamicWordApplicationAdapter.Metadata.cs").read_text(encoding="utf-8")
+    builder = (host / "WordOmmlDocumentBuilder.cs").read_text(encoding="utf-8")
+
+    assert "private static void HideContentControlChrome" in interop
+    assert "control.Appearance = 2" in interop
+    assert "ApplyBoundaryVisibility" in operations
+    boundary_visibility = operations.split(
+        "private static void ApplyBoundaryVisibility",
+        1,
+    )[1]
+    assert "HideContentControlChrome(control)" in boundary_visibility
+    assert "HideContentControlChrome(control)" in metadata
+    assert 'xmlns:w15=\\"http://schemas.microsoft.com/office/word/2012/wordml\\"' in builder
+    assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 2
+
+
+def test_word_large_metadata_is_not_blocked_by_document_variable_limits() -> None:
+    store = (
+        PLUGIN / "hosts" / "WordAddIn" / "WordFormulaMetadataStore.cs"
+    ).read_text(encoding="utf-8")
+    save = store.split("public static void Save(dynamic document, FormulaMetadata metadata)", 1)[1].split(
+        "public static FormulaMetadata Load",
+        1,
+    )[0]
+
+    assert "variables.Add(key, json);" in save
+    assert "Embedded metadata controls are authoritative" in save

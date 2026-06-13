@@ -213,7 +213,9 @@ def convert_latex_to(
     else:
         src = latex
 
-    args = extra_args or []
+    args = list(extra_args or [])
+    if target_key == "pandoc_html_standalone" and "--standalone" not in args:
+        args.append("--standalone")
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(

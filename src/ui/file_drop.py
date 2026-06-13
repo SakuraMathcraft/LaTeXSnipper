@@ -5,10 +5,51 @@ from __future__ import annotations
 from pathlib import Path
 
 from PIL import Image
+from PyQt6.QtGui import QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
+
+from recognition.image_preprocess import qimage_to_rgb_pil
 
 
 class FileDropMixin:
+    def _handle_clipboard_image_paste(self, event=None) -> bool:
+        if event is not None:
+            try:
+                if not event.matches(QKeySequence.StandardKey.Paste):
+                    return False
+            except Exception:
+                return False
+
+        clipboard = QGuiApplication.clipboard()
+        mime = clipboard.mimeData() if clipboard is not None else None
+        if mime is None:
+            return False
+
+        if mime.hasImage():
+            image = clipboard.image()
+            if image.isNull():
+                return False
+            self._next_predict_result_screen_index = None
+            self._start_predict_with_pil(qimage_to_rgb_pil(image))
+            return True
+
+        if mime.hasUrls():
+            paths = [
+                Path(url.toLocalFile())
+                for url in mime.urls()
+                if url.isLocalFile() and Path(url.toLocalFile()).is_file()
+            ]
+            if len(paths) == 1 and self._drop_file_kind(paths[0]) == "image":
+                self._recognize_image_file(paths[0])
+                return True
+        return False
+
+    def keyPressEvent(self, event):
+        if self._handle_clipboard_image_paste(event):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def _get_supported_image_patterns(self):
         """Return image file dialog filter patterns."""
         try:

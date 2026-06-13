@@ -16,6 +16,7 @@ public sealed partial class DynamicWordApplicationAdapter
         {
             var numberControls = new Dictionary<string, object>(StringComparer.Ordinal);
             var equationControls = new List<object>();
+            Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
             dynamic controls = _wordApplication.ActiveDocument.ContentControls;
             int controlCount = Convert.ToInt32(controls.Count);
             for (int index = 1; index <= controlCount; index++)
@@ -56,9 +57,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 TryCom(() => control.Range.Font.Size = expectedSize);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                        _wordApplication.ActiveDocument,
-                        equationId);
+                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata);
                 }
 
@@ -97,9 +96,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                        _wordApplication.ActiveDocument,
-                        equationId);
+                    FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
                 }
 
@@ -126,7 +123,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 fontSize);
             ApplyManagedEquationStyleById(metadata);
             ApplyNumberControlVerticalAlignmentById(metadata);
-            WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+            SaveFormulaMetadata(metadata);
         });
         return System.Threading.Tasks.Task.CompletedTask;
     }
@@ -295,7 +292,9 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = contentControl;
         TryCom(() => control.Range.Font.Bold = metadata.FontStyle == FormulaFontStyle.Bold ? -1 : 0);
         TryCom(() => control.Range.Font.Italic = metadata.FontStyle == FormulaFontStyle.Italic ? -1 : 0);
-        int color = ParseWordColor(metadata.FontColor);
+        int color = WordPluginSettings.Load().UseSystemFormulaColor
+            ? WdColorAutomatic
+            : ParseWordColor(metadata.FontColor);
         TryCom(() => control.Range.Font.Color = color);
         dynamic equations = control.Range.OMaths;
         int equationCount = Convert.ToInt32(equations.Count);
