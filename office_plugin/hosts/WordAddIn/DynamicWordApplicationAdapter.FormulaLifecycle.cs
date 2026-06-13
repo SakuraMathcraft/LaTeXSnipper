@@ -7,9 +7,19 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    public Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
+    public Task InsertManagedEquationAsync(
+        string ooxml,
+        string equationOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
+        if (string.IsNullOrWhiteSpace(equationOoxml))
+        {
+            throw new ArgumentException("Equation OOXML is required.", nameof(equationOoxml));
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         ExecuteWithScreenUpdatingSuspended(() =>
         {
@@ -18,14 +28,27 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic range = ResolveManagedEquationInsertionRange(selection, display);
             int insertionPoint = GetRangeStart(range);
             double fontSizePoints = ReadPointSize(range.Font.Size);
-            range.InsertXML(ooxml);
+            range.InsertXML(
+                metadata.NumberingMode == NumberingMode.None
+                    ? ooxml
+                    : equationOoxml);
             (object equationControl, object? numberControl) =
                 FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
+            if (metadata.NumberingMode != NumberingMode.None)
+            {
+                ReplaceParagraphWithNumberedFormula(
+                    equationControl,
+                    ooxml,
+                    metadata.Identity.EquationId);
+                (equationControl, numberControl) =
+                    FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
+            }
+
             double naturalFontSize = metadata.FontScale == 1
                 ? fontSizePoints
                 : WordOleBaseFontPoints * metadata.FontScale;
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
-            HideContentControlChrome((dynamic)equationControl);
+            ShowContentControlChrome((dynamic)equationControl);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                 _wordApplication.ActiveDocument,
                 metadata.Identity.EquationId,
@@ -328,7 +351,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic control = contentControl;
-        HideContentControlChrome(control);
+        ShowContentControlChrome(control);
         TryCom(() => control.Range.Font.Size = fontSizePoints);
     }
 

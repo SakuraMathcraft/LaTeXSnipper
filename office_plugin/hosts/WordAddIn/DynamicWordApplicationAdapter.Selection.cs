@@ -252,22 +252,34 @@ public sealed partial class DynamicWordApplicationAdapter
     public Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (TryDeleteSelectedCommandControl())
+        var selectedFormulas = new List<SelectedWordFormula>(CollectSelectedFormulas());
+        IReadOnlyList<object> selectedCommandControls = FindSelectedCommandControls();
+        if (selectedFormulas.Count == 0 && selectedCommandControls.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        var selectedFormulas = new List<SelectedWordFormula>(FindSelectedFormulas());
         string[] deletedEquationIds = selectedFormulas
             .Select(formula => formula.Metadata.Identity.EquationId)
             .ToArray();
-        selectedFormulas.Sort((left, right) => GetFormulaStart(right).CompareTo(GetFormulaStart(left)));
+        var targets = new List<DeletionTarget>();
+        foreach (SelectedWordFormula selected in selectedFormulas)
+        {
+            int start = GetFormulaStart(selected);
+            targets.Add(new DeletionTarget(start, start, () => DeleteFormula(selected)));
+        }
+
+        foreach (object selected in selectedCommandControls)
+        {
+            dynamic control = selected;
+            int start = GetRangeStart(control.Range);
+            int end = GetRangeEnd(control.Range);
+            targets.Add(new DeletionTarget(start, end, () => DeleteCommandControl(selected)));
+        }
+
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            foreach (SelectedWordFormula selected in selectedFormulas)
-            {
-                DeleteFormula(selected);
-            }
+            DeleteTargetsInDocumentOrder(targets);
         });
 
         return Task.FromResult<IReadOnlyList<string>>(deletedEquationIds);

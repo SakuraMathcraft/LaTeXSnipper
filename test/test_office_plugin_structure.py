@@ -1199,7 +1199,7 @@ def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wr
 
 def test_word_large_ole_selection_remains_selection_first() -> None:
     adapter = read_word_adapter_sources()
-    selected = adapter.split("private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()", 1)[1].split(
+    selected = adapter.split("private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas()", 1)[1].split(
         "private void AddSelectedFormulasFromRange", 1
     )[0]
     anchor = adapter.split("private void AddSelectedOleInlineShapesFromAnchor", 1)[1].split(
@@ -1213,7 +1213,7 @@ def test_word_large_ole_selection_remains_selection_first() -> None:
 
 def test_word_load_selected_is_selection_first() -> None:
     adapter = read_word_adapter_sources()
-    find_selected = adapter.split("private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()", 1)[1].split("private void AddSelectedFormulasFromRange", 1)[0]
+    find_selected = adapter.split("private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas()", 1)[1].split("private void AddSelectedFormulasFromRange", 1)[0]
     selected_ole = adapter.split("private void AddSelectedOleInlineShapes", 1)[1].split("private void AddSelectedOleInlineShape", 1)[0]
     selected_formula = adapter.split("private void AddSelectedFormula", 1)[1].split("private object FindFormulaControlById", 1)[0]
 
@@ -1396,7 +1396,8 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "control.Range.Font.Subscript = 0" in operations
     assert "Dictionary<string, object> metadataControls = LoadMetadataControlIndex()" in operations
     assert "TryNavigateSelectedReference" not in operations
-    assert "TryDeleteSelectedCommandControl" in operations
+    assert "FindSelectedCommandControls" in operations
+    assert "DeleteCommandControl" in operations
     assert "ActiveDocument.ContentControls" in operations
     assert "Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync" in adapter
     assert "UpdateFormulaReferences" in operations
@@ -1550,7 +1551,7 @@ def test_word_number_controls_hide_content_control_chrome() -> None:
     assert "control.Range.Font.Position = offset" in alignment
 
 
-def test_word_managed_content_controls_hide_chrome_consistently() -> None:
+def test_word_managed_content_control_chrome_matches_control_role() -> None:
     host = PLUGIN / "hosts" / "WordAddIn"
     interop = (host / "DynamicWordApplicationAdapter.ComInterop.cs").read_text(encoding="utf-8")
     operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(encoding="utf-8")
@@ -1559,6 +1560,8 @@ def test_word_managed_content_controls_hide_chrome_consistently() -> None:
 
     assert "private static void HideContentControlChrome" in interop
     assert "control.Appearance = 2" in interop
+    assert "private static void ShowContentControlChrome" in interop
+    assert "control.Appearance = 0" in interop
     assert "ApplyBoundaryVisibility" in operations
     boundary_visibility = operations.split(
         "private static void ApplyBoundaryVisibility",
@@ -1567,7 +1570,21 @@ def test_word_managed_content_controls_hide_chrome_consistently() -> None:
     assert "HideContentControlChrome(control)" in boundary_visibility
     assert "HideContentControlChrome(control)" in metadata
     assert 'xmlns:w15=\\"http://schemas.microsoft.com/office/word/2012/wordml\\"' in builder
-    assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 2
+    assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 1
+
+
+def test_word_numbered_omml_insert_reuses_numbered_paragraph_rebuild() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    lifecycle = (host / "DynamicWordApplicationAdapter.FormulaLifecycle.cs").read_text(
+        encoding="utf-8"
+    )
+    controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
+
+    assert "metadata.NumberingMode == NumberingMode.None" in lifecycle
+    assert "ReplaceParagraphWithNumberedFormula(" in lifecycle
+    assert "ShowContentControlChrome((dynamic)equationControl)" in lifecycle
+    assert "includeEquationOoxml: true" in controller
+    assert 'WordAddInText.Get("OmmlInsertingStatus")' in controller
 
 
 def test_word_large_metadata_is_not_blocked_by_document_variable_limits() -> None:

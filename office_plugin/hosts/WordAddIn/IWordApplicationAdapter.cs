@@ -16,7 +16,12 @@ public interface IWordApplicationAdapter
 
     double GetCurrentFontSizePoints();
 
-    Task InsertManagedEquationAsync(string ooxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
+    Task InsertManagedEquationAsync(
+        string ooxml,
+        string equationOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken);
 
     Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
 

@@ -124,15 +124,17 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.CompletedTask;
     }
 
-    private object? TryGetSelectedCommandControl()
+    private IReadOnlyList<object> FindSelectedCommandControls()
     {
         dynamic selectionRange = _wordApplication.Selection.Range;
+        var controls = new List<object>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         try
         {
             object? parent = selectionRange.ParentContentControl;
             if (parent != null && IsCommandControlTag(ReadControlTag((dynamic)parent)))
             {
-                return parent;
+                AddSelectedCommandControl(controls, seen, parent!);
             }
         }
         catch
@@ -141,14 +143,14 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
-            dynamic controls = selectionRange.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
+            dynamic rangeControls = selectionRange.ContentControls;
+            int count = Convert.ToInt32(rangeControls.Count);
             for (int index = 1; index <= count; index++)
             {
-                dynamic control = controls.Item(index);
+                dynamic control = rangeControls.Item(index);
                 if (IsCommandControlTag(ReadControlTag(control)))
                 {
-                    return control;
+                    AddSelectedCommandControl(controls, seen, control);
                 }
             }
         }
@@ -175,11 +177,26 @@ public sealed partial class DynamicWordApplicationAdapter
                 : RangesOverlap(selectionStart, selectionEnd, controlStart, controlEnd);
             if (selected)
             {
-                return control;
+                AddSelectedCommandControl(controls, seen, control);
             }
         }
 
-        return null;
+        return controls;
+    }
+
+    private static void AddSelectedCommandControl(
+        ICollection<object> controls,
+        ISet<string> seen,
+        object candidate)
+    {
+        dynamic control = candidate;
+        string key = GetRangeStart(control.Range).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ":"
+            + GetRangeEnd(control.Range).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (seen.Add(key))
+        {
+            controls.Add(candidate);
+        }
     }
 
     private static bool IsCommandControlTag(string tag)
@@ -190,28 +207,16 @@ public sealed partial class DynamicWordApplicationAdapter
             || string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
     }
 
-    private bool TryDeleteSelectedCommandControl()
+    private void DeleteCommandControl(object selected)
     {
-        object? selected = TryGetSelectedCommandControl();
-        if (selected == null)
-        {
-            return false;
-        }
-
         dynamic control = selected;
         string tag = ReadControlTag(control);
-        if (!IsCommandControlTag(tag))
-        {
-            return false;
-        }
-
         if (string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal))
         {
             _pendingReferenceControl = null;
         }
 
         control.Delete(true);
-        return true;
     }
 
     private static string BuildReferenceBookmarkName(string equationId)

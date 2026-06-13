@@ -17,6 +17,17 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()
     {
+        IReadOnlyList<SelectedWordFormula> formulas = CollectSelectedFormulas();
+        if (formulas.Count == 0)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        return formulas;
+    }
+
+    private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas()
+    {
         dynamic selection = _wordApplication.Selection;
         dynamic range = selection.Range;
         var formulas = new List<SelectedWordFormula>();
@@ -25,11 +36,6 @@ public sealed partial class DynamicWordApplicationAdapter
         AddSelectedFormulasFromRange(formulas, seen, range);
         AddSelectedOleInlineShapes(formulas, seen, range);
         AddSelectedOleInlineShapesFromAnchor(formulas, seen, selection, range);
-        if (formulas.Count == 0)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-        }
-
         return formulas;
     }
 
