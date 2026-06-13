@@ -18,7 +18,6 @@ public interface IWordApplicationAdapter
 
     Task InsertManagedEquationAsync(
         string ooxml,
-        string equationOoxml,
         FormulaMetadata metadata,
         bool display,
         CancellationToken cancellationToken);

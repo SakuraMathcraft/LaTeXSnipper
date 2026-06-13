@@ -136,6 +136,37 @@ public sealed partial class DynamicWordApplicationAdapter
         formulas.Add(new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true));
     }
 
+    private void AddOleInlineShapesInsideSelection(ICollection<SelectedWordFormula> formulas)
+    {
+        dynamic selectionRange = _wordApplication.Selection.Range;
+        int selectionStart = GetRangeStart(selectionRange);
+        int selectionEnd = GetRangeEnd(selectionRange);
+        if (selectionEnd <= selectionStart)
+        {
+            return;
+        }
+
+        var seen = new HashSet<string>(
+            formulas.Select(item => item.Metadata.Identity.EquationId),
+            StringComparer.Ordinal);
+        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        int count = Convert.ToInt32(inlineShapes.Count);
+        for (int i = 1; i <= count; i++)
+        {
+            dynamic inlineShape = inlineShapes.Item(i);
+            int shapeStart = GetRangeStart(inlineShape.Range);
+            int shapeEnd = GetRangeEnd(inlineShape.Range);
+            bool selected =
+                (shapeStart >= selectionStart && shapeStart < selectionEnd) ||
+                (shapeEnd > selectionStart && shapeEnd <= selectionEnd) ||
+                RangesOverlap(selectionStart, selectionEnd, shapeStart, shapeEnd);
+            if (selected)
+            {
+                AddSelectedOleInlineShape(formulas, seen, inlineShape);
+            }
+        }
+    }
+
     private void AddSelectedFormula(ICollection<SelectedWordFormula> formulas, ISet<string> seen, object? candidate)
     {
         if (candidate == null)

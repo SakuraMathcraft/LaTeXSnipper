@@ -1344,6 +1344,8 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "LoadAllFormulaEntriesAsync" not in operations
     assert "LoadSelectedFormulaEntriesAsync" in adapter
     assert ".OrderByDescending(item => item.Start)" in adapter
+    assert "AddOleInlineShapesInsideSelection(selectedFormulas)" in adapter
+    assert "shapeStart >= selectionStart && shapeStart < selectionEnd" in adapter
     assert "ResetCustomFormulaSizesAsync" in controller
     assert "ResetCustomFormulaSizesAsync" in formatting
     natural_size_method = controller.split("private async Task ResetAllNaturalSizesAsync", 1)[1].split(
@@ -1359,19 +1361,16 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert 'private const string InlineConversionAnchor = "\\u2060";' in adapter
     assert "InsertInlineConversionAnchorAfter(inlineShape.Range);" in adapter
-    assert "ReplaceOmmlControlWithInlineConversionAnchor(control)" in adapter
-    assert "CreateDocumentRange(anchorStart, anchorStart).Text = InlineConversionAnchor" in adapter
     assert "control.Delete(true)" in adapter
-    assert "ConvertMathAnchorToPlainText" in adapter
-    assert "dynamic equations = anchorRange.OMaths" in adapter
-    assert "equationRange.Delete()" in adapter
     assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
-        "public bool HasCustomFormulaScale",
+        "private void InsertInlineConversionAnchorAfter",
         1,
     )[0]
     assert "metadata.NumberingMode != NumberingMode.None" in remove_source
     assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
+    assert "control.Delete(true)" in remove_source
+    assert "InlineConversionAnchor" not in remove_source
     assert "metadata.RenderEngine == actualRenderEngine" in adapter
     assert "SaveFormulaMetadata(corrected)" in adapter
     assert "SaveNewFormulaMetadata(metadata, equationControl, hasContentControlBoundary: true)" in adapter
@@ -1494,17 +1493,22 @@ def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
     assert 'WordAddInText.Get("OmmlInsertedStatus")' in controller
     assert "HasContentAfterRangeInParagraph(inlineShape.Range)" in adapter
     assert "MergeFollowingParagraphIntoFormulaParagraph" in adapter
-    assert "ReplaceOmmlControlWithInlineConversionAnchor(control)" in adapter
-    assert "CreateDocumentRange(anchorStart, anchorStart).Text = InlineConversionAnchor" in adapter
+    ole_to_omml = adapter.split("if (ole != null)", 1)[1].split(
+        "object control = FindFormulaControlById",
+        1,
+    )[0]
+    assert "metadata.DisplayMode == FormulaDisplayMode.Inline" in ole_to_omml
+    assert "if (useInlineAnchor)" in ole_to_omml
+    assert "replacementOoxml = ooxml" in ole_to_omml
+    assert "insertionRange.InsertXML(replacementOoxml)" in ole_to_omml
     assert "control.Delete(true)" in adapter
-    assert "ConvertMathAnchorToPlainText" in adapter
     assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
         "private void InsertInlineConversionAnchorAfter",
         1,
     )[0]
-    assert "InsertInlineConversionAnchorAfter(control.Range)" not in remove_source
-    assert "control.Range.Text = InlineConversionAnchor" not in remove_source
+    assert "control.Delete(true)" in remove_source
+    assert "InlineConversionAnchor" not in remove_source
 
 
 def test_word_taskpane_rebuilds_preview_when_restoring_draft() -> None:
@@ -1560,8 +1564,8 @@ def test_word_managed_content_control_chrome_matches_control_role() -> None:
 
     assert "private static void HideContentControlChrome" in interop
     assert "control.Appearance = 2" in interop
-    assert "private static void ShowContentControlChrome" in interop
-    assert "control.Appearance = 0" in interop
+    assert "private static void ShowContentControlTags" in interop
+    assert "control.Appearance = 1" in interop
     assert "ApplyBoundaryVisibility" in operations
     boundary_visibility = operations.split(
         "private static void ApplyBoundaryVisibility",
@@ -1571,19 +1575,28 @@ def test_word_managed_content_control_chrome_matches_control_role() -> None:
     assert "HideContentControlChrome(control)" in metadata
     assert 'xmlns:w15=\\"http://schemas.microsoft.com/office/word/2012/wordml\\"' in builder
     assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 1
+    assert builder.count('<w15:appearance w15:val=\\"tags\\"/>') == 1
 
 
-def test_word_numbered_omml_insert_reuses_numbered_paragraph_rebuild() -> None:
+def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() -> None:
     host = PLUGIN / "hosts" / "WordAddIn"
     lifecycle = (host / "DynamicWordApplicationAdapter.FormulaLifecycle.cs").read_text(
         encoding="utf-8"
     )
     controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
 
-    assert "metadata.NumberingMode == NumberingMode.None" in lifecycle
-    assert "ReplaceParagraphWithNumberedFormula(" in lifecycle
-    assert "ShowContentControlChrome((dynamic)equationControl)" in lifecycle
-    assert "includeEquationOoxml: true" in controller
+    insert_method = lifecycle.split("public Task InsertManagedEquationAsync", 1)[1].split(
+        "public Task InsertOleFormulaObjectAsync",
+        1,
+    )[0]
+    assert "range.InsertXML(ooxml)" in insert_method
+    assert "ReplaceParagraphWithNumberedFormula(" not in insert_method
+    assert "ShowContentControlTags((dynamic)equationControl)" in lifecycle
+    insert_command = controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(
+        "private static string BuildFormattedLatex",
+        1,
+    )[0]
+    assert "includeEquationOoxml: false" in insert_command
     assert 'WordAddInText.Get("OmmlInsertingStatus")' in controller
 
 

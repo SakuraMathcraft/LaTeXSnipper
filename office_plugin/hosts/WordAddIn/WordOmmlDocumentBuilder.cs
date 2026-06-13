@@ -132,6 +132,7 @@ public static class WordOmmlDocumentBuilder
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
             "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId)) + "\"/>" +
+            "<w15:appearance w15:val=\"tags\"/>" +
             "</w:sdtPr><w:sdtContent>" +
             ExtractEquationOmml(omml) +
             "</w:sdtContent></w:sdt>";

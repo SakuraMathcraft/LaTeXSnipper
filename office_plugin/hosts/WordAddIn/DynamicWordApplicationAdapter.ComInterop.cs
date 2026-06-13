@@ -82,9 +82,9 @@ public sealed partial class DynamicWordApplicationAdapter
         TryCom(() => control.Appearance = 2);
     }
 
-    private static void ShowContentControlChrome(dynamic control)
+    private static void ShowContentControlTags(dynamic control)
     {
-        TryCom(() => control.Appearance = 0);
+        TryCom(() => control.Appearance = 1);
     }
 
     private static object? TryGetParentContentControl(dynamic range)

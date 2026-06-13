@@ -434,7 +434,6 @@ public sealed partial class WordPluginController : IDisposable
 
         await _wordAdapter.InsertManagedEquationAsync(
             prepared.Ooxml!,
-            prepared.EquationOoxml!,
             prepared.Metadata,
             prepared.Display,
             cancellationToken);
@@ -497,7 +496,7 @@ public sealed partial class WordPluginController : IDisposable
         }
 
         await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
-        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: true, cancellationToken);
+        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(metadata, includeEquationOoxml: false, cancellationToken);
         using (_wordAdapter.BeginUndoRecord())
         {
             await InsertPreparedFormulaAsync(prepared, cancellationToken);

@@ -9,17 +9,11 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     public Task InsertManagedEquationAsync(
         string ooxml,
-        string equationOoxml,
         FormulaMetadata metadata,
         bool display,
         CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
-        if (string.IsNullOrWhiteSpace(equationOoxml))
-        {
-            throw new ArgumentException("Equation OOXML is required.", nameof(equationOoxml));
-        }
-
         cancellationToken.ThrowIfCancellationRequested();
         ExecuteWithScreenUpdatingSuspended(() =>
         {
@@ -28,27 +22,15 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic range = ResolveManagedEquationInsertionRange(selection, display);
             int insertionPoint = GetRangeStart(range);
             double fontSizePoints = ReadPointSize(range.Font.Size);
-            range.InsertXML(
-                metadata.NumberingMode == NumberingMode.None
-                    ? ooxml
-                    : equationOoxml);
+            range.InsertXML(ooxml);
             (object equationControl, object? numberControl) =
                 FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
-            if (metadata.NumberingMode != NumberingMode.None)
-            {
-                ReplaceParagraphWithNumberedFormula(
-                    equationControl,
-                    ooxml,
-                    metadata.Identity.EquationId);
-                (equationControl, numberControl) =
-                    FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
-            }
 
             double naturalFontSize = metadata.FontScale == 1
                 ? fontSizePoints
                 : WordOleBaseFontPoints * metadata.FontScale;
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
-            ShowContentControlChrome((dynamic)equationControl);
+            ShowContentControlTags((dynamic)equationControl);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                 _wordApplication.ActiveDocument,
                 metadata.Identity.EquationId,
@@ -132,20 +114,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 dynamic control = FindFormulaControlById(equationId);
                 int insertionPoint = RemoveOmmlConversionSource(control, metadata);
                 dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);
-                dynamic converted;
-                try
-                {
-                    converted = metadata.NumberingMode == NumberingMode.None
-                        ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
-                        : InsertNumberedOleInlineShape(insertionRange, metadata, presentation);
-                }
-                finally
-                {
-                    if (metadata.NumberingMode == NumberingMode.None)
-                    {
-                        RemoveInlineConversionAnchor(insertionPoint);
-                    }
-                }
+                dynamic converted = metadata.NumberingMode == NumberingMode.None
+                    ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
+                    : InsertNumberedOleInlineShape(insertionRange, metadata, presentation);
                 SaveFormulaMetadata(metadata);
                 SaveOleNaturalSize(metadata.Identity.EquationId, presentation);
                 MoveSelectionAfterInlineShape(converted, metadata.Identity.EquationId, display);
@@ -351,7 +322,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic control = contentControl;
-        ShowContentControlChrome(control);
+        ShowContentControlTags(control);
         TryCom(() => control.Range.Font.Size = fontSizePoints);
     }
 

@@ -42,11 +42,12 @@ public sealed partial class DynamicWordApplicationAdapter
                 dynamic insertionRange;
                 string replacementOoxml;
                 bool restoreInlineParagraph = false;
-                if (metadata.NumberingMode == NumberingMode.None)
+                bool useInlineAnchor =
+                    metadata.NumberingMode == NumberingMode.None &&
+                    metadata.DisplayMode == FormulaDisplayMode.Inline;
+                if (useInlineAnchor)
                 {
-                    restoreInlineParagraph =
-                        metadata.DisplayMode == FormulaDisplayMode.Inline &&
-                        HasContentAfterRangeInParagraph(inlineShape.Range);
+                    restoreInlineParagraph = HasContentAfterRangeInParagraph(inlineShape.Range);
                     int insertionPoint = GetRangeStart(inlineShape.Range);
                     InsertInlineConversionAnchorAfter(inlineShape.Range);
                     inlineShape.Delete();
@@ -59,23 +60,25 @@ public sealed partial class DynamicWordApplicationAdapter
                     replacementOoxml = ooxml;
                 }
 
-                try
+                if (useInlineAnchor)
+                {
+                    try
+                    {
+                        insertionRange.InsertXML(replacementOoxml);
+                    }
+                    finally
+                    {
+                        RemoveInlineConversionAnchor(GetRangeStart(insertionRange));
+                    }
+                }
+                else
                 {
                     insertionRange.InsertXML(replacementOoxml);
                 }
-                finally
-                {
-                    RemoveInlineConversionAnchor(GetRangeStart(insertionRange));
-                }
+
                 if (restoreInlineParagraph)
                 {
                     MergeFollowingParagraphIntoFormulaParagraph(metadata.Identity.EquationId);
-                }
-                if (metadata.NumberingMode == NumberingMode.None &&
-                    metadata.DisplayMode == FormulaDisplayMode.Display)
-                {
-                    dynamic inserted = FindFormulaControlById(metadata.Identity.EquationId);
-                    TryCom(() => inserted.Range.ParagraphFormat.Alignment = WdAlignParagraphCenter);
                 }
 
                 ApplyManagedEquationStyleById(metadata);
@@ -108,7 +111,10 @@ public sealed partial class DynamicWordApplicationAdapter
             return GetRangeStart(insertionRange);
         }
 
-        int insertionPoint = ReplaceOmmlControlWithInlineConversionAnchor(control);
+        int insertionPoint = GetRangeStart(control.Range);
+        TryCom(() => control.LockContents = false);
+        TryCom(() => control.LockContentControl = false);
+        control.Delete(true);
         if (metadata.DisplayMode == FormulaDisplayMode.Display)
         {
             dynamic paragraph = CreateDocumentRange(insertionPoint, insertionPoint).Paragraphs.Item(1).Range;
@@ -116,47 +122,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return insertionPoint;
-    }
-
-    private int ReplaceOmmlControlWithInlineConversionAnchor(dynamic control)
-    {
-        int originalStart = GetRangeStart(control.Range);
-        int anchorStart = Math.Max(0, originalStart - 1);
-        TryCom(() => control.LockContents = false);
-        TryCom(() => control.LockContentControl = false);
-        CreateDocumentRange(anchorStart, anchorStart).Text = InlineConversionAnchor;
-        control.Delete(true);
-
-        int searchStart = Math.Max(0, anchorStart - 1);
-        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
-        int searchEnd = Math.Min(documentEnd, anchorStart + 2);
-        dynamic nearby = CreateDocumentRange(searchStart, searchEnd);
-        string text = Convert.ToString(nearby.Text) ?? string.Empty;
-        int anchorOffset = text.IndexOf(InlineConversionAnchor, StringComparison.Ordinal);
-        if (anchorOffset < 0)
-        {
-            throw new InvalidOperationException("Unable to locate the OMML conversion anchor.");
-        }
-
-        return ConvertMathAnchorToPlainText(searchStart + anchorOffset);
-    }
-
-    private int ConvertMathAnchorToPlainText(int anchorPosition)
-    {
-        dynamic anchorRange = CreateDocumentRange(
-            anchorPosition,
-            anchorPosition + InlineConversionAnchor.Length);
-        dynamic equations = anchorRange.OMaths;
-        if (Convert.ToInt32(equations.Count) == 0)
-        {
-            return anchorPosition;
-        }
-
-        dynamic equationRange = equations.Item(1).Range;
-        int plainTextPosition = GetRangeStart(equationRange);
-        equationRange.Delete();
-        CreateDocumentRange(plainTextPosition, plainTextPosition).Text = InlineConversionAnchor;
-        return plainTextPosition;
     }
 
     private void InsertInlineConversionAnchorAfter(dynamic sourceRange)
@@ -253,6 +218,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedFormulas = new List<SelectedWordFormula>(CollectSelectedFormulas());
+        AddOleInlineShapesInsideSelection(selectedFormulas);
         IReadOnlyList<object> selectedCommandControls = FindSelectedCommandControls();
         if (selectedFormulas.Count == 0 && selectedCommandControls.Count == 0)
         {
