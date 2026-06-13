@@ -91,8 +91,8 @@ function save() {
 
 function init(payload) {
   locale = String(payload?.locale || navigator.language || "zh").toLowerCase();
-  insertionBackend = payload?.insertionBackend === "PowerPointCompatibility"
-    ? "PowerPointCompatibility"
+  insertionBackend = payload?.insertionBackend === "PowerPointPng"
+    ? "PowerPointPng"
     : "Ole";
   formulaColor = payload?.formulaColor || "#000000";
   formulaFontStyle = payload?.formulaFontStyle || "TeX";

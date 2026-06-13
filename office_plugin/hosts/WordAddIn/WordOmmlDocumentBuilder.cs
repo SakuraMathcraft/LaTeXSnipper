@@ -51,6 +51,7 @@ public static class WordOmmlDocumentBuilder
             : BuildInlineBody(omml, metadata);
         string documentXml =
             "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+            " xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\"" +
             " xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">" +
             "<w:body>" + body + "</w:body></w:document>";
         return WrapFlatOpc(documentXml);
@@ -76,6 +77,7 @@ public static class WordOmmlDocumentBuilder
 
         string documentXml =
             "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+            " xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\"" +
             " xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">" +
             "<w:body>" + BuildInlineBody(omml, metadata) + "</w:body></w:document>";
         return WrapFlatOpc(documentXml);
@@ -130,6 +132,7 @@ public static class WordOmmlDocumentBuilder
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
             "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId)) + "\"/>" +
+            "<w15:appearance w15:val=\"hidden\"/>" +
             "</w:sdtPr><w:sdtContent>" +
             ExtractEquationOmml(omml) +
             "</w:sdtContent></w:sdt>";
@@ -141,6 +144,7 @@ public static class WordOmmlDocumentBuilder
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"" + EscapeXml(alias) + "\"/>" +
             "<w:tag w:val=\"" + EscapeXml(tag) + "\"/>" +
+            "<w15:appearance w15:val=\"hidden\"/>" +
             "</w:sdtPr><w:sdtContent><w:r><w:t>" +
             EscapeXml(text) +
             "</w:t></w:r></w:sdtContent></w:sdt>";

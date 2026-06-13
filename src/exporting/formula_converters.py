@@ -8,21 +8,20 @@ import os
 from pathlib import Path
 
 from exporting.formula_format_helpers import (
-    latex_to_svg,
     mathml_standardize,
     normalize_latex_for_export,
 )
+from exporting.mathjax_converter import convert_latex_with_mathjax
 
 
 def latex_to_svg_code(latex: str) -> str:
-    return latex_to_svg(latex)
+    latex = normalize_latex_for_export(latex)
+    return convert_latex_with_mathjax(latex)["svg"]
 
 
 def latex_to_mathml(latex: str) -> str:
-    latex = _latex2mathml_compatible(normalize_latex_for_export(latex))
-    import latex2mathml.converter
-
-    mathml = latex2mathml.converter.convert(latex)
+    latex = normalize_latex_for_export(latex)
+    mathml = convert_latex_with_mathjax(latex)["mathml"]
     return mathml_standardize(mathml)
 
 
@@ -32,21 +31,16 @@ def latex_to_omml(latex: str) -> str:
     This function must return real OMML. MathML fallback belongs to the MathML
     export formats, not to the OMML export path.
     """
-    latex = _latex2mathml_compatible(normalize_latex_for_export(latex))
-    import latex2mathml.converter
+    latex = normalize_latex_for_export(latex)
     from lxml import etree
 
-    mathml = mathml_standardize(latex2mathml.converter.convert(latex))
+    mathml = mathml_standardize(convert_latex_with_mathjax(latex)["mathml"])
     mathml_doc = etree.fromstring(mathml.encode("utf-8"))
     omml_doc = _cached_mml2omml_transform()(mathml_doc)
     result = etree.tostring(omml_doc, encoding="unicode")
     if not _looks_like_omml(result):
         raise RuntimeError("MML2OMML conversion did not produce OMML")
     return _repair_empty_nary_operands(result)
-
-
-def _latex2mathml_compatible(latex: str) -> str:
-    return latex.replace(r"\enclose{horizontalstrike}{", r"\sout{")
 
 
 def _find_mml2omml_xsl() -> Path | None:

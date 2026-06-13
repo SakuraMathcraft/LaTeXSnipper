@@ -16,7 +16,6 @@ public enum NumberingMode
 public enum RenderEngineKind
 {
     Omml,
-    LocalTex,
     Image,
     MathJaxSvg
 }
@@ -25,11 +24,10 @@ public enum FormulaInsertionBackend
 {
     Ole,
     WordOmml,
-    PowerPointCompatibility
+    PowerPointPng
 }
 
 public enum OlePresentationKind
 {
-    EnhancedMetafile,
-    DirectGdi
+    EnhancedMetafile
 }

@@ -35,10 +35,12 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
         dynamic range = _wordApplication.Selection.Range;
+        double fontSize = ReadPointSize(range.Font.Size);
         dynamic control = range.ContentControls.Add(WdContentControlRichText);
         control.Tag = ReferencePlaceholderTag;
         control.Title = "LaTeXSnipper Reference";
         control.Range.Text = WordAddInText.Get("ReferencePlaceholderText");
+        ApplyReferenceControlFormatting(control, fontSize);
         _pendingReferenceControl = control;
         return Task.CompletedTask;
     }
@@ -82,8 +84,21 @@ public sealed partial class DynamicWordApplicationAdapter
         document.Fields.Add(placeholderRange, -1, " REF " + bookmarkName + " \\h ", true);
         placeholder.Tag = ReferenceTagPrefix + equationId;
         placeholder.Title = "LaTeXSnipper Formula Reference";
+        ApplyReferenceControlFormatting(placeholder, ReadSurroundingTextFontSize(placeholder));
         _pendingReferenceControl = null;
         return Task.FromResult(true);
+    }
+
+    private static void ApplyReferenceControlFormatting(dynamic control, double fontSize)
+    {
+        HideContentControlChrome(control);
+        TryCom(() => control.Range.Font.Position = 0);
+        TryCom(() => control.Range.Font.Superscript = 0);
+        TryCom(() => control.Range.Font.Subscript = 0);
+        if (fontSize > 0)
+        {
+            TryCom(() => control.Range.Font.Size = fontSize);
+        }
     }
 
     public Task InsertNumberingBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken)
@@ -97,6 +112,7 @@ public sealed partial class DynamicWordApplicationAdapter
         control.Range.Text = boundary == WordNumberingBoundary.Chapter
             ? WordAddInText.Get("ChapterBoundaryText")
             : WordAddInText.Get("SectionBoundaryText");
+        HideContentControlChrome(control);
         ApplyBoundaryVisibility(control, boundary, WordPluginSettings.Load());
         return Task.CompletedTask;
     }
@@ -215,16 +231,23 @@ public sealed partial class DynamicWordApplicationAdapter
             }
 
             string bookmarkName = BuildReferenceBookmarkName(entry.EquationId);
-            if (Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
+            if (!Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
             {
-                document.Bookmarks.Item(bookmarkName).Delete();
+                dynamic numberControl = entry.NumberControl;
+                document.Bookmarks.Add(bookmarkName, numberControl.Range);
             }
-
-            dynamic numberControl = entry.NumberControl;
-            document.Bookmarks.Add(bookmarkName, numberControl.Range);
         }
 
-        TryCom(() => document.Fields.Update());
+        dynamic controls = document.ContentControls;
+        int count = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic control = controls.Item(index);
+            if (ReadControlTag(control).StartsWith(ReferenceTagPrefix, StringComparison.Ordinal))
+            {
+                TryCom(() => control.Range.Fields.Update());
+            }
+        }
     }
 
     private static bool IsNumberingBoundary(dynamic control, out WordNumberingBoundary boundary)
@@ -240,10 +263,11 @@ public sealed partial class DynamicWordApplicationAdapter
         return string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
     }
 
-    private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries(WordPluginSettings settings)
+    private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries()
     {
         var entries = new List<NumberingDocumentEntry>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        Dictionary<string, object> metadataControls = LoadMetadataControlIndex();
         int previousStart = -1;
         bool ordered = true;
         dynamic controls = _wordApplication.ActiveDocument.ContentControls;
@@ -253,7 +277,6 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic control = controls.Item(index);
             if (IsNumberingBoundary(control, out WordNumberingBoundary boundary))
             {
-                ApplyBoundaryVisibility(control, boundary, settings);
                 int start = GetRangeStart(control.Range);
                 ordered &= start >= previousStart;
                 previousStart = start;
@@ -268,9 +291,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                _wordApplication.ActiveDocument,
-                equationId);
+            FormulaMetadata metadata = LoadFormulaMetadata(equationId, metadataControls);
             var formula = new NumberedFormulaEntry(
                 equationId,
                 control,
@@ -302,6 +323,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private static void ApplyBoundaryVisibility(dynamic control, WordNumberingBoundary boundary, WordPluginSettings settings)
     {
+        HideContentControlChrome(control);
         bool hidden = boundary == WordNumberingBoundary.Chapter
             ? settings.HideChapterBoundary
             : settings.HideSectionBoundary;

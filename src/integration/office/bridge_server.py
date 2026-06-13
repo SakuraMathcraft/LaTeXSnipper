@@ -11,8 +11,6 @@ from urllib.parse import urlsplit
 
 from .bridge_auth import OfficeBridgeAuth
 from .bridge_contracts import MAX_JSON_BODY_BYTES, OfficeBridgeError, error_response, parse_json_body, success_response
-from .conversion_service import OfficeConversionService
-
 class OfficeBridgeServer:
     def __init__(
         self,
@@ -20,7 +18,6 @@ class OfficeBridgeServer:
         host: str = "127.0.0.1",
         port: int = 0,
         auth: OfficeBridgeAuth | None = None,
-        conversion_service: OfficeConversionService | None = None,
         recognition_service: Any | None = None,
     ) -> None:
         if host not in {"127.0.0.1", "localhost"}:
@@ -29,7 +26,6 @@ class OfficeBridgeServer:
         self.public_host = host
         self.requested_port = int(port)
         self.auth = auth or OfficeBridgeAuth()
-        self.conversion_service = conversion_service or OfficeConversionService()
         self.recognition_service = recognition_service
         self._httpd: _OfficeHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -79,8 +75,6 @@ class OfficeBridgeServer:
         }
 
     def handle_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if path == "/convert/latex":
-            return self.conversion_service.convert(payload)
         if path == "/recognition/status":
             if self.recognition_service is None:
                 return {"state": "unavailable"}

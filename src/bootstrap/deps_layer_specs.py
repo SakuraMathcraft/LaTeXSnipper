@@ -33,8 +33,6 @@ LAYER_MAP = {
         "coloredlogs>=15.0.1",
         "sympy>=1.13,<1.15",
         "protobuf>=3.20,<5",
-        "latex2mathml>=3.81.0",
-        "matplotlib~=3.10.8",
         "pymupdf~=1.27.2.2",
     ],
     "MATHCRAFT_CPU": [

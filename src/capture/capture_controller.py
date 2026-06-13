@@ -70,6 +70,9 @@ class CaptureControllerMixin:
             custom_warning_dialog("错误", f"截图遮罩启动失败: {e}", self)
 
     def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(event):
+            event.accept()
+            return True
         if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
             if self._drag_contains_local_file(event):
                 event.acceptProposedAction()

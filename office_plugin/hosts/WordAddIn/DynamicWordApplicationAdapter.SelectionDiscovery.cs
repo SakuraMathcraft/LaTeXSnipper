@@ -185,17 +185,6 @@ public sealed partial class DynamicWordApplicationAdapter
         throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
     }
 
-    private object FindOleInlineShapeById(string equationId)
-    {
-        object? inlineShape = TryFindOleInlineShapeById(equationId);
-        if (inlineShape == null)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-        }
-
-        return inlineShape;
-    }
-
     private object? TryFindOleInlineShapeById(string equationId)
     {
         if (string.IsNullOrWhiteSpace(equationId))

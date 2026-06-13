@@ -31,8 +31,8 @@ public sealed class PowerPointPluginSettings
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryPath);
         string raw = key?.GetValue(InsertionBackendValue) as string ?? string.Empty;
-        FormulaInsertionBackend backend = raw == FormulaInsertionBackend.PowerPointCompatibility.ToString()
-            ? FormulaInsertionBackend.PowerPointCompatibility
+        FormulaInsertionBackend backend = raw == FormulaInsertionBackend.PowerPointPng.ToString()
+            ? FormulaInsertionBackend.PowerPointPng
             : FormulaInsertionBackend.Ole;
         string color = key?.GetValue(FormulaColorValue) as string ?? "#000000";
         string styleText = key?.GetValue(FormulaFontStyleValue) as string ?? FormulaFontStyle.TeX.ToString();

@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using Microsoft.Win32;
 
@@ -8,47 +7,38 @@ internal static class InstalledAssetResolver
 {
     public static string? FindAssetRoot(string assetFile)
     {
-        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, "EditorAssets");
-        if (File.Exists(Path.Combine(copied, assetFile)))
+        string? installDirectory = FindInstallDirectory();
+        if (installDirectory == null)
         {
-            return copied;
+            return null;
         }
 
-        string? current = baseDirectory;
-        for (int i = 0; i < 8 && current != null; i++)
-        {
-            string candidate = Path.Combine(current, "office_plugin", "hosts", "PowerPointAddIn", "EditorAssets");
-            if (File.Exists(Path.Combine(candidate, assetFile)))
-            {
-                return candidate;
-            }
-
-            current = Directory.GetParent(current)?.FullName;
-        }
-
-        return FindFromRegistry(assetFile);
+        string candidate = Path.Combine(installDirectory, "EditorAssets");
+        return File.Exists(Path.Combine(candidate, assetFile)) ? candidate : null;
     }
 
     private static readonly string[] RegistryPaths =
     {
         @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
         @"Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
-        // ClickToRun virtualized paths (Office 365 / C2R)
         @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
         @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
     };
 
-    /// <summary>Resolves the directory containing the installed .vsto manifest via registry,
-    /// bypassing AppDomain.BaseDirectory which may point to a ClickOnce cache.</summary>
     public static string? FindInstallDirectory()
     {
-        foreach (var root in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        string? assemblyDirectory = Path.GetDirectoryName(typeof(InstalledAssetResolver).Assembly.Location);
+        if (!string.IsNullOrWhiteSpace(assemblyDirectory))
         {
-            foreach (var subPath in RegistryPaths)
+            return assemblyDirectory;
+        }
+
+        foreach (string subPath in RegistryPaths)
+        {
+            string? directory = GetManifestDirectory(Registry.LocalMachine, subPath);
+            if (directory != null)
             {
-                string? dir = GetManifestDirectory(root, subPath);
-                if (dir != null) return dir;
+                return directory;
             }
         }
 
@@ -70,17 +60,5 @@ internal static class InstalledAssetResolver
             .Replace('/', '\\');
 
         return Path.GetDirectoryName(path);
-    }
-
-    private static string? FindFromRegistry(string assetFile)
-    {
-        string? installDir = FindInstallDirectory();
-        if (installDir != null)
-        {
-            string candidate = Path.Combine(installDir, "EditorAssets");
-            return File.Exists(Path.Combine(candidate, assetFile)) ? candidate : null;
-        }
-
-        return null;
     }
 }

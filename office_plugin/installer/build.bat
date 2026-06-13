@@ -21,40 +21,25 @@ echo  Version: %VERSION%
 echo  Configuration: %CONFIG%
 echo ============================================
 
-:: Step 1: Build Word VSTO
-echo [1/5] Building Word VSTO Add-in...
-call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Register-WordVstoAddIn.ps1" ^
-  -Configuration %CONFIG% ^
-  -SkipCertificateTrust ^
-  -SkipVstoInstaller ^
-  -SkipOfficeRegistration
+:: Step 1: Build Word and PowerPoint VSTO add-ins without registering them
+echo [1/4] Building VSTO add-ins...
+call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Build-VstoAddIns.ps1" ^
+  -Configuration %CONFIG%
 if %ERRORLEVEL% neq 0 (
-  echo ERROR: Word VSTO build failed.
+  echo ERROR: VSTO build failed.
   exit /b 1
 )
 
-:: Step 2: Build PowerPoint VSTO
-echo [2/5] Building PowerPoint VSTO Add-in...
-call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Register-PowerPointVstoAddIn.ps1" ^
-  -Configuration %CONFIG% ^
-  -SkipCertificateTrust ^
-  -SkipVstoInstaller ^
-  -SkipOfficeRegistration
-if %ERRORLEVEL% neq 0 (
-  echo ERROR: PowerPoint VSTO build failed.
-  exit /b 1
-)
-
-:: Step 3: Build EditorAssets (dotnet build to copy to output)
-echo [3/5] Building shared libraries and EditorAssets...
+:: Step 2: Build EditorAssets (dotnet build to copy to output)
+echo [2/4] Building shared libraries and EditorAssets...
 dotnet build "%PLUGIN_ROOT%\LaTeXSnipper.OfficePlugin.slnx" -c %CONFIG%
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Shared build failed.
   exit /b 1
 )
 
-:: Step 4: Build native OLE formula object handler for 64-bit and 32-bit Office
-echo [4/5] Building native OLE formula object handler...
+:: Step 3: Build native OLE formula object handler for 64-bit and 32-bit Office
+echo [3/4] Building native OLE formula object handler...
 set MSBUILD_EXE=
 if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
   for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -find MSBuild\Current\Bin\amd64\MSBuild.exe`) do (
@@ -87,12 +72,12 @@ if %ERRORLEVEL% neq 0 (
   exit /b 1
 )
 
-:: Step 4.5: Export signing certificate
-echo [4.5/5] Exporting certificate...
+:: Export signing certificate
+echo [3.5/4] Exporting certificate...
 powershell -ExecutionPolicy Bypass -Command "$subject = 'CN=LaTeXSnipper Office Plugin VSTO'; $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq $subject } | Sort-Object NotAfter -Descending | Select-Object -First 1; if ($cert) { Export-Certificate -Cert $cert -FilePath '%SCRIPT_DIR%vsto-signing.cer' -Type CERT -Force } else { Write-Host 'WARNING: VSTO signing cert not found, installer may fail' }"
 
-:: Step 5: Run Inno Setup
-echo [5/5] Building installer...
+:: Step 4: Run Inno Setup
+echo [4/4] Building installer...
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 
 :: Find Inno Setup ISCC.exe from PATH or common install locations

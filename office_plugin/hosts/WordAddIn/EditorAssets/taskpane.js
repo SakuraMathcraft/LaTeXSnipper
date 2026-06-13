@@ -59,10 +59,35 @@ function emitState() {
   post({ type: "state", ...readState() });
 }
 
-function setLatex(latex) {
+function bindPreviewFieldEvents(field) {
+  field.addEventListener("input", () => {
+    if (applying || syncingFromSource || field !== previewField) return;
+    syncingFromMathfield = true;
+    els.latexSource.value = field.getValue("latex-expanded").trim();
+    syncingFromMathfield = false;
+    resizePreview();
+    emitState();
+  });
+}
+
+function createPreviewField(latex) {
+  const field = new MathfieldElement();
+  field.mathVirtualKeyboardPolicy = "manual";
+  field.defaultMode = "math";
+  previewField = field;
+  bindPreviewFieldEvents(field);
+  els.previewHost.replaceChildren(field);
+  field.setValue(latex, { silenceNotifications: true });
+}
+
+function setLatex(latex, rebuildPreview = false) {
   state.latex = latex || "";
   els.latexSource.value = state.latex;
-  previewField.setValue(state.latex, { silenceNotifications: true });
+  if (rebuildPreview) {
+    createPreviewField(state.latex);
+  } else {
+    previewField.setValue(state.latex, { silenceNotifications: true });
+  }
   resizePreview();
 }
 
@@ -109,7 +134,7 @@ function applyState(payload) {
     }
     applyLabels(payload.strings);
     document.documentElement.lang = String(payload.locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
-    setLatex(payload.latex || DEFAULT_LATEX);
+    setLatex(payload.latex || DEFAULT_LATEX, true);
     els.displayMode.checked = Boolean(payload.display);
     els.autoNumber.checked = Boolean(payload.autoNumber);
     els.manualNumber.value = payload.manualNumber || "";
@@ -147,14 +172,6 @@ function apply(payload) {
 }
 
 function initEvents() {
-  previewField.addEventListener("input", () => {
-    if (applying || syncingFromSource) return;
-    syncingFromMathfield = true;
-    els.latexSource.value = previewField.getValue("latex-expanded").trim();
-    syncingFromMathfield = false;
-    resizePreview();
-    emitState();
-  });
   els.latexSource.addEventListener("input", () => {
     if (syncingFromMathfield) {
       emitState();
@@ -197,12 +214,8 @@ function flushPending() {
 
 async function bootstrap() {
   MathfieldElement.fontsDirectory = new URL("./vendor/fonts", window.location.href).href;
-  previewField = new MathfieldElement();
-  previewField.mathVirtualKeyboardPolicy = "manual";
-  previewField.defaultMode = "math";
-  els.previewHost.appendChild(previewField);
+  createPreviewField(DEFAULT_LATEX);
   initEvents();
-  setLatex(DEFAULT_LATEX);
   window.LaTeXSnipperTaskPane = { apply };
   flushPending();
   post({ type: "state", ...readState() });

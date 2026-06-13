@@ -77,6 +77,11 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
+    private static void HideContentControlChrome(dynamic control)
+    {
+        TryCom(() => control.Appearance = 2);
+    }
+
     private static object? TryGetParentContentControl(dynamic range)
     {
         try

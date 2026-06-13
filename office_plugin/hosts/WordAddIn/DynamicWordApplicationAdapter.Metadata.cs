@@ -9,6 +9,153 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
+    private void SaveFormulaMetadata(FormulaMetadata metadata)
+    {
+        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        UpsertMetadataControl(metadata, metadataControls: null);
+    }
+
+    private void SaveNewFormulaMetadata(
+        FormulaMetadata metadata,
+        object formulaObject,
+        bool hasContentControlBoundary)
+    {
+        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        CreateMetadataControl(metadata, formulaObject, hasContentControlBoundary);
+    }
+
+    private void SaveFormulaMetadata(
+        FormulaMetadata metadata,
+        IDictionary<string, object> metadataControls)
+    {
+        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        UpsertMetadataControl(metadata, metadataControls);
+    }
+
+    private void UpsertMetadataControl(
+        FormulaMetadata metadata,
+        IDictionary<string, object>? metadataControls)
+    {
+        string equationId = metadata.Identity.EquationId;
+        object? existing = null;
+        if (metadataControls != null)
+        {
+            metadataControls.TryGetValue(equationId, out existing);
+        }
+        else
+        {
+            existing = TryGetMetadataControlById(_wordApplication.ActiveDocument, equationId);
+        }
+
+        dynamic control;
+        if (existing != null)
+        {
+            control = existing;
+            TryCom(() => control.LockContents = false);
+        }
+        else
+        {
+            object? equationControl = TryGetEquationControlById(equationId);
+            if (equationControl != null)
+            {
+                control = CreateMetadataControl(metadata, equationControl, hasContentControlBoundary: true);
+            }
+            else
+            {
+                object? inlineShape = TryFindOleInlineShapeById(equationId);
+                if (inlineShape == null)
+                {
+                    throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+                }
+
+                control = CreateMetadataControl(metadata, inlineShape, hasContentControlBoundary: false);
+            }
+
+            if (metadataControls != null)
+            {
+                metadataControls[equationId] = control;
+            }
+
+            return;
+        }
+
+        WriteMetadataControl(control, metadata);
+    }
+
+    private dynamic CreateMetadataControl(
+        FormulaMetadata metadata,
+        object formulaObject,
+        bool hasContentControlBoundary)
+    {
+        string json = WordFormulaMetadataStore.Serialize(metadata);
+        int position = GetRangeEnd(((dynamic)formulaObject).Range) +
+            (hasContentControlBoundary ? 1 : 0);
+        position = ClampDocumentPosition(position);
+        dynamic insertionRange = CreateDocumentRange(position, position);
+        insertionRange.InsertAfter(json);
+        dynamic controlRange = CreateDocumentRange(position, position + json.Length);
+        dynamic control = controlRange.ContentControls.Add(WdContentControlRichText);
+        control.Tag = WordFormulaMetadataStore.BuildMetadataTag(metadata.Identity.EquationId);
+        control.Title = WordFormulaMetadataStore.BuildMetadataAlias(metadata.Identity.EquationId);
+        ApplyMetadataControlFormatting(control);
+        return control;
+    }
+
+    private static void WriteMetadataControl(dynamic control, FormulaMetadata metadata)
+    {
+        TryCom(() => control.Range.Font.Hidden = 0);
+        control.Range.Text = WordFormulaMetadataStore.Serialize(metadata);
+        ApplyMetadataControlFormatting(control);
+    }
+
+    private static void ApplyMetadataControlFormatting(dynamic control)
+    {
+        HideContentControlChrome(control);
+        TryCom(() => control.Range.Font.Hidden = -1);
+        TryCom(() => control.Range.Font.Size = 1);
+        TryCom(() => control.Range.Font.Position = 0);
+        TryCom(() => control.LockContents = true);
+    }
+
+    private Dictionary<string, object> LoadMetadataControlIndex()
+    {
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        int count = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic control = controls.Item(index);
+            string equationId = WordFormulaMetadataStore.EquationIdFromMetadataTag(
+                Convert.ToString(control.Tag) ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(equationId))
+            {
+                result[equationId] = control;
+            }
+        }
+
+        return result;
+    }
+
+    private FormulaMetadata LoadFormulaMetadata(
+        string equationId,
+        IReadOnlyDictionary<string, object> metadataControls)
+    {
+        if (metadataControls.TryGetValue(equationId, out object control))
+        {
+            return WordFormulaMetadataStore.Deserialize(
+                CleanRangeText(ReadHiddenControlText(control)));
+        }
+
+        return WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, equationId);
+    }
+
+    private static string ReadHiddenControlText(object contentControl)
+    {
+        dynamic range = ((dynamic)contentControl).Range.Duplicate;
+        TryCom(() => range.TextRetrievalMode.IncludeHiddenText = true);
+        return Convert.ToString(range.Text) ?? string.Empty;
+    }
+
     private FormulaMetadata LoadFormulaMetadata(
         dynamic control,
         string equationId,
@@ -30,7 +177,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         FormulaMetadata corrected = WithRenderEngine(metadata, actualRenderEngine);
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, corrected);
+        SaveFormulaMetadata(corrected);
         return corrected;
     }
 
@@ -96,6 +243,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private static void ReplaceNumberControlText(object numberControl, string numberText)
     {
         dynamic control = numberControl;
+        HideContentControlChrome(control);
         TryCom(() => control.Range.Text = numberText);
     }
 
@@ -200,12 +348,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private dynamic CreateRangeAtDocumentPosition(int position)
-    {
-        int safePosition = ClampDocumentPosition(position);
-        return _wordApplication.ActiveDocument.Range(safePosition, safePosition);
-    }
-
     private int ClampDocumentPosition(int position)
     {
         try
@@ -255,6 +397,11 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private bool RangeIntersectsManagedFormula(dynamic range)
     {
+        if (IsCollapsedRange(range))
+        {
+            return CollapsedRangeIntersectsManagedFormula(range);
+        }
+
         int rangeStart = GetRangeStart(range);
         int rangeEnd = GetRangeEnd(range);
         try
@@ -292,6 +439,58 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 if (RangesIntersectOrContainPoint(rangeStart, rangeEnd, GetRangeStart(inlineShape.Range), GetRangeEnd(inlineShape.Range)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private bool CollapsedRangeIntersectsManagedFormula(dynamic range)
+    {
+        int position = GetRangeStart(range);
+        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        dynamic nearby = CreateDocumentRange(
+            Math.Max(0, position - 1),
+            Math.Min(documentEnd, position + 1));
+        object? parent = TryGetParentContentControl(range);
+        if (parent != null)
+        {
+            return true;
+        }
+
+        object? nearbyControl = TryGetFirstManagedContentControl(nearby);
+        if (nearbyControl != null)
+        {
+            dynamic control = nearbyControl;
+            if (RangesIntersectOrContainPoint(
+                position,
+                position,
+                GetRangeStart(control.Range),
+                GetRangeEnd(control.Range)))
+            {
+                return true;
+            }
+        }
+
+        try
+        {
+            dynamic inlineShapes = nearby.InlineShapes;
+            int count = Convert.ToInt32(inlineShapes.Count);
+            for (int index = 1; index <= count; index++)
+            {
+                dynamic inlineShape = inlineShapes.Item(index);
+                if (!string.IsNullOrWhiteSpace(GetOleInlineShapeEquationId(inlineShape)) &&
+                    RangesIntersectOrContainPoint(
+                        position,
+                        position,
+                        GetRangeStart(inlineShape.Range),
+                        GetRangeEnd(inlineShape.Range)))
                 {
                     return true;
                 }
