@@ -414,8 +414,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "latexsnipper-eq-" in metadata_store
     assert "latexsnipper-eqn-" in metadata_store
     assert "latexsnipper-eqm-" not in metadata_store
-    assert "LoadFromEquationTag" in metadata_store
-    assert "Convert.ToBase64String" in metadata_store
+    assert "MetadataVariablePrefix" in metadata_store
+    assert "BuildMetadataStorageKey" in metadata_store
+    assert 'Guid.NewGuid().ToString("N").Substring(0, 10)' in metadata_store
     assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "UpdateFormulaAsync" in adapter
@@ -456,7 +457,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" not in adapter
-    assert "LoadFromEquationTag" in adapter
+    assert "WordFormulaMetadataStore.Load(" in adapter
     assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
@@ -465,6 +466,12 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TabStops.Add" in adapter
     assert "ClearParagraphContent(paragraphRange)" in adapter
     assert "ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId)" in adapter
+    numbered_update = adapter.split("private static void ReplaceNumberedFormulaControl", 1)[1].split(
+        "private static dynamic ResolveReplacementRange",
+        1,
+    )[0]
+    assert "dynamic range = control.Range;" in numbered_update
+    assert "GetContainingParagraphRange(control)" not in numbered_update
     assert "RemoveEmptyParagraphBeforeFollowingContent" in adapter
     assert "paragraphRange.Delete()" not in adapter
     assert "TryGetManagedNumberedFormulaTable" not in adapter
@@ -585,7 +592,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "XElement.Parse" in omml_builder
     assert 'element.Name.LocalName == "oMath"' in omml_builder
     assert "Regex.Match" not in omml_builder
-    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in omml_builder
+    assert "BuildEquationTag(metadata.Identity.EquationId)" in omml_builder
     assert "BuildEquationTag(equationId, metadata)" not in omml_builder
     assert "inlineMath" not in omml_builder
     assert "w:vanish" not in omml_builder
@@ -1154,6 +1161,9 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "NoFormattingNeededStatus" in commands
     assert "LoadFromShape" in metadata
     assert "shape.AlternativeText = MetadataPrefix" in metadata
+    for tag in ("LatexTag", "RenderEngineTag", "FontColorTag", "FontStyleTag", "FontScaleTag"):
+        assert tag in metadata
+    assert "ApplyMetadataTags(shape, migrated)" in metadata
     assert '"fontColor"' in metadata
     assert '"fontStyle"' in metadata
     assert '"fontScale"' in metadata
@@ -1233,7 +1243,7 @@ def test_word_load_selected_is_selection_first() -> None:
     assert "selectionType != 6 && selectionType != 7 && selectionType != 8" in adapter
     assert "inlineShape.AlternativeText = tag;" in adapter
     assert "Word did not preserve the OLE formula identifier." in adapter
-    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in adapter
+    assert "WordFormulaMetadataStore.Save(" in adapter
 
 
 def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
@@ -1419,6 +1429,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "string.Join(settings.NumberSeparator, parts)" in numbering
     assert "SectionArabic" not in numbering
     assert "LoadNumberingDocumentEntries()" in adapter
+    assert "LoadFormulaMetadataById(equationId)" in adapter
     assert "ApplyAutomaticNumberAsync" not in adapter
     assert "ApplyAutomaticNumberAsync" not in (
         host / "IWordApplicationAdapter.cs"
@@ -1604,9 +1615,9 @@ def test_word_formula_metadata_does_not_create_hidden_document_controls() -> Non
         PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Metadata.cs"
     ).read_text(encoding="utf-8")
 
-    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in metadata_adapter
-    assert "equationControl).Tag = tag" in metadata_adapter
-    assert "shape.AlternativeText = WordFormulaMetadataStore.BuildEquationTag" in metadata_adapter
-    assert "TryLoadOleNaturalSizeFromEquationTag" in metadata_adapter
+    assert "WordFormulaMetadataStore.Save(" in metadata_adapter
+    assert "equationControl).Tag = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "shape.AlternativeText = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "TryLoadOleNaturalSize(" in metadata_adapter
     assert "ContentControls.Add" not in store
     assert "MetadataControlTagPrefix" not in store

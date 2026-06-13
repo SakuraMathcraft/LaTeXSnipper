@@ -75,7 +75,8 @@ public sealed partial class DynamicWordApplicationAdapter
                     continue;
                 }
 
-                if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+                if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
+                        _wordApplication.ActiveDocument,
                         Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
                         out double naturalWidth,
                         out double naturalHeight))

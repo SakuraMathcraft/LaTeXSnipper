@@ -486,11 +486,12 @@ public sealed partial class DynamicWordApplicationAdapter
         return (width, height);
     }
 
-    private static (double Width, double Height) GetOleNaturalSize(object inlineShape)
+    private (double Width, double Height) GetOleNaturalSize(object inlineShape)
     {
         dynamic shape = inlineShape;
         string tag = Convert.ToString(shape.AlternativeText) ?? string.Empty;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
+                _wordApplication.ActiveDocument,
                 tag,
                 out double naturalWidth,
                 out double naturalHeight))
@@ -577,8 +578,8 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata metadata,
         OlePresentationResult presentation)
     {
-        string tag = WordFormulaMetadataStore.BuildEquationTag(
-            metadata.Identity.EquationId,
+        string tag = WordFormulaMetadataStore.Save(
+            inlineShape.Range.Document,
             metadata,
             presentation.WidthPoints,
             presentation.HeightPoints);

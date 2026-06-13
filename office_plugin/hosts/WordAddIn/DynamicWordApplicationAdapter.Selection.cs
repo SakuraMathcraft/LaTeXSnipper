@@ -175,7 +175,8 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic inlineShape = shape;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
+            _wordApplication.ActiveDocument,
             Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
             out double naturalWidth,
             out double naturalHeight))

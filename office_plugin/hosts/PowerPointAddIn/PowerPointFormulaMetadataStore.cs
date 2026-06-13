@@ -9,6 +9,13 @@ public static class PowerPointFormulaMetadataStore
 {
     private const string MetadataPrefix = "latexsnipper-meta|";
     public const string EquationIdTag = "LaTeXSnipperEquationId";
+    public const string LatexTag = "LaTeXSnipperLatex";
+    public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
+    public const string SchemaVersionTag = "LaTeXSnipperSchemaVersion";
+    public const string RenderEngineTag = "LaTeXSnipperRenderEngine";
+    public const string FontColorTag = "LaTeXSnipperFontColor";
+    public const string FontStyleTag = "LaTeXSnipperFontStyle";
+    public const string FontScaleTag = "LaTeXSnipperFontScale";
     public const string NaturalWidthPointsTag = "LaTeXSnipperNaturalWidthPoints";
     public const string NaturalHeightPointsTag = "LaTeXSnipperNaturalHeightPoints";
     public const string ImagePathTag = "LaTeXSnipperImagePath";
@@ -27,12 +34,52 @@ public static class PowerPointFormulaMetadataStore
 
         shape.AlternativeText = MetadataPrefix + Convert.ToBase64String(
             Encoding.UTF8.GetBytes(Serialize(metadata)));
-        shape.Tags.Add(EquationIdTag, metadata.Identity.EquationId);
+        ApplyMetadataTags(shape, metadata);
         shape.Tags.Add(NaturalWidthPointsTag, naturalWidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(NaturalHeightPointsTag, naturalHeightPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    private static void ApplyMetadataTags(dynamic shape, FormulaMetadata metadata)
+    {
+        shape.Tags.Add(EquationIdTag, metadata.Identity.EquationId);
+        shape.Tags.Add(LatexTag, metadata.Latex);
+        shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
+        shape.Tags.Add(SchemaVersionTag, metadata.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        shape.Tags.Add(RenderEngineTag, metadata.RenderEngine.ToString());
+        shape.Tags.Add(FontColorTag, metadata.FontColor);
+        shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString());
+        shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     public static FormulaMetadata LoadFromShape(dynamic shape)
+    {
+        string equationId = ReadTag(shape, EquationIdTag);
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        if (string.IsNullOrWhiteSpace(ReadTag(shape, FontColorTag)))
+        {
+            FormulaMetadata migrated = LoadFromAlternativeText(shape);
+            ApplyMetadataTags(shape, migrated);
+            return migrated;
+        }
+
+        return new FormulaMetadata(
+            new FormulaIdentity("active-presentation", equationId),
+            ReadTag(shape, LatexTag),
+            ReadEnumTag(shape, DisplayModeTag, FormulaDisplayMode.Display),
+            NumberingMode.None,
+            string.Empty,
+            ReadEnumTag(shape, RenderEngineTag, RenderEngineKind.MathJaxSvg),
+            ReadIntTag(shape, SchemaVersionTag, 1),
+            ReadTag(shape, FontColorTag),
+            ReadEnumTag(shape, FontStyleTag, FormulaFontStyle.TeX),
+            ReadDoubleTag(shape, FontScaleTag, 1));
+    }
+
+    private static FormulaMetadata LoadFromAlternativeText(dynamic shape)
     {
         string value = Convert.ToString(shape.AlternativeText) ?? string.Empty;
         if (!value.StartsWith(MetadataPrefix, StringComparison.Ordinal))
@@ -55,6 +102,40 @@ public static class PowerPointFormulaMetadataStore
             ReadString(dto, "fontColor"),
             ReadEnum(dto, "fontStyle", FormulaFontStyle.TeX),
             ReadDouble(dto, "fontScale", 1));
+    }
+
+    private static string ReadTag(dynamic shape, string name)
+    {
+        try
+        {
+            return Convert.ToString(shape.Tags[name]) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static int ReadIntTag(dynamic shape, string name, int fallback)
+    {
+        return int.TryParse(ReadTag(shape, name), out int value) ? value : fallback;
+    }
+
+    private static double ReadDoubleTag(dynamic shape, string name, double fallback)
+    {
+        return double.TryParse(
+            ReadTag(shape, name),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double value)
+            ? value
+            : fallback;
+    }
+
+    private static TEnum ReadEnumTag<TEnum>(dynamic shape, string name, TEnum fallback)
+        where TEnum : struct
+    {
+        return Enum.TryParse(ReadTag(shape, name), true, out TEnum value) ? value : fallback;
     }
 
     private static string Serialize(FormulaMetadata metadata)

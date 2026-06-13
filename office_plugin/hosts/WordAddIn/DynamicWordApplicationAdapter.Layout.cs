@@ -55,7 +55,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private static void ReplaceNumberedFormulaControl(object contentControl, string equationOoxml)
     {
         dynamic control = contentControl;
-        dynamic range = GetContainingParagraphRange(control);
+        dynamic range = control.Range;
         range.InsertXML(equationOoxml);
     }
 

@@ -16,23 +16,19 @@ internal static class WordFormulaMetadataStore
     private const string AutoNumberChapterKey = "LaTeXSnipper.AutoNumberChapter";
     private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
     private const string MetadataSeparator = "|";
+    private const string MetadataVariablePrefix = "LS.E.";
+    private const string UnversionedMetadataVariablePrefix = "LaTeXSnipper.Equation.";
+    private const string UnversionedOleSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
 
-    public static string BuildEquationTag(
-        string equationId,
-        FormulaMetadata? metadata = null,
-        double naturalWidthPoints = 0,
-        double naturalHeightPoints = 0)
+    public static string BuildEquationTag(string equationId, string revision = "")
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        string tag = EquationTagPrefix + equationId;
-        return metadata == null
-            ? tag
-            : tag + MetadataSeparator + Convert.ToBase64String(
-                Encoding.UTF8.GetBytes(Serialize(metadata, naturalWidthPoints, naturalHeightPoints)));
+        return EquationTagPrefix + equationId +
+            (string.IsNullOrWhiteSpace(revision) ? string.Empty : MetadataSeparator + revision);
     }
 
     public static string EquationIdFromTag(string tag)
@@ -47,9 +43,30 @@ internal static class WordFormulaMetadataStore
         return separatorIndex < 0 ? value : value.Substring(0, separatorIndex);
     }
 
-    public static FormulaMetadata LoadFromEquationTag(string tag)
+    public static string Save(
+        dynamic document,
+        FormulaMetadata metadata,
+        double naturalWidthPoints = 0,
+        double naturalHeightPoints = 0)
     {
-        return Deserialize(DecodeEquationTag(tag));
+        string revision = Guid.NewGuid().ToString("N").Substring(0, 10);
+        SaveVariable(
+            document,
+            BuildMetadataStorageKey(metadata.Identity.EquationId, revision),
+            Serialize(metadata, naturalWidthPoints, naturalHeightPoints));
+        return BuildEquationTag(metadata.Identity.EquationId, revision);
+    }
+
+    public static FormulaMetadata Load(dynamic document, string tag)
+    {
+        return Deserialize(IsVersionedEquationTag(tag)
+            ? LoadPayload(document, tag)
+            : LoadUnversionedPayload(document, tag));
+    }
+
+    public static bool IsVersionedEquationTag(string tag)
+    {
+        return RevisionFromTag(tag).Length == 10;
     }
 
     public static string BuildNumberTag(string equationId)
@@ -82,7 +99,8 @@ internal static class WordFormulaMetadataStore
         return tag.Substring(NumberControlTagPrefix.Length);
     }
 
-    public static bool TryLoadOleNaturalSizeFromEquationTag(
+    public static bool TryLoadOleNaturalSize(
+        dynamic document,
         string tag,
         out double widthPoints,
         out double heightPoints)
@@ -92,9 +110,17 @@ internal static class WordFormulaMetadataStore
         try
         {
             var serializer = new JavaScriptSerializer();
-            var dto = serializer.Deserialize<Dictionary<string, object>>(DecodeEquationTag(tag));
+            string payload = IsVersionedEquationTag(tag)
+                ? LoadPayload(document, tag)
+                : LoadUnversionedPayload(document, tag);
+            var dto = serializer.Deserialize<Dictionary<string, object>>(payload);
             widthPoints = ReadDouble(dto, "naturalWidthPoints");
             heightPoints = ReadDouble(dto, "naturalHeightPoints");
+            if (widthPoints <= 0 || heightPoints <= 0)
+            {
+                LoadUnversionedOleSize(document, EquationIdFromTag(tag), out widthPoints, out heightPoints);
+            }
+
             return widthPoints > 0 && heightPoints > 0;
         }
         catch
@@ -162,16 +188,89 @@ internal static class WordFormulaMetadataStore
         return serializer.Serialize(dto);
     }
 
-    private static string DecodeEquationTag(string tag)
+    private static string LoadPayload(dynamic document, string tag)
     {
-        int separatorIndex = tag.IndexOf(MetadataSeparator, StringComparison.Ordinal);
-        if (separatorIndex < 0 || separatorIndex == tag.Length - 1)
+        string equationId = EquationIdFromTag(tag);
+        string revision = RevisionFromTag(tag);
+        if (string.IsNullOrWhiteSpace(equationId) || string.IsNullOrWhiteSpace(revision))
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        string encoded = tag.Substring(separatorIndex + MetadataSeparator.Length);
-        return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+        try
+        {
+            dynamic variable = document.Variables.Item(BuildMetadataStorageKey(equationId, revision));
+            return Convert.ToString(variable.Value) ?? string.Empty;
+        }
+        catch (Exception exc)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
+        }
+    }
+
+    private static string DecodeEmbeddedPayload(string tag)
+    {
+        string encoded = RevisionFromTag(tag);
+        if (string.IsNullOrWhiteSpace(encoded))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        try
+        {
+            return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+        }
+        catch (Exception exc)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
+        }
+    }
+
+    private static string LoadUnversionedPayload(dynamic document, string tag)
+    {
+        try
+        {
+            return DecodeEmbeddedPayload(tag);
+        }
+        catch (InvalidOperationException)
+        {
+            string equationId = EquationIdFromTag(tag);
+            try
+            {
+                dynamic variable = document.Variables.Item(UnversionedMetadataVariablePrefix + equationId);
+                return Convert.ToString(variable.Value) ?? string.Empty;
+            }
+            catch (Exception exc)
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
+            }
+        }
+    }
+
+    private static void LoadUnversionedOleSize(
+        dynamic document,
+        string equationId,
+        out double widthPoints,
+        out double heightPoints)
+    {
+        dynamic variable = document.Variables.Item(UnversionedOleSizeVariablePrefix + equationId);
+        var serializer = new JavaScriptSerializer();
+        var dto = serializer.Deserialize<Dictionary<string, object>>(Convert.ToString(variable.Value) ?? string.Empty);
+        widthPoints = ReadDouble(dto, "widthPoints");
+        heightPoints = ReadDouble(dto, "heightPoints");
+    }
+
+    private static string RevisionFromTag(string tag)
+    {
+        int separatorIndex = tag.IndexOf(MetadataSeparator, StringComparison.Ordinal);
+        return separatorIndex < 0 || separatorIndex == tag.Length - 1
+            ? string.Empty
+            : tag.Substring(separatorIndex + MetadataSeparator.Length);
+    }
+
+    private static string BuildMetadataStorageKey(string equationId, string revision)
+    {
+        return MetadataVariablePrefix + equationId + "." + revision;
     }
 
     public static FormulaMetadata Deserialize(string json)

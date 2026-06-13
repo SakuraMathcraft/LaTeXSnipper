@@ -11,11 +11,12 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private void SaveFormulaMetadata(FormulaMetadata metadata)
     {
-        string tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
         object? equationControl = TryGetEquationControlById(metadata.Identity.EquationId);
         if (equationControl != null)
         {
-            ((dynamic)equationControl).Tag = tag;
+            ((dynamic)equationControl).Tag = WordFormulaMetadataStore.Save(
+                _wordApplication.ActiveDocument,
+                metadata);
             return;
         }
 
@@ -26,7 +27,8 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic shape = inlineShape;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSizeFromEquationTag(
+        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
+                _wordApplication.ActiveDocument,
                 ReadFormulaObjectTag(shape),
                 out double naturalWidth,
                 out double naturalHeight))
@@ -34,8 +36,8 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        shape.AlternativeText = WordFormulaMetadataStore.BuildEquationTag(
-            metadata.Identity.EquationId,
+        shape.AlternativeText = WordFormulaMetadataStore.Save(
+            _wordApplication.ActiveDocument,
             metadata,
             naturalWidth,
             naturalHeight);
@@ -49,8 +51,12 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic formulaObject = actualRenderEngine == RenderEngineKind.Omml
             ? TryGetEquationControlById(equationId) ?? control
             : TryFindOleInlineShapeById(equationId) ?? control;
-        FormulaMetadata metadata = WordFormulaMetadataStore.LoadFromEquationTag(
-            ReadFormulaObjectTag(formulaObject));
+        string tag = ReadFormulaObjectTag(formulaObject);
+        FormulaMetadata metadata = WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, tag);
+        if (!WordFormulaMetadataStore.IsVersionedEquationTag(tag))
+        {
+            SaveFormulaMetadata(metadata);
+        }
 
         if (metadata.RenderEngine == actualRenderEngine)
         {
@@ -60,6 +66,23 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata corrected = WithRenderEngine(metadata, actualRenderEngine);
         SaveFormulaMetadata(corrected);
         return corrected;
+    }
+
+    private FormulaMetadata LoadFormulaMetadataById(string equationId)
+    {
+        object? equationControl = TryGetEquationControlById(equationId);
+        if (equationControl != null)
+        {
+            return LoadFormulaMetadata(equationControl, equationId, RenderEngineKind.Omml);
+        }
+
+        object? inlineShape = TryFindOleInlineShapeById(equationId);
+        if (inlineShape != null)
+        {
+            return LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
+        }
+
+        throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
     }
 
     private static string ReadFormulaObjectTag(dynamic formulaObject)
