@@ -250,12 +250,12 @@ jobs:
         shell: pwsh
         run: |
           Set-Location office_plugin
-          .\tools\Build-VstoAddIns.ps1 -Configuration Release
-          dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          .\tools\Build-VstoAddIns.ps1 -Configuration Release -MSBuildPath $msbuild
+          dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
