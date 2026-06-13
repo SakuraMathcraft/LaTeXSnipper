@@ -220,31 +220,31 @@ jobs:
             throw "Visual Studio was not found."
           }
           Write-Host "Visual Studio: $vsPath"
-          $officePath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath
-          $atlPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
-          if (-not $officePath -or -not $atlPath) {
-            Write-Host "Installing required Office and ATL build tools..."
+          $needed = @()
+          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath)) {
+            $needed += "Microsoft.VisualStudio.Workload.Office"
+          }
+          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath)) {
+            $needed += "Microsoft.VisualStudio.Component.VC.ATL"
+          }
+          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)) {
+            $needed += "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+          }
+          if ($needed.Count -gt 0) {
+            Write-Host "Installing missing components: $($needed -join ', ')"
             $vsInstaller = Join-Path $vsPath "..\..\Installer\vs_installer.exe"
             if (-not (Test-Path $vsInstaller)) {
               $vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
             }
-            & $vsInstaller modify `
-              --installPath $vsPath `
-              --add Microsoft.VisualStudio.Workload.Office `
-              --add Microsoft.VisualStudio.Component.VC.ATL `
-              --quiet `
-              --norestart `
-              --wait
+            $args = @("modify", "--installPath", $vsPath)
+            foreach ($component in $needed) { $args += "--add"; $args += $component }
+            $args += "--quiet"; $args += "--norestart"; $args += "--wait"
+            & $vsInstaller $args
             if ($LASTEXITCODE -ne 0) {
-              throw "Failed to install Office and ATL build tools."
+              throw "Failed to install missing components: $($needed -join ', ')"
             }
           }
-          $officePath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath
-          $atlPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
-          if (-not $officePath -or -not $atlPath) {
-            throw "Required Office or ATL build tools are unavailable after installation."
-          }
-          Write-Host "Office and ATL build tools are available."
+          Write-Host "Office, ATL and C++ build tools are available."
 
       - name: Build Office plugin
         shell: pwsh
@@ -254,8 +254,13 @@ jobs:
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          $toolset = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
+          $vVer = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
             Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
+          $toolset = ""
+          if ($vVer) {
+            $toolset = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC\$vVer\Platforms\x64\PlatformToolsets" -Directory -ErrorAction SilentlyContinue |
+              Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
+          }
           if (-not $toolset) { $toolset = "v143" }
           Write-Host "Using platform toolset: $toolset"
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
