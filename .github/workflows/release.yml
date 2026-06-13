@@ -230,6 +230,9 @@ jobs:
           if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)) {
             $needed += "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
           }
+          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.Tools.Office -property installationPath)) {
+            $needed += "Microsoft.VisualStudio.Component.Tools.Office"
+          }
           if ($needed.Count -gt 0) {
             Write-Host "Installing missing components: $($needed -join ', ')"
             $vsInstaller = Join-Path $vsPath "..\..\Installer\vs_installer.exe"
@@ -263,6 +266,7 @@ jobs:
           }
           if (-not $toolset) { $toolset = "v143" }
           Write-Host "Using platform toolset: $toolset"
+          .\tools\Build-VstoAddIns.ps1 -Configuration Release -MSBuildPath $msbuild
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
