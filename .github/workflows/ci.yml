@@ -43,6 +43,9 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      - name: Install test runner
+        run: python -m pip install pytest
+
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
 
@@ -195,6 +198,14 @@ jobs:
       - name: Build Office plugin managed projects
         shell: pwsh
         run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
+
+      - name: Run Office plugin tests
+        run: >-
+          python -m pytest
+          test/test_office_bridge.py
+          test/test_office_plugin_docs.py
+          test/test_office_plugin_structure.py
+          -q
 
       - name: Setup Typst
         shell: pwsh

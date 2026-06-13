@@ -950,8 +950,10 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "ClickToRun\\REGISTRY\\MACHINE\\Software\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
     assert "WOW6432Node\\Microsoft\\Office\\Word\\Addins" in setup_text
     assert "WOW6432Node\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
-    assert "Run Office plugin tests" not in ci_text
+    assert "Run Office plugin tests" in ci_text
+    assert "test/test_office_plugin_structure.py" in ci_text
     assert "Run Office plugin tests" not in release_text
+    assert "Install test runner" in ci_text
     assert "Install test runner" not in release_text
 
 
@@ -1156,9 +1158,21 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "NoFormattingNeededStatus" in commands
     assert "LoadFromShape" in metadata
     assert 'shape.AlternativeText = "LaTeXSnipper formula "' in metadata
-    for tag in ("LatexTag", "RenderEngineTag", "FontColorTag", "FontStyleTag", "FontScaleTag"):
+    for tag in (
+        "LatexChunkCountTag",
+        "LatexByteLengthTag",
+        "RenderEngineTag",
+        "FontColorTag",
+        "FontStyleTag",
+        "FontScaleTag",
+    ):
         assert tag in metadata
     assert "LoadFromAlternativeText" not in metadata
+    assert "Encoding.UTF8.GetBytes" in metadata
+    assert 'valueByte.ToString("X2"' in metadata
+    assert "ReadEncodedText(shape)" in metadata
+    assert "ReadRequiredEnumTag" in metadata
+    assert "ReadEnumTag" not in metadata
     assert "shape.Tags.Add(FontColorTag, metadata.FontColor)" in metadata
     assert "shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString())" in metadata
     assert "shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString" in metadata
@@ -1383,8 +1397,8 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
     assert "control.Range.Text = InlineConversionSlot" in remove_source
     assert "control.Delete(false)" in remove_source
-    assert "metadata.RenderEngine == actualRenderEngine" in adapter
-    assert "SaveFormulaMetadata(corrected)" in adapter
+    assert "metadata.RenderEngine != actualRenderEngine" in adapter
+    assert "SaveFormulaMetadata(corrected)" not in adapter
     assert "SaveNewFormulaMetadata" not in adapter
     assert "LoadMetadataControlIndex" not in adapter
     assert "AddMetadataControlDeletionTarget" not in adapter
@@ -1424,7 +1438,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "string.Join(settings.NumberSeparator, parts)" in numbering
     assert "SectionArabic" not in numbering
     assert "LoadNumberingDocumentEntries()" in adapter
-    assert "LoadFormulaMetadataById(equationId)" in adapter
+    assert "LoadFormulaMetadataById" not in adapter
     assert "ApplyAutomaticNumberAsync" not in adapter
     assert "ApplyAutomaticNumberAsync" not in (
         host / "IWordApplicationAdapter.cs"
@@ -1611,8 +1625,43 @@ def test_word_formula_metadata_does_not_create_hidden_document_controls() -> Non
     ).read_text(encoding="utf-8")
 
     assert "WordFormulaMetadataStore.Save(" in metadata_adapter
-    assert "equationControl).Tag = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "SaveFormulaMetadata(equationControl, metadata)" in metadata_adapter
+    assert "shape.Tag = WordFormulaMetadataStore.Save" in metadata_adapter
     assert "shape.AlternativeText = WordFormulaMetadataStore.Save" in metadata_adapter
     assert "TryLoadOleNaturalSize(" in metadata_adapter
     assert "ContentControls.Add" not in store
     assert "MetadataControlTagPrefix" not in store
+    assert "MaxWordTagLength = 64" in store
+    assert "ValidateTagLength" in store
+    assert "ReadRequiredDouble" in store
+    assert "ReadEnum(dto, \"displayMode\"," not in store
+    assert "WithRenderEngine(metadata, actualRenderEngine)" not in metadata_adapter
+
+
+def test_word_ole_natural_size_uses_the_actual_inserted_shape() -> None:
+    lifecycle = (
+        PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.FormulaLifecycle.cs"
+    ).read_text(encoding="utf-8")
+    tag_method = lifecycle.split("private static void TagOleInlineShape", 1)[1]
+
+    assert "(float width, float height) = GetInlineShapeSize" in tag_method
+    assert "metadata,\n            width,\n            height" in tag_method
+    assert "presentation.WidthPoints,\n            presentation.HeightPoints" not in tag_method
+
+
+def test_word_renumbering_indexes_formula_objects_once() -> None:
+    host = PLUGIN / "hosts" / "WordAddIn"
+    operations = (host / "DynamicWordApplicationAdapter.Operations.cs").read_text(
+        encoding="utf-8"
+    )
+    numbering = (host / "DynamicWordApplicationAdapter.Numbering.cs").read_text(
+        encoding="utf-8"
+    )
+    load_entries = operations.split("private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries()", 1)[1]
+
+    assert "Dictionary<string, IndexedFormulaObject>" in load_entries
+    assert "ActiveDocument.InlineShapes" in load_entries
+    assert "LoadFormulaMetadataById(equationId)" not in load_entries
+    assert "formulaObject.Value," in load_entries
+    assert "formulaObject.RenderEngine" in load_entries
+    assert "SaveFormulaMetadata(formula.FormulaObject, renumbered)" in numbering

@@ -272,10 +272,35 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         var entries = new List<NumberingDocumentEntry>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var formulaObjects = new Dictionary<string, IndexedFormulaObject>(StringComparer.Ordinal);
         int previousStart = -1;
         bool ordered = true;
         dynamic controls = _wordApplication.ActiveDocument.ContentControls;
         int count = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic control = controls.Item(index);
+            string equationId = GetEquationControlId(control);
+            if (!string.IsNullOrWhiteSpace(equationId))
+            {
+                formulaObjects[equationId] = new IndexedFormulaObject(control, RenderEngineKind.Omml);
+            }
+        }
+
+        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        int shapeCount = Convert.ToInt32(inlineShapes.Count);
+        for (int index = 1; index <= shapeCount; index++)
+        {
+            dynamic inlineShape = inlineShapes.Item(index);
+            string equationId = GetOleInlineShapeEquationId(inlineShape);
+            if (!string.IsNullOrWhiteSpace(equationId))
+            {
+                formulaObjects[equationId] = new IndexedFormulaObject(
+                    inlineShape,
+                    RenderEngineKind.MathJaxSvg);
+            }
+        }
+
         for (int index = 1; index <= count; index++)
         {
             dynamic control = controls.Item(index);
@@ -295,9 +320,18 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            FormulaMetadata metadata = LoadFormulaMetadataById(equationId);
+            if (!formulaObjects.TryGetValue(equationId, out IndexedFormulaObject formulaObject))
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+            }
+
+            FormulaMetadata metadata = LoadFormulaMetadata(
+                formulaObject.Value,
+                equationId,
+                formulaObject.RenderEngine);
             var formula = new NumberedFormulaEntry(
                 equationId,
+                formulaObject.Value,
                 control,
                 metadata,
                 GetRangeStart(control.Range));

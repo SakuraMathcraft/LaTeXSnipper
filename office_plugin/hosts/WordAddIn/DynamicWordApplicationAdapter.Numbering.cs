@@ -89,7 +89,7 @@ public sealed partial class DynamicWordApplicationAdapter
                     formula.Metadata.FontStyle,
                     formula.Metadata.FontScale);
                 ApplyNumberControlVerticalAlignment(formula.NumberControl, renumbered);
-                SaveFormulaMetadata(renumbered);
+                SaveFormulaMetadata(formula.FormulaObject, renumbered);
             }
 
             UpdateFormulaReferences(entries);

@@ -252,7 +252,7 @@ public sealed partial class DynamicWordApplicationAdapter
             Type.Missing,
             range);
         ApplyOleInlineShapeLayout(inlineShape, presentation, metadata.DisplayMode == FormulaDisplayMode.Display);
-        TagOleInlineShape(inlineShape, metadata, presentation);
+        TagOleInlineShape(inlineShape, metadata);
         return inlineShape;
     }
 
@@ -575,14 +575,14 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private static void TagOleInlineShape(
         dynamic inlineShape,
-        FormulaMetadata metadata,
-        OlePresentationResult presentation)
+        FormulaMetadata metadata)
     {
+        (float width, float height) = GetInlineShapeSize((object)inlineShape);
         string tag = WordFormulaMetadataStore.Save(
             inlineShape.Range.Document,
             metadata,
-            presentation.WidthPoints,
-            presentation.HeightPoints);
+            width,
+            height);
         inlineShape.AlternativeText = tag;
         string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
         if (!string.Equals(storedTag, tag, StringComparison.Ordinal))

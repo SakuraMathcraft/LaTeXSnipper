@@ -95,7 +95,10 @@ public sealed partial class DynamicWordApplicationAdapter
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
+                    FormulaMetadata metadata = LoadFormulaMetadata(
+                        inlineShape,
+                        equationId,
+                        RenderEngineKind.MathJaxSvg);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
                 }
 

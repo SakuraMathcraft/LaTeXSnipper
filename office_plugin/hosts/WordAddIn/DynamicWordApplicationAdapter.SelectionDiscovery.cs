@@ -132,7 +132,10 @@ public sealed partial class DynamicWordApplicationAdapter
             return;
         }
 
-        FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
+        FormulaMetadata metadata = LoadFormulaMetadata(
+            inlineShape,
+            equationId,
+            RenderEngineKind.MathJaxSvg);
         formulas.Add(new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true));
     }
 

@@ -16,6 +16,7 @@ internal static class WordFormulaMetadataStore
     private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
     private const string MetadataSeparator = "|";
     private const string MetadataVariablePrefix = "LS.E.";
+    private const int MaxWordTagLength = 64;
 
     public static string BuildEquationTag(string equationId, string revision = "")
     {
@@ -24,8 +25,9 @@ internal static class WordFormulaMetadataStore
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return EquationTagPrefix + equationId +
-            (string.IsNullOrWhiteSpace(revision) ? string.Empty : MetadataSeparator + revision);
+        return ValidateTagLength(
+            EquationTagPrefix + equationId +
+            (string.IsNullOrWhiteSpace(revision) ? string.Empty : MetadataSeparator + revision));
     }
 
     public static string EquationIdFromTag(string tag)
@@ -66,7 +68,7 @@ internal static class WordFormulaMetadataStore
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return NumberControlTagPrefix + equationId;
+        return ValidateTagLength(NumberControlTagPrefix + equationId);
     }
 
     public static string BuildNumberAlias(string equationId)
@@ -76,7 +78,7 @@ internal static class WordFormulaMetadataStore
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        return NumberControlAliasPrefix + equationId;
+        return ValidateTagLength(NumberControlAliasPrefix + equationId);
     }
 
     public static string EquationIdFromNumberTag(string tag)
@@ -217,29 +219,35 @@ internal static class WordFormulaMetadataStore
         return new FormulaMetadata(
             new FormulaIdentity(documentId, equationId),
             ReadString(dto, "latex"),
-            ReadEnum(dto, "displayMode", FormulaDisplayMode.Display),
-            ReadEnum(dto, "numberingMode", NumberingMode.None),
+            ReadEnum<FormulaDisplayMode>(dto, "displayMode"),
+            ReadEnum<NumberingMode>(dto, "numberingMode"),
             ReadString(dto, "numberText"),
-            ReadEnum(dto, "renderEngine", RenderEngineKind.Omml),
-            ReadInt(dto, "schemaVersion", 1),
+            ReadEnum<RenderEngineKind>(dto, "renderEngine"),
+            ReadInt(dto, "schemaVersion"),
             ReadString(dto, "fontColor"),
-            ReadEnum(dto, "fontStyle", FormulaFontStyle.TeX),
-            ReadDouble(dto, "fontScale"));
+            ReadEnum<FormulaFontStyle>(dto, "fontStyle"),
+            ReadRequiredDouble(dto, "fontScale"));
     }
 
     private static string ReadString(Dictionary<string, object> dto, string key)
     {
-        return dto.TryGetValue(key, out object value) ? Convert.ToString(value) ?? string.Empty : string.Empty;
-    }
-
-    private static int ReadInt(Dictionary<string, object> dto, string key, int fallback)
-    {
         if (!dto.TryGetValue(key, out object value))
         {
-            return fallback;
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        return int.TryParse(Convert.ToString(value), out int parsed) ? parsed : fallback;
+        return Convert.ToString(value) ?? string.Empty;
+    }
+
+    private static int ReadInt(Dictionary<string, object> dto, string key)
+    {
+        if (!dto.TryGetValue(key, out object value) ||
+            !int.TryParse(Convert.ToString(value), out int parsed))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return parsed;
     }
 
     private static double ReadDouble(Dictionary<string, object> dto, string key)
@@ -250,15 +258,37 @@ internal static class WordFormulaMetadataStore
             : 0;
     }
 
-    private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key, TEnum fallback)
-        where TEnum : struct
+    private static double ReadRequiredDouble(Dictionary<string, object> dto, string key)
     {
-        if (!dto.TryGetValue(key, out object value))
+        double value = ReadDouble(dto, key);
+        if (value <= 0)
         {
-            return fallback;
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        return Enum.TryParse(Convert.ToString(value), ignoreCase: true, out TEnum parsed) ? parsed : fallback;
+        return value;
+    }
+
+    private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key)
+        where TEnum : struct
+    {
+        if (!dto.TryGetValue(key, out object value) ||
+            !Enum.TryParse(Convert.ToString(value), ignoreCase: true, out TEnum parsed))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return parsed;
+    }
+
+    private static string ValidateTagLength(string tag)
+    {
+        if (tag.Length > MaxWordTagLength)
+        {
+            throw new InvalidOperationException("Word formula tag exceeds the 64-character limit.");
+        }
+
+        return tag;
     }
 
     public static int GetAutoNumberCounter(dynamic document)
