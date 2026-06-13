@@ -9,6 +9,8 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
+    private const string InlineConversionSlot = "\u2060";
+
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -41,18 +43,26 @@ public sealed partial class DynamicWordApplicationAdapter
                 string replacementOoxml;
                 if (metadata.NumberingMode == NumberingMode.None)
                 {
+                    bool restoreInlineParagraph =
+                        metadata.DisplayMode == FormulaDisplayMode.Inline &&
+                        HasContentAfterRangeInParagraph(inlineShape.Range);
                     int insertionPoint = GetRangeStart(inlineShape.Range);
                     inlineShape.Delete();
-                    insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);
+                    insertionRange = CreateInlineConversionSlot(insertionPoint);
                     replacementOoxml = equationOoxml;
+                    insertionRange.InsertXML(replacementOoxml);
+                    if (restoreInlineParagraph)
+                    {
+                        MergeFollowingParagraphIntoFormulaParagraph(metadata.Identity.EquationId);
+                    }
                 }
                 else
                 {
                     insertionRange = ClearParagraphContent(GetContainingParagraphRange(inlineShape));
                     replacementOoxml = ooxml;
+                    insertionRange.InsertXML(replacementOoxml);
                 }
 
-                insertionRange.InsertXML(replacementOoxml);
                 if (metadata.NumberingMode == NumberingMode.None &&
                     metadata.DisplayMode == FormulaDisplayMode.Display)
                 {
@@ -101,6 +111,45 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return insertionPoint;
+    }
+
+    private dynamic CreateInlineConversionSlot(int insertionPoint)
+    {
+        dynamic slot = CreateDocumentRange(insertionPoint, insertionPoint);
+        slot.Text = InlineConversionSlot;
+        return CreateDocumentRange(
+            insertionPoint,
+            insertionPoint + InlineConversionSlot.Length);
+    }
+
+    private bool HasContentAfterRangeInParagraph(dynamic sourceRange)
+    {
+        dynamic paragraphRange = sourceRange.Paragraphs.Item(1).Range;
+        int start = GetRangeEnd(sourceRange);
+        int end = Math.Max(start, GetRangeEnd(paragraphRange) - 1);
+        if (end <= start)
+        {
+            return false;
+        }
+
+        dynamic trailing = CreateDocumentRange(start, end);
+        string text = Convert.ToString(trailing.Text) ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(text)
+            || Convert.ToInt32(trailing.ContentControls.Count) > 0
+            || Convert.ToInt32(trailing.InlineShapes.Count) > 0
+            || Convert.ToInt32(trailing.OMaths.Count) > 0;
+    }
+
+    private void MergeFollowingParagraphIntoFormulaParagraph(string equationId)
+    {
+        dynamic control = FindFormulaControlById(equationId);
+        dynamic paragraphRange = GetContainingParagraphRange(control);
+        int paragraphEnd = GetRangeEnd(paragraphRange);
+        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        if (paragraphEnd < documentEnd)
+        {
+            CreateDocumentRange(paragraphEnd - 1, paragraphEnd).Delete();
+        }
     }
 
     public bool HasCustomFormulaScale(FormulaMetadata metadata)

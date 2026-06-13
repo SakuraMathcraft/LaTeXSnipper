@@ -113,7 +113,9 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 dynamic control = FindFormulaControlById(equationId);
                 int insertionPoint = RemoveOmmlConversionSource(control, metadata);
-                dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);
+                dynamic insertionRange = metadata.NumberingMode == NumberingMode.None
+                    ? CreateInlineConversionSlot(insertionPoint)
+                    : CreateDocumentRange(insertionPoint, insertionPoint);
                 dynamic converted = metadata.NumberingMode == NumberingMode.None
                     ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
                     : InsertNumberedOleInlineShape(insertionRange, metadata, presentation);

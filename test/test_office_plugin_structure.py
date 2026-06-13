@@ -1361,17 +1361,18 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert "metadata.NumberingMode == NumberingMode.None" in adapter
     assert "replacementOoxml = equationOoxml" in adapter
-    assert "InlineConversionAnchor" not in adapter
+    assert 'private const string InlineConversionSlot = "\\u2060";' in adapter
+    assert "CreateInlineConversionSlot(insertionPoint)" in adapter
     assert "control.Delete(true)" in adapter
-    assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
+    assert "dynamic insertionRange = metadata.NumberingMode == NumberingMode.None" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
-        "public bool HasCustomFormulaScale",
+        "private dynamic CreateInlineConversionSlot",
         1,
     )[0]
     assert "metadata.NumberingMode != NumberingMode.None" in remove_source
     assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
     assert "control.Delete(true)" in remove_source
-    assert "InlineConversionAnchor" not in remove_source
+    assert "InlineConversionSlot" not in remove_source
     assert "metadata.RenderEngine == actualRenderEngine" in adapter
     assert "SaveFormulaMetadata(corrected)" in adapter
     assert "SaveNewFormulaMetadata" not in adapter
@@ -1487,16 +1488,18 @@ def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
     assert '"OmmlInsertedStatus" => "已插入 OMML 公式。"' in text
     assert 'WordAddInText.Get("OleInsertedStatus")' in controller
     assert 'WordAddInText.Get("OmmlInsertedStatus")' in controller
-    assert "InlineConversionAnchor" not in adapter
+    assert "CreateInlineConversionSlot(insertionPoint)" in adapter
+    assert "HasContentAfterRangeInParagraph(inlineShape.Range)" in adapter
+    assert "MergeFollowingParagraphIntoFormulaParagraph" in adapter
     assert "insertionRange.InsertXML(replacementOoxml)" in adapter
     assert "control.Delete(true)" in adapter
-    assert "dynamic insertionRange = CreateDocumentRange(insertionPoint, insertionPoint);" in adapter
+    assert "CreateInlineConversionSlot(insertionPoint)" in adapter
     remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
-        "public bool HasCustomFormulaScale",
+        "private dynamic CreateInlineConversionSlot",
         1,
     )[0]
     assert "control.Delete(true)" in remove_source
-    assert "InlineConversionAnchor" not in remove_source
+    assert "InlineConversionSlot" not in remove_source
 
 
 def test_word_taskpane_rebuilds_preview_when_restoring_draft() -> None:
