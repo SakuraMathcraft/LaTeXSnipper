@@ -1458,6 +1458,21 @@ def test_word_formula_color_default_tracks_windows_theme() -> None:
     assert "backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor" in controller
 
 
+def test_installed_asset_resolvers_do_not_trust_vsto_cache_location() -> None:
+    for host_name in ("WordAddIn", "PowerPointAddIn"):
+        resolver = (
+            PLUGIN / "hosts" / host_name / "InstalledAssetResolver.cs"
+        ).read_text(encoding="utf-8")
+        method = resolver.split("public static string? FindInstallDirectory()", 1)[1]
+
+        assert method.index("foreach (string subPath in RegistryPaths)") < method.index(
+            "Assembly.Location"
+        )
+        assert "Registry.LocalMachine.OpenSubKey(subPath)" in resolver
+        assert "ContainsHostAssets" in resolver
+        assert 'Directory.Exists(Path.Combine(directory!, "EditorAssets"))' in resolver
+
+
 def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
     host = PLUGIN / "hosts" / "WordAddIn"
     text = (host / "WordAddInText.cs").read_text(encoding="utf-8")

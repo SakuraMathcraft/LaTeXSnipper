@@ -27,27 +27,22 @@ internal static class InstalledAssetResolver
 
     public static string? FindInstallDirectory()
     {
-        string? assemblyDirectory = Path.GetDirectoryName(typeof(InstalledAssetResolver).Assembly.Location);
-        if (!string.IsNullOrWhiteSpace(assemblyDirectory))
-        {
-            return assemblyDirectory;
-        }
-
         foreach (string subPath in RegistryPaths)
         {
-            string? directory = GetManifestDirectory(Registry.LocalMachine, subPath);
+            string? directory = GetManifestDirectory(subPath);
             if (directory != null)
             {
                 return directory;
             }
         }
 
-        return null;
+        string? assemblyDirectory = Path.GetDirectoryName(typeof(InstalledAssetResolver).Assembly.Location);
+        return ContainsHostAssets(assemblyDirectory) ? assemblyDirectory : null;
     }
 
-    private static string? GetManifestDirectory(RegistryKey root, string subPath)
+    private static string? GetManifestDirectory(string subPath)
     {
-        using RegistryKey? key = root.OpenSubKey(subPath);
+        using RegistryKey? key = Registry.LocalMachine.OpenSubKey(subPath);
         string? manifest = key?.GetValue("Manifest") as string;
         if (string.IsNullOrWhiteSpace(manifest))
         {
@@ -59,6 +54,13 @@ internal static class InstalledAssetResolver
             .Replace("|vstolocal", "")
             .Replace('/', '\\');
 
-        return Path.GetDirectoryName(path);
+        string? directory = Path.GetDirectoryName(path);
+        return ContainsHostAssets(directory) ? directory : null;
+    }
+
+    private static bool ContainsHostAssets(string? directory)
+    {
+        return !string.IsNullOrWhiteSpace(directory)
+            && Directory.Exists(Path.Combine(directory!, "EditorAssets"));
     }
 }
