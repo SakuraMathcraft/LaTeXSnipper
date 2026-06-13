@@ -254,6 +254,7 @@ jobs:
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Fusion" -Name "EnableLog" -ErrorAction SilentlyContinue
           .\tools\Build-VstoAddIns.ps1 -Configuration Release -MSBuildPath $msbuild
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
