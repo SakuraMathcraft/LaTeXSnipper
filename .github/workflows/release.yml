@@ -251,18 +251,40 @@ jobs:
         run: |
           Set-Location office_plugin
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
-          if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
-          $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          $vVer = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
+          $vs2025path = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
+          if (-not $vs2025path) { throw "Visual Studio C++ ATL tools were not found." }
+          $msbuild = Join-Path $vs2025path "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          $vs2022path = & $vswhere -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.Tools.Office -property installationPath
+          if (-not $vs2022path) {
+            Write-Host "VS 2022 with Office tools not found, installing VS 2022 Build Tools..."
+            $bootstrapper = Join-Path $env:TEMP "vs2022_BuildTools.exe"
+            Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile $bootstrapper
+            $proc = Start-Process -FilePath $bootstrapper -ArgumentList @(
+              "--quiet", "--wait", "--norestart",
+              "--add", "Microsoft.VisualStudio.Workload.Office",
+              "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+              "--includeRecommended"
+            ) -Wait -PassThru
+            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+              throw "VS 2022 Build Tools install failed with exit code $($proc.ExitCode)"
+            }
+            $vs2022path = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\BuildTools"
+            if (-not (Test-Path $vs2022path)) { $vs2022path = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\Community" }
+          }
+          $msbuild2022 = Join-Path $vs2022path "MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $msbuild2022)) {
+            $msbuild2022 = Join-Path $vs2022path "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          }
+          Write-Host "VS 2022 MSBuild: $msbuild2022"
+          $vVer = Get-ChildItem "$vs2025path\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
             Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
           $toolset = ""
           if ($vVer) {
-            $toolset = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC\$vVer\Platforms\x64\PlatformToolsets" -Directory -ErrorAction SilentlyContinue |
+            $toolset = Get-ChildItem "$vs2025path\MSBuild\Microsoft\VC\$vVer\Platforms\x64\PlatformToolsets" -Directory -ErrorAction SilentlyContinue |
               Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
           }
           if (-not $toolset) { $toolset = "v143" }
-          Write-Host "Using platform toolset: $toolset"
+          Write-Host "VS 2025 platform toolset: $toolset"
           $certSubject = "CN=LaTeXSnipper Office Plugin VSTO"
           $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
             Where-Object { $_.Subject -eq $certSubject } |
@@ -274,14 +296,17 @@ jobs:
               -NotAfter (Get-Date).AddYears(5)
           }
           Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force
+          $thumb = $cert.Thumbprint
+          $props = "<Project xmlns=`"http://schemas.microsoft.com/developer/msbuild/2003`"><PropertyGroup><ManifestCertificateThumbprint>$thumb</ManifestCertificateThumbprint></PropertyGroup></Project>"
+          Set-Content -Path "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
+          Set-Content -Path "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
           $vstoProjects = @(
             "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.csproj",
             "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.csproj"
           )
           foreach ($project in $vstoProjects) {
-            & $msbuild $project "/restore" "/t:Build;VisualStudioForApplicationsBuild" `
-              "/p:Configuration=Release" "/p:VSTO_ProjectType=Application" `
-              "/p:SignManifests=false" "/nologo" "/v:minimal"
+            & $msbuild2022 $project "/restore" "/t:Build;VisualStudioForApplicationsBuild" `
+              "/p:Configuration=Release" "/p:VSTO_ProjectType=Application" "/nologo" "/v:minimal"
             if ($LASTEXITCODE -ne 0) { throw "VSTO build failed for $project" }
           }
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
