@@ -254,10 +254,14 @@ jobs:
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
           if (-not $vsPath) { throw "Visual Studio C++ ATL tools were not found." }
           $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\amd64\MSBuild.exe"
+          $toolset = Get-ChildItem "$vsPath\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
+          if (-not $toolset) { $toolset = "v143" }
+          Write-Host "Using platform toolset: $toolset"
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=$toolset /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
           $subjects = @('CN=LaTeXSnipper Office Plugin VSTO')
           $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -in $subjects } | Sort-Object NotAfter -Descending | Select-Object -First 1
