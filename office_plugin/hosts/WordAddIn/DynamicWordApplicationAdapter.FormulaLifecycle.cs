@@ -112,10 +112,7 @@ public sealed partial class DynamicWordApplicationAdapter
             if (existingOle == null)
             {
                 dynamic control = FindFormulaControlById(equationId);
-                int insertionPoint = RemoveOmmlConversionSource(control, metadata);
-                dynamic insertionRange = metadata.NumberingMode == NumberingMode.None
-                    ? CreateInlineConversionSlot(insertionPoint)
-                    : CreateDocumentRange(insertionPoint, insertionPoint);
+                dynamic insertionRange = RemoveOmmlConversionSource(control, metadata);
                 dynamic converted = metadata.NumberingMode == NumberingMode.None
                     ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
                     : InsertNumberedOleInlineShape(insertionRange, metadata, presentation);
@@ -548,7 +545,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private static void TagOleInlineShape(dynamic inlineShape, FormulaMetadata metadata)
     {
-        string tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId);
+        string tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
         inlineShape.AlternativeText = tag;
         string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
         if (!string.Equals(storedTag, tag, StringComparison.Ordinal))

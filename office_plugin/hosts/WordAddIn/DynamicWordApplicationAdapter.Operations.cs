@@ -295,9 +295,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                _wordApplication.ActiveDocument,
-                equationId);
+            FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
             var formula = new NumberedFormulaEntry(
                 equationId,
                 control,

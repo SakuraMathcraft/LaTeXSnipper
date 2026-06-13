@@ -414,7 +414,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "latexsnipper-eq-" in metadata_store
     assert "latexsnipper-eqn-" in metadata_store
     assert "latexsnipper-eqm-" not in metadata_store
-    assert "LaTeXSnipper.Equation." in metadata_store
+    assert "LoadFromEquationTag" in metadata_store
+    assert "Convert.ToBase64String" in metadata_store
     assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "UpdateFormulaAsync" in adapter
@@ -454,7 +455,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "IsInsideManagedContent" not in adapter
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
-    assert "CreateRecoveredFormulaMetadata" in adapter
+    assert "CreateRecoveredFormulaMetadata" not in adapter
+    assert "LoadFromEquationTag" in adapter
     assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
@@ -583,7 +585,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "XElement.Parse" in omml_builder
     assert 'element.Name.LocalName == "oMath"' in omml_builder
     assert "Regex.Match" not in omml_builder
-    assert "BuildEquationTag(equationId)" in omml_builder
+    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in omml_builder
     assert "BuildEquationTag(equationId, metadata)" not in omml_builder
     assert "inlineMath" not in omml_builder
     assert "w:vanish" not in omml_builder
@@ -1150,8 +1152,11 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "entry.SlideIndex" in commands
     assert "Math.Abs(entry.Scale - 1) > 0.01" in commands
     assert "NoFormattingNeededStatus" in commands
-    for tag in ("RenderEngineTag", "FontColorTag", "FontStyleTag", "FontScaleTag"):
-        assert tag in metadata
+    assert "LoadFromShape" in metadata
+    assert "shape.AlternativeText = MetadataPrefix" in metadata
+    assert '"fontColor"' in metadata
+    assert '"fontStyle"' in metadata
+    assert '"fontScale"' in metadata
     assert "FormulaColor" in settings
     assert "FormulaFontStyle" in settings
     assert '["formulaColor"] = settings.FormulaColor' in settings_window
@@ -1228,7 +1233,7 @@ def test_word_load_selected_is_selection_first() -> None:
     assert "selectionType != 6 && selectionType != 7 && selectionType != 8" in adapter
     assert "inlineShape.AlternativeText = tag;" in adapter
     assert "Word did not preserve the OLE formula identifier." in adapter
-    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" not in adapter
+    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in adapter
 
 
 def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
@@ -1363,16 +1368,16 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert 'private const string InlineConversionSlot = "\\u2060";' in adapter
     assert "CreateInlineConversionSlot(insertionPoint)" in adapter
-    assert "control.Delete(true)" in adapter
-    assert "dynamic insertionRange = metadata.NumberingMode == NumberingMode.None" in adapter
-    remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
+    assert "control.Delete(false)" in adapter
+    assert "dynamic insertionRange = RemoveOmmlConversionSource(control, metadata)" in adapter
+    remove_source = adapter.split("private dynamic RemoveOmmlConversionSource", 1)[1].split(
         "private dynamic CreateInlineConversionSlot",
         1,
     )[0]
     assert "metadata.NumberingMode != NumberingMode.None" in remove_source
     assert "metadata.DisplayMode == FormulaDisplayMode.Display" in remove_source
-    assert "control.Delete(true)" in remove_source
-    assert "InlineConversionSlot" not in remove_source
+    assert "control.Range.Text = InlineConversionSlot" in remove_source
+    assert "control.Delete(false)" in remove_source
     assert "metadata.RenderEngine == actualRenderEngine" in adapter
     assert "SaveFormulaMetadata(corrected)" in adapter
     assert "SaveNewFormulaMetadata" not in adapter
@@ -1492,14 +1497,14 @@ def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
     assert "HasContentAfterRangeInParagraph(inlineShape.Range)" in adapter
     assert "MergeFollowingParagraphIntoFormulaParagraph" in adapter
     assert "insertionRange.InsertXML(replacementOoxml)" in adapter
-    assert "control.Delete(true)" in adapter
+    assert "control.Delete(false)" in adapter
     assert "CreateInlineConversionSlot(insertionPoint)" in adapter
-    remove_source = adapter.split("private int RemoveOmmlConversionSource", 1)[1].split(
+    remove_source = adapter.split("private dynamic RemoveOmmlConversionSource", 1)[1].split(
         "private dynamic CreateInlineConversionSlot",
         1,
     )[0]
-    assert "control.Delete(true)" in remove_source
-    assert "InlineConversionSlot" not in remove_source
+    assert "control.Range.Text = InlineConversionSlot" in remove_source
+    assert "control.Delete(false)" in remove_source
 
 
 def test_word_taskpane_rebuilds_preview_when_restoring_draft() -> None:
@@ -1595,11 +1600,12 @@ def test_word_formula_metadata_does_not_create_hidden_document_controls() -> Non
     store = (
         PLUGIN / "hosts" / "WordAddIn" / "WordFormulaMetadataStore.cs"
     ).read_text(encoding="utf-8")
-    save = store.split("public static void Save(dynamic document, FormulaMetadata metadata)", 1)[1].split(
-        "public static FormulaMetadata Load",
-        1,
-    )[0]
+    metadata_adapter = (
+        PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Metadata.cs"
+    ).read_text(encoding="utf-8")
 
-    assert "variables.Add(key, json);" in save
+    assert "BuildEquationTag(metadata.Identity.EquationId, metadata)" in metadata_adapter
+    assert "equationControl).Tag = tag" in metadata_adapter
+    assert "inlineShape).AlternativeText = tag" in metadata_adapter
     assert "ContentControls.Add" not in store
     assert "MetadataControlTagPrefix" not in store

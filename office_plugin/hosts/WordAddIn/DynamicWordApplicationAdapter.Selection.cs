@@ -92,25 +92,28 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.CompletedTask;
     }
 
-    private int RemoveOmmlConversionSource(dynamic control, FormulaMetadata metadata)
+    private dynamic RemoveOmmlConversionSource(dynamic control, FormulaMetadata metadata)
     {
         if (metadata.NumberingMode != NumberingMode.None)
         {
-            dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
-            return GetRangeStart(insertionRange);
+            return ClearParagraphContent(GetContainingParagraphRange(control));
         }
 
         int insertionPoint = GetRangeStart(control.Range);
         TryCom(() => control.LockContents = false);
         TryCom(() => control.LockContentControl = false);
-        control.Delete(true);
+        control.Range.Text = InlineConversionSlot;
+        control.Delete(false);
+        dynamic insertionRange = CreateDocumentRange(
+            insertionPoint,
+            insertionPoint + InlineConversionSlot.Length);
         if (metadata.DisplayMode == FormulaDisplayMode.Display)
         {
-            dynamic paragraph = CreateDocumentRange(insertionPoint, insertionPoint).Paragraphs.Item(1).Range;
+            dynamic paragraph = insertionRange.Paragraphs.Item(1).Range;
             TryCom(() => paragraph.ParagraphFormat.Alignment = WdAlignParagraphCenter);
         }
 
-        return insertionPoint;
+        return insertionRange;
     }
 
     private dynamic CreateInlineConversionSlot(int insertionPoint)

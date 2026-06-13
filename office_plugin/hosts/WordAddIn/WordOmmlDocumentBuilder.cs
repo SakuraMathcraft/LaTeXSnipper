@@ -126,11 +126,10 @@ public static class WordOmmlDocumentBuilder
 
     private static string WrapEquationContentControl(string omml, FormulaMetadata metadata)
     {
-        string equationId = metadata.Identity.EquationId;
         return
             "<w:sdt><w:sdtPr>" +
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
-            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(equationId)) + "\"/>" +
+            "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata)) + "\"/>" +
             "</w:sdtPr><w:sdtContent>" +
             ExtractEquationOmml(omml) +
             "</w:sdtContent></w:sdt>";

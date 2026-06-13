@@ -11,7 +11,21 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private void SaveFormulaMetadata(FormulaMetadata metadata)
     {
-        WordFormulaMetadataStore.Save(_wordApplication.ActiveDocument, metadata);
+        string tag = WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId, metadata);
+        object? equationControl = TryGetEquationControlById(metadata.Identity.EquationId);
+        if (equationControl != null)
+        {
+            ((dynamic)equationControl).Tag = tag;
+            return;
+        }
+
+        object? inlineShape = TryFindOleInlineShapeById(metadata.Identity.EquationId);
+        if (inlineShape == null)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        ((dynamic)inlineShape).AlternativeText = tag;
     }
 
     private FormulaMetadata LoadFormulaMetadata(
@@ -19,15 +33,11 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId,
         RenderEngineKind actualRenderEngine)
     {
-        FormulaMetadata metadata;
-        try
-        {
-            metadata = WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, equationId);
-        }
-        catch
-        {
-            metadata = CreateRecoveredFormulaMetadata(control, equationId);
-        }
+        dynamic formulaObject = actualRenderEngine == RenderEngineKind.Omml
+            ? TryGetEquationControlById(equationId) ?? control
+            : TryFindOleInlineShapeById(equationId) ?? control;
+        FormulaMetadata metadata = WordFormulaMetadataStore.LoadFromEquationTag(
+            ReadFormulaObjectTag(formulaObject));
 
         if (metadata.RenderEngine == actualRenderEngine)
         {
@@ -37,6 +47,18 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata corrected = WithRenderEngine(metadata, actualRenderEngine);
         SaveFormulaMetadata(corrected);
         return corrected;
+    }
+
+    private static string ReadFormulaObjectTag(dynamic formulaObject)
+    {
+        try
+        {
+            return Convert.ToString(formulaObject.AlternativeText) ?? string.Empty;
+        }
+        catch
+        {
+            return Convert.ToString(formulaObject.Tag) ?? string.Empty;
+        }
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -66,29 +88,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private FormulaMetadata CreateRecoveredFormulaMetadata(dynamic control, string equationId)
-    {
-        string numberText = ReadNumberText(equationId);
-        NumberingMode numberingMode = string.IsNullOrWhiteSpace(numberText) ? NumberingMode.None : NumberingMode.Manual;
-        FormulaDisplayMode displayMode = numberingMode != NumberingMode.None || IsCenteredParagraph(control)
-            ? FormulaDisplayMode.Display
-            : FormulaDisplayMode.Inline;
-        return new FormulaMetadata(
-            new FormulaIdentity("active-document", equationId),
-            ReadFormulaText(control),
-            displayMode,
-            numberingMode,
-            numberText,
-            RenderEngineKind.Omml,
-            schemaVersion: 1);
-    }
-
-    private string ReadNumberText(string equationId)
-    {
-        object? control = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
-        return control == null ? string.Empty : CleanRangeText(((dynamic)control).Range.Text);
-    }
-
     private void ReplaceNumberControlTextById(string equationId, string numberText)
     {
         object? control = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
@@ -103,31 +102,6 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = numberControl;
         HideContentControlChrome(control);
         TryCom(() => control.Range.Text = numberText);
-    }
-
-    private static string ReadFormulaText(dynamic control)
-    {
-        try
-        {
-            return CleanRangeText(Convert.ToString(control.Range.Text) ?? string.Empty);
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static bool IsCenteredParagraph(dynamic control)
-    {
-        try
-        {
-            int alignment = Convert.ToInt32(control.Range.ParagraphFormat.Alignment);
-            return alignment == WdAlignParagraphCenter;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static string CleanRangeText(string value)

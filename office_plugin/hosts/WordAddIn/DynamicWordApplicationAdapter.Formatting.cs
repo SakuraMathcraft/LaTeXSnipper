@@ -56,9 +56,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 TryCom(() => control.Range.Font.Size = expectedSize);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                        _wordApplication.ActiveDocument,
-                        equationId);
+                    FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata);
                 }
 
@@ -97,9 +95,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
                 if (numberControls.TryGetValue(equationId, out object numberControl))
                 {
-                    FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-                        _wordApplication.ActiveDocument,
-                        equationId);
+                    FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
                     ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
                 }
 
