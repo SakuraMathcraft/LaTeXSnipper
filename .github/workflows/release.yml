@@ -250,8 +250,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location office_plugin
-          .\tools\Register-WordVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
-          .\tools\Register-PowerPointVstoAddIn.ps1 -Configuration Release -SkipCertificateTrust -SkipVstoInstaller -SkipOfficeRegistration
+          .\tools\Build-VstoAddIns.ps1 -Configuration Release
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
@@ -377,6 +376,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install macOS packaging tools
+        env:
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: 1
         run: brew install create-dmg
 
       - name: Build macOS app
