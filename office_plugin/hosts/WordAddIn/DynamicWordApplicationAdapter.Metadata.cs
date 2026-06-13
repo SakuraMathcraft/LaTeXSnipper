@@ -53,10 +53,6 @@ public sealed partial class DynamicWordApplicationAdapter
             : TryFindOleInlineShapeById(equationId) ?? control;
         string tag = ReadFormulaObjectTag(formulaObject);
         FormulaMetadata metadata = WordFormulaMetadataStore.Load(_wordApplication.ActiveDocument, tag);
-        if (!WordFormulaMetadataStore.IsVersionedEquationTag(tag))
-        {
-            SaveFormulaMetadata(metadata);
-        }
 
         if (metadata.RenderEngine == actualRenderEngine)
         {

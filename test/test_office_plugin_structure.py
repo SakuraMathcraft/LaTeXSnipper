@@ -466,12 +466,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TabStops.Add" in adapter
     assert "ClearParagraphContent(paragraphRange)" in adapter
     assert "ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId)" in adapter
-    numbered_update = adapter.split("private static void ReplaceNumberedFormulaControl", 1)[1].split(
-        "private static dynamic ResolveReplacementRange",
-        1,
-    )[0]
-    assert "dynamic range = control.Range;" in numbered_update
-    assert "GetContainingParagraphRange(control)" not in numbered_update
+    assert "ReplaceNumberedFormulaControl" not in adapter
     assert "RemoveEmptyParagraphBeforeFollowingContent" in adapter
     assert "paragraphRange.Delete()" not in adapter
     assert "TryGetManagedNumberedFormulaTable" not in adapter
@@ -1160,13 +1155,13 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "Math.Abs(entry.Scale - 1) > 0.01" in commands
     assert "NoFormattingNeededStatus" in commands
     assert "LoadFromShape" in metadata
-    assert "shape.AlternativeText = MetadataPrefix" in metadata
+    assert 'shape.AlternativeText = "LaTeXSnipper formula "' in metadata
     for tag in ("LatexTag", "RenderEngineTag", "FontColorTag", "FontStyleTag", "FontScaleTag"):
         assert tag in metadata
-    assert "ApplyMetadataTags(shape, migrated)" in metadata
-    assert '"fontColor"' in metadata
-    assert '"fontStyle"' in metadata
-    assert '"fontScale"' in metadata
+    assert "LoadFromAlternativeText" not in metadata
+    assert "shape.Tags.Add(FontColorTag, metadata.FontColor)" in metadata
+    assert "shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString())" in metadata
+    assert "shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString" in metadata
     assert "FormulaColor" in settings
     assert "FormulaFontStyle" in settings
     assert '["formulaColor"] = settings.FormulaColor' in settings_window

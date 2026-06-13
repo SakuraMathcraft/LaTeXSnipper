@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Web.Script.Serialization;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
@@ -17,8 +16,6 @@ internal static class WordFormulaMetadataStore
     private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
     private const string MetadataSeparator = "|";
     private const string MetadataVariablePrefix = "LS.E.";
-    private const string UnversionedMetadataVariablePrefix = "LaTeXSnipper.Equation.";
-    private const string UnversionedOleSizeVariablePrefix = "LaTeXSnipper.OleNaturalSize.";
 
     public static string BuildEquationTag(string equationId, string revision = "")
     {
@@ -59,14 +56,7 @@ internal static class WordFormulaMetadataStore
 
     public static FormulaMetadata Load(dynamic document, string tag)
     {
-        return Deserialize(IsVersionedEquationTag(tag)
-            ? LoadPayload(document, tag)
-            : LoadUnversionedPayload(document, tag));
-    }
-
-    public static bool IsVersionedEquationTag(string tag)
-    {
-        return RevisionFromTag(tag).Length == 10;
+        return Deserialize(LoadPayload(document, tag));
     }
 
     public static string BuildNumberTag(string equationId)
@@ -110,17 +100,9 @@ internal static class WordFormulaMetadataStore
         try
         {
             var serializer = new JavaScriptSerializer();
-            string payload = IsVersionedEquationTag(tag)
-                ? LoadPayload(document, tag)
-                : LoadUnversionedPayload(document, tag);
-            var dto = serializer.Deserialize<Dictionary<string, object>>(payload);
+            var dto = serializer.Deserialize<Dictionary<string, object>>(LoadPayload(document, tag));
             widthPoints = ReadDouble(dto, "naturalWidthPoints");
             heightPoints = ReadDouble(dto, "naturalHeightPoints");
-            if (widthPoints <= 0 || heightPoints <= 0)
-            {
-                LoadUnversionedOleSize(document, EquationIdFromTag(tag), out widthPoints, out heightPoints);
-            }
-
             return widthPoints > 0 && heightPoints > 0;
         }
         catch
@@ -206,58 +188,6 @@ internal static class WordFormulaMetadataStore
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
         }
-    }
-
-    private static string DecodeEmbeddedPayload(string tag)
-    {
-        string encoded = RevisionFromTag(tag);
-        if (string.IsNullOrWhiteSpace(encoded))
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        try
-        {
-            return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-        }
-        catch (Exception exc)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
-        }
-    }
-
-    private static string LoadUnversionedPayload(dynamic document, string tag)
-    {
-        try
-        {
-            return DecodeEmbeddedPayload(tag);
-        }
-        catch (InvalidOperationException)
-        {
-            string equationId = EquationIdFromTag(tag);
-            try
-            {
-                dynamic variable = document.Variables.Item(UnversionedMetadataVariablePrefix + equationId);
-                return Convert.ToString(variable.Value) ?? string.Empty;
-            }
-            catch (Exception exc)
-            {
-                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), exc);
-            }
-        }
-    }
-
-    private static void LoadUnversionedOleSize(
-        dynamic document,
-        string equationId,
-        out double widthPoints,
-        out double heightPoints)
-    {
-        dynamic variable = document.Variables.Item(UnversionedOleSizeVariablePrefix + equationId);
-        var serializer = new JavaScriptSerializer();
-        var dto = serializer.Deserialize<Dictionary<string, object>>(Convert.ToString(variable.Value) ?? string.Empty);
-        widthPoints = ReadDouble(dto, "widthPoints");
-        heightPoints = ReadDouble(dto, "heightPoints");
     }
 
     private static string RevisionFromTag(string tag)
