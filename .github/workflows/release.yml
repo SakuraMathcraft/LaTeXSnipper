@@ -230,9 +230,6 @@ jobs:
           if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)) {
             $needed += "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
           }
-          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.Tools.Office -property installationPath)) {
-            $needed += "Microsoft.VisualStudio.Component.Tools.Office"
-          }
           if ($needed.Count -gt 0) {
             Write-Host "Installing missing components: $($needed -join ', ')"
             $vsInstaller = Join-Path $vsPath "..\..\Installer\vs_installer.exe"
@@ -266,16 +263,33 @@ jobs:
           }
           if (-not $toolset) { $toolset = "v143" }
           Write-Host "Using platform toolset: $toolset"
-          .\tools\Build-VstoAddIns.ps1 -Configuration Release -MSBuildPath $msbuild
+          $certSubject = "CN=LaTeXSnipper Office Plugin VSTO"
+          $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+            Where-Object { $_.Subject -eq $certSubject } |
+            Sort-Object NotAfter -Descending | Select-Object -First 1
+          if (-not $cert) {
+            $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $certSubject `
+              -CertStoreLocation "Cert:\CurrentUser\My" -KeyAlgorithm RSA -KeyLength 2048 `
+              -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" `
+              -NotAfter (Get-Date).AddYears(5)
+          }
+          Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force
+          $vstoProjects = @(
+            "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.csproj",
+            "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.csproj"
+          )
+          foreach ($project in $vstoProjects) {
+            & $msbuild $project "/restore" "/t:Build;VisualStudioForApplicationsBuild" `
+              "/p:Configuration=Release" "/p:VSTO_ProjectType=Application" `
+              "/p:SignManifests=false" "/nologo" "/v:minimal"
+            if ($LASTEXITCODE -ne 0) { throw "VSTO build failed for $project" }
+          }
           dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
           if ($LASTEXITCODE -ne 0) { throw "dotnet build failed." }
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
           & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=$toolset /m
           if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
-          $subjects = @('CN=LaTeXSnipper Office Plugin VSTO')
-          $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -in $subjects } | Sort-Object NotAfter -Descending | Select-Object -First 1
-          if ($cert) { Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force } else { Write-Host 'WARNING: VSTO signing cert not found' }
 
       - name: Build installer
         shell: pwsh
