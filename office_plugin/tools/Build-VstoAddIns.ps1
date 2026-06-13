@@ -1,6 +1,7 @@
 param(
     [string] $Configuration = "Release",
-    [string] $MSBuildPath = ""
+    [string] $MSBuildPath = "",
+    [string] $CertificateOutputPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,42 +11,76 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pluginRoot = Split-Path -Parent $scriptRoot
 $certificateSubject = "CN=LaTeXSnipper Office Plugin VSTO"
 
-function Resolve-MSBuildPath {
-    param([string] $RequestedPath)
+function Find-VstoBuildEnvironment {
+    param([string] $RequestedMSBuildPath)
 
-    if ($RequestedPath -and (Test-Path -LiteralPath $RequestedPath)) {
-        return $RequestedPath
+    $installationPaths = [System.Collections.Generic.List[string]]::new()
+    if ($RequestedMSBuildPath) {
+        if (-not (Test-Path -LiteralPath $RequestedMSBuildPath)) {
+            throw "Requested MSBuild was not found: $RequestedMSBuildPath"
+        }
+
+        if ($RequestedMSBuildPath -match "^(.*)\\MSBuild\\Current\\Bin(?:\\amd64)?\\MSBuild\.exe$") {
+            $installationPaths.Add($Matches[1])
+        }
+        else {
+            throw "Requested MSBuild is not inside a Visual Studio installation: $RequestedMSBuildPath"
+        }
     }
+    else {
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path -LiteralPath $vswhere) {
+            foreach ($installation in @(& $vswhere -products * -property installationPath)) {
+                if ($installation) {
+                    $installationPaths.Add($installation)
+                }
+            }
+        }
 
-    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path -LiteralPath $vswhere) {
-        $installations = & $vswhere -products * -requires Microsoft.Component.MSBuild -property installationPath
-        foreach ($installation in $installations) {
-            $candidate = Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe"
-            $officeTargets = Join-Path $installation "MSBuild\Microsoft\VisualStudio\v17.0\OfficeTools\Microsoft.VisualStudio.Tools.Office.targets"
-            if ((Test-Path -LiteralPath $candidate) -and (Test-Path -LiteralPath $officeTargets)) {
-                return $candidate
+        foreach ($candidate in @(
+            "D:\Microsoft Visual Studio\2022\Community",
+            "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\Community"
+        )) {
+            if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+                $installationPaths.Add($candidate)
             }
         }
     }
 
-    $candidates = @(
-        "D:\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
-    )
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate) {
-            return $candidate
+    foreach ($installation in $installationPaths | Select-Object -Unique) {
+        $msbuildCandidates = @(
+            (Join-Path $installation "MSBuild\Current\Bin\amd64\MSBuild.exe"),
+            (Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe")
+        )
+        $msbuild = $msbuildCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+        if (-not $msbuild) {
+            continue
+        }
+
+        $visualStudioTargetsRoot = Join-Path $installation "MSBuild\Microsoft\VisualStudio"
+        if (-not (Test-Path -LiteralPath $visualStudioTargetsRoot)) {
+            continue
+        }
+
+        $versionDirectories = Get-ChildItem -LiteralPath $visualStudioTargetsRoot -Directory |
+            Where-Object { $_.Name -match "^v\d+\.\d+$" } |
+            Sort-Object { [version]$_.Name.Substring(1) } -Descending
+        foreach ($versionDirectory in $versionDirectories) {
+            $officeTarget = Join-Path $versionDirectory.FullName "OfficeTools\Microsoft.VisualStudio.Tools.Office.targets"
+            if (Test-Path -LiteralPath $officeTarget) {
+                return [pscustomobject]@{
+                    MSBuildPath = $msbuild
+                    VisualStudioVersion = $versionDirectory.Name.Substring(1)
+                    VSToolsPath = $versionDirectory.FullName
+                }
+            }
         }
     }
 
-    $fromPath = (Get-Command MSBuild.exe -ErrorAction SilentlyContinue).Source
-    if ($fromPath) {
-        return $fromPath
-    }
-
-    throw "MSBuild with the Visual Studio Office tools was not found."
+    throw "Visual Studio MSBuild with Microsoft.VisualStudio.Tools.Office.targets was not found."
 }
 
 function Test-VstoSigningCertificate {
@@ -101,24 +136,40 @@ function Set-ManifestCertificate {
     Set-Content -LiteralPath $propsPath -Value $content -Encoding UTF8
 }
 
-$msbuild = Resolve-MSBuildPath -RequestedPath $MSBuildPath
+$environment = Find-VstoBuildEnvironment -RequestedMSBuildPath $MSBuildPath
 $certificate = Get-OrCreateSigningCertificate
+$certificatePath = if ($CertificateOutputPath) {
+    $CertificateOutputPath
+}
+else {
+    Join-Path $pluginRoot "installer\vsto-signing.cer"
+}
+$certificateDirectory = Split-Path -Parent $certificatePath
+if ($certificateDirectory) {
+    New-Item -ItemType Directory -Path $certificateDirectory -Force | Out-Null
+}
+Export-Certificate -Cert $certificate -FilePath $certificatePath -Type CERT -Force | Out-Null
+
+Write-Host "VSTO MSBuild: $($environment.MSBuildPath)"
+Write-Host "VSTO tools: $($environment.VSToolsPath)"
+
 $projects = @(
     (Join-Path $pluginRoot "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.csproj"),
     (Join-Path $pluginRoot "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.csproj")
 )
-
 foreach ($project in $projects) {
     if (-not (Test-Path -LiteralPath $project)) {
         throw "VSTO project was not found: $project"
     }
 
     Set-ManifestCertificate -ProjectPath $project -Thumbprint $certificate.Thumbprint
-    & $msbuild $project `
+    & $environment.MSBuildPath $project `
         "/restore" `
         "/t:Build;VisualStudioForApplicationsBuild" `
         "/p:Configuration=$Configuration" `
         "/p:VSTO_ProjectType=Application" `
+        "/p:VisualStudioVersion=$($environment.VisualStudioVersion)" `
+        "/p:VSToolsPath=$($environment.VSToolsPath)" `
         "/nologo" `
         "/v:minimal"
     if ($LASTEXITCODE -ne 0) {

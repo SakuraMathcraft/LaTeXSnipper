@@ -11,6 +11,11 @@ on:
         required: true
         default: "v2.3.2_Final_Stable"
         type: string
+      publish_assets:
+        description: "Upload artifacts to the GitHub Release"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   actions: read
@@ -211,118 +216,13 @@ jobs:
           Write-Host "Office Plugin version: $ver"
           "version=$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Ensure Office and ATL build tools
+      - name: Build Office plugin installer
         shell: pwsh
         run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vswhere -latest -products * -property installationPath
-          if (-not $vsPath) {
-            throw "Visual Studio was not found."
+          & .\office_plugin\installer\build.bat "${{ steps.version.outputs.version }}" Release
+          if ($LASTEXITCODE -ne 0) {
+            throw "Office plugin installer build failed with exit code $LASTEXITCODE."
           }
-          Write-Host "Visual Studio: $vsPath"
-          $needed = @()
-          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Workload.Office -property installationPath)) {
-            $needed += "Microsoft.VisualStudio.Workload.Office"
-          }
-          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath)) {
-            $needed += "Microsoft.VisualStudio.Component.VC.ATL"
-          }
-          if (-not (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)) {
-            $needed += "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-          }
-          if ($needed.Count -gt 0) {
-            Write-Host "Installing missing components: $($needed -join ', ')"
-            $vsInstaller = Join-Path $vsPath "..\..\Installer\vs_installer.exe"
-            if (-not (Test-Path $vsInstaller)) {
-              $vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
-            }
-            $args = @("modify", "--installPath", $vsPath)
-            foreach ($component in $needed) { $args += "--add"; $args += $component }
-            $args += "--quiet"; $args += "--norestart"; $args += "--wait"
-            & $vsInstaller $args
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to install missing components: $($needed -join ', ')"
-            }
-          }
-          Write-Host "Office, ATL and C++ build tools are available."
-
-      - name: Build Office plugin
-        shell: pwsh
-        run: |
-          Set-Location office_plugin
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vs2025path = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.ATL -property installationPath
-          if (-not $vs2025path) { throw "Visual Studio C++ ATL tools were not found." }
-          $msbuild = Join-Path $vs2025path "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          $vs2022path = & $vswhere -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.Tools.Office -property installationPath
-          if (-not $vs2022path) {
-            Write-Host "VS 2022 with Office tools not found, installing VS 2022 Build Tools..."
-            $bootstrapper = Join-Path $env:TEMP "vs2022_BuildTools.exe"
-            Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile $bootstrapper
-            $proc = Start-Process -FilePath $bootstrapper -ArgumentList @(
-              "--quiet", "--wait", "--norestart",
-              "--add", "Microsoft.VisualStudio.Workload.Office",
-              "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-              "--includeRecommended"
-            ) -Wait -PassThru
-            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-              throw "VS 2022 Build Tools install failed with exit code $($proc.ExitCode)"
-            }
-            $vs2022path = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\BuildTools"
-            if (-not (Test-Path $vs2022path)) { $vs2022path = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\Community" }
-          }
-          $msbuild2022 = Join-Path $vs2022path "MSBuild\Current\Bin\MSBuild.exe"
-          if (-not (Test-Path $msbuild2022)) {
-            $msbuild2022 = Join-Path $vs2022path "MSBuild\Current\Bin\amd64\MSBuild.exe"
-          }
-          Write-Host "VS 2022 MSBuild: $msbuild2022"
-          $vVer = Get-ChildItem "$vs2025path\MSBuild\Microsoft\VC" -Directory -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
-          $toolset = ""
-          if ($vVer) {
-            $toolset = Get-ChildItem "$vs2025path\MSBuild\Microsoft\VC\$vVer\Platforms\x64\PlatformToolsets" -Directory -ErrorAction SilentlyContinue |
-              Select-Object -ExpandProperty Name | Sort-Object -Descending | Select-Object -First 1
-          }
-          if (-not $toolset) { $toolset = "v143" }
-          Write-Host "VS 2025 platform toolset: $toolset"
-          $certSubject = "CN=LaTeXSnipper Office Plugin VSTO"
-          $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
-            Where-Object { $_.Subject -eq $certSubject } |
-            Sort-Object NotAfter -Descending | Select-Object -First 1
-          if (-not $cert) {
-            $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $certSubject `
-              -CertStoreLocation "Cert:\CurrentUser\My" -KeyAlgorithm RSA -KeyLength 2048 `
-              -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" `
-              -NotAfter (Get-Date).AddYears(5)
-          }
-          Export-Certificate -Cert $cert -FilePath installer\vsto-signing.cer -Type CERT -Force
-          $thumb = $cert.Thumbprint
-          $props = "<Project xmlns=`"http://schemas.microsoft.com/developer/msbuild/2003`"><PropertyGroup><ManifestCertificateThumbprint>$thumb</ManifestCertificateThumbprint></PropertyGroup></Project>"
-          Set-Content -Path "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
-          Set-Content -Path "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.user.props" -Value $props -Encoding UTF8 -NoNewline
-          $vstoProjects = @(
-            "hosts\WordVstoAddIn\LaTeXSnipper.OfficePlugin.WordVstoAddIn.csproj",
-            "hosts\PowerPointVstoAddIn\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn.csproj"
-          )
-          foreach ($project in $vstoProjects) {
-            & $msbuild2022 $project "/restore" "/t:Build;VisualStudioForApplicationsBuild" `
-              "/p:Configuration=Release" "/p:VSTO_ProjectType=Application" "/nologo" "/v:minimal"
-            if ($LASTEXITCODE -ne 0) { throw "VSTO build failed for $project" }
-          }
-          dotnet build LaTeXSnipper.OfficePlugin.slnx -c Release
-          if ($LASTEXITCODE -ne 0) { throw "dotnet build failed." }
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m
-          if ($LASTEXITCODE -ne 0) { throw "Native OLE x64 build failed." }
-          & $msbuild hosts\OleFormulaObjectNative\LaTeXSnipper.OfficePlugin.OleFormulaObjectHandler.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=$toolset /m
-          if ($LASTEXITCODE -ne 0) { throw "Native OLE x86 build failed." }
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          Set-Location office_plugin
-          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { $iscc = Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe" }
-          & $iscc /DVersion=${{ steps.version.outputs.version }} /DConfig=Release installer\setup.iss
 
       - name: Upload Office plugin installer artifact
         uses: actions/upload-artifact@v7
@@ -482,7 +382,7 @@ jobs:
 
   publish-release-assets:
     name: Publish Release Assets
-    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && needs.build-windows-installer.result == 'success' && needs.build-office-plugin-installer.result == 'success' && needs.build-linux-deb.result == 'success' && needs.build-macos-app.result == 'success' && needs.build-user-manual.result == 'success' }}
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_assets)) && needs.build-windows-installer.result == 'success' && needs.build-office-plugin-installer.result == 'success' && needs.build-linux-deb.result == 'success' && needs.build-macos-app.result == 'success' && needs.build-user-manual.result == 'success' }}
     runs-on: ubuntu-latest
     needs:
       - build-windows-installer
