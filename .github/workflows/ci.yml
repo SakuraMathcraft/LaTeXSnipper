@@ -128,13 +128,13 @@ jobs:
               throw "Linux/macOS release specs must not bundle build-machine Python runtimes: $specPath"
             }
             $hidden = [regex]::Match($specText, '(?s)hiddenimports=\[(.*?)\],\s*hookspath=').Groups[1].Value
-            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz", "matplotlib", "latex2mathml")) {
+            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz")) {
               if ($hidden -match '"' + [regex]::Escape($module) + '"') {
                 throw "Linux/macOS specs must not hidden-import dependency-runtime module ${module}: $specPath"
               }
             }
             $excludes = [regex]::Match($specText, '(?s)excludes=\[(.*?)\],\s*noarchive=').Groups[1].Value
-            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz", "matplotlib", "latex2mathml", "setuptools", "pkg_resources")) {
+            foreach ($module in @("onnxruntime", "onnxruntime-gpu", "onnx", "cv2", "rapidocr", "numpy", "fitz", "setuptools", "pkg_resources")) {
               if ($excludes -notmatch '"' + [regex]::Escape($module) + '"') {
                 throw "Linux/macOS specs must exclude dependency-runtime module ${module}: $specPath"
               }

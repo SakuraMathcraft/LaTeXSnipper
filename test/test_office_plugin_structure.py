@@ -1415,9 +1415,14 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "SectionArabic" not in numbering
     assert "LoadNumberingDocumentEntries()" in adapter
     assert "ApplyAutomaticNumberAsync" in adapter
-    assert "MeasureRangeWidthPoints" in adapter
+    assert "MeasureFormulaWidthPoints" in adapter
+    assert "range.InlineShapes" in adapter
+    assert "inlineShapes.Item(1).Width" in adapter
+    assert "range.OMaths" in adapter
+    assert "equations.Item(1).Range" in adapter
     assert "WdHorizontalPositionRelativeToTextBoundary" in adapter
-    assert "formulaWidth > 0 ? WdAlignTabLeft : WdAlignTabCenter" in adapter
+    assert "Math.Max(0, (contentWidth - formulaWidth) / 2)" in adapter
+    assert "WdAlignTabCenter" not in adapter
     renumber_method = adapter.split("public Task<int> RenumberAutomaticFormulasAsync", 1)[1].split(
         "private void ReplaceFormulaContent",
         1,
