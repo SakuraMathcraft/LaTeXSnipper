@@ -7,7 +7,6 @@ import threading
 from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
-from runtime.app_paths import app_state_dir
 
 try:
     import psutil
@@ -77,7 +76,7 @@ STATE_FILE = ".deps_state.json"
 
 
 def _config_dir_path() -> Path:
-    p = app_state_dir()
+    p = Path.home() / ".latexsnipper"
     try:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:

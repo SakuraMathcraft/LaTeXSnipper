@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 
@@ -115,71 +114,6 @@ def test_platform_protocols_cover_main_window_provider_calls() -> None:
         "activate_window",
     ):
         assert method_name in protocols
-
-
-def test_settings_opens_documented_mathcraft_cache_dir() -> None:
-    settings_env = (ROOT / "src" / "ui" / "settings_environment_mixin.py").read_text(encoding="utf-8")
-
-    assert "resolve_user_models_dir" in settings_env
-    assert "~/.MathCraft/models" not in settings_env
-    assert "~/.mathcraft/models" not in settings_env
-
-
-def test_runtime_preserves_documented_mathcraft_home_override() -> None:
-    sources = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (
-            ROOT / "src" / "runtime" / "main_bootstrap.py",
-            ROOT / "src" / "backend" / "model.py",
-        )
-    )
-
-    assert 'pop("MATHCRAFT_HOME"' not in sources
-    assert '"MATHCRAFT_HOME"' not in re.findall(r"for key in \((.*?)\):", sources, re.S)[-1]
-
-
-def test_settings_terminal_opener_has_macos_branch() -> None:
-    settings_env = (ROOT / "src" / "ui" / "settings_environment_mixin.py").read_text(encoding="utf-8")
-
-    assert 'sys.platform == "darwin"' in settings_env
-    assert '["open", "-a", "Terminal"' in settings_env
-    assert '".command"' in settings_env
-    assert "LATEXSNIPPER_PYEXE" in settings_env
-
-
-def test_macos_spec_uses_build_version_for_bundle_metadata() -> None:
-    spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
-    script = (ROOT / "scripts" / "build_macos.sh").read_text(encoding="utf-8")
-
-    assert 'APP_VERSION = os.environ.get("LATEXSNIPPER_APP_VERSION", "2.3.2")' in spec
-    assert '"CFBundleVersion": APP_VERSION' in spec
-    assert '"CFBundleShortVersionString": APP_VERSION' in spec
-    assert 'export LATEXSNIPPER_APP_VERSION="$VERSION"' in script
-
-
-def test_linux_and_macos_specs_exclude_dependency_runtime_modules() -> None:
-    runtime_modules = (
-        "onnxruntime",
-        "onnxruntime-gpu",
-        "onnx",
-        "cv2",
-        "rapidocr",
-        "numpy",
-        "fitz",
-        "matplotlib",
-        "latex2mathml",
-        "setuptools",
-        "pkg_resources",
-    )
-
-    for spec_path in (ROOT / "LaTeXSnipper-linux.spec", ROOT / "LaTeXSnipper-macos.spec"):
-        spec = spec_path.read_text(encoding="utf-8")
-        hiddenimports = re.search(r"hiddenimports=\[(.*?)\],\s*hookspath=", spec, re.S).group(1)
-        excludes = re.search(r"excludes=\[(.*?)\],\s*noarchive=", spec, re.S).group(1)
-
-        for module in runtime_modules:
-            assert f'"{module}"' not in hiddenimports
-            assert f'"{module}"' in excludes
 
 
 def test_release_workflow_uses_node24_actions_and_pinned_windows_runner() -> None:

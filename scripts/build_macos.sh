@@ -38,7 +38,6 @@ fi
 echo "LaTeXSnipper macOS package build"
 echo "Version: $VERSION"
 echo "Architecture: $ARCH_LABEL"
-export LATEXSNIPPER_APP_VERSION="$VERSION"
 
 DIST_DIR="$PROJECT_ROOT/dist"
 APP_NAME="LaTeXSnipper"

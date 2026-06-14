@@ -168,6 +168,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
+    os.environ.pop("MATHCRAFT_HOME", None)
 
     if not _in_ide() and not _is_packaged_mode():
         if not _same_exe(sys.executable, target_py):
@@ -192,6 +193,7 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
     os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
+    os.environ.pop("MATHCRAFT_HOME", None)
 
     print("[INFO] packaged dependency wizard mode: defer full Python preparation until install action.")
     return base_dir, target_py
@@ -269,7 +271,7 @@ def bootstrap_application() -> BootstrapContext:
     os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
     os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
-    for var in ("PYTHONHOME", "PYTHONPATH"):
+    for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
             print(f"[DEBUG] 清除环境变量 {var}")
             os.environ.pop(var)

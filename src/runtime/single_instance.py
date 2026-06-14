@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-
-from runtime.app_paths import app_state_dir
+from pathlib import Path
 
 _single_instance_lock = None
 
@@ -47,7 +46,7 @@ def release_single_instance_lock() -> None:
 def ensure_single_instance() -> bool:
     """Prevent multiple GUI instances using a file lock."""
     global _single_instance_lock
-    lock_dir = app_state_dir()
+    lock_dir = Path.home() / ".latexsnipper"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / "instance.lock"
     restart_flag = os.environ.get("LATEXSNIPPER_RESTART") == "1"

@@ -6,7 +6,6 @@ from qfluentwidgets import MessageBox
 
 from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
 from core.restart_contract import build_restart_with_wizard_launch
-from mathcraft_ocr.cache import resolve_user_models_dir
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
     _normalize_windows_drive_letter,
@@ -59,6 +58,32 @@ class SettingsEnvironmentMixin:
         env_name = {
             "main": "主环境",
         }.get(env_key, "主环境")
+        msg = MessageBox(
+            "打开环境终端",
+            "是否以管理员模式打开终端？\n"
+            "\n• 管理员：推荐用于修复权限问题"
+            "\n• 普通：快速打开，可能遇到权限错误"
+            "\n• ESC：取消操作",
+            self
+        )
+        _apply_app_window_icon(msg)
+        msg.yesButton.setText("管理员")
+        msg.cancelButton.setText("普通")
+        esc_pressed = [False]
+        from PyQt6.QtCore import Qt as QtCore_Qt
+        from PyQt6.QtGui import QKeyEvent
+        original_keyPressEvent = msg.keyPressEvent
+        def custom_keyPressEvent(event: QKeyEvent):
+            if event.key() == QtCore_Qt.Key.Key_Escape:
+                esc_pressed[0] = True
+                msg.close()
+            else:
+                original_keyPressEvent(event)
+        msg.keyPressEvent = custom_keyPressEvent
+        result = msg.exec()
+        if esc_pressed[0]:
+            return
+        as_admin = result
         env_desc = "主环境（程序 / MathCraft / 核心依赖）"
         gpu_onnx_cmd = self._onnxruntime_gpu_command()
         cpu_onnx_cmd = f'pip install "{self._onnxruntime_cpu_spec()}"'
@@ -112,107 +137,6 @@ class SettingsEnvironmentMixin:
             "echo.",
         ]
         help_text = "\n".join(help_lines) + "\n"
-        if sys.platform == "darwin":
-            try:
-                import shlex
-                import tempfile
-
-                def _print_line(text: str) -> str:
-                    return f"printf '%s\\n' {shlex.quote(text)}"
-
-                shell_help_lines = [
-                    "",
-                    "================================================================================",
-                    f"                       LaTeXSnipper Terminal - {env_name}",
-                    "================================================================================",
-                    "",
-                    f"[*] Env: {env_desc}",
-                    f"[*] Python env root: {pyexe_dir}",
-                    "[*] python/pip aliases are bound to this env for this terminal session",
-                    "",
-                    "[Model Policy]",
-                    "  - built-in OCR uses MathCraft model cache",
-                    "  - external_model uses independently deployed local/online services",
-                    "  - terminal commands target the current main dependency env",
-                    "  - MathCraft uses ONNX Runtime providers for the internal OCR path",
-                    "  - MATHCRAFT_CPU/MATHCRAFT_GPU select CPU/GPU ONNX Runtime backends",
-                    "",
-                    "[Version Fix]",
-                    '  pip install "protobuf>=3.20,<5"',
-                    "",
-                    "[ONNX Runtime]",
-                    f"  {gpu_onnx_cmd}",
-                    f"  {cpu_onnx_cmd}",
-                    "",
-                    "[Model]",
-                    "  pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-                    '  pip install -U "transformers==4.55.4" "tokenizers==0.21.4" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple',
-                    '  pip install -U "protobuf>=3.20,<5" "pymupdf~=1.27.2.2" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple',
-                    "",
-                    "[MathCraft CPU/ONNX Check]",
-                    "  python -c \"import sys; sys.path.insert(0, '$PWD'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
-                    "",
-                    "[Diagnostics]",
-                    "  pip list",
-                    "  pip check",
-                    "  python -c \"import onnxruntime as ort; print(ort.__version__, ort.get_available_providers())\"",
-                    "",
-                    "[Cache Clean]",
-                    "  pip cache purge",
-                    "",
-                    "================================================================================",
-                    "",
-                ]
-                command_lines = [
-                    "#!/bin/zsh",
-                    f"cd {shlex.quote(venv_dir)}",
-                    f"export PATH={shlex.quote(pyexe_dir)}:$PATH",
-                    f"export LATEXSNIPPER_PYEXE={shlex.quote(pyexe)}",
-                    'alias python="$LATEXSNIPPER_PYEXE"',
-                    'alias py="$LATEXSNIPPER_PYEXE"',
-                    'alias pip="$LATEXSNIPPER_PYEXE -m pip"',
-                    *[_print_line(line) for line in shell_help_lines],
-                    'exec "${SHELL:-/bin/zsh}" -l',
-                ]
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".command", delete=False, encoding="utf-8", newline="\n") as f:
-                    f.write("\n".join(command_lines) + "\n")
-                    command_path = f.name
-                os.chmod(command_path, 0o700)
-                subprocess.Popen(["open", "-a", "Terminal", command_path], cwd=venv_dir)
-                self._show_info("终端已打开", "已打开 macOS Terminal。", "success")
-                return
-            except Exception as e:
-                self._show_info("终端打开失败", str(e), "error")
-                return
-
-        msg = MessageBox(
-            "打开环境终端",
-            "是否以管理员模式打开终端？\n"
-            "\n• 管理员：推荐用于修复权限问题"
-            "\n• 普通：快速打开，可能遇到权限错误"
-            "\n• ESC：取消操作",
-            self
-        )
-        _apply_app_window_icon(msg)
-        msg.yesButton.setText("管理员")
-        msg.cancelButton.setText("普通")
-        esc_pressed = [False]
-        from PyQt6.QtCore import Qt as QtCore_Qt
-        from PyQt6.QtGui import QKeyEvent
-        original_keyPressEvent = msg.keyPressEvent
-
-        def custom_keyPressEvent(event: QKeyEvent):
-            if event.key() == QtCore_Qt.Key.Key_Escape:
-                esc_pressed[0] = True
-                msg.close()
-            else:
-                original_keyPressEvent(event)
-
-        msg.keyPressEvent = custom_keyPressEvent
-        result = msg.exec()
-        if esc_pressed[0]:
-            return
-        as_admin = result
         python_bind_lines = (
             f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
             f'doskey python="{pyexe}" $*\n'
@@ -260,7 +184,10 @@ class SettingsEnvironmentMixin:
             self._show_info("终端打开失败", str(e), "error")
 
     def _resolve_mathcraft_cache_dir(self) -> str:
-        return os.path.normpath(str(resolve_user_models_dir()))
+        appdata = (os.environ.get("APPDATA", "") or "").strip()
+        if appdata:
+            return os.path.normpath(os.path.join(appdata, "MathCraft", "models"))
+        return os.path.normpath(os.path.expanduser("~/.MathCraft/models"))
 
     def _open_mathcraft_cache_dir(self):
         path = self._resolve_mathcraft_cache_dir()
