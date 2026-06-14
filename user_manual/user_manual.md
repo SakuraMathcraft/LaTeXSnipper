@@ -44,7 +44,17 @@
 - [设置与帮助](#设置与帮助)
 - [常见问题排查](#常见问题排查)
 
-### 第三卷 · MathCraft 内部模型介绍
+### 第三卷 · LaTeXSnipper Mobile（移动端）
+
+- [LaTeXSnipper Mobile 介绍](#latexsnipper-mobile-介绍)
+- [功能与页面结构](#功能与页面结构)
+- [与桌面版的差异](#与桌面版的差异)
+- [OCR 识别与输入方式](#ocr-识别与输入方式)
+- [公式编辑器与键盘策略](#公式编辑器与键盘策略)
+- [导出与分享](#导出与分享)
+- [移动端常见问题](#移动端常见问题)
+
+### 第四卷 · MathCraft 内部模型介绍
 
 - [MathCraft OCR 项目介绍](#mathcraft-ocr-项目介绍)
 - [环境变量设置指南](#环境变量设置指南)
@@ -1225,7 +1235,446 @@ Word 侧边栏包含"行间公式""自动编号""重编号"等 Word 专属控件
 
 <div align="center">
 
-# 第三卷 · MathCraft 内部模型介绍
+# 第三卷 · LaTeXSnipper Mobile（移动端）
+
+---
+
+</div>
+
+## LaTeXSnipper Mobile 介绍
+
+LaTeXSnipper Mobile 是面向 Android 和 iOS 的移动端公式 OCR 识别应用，基于 Capacitor + Vite 构建，前端为纯 Web 技术栈（HTML/CSS/JS），后端使用 Java ONNX Runtime 进行本地离线推理。
+
+### 项目地址与版本
+
+- GitHub：<https://github.com/strangelion/LaTeXSnipper_mobile>
+- 当前版本：**v1.2.2**
+- 构建方式：Vite 8 + Capacitor 8（Android/iOS）
+- 许可证：Apache License 2.0
+
+### 与桌面版的关系
+
+> **全平台生态**
+>
+> LaTeXSnipper Mobile 是独立的应用，不依赖桌面版 LaTeXSnipper。
+> 两者共享相同的 MathCraft OCR 模型体系，但移动版使用 Java ONNX Runtime（而非 Python），所有推理在手机本地完成。
+> 桌面版的 Office 插件、Pandoc 导出高级功能、数学工作台等不在移动版中提供。
+
+### 系统要求
+
+- Android 10+（推荐 Android 12+）
+- 存储空间：安装包约 120MB，解压后约 350MB（含全部 ONNX 模型）
+- RAM：推荐 6GB 以上（低端设备可能出现模型加载缓慢或 OOM）
+- 可选：网络连接（仅用于自动更新检查、AI 整理和 Pandoc WASM 首次加载）
+
+## 功能与页面结构
+
+移动端采用单页面 SPA 架构，底部导航栏包含 4 个主页面：
+
+### 识别页面（OCR）
+
+移动端的核心功能页面，顶部有三个识别模式标签：
+
+- **公式模式：** 仅检测和识别数学公式，输出 LaTeX 代码
+- **混合模式：** 同时识别文本和公式，输出 Markdown + LaTeX 混合文档
+- **文字模式：** 纯文本 OCR，不检测公式
+
+识别图片的来源有 5 种方式：
+
+1. **拍照识别：** 打开系统相机拍摄，支持矩形框选和套索裁剪，支持闪光灯、四角把手拖拽透视矫正、旋转滑块
+2. **图片选择：** 从系统相册选取图片，自动识别
+3. **PDF 识别：** 选择 PDF 文件，使用 pdfjs 逐页渲染为图片后识别
+4. **手写识别：** 打开独立 Canvas 手写画板（支持压感、墨迹平滑、笔/橡皮擦、撤销/重做）
+5. **文件拖放：** 将图片或 PDF 文件拖入识别区域
+
+### 编辑器页面
+
+MathLive 所见即所得公式编辑器，支持中文界面和本地化：
+
+- **MathLive 编辑区：** 所见即所得数学公式编辑，开启 smartMode 自动识别数学/文本模式，smartFence 自动闭合括号
+- **LaTeX 源码区：** 编辑器下方显示当前公式的 LaTeX 源码，与编辑区双向同步
+- **快速符号工具栏：** 希腊字母（alpha beta pi theta omega）、运算符（sqrt int sum prod）、关系符（le ge rightarrow rightarrow infty）
+- **计算工具栏：** 求值、退格、常用 LaTeX 片段插入
+- **三态键盘切换：** 详见"公式编辑器与键盘策略"章节
+- **KaTeX 实时预览：** 编辑器内容通过 KaTeX 渲染为公式图片
+- **导出菜单：** 支持 9 种导出格式
+
+### 历史记录页面
+
+基于 IndexedDB 的本地存储，支持：
+
+- **滑动操作：** 右滑删除、左滑分享/复制/收藏（收藏触发阈值为 50% 位置）
+- **收藏筛选：** 过滤仅显示收藏项；收藏模式下清空只删除收藏条目
+- **点击载入：** 点击历史条目自动填入公式编辑器
+- **来源标记：** 每条历史记录标注来源（拍照/图片/PDF/手写）
+
+### 设置页面
+
+- **识别引擎：** 内置 MathCraft ONNX（默认）或外部 API（OpenAI-compatible）
+- **加速模式：** ONNX Runtime 推理加速选项（CPU / NNAPI / GPU）
+- **渲染引擎：** KaTeX（轻量快速）或 MathJax（兼容性更好），完全离线
+- **视觉皮肤：** 7 套视觉主题（Material 蓝 / MIUI 渐变 / iOS 蓝 / 樱花和风 / 黑客矩阵 / 暖咖纸墨 / 极简纤白）
+- **AI 整理：** DeepSeek 兼容 API 配置，用于识别结果纠错和格式化
+- **多语言：** 简体中文 / 繁体中文 / 英文 / 日文 / 韩文
+- **开发者面板：** 日志查看、版本信息、更新检查
+
+## 与桌面版的差异
+
+> 移动端不是桌面版的简化版——LaTeXSnipper Mobile 基于完全不同的技术栈实现（Java ONNX Runtime + WebView），与桌面版 Python/PyQt 共享模型体系但不共享代码。功能取舍上更侧重移动场景，部分桌面功能不提供，也有桌面版没有的移动专属特性。
+
+### 移动端没有的桌面功能
+
+- **Office 加载项：** Word / PowerPoint 插件只支持桌面 Windows，移动端不支持
+- **数学工作台：** 符号计算、表达式化简、方程求解等桌面专属功能
+- **双语阅读 / 翻译：** PDF 阅读翻译窗口
+- **全局截图快捷键：** 移动端不存在桌面端的操作系统级截图快捷方式
+- **Pandoc 全格式导出：** AsciiDoc、reStructuredText、OPML 等格式在移动端已移除，保留 9 种常用格式
+- **自定义环境变量：** 桌面端通过 MATHCRAFT_* 等环境变量配置模型路径、加速模式等，移动端通过设置 UI 配置
+- **多窗口管理：** 桌面端有主窗口、手写窗口、数学工作台等多个独立窗口，移动端为单页面应用
+
+### 移动端独有的桌面没有的功能
+
+- **相机拍照识别：** 移动端利用手机摄像头拍摄文档和公式
+- **套索裁剪：** 拍照后支持自由四边形框选和透视矫正
+- **手写画板：** 移动端提供触控手写板（桌面端也有手写窗口，但移动端支持压感触控笔）
+- **更多视觉皮肤：** 7 套皮肤（桌面端仅有浅色/深色主题）
+- **自动更新检查：** 启动时检测 GitHub Release，移动端弹出系统更新提示
+- **离线 PWA：** 可通过 Service Worker 缓存，支持离线使用
+- **系统分享集成：** 结果可通过 Android/iOS 系统分享菜单发送到其他应用
+- **三态键盘：** MathLive 虚拟键盘 / 系统原生键盘 / 关闭键盘的灵活切换
+
+### 技术栈差异
+
+**桌面端**
+
+- Python / PyQt6 / PyInstaller
+- Python ONNX Runtime（公式/文字/混合识别）
+- Qt WebEngine（编辑器、公式渲染）
+- Pandoc 系统命令（文件格式转换）
+- Win32 / Carbon / pynput（全局快捷键）
+
+**移动端**
+
+- Vite 8 / Capacitor 8 / WebView
+- Java ONNX Runtime Android（公式/文字/混合识别）
+- KaTeX / MathJax（公式渲染）
+- Pandoc WASM（格式转换，内嵌在 APK 中）
+- pdfjs-dist 4.67（PDF 渲染）
+
+## OCR 识别与输入方式
+
+### 识别引擎架构
+
+移动端使用纯 Java ONNX Runtime 引擎，所有推理在手机本地完成：
+
+- **公式检测（YOLOv8）：** mathcraft-mfd.onnx，输入 [1,3,768,768]，768x768 letterbox
+- **公式识别（TrOCR）：** encoder_model.onnx（DeiT 编码器）+ decoder_model.onnx（束搜索解码，beam=3）
+- **文字检测（DBNet）：** ppocrv5_mobile_det.onnx，最长边 960，stride32 对齐
+- **文字识别（CRNN）：** ppocrv5_mobile_rec.onnx，BGR 48x320 输入，CTC 解码
+- **方向检测：** pplcnet_doc_ori.onnx，0/90/180/270 度自动校正
+
+识别流程：
+
+```text
+图片 → 自动旋转（EXIF + ONNX 方向检测）
+  → 模式选择：
+    公式模式：YOLOv8 检测 → TrOCR 识别 → LaTeX 输出
+    文字模式：DBNet 检测 → CRNN 识别 → 文本输出
+    混合模式：YOLOv8 检测 + DBNet 检测 → 区域裁剪合并
+      → 公式段：行分割 → TrOCR 逐行识别 → {aligned} 重组
+      → 文字段：CRNN 识别 → 版面输出（inline: $...$, display: $$...$$）
+```
+
+### 拍照识别
+
+移动端全屏相机支持：
+
+1. 点击识别页相机按钮启动系统相机，自动对焦
+2. 拍照后进入裁剪模式：矩形框选或自由套索（四角把手拖拽）
+3. 支持旋转滑块（0-360 度）
+4. 透视矫正：四边形扭曲自动矫正为矩形
+5. 确认后自动进入识别
+6. 大图自动压缩：大于 500KB 压缩到最长边 1920px
+
+### 手写识别
+
+移动端提供触控手写板（独立于桌面端的手写窗口）：
+
+- **工具：** 笔 / 橡皮擦
+- **墨迹处理：** 墨迹平滑（SMOOTH_WINDOW=3）、压感支持（触控笔）
+- **撤销/重做：** 栈式管理，最多保留 60 笔
+- **画布调整：** 根据屏幕自动适配
+- **颜色跟随：** 笔颜色自动跟随深色/浅色主题
+- **识别：** 点击"识别"按钮，导出为 PNG 后走当前识别引擎
+- **默认模式：** 从图片切换到手写时自动设为混合模式
+
+### 外部 API 识别
+
+移动端支持连接外部 OCR API（OpenAI-compatible 协议）：
+
+- **内置预设：** PaddleOCR-VL、硅基流动 Qwen2.5-VL、Gemini 2.5 Flash、MinerU 原生
+- **连接测试：** 设置页中测试配置的有效性
+- **AI 整理：** 配置 DeepSeek 兼容 API，对识别结果进行纠错和格式化
+
+## 公式编辑器与键盘策略
+
+### MathLive 编辑器配置
+
+移动端使用 MathLive 0.104 作为所见即所得公式编辑器，核心配置：
+
+- mathVirtualKeyboardPolicy = manual — 不自动弹出虚拟键盘
+- smartMode = true — 自动识别输入为数学模式还是文本模式
+- smartFence = true — 自动闭合未配对的括号、花括号、方括号
+- 中文本地化：通过 MathfieldElement.strings 注入完整中文 UI 文本
+- 通过 new MathfieldElement() 创建而非 mathlive-field 标签（避免部分 WebView 不注册自定义元素）
+
+### 三态键盘切换
+
+针对移动端输入场景的特殊设计：
+
+编辑器顶部的键盘按钮支持三种模式循环切换：
+
+1. **关闭（默认）：** 不弹出任何键盘，适合纯符号工具栏输入
+2. **MathLive 虚拟键盘：** 弹出 MathLive 内置数学符号键盘，包含希腊字母、运算符、关系符等专用键位；通过 toggleVirtualKeyboard 命令唤起
+3. **系统原生键盘：** 使用 textarea 代理接收焦点并触发 IME，输入事件转发到 MathLive 的 insert() 方法。系统键盘弹出时自动隐藏底部公式符号工具栏，腾出编辑空间
+
+> **系统键盘实现机制**
+>
+> MathLive v0.104 中 sandboxed 策略被映射为 manual，无法在 Android WebView 中触发系统 IME。移动版采用 offscreen textarea 代理方案：
+> - 代理以 position: fixed 覆盖编辑区接收焦点，触发系统键盘
+> - input 事件触发 mathField.insert() 转发输入
+> - Shadow DOM 的 contentEditable 在系统键盘模式下被禁用，配合 capture-phase focus guard 防止 MathLive 抢焦点
+> - 零宽空格占位防止 Android 在内容清空时自动隐藏 IME
+> - 处理 Backspace、Enter、方向键和 CJK 输入法合成事件
+
+### 符号面板
+
+编辑器底部提供快速符号工具栏：
+
+- **希腊字母：** alpha beta gamma pi theta mu sigma omega delta epsilon phi
+- **运算符：** sqrt int sum prod partial infty
+- **关系符：** le ge ne approx rightarrow rightarrow leftrightarrow
+- 点击符号直接在光标位置插入对应 LaTeX
+
+### 渲染引擎
+
+- **KaTeX（默认）：** 轻量快速（265KB），HTML 输出模式原生支持中文混合显示，无中文字体渲染问题，资源完全离线
+- **MathJax（可选）：** 兼容性更好（1.1MB + 23 字体文件），启动阶段 splash 预加载，完全离线（无 CDN 依赖）
+
+## 导出与分享
+
+### 9 种导出格式
+
+| 格式 | 转换路径 | 说明 |
+|------|----------|------|
+| PNG | KaTeX → SVG → Canvas | 高清公式图片，含中文字体回退 |
+| SVG | KaTeX → SVG | 矢量公式图片 |
+| LaTeX | Pandoc WASM | .tex 文件格式 |
+| MathML | Pandoc WASM | 数学标记语言 |
+| Markdown | Pandoc WASM | markdown+tex_math_dollars |
+| HTML | Pandoc WASM | 网页格式 |
+| Typst | 纯 JS 转换器 | 200+ 符号映射 + 结构转换，不依赖 Pandoc |
+| Word | Pandoc WASM | .docx 格式 |
+| Plain Text | Pandoc WASM | 纯文本 |
+
+> **Typst 导出说明**
+>
+> Typst 导出使用纯 JS 转换器，包含 200+ LaTeX 到 Typst 符号映射（希腊字母、运算符、箭头、关系符、函数名）和结构转换（分数、根式、矩阵、cases、text 等）。不经过 Pandoc WASM，因为 pandoc-wasm 的 WASM 二进制对完整 LaTeX math mode 支持受限。
+
+### 分享功能
+
+- **系统分享：** 通过 Capacitor Share API 将识别结果分享到其他应用
+- **文件分享降级：** 当 Capacitor Share 在某些 Android 版本上传 base64 文件失败时，自动触发下载而非弹系统分享（避免"没有应用可执行此操作"的错误）
+- **复制到剪贴板：** 一键复制 LaTeX 源码
+- **发送到编辑器：** 将识别结果填入公式编辑器，修改后再导出
+
+### Pandoc WASM 说明
+
+> **移动端 Pandoc 导出注意事项**
+>
+> Pandoc WASM 二进制（约 56MB）内嵌在 APK 中，首次导出时需加载 WASM 模块。
+> Android WebView 运行时有几点限制：
+> - wasi_snapshot_preview1 模块在部分 WebView 中缺失，已通过 @bjorn3/browser_wasi_shim 垫片修复
+> - WASM 加载路径已处理为 Capacitor 兼容路径，绕开 vite-plugin-wasm 生成的路径问题
+> - Pandoc WASM 不需要网络连接（WASM 二进制已内嵌）
+
+## 移动端常见问题
+
+### 模型加载失败或 OOM（内存不足）
+
+**现象：** 启动时进度条卡住，或识别时报"内存不足"直接闪退。
+
+**原因：** 全部 ONNX 模型约 350MB 解压后大小，encoder_model.onnx 一个文件就 87MB。低端设备（4GB 以下 RAM）可能在同时加载多个模型时 OOM。
+
+**解决：**
+
+- 在设置页加速模式中切换到较低加速级别
+- 避免在识别时同时运行大型应用（如游戏、视频编辑）
+- 如果频繁 OOM，尝试减少识别模式切换频率（避免频繁加载/卸载不同模型）
+- 应用已启用 largeHeap（AndroidManifest.xml），但仍有物理限制
+- 模型加载失败时会自动清理 session 并重试
+
+### 拍照识别卡顿或无法对焦
+
+**现象：** 相机启动慢、对焦困难或拍照后裁剪界面卡顿。
+
+**原因：** 移动端相机使用系统 WebView 的 getUserMedia API，其性能和对焦能力取决于 Android WebView 实现和系统相机 HAL。
+
+**解决：**
+
+- 优先使用系统自带相机应用拍照，然后从相册选择图片识别
+- 确保手机有足够光线的环境
+- 拍照时保持手机稳定
+- 大图自动压缩机制会处理大于 500KB 的图片，无需手动压缩
+
+### 手写板延迟或误触
+
+**现象：** 手写识别延迟高，或手指/触控笔划线时出现误触。
+
+**原因：** Canvas 触控事件在 WebView 中可能不如原生应用灵敏，某些廉价的触控屏或贴膜也可能导致触控不准。
+
+**解决：**
+
+- 使用触控笔而非手指书写，效果更佳
+- 手写板支持墨迹平滑（SMOOTH_WINDOW=3），轻微抖动会被自动过滤
+- 如果橡皮擦不方便，可使用"清空"按钮一键清除
+- 手写完成后点击"识别"按钮，不走自动识别（减少误触发）
+
+### 导出失败（Pandoc WASM 相关问题）
+
+**现象：** 导出 Markdown/HTML/Word 等格式时卡住或报错。
+
+**原因：** Pandoc WASM 模块加载失败，或 WASM 二进制损坏/缺失。
+
+**解决：**
+
+- PNG、SVG、Typst 三种格式不依赖 Pandoc WASM，可直接导出
+- 如果 Pandoc 依赖的格式导出失败，先尝试使用不依赖 Pandoc 的格式
+- 重启应用后重试
+- 如果问题持续，尝试清除应用数据后重新安装 APK
+- 检查开发者日志面板是否有 WASM 相关错误信息
+
+### AI 整理连接失败
+
+**现象：** 点击"AI 整理"后提示连接失败或超时。
+
+**原因：** AI 整理需要连接 DeepSeek 兼容 API，未配置正确的 API Key 或 Base URL，或网络不可用。
+
+**解决：**
+
+- 前往设置页 AI 整理配置 API Endpoint 和 API Key
+- 确认手机网络连接正常
+- 如果使用自定义 API，确保接口兼容 DeepSeek 的聊天补全格式
+- AI 整理为可选功能，不配置不影响识别和导出
+
+### 更新检查失败
+
+**现象：** 启动时检查更新失败或不弹更新提示。
+
+**原因：** 更新检查访问 GitHub Releases API，国内用户可能无法直接访问。
+
+**解决：**
+
+- 确保手机网络可访问 GitHub
+- 如果使用代理/VPN，确认已正确配置
+- 更新检查失败不影响核心识别功能
+- 手动去 GitHub Releases 页面下载最新 APK
+
+### 外部 API 识别配置问题
+
+**现象：** 切换到外部引擎后识别失败或提示配置有误。
+
+**原因：** 外部 API 需要正确的协议类型、Base URL、模型名和可选的 API Key。
+
+**解决：**
+
+- 设置页提供预设（PaddleOCR-VL、硅基流动、Gemini、MinerU 原生），一键填写常用配置
+- 使用预设后再根据需要微调 Base URL 和模型名
+- 配置完成后点击测试连接确认配置有效
+- 移动端的外部 API 设置与桌面端类似，但预设列表可能不同
+
+### KaTeX / MathJax 渲染异常
+
+**现象：** 公式在预览中显示为源码或渲染错乱。
+
+**原因：** 渲染引擎切换后未完全加载，或公式包含特定语法导致渲染失败。
+
+**解决：**
+
+- 在设置页切换公式渲染引擎尝试另一种引擎
+- KaTeX 为默认引擎，轻量快速，绝大多数场景足够
+- 如果公式含有 KaTeX 不支持的语法（如某些 LaTeX 宏包），切换到 MathJax 通常可以解决
+- renderBlock 智能判断显示/内联模式：多行环境（begin{aligned}、$$...$$）按逻辑块分组渲染，不逐行切分
+- 不含反斜杠的表达式（如 x^2 + y^2 = z^2）会被正确渲染（兜底逻辑）
+
+### 历史记录丢失
+
+**现象：** 重启应用后历史记录消失。
+
+**原因：** 历史记录存储在 IndexedDB 中，清除应用数据或存储空间不足时可能丢失。
+
+**解决：**
+
+- IndexedDB 数据与应用绑定，卸载应用会清除所有历史记录
+- 重要的识别结果建议提前复制到其他地方保存
+- 不要通过系统设置清除应用数据（会一并删除 IndexedDB）
+- 如果存储空间极度不足，Android 系统可能自动清除 IndexedDB
+
+### PDF 识别页数限制
+
+**现象：** 选择 PDF 后只识别了前面部分页面。
+
+**原因：** 移动端限制 PDF 最多识别 100 页，识别时逐页渲染处理较慢。
+
+**解决：**
+
+- 超过 100 页的 PDF 建议分卷处理或将长文档分段导出
+- PDF 使用 pdfjs-dist 4.67 在 WebView 中逐页渲染为图片后识别，渲染目标 768px
+- 处理器密集，长文档建议在充电状态下操作
+
+### 移动端特定兼容性问题
+
+> **WebView 兼容性注意事项**
+>
+> 以下问题已在开发中解决，但如果遇到异常，可参考：
+
+- **MathLive 自定义元素：** mathlive-field 在部分 WebView 中不注册，改用 new MathfieldElement() 创建
+- **虚拟键盘策略：** 设置为 manual，不自动弹出；通过键盘按钮手动唤起
+- **按钮事件：** 必须用 pointerdown + stopPropagation，click 在 WebView 中不可靠
+- **COOP/COEP 头：** 已通过 Capacitor 和 Vite 配置，确保 WASM 加载正确
+- **Service Worker：** 注册 /sw.js 用于离线缓存
+- **PWA 安装：** 支持 beforeinstallprompt 事件，可添加到主屏幕
+- **中文渲染：** SVG foreignObject 显式指定中文字体回退，避免中文方框问题
+
+### 移动端数据目录
+
+> **关注存储占用**
+>
+> 移动端所有文件（模型、日志、历史记录）均存储在应用内部目录。
+> ONNX 模型约 220MB，Pandoc WASM 约 56MB，MathJax 字体约 20MB。
+> 强烈不建议通过系统设置清除应用数据，否则所有模型和离线功能需要重新下载。
+
+**应用数据目录位置**
+
+- **ONNX 模型：** public/models/（内嵌在 APK 中，无需下载）
+- **Pandoc WASM：** public/vendor/pandoc/（内嵌在 APK 中）
+- **历史记录：** IndexedDB（应用内部存储）
+- **日志：** localStorage（开发者日志面板查看）
+- **设置：** localStorage + Android SharedPreferences
+
+**APK 体积组成**
+
+- Pandoc WASM：约 56MB
+- ONNX 模型：约 220MB（APK 内压缩）
+- KaTeX + MathLive + PDF.js：约 15MB
+- MathJax 可选：约 20MB
+- APK 总大小约 280MB，安装解压后约 400MB
+
+---
+
+<div align="center">
+
+# 第四卷 · MathCraft 内部模型介绍
 
 ---
 
