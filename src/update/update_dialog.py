@@ -31,6 +31,11 @@ from update.installer_cache import (
     _save_installer_meta,
 )
 from update.installer_launch import _prepare_app_for_update_exit, _read_signature_status, _schedule_windows_installer
+from update.downloaded_asset_launcher import (
+    macos_update_guidance,
+    open_downloaded_update_asset,
+    update_asset_action,
+)
 from update.markdown_rendering import _prepare_release_markdown
 from update.release_types import (
     CONNECT_TIMEOUT,
@@ -332,6 +337,18 @@ a{{color:{theme['accent']};}}
         signature_status = _read_signature_status(path)
         if isinstance(info, ReleaseInfo):
             _save_installer_meta(info, path, sha256_hex)
+        if update_asset_action(path) == "open_macos_package":
+            opened = open_downloaded_update_asset(path)
+            guidance = macos_update_guidance(path)
+            lbl_status.setText(guidance if opened else f"下载完成: {path}")
+            InfoBar.success(
+                title="更新已下载",
+                content=guidance if opened else f"已下载到 {path}，SHA256 已生成",
+                parent=dlg,
+                duration=6000,
+                position=InfoBarPosition.TOP,
+            )
+            return
         if os.name != "nt" or not getattr(sys, "frozen", False) or ext not in (".exe", ".msi"):
             lbl_status.setText(f"下载完成: {path}")
             InfoBar.success(

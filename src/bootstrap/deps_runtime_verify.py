@@ -381,7 +381,12 @@ configured_pandoc = None
 try:
     import json
     from pathlib import Path
-    cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+    if sys.platform == "darwin":
+        cfg_path = Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "LaTeXSnipper_config.json"
+    else:
+        cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+    if not cfg_path.exists():
+        cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
     if cfg_path.exists():
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
         raw = str(cfg.get("pandoc_executable_path", "") or "").strip() if isinstance(cfg, dict) else ""
