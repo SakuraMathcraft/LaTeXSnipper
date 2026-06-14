@@ -27,6 +27,8 @@ packaging/debian/usr
 
 # Large binary files
 *.exe
+!office_plugin/release/
+!office_plugin/release/OfficePluginSetup-*.exe
 *.dll
 *.zip
 *.tar

@@ -7,6 +7,15 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+$windowsPowerShellModules = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\Modules"
+Import-Module (
+    Join-Path $windowsPowerShellModules "Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1"
+) -ErrorAction Stop
+Import-Module (Join-Path $windowsPowerShellModules "PKI\PKI.psd1") -ErrorAction Stop
+if (-not (Get-PSDrive -Name Cert -ErrorAction SilentlyContinue)) {
+    New-PSDrive -Name Cert -PSProvider Certificate -Root "\" | Out-Null
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pluginRoot = Split-Path -Parent $scriptRoot
 $certificateSubject = "CN=LaTeXSnipper Office Plugin VSTO"
@@ -50,8 +59,8 @@ function Find-VstoBuildEnvironment {
 
     foreach ($installation in $installationPaths | Select-Object -Unique) {
         $msbuildCandidates = @(
-            (Join-Path $installation "MSBuild\Current\Bin\amd64\MSBuild.exe"),
-            (Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe")
+            (Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe"),
+            (Join-Path $installation "MSBuild\Current\Bin\amd64\MSBuild.exe")
         )
         $msbuild = $msbuildCandidates |
             Where-Object { Test-Path -LiteralPath $_ } |
@@ -86,6 +95,15 @@ function Find-VstoBuildEnvironment {
 function Test-VstoSigningCertificate {
     param([System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate)
 
+    $codeSigningOid = "1.3.6.1.5.5.7.3.3"
+    $supportsCodeSigning = $Certificate.Extensions |
+        Where-Object { $_ -is [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } |
+        ForEach-Object { $_.EnhancedKeyUsages } |
+        Where-Object { $_.Value -eq $codeSigningOid }
+    if (-not $Certificate.HasPrivateKey -or -not $supportsCodeSigning) {
+        return $false
+    }
+
     try {
         return $Certificate.PrivateKey -is [System.Security.Cryptography.RSACryptoServiceProvider]
     }
@@ -95,7 +113,7 @@ function Test-VstoSigningCertificate {
 }
 
 function Get-OrCreateSigningCertificate {
-    $certificate = Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert |
+    $certificate = Get-ChildItem -Path Cert:\CurrentUser\My |
         Where-Object {
             $_.Subject -eq $certificateSubject -and
             (Test-VstoSigningCertificate -Certificate $_)
