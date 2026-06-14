@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 
@@ -911,20 +912,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "/p:PlatformToolset=" in native_build_text
     assert "WindowsUserModeDriver" not in native_build_text
 
-    prerequisite_script = PLUGIN / "tools" / "Install-CiBuildPrerequisites.ps1"
-    prerequisite_text = prerequisite_script.read_text(encoding="utf-8")
-    assert prerequisite_script.is_file()
-    assert "Microsoft.VisualStudio.Component.TeamOffice.BuildTools" in prerequisite_text
-    assert "Microsoft.VisualStudio.Component.VC.ATL" in prerequisite_text
-    assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in prerequisite_text
-    assert "Microsoft.VisualStudio.Tools.Applications.Hosting.dll" in prerequisite_text
-    assert "Microsoft Visual Studio\\Installer\\setup.exe" in prerequisite_text
-    assert "Start-Process" in prerequisite_text
-    assert "-Wait" in prerequisite_text
-    assert "vs_installer.exe" not in prerequisite_text
-    assert "vs2022" not in prerequisite_text.lower()
-
-
 def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "hosts" / "OleFormulaObject").exists()
     assert not (PLUGIN / "hosts" / "WordVstoAddIn" / "README.md").exists()
@@ -990,14 +977,16 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "Run Office plugin tests" not in release_text
     assert "Install test runner" in ci_text
     assert "Install test runner" not in release_text
-    assert '& .\\office_plugin\\installer\\build.bat "${{ steps.version.outputs.version }}" Release' in release_text
     office_job = release_text.split("  build-office-plugin-installer:", 1)[1].split(
         "\n  build-linux-deb:", 1
     )[0]
     assert "actions/setup-dotnet" not in office_job
-    assert "dotnet --version" in office_job
-    assert "Test-Path -LiteralPath" in office_job
-    assert "Install-CiBuildPrerequisites.ps1" in office_job
+    assert "windows-2025" not in office_job
+    assert "Visual Studio" not in office_job
+    assert "build.bat" not in office_job
+    assert "office_plugin/release/OfficePluginSetup-${version}.exe" in office_job
+    assert "sha256sum" in office_job
+    assert "checksum mismatch" in office_job
     installer_build_text = (PLUGIN / "installer" / "build.bat").read_text(encoding="utf-8")
     assert "Build-NativeOleHandler.ps1" in installer_build_text
     assert "WindowsPowerShell\\v1.0\\powershell.exe" in installer_build_text
@@ -1009,10 +998,20 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
         "New-SelfSignedCertificate",
         "PlatformToolset=$toolset",
         "WordVstoAddIn.user.props",
+        "Install-CiBuildPrerequisites.ps1",
     ):
         assert obsolete_release_logic not in release_text
     assert "publish_assets:" in release_text
     assert "github.event_name == 'workflow_dispatch' && inputs.publish_assets" in release_text
+
+    release_dir = PLUGIN / "release"
+    installers = list(release_dir.glob("OfficePluginSetup-*.exe"))
+    assert len(installers) == 1
+    checksum_path = installers[0].with_suffix(installers[0].suffix + ".sha256")
+    assert checksum_path.is_file()
+    checksum_text = checksum_path.read_text(encoding="ascii")
+    assert installers[0].name in checksum_text
+    assert hashlib.sha256(installers[0].read_bytes()).hexdigest() == checksum_text.split()[0]
 
 
 def test_office_plugin_help_describes_current_paths() -> None:

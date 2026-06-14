@@ -193,70 +193,42 @@ jobs:
           retention-days: 30
 
   build-office-plugin-installer:
-    name: Build Office Plugin Installer
-    runs-on: windows-2025
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: 1
-      DOTNET_NOLOGO: 1
+    name: Validate Office Plugin Installer
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: Verify .NET SDK
-        shell: pwsh
+      - name: Validate committed Office installer
+        id: installer
+        shell: bash
+        env:
+          RELEASE_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
         run: |
-          $sdkVersion = dotnet --version
-          if ($LASTEXITCODE -ne 0 -or -not $sdkVersion) {
-            throw ".NET SDK is not available on the Windows runner."
-          }
-          Write-Host ".NET SDK: $sdkVersion"
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          $iscc = @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-          if (-not $iscc) {
-            choco install innosetup --yes --no-progress
-            if ($LASTEXITCODE -ne 0) {
-              throw "Inno Setup installation failed with exit code $LASTEXITCODE."
-            }
-          }
-
-      - name: Extract version from tag
-        id: version
-        shell: pwsh
-        run: |
-          $source = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.release_tag }}" } else { "${{ github.ref }}" }
-          if ($source -match 'v?(\d+\.\d+\.\d+)') {
-            $ver = $matches[1]
-          } else {
-            $ver = (Get-Content -Raw Inno\latexsnipper.iss | Select-String 'MyAppVersion\s+"([^"]+)"').Matches.Groups[1].Value
-          }
-          Write-Host "Office Plugin version: $ver"
-          "version=$ver" >> $env:GITHUB_OUTPUT
-
-      - name: Ensure Visual Studio build prerequisites
-        shell: pwsh
-        run: .\office_plugin\tools\Install-CiBuildPrerequisites.ps1
-
-      - name: Build Office plugin installer
-        shell: pwsh
-        run: |
-          & .\office_plugin\installer\build.bat "${{ steps.version.outputs.version }}" Release
-          if ($LASTEXITCODE -ne 0) {
-            throw "Office plugin installer build failed with exit code $LASTEXITCODE."
-          }
+          if [[ "$RELEASE_SOURCE" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            version="${BASH_REMATCH[1]}"
+          else
+            echo "Release source does not contain a semantic version: $RELEASE_SOURCE" >&2
+            exit 1
+          fi
+          installer="office_plugin/release/OfficePluginSetup-${version}.exe"
+          checksum="${installer}.sha256"
+          test -f "$installer"
+          test -f "$checksum"
+          expected="$(awk '{print tolower($1)}' "$checksum")"
+          actual="$(sha256sum "$installer" | awk '{print $1}')"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Office installer checksum mismatch." >&2
+            exit 1
+          fi
+          echo "Validated $installer ($actual)"
+          echo "path=$installer" >> "$GITHUB_OUTPUT"
 
       - name: Upload Office plugin installer artifact
         uses: actions/upload-artifact@v7
         with:
           name: office-plugin-installer
-          path: office_plugin/dist/OfficePluginSetup-*.exe
+          path: ${{ steps.installer.outputs.path }}
           if-no-files-found: error
           retention-days: 30
 
