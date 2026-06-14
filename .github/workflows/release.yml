@@ -198,6 +198,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Validate committed Office installer
         id: installer

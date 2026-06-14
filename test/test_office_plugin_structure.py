@@ -987,6 +987,7 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "office_plugin/release/OfficePluginSetup-${version}.exe" in office_job
     assert "sha256sum" in office_job
     assert "checksum mismatch" in office_job
+    assert "lfs: true" in office_job
     installer_build_text = (PLUGIN / "installer" / "build.bat").read_text(encoding="utf-8")
     assert "Build-NativeOleHandler.ps1" in installer_build_text
     assert "WindowsPowerShell\\v1.0\\powershell.exe" in installer_build_text
