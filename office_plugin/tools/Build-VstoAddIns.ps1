@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+Import-Module PKI -ErrorAction Stop
+if (-not (Get-PSDrive -Name Cert -ErrorAction SilentlyContinue)) {
+    New-PSDrive -Name Cert -PSProvider Certificate -Root "\" | Out-Null
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pluginRoot = Split-Path -Parent $scriptRoot
 $certificateSubject = "CN=LaTeXSnipper Office Plugin VSTO"

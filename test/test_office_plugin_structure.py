@@ -890,6 +890,9 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "Export-Certificate" in build_text
     assert "1.3.6.1.5.5.7.3.3" in build_text
     assert "-CodeSigningCert" not in build_text
+    assert "Import-Module Microsoft.PowerShell.Security" in build_text
+    assert "Import-Module PKI" in build_text
+    assert "New-PSDrive -Name Cert -PSProvider Certificate" in build_text
     assert 'v17.0\\OfficeTools' not in build_text
     assert "RegisterOfficeAddin" not in build_text
     assert "VSTOInstaller.exe" not in build_text
