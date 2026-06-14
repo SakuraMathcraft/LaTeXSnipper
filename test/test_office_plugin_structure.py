@@ -974,6 +974,7 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "WOW6432Node\\Microsoft\\Office\\PowerPoint\\Addins" in setup_text
     assert "Run Office plugin tests" in ci_text
     assert "test/test_office_plugin_structure.py" in ci_text
+    assert "lfs: true" in ci_text
     assert "Run Office plugin tests" not in release_text
     assert "Install test runner" in ci_text
     assert "Install test runner" not in release_text
