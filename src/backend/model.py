@@ -16,7 +16,6 @@ from typing import Any
 
 from PIL import Image
 from runtime.dependency_python import clean_path_value, find_dependency_python, python_env_root
-from runtime.app_paths import app_config_path
 
 try:
     from PyQt6.QtCore import QObject, pyqtSignal
@@ -328,7 +327,7 @@ def _configured_install_base_python() -> Path | None:
         if raw:
             raw_values.append(raw)
     try:
-        cfg = app_config_path()
+        cfg = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
         if cfg.exists():
             data = json.loads(cfg.read_text(encoding="utf-8"))
             raw = clean_path_value(data.get("install_base_dir", "")) if isinstance(data, dict) else ""
@@ -599,7 +598,7 @@ class ModelWrapper(QObject):
 
     def _build_subprocess_env(self) -> dict:
         env = os.environ.copy()
-        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
         pyexe = get_deps_python()
         env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"

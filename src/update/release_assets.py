@@ -1,24 +1,11 @@
 import re
-import sys
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+
+from PyQt6.QtCore import QUrl
 
 from update.release_types import ReleaseInfo, _normalize_sha256
 
-_WINDOWS_ASSET_SUFFIXES = (".exe", ".msi", ".zip")
-_MACOS_ASSET_SUFFIXES = (".dmg", ".app.zip", ".zip")
-_LINUX_ASSET_SUFFIXES = (".deb", ".appimage", ".rpm", ".tar.gz", ".zip")
-_FALLBACK_ASSET_SUFFIXES = (
-    ".exe",
-    ".msi",
-    ".dmg",
-    ".app.zip",
-    ".deb",
-    ".appimage",
-    ".rpm",
-    ".tar.gz",
-    ".zip",
-)
+_INSTALLER_ASSET_SUFFIXES = (".exe", ".msi", ".zip")
 _ASSET_SIDECAR_SUFFIXES = (
     ".sigstore.json",
     ".sha256",
@@ -37,24 +24,12 @@ def _asset_sha256_from_payload(payload: dict) -> str:
     )
 
 
-def _platform_asset_suffixes(platform: str | None = None) -> tuple[str, ...]:
-    value = (platform or sys.platform or "").lower()
-    if value == "darwin":
-        return _MACOS_ASSET_SUFFIXES
-    if value == "win32":
-        return _WINDOWS_ASSET_SUFFIXES
-    if value.startswith("linux"):
-        return _LINUX_ASSET_SUFFIXES
-    return _FALLBACK_ASSET_SUFFIXES
-
-
-def _asset_supported_suffix_rank(name: str, *, platform: str | None = None) -> int:
+def _asset_supported_suffix_rank(name: str) -> int:
     lower = str(name or "").lower()
-    suffixes = _platform_asset_suffixes(platform)
-    for rank, suffix in enumerate(suffixes):
+    for rank, suffix in enumerate(_INSTALLER_ASSET_SUFFIXES):
         if lower.endswith(suffix):
             return rank
-    return len(suffixes)
+    return len(_INSTALLER_ASSET_SUFFIXES)
 
 
 def _is_asset_sidecar(name: str) -> bool:
@@ -78,22 +53,12 @@ def _installer_channel_rank(name: str) -> int:
     return 4
 
 
-def _asset_channel_rank(name: str, *, platform: str | None = None) -> int:
-    value = (platform or sys.platform or "").lower()
-    if value == "win32":
-        return _installer_channel_rank(name)
-    compact = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
-    if "latexsnipper" in compact and "office" not in compact:
-        return 0
-    return 1
-
-
 def _release_asset_sort_key(asset: dict) -> tuple[int, int, int, str]:
     name = str(asset.get("name", "") or "")
     return (
         _asset_supported_suffix_rank(name),
         1 if _is_asset_sidecar(name) else 0,
-        _asset_channel_rank(name),
+        _installer_channel_rank(name),
         name.lower(),
     )
 
@@ -125,7 +90,7 @@ def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str, str]:
         asset
         for asset in candidates
         if _asset_supported_suffix_rank(str(asset.get("name", "") or ""))
-        < len(_platform_asset_suffixes())
+        < len(_INSTALLER_ASSET_SUFFIXES)
         and not _is_asset_sidecar(str(asset.get("name", "") or ""))
     ]
     if installers:
@@ -145,7 +110,7 @@ def _release_info_from_payload(rel: dict) -> ReleaseInfo:
 
 
 def _release_page_url(url: str) -> bool:
-    path = str(urlparse(str(url or "")).path or "").lower()
+    path = str(QUrl(url).path() or "").lower()
     return "/releases/tag/" in path or path.endswith("/releases/latest")
 
 
@@ -156,7 +121,7 @@ def _normalize_download_asset(url: str, name: str) -> tuple[str, str]:
         return "", ""
     if not clean_name:
         try:
-            clean_name = Path(unquote(urlparse(clean_url).path or "")).name
+            clean_name = Path(QUrl(clean_url).path()).name
         except Exception:
             clean_name = ""
     if not clean_name or "." not in Path(clean_name).name:
