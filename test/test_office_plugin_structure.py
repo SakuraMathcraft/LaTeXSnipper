@@ -888,6 +888,8 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "/p:VSToolsPath=" in build_text
     assert "/p:VisualStudioVersion=" in build_text
     assert "Export-Certificate" in build_text
+    assert "1.3.6.1.5.5.7.3.3" in build_text
+    assert "-CodeSigningCert" not in build_text
     assert 'v17.0\\OfficeTools' not in build_text
     assert "RegisterOfficeAddin" not in build_text
     assert "VSTOInstaller.exe" not in build_text
@@ -974,6 +976,7 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     )[0]
     assert "actions/setup-dotnet" not in office_job
     assert "dotnet --version" in office_job
+    assert "Test-Path -LiteralPath" in office_job
     assert "Build-NativeOleHandler.ps1" in (PLUGIN / "installer" / "build.bat").read_text(
         encoding="utf-8"
     )

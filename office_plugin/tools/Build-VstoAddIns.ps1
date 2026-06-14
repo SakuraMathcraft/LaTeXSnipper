@@ -86,6 +86,15 @@ function Find-VstoBuildEnvironment {
 function Test-VstoSigningCertificate {
     param([System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate)
 
+    $codeSigningOid = "1.3.6.1.5.5.7.3.3"
+    $supportsCodeSigning = $Certificate.Extensions |
+        Where-Object { $_ -is [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } |
+        ForEach-Object { $_.EnhancedKeyUsages } |
+        Where-Object { $_.Value -eq $codeSigningOid }
+    if (-not $Certificate.HasPrivateKey -or -not $supportsCodeSigning) {
+        return $false
+    }
+
     try {
         return $Certificate.PrivateKey -is [System.Security.Cryptography.RSACryptoServiceProvider]
     }
@@ -95,7 +104,7 @@ function Test-VstoSigningCertificate {
 }
 
 function Get-OrCreateSigningCertificate {
-    $certificate = Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert |
+    $certificate = Get-ChildItem -Path Cert:\CurrentUser\My |
         Where-Object {
             $_.Subject -eq $certificateSubject -and
             (Test-VstoSigningCertificate -Certificate $_)
