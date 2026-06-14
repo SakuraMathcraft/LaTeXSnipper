@@ -14,6 +14,12 @@ if "%CONFIG%"=="" set CONFIG=Release
 set SCRIPT_DIR=%~dp0
 set PLUGIN_ROOT=%SCRIPT_DIR%..
 set DIST_DIR=%PLUGIN_ROOT%\dist
+set WINDOWS_POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
+
+if not exist "%WINDOWS_POWERSHELL%" (
+  echo ERROR: Windows PowerShell is required for VSTO certificate signing.
+  exit /b 1
+)
 
 echo ============================================
 echo  LaTeXSnipper Office Plugin Installer Build
@@ -23,7 +29,7 @@ echo ============================================
 
 :: Step 1: Build Word and PowerPoint VSTO add-ins without registering them
 echo [1/4] Building VSTO add-ins...
-call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Build-VstoAddIns.ps1" ^
+"%WINDOWS_POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Build-VstoAddIns.ps1" ^
   -Configuration %CONFIG%
 if %ERRORLEVEL% neq 0 (
   echo ERROR: VSTO build failed.
@@ -40,7 +46,7 @@ if %ERRORLEVEL% neq 0 (
 
 :: Step 3: Build native OLE formula object handler for 64-bit and 32-bit Office
 echo [3/4] Building native OLE formula object handler...
-call powershell -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Build-NativeOleHandler.ps1" ^
+"%WINDOWS_POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Build-NativeOleHandler.ps1" ^
   -Configuration %CONFIG%
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Native OLE handler build failed.

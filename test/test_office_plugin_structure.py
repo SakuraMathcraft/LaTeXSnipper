@@ -977,9 +977,10 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "actions/setup-dotnet" not in office_job
     assert "dotnet --version" in office_job
     assert "Test-Path -LiteralPath" in office_job
-    assert "Build-NativeOleHandler.ps1" in (PLUGIN / "installer" / "build.bat").read_text(
-        encoding="utf-8"
-    )
+    installer_build_text = (PLUGIN / "installer" / "build.bat").read_text(encoding="utf-8")
+    assert "Build-NativeOleHandler.ps1" in installer_build_text
+    assert "WindowsPowerShell\\v1.0\\powershell.exe" in installer_build_text
+    assert "call powershell " not in installer_build_text
     for obsolete_release_logic in (
         "vs_BuildTools.exe",
         "Ensure Office and ATL build tools",
