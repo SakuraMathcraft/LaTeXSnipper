@@ -26,7 +26,7 @@ The main differences are platform integration details:
 | Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
-| Dependency runtime | GitHub builds bundle the normalized dependency runtime; Store builds bundle CPU-only runtime and models. | Creates `~/.latexsnipper/deps/python311` with system Python 3.10+ and venv/pip support. | Creates `~/.latexsnipper/deps/python311` with system Python 3.10+ and venv/pip support. |
+| Dependency runtime | GitHub builds bundle the normalized dependency runtime; Store builds bundle CPU-only runtime and models. | Creates `~/.latexsnipper/deps/python311` with system Python 3.10+ and venv/pip support. | Creates `~/Library/Application Support/LaTeXSnipper/deps/python311` with system Python 3.10+ and venv/pip support. |
 | Packaging | Inno installer and Store/MSIX channel; GitHub Release prefers signed installer but can publish unsigned fallback with the same final filename. | Debian/Ubuntu `.deb`. | `.dmg` and `.app.zip`. |
 
 The current shortcut UI only accepts `Ctrl+letter` and `Ctrl+Shift+letter`, so the default and user-configurable shortcuts stay within the supported intersection of the three backends.
@@ -50,7 +50,8 @@ Core editing and local recognition workflows are designed to work locally after 
 
 - Windows GitHub builds use the bundled dependency environment.
 - Microsoft Store builds bundle a CPU-only dependency runtime and MathCraft models.
-- Linux and macOS create runtime dependency files under `~/.latexsnipper/deps/python311`.
+- Linux creates runtime dependency files under `~/.latexsnipper/deps/python311`.
+- macOS creates runtime dependency files under `~/Library/Application Support/LaTeXSnipper/deps/python311`.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
@@ -62,7 +63,7 @@ If the selected directory already contains a usable Python environment, the wiza
 
 ## Why do Linux and macOS need Python 3?
 
-The packaged app itself does not run on the user's system Python. Linux and macOS use system Python 3.10+ only to create the isolated optional dependency environment under `~/.latexsnipper/deps/python311`.
+The packaged app itself does not run on the user's system Python. Linux and macOS use system Python 3.10+ only to create the isolated optional dependency environment under the user-writable app data directory.
 
 Linux `.deb` packages declare `python3` and `python3-venv`. macOS users should install Python with Homebrew (`brew install python`) or the official python.org macOS installer if no usable `python3` is available.
 
@@ -70,14 +71,15 @@ Linux `.deb` packages declare `python3` and `python3-venv`. macOS users should i
 
 - Windows: `%USERPROFILE%\.latexsnipper\logs\` or `%LOCALAPPDATA%\LaTeXSnipper\logs\`
 - Linux: `~/.latexsnipper/logs/`
-- macOS: `~/.latexsnipper/logs/`
+- macOS: `~/Library/Logs/LaTeXSnipper/`
 
 If the app crashes, include `crash-native.log` when reporting the issue.
 
 ## Where are MathCraft OCR models stored?
 
 - Windows: `%APPDATA%\MathCraft\models\`
-- Linux/macOS: `~/.mathcraft/models/`
+- Linux: `~/.mathcraft/models/`
+- macOS: `~/Library/Application Support/LaTeXSnipper/MathCraft/models/`
 
 If a model download is interrupted or corrupted, delete the affected model subdirectory and restart LaTeXSnipper.
 

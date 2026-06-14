@@ -24,6 +24,7 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
+APP_VERSION = os.environ.get("LATEXSNIPPER_APP_VERSION", "2.3.2")
 BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
 STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
 ICON_ICNS_ENV = os.environ.get("LATEXSNIPPER_ICON_ICNS", "").strip()
@@ -37,6 +38,7 @@ if BUILD_CHANNEL not in {"github", "store"}:
 print("[SPEC] platform: macOS")
 print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
 print(f"[SPEC] output name: {APP_NAME}")
+print(f"[SPEC] version: {APP_VERSION}")
 
 # ---------------------------------------------------------------------------
 # Generate distribution channel metadata
@@ -263,6 +265,8 @@ a = Analysis(
         "ctranslate2",
         "lxml",
         "fitz",
+        "matplotlib",
+        "latex2mathml",
         "shapely",
         "pyclipper",
         "yaml",
@@ -340,8 +344,8 @@ app_bundle = BUNDLE(
         "CFBundleName": APP_NAME,
         "CFBundleDisplayName": "LaTeXSnipper",
         "CFBundleIdentifier": "com.mathcraft.latexsnipper",
-        "CFBundleVersion": "2.3.2",
-        "CFBundleShortVersionString": "2.3.2",
+        "CFBundleVersion": APP_VERSION,
+        "CFBundleShortVersionString": APP_VERSION,
         "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
         "CFBundleDocumentTypes": [],
         "LSMinimumSystemVersion": "11.0",

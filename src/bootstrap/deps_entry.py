@@ -256,7 +256,8 @@ def _system_python_install_hint(reason: str) -> str:
     lines = [
         reason,
         "",
-        "请安装带 venv/pip 支持的 Python 3.10+ 后重试。",
+        "主程序可继续运行；只有 MathCraft、Pandoc 等可选依赖功能需要 Python 3.10+。",
+        "请安装带 venv/pip 支持的 Python 3.10+ 后重试可选依赖安装。",
     ]
     if sys.platform == "darwin":
         lines.extend([

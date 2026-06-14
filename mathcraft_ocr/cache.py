@@ -14,6 +14,8 @@ def default_user_models_dir() -> Path:
     appdata = os.environ.get("APPDATA", "")
     if appdata:
         return Path(appdata) / "MathCraft" / "models"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "MathCraft" / "models"
     return Path.home() / ".mathcraft" / "models"
 
 

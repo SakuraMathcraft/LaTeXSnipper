@@ -257,6 +257,8 @@ a = Analysis(
         "ctranslate2",
         "lxml",
         "fitz",
+        "matplotlib",
+        "latex2mathml",
         "shapely",
         "pyclipper",
         "yaml",
