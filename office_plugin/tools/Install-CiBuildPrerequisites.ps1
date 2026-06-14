@@ -42,21 +42,21 @@ foreach ($component in @(
 }
 
 if ($missingComponents.Count -gt 0) {
-    $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
+    $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
     if (-not (Test-Path -LiteralPath $installer)) {
         throw "Visual Studio Installer was not found: $installer"
     }
 
-    $arguments = @("modify", "--installPath", $installationPath)
+    $arguments = @("modify", "--installPath", "`"$installationPath`"")
     foreach ($component in $missingComponents) {
         $arguments += @("--add", $component)
     }
-    $arguments += @("--quiet", "--norestart", "--wait")
+    $arguments += @("--quiet", "--norestart")
 
     Write-Host "Installing Visual Studio components: $($missingComponents -join ', ')"
-    & $installer @arguments
-    if ($LASTEXITCODE -notin @(0, 3010)) {
-        throw "Visual Studio Installer failed with exit code $LASTEXITCODE."
+    $process = Start-Process -FilePath $installer -ArgumentList ($arguments -join " ") -Wait -PassThru
+    if ($process.ExitCode -notin @(0, 3010)) {
+        throw "Visual Studio Installer failed with exit code $($process.ExitCode)."
     }
 }
 

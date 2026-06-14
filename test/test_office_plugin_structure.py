@@ -915,6 +915,10 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "Microsoft.VisualStudio.Component.VC.ATL" in prerequisite_text
     assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in prerequisite_text
     assert "Microsoft.VisualStudio.Tools.Applications.Hosting.dll" in prerequisite_text
+    assert "Microsoft Visual Studio\\Installer\\setup.exe" in prerequisite_text
+    assert "Start-Process" in prerequisite_text
+    assert "-Wait" in prerequisite_text
+    assert "vs_installer.exe" not in prerequisite_text
     assert "vs2022" not in prerequisite_text.lower()
 
 
