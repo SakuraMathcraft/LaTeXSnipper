@@ -7,8 +7,11 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
-Import-Module PKI -ErrorAction Stop
+$windowsPowerShellModules = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\Modules"
+Import-Module (
+    Join-Path $windowsPowerShellModules "Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1"
+) -ErrorAction Stop
+Import-Module (Join-Path $windowsPowerShellModules "PKI\PKI.psd1") -ErrorAction Stop
 if (-not (Get-PSDrive -Name Cert -ErrorAction SilentlyContinue)) {
     New-PSDrive -Name Cert -PSProvider Certificate -Root "\" | Out-Null
 }
