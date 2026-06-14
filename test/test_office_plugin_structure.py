@@ -969,6 +969,11 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "Install test runner" in ci_text
     assert "Install test runner" not in release_text
     assert '& .\\office_plugin\\installer\\build.bat "${{ steps.version.outputs.version }}" Release' in release_text
+    office_job = release_text.split("  build-office-plugin-installer:", 1)[1].split(
+        "\n  build-linux-deb:", 1
+    )[0]
+    assert "actions/setup-dotnet" not in office_job
+    assert "dotnet --version" in office_job
     assert "Build-NativeOleHandler.ps1" in (PLUGIN / "installer" / "build.bat").read_text(
         encoding="utf-8"
     )

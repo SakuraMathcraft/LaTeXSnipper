@@ -194,10 +194,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "9.0.x"
+      - name: Verify .NET SDK
+        shell: pwsh
+        run: |
+          $sdkVersion = dotnet --version
+          if ($LASTEXITCODE -ne 0 -or -not $sdkVersion) {
+            throw ".NET SDK is not available on the Windows runner."
+          }
+          Write-Host ".NET SDK: $sdkVersion"
 
       - name: Install Inno Setup
         shell: pwsh
