@@ -66,13 +66,5 @@ $officeTargets = Get-ChildItem (
 if (-not $officeTargets -or -not (Test-Path -LiteralPath $hostingAssembly)) {
     throw "The Visual Studio VSTO build tools installation is incomplete."
 }
-try {
-    [void][System.Reflection.Assembly]::Load(
-        "Microsoft.VisualStudio.Tools.Applications.Hosting, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-    )
-}
-catch {
-    throw "The Visual Studio VSTO hosting assembly is not registered correctly."
-}
 
 Write-Host "Visual Studio Office and native build prerequisites are available."

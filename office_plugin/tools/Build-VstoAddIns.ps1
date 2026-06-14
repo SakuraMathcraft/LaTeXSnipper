@@ -59,8 +59,8 @@ function Find-VstoBuildEnvironment {
 
     foreach ($installation in $installationPaths | Select-Object -Unique) {
         $msbuildCandidates = @(
-            (Join-Path $installation "MSBuild\Current\Bin\amd64\MSBuild.exe"),
-            (Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe")
+            (Join-Path $installation "MSBuild\Current\Bin\MSBuild.exe"),
+            (Join-Path $installation "MSBuild\Current\Bin\amd64\MSBuild.exe")
         )
         $msbuild = $msbuildCandidates |
             Where-Object { Test-Path -LiteralPath $_ } |

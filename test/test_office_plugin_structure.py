@@ -894,6 +894,9 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "Microsoft.PowerShell.Security.psd1" in build_text
     assert "PKI\\PKI.psd1" in build_text
     assert "New-PSDrive -Name Cert -PSProvider Certificate" in build_text
+    assert build_text.index('"MSBuild\\Current\\Bin\\MSBuild.exe"') < build_text.index(
+        '"MSBuild\\Current\\Bin\\amd64\\MSBuild.exe"'
+    )
     assert 'v17.0\\OfficeTools' not in build_text
     assert "RegisterOfficeAddin" not in build_text
     assert "VSTOInstaller.exe" not in build_text
