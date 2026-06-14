@@ -908,6 +908,15 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "/p:PlatformToolset=" in native_build_text
     assert "WindowsUserModeDriver" not in native_build_text
 
+    prerequisite_script = PLUGIN / "tools" / "Install-CiBuildPrerequisites.ps1"
+    prerequisite_text = prerequisite_script.read_text(encoding="utf-8")
+    assert prerequisite_script.is_file()
+    assert "Microsoft.VisualStudio.Component.TeamOffice.BuildTools" in prerequisite_text
+    assert "Microsoft.VisualStudio.Component.VC.ATL" in prerequisite_text
+    assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in prerequisite_text
+    assert "Microsoft.VisualStudio.Tools.Applications.Hosting.dll" in prerequisite_text
+    assert "vs2022" not in prerequisite_text.lower()
+
 
 def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "hosts" / "OleFormulaObject").exists()
@@ -981,6 +990,7 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "actions/setup-dotnet" not in office_job
     assert "dotnet --version" in office_job
     assert "Test-Path -LiteralPath" in office_job
+    assert "Install-CiBuildPrerequisites.ps1" in office_job
     installer_build_text = (PLUGIN / "installer" / "build.bat").read_text(encoding="utf-8")
     assert "Build-NativeOleHandler.ps1" in installer_build_text
     assert "WindowsPowerShell\\v1.0\\powershell.exe" in installer_build_text

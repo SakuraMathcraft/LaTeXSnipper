@@ -240,6 +240,10 @@ jobs:
           Write-Host "Office Plugin version: $ver"
           "version=$ver" >> $env:GITHUB_OUTPUT
 
+      - name: Ensure Visual Studio build prerequisites
+        shell: pwsh
+        run: .\office_plugin\tools\Install-CiBuildPrerequisites.ps1
+
       - name: Build Office plugin installer
         shell: pwsh
         run: |
