@@ -36,6 +36,7 @@ class PandocFormat:
 
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
+    PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
     PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
@@ -190,12 +191,30 @@ def _wrap_formula_in_document(latex: str) -> str:
 
 
 def _find_pdf_engine() -> str | None:
-    """Find a available PDF engine, preferring xelatex for better Unicode support."""
     import shutil as _shutil
     for engine in ("xelatex", "lualatex", "pdflatex"):
         if _shutil.which(engine):
             return engine
     return None
+
+
+def _preprocess_for_pptx(text: str) -> str:
+    """Convert --- separators to slide breaks for PPTX output.
+
+    Pandoc PPTX uses headings for slides. --- is just a horizontal rule.
+    We convert --- to empty ## headings that create slide breaks.
+    """
+    import re
+    lines = text.split("\n")
+    result = []
+    for line in lines:
+        if re.match(r"^\s*---\s*$", line):
+            result.append("")
+            result.append("##")
+            result.append("")
+        else:
+            result.append(line)
+    return "\n".join(result)
 
 
 def convert_latex_to(
@@ -222,6 +241,8 @@ def convert_latex_to(
 
     if is_text_content:
         src = latex.strip()
+        if target_key == "pandoc_pptx":
+            src = _preprocess_for_pptx(src)
         input_fmt = "markdown+tex_math_dollars"
     elif as_document and not is_complete_doc:
         src = _wrap_formula_in_document(latex)
@@ -231,6 +252,9 @@ def convert_latex_to(
         input_fmt = "latex"
 
     args = list(extra_args or [])
+
+    if target_key == "pandoc_pptx" and "--slide-level" not in " ".join(args):
+        args.extend(["--slide-level", "2"])
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         from runtime.pandoc_runtime import load_pandoc_export_options
@@ -247,6 +271,12 @@ def convert_latex_to(
                     "未找到 LaTeX 引擎（xelatex/pdflatex/lualatex），无法生成 PDF。"
                     "请安装 MiKTeX 或 TeX Live。"
                 )
+        if is_text_content and "--pdf-engine" in args:
+            font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
+            if font_path.is_file():
+                args.extend(["-V", f"mainfont={font_path}", "-V", f"CJKmainfont={font_path}"])
+            else:
+                args.extend(["-V", "CJKmainfont=Microsoft YaHei"])
     if target_key == "pandoc_html_standalone" and "--standalone" not in args:
         args.append("--standalone")
 
@@ -259,7 +289,7 @@ def convert_latex_to(
             pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 outputfile=tmp_path,
                 extra_args=args,
             )
@@ -279,7 +309,7 @@ def convert_latex_to(
             result = pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 extra_args=args,
             )
             return result

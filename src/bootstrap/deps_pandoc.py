@@ -228,10 +228,10 @@ def _build_pandoc_mirrors() -> list[str]:
     """Build pandoc mirror URLs for the current platform."""
     archive_name, _bin_name, _arc_type = _pandoc_platform_archive()
     return [
-
         f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
-
+        f"https://github.geekery.cn/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        f"https://github.tbedu.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
     ]
 

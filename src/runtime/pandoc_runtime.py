@@ -8,7 +8,6 @@ from pathlib import Path
 from runtime.app_paths import app_config_path
 
 PANDOC_EXECUTABLE_CONFIG_KEY = "pandoc_executable_path"
-PANDOC_EXPORT_OPTIONS_KEY = "pandoc_export_options"
 
 DEFAULT_EXPORT_OPTIONS = {
     "pdf_engine": "",

@@ -19,11 +19,12 @@ def test_pandoc_format_registry_is_complete() -> None:
     formats = pandoc_exporter.PANDOC_FORMATS
     keys = [fmt.key for fmt in formats]
 
-    assert len(formats) == 6
+    assert len(formats) == 7
     assert len(keys) == len(set(keys))
     assert set(keys) == set(pandoc_exporter.PANDOC_FORMAT_MAP)
     assert {fmt.key for fmt in formats if fmt.needs_file} == {
         "pandoc_docx",
+        "pandoc_odt",
         "pandoc_pptx",
         "pandoc_epub",
         "pandoc_pdf",
@@ -61,6 +62,9 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
     docx = _read_zip(results["pandoc_docx"])
     assert "word/document.xml" in docx
     assert b"<m:oMath" in docx["word/document.xml"]
+
+    odt = _read_zip(results["pandoc_odt"])
+    assert "content.xml" in odt
 
     epub = _read_zip(results["pandoc_epub"])
     assert "EPUB/content.opf" in epub
