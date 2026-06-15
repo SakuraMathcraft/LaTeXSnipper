@@ -12,7 +12,7 @@ from exporting.formula_export import build_formula_export, get_all_export_format
 from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from exporting.pandoc_exporter import check_pandoc_available, convert_latex_to, PANDOC_FORMAT_MAP
 
-OUT_DIR = Path(__file__).resolve().parent / "export_review_v2"
+OUT_DIR = Path(__file__).resolve().parent / "export_review"
 HTML_OUT = OUT_DIR / "review.html"
 
 TEST_CASES = [
