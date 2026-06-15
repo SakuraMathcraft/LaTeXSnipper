@@ -77,7 +77,7 @@ loader.init({
     return json.loads(completed.stdout)
 
 
-def test_export_registry_contains_exactly_18_formats() -> None:
+def test_export_registry_contains_exactly_formats() -> None:
     if not check_pandoc_available(force=True):
         pytest.skip("Pandoc backend is not installed")
 
