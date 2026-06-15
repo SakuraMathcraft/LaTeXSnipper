@@ -9,7 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from exporting.formula_export import build_formula_export, get_all_export_format_specs
-from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from exporting.pandoc_exporter import check_pandoc_available, convert_latex_to, PANDOC_FORMAT_MAP
 
 OUT_DIR = Path(__file__).resolve().parent / "export_review"
@@ -43,17 +42,9 @@ TEST_CASES = [
     ("25_text_mixed", r"Given $\frac{dy}{dx} = ky$ with $y(0) = y_0$, the solution is $y = y_0 e^{kx}$. This appears in population dynamics, radioactive decay, and compound interest."),
 ]
 
-CONVERTERS = {
-    "mathml_converter": latex_to_mathml,
-    "omml_converter": latex_to_omml,
-    "svg_converter": latex_to_svg_code,
-}
-
-SKIP_FORMATS = {"mathml", "html", "omml", "svgcode"}
-
 NATIVE_EXT = {
     "latex": ".tex", "latex_display": ".tex", "latex_equation": ".tex",
-    "markdown_block": ".md",
+    "markdown_inline": ".md", "markdown_block": ".md",
 }
 
 
@@ -113,10 +104,7 @@ def main():
     text_pandoc_formats = [f for f in PANDOC_FORMAT_MAP.values() if not f.needs_file]
     for fmt in text_pandoc_formats:
         try:
-            if fmt.pandoc_format in ("gfm", "commonmark", "markdown"):
-                result = combined_md
-            else:
-                result = convert_latex_to(fmt.key, combined_latex, as_document=False)
+            result = convert_latex_to(fmt.key, combined_latex, as_document=False)
             if isinstance(result, str):
                 fname = f"pandoc__{fmt.key}{fmt.extension}"
                 (OUT_DIR / fname).write_text(result, encoding="utf-8")
@@ -139,10 +127,10 @@ def main():
     # Native text formats - build combined
     native_specs = [s for s in get_all_export_format_specs()
                     if s.key and not s.key.startswith("_") and not s.key.startswith("pandoc_")
-                    and s.key not in SKIP_FORMATS]
+                    and s.key in ("latex", "latex_display", "latex_equation", "markdown_inline", "markdown_block")]
     for spec in native_specs:
         try:
-            if spec.key.startswith("latex") or spec.key == "markdown_block":
+            if spec.key.startswith("latex") or spec.key.startswith("markdown"):
                 lines = [f"# {spec.key}\n"]
                 for name, latex in TEST_CASES:
                     lines.append(f"## {name}")
@@ -153,6 +141,8 @@ def main():
                         lines.append(f"\\[\n{latex}\n\\]")
                     elif spec.key == "latex_equation":
                         lines.append(f"\\begin{{equation}}\n{latex}\n\\end{{equation}}")
+                    elif spec.key == "markdown_inline":
+                        lines.append(f"${latex}$")
                     elif spec.key == "markdown_block":
                         has_inline = "$" in latex and not latex.strip().startswith("\\[")
                         if has_inline:
