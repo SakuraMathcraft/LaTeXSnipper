@@ -75,3 +75,9 @@ release_v*.md
 release*.md
 packaging/msix/image/
 
+# Pandoc temp files
+media-*/
+
+# Export test outputs
+export_review*/
+
