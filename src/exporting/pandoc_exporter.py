@@ -269,7 +269,6 @@ def convert_latex_to(
             else:
                 raise PandocConversionError(
                     "未找到 LaTeX 引擎（xelatex/pdflatex/lualatex），无法生成 PDF。"
-                    "请安装 MiKTeX 或 TeX Live。"
                 )
         if is_text_content and "--pdf-engine" in args:
             font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
