@@ -268,7 +268,7 @@ def convert_latex_to(
                 args.extend(["--pdf-engine", engine])
             else:
                 raise PandocConversionError(
-                    "未找到 LaTeX 引擎（xelatex/pdflatex/lualatex），无法生成 PDF。"
+                    "未找到 LaTeX 引擎，无法导出 PDF。"
                 )
         if is_text_content and "--pdf-engine" in args:
             font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
