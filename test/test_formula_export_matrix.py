@@ -77,7 +77,7 @@ loader.init({
     return json.loads(completed.stdout)
 
 
-def test_export_registry_contains_exactly_20_formats() -> None:
+def test_export_registry_contains_exactly_18_formats() -> None:
     if not check_pandoc_available(force=True):
         pytest.skip("Pandoc backend is not installed")
 
@@ -86,7 +86,7 @@ def test_export_registry_contains_exactly_20_formats() -> None:
         for spec in get_all_export_format_specs()
         if spec.key and not spec.key.startswith("_")
     ]
-    assert len(keys) == 17
+    assert len(keys) == 18
     assert len(keys) == len(set(keys))
 
 
@@ -111,8 +111,12 @@ def test_all_native_exports_use_real_bundled_mathjax(
             "latex",
             "latex_display",
             "latex_equation",
+            "markdown_inline",
             "markdown_block",
             "mathml",
+            "mathml_mml",
+            "mathml_m",
+            "mathml_attr",
             "html",
             "svgcode",
         )
@@ -121,12 +125,17 @@ def test_all_native_exports_use_real_bundled_mathjax(
     assert text_results["latex"].startswith("$")
     assert text_results["latex_display"].startswith("\\[")
     assert text_results["latex_equation"].startswith("\\begin{equation}")
+    assert text_results["markdown_inline"] == text_results["latex"]
     assert text_results["markdown_block"].startswith("$$\n")
 
     mathml_root = ET.fromstring(text_results["mathml"])
     assert mathml_root.tag.endswith("}math")
     assert any(node.tag.endswith("}mfrac") for node in mathml_root.iter())
     assert any(node.tag.endswith("}msub") for node in mathml_root.iter())
+
+    for key in ("mathml_mml", "mathml_m", "mathml_attr"):
+        root = ET.fromstring(text_results[key])
+        assert root.tag.endswith("}math"), key
 
     assert '<span class="latexsnipper-math"' in text_results["html"]
     assert "<math" in text_results["html"]

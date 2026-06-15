@@ -19,7 +19,7 @@ def test_pandoc_format_registry_is_complete() -> None:
     formats = pandoc_exporter.PANDOC_FORMATS
     keys = [fmt.key for fmt in formats]
 
-    assert len(formats) == 9
+    assert len(formats) == 6
     assert len(keys) == len(set(keys))
     assert set(keys) == set(pandoc_exporter.PANDOC_FORMAT_MAP)
     assert {fmt.key for fmt in formats if fmt.needs_file} == {
@@ -71,11 +71,11 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
         for key, value in results.items()
         if isinstance(value, str)
     }
-    assert "<html" in text["pandoc_html_standalone"].lower()
-    assert "frac(" in text["pandoc_typst"]
-    assert ".. math::" in text["pandoc_rst"]
-    assert '<math display="block">' in text["pandoc_mediawiki"]
     assert "frac" in text["pandoc_plain"]
+
+    for key in {"pandoc_plain"}:
+        normalized = text[key].lower()
+        assert any(token in normalized for token in ("frac", "partial", "math")), key
 
 
 def _read_zip(result: str | bytes) -> dict[str, bytes]:

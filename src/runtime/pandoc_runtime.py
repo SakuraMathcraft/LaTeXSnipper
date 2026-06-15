@@ -1,4 +1,4 @@
-"""Pandoc runtime path and export options persistence."""
+"""Pandoc runtime path persistence."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ PANDOC_EXECUTABLE_CONFIG_KEY = "pandoc_executable_path"
 PANDOC_EXPORT_OPTIONS_KEY = "pandoc_export_options"
 
 DEFAULT_EXPORT_OPTIONS = {
-    "mathjax_url": "",
     "pdf_engine": "",
-    "html_standalone": True,
 }
 
 
@@ -92,21 +90,3 @@ def load_pandoc_export_options() -> dict:
         return result
     except Exception:
         return dict(DEFAULT_EXPORT_OPTIONS)
-
-
-def save_pandoc_export_options(options: dict) -> None:
-    """Persist pandoc export options."""
-    try:
-        cfg_path = app_config_path()
-        data = {}
-        if cfg_path.exists():
-            try:
-                loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    data = loaded
-            except Exception:
-                data = {}
-        data[PANDOC_EXPORT_OPTIONS_KEY] = options
-        cfg_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        return

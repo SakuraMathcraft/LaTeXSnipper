@@ -39,10 +39,7 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
-    PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
     PandocFormat("pandoc_typst", "Typst (.typ)", "typst", ".typ"),
-    PandocFormat("pandoc_rst", "reStructuredText", "rst", ".rst"),
-    PandocFormat("pandoc_mediawiki", "MediaWiki", "mediawiki", ".wiki"),
     PandocFormat("pandoc_plain", "纯文本", "plain", ".txt"),
 )
 
@@ -235,35 +232,9 @@ def convert_latex_to(
 
     args = list(extra_args or [])
 
-    # Apply user-configured options
-    from runtime.pandoc_runtime import load_pandoc_export_options
-    opts = load_pandoc_export_options()
-    mathjax_url = opts.get("mathjax_url", "")
-
-    if target_key == "pandoc_html_standalone":
-        if "--standalone" not in args:
-            args.append("--standalone")
-        if "--mathjax" not in args:
-            if mathjax_url:
-                args.extend(["--mathjax", mathjax_url])
-            else:
-                args.append("--mathjax")
-
-    if target_key == "pandoc_gfm":
-        if "--mathjax" not in args:
-            if mathjax_url:
-                args.extend(["--mathjax", mathjax_url])
-            else:
-                args.append("--mathjax")
-
-    if target_key == "pandoc_commonmark":
-        if "--mathjax" not in args:
-            if mathjax_url:
-                args.extend(["--mathjax", mathjax_url])
-            else:
-                args.append("--mathjax")
-
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
+        from runtime.pandoc_runtime import load_pandoc_export_options
+        opts = load_pandoc_export_options()
         configured_engine = opts.get("pdf_engine", "")
         if configured_engine:
             args.extend(["--pdf-engine", configured_engine])
@@ -271,6 +242,13 @@ def convert_latex_to(
             engine = _find_pdf_engine()
             if engine:
                 args.extend(["--pdf-engine", engine])
+            else:
+                raise PandocConversionError(
+                    "未找到 LaTeX 引擎（xelatex/pdflatex/lualatex），无法生成 PDF。"
+                    "请安装 MiKTeX 或 TeX Live。"
+                )
+    if target_key == "pandoc_html_standalone" and "--standalone" not in args:
+        args.append("--standalone")
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(
@@ -281,7 +259,7 @@ def convert_latex_to(
             pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format=input_fmt,
+                format="latex",
                 outputfile=tmp_path,
                 extra_args=args,
             )
@@ -301,7 +279,7 @@ def convert_latex_to(
             result = pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format=input_fmt,
+                format="latex",
                 extra_args=args,
             )
             return result
