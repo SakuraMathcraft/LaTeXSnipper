@@ -1,4 +1,4 @@
-"""Pandoc runtime path persistence."""
+"""Pandoc runtime path and export options persistence."""
 
 from __future__ import annotations
 
@@ -8,6 +8,13 @@ from pathlib import Path
 from runtime.app_paths import app_config_path
 
 PANDOC_EXECUTABLE_CONFIG_KEY = "pandoc_executable_path"
+PANDOC_EXPORT_OPTIONS_KEY = "pandoc_export_options"
+
+DEFAULT_EXPORT_OPTIONS = {
+    "mathjax_url": "",
+    "pdf_engine": "",
+    "html_standalone": True,
+}
 
 
 def load_configured_pandoc_path() -> Path | None:
@@ -64,5 +71,42 @@ def clear_configured_pandoc_path() -> None:
             return
         loaded.pop(PANDOC_EXECUTABLE_CONFIG_KEY, None)
         cfg_path.write_text(json.dumps(loaded, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        return
+
+
+def load_pandoc_export_options() -> dict:
+    """Return configured pandoc export options with defaults."""
+    try:
+        cfg_path = app_config_path()
+        if not cfg_path.exists():
+            return dict(DEFAULT_EXPORT_OPTIONS)
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return dict(DEFAULT_EXPORT_OPTIONS)
+        opts = data.get(PANDOC_EXPORT_OPTIONS_KEY, {})
+        if not isinstance(opts, dict):
+            return dict(DEFAULT_EXPORT_OPTIONS)
+        result = dict(DEFAULT_EXPORT_OPTIONS)
+        result.update(opts)
+        return result
+    except Exception:
+        return dict(DEFAULT_EXPORT_OPTIONS)
+
+
+def save_pandoc_export_options(options: dict) -> None:
+    """Persist pandoc export options."""
+    try:
+        cfg_path = app_config_path()
+        data = {}
+        if cfg_path.exists():
+            try:
+                loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+            except Exception:
+                data = {}
+        data[PANDOC_EXPORT_OPTIONS_KEY] = options
+        cfg_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         return

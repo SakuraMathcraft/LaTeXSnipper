@@ -36,23 +36,14 @@ class PandocFormat:
 
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
-    PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
+    PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
-    PandocFormat("pandoc_icml", "InDesign (.icml)", "icml", ".icml"),
-    PandocFormat("pandoc_rtf", "RTF (.rtf)", "rtf", ".rtf"),
-    PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
+    PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
     PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
-    PandocFormat("pandoc_latex", "LaTeX (.tex)", "latex", ".tex"),
     PandocFormat("pandoc_typst", "Typst (.typ)", "typst", ".typ"),
-    PandocFormat("pandoc_gfm", "GitHub Markdown", "gfm", ".md"),
-    PandocFormat("pandoc_commonmark", "CommonMark", "commonmark", ".md"),
     PandocFormat("pandoc_rst", "reStructuredText", "rst", ".rst"),
     PandocFormat("pandoc_mediawiki", "MediaWiki", "mediawiki", ".wiki"),
-    PandocFormat("pandoc_dokuwiki", "DokuWiki", "dokuwiki", ".txt"),
-    PandocFormat("pandoc_org", "Org-mode", "org", ".org"),
-    PandocFormat("pandoc_textile", "Textile", "textile", ".textile"),
-    PandocFormat("pandoc_jira", "Jira Wiki", "jira", ".txt"),
-    PandocFormat("pandoc_man", "Man Page", "man", ".1"),
+    PandocFormat("pandoc_plain", "纯文本", "plain", ".txt"),
 )
 
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
@@ -178,8 +169,19 @@ def _wrap_formula_in_document(latex: str) -> str:
     text = (latex or "").strip()
     if text.startswith("$$") and text.endswith("$$"):
         text = text[2:-2].strip()
-    elif text.startswith("$") and text.endswith("$"):
+    elif text.startswith("$") and text.endswith("$") and "$" not in text[1:-1]:
         text = text[1:-1].strip()
+
+    has_inline_math = "$" in text and not text.startswith("\\[")
+
+    if has_inline_math:
+        return (
+            "\\documentclass[preview,border=1pt,varwidth]{standalone}\n"
+            "\\usepackage{amsmath,amssymb,amsfonts}\n"
+            "\\begin{document}\n"
+            f"{text}\n"
+            "\\end{document}\n"
+        )
 
     return (
         "\\documentclass[preview,border=1pt,varwidth]{standalone}\n"
@@ -188,6 +190,15 @@ def _wrap_formula_in_document(latex: str) -> str:
         f"\\[{text}\\]\n"
         "\\end{document}\n"
     )
+
+
+def _find_pdf_engine() -> str | None:
+    """Find a available PDF engine, preferring xelatex for better Unicode support."""
+    import shutil as _shutil
+    for engine in ("xelatex", "lualatex", "pdflatex"):
+        if _shutil.which(engine):
+            return engine
+    return None
 
 
 def convert_latex_to(
@@ -208,14 +219,58 @@ def convert_latex_to(
 
     import pypandoc  # type: ignore[import-untyped]
 
-    if as_document:
+    is_complete_doc = (latex or "").strip().startswith("\\documentclass")
+    has_inline_math = "$" in (latex or "")
+    is_text_content = has_inline_math and not is_complete_doc and not (latex or "").strip().startswith("\\[")
+
+    if is_text_content:
+        src = latex.strip()
+        input_fmt = "markdown+tex_math_dollars"
+    elif as_document and not is_complete_doc:
         src = _wrap_formula_in_document(latex)
+        input_fmt = "latex"
     else:
         src = latex
+        input_fmt = "latex"
 
     args = list(extra_args or [])
-    if target_key == "pandoc_html_standalone" and "--standalone" not in args:
-        args.append("--standalone")
+
+    # Apply user-configured options
+    from runtime.pandoc_runtime import load_pandoc_export_options
+    opts = load_pandoc_export_options()
+    mathjax_url = opts.get("mathjax_url", "")
+
+    if target_key == "pandoc_html_standalone":
+        if "--standalone" not in args:
+            args.append("--standalone")
+        if "--mathjax" not in args:
+            if mathjax_url:
+                args.extend(["--mathjax", mathjax_url])
+            else:
+                args.append("--mathjax")
+
+    if target_key == "pandoc_gfm":
+        if "--mathjax" not in args:
+            if mathjax_url:
+                args.extend(["--mathjax", mathjax_url])
+            else:
+                args.append("--mathjax")
+
+    if target_key == "pandoc_commonmark":
+        if "--mathjax" not in args:
+            if mathjax_url:
+                args.extend(["--mathjax", mathjax_url])
+            else:
+                args.append("--mathjax")
+
+    if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
+        configured_engine = opts.get("pdf_engine", "")
+        if configured_engine:
+            args.extend(["--pdf-engine", configured_engine])
+        else:
+            engine = _find_pdf_engine()
+            if engine:
+                args.extend(["--pdf-engine", engine])
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(
@@ -226,7 +281,7 @@ def convert_latex_to(
             pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 outputfile=tmp_path,
                 extra_args=args,
             )
@@ -246,7 +301,7 @@ def convert_latex_to(
             result = pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 extra_args=args,
             )
             return result

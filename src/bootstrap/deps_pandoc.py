@@ -184,7 +184,7 @@ def _pandoc_version_too_old(current: tuple[int, ...] | None, target: str) -> boo
     return current < target_tuple
 
 
-_PANDOC_VERSION = "3.9.0.2"
+_PANDOC_VERSION = "3.10"
 
 
 def _pandoc_platform_archive() -> tuple[str, str, str]:

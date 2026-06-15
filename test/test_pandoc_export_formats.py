@@ -19,13 +19,14 @@ def test_pandoc_format_registry_is_complete() -> None:
     formats = pandoc_exporter.PANDOC_FORMATS
     keys = [fmt.key for fmt in formats]
 
-    assert len(formats) == 18
+    assert len(formats) == 9
     assert len(keys) == len(set(keys))
     assert set(keys) == set(pandoc_exporter.PANDOC_FORMAT_MAP)
     assert {fmt.key for fmt in formats if fmt.needs_file} == {
         "pandoc_docx",
-        "pandoc_odt",
+        "pandoc_pptx",
         "pandoc_epub",
+        "pandoc_pdf",
     }
     for fmt in formats:
         assert fmt.key.startswith("pandoc_")
@@ -49,7 +50,10 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
         if fmt.needs_file:
             assert isinstance(result, bytes), fmt.key
             assert len(result) > 100, fmt.key
-            assert result.startswith(b"PK"), fmt.key
+            if fmt.key == "pandoc_pdf":
+                assert result.startswith(b"%PDF-"), fmt.key
+            else:
+                assert result.startswith(b"PK"), fmt.key
         else:
             assert isinstance(result, str), fmt.key
             assert result.strip(), fmt.key
@@ -57,10 +61,6 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
     docx = _read_zip(results["pandoc_docx"])
     assert "word/document.xml" in docx
     assert b"<m:oMath" in docx["word/document.xml"]
-
-    odt = _read_zip(results["pandoc_odt"])
-    assert "content.xml" in odt
-    assert any(name.endswith("/content.xml") for name in odt if name != "content.xml")
 
     epub = _read_zip(results["pandoc_epub"])
     assert "EPUB/content.opf" in epub
@@ -72,25 +72,10 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
         if isinstance(value, str)
     }
     assert "<html" in text["pandoc_html_standalone"].lower()
-    assert "\\[" in text["pandoc_latex"]
     assert "frac(" in text["pandoc_typst"]
-    assert "``` math" in text["pandoc_gfm"]
-    assert "$$" in text["pandoc_commonmark"]
     assert ".. math::" in text["pandoc_rst"]
     assert '<math display="block">' in text["pandoc_mediawiki"]
-    assert "\\[" in text["pandoc_org"]
-
-    for key in {
-        "pandoc_icml",
-        "pandoc_rtf",
-        "pandoc_plain",
-        "pandoc_dokuwiki",
-        "pandoc_textile",
-        "pandoc_jira",
-        "pandoc_man",
-    }:
-        normalized = text[key].lower()
-        assert any(token in normalized for token in ("frac", "partial", "math")), key
+    assert "frac" in text["pandoc_plain"]
 
 
 def _read_zip(result: str | bytes) -> dict[str, bytes]:

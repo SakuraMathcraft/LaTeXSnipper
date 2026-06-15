@@ -19,12 +19,23 @@ def populate_formula_export_menu(menu, export_callback: Callable[[str], None]) -
             menu.addSeparator()
             continue
         if spec.key == "_pandoc_header":
-            # Pandoc section header (non-clickable)
+            # Pandoc section header with settings action
             header_action = Action(spec.label or spec.key)
             header_action.setEnabled(False)
             menu.addAction(header_action)
+            settings_action = Action("⚙ Pandoc 设置...")
+            settings_action.triggered.connect(_open_pandoc_settings)
+            menu.addAction(settings_action)
             continue
         menu.addAction(Action(spec.label or spec.key, triggered=lambda _checked=False, key=spec.key: export_callback(key)))
+
+
+def _open_pandoc_settings() -> None:
+    try:
+        from ui.pandoc_settings_dialog import show_pandoc_settings_dialog
+        show_pandoc_settings_dialog()
+    except Exception:
+        pass
 
 
 def export_formula_to_clipboard(

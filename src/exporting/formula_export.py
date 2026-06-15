@@ -10,7 +10,6 @@ from exporting.formula_format_helpers import (
     latex_equation,
     latex_inline,
     mathml_to_html_fragment,
-    mathml_with_prefix,
     normalize_latex_for_export,
 )
 
@@ -35,13 +34,9 @@ EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
     ExportFormatSpec("latex_display", "LaTeX (display \\[...\\])"),
     ExportFormatSpec("latex_equation", "LaTeX (equation 编号)"),
     ExportFormatSpec("", separator_before=True),
-    ExportFormatSpec("markdown_inline", "Markdown (行内 $...$)"),
     ExportFormatSpec("markdown_block", "Markdown (块级 $$...$$)"),
     ExportFormatSpec("", separator_before=True),
     ExportFormatSpec("mathml", "MathML"),
-    ExportFormatSpec("mathml_mml", "MathML (.mml)"),
-    ExportFormatSpec("mathml_m", "MathML (<m>)"),
-    ExportFormatSpec("mathml_attr", "MathML (attr)"),
     ExportFormatSpec("", separator_before=True),
     ExportFormatSpec("html", "HTML"),
     ExportFormatSpec("omml", "Word OMML"),
@@ -64,12 +59,8 @@ FORMAT_DISPLAY_NAMES = {
     "latex": "LaTeX (行内)",
     "latex_display": "LaTeX (display \\[\\])",
     "latex_equation": "LaTeX (equation)",
-    "markdown_inline": "Markdown 行内",
     "markdown_block": "Markdown 块级",
     "mathml": "MathML",
-    "mathml_mml": "MathML (.mml)",
-    "mathml_m": "MathML (<m>)",
-    "mathml_attr": "MathML (attr)",
     "html": "HTML",
     "omml": "Word OMML",
     "svgcode": "SVG Code",
@@ -99,20 +90,12 @@ def build_formula_export(
         return latex_display(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "latex_equation":
         return latex_equation(clean), FORMAT_DISPLAY_NAMES[fmt]
-    if fmt == "markdown_inline":
-        return latex_inline(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "markdown_block":
         return f"$$\n{clean}\n$$", FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "html":
         return mathml_to_html_fragment(mathml_converter(clean)), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml":
         return mathml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
-    if fmt == "mathml_mml":
-        return mathml_with_prefix(mathml_converter(clean), "mml"), FORMAT_DISPLAY_NAMES[fmt]
-    if fmt == "mathml_m":
-        return mathml_with_prefix(mathml_converter(clean), "m"), FORMAT_DISPLAY_NAMES[fmt]
-    if fmt == "mathml_attr":
-        return mathml_with_prefix(mathml_converter(clean), "attr"), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "omml":
         return omml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "svgcode":
