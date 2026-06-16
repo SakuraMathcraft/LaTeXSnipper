@@ -66,6 +66,3 @@ def clear_configured_pandoc_path() -> None:
         cfg_path.write_text(json.dumps(loaded, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         return
-
-
-
