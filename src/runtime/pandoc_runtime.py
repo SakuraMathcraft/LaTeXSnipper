@@ -9,10 +9,6 @@ from runtime.app_paths import app_config_path
 
 PANDOC_EXECUTABLE_CONFIG_KEY = "pandoc_executable_path"
 
-DEFAULT_EXPORT_OPTIONS = {
-    "pdf_engine": "",
-}
-
 
 def load_configured_pandoc_path() -> Path | None:
     """Return the configured pandoc executable path if it exists."""
@@ -72,20 +68,4 @@ def clear_configured_pandoc_path() -> None:
         return
 
 
-def load_pandoc_export_options() -> dict:
-    """Return configured pandoc export options with defaults."""
-    try:
-        cfg_path = app_config_path()
-        if not cfg_path.exists():
-            return dict(DEFAULT_EXPORT_OPTIONS)
-        data = json.loads(cfg_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return dict(DEFAULT_EXPORT_OPTIONS)
-        opts = data.get(PANDOC_EXPORT_OPTIONS_KEY, {})
-        if not isinstance(opts, dict):
-            return dict(DEFAULT_EXPORT_OPTIONS)
-        result = dict(DEFAULT_EXPORT_OPTIONS)
-        result.update(opts)
-        return result
-    except Exception:
-        return dict(DEFAULT_EXPORT_OPTIONS)
+

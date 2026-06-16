@@ -129,16 +129,6 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     return True
 
 
-def pandoc_version() -> str | None:
-    check_pandoc_available()
-    return _pandoc_version_cache
-
-
-def pandoc_path() -> str | None:
-    check_pandoc_available()
-    return _pandoc_path_cache
-
-
 def is_available() -> bool:
     return check_pandoc_available()
 
@@ -257,27 +247,19 @@ def convert_latex_to(
         args.extend(["--slide-level", "2"])
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
-        from runtime.pandoc_runtime import load_pandoc_export_options
-        opts = load_pandoc_export_options()
-        configured_engine = opts.get("pdf_engine", "")
-        if configured_engine:
-            args.extend(["--pdf-engine", configured_engine])
+        engine = _find_pdf_engine()
+        if engine:
+            args.extend(["--pdf-engine", engine])
         else:
-            engine = _find_pdf_engine()
-            if engine:
-                args.extend(["--pdf-engine", engine])
-            else:
-                raise PandocConversionError(
-                    "未找到 LaTeX 引擎，无法导出 PDF。"
-                )
+            raise PandocConversionError(
+                "未找到 LaTeX 引擎，无法导出 PDF。"
+            )
         if is_text_content and "--pdf-engine" in args:
             font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
             if font_path.is_file():
                 args.extend(["-V", f"mainfont={font_path}", "-V", f"CJKmainfont={font_path}"])
             else:
                 args.extend(["-V", "CJKmainfont=Microsoft YaHei"])
-    if target_key == "pandoc_html_standalone" and "--standalone" not in args:
-        args.append("--standalone")
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(
@@ -316,68 +298,6 @@ def convert_latex_to(
             raise PandocConversionError(
                 f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
             ) from exc
-
-
-def convert_markdown_to(
-    target_key: str,
-    markdown: str,
-    *,
-    extra_args: list[str] | None = None,
-) -> str | bytes:
-    if not is_available():
-        raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
-        )
-
-    fmt = PANDOC_FORMAT_MAP.get(target_key)
-    if fmt is None:
-        raise ValueError(f"Unknown Pandoc format key: {target_key!r}")
-
-    import pypandoc  # type: ignore[import-untyped]
-
-    args = extra_args or []
-
-    if fmt.needs_file:
-        with tempfile.NamedTemporaryFile(
-            suffix=fmt.extension, delete=False
-        ) as tmp:
-            tmp_path = tmp.name
-        try:
-            pypandoc.convert_text(
-                markdown,
-                fmt.pandoc_format,
-                format="markdown+tex_math_dollars",
-                outputfile=tmp_path,
-                extra_args=args,
-            )
-            data = Path(tmp_path).read_bytes()
-            return data
-        except Exception as exc:
-            raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-    else:
-        try:
-            result = pypandoc.convert_text(
-                markdown,
-                fmt.pandoc_format,
-                format="markdown+tex_math_dollars",
-                extra_args=args,
-            )
-            return result
-        except Exception as exc:
-            raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-
-
-def get_available_format_keys() -> list[str]:
-    return [f.key for f in PANDOC_FORMATS]
 
 
 def get_format_label(key: str) -> str:
