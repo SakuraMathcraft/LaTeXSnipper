@@ -189,10 +189,8 @@ def _find_pdf_engine() -> str | None:
 
 
 def _preprocess_for_pptx(text: str) -> str:
-    """Convert --- separators to slide breaks for PPTX output.
-
-    Pandoc PPTX uses headings for slides. --- is just a horizontal rule.
-    We convert --- to empty ## headings that create slide breaks.
+    """
+    Pandoc PPTX uses headings for slides. --- is just a horizontal rule.Convert --- to empty ## headings that create slide breaks.
     """
     import re
     lines = text.split("\n")
