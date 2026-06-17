@@ -6,7 +6,7 @@ from pathlib import Path
 from bootstrap.deps_context import flags
 
 
-def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
+def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
     """Ensure the pandoc executable is available."""
     if log_fn:
         log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")

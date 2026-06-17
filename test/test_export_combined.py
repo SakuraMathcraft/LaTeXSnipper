@@ -73,32 +73,17 @@ def _build_single_latex_doc():
     return "\n".join(lines)
 
 
-def _build_single_markdown_doc():
-    lines = ["# Export Test - All 25 Cases\n"]
-    for name, latex in TEST_CASES:
-        lines.append(f"## {name}")
-        lines.append(f"LaTeX: `{latex}`\n")
-        has_inline = "$" in latex and not latex.strip().startswith("\\[")
-        if has_inline:
-            lines.append(latex)
-        else:
-            lines.append(f"$$\n{latex}\n$$")
-        lines.append("")
-    return "\n".join(lines)
-
-
 def main():
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    pandoc_available = check_pandoc_available(force=True)
+    check_pandoc_available(force=True)
     generated = []
     errors = []
 
     # Single combined LaTeX document for pandoc
     combined_latex = _build_single_latex_doc()
-    combined_md = _build_single_markdown_doc()
 
     # Pandoc text formats - convert combined document
     text_pandoc_formats = [f for f in PANDOC_FORMAT_MAP.values() if not f.needs_file]
