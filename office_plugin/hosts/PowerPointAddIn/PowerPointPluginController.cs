@@ -148,7 +148,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
 
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
-        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
+        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous, accepted.FontStyle);
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
             _hasLoadedShapePosition = false;
@@ -313,7 +313,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         return Task.CompletedTask;
     }
 
-    private static FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous)
+    private static FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous, FormulaFontStyle? acceptedFontStyle = null)
     {
         string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? DefaultLatex : latex.Trim();
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
@@ -326,7 +326,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             previous?.RenderEngine ?? RenderEngineKind.Image,
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
-            previous?.FontStyle ?? settings.FormulaFontStyle,
+            acceptedFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
             previous?.FontScale ?? 1);
     }
 
@@ -377,20 +377,7 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     private static string BuildFormattedLatex(FormulaMetadata metadata)
     {
-        string latex = metadata.Latex;
-        switch (metadata.FontStyle)
-        {
-            case FormulaFontStyle.RomanUpright:
-                latex = "\\mathrm{" + latex + "}";
-                break;
-            case FormulaFontStyle.Bold:
-                latex = "\\boldsymbol{" + latex + "}";
-                break;
-            case FormulaFontStyle.Italic:
-                latex = "\\mathit{" + latex + "}";
-                break;
-        }
-
+        string latex = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(metadata.Latex, metadata.FontStyle);
         return string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase)
             ? latex
             : "\\color{" + metadata.FontColor + "}{" + latex + "}";

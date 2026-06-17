@@ -129,8 +129,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public event EventHandler<string>? EditorError;
 
-    public bool CloseOnCommit { get; set; }
-
     public FormulaEditorAcceptedEventArgs? AcceptedFormula { get; private set; }
 
     public Task WarmUpAsync()
@@ -143,6 +141,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
     {
         _shutdownDisposing = true;
         Close();
+        Dispose();
     }
 
     public void Configure(FormulaMetadata? initialFormula, bool updateMode)
@@ -307,7 +306,13 @@ internal sealed class MathLiveFormulaEditorForm : Form
         bool display = _options.ForceDisplayMode ||
             !message.TryGetValue("display", out object rawDisplay) ||
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
-        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display);
+        string fontStyleText = message.TryGetValue("fontStyle", out object rawFontStyle)
+            ? Convert.ToString(rawFontStyle, CultureInfo.InvariantCulture) ?? FormulaFontStyle.TeX.ToString()
+            : FormulaFontStyle.TeX.ToString();
+        FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedFontStyle)
+            ? parsedFontStyle
+            : FormulaFontStyle.TeX;
+        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display, fontStyle);
         await SetSubmittingAsync(true).ConfigureAwait(true);
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
         if (result.Success)
@@ -414,8 +419,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
                 NotifyEditorCancelled();
             }
 
-            e.Cancel = true;
-            Hide();
             RestoreInputLanguageAfterHide();
             return;
         }
@@ -442,15 +445,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
     private void Commit(DialogResult result)
     {
         _committed = true;
-        if (CloseOnCommit)
-        {
-            DialogResult = result;
-            Close();
-            return;
-        }
-
-        Hide();
-        RestoreInputLanguageAfterHide();
+        DialogResult = result;
+        Close();
     }
 
     private void RestoreInputLanguageAfterHide()

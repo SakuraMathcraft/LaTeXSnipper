@@ -6,7 +6,7 @@ from pathlib import Path
 from bootstrap.deps_context import flags
 
 
-def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
+def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
     """Ensure the pandoc executable is available."""
     if log_fn:
         log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")
@@ -184,7 +184,7 @@ def _pandoc_version_too_old(current: tuple[int, ...] | None, target: str) -> boo
     return current < target_tuple
 
 
-_PANDOC_VERSION = "3.9.0.2"
+_PANDOC_VERSION = "3.10"
 
 
 def _pandoc_platform_archive() -> tuple[str, str, str]:
@@ -228,10 +228,10 @@ def _build_pandoc_mirrors() -> list[str]:
     """Build pandoc mirror URLs for the current platform."""
     archive_name, _bin_name, _arc_type = _pandoc_platform_archive()
     return [
-
         f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
-
+        f"https://github.geekery.cn/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
+        f"https://github.tbedu.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
     ]
 

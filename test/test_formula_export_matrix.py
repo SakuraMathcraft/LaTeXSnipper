@@ -77,7 +77,7 @@ loader.init({
     return json.loads(completed.stdout)
 
 
-def test_export_registry_contains_exactly_30_formats() -> None:
+def test_export_registry_contains_exactly_formats() -> None:
     if not check_pandoc_available(force=True):
         pytest.skip("Pandoc backend is not installed")
 
@@ -86,7 +86,7 @@ def test_export_registry_contains_exactly_30_formats() -> None:
         for spec in get_all_export_format_specs()
         if spec.key and not spec.key.startswith("_")
     ]
-    assert len(keys) == 30
+    assert len(keys) == 20
     assert len(keys) == len(set(keys))
 
 

@@ -35,9 +35,8 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
-        RecreateVisibleForm();
+        RecreateForm();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
-        form.CloseOnCommit = false;
         form.Configure(initialFormula, updateMode);
         form.CaptureInputLanguage();
         form.Show();
@@ -59,7 +58,12 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
             return Task.FromResult(false);
         }
 
-        _activeForm.Configure(draft, updateMode);
+        RecreateForm();
+        MathLiveFormulaEditorForm form = GetOrCreateForm();
+        form.Configure(draft, updateMode);
+        form.CaptureInputLanguage();
+        form.Show();
+        form.Activate();
         return Task.FromResult(true);
     }
 
@@ -78,9 +82,9 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return _activeForm;
     }
 
-    private void RecreateVisibleForm()
+    private void RecreateForm()
     {
-        if (_activeForm == null || _activeForm.IsDisposed || !_activeForm.Visible)
+        if (_activeForm == null || _activeForm.IsDisposed)
         {
             return;
         }

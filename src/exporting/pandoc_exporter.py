@@ -37,22 +37,12 @@ class PandocFormat:
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
     PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
+    PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
-    PandocFormat("pandoc_icml", "InDesign (.icml)", "icml", ".icml"),
-    PandocFormat("pandoc_rtf", "RTF (.rtf)", "rtf", ".rtf"),
-    PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
-    PandocFormat("pandoc_html_standalone", "HTML 独立页", "html", ".html"),
-    PandocFormat("pandoc_latex", "LaTeX (.tex)", "latex", ".tex"),
+    PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
+    PandocFormat("pandoc_html_standalone", "HTML 独立页(.html)", "html", ".html"),
     PandocFormat("pandoc_typst", "Typst (.typ)", "typst", ".typ"),
-    PandocFormat("pandoc_gfm", "GitHub Markdown", "gfm", ".md"),
-    PandocFormat("pandoc_commonmark", "CommonMark", "commonmark", ".md"),
-    PandocFormat("pandoc_rst", "reStructuredText", "rst", ".rst"),
-    PandocFormat("pandoc_mediawiki", "MediaWiki", "mediawiki", ".wiki"),
-    PandocFormat("pandoc_dokuwiki", "DokuWiki", "dokuwiki", ".txt"),
-    PandocFormat("pandoc_org", "Org-mode", "org", ".org"),
-    PandocFormat("pandoc_textile", "Textile", "textile", ".textile"),
-    PandocFormat("pandoc_jira", "Jira Wiki", "jira", ".txt"),
-    PandocFormat("pandoc_man", "Man Page", "man", ".1"),
+    PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
 )
 
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
@@ -140,16 +130,6 @@ def check_pandoc_available(*, force: bool = False) -> bool:
     return True
 
 
-def pandoc_version() -> str | None:
-    check_pandoc_available()
-    return _pandoc_version_cache
-
-
-def pandoc_path() -> str | None:
-    check_pandoc_available()
-    return _pandoc_path_cache
-
-
 def is_available() -> bool:
     return check_pandoc_available()
 
@@ -178,8 +158,19 @@ def _wrap_formula_in_document(latex: str) -> str:
     text = (latex or "").strip()
     if text.startswith("$$") and text.endswith("$$"):
         text = text[2:-2].strip()
-    elif text.startswith("$") and text.endswith("$"):
+    elif text.startswith("$") and text.endswith("$") and "$" not in text[1:-1]:
         text = text[1:-1].strip()
+
+    has_inline_math = "$" in text and not text.startswith("\\[")
+
+    if has_inline_math:
+        return (
+            "\\documentclass[preview,border=1pt,varwidth]{standalone}\n"
+            "\\usepackage{amsmath,amssymb,amsfonts}\n"
+            "\\begin{document}\n"
+            f"{text}\n"
+            "\\end{document}\n"
+        )
 
     return (
         "\\documentclass[preview,border=1pt,varwidth]{standalone}\n"
@@ -188,6 +179,53 @@ def _wrap_formula_in_document(latex: str) -> str:
         f"\\[{text}\\]\n"
         "\\end{document}\n"
     )
+
+
+def _find_pdf_engine() -> str | None:
+    import shutil as _shutil
+    for engine in ("xelatex", "lualatex", "pdflatex"):
+        if _shutil.which(engine):
+            return engine
+    return None
+
+
+def _preprocess_for_pptx(text: str) -> str:
+    import re
+    lines = text.split("\n")
+    result = []
+    for line in lines:
+        if re.match(r"^\s*---\s*$", line):
+            result.append("")
+            result.append("##")
+            result.append("")
+        else:
+            result.append(line)
+    return "\n".join(result)
+
+
+def _looks_like_latex_formula(text: str) -> bool:
+    source = text.strip()
+    if not source:
+        return False
+    if source.startswith(("\\[", "$$", "\\begin{", "\\frac", "\\sum", "\\int", "\\lim")):
+        return True
+    if "\\" in source:
+        return True
+    return any(token in source for token in ("^", "_", "="))
+
+
+def _ensure_mathjax_script(html: str) -> str:
+    if "MathJax" in html or ("math inline" not in html and "math display" not in html):
+        return html
+    script = (
+        '  <script defer=""\n'
+        '  src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"\n'
+        '  type="text/javascript"></script>\n'
+    )
+    head_end = html.lower().find("</head>")
+    if head_end >= 0:
+        return html[:head_end] + script + html[head_end:]
+    return script + html
 
 
 def convert_latex_to(
@@ -199,7 +237,7 @@ def convert_latex_to(
 ) -> str | bytes:
     if not is_available():
         raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
+            "Pandoc 导出不可用。"
         )
 
     fmt = PANDOC_FORMAT_MAP.get(target_key)
@@ -208,14 +246,53 @@ def convert_latex_to(
 
     import pypandoc  # type: ignore[import-untyped]
 
-    if as_document:
-        src = _wrap_formula_in_document(latex)
+    is_complete_doc = (latex or "").strip().startswith("\\documentclass")
+    has_inline_math = "$" in (latex or "")
+    is_text_content = has_inline_math and not is_complete_doc and not (latex or "").strip().startswith("\\[")
+
+    if is_text_content:
+        src = latex.strip()
+        if target_key == "pandoc_pptx":
+            src = _preprocess_for_pptx(src)
+        input_fmt = "markdown+tex_math_dollars"
+    elif as_document and not is_complete_doc:
+        if _looks_like_latex_formula(latex):
+            src = _wrap_formula_in_document(latex)
+            input_fmt = "latex"
+        else:
+            src = (latex or "").strip()
+            if target_key == "pandoc_pptx":
+                src = _preprocess_for_pptx(src)
+            input_fmt = "markdown+tex_math_dollars"
     else:
         src = latex
+        input_fmt = "latex"
 
     args = list(extra_args or [])
-    if target_key == "pandoc_html_standalone" and "--standalone" not in args:
-        args.append("--standalone")
+
+    if target_key == "pandoc_pptx" and "--slide-level" not in " ".join(args):
+        args.extend(["--slide-level", "2"])
+
+    if target_key == "pandoc_html_standalone":
+        if "--standalone" not in args:
+            args.append("--standalone")
+        if "--mathjax" not in args:
+            args.append("--mathjax")
+
+    if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
+        engine = _find_pdf_engine()
+        if engine:
+            args.extend(["--pdf-engine", engine])
+        else:
+            raise PandocConversionError(
+                "未找到 LaTeX 引擎，无法导出 PDF。"
+            )
+        if is_text_content and "--pdf-engine" in args:
+            font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
+            if font_path.is_file():
+                args.extend(["-V", f"mainfont={font_path}", "-V", f"CJKmainfont={font_path}"])
+            else:
+                args.extend(["-V", "CJKmainfont=Microsoft YaHei"])
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(
@@ -226,7 +303,7 @@ def convert_latex_to(
             pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 outputfile=tmp_path,
                 extra_args=args,
             )
@@ -246,76 +323,16 @@ def convert_latex_to(
             result = pypandoc.convert_text(
                 src,
                 fmt.pandoc_format,
-                format="latex",
+                format=input_fmt,
                 extra_args=args,
             )
+            if target_key == "pandoc_html_standalone":
+                result = _ensure_mathjax_script(result)
             return result
         except Exception as exc:
             raise PandocConversionError(
                 f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
             ) from exc
-
-
-def convert_markdown_to(
-    target_key: str,
-    markdown: str,
-    *,
-    extra_args: list[str] | None = None,
-) -> str | bytes:
-    if not is_available():
-        raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
-        )
-
-    fmt = PANDOC_FORMAT_MAP.get(target_key)
-    if fmt is None:
-        raise ValueError(f"Unknown Pandoc format key: {target_key!r}")
-
-    import pypandoc  # type: ignore[import-untyped]
-
-    args = extra_args or []
-
-    if fmt.needs_file:
-        with tempfile.NamedTemporaryFile(
-            suffix=fmt.extension, delete=False
-        ) as tmp:
-            tmp_path = tmp.name
-        try:
-            pypandoc.convert_text(
-                markdown,
-                fmt.pandoc_format,
-                format="markdown+tex_math_dollars",
-                outputfile=tmp_path,
-                extra_args=args,
-            )
-            data = Path(tmp_path).read_bytes()
-            return data
-        except Exception as exc:
-            raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-    else:
-        try:
-            result = pypandoc.convert_text(
-                markdown,
-                fmt.pandoc_format,
-                format="markdown+tex_math_dollars",
-                extra_args=args,
-            )
-            return result
-        except Exception as exc:
-            raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-
-
-def get_available_format_keys() -> list[str]:
-    return [f.key for f in PANDOC_FORMATS]
 
 
 def get_format_label(key: str) -> str:

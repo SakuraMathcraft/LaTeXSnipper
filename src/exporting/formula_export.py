@@ -133,6 +133,7 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
     """
     from exporting.pandoc_exporter import (
         PANDOC_FORMAT_MAP,
+        PandocConversionError,
         PandocNotAvailable,
         convert_latex_to,
         get_format_label,
@@ -143,11 +144,15 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
         return "", ""
 
     label = get_format_label(format_key)
+    if fmt.needs_file:
+        return f"[BINARY:{format_key}]", label
 
     try:
         result = convert_latex_to(format_key, latex, as_document=True)
     except PandocNotAvailable as exc:
         return f"[Pandoc 不可用] {exc}", label
+    except PandocConversionError as exc:
+        return f"[Pandoc 转换失败] {exc}", label
     except Exception as exc:
         return f"[Pandoc 转换失败] {exc}", label
 

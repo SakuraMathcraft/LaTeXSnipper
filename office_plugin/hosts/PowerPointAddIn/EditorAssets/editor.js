@@ -75,12 +75,20 @@ function setSubmitting(value) {
 }
 
 function currentLatex() {
+  return sourceLatex(true);
+}
+
+function submittedLatex() {
+  return sourceLatex(false);
+}
+
+function sourceLatex(stripDefaultWrapper) {
   if (sourceIsMathMl) {
     return latexSource.value.trim();
   }
 
   const latex = mathfield?.getValue("latex-expanded")?.trim() || "";
-  return removeDefaultFontWrapper(latex);
+  return stripDefaultWrapper ? removeDefaultFontWrapper(latex) : latex;
 }
 
 function removeDefaultFontWrapper(latex) {
@@ -401,13 +409,14 @@ function accept() {
     return;
   }
 
-  const latex = currentLatex();
+  syncSourceNow();
+  const latex = submittedLatex();
   if (!latex) {
     setStatus(strings().latexRequired);
     return;
   }
 
-  send({ type: "accept", latex, display: true });
+  send({ type: "accept", latex, display: true, fontStyle: defaultFontStyle });
 }
 
 function hideVirtualKeyboard() {

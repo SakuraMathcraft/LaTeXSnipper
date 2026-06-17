@@ -133,9 +133,29 @@ public sealed partial class WordPluginController
                 }
                 else
                 {
-                    await _wordAdapter.ResetManagedEquationFormattingAsync(formatted, cancellationToken);
+                    if (formula.FontStyle != settings.FormulaFontStyle)
+                    {
+                        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
+                            formatted,
+                            includeEquationOoxml: true,
+                            cancellationToken,
+                            FormulaInsertionBackend.WordOmml,
+                            reportProgress: false);
+                        await _wordAdapter.UpdateFormulaAsync(
+                            formatted.Identity.EquationId,
+                            prepared.Ooxml!,
+                            prepared.EquationOoxml!,
+                            formatted,
+                            prepared.Display,
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        await _wordAdapter.ResetManagedEquationFormattingAsync(formatted, cancellationToken);
+                    }
                 }
 
+                _currentFormula = formatted;
                 formattedCount++;
             }
         }

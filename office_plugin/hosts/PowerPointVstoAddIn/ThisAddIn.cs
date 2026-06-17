@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Office.Core;
 using LaTeXSnipper.OfficePlugin.PowerPointAddIn;
+using PowerPoint = Microsoft.Office.Interop.PowerPoint;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 {
@@ -9,8 +11,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private PowerPointRibbonExtensibility? ribbonExtensibility;
         private PowerPointPluginController? controller;
         private PowerPointRibbonCallbacks? ribbonCallbacks;
-        private PowerPointStatusTaskPaneControl? statusPaneControl;
-        private Microsoft.Office.Tools.CustomTaskPane? statusTaskPane;
+        private ActiveWindowStatusPaneHost? statusPaneHost;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -27,24 +28,41 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         {
             if (controller == null)
             {
-                statusPaneControl = new PowerPointStatusTaskPaneControl();
-                statusTaskPane = CustomTaskPanes.Add(statusPaneControl, PowerPointAddInText.Get("TaskPaneTitle"));
-                statusTaskPane.Width = 480;
-                statusTaskPane.Visible = false;
-
-                var visibleStatusSink = new VisiblePowerPointStatusSink(statusPaneControl, ShowStatusPane);
-                controller = PowerPointAddInFactory.CreateController(Application, visibleStatusSink, statusPaneControl);
+                statusPaneHost = new ActiveWindowStatusPaneHost(this);
+                var visibleStatusSink = new VisiblePowerPointStatusSink(statusPaneHost, ShowStatusPane);
+                controller = PowerPointAddInFactory.CreateController(Application, visibleStatusSink, statusPaneHost);
                 ribbonCallbacks = new PowerPointRibbonCallbacks(controller, visibleStatusSink, ShowStatusPane);
-                AttachTaskPaneCommands(statusPaneControl, ribbonCallbacks);
+                statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
-                _ = WarmUpControllerAsync(controller, statusPaneControl);
+                Application.WindowActivate += OnWindowActivate;
+                InitializeActiveStatusPane();
+                _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
         }
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
+            Application.WindowActivate -= OnWindowActivate;
             controller?.Dispose();
             controller = null;
+            statusPaneHost?.Dispose();
+            statusPaneHost = null;
+        }
+
+        private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)
+        {
+            statusPaneHost?.EnsurePane(window);
+        }
+
+        private void InitializeActiveStatusPane()
+        {
+            try
+            {
+                statusPaneHost?.EnsurePane(Application.ActiveWindow);
+            }
+            catch
+            {
+            }
         }
 
         private static async System.Threading.Tasks.Task WarmUpControllerAsync(
@@ -74,10 +92,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 
         private void ShowStatusPane()
         {
-            if (statusTaskPane != null)
-            {
-                statusTaskPane.Visible = true;
-            }
+            statusPaneHost?.ShowActivePane();
         }
 
         private static void AttachTaskPaneCommands(PowerPointStatusTaskPaneControl pane, PowerPointRibbonCallbacks callbacks)
@@ -85,6 +100,150 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             pane.ConnectRequested += (_, _) => callbacks.OnConnect(pane);
             pane.InsertRequested += (_, _) => callbacks.OnInsertFromTaskPane(pane);
             pane.ScreenshotOcrRequested += (_, _) => callbacks.OnScreenshotOcr(pane);
+        }
+
+        private sealed class ActiveWindowStatusPaneHost : IPowerPointStatusSink, IPowerPointFormulaOptionsProvider, IDisposable
+        {
+            private readonly ThisAddIn addIn;
+            private readonly Dictionary<int, PaneEntry> panes = new();
+            private PowerPointRibbonCallbacks? callbacks;
+
+            public ActiveWindowStatusPaneHost(ThisAddIn addIn)
+            {
+                this.addIn = addIn;
+            }
+
+            public string CurrentLatex => TryGetActivePane(out PaneEntry entry)
+                ? entry.Control.CurrentLatex
+                : "e^{i\\pi}+1=0";
+
+            public void AttachCallbacks(PowerPointRibbonCallbacks callbacks)
+            {
+                this.callbacks = callbacks;
+            }
+
+            public void EnsurePane(PowerPoint.DocumentWindow window)
+            {
+                _ = GetPane(window);
+            }
+
+            public PowerPointFormulaOptions GetFormulaOptions()
+            {
+                return TryGetActivePane(out PaneEntry entry)
+                    ? entry.Control.GetFormulaOptions()
+                    : new PowerPointFormulaOptions();
+            }
+
+            public void ResetFormulaDraft()
+            {
+                if (TryGetActivePane(out PaneEntry entry))
+                {
+                    entry.Control.ResetFormulaDraft();
+                }
+            }
+
+            public void Post(PowerPointStatusKind kind, string message)
+            {
+                if (TryGetActivePane(out PaneEntry entry))
+                {
+                    entry.Control.Post(kind, message);
+                }
+            }
+
+            public void SetBusy(bool busy)
+            {
+                if (TryGetActivePane(out PaneEntry entry))
+                {
+                    entry.Control.SetBusy(busy);
+                }
+            }
+
+            public void SetOcrActive(bool active)
+            {
+                if (TryGetActivePane(out PaneEntry entry))
+                {
+                    entry.Control.SetOcrActive(active);
+                }
+            }
+
+            public void SetCurrentFormula(string latex, bool updateMode)
+            {
+                if (TryGetActivePane(out PaneEntry entry))
+                {
+                    entry.Control.SetCurrentFormula(latex, updateMode);
+                }
+            }
+
+            public void ShowActivePane()
+            {
+                GetActivePane().TaskPane.Visible = true;
+            }
+
+            public void Dispose()
+            {
+                foreach (PaneEntry entry in panes.Values)
+                {
+                    entry.TaskPane.Visible = false;
+                }
+
+                panes.Clear();
+            }
+
+            private bool TryGetActivePane(out PaneEntry entry)
+            {
+                try
+                {
+                    entry = GetActivePane();
+                    return true;
+                }
+                catch
+                {
+                    entry = null!;
+                    return false;
+                }
+            }
+
+            private PaneEntry GetActivePane()
+            {
+                PowerPoint.DocumentWindow window = addIn.Application.ActiveWindow;
+                return GetPane(window);
+            }
+
+            private PaneEntry GetPane(PowerPoint.DocumentWindow window)
+            {
+                int key = Convert.ToInt32(window.HWND);
+                if (panes.TryGetValue(key, out PaneEntry entry))
+                {
+                    return entry;
+                }
+
+                var control = new PowerPointStatusTaskPaneControl();
+                Microsoft.Office.Tools.CustomTaskPane taskPane =
+                    addIn.CustomTaskPanes.Add(control, PowerPointAddInText.Get("TaskPaneTitle"), window);
+                taskPane.Width = 480;
+                taskPane.Visible = false;
+                if (callbacks != null)
+                {
+                    AttachTaskPaneCommands(control, callbacks);
+                }
+
+                entry = new PaneEntry(control, taskPane);
+                panes.Add(key, entry);
+                return entry;
+            }
+
+            private sealed class PaneEntry
+            {
+                public PaneEntry(PowerPointStatusTaskPaneControl control, Microsoft.Office.Tools.CustomTaskPane taskPane)
+                {
+                    Control = control;
+                    TaskPane = taskPane;
+                }
+
+                public PowerPointStatusTaskPaneControl Control { get; }
+
+                public Microsoft.Office.Tools.CustomTaskPane TaskPane { get; }
+            }
         }
     }
 }

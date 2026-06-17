@@ -87,6 +87,7 @@
   }
 
   function insertTemplate(mathfield, template) {
+    activateDefaultFontStyle(mathfield);
     mathfield.insert(template, {
       format: "latex",
       insertionMode: "replaceSelection",
@@ -95,9 +96,17 @@
     mathfield.focus();
   }
 
+  function activateDefaultFontStyle(mathfield) {
+    const style = mathfield.__latexSnipperDefaultFontStyle;
+    if (style) {
+      mathfield.applyStyle(style);
+    }
+  }
+
   function setDefaultFontStyle(mathfield, fontStyle) {
     if (fontStyle === "TeX") {
       mathfield.onInsertStyle = undefined;
+      mathfield.__latexSnipperDefaultFontStyle = undefined;
       return;
     }
 
@@ -108,11 +117,14 @@
     }[fontStyle];
     if (!style) {
       mathfield.onInsertStyle = undefined;
+      mathfield.__latexSnipperDefaultFontStyle = undefined;
       return;
     }
 
+    mathfield.__latexSnipperDefaultFontStyle = style;
     mathfield.onInsertStyle = () => ({ ...style });
     if (!mathfield.getValue("latex-expanded").trim()) {
+      mathfield.applyStyle(style);
       return;
     }
 
