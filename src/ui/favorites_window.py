@@ -276,6 +276,8 @@ class FavoritesWindow(QMainWindow):
                 mathml_converter=latex_to_mathml,
                 omml_converter=latex_to_omml,
                 svg_converter=latex_to_svg_code,
+                parent=self,
+                status_callback=self._set_status,
             )
         except Exception as e:
             self._set_status(f"导出失败: {e}")

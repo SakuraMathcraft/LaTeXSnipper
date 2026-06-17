@@ -84,6 +84,8 @@ class EditorActionsControllerMixin:
                 mathml_converter=latex_to_mathml,
                 omml_converter=latex_to_omml,
                 svg_converter=latex_to_svg_code,
+                parent=info_parent or self,
+                status_callback=lambda message: self.set_action_status(message, parent=info_parent),
             )
         except Exception as e:
             self.set_action_status(f"导出失败: {e}", parent=info_parent)

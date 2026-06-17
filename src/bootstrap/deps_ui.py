@@ -573,7 +573,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
         "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
         "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
-        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/rtf 等文档格式转换。\n"
+        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
         "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
         "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
         "\n"

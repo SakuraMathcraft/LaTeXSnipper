@@ -36,6 +36,11 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata.Identity.EquationId,
                 naturalFontSize);
             ApplyManagedEquationStyle(equationControl, metadata);
+            if (metadata.DisplayMode == FormulaDisplayMode.Inline)
+            {
+                ResetManagedEquationBaseline(equationControl);
+            }
+
             if (numberControl != null)
             {
                 ApplyNumberControlVerticalAlignment(numberControl, metadata);
@@ -340,6 +345,19 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = contentControl;
         ShowContentControlChrome(control);
         TryCom(() => control.Range.Font.Size = fontSizePoints);
+    }
+
+    private static void ResetManagedEquationBaseline(object contentControl)
+    {
+        dynamic control = contentControl;
+        TryCom(() => control.Range.Font.Position = 0);
+        dynamic equations = control.Range.OMaths;
+        int equationCount = Convert.ToInt32(equations.Count);
+        for (int index = 1; index <= equationCount; index++)
+        {
+            dynamic equation = equations.Item(index);
+            TryCom(() => equation.Range.Font.Position = 0);
+        }
     }
 
     private (object EquationControl, object? NumberControl) FindInsertedFormulaControls(

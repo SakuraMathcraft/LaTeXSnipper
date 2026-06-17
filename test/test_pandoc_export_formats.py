@@ -14,12 +14,46 @@ SAMPLE_LATEX = (
     r"-\frac{\partial L}{\partial q_i}=0"
 )
 
+MIXED_PROBLEM_DOCUMENT = r"""
+# 数学与物理综合题 / Mixed Math and Physics Problems
+
+## 题目 1：受迫振动
+
+A particle with mass $m$ satisfies the differential equation
+
+$$
+m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=F_0\cos(\omega t).
+$$
+
+请说明当 $\omega \approx \sqrt{k/m}$ 时振幅为什么会增大，并给出稳态解的相位差。
+
+## Problem 2: Vector calculus
+
+For the vector field $\mathbf{F}(x,y,z)=(-y,x,z^2)$, compute
+
+$$
+\nabla\times\mathbf{F}
+=\begin{pmatrix}
+\partial_y z^2-\partial_z x\\
+\partial_z(-y)-\partial_x z^2\\
+\partial_x x-\partial_y(-y)
+\end{pmatrix}.
+$$
+
+再判断曲线积分 $\oint_C \mathbf{F}\cdot d\mathbf{r}$ 是否可用 Stokes 定理化为面积分。
+
+## 题目 3：概率
+
+若随机变量 $X\sim N(\mu,\sigma^2)$，证明标准化变量
+$Z=(X-\mu)/\sigma$ 满足 $Z\sim N(0,1)$。
+""".strip()
+
 
 def test_pandoc_format_registry_is_complete() -> None:
     formats = pandoc_exporter.PANDOC_FORMATS
     keys = [fmt.key for fmt in formats]
 
-    assert len(formats) == 7
+    assert len(formats) == 8
     assert len(keys) == len(set(keys))
     assert set(keys) == set(pandoc_exporter.PANDOC_FORMAT_MAP)
     assert {fmt.key for fmt in formats if fmt.needs_file} == {
@@ -75,11 +109,75 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
         for key, value in results.items()
         if isinstance(value, str)
     }
+    assert "<html" in text["pandoc_html_standalone"].lower()
+    assert "mathjax" in text["pandoc_html_standalone"].lower()
     assert "frac" in text["pandoc_plain"]
 
     for key in {"pandoc_plain"}:
         normalized = text[key].lower()
         assert any(token in normalized for token in ("frac", "partial", "math")), key
+
+
+def test_plain_text_is_not_wrapped_as_display_math() -> None:
+    if not pandoc_exporter.check_pandoc_available(force=True):
+        pytest.skip("Pandoc backend is not installed")
+
+    result = pandoc_exporter.convert_latex_to(
+        "pandoc_typst",
+        "Theorem 2.1 states that compact metric spaces behave well.",
+        as_document=True,
+    )
+
+    assert isinstance(result, str)
+    assert result.startswith("Theorem 2.1")
+    assert "$ T h e o r e m" not in result
+
+
+def test_real_world_mixed_problem_exports_are_structured() -> None:
+    if not pandoc_exporter.check_pandoc_available(force=True):
+        pytest.skip("Pandoc backend is not installed")
+
+    html = pandoc_exporter.convert_latex_to(
+        "pandoc_html_standalone",
+        MIXED_PROBLEM_DOCUMENT,
+        as_document=True,
+    )
+    assert isinstance(html, str)
+    assert "受迫振动" in html
+    assert "Mixed Math and Physics Problems" in html
+    assert "mathjax" in html.lower()
+    assert "nabla" in html or "∇" in html
+
+    docx = _read_zip(
+        pandoc_exporter.convert_latex_to(
+            "pandoc_docx",
+            MIXED_PROBLEM_DOCUMENT,
+            as_document=True,
+        )
+    )
+    assert "word/document.xml" in docx
+    assert "受迫振动".encode("utf-8") in docx["word/document.xml"]
+    assert b"<m:oMath" in docx["word/document.xml"]
+
+    pptx = _read_zip(
+        pandoc_exporter.convert_latex_to(
+            "pandoc_pptx",
+            MIXED_PROBLEM_DOCUMENT,
+            as_document=True,
+        )
+    )
+    slide_xml = b"\n".join(value for name, value in pptx.items() if name.startswith("ppt/slides/slide"))
+    assert "Mixed Math and Physics Problems".encode("utf-8") in slide_xml
+    assert "受迫振动".encode("utf-8") in slide_xml
+
+    pdf = pandoc_exporter.convert_latex_to(
+        "pandoc_pdf",
+        MIXED_PROBLEM_DOCUMENT,
+        as_document=True,
+    )
+    assert isinstance(pdf, bytes)
+    assert pdf.startswith(b"%PDF-")
+    assert len(pdf) > 1000
 
 
 def _read_zip(result: str | bytes) -> dict[str, bytes]:

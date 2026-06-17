@@ -27,6 +27,7 @@ public sealed partial class DynamicWordApplicationAdapter
         SaveFormulaMetadata(metadata);
         if (metadata.NumberingMode == NumberingMode.None && metadata.DisplayMode == FormulaDisplayMode.Inline)
         {
+            ResetManagedEquationBaseline(FindFormulaControlById(metadata.Identity.EquationId));
             NormalizePlainTextBaselineByFormulaId(metadata.Identity.EquationId);
         }
     }

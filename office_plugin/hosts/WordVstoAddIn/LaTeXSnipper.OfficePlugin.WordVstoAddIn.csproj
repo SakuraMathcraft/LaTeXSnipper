@@ -97,6 +97,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj">
+      <Name>LaTeXSnipper.OfficePlugin.Abstractions</Name>
+    </ProjectReference>
     <ProjectReference Include="..\WordAddIn\LaTeXSnipper.OfficePlugin.WordAddIn.csproj">
       <Name>LaTeXSnipper.OfficePlugin.WordAddIn</Name>
     </ProjectReference>

@@ -40,8 +40,9 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
+    PandocFormat("pandoc_html_standalone", "HTML 独立页(.html)", "html", ".html"),
     PandocFormat("pandoc_typst", "Typst (.typ)", "typst", ".typ"),
-    PandocFormat("pandoc_plain", "纯文本", "plain", ".txt"),
+    PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
 )
 
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
@@ -189,9 +190,6 @@ def _find_pdf_engine() -> str | None:
 
 
 def _preprocess_for_pptx(text: str) -> str:
-    """
-    Pandoc PPTX uses headings for slides. --- is just a horizontal rule.Convert --- to empty ## headings that create slide breaks.
-    """
     import re
     lines = text.split("\n")
     result = []
@@ -205,6 +203,31 @@ def _preprocess_for_pptx(text: str) -> str:
     return "\n".join(result)
 
 
+def _looks_like_latex_formula(text: str) -> bool:
+    source = text.strip()
+    if not source:
+        return False
+    if source.startswith(("\\[", "$$", "\\begin{", "\\frac", "\\sum", "\\int", "\\lim")):
+        return True
+    if "\\" in source:
+        return True
+    return any(token in source for token in ("^", "_", "="))
+
+
+def _ensure_mathjax_script(html: str) -> str:
+    if "MathJax" in html or ("math inline" not in html and "math display" not in html):
+        return html
+    script = (
+        '  <script defer=""\n'
+        '  src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"\n'
+        '  type="text/javascript"></script>\n'
+    )
+    head_end = html.lower().find("</head>")
+    if head_end >= 0:
+        return html[:head_end] + script + html[head_end:]
+    return script + html
+
+
 def convert_latex_to(
     target_key: str,
     latex: str,
@@ -214,7 +237,7 @@ def convert_latex_to(
 ) -> str | bytes:
     if not is_available():
         raise PandocNotAvailable(
-            "Pandoc 导出不可用。请安装 pypandoc (pip install pypandoc) 并确保 pandoc 可执行文件在 PATH 中。"
+            "Pandoc 导出不可用。"
         )
 
     fmt = PANDOC_FORMAT_MAP.get(target_key)
@@ -233,8 +256,14 @@ def convert_latex_to(
             src = _preprocess_for_pptx(src)
         input_fmt = "markdown+tex_math_dollars"
     elif as_document and not is_complete_doc:
-        src = _wrap_formula_in_document(latex)
-        input_fmt = "latex"
+        if _looks_like_latex_formula(latex):
+            src = _wrap_formula_in_document(latex)
+            input_fmt = "latex"
+        else:
+            src = (latex or "").strip()
+            if target_key == "pandoc_pptx":
+                src = _preprocess_for_pptx(src)
+            input_fmt = "markdown+tex_math_dollars"
     else:
         src = latex
         input_fmt = "latex"
@@ -243,6 +272,12 @@ def convert_latex_to(
 
     if target_key == "pandoc_pptx" and "--slide-level" not in " ".join(args):
         args.extend(["--slide-level", "2"])
+
+    if target_key == "pandoc_html_standalone":
+        if "--standalone" not in args:
+            args.append("--standalone")
+        if "--mathjax" not in args:
+            args.append("--mathjax")
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         engine = _find_pdf_engine()
@@ -291,6 +326,8 @@ def convert_latex_to(
                 format=input_fmt,
                 extra_args=args,
             )
+            if target_key == "pandoc_html_standalone":
+                result = _ensure_mathjax_script(result)
             return result
         except Exception as exc:
             raise PandocConversionError(

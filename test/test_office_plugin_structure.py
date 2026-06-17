@@ -607,7 +607,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "_options.Icon" in shared_editor_form
     assert "FormulaSubmitting" in shared_editor
     assert "FormulaAccepted" not in shared_editor
-    assert "RecreateVisibleForm()" in shared_editor
+    assert "RecreateForm()" in shared_editor
+    assert "e.Cancel = true" not in shared_editor_form
+    assert "\n            Hide();" not in shared_editor_form
+    assert "CloseOnCommit" not in shared_editor_form
+    assert "CloseOnCommit" not in shared_editor
     assert "form.DisposeForShutdown()" in shared_editor
     assert "SetSubmittingAsync(true)" in shared_editor_form
     assert "SetSubmittingAsync(false)" in shared_editor_form
@@ -855,12 +859,16 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "<VSTO_ProjectType>Application</VSTO_ProjectType>" in project_text
     assert "<FriendlyName>LaTeXSnipper</FriendlyName>" in project_text
     assert "Microsoft.VisualStudio.Tools.Office.targets" in project_text
+    assert "..\\..\\src\\LaTeXSnipper.OfficePlugin.Abstractions\\LaTeXSnipper.OfficePlugin.Abstractions.csproj" in project_text
     assert "..\\WordAddIn\\LaTeXSnipper.OfficePlugin.WordAddIn.csproj" in project_text
     assert "CreateRibbonExtensibilityObject" in this_addin
     assert "CustomTaskPanes.Add" in this_addin
-    assert "statusTaskPane.Width = 480" in this_addin
+    assert "taskPane.Width = 480" in this_addin
+    assert "ActiveWindowStatusPaneHost" in this_addin
+    assert "Dictionary<int, PaneEntry>" in this_addin
+    assert "addIn.CustomTaskPanes.Add(control, WordAddInText.Get(\"TaskPaneTitle\"), window)" in this_addin
     assert "VisibleWordStatusSink" in this_addin
-    assert "WordAddInFactory.CreateController(Application, visibleStatusSink, statusPaneControl)" in this_addin
+    assert "WordAddInFactory.CreateController(Application, visibleStatusSink, statusPaneHost)" in this_addin
     assert "AttachTaskPaneCommands" in this_addin
     assert "IRibbonExtensibility" in ribbon_adapter
     assert "[ComVisible(true)]" in ribbon_adapter
@@ -1061,7 +1069,8 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
     assert "_activeForm = null;" in editor
     assert "public Task WarmUpAsync()" in editor_form
     assert "_warmUpTask ??= InitializeAsync();" in editor_form
-    assert "e.Cancel = true;" in editor_form
+    assert "e.Cancel = true;" not in editor_form
+    assert "\n            Hide();" not in editor_form
     assert "Hide();" in editor_form
     assert "editor.html?_=" not in editor_form
     assert "DateTime.UtcNow.Ticks" not in editor_form
@@ -1080,8 +1089,9 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
         assert "public void Dispose()" in controller
         assert "_editorSession.Dispose();" in controller
         assert "_commandGate.Dispose();" in controller
+    assert "_ = WarmUpControllerAsync(controller, statusPaneHost);" in word_vsto
+    assert "_ = WarmUpControllerAsync(controller, statusPaneHost);" in power_point_vsto
     for vsto in (word_vsto, power_point_vsto):
-        assert "_ = WarmUpControllerAsync(controller, statusPaneControl);" in vsto
         assert "await controller.WarmUpAsync(timeout.Token);" in vsto
         assert "controller?.Dispose();" in vsto
 
@@ -1099,11 +1109,19 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
     mathlive = (ROOT / "src" / "assets" / "mathlive" / "vendor" / "mathlive.min.mjs").read_text(
         encoding="utf-8"
     )
+    normalizer = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Abstractions"
+        / "MathLiveLatexStyleNormalizer.cs"
+    ).read_text(encoding="utf-8")
 
     for package in ("bbox", "boldsymbol", "color", "enclose", "mhchem"):
         assert f"'[tex]/{package}'" in script_builder
     assert "normalizeMathLiveLatex" in script_builder
     assert ".replace(/\\\\bm" in script_builder
+    assert 'FormulaFontStyle.Bold => "\\\\bm{" + latex + "}"' in normalizer
+    assert 'FormulaFontStyle.Bold => "\\\\boldsymbol{" + latex + "}"' not in normalizer
     assert "'\\\\bbox[' + color.content.trim()" in script_builder
     assert ".replace(/(^|[^\\\\])\\$/g, '$1')" in script_builder
     assert "MathJax rendering failed:" in response
@@ -1256,6 +1274,13 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
         / "LaTeXSnipper.OfficePlugin.Editor"
         / "MathLiveFormulaEditorForm.cs"
     ).read_text(encoding="utf-8")
+    shared_input = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "mathfield-input.js"
+    ).read_text(encoding="utf-8")
 
     word_load = word_controller.split("public async Task LoadSelectedAsync", 1)[1].split(
         "public async Task DeleteSelectedAsync",
@@ -1269,6 +1294,8 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
     assert "OpenForEditAsync(selected" in powerpoint_load
     assert '["fontStyle"] = (_currentInitialFormula?.FontStyle' in editor_form
     assert '["fontColor"] = _currentInitialFormula?.FontColor' in editor_form
+    assert "mathfield.__latexSnipperDefaultFontStyle = style" in shared_input
+    assert "mathfield.applyStyle(style);" in shared_input
 
 
 def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wrapper() -> None:
@@ -1277,9 +1304,44 @@ def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wr
     adapter = read_word_adapter_sources()
     assert "NeedsFormatting(formula, settings)" in commands
     assert "_wordAdapter.HasCustomFormulaScale(metadata)" in commands
+    assert "formula.FontStyle != settings.FormulaFontStyle" in commands
+    assert "PrepareRenderedFormulaAsync" in commands
+    assert "_editorSession.UpdateDraftIfOpenAsync(formatted, updateMode: true" not in commands
     assert "NoFormattingNeededStatus" in commands
     assert "control.Delete(true);" in adapter
     assert "RemoveOmmlConversionSource(control, metadata)" in adapter
+    assert "ResetManagedEquationBaseline" in adapter
+    assert "equation.Range.Font.Position = 0" in adapter
+
+
+def test_word_status_task_panes_are_window_scoped() -> None:
+    addin = (PLUGIN / "hosts" / "WordVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
+    assert "ActiveWindowStatusPaneHost" in addin
+    assert "Dictionary<int, PaneEntry>" in addin
+    assert "addIn.CustomTaskPanes.Add(control, WordAddInText.Get(\"TaskPaneTitle\"), window)" in addin
+    assert "private Microsoft.Office.Tools.CustomTaskPane? statusTaskPane" not in addin
+    assert "private WordStatusTaskPaneControl? statusPaneControl" not in addin
+
+
+def test_powerpoint_status_task_panes_are_window_scoped() -> None:
+    addin = (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
+    assert "ActiveWindowStatusPaneHost" in addin
+    assert "Dictionary<int, PaneEntry>" in addin
+    assert "using PowerPoint = Microsoft.Office.Interop.PowerPoint;" in addin
+    assert "Application.WindowActivate += OnWindowActivate;" in addin
+    assert "Application.WindowActivate -= OnWindowActivate;" in addin
+    assert "private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)" in addin
+    assert "InitializeActiveStatusPane();" in addin
+    assert "public void EnsurePane(PowerPoint.DocumentWindow window)" in addin
+    assert "PowerPoint.DocumentWindow window = addIn.Application.ActiveWindow" in addin
+    assert "Convert.ToInt32(window.HWND)" in addin
+    assert "addIn.CustomTaskPanes.Add(control, PowerPointAddInText.Get(\"TaskPaneTitle\"), window)" in addin
+    assert "TryGetActivePane(out PaneEntry entry)" in addin
+    assert "CreateTaskPane(control, window)" not in addin
+    assert "addIn.CustomTaskPanes.Add(control, PowerPointAddInText.Get(\"TaskPaneTitle\"));" not in addin
+    assert "PowerPointAddInFactory.CreateController(Application, visibleStatusSink, statusPaneHost)" in addin
+    assert "private Microsoft.Office.Tools.CustomTaskPane? statusTaskPane" not in addin
+    assert "private PowerPointStatusTaskPaneControl? statusPaneControl" not in addin
 
 
 def test_word_large_ole_selection_remains_selection_first() -> None:
@@ -1426,6 +1488,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert 'WordAddInText.Get("WorkingStatus")' in controller
     assert "reportProgress: false" in controller
     assert "MathLiveLatexStyleNormalizer.RemoveColorFormatting" in controller
+    assert "MathLiveLatexStyleNormalizer.ApplyRenderFontStyle" in main_controller
     assert "LoadAllFormulaEntriesAsync" not in operations
     assert "LoadSelectedFormulaEntriesAsync" in adapter
     assert ".OrderByDescending(item => item.Start)" in adapter
@@ -1441,6 +1504,11 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "SaveOmmlNaturalFontSize" in adapter
     assert "TryLoadOmmlNaturalFontSize" in formatting
     assert "OmmlNaturalFontSizeVariablePrefix" in metadata_store
+    assert "double oleFontSizePoints = ReadOleEquivalentFontSize(inlineShape)" in adapter
+    assert "SaveFormulaMetadata(metadata)" in adapter.split("public Task UpdateFormulaAsync", 1)[1].split(
+        "private dynamic RemoveOmmlConversionSource",
+        1,
+    )[0]
     assert "replacementOoxml = equationOoxml" in adapter
     assert "metadata.NumberingMode == NumberingMode.None" in adapter
     assert "replacementOoxml = equationOoxml" in adapter

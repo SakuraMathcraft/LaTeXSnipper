@@ -75,7 +75,12 @@ public sealed partial class WordPluginController : IDisposable
     public async Task InsertOmmlAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        FormulaMetadata metadata = await CreateMetadataFromDraftAsync(null, _optionsProvider.CurrentLatex, previous: null, cancellationToken);
+        FormulaMetadata metadata = await CreateMetadataFromDraftAsync(
+            null,
+            _optionsProvider.CurrentLatex,
+            previous: null,
+            WordPluginSettings.Load().FormulaFontStyle,
+            cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
         await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
@@ -188,8 +193,8 @@ public sealed partial class WordPluginController : IDisposable
             : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
         FormulaMetadata metadata = accepted.UpdateMode
-            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, cancellationToken)
-            : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
+            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, accepted.FontStyle, cancellationToken)
+            : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty), accepted.FontStyle);
 
         if (accepted.UpdateMode && accepted.InitialFormula != null)
         {
@@ -509,21 +514,7 @@ public sealed partial class WordPluginController : IDisposable
 
     private static string BuildFormattedLatex(FormulaMetadata metadata, bool includeColor)
     {
-        string latex = metadata.Latex;
-        switch (metadata.FontStyle)
-        {
-            case FormulaFontStyle.TeX:
-                break;
-            case FormulaFontStyle.RomanUpright:
-                latex = "\\mathrm{" + latex + "}";
-                break;
-            case FormulaFontStyle.Bold:
-                latex = "\\boldsymbol{" + latex + "}";
-                break;
-            case FormulaFontStyle.Italic:
-                latex = "\\mathit{" + latex + "}";
-                break;
-        }
+        string latex = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(metadata.Latex, metadata.FontStyle);
 
         if (includeColor &&
             !string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase))
@@ -538,6 +529,7 @@ public sealed partial class WordPluginController : IDisposable
         FormulaIdentity? identity,
         string latex,
         FormulaMetadata? previous,
+        FormulaFontStyle fontStyle,
         CancellationToken cancellationToken)
     {
         if (previous != null)
@@ -552,19 +544,20 @@ public sealed partial class WordPluginController : IDisposable
                 previous.RenderEngine,
                 previous.SchemaVersion,
                 previous.FontColor,
-                previous.FontStyle,
+                fontStyle,
                 previous.FontScale));
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
-        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options));
+        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options, optionsProviderFontStyle: null));
     }
 
     private static FormulaMetadata CreateMetadataFromOptions(
         FormulaIdentity? identity,
         string latex,
         FormulaMetadata? previous,
-        WordFormulaOptions options)
+        WordFormulaOptions options,
+        FormulaFontStyle? optionsProviderFontStyle = null)
     {
         string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim();
         NumberingMode numberingMode = options.NumberingMode;
@@ -597,7 +590,7 @@ public sealed partial class WordPluginController : IDisposable
             RenderEngineKind.Omml,
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
-            previous?.FontStyle ?? settings.FormulaFontStyle,
+            optionsProviderFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
             previous?.FontScale ?? 1);
         return metadata;
     }
@@ -649,7 +642,10 @@ public sealed partial class WordPluginController : IDisposable
         return string.Equals(left.Latex.Trim(), right.Latex.Trim(), StringComparison.Ordinal)
             && left.DisplayMode == right.DisplayMode
             && left.NumberingMode == right.NumberingMode
-            && string.Equals(left.NumberText.Trim(), right.NumberText.Trim(), StringComparison.Ordinal);
+            && string.Equals(left.NumberText.Trim(), right.NumberText.Trim(), StringComparison.Ordinal)
+            && string.Equals(left.FontColor, right.FontColor, StringComparison.OrdinalIgnoreCase)
+            && left.FontStyle == right.FontStyle
+            && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
     }
 
     private static FormulaMetadata WithNumbering(FormulaMetadata metadata, NumberingMode numberingMode, string numberText)

@@ -144,6 +144,8 @@ def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
         return "", ""
 
     label = get_format_label(format_key)
+    if fmt.needs_file:
+        return f"[BINARY:{format_key}]", label
 
     try:
         result = convert_latex_to(format_key, latex, as_document=True)

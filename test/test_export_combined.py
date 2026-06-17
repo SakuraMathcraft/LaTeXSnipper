@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from exporting.formula_export import build_formula_export, get_all_export_format_specs
+from exporting.formula_export import get_all_export_format_specs
 from exporting.pandoc_exporter import check_pandoc_available, convert_latex_to, PANDOC_FORMAT_MAP
 
 OUT_DIR = Path(__file__).resolve().parent / "export_review"
@@ -46,6 +46,22 @@ NATIVE_EXT = {
     "latex": ".tex", "latex_display": ".tex", "latex_equation": ".tex",
     "markdown_inline": ".md", "markdown_block": ".md",
 }
+
+
+def test_pandoc_file_export_is_deferred_to_worker() -> None:
+    formula_export = (Path(__file__).resolve().parent.parent / "src" / "exporting" / "formula_export.py").read_text(
+        encoding="utf-8"
+    )
+    menu = (Path(__file__).resolve().parent.parent / "src" / "ui" / "formula_export_menu.py").read_text(
+        encoding="utf-8"
+    )
+
+    binary_branch = formula_export.split("if fmt.needs_file:", 1)[1].split("try:", 1)[0]
+    assert 'return f"[BINARY:{format_key}]", label' in binary_branch
+    assert "class _PandocFileExportWorker(QObject)" in menu
+    assert "worker.moveToThread(thread)" in menu
+    assert "thread.started.connect(worker.run)" in menu
+    assert "convert_latex_to(self._format_key" in menu
 
 
 def _esc(t):
