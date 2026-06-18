@@ -44,18 +44,43 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void ReplaceExistingEquationControlContent(dynamic control, string equationContentOoxml, FormulaMetadata metadata)
     {
-        int insertionPoint = GetRangeStart(control.Range);
         TryCom(() => control.LockContents = false);
         TryCom(() => control.LockContentControl = false);
-        control.Range.Text = InlineConversionSlot;
-        dynamic insertionRange = CreateDocumentRange(
-            insertionPoint,
-            insertionPoint + InlineConversionSlot.Length);
-        insertionRange.InsertXML(equationContentOoxml);
+        dynamic equations = control.Range.OMaths;
+        if (Convert.ToInt32(equations.Count) == 0)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        ReplaceOmmlRangeWithParsedFormula(equations.Item(1).Range, equationContentOoxml);
         ShowContentControlChrome(control);
         if (metadata.DisplayMode == FormulaDisplayMode.Display)
         {
             TryCom(() => control.Range.ParagraphFormat.Alignment = WdAlignParagraphCenter);
+        }
+    }
+
+    private void ReplaceOmmlRangeWithParsedFormula(dynamic targetEquationRange, string equationContentOoxml)
+    {
+        dynamic? scratchDocument = null;
+        try
+        {
+            scratchDocument = _wordApplication.Documents.Add();
+            scratchDocument.Range(0, 0).InsertXML(equationContentOoxml);
+            dynamic scratchEquations = scratchDocument.OMaths;
+            if (Convert.ToInt32(scratchEquations.Count) == 0)
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+            }
+
+            targetEquationRange.FormattedText = scratchEquations.Item(1).Range.FormattedText;
+        }
+        finally
+        {
+            if (scratchDocument != null)
+            {
+                TryCom(() => scratchDocument.Close(false));
+            }
         }
     }
 

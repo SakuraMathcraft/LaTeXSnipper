@@ -1588,6 +1588,16 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert 'private const string InlineConversionSlot = "\\u2060";' in adapter
     assert "CreateInlineConversionSlot(insertionPoint)" in adapter
+    inline_update = adapter.split("private void ReplaceExistingEquationControlContent", 1)[1].split(
+        "private void ValidateInsertionTarget",
+        1,
+    )[0]
+    assert "ReplaceOmmlRangeWithParsedFormula(equations.Item(1).Range, equationContentOoxml)" in inline_update
+    assert "targetEquationRange.FormattedText = scratchEquations.Item(1).Range.FormattedText" in inline_update
+    assert "_wordApplication.Documents.Add()" in inline_update
+    assert "scratchDocument.Close(false)" in inline_update
+    assert "equationRange.Text = InlineConversionSlot" not in inline_update
+    assert "control.Range.Text = InlineConversionSlot" not in inline_update
     assert "control.Delete(false)" in adapter
     assert "dynamic insertionRange = RemoveOmmlConversionSource(control, metadata)" in adapter
     remove_source = adapter.split("private dynamic RemoveOmmlConversionSource", 1)[1].split(

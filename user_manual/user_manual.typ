@@ -1,4 +1,4 @@
-﻿// LaTeXSnipper 用户手册
+// LaTeXSnipper 用户手册
 // 版本: v2.4.0-LTS | 长期支持版
 #set page(paper: "a4", margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm))
 #set text(

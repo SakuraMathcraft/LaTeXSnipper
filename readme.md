@@ -1,4 +1,4 @@
-﻿# LaTeXSnipper ✨
+# LaTeXSnipper ✨
 
 <div align="center">
 
