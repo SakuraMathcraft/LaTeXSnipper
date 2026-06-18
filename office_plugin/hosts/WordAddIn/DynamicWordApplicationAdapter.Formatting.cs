@@ -117,13 +117,14 @@ public sealed partial class DynamicWordApplicationAdapter
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             dynamic control = FindFormulaControlById(metadata.Identity.EquationId);
-            double fontSize = ReadSurroundingTextFontSize(control);
+            double fontSize = ScaleFontSize(ReadSurroundingTextFontSize(control), metadata.FontScale);
             ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSize);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                 _wordApplication.ActiveDocument,
                 metadata.Identity.EquationId,
                 fontSize);
             ApplyManagedEquationStyleById(metadata);
+            NormalizeManagedInlineEquationBaseline(metadata, control);
             ApplyNumberControlVerticalAlignmentById(metadata);
             SaveFormulaMetadata(metadata);
         });
@@ -176,15 +177,15 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private void NormalizePlainTextBaselineByFormulaId(string equationId)
+    private void NormalizeManagedInlineEquationBaseline(FormulaMetadata metadata, object contentControl)
     {
-        try
+        if (metadata.DisplayMode != FormulaDisplayMode.Inline || metadata.NumberingMode != NumberingMode.None)
         {
-            NormalizePlainTextBaselineAroundRange(((dynamic)FindFormulaControlById(equationId)).Range);
+            return;
         }
-        catch
-        {
-        }
+
+        ResetManagedEquationBaseline(contentControl);
+        NormalizePlainTextBaselineAroundRange(((dynamic)contentControl).Range);
     }
 
     private void NormalizePlainTextBaselineInParagraph(dynamic paragraphRange)
@@ -292,6 +293,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private static void ApplyManagedEquationStyle(object contentControl, FormulaMetadata metadata)
     {
         dynamic control = contentControl;
+        string originalTag = ReadControlTag(control);
         TryCom(() => control.Range.Font.Bold = metadata.FontStyle == FormulaFontStyle.Bold ? -1 : 0);
         TryCom(() => control.Range.Font.Italic = metadata.FontStyle == FormulaFontStyle.Italic ? -1 : 0);
         int color = WordPluginSettings.Load().UseSystemFormulaColor
@@ -305,6 +307,20 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic equation = equations.Item(index);
             TryCom(() => equation.Range.Font.Color = color);
         }
+
+        RestoreManagedEquationControlIdentity(control, originalTag, metadata.Identity.EquationId);
+    }
+
+    private static void RestoreManagedEquationControlIdentity(dynamic control, string originalTag, string equationId)
+    {
+        string tag = string.Equals(
+            WordFormulaMetadataStore.EquationIdFromTag(originalTag),
+            equationId,
+            StringComparison.Ordinal)
+            ? originalTag
+            : WordFormulaMetadataStore.BuildEquationTag(equationId);
+        TryCom(() => control.Tag = tag);
+        TryCom(() => control.Title = "LaTeXSnipper Equation");
     }
 
     private static int ParseWordColor(string color)

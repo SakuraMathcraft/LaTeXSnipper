@@ -135,6 +135,7 @@ internal sealed class WordSettingsWindow : Form
             ["defaultFormulaColor"] = WordFormulaColorDefaults.Current,
             ["useSystemFormulaColor"] = settings.UseSystemFormulaColor,
             ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
+            ["formulaFontScale"] = settings.FormulaFontScale,
         });
         string script =
             "(function(payload){" +
@@ -196,6 +197,7 @@ internal sealed class WordSettingsWindow : Form
         FormulaFontStyle formulaFontStyle = Enum.TryParse(fontStyleRaw, out FormulaFontStyle parsedFontStyle)
             ? parsedFontStyle
             : FormulaFontStyle.TeX;
+        double formulaFontScale = ReadDouble(message, "formulaFontScale", 1);
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
@@ -208,7 +210,8 @@ internal sealed class WordSettingsWindow : Form
             numberSeparator,
             formulaColor,
             useSystemFormulaColor,
-            formulaFontStyle);
+            formulaFontStyle,
+            formulaFontScale);
         settings.Save();
         _settingsSaved();
         _ = SendSettingsAsync();
@@ -225,6 +228,18 @@ internal sealed class WordSettingsWindow : Form
     private static bool ReadBoolean(Dictionary<string, object> message, string key)
     {
         return message.TryGetValue(key, out object raw) && Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
+    }
+
+    private static double ReadDouble(Dictionary<string, object> message, string key, double fallback)
+    {
+        return message.TryGetValue(key, out object raw) &&
+            double.TryParse(
+                Convert.ToString(raw, CultureInfo.InvariantCulture),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double value)
+            ? value
+            : fallback;
     }
 
     private static string ResolveAssetsRoot()

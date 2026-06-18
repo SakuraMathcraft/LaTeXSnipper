@@ -1,12 +1,13 @@
 import os
+import json
 import subprocess
 import sys
 from pathlib import Path
 
-from bootstrap.deps_context import flags
+from bootstrap.deps_context import CONFIG_FILE, _config_dir_path, flags
 
 
-def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
+def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
     """Ensure the pandoc executable is available."""
     if log_fn:
         log_fn("[PANDOC] 正在检查 pandoc 二进制文件...")
@@ -23,7 +24,7 @@ def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
                 return str(configured)
         except Exception:
             pass
-        deps_dir = Path.cwd() / "deps" / "pandoc"
+        deps_dir = _pandoc_data_dir(pyexe)
         if deps_dir.is_dir():
             for name in ("pandoc.exe", "pandoc"):
                 p = deps_dir / name
@@ -42,7 +43,7 @@ def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
                 save_configured_pandoc_path(pandoc_exe)
             except Exception:
                 pass
-            _cleanup_pandoc_leftovers(log_fn)
+            _cleanup_pandoc_leftovers(pyexe, log_fn)
             return True
         if log_fn:
             if current_ver:
@@ -51,18 +52,18 @@ def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
                 log_fn("[PANDOC] 检测到 pandoc 但无法读取版本，尝试更新...")
 
 
-    _cleanup_pandoc_leftovers(log_fn)
+    _cleanup_pandoc_leftovers(pyexe, log_fn)
     if log_fn:
         log_fn("[PANDOC] 从镜像下载 pandoc 二进制...")
     if progress_fn:
         progress_fn(85)
-    ok = _download_pandoc_from_mirrors(log_fn)
+    ok = _download_pandoc_from_mirrors(pyexe, log_fn)
     if ok:
         if log_fn:
             log_fn("[PANDOC] pandoc 二进制文件就绪 ✅")
         if progress_fn:
             progress_fn(100)
-        _cleanup_pandoc_leftovers(log_fn)
+        _cleanup_pandoc_leftovers(pyexe, log_fn)
         return True
 
     if log_fn:
@@ -79,7 +80,7 @@ def _ensure_pandoc_binary(_pyexe: str, log_fn=None, progress_fn=None) -> bool:
     return False
 
 
-def _cleanup_pandoc_leftovers(log_fn=None) -> None:
+def _cleanup_pandoc_leftovers(pyexe: str | None = None, log_fn=None) -> None:
     """Clean stale pandoc binaries that do not belong to the current platform."""
     import time as _time
 
@@ -122,7 +123,7 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
         return False
 
 
-    pandoc_dir = _pandoc_data_dir()
+    pandoc_dir = _pandoc_data_dir(pyexe)
     if pandoc_dir.is_dir():
         try:
             _bin_name = _pandoc_platform_archive()[1]
@@ -138,14 +139,17 @@ def _cleanup_pandoc_leftovers(log_fn=None) -> None:
         log_fn(f"[PANDOC] 共清理 {removed_count} 个无用文件")
 
 
-def _get_pandoc_version(pandoc_path: str | None = None) -> tuple[int, ...] | None:
+def _get_pandoc_version(
+    pandoc_path: str | None = None,
+    pyexe: str | None = None,
+) -> tuple[int, ...] | None:
     """Return the installed pandoc version."""
     import shutil as _shutil
     exe = pandoc_path or _shutil.which("pandoc")
     if not exe:
 
         try:
-            deps_dir = Path.cwd() / "deps" / "pandoc"
+            deps_dir = _pandoc_data_dir(pyexe)
             for candidate in ("pandoc.exe", "pandoc"):
                 cand_path = deps_dir / candidate
                 if cand_path.exists():
@@ -230,7 +234,6 @@ def _build_pandoc_mirrors() -> list[str]:
     return [
         f"https://ghfast.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
-        f"https://github.geekery.cn/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://github.tbedu.top/https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
         f"https://github.com/jgm/pandoc/releases/download/{_PANDOC_VERSION}/{archive_name}",
     ]
@@ -268,8 +271,8 @@ def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
     return ranked
 
 
-def _download_pandoc_from_mirrors(log_fn=None) -> bool:
-    """Download pandoc from mirrors and extract it into deps/pandoc."""
+def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool:
+    """Download pandoc and extract it into the selected dependency root."""
     import urllib.request
     import time as _time
 
@@ -280,7 +283,7 @@ def _download_pandoc_from_mirrors(log_fn=None) -> bool:
             log_fn(f"[PANDOC] {e}")
         return False
 
-    pandoc_dir = _pandoc_data_dir()
+    pandoc_dir = _pandoc_data_dir(pyexe)
     pandoc_dir.mkdir(parents=True, exist_ok=True)
 
     mirrors = _build_pandoc_mirrors()
@@ -422,15 +425,25 @@ def _extract_pandoc_binary(
     return None
 
 
-def _pandoc_data_dir() -> Path:
+def _dependency_install_root() -> Path:
+    """Return the configured dependency install root."""
+    for env_name in ("LATEXSNIPPER_INSTALL_BASE_DIR", "LATEXSNIPPER_DEPS_DIR"):
+        raw = os.environ.get(env_name, "").strip()
+        if raw:
+            return Path(raw).expanduser().resolve()
+
+    cfg_path = _config_dir_path() / CONFIG_FILE
+    if cfg_path.exists():
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            raw = str(data.get("install_base_dir", "") or "").strip()
+            if raw:
+                return Path(raw).expanduser().resolve()
+
+    raise RuntimeError("[PANDOC] 未配置依赖安装目录，无法部署 pandoc")
+
+
+def _pandoc_data_dir(pyexe: str | None = None) -> Path:
     """Return the dependency-managed pandoc binary directory."""
-
-    cwd = Path.cwd()
-    venv_candidate = cwd / ".venv"
-    if venv_candidate.is_dir():
-        base = cwd
-    else:
-
-        base = cwd
-    target = base / "deps" / "pandoc"
-    return target
+    _ = pyexe
+    return _dependency_install_root() / "pandoc"

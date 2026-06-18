@@ -591,7 +591,7 @@ public sealed partial class WordPluginController : IDisposable
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
             optionsProviderFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
-            previous?.FontScale ?? 1);
+            previous?.FontScale ?? settings.FormulaFontScale);
         return metadata;
     }
 
@@ -612,7 +612,7 @@ public sealed partial class WordPluginController : IDisposable
             schemaVersion: 1,
             settings.FormulaColor,
             settings.FormulaFontStyle,
-            fontScale: 1);
+            settings.FormulaFontScale);
     }
 
     private static FormulaMetadata CreateDefaultFormula(string latex)

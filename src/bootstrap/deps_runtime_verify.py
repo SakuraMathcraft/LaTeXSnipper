@@ -394,9 +394,20 @@ if configured_pandoc is not None:
     deps_dir = str(configured_pandoc.parent)
     if deps_dir not in os.environ.get("PATH", ""):
         os.environ["PATH"] = deps_dir + os.pathsep + os.environ.get("PATH", "")
-# Also check deps/pandoc.
-deps_pandoc = os.path.join(os.path.dirname(sys.executable), "pandoc")
-if os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):
+# Also check the shared pandoc directory under the configured dependency install root.
+install_base_dir = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "") or os.environ.get("LATEXSNIPPER_DEPS_DIR", "")
+if not install_base_dir:
+    try:
+        import json
+        from pathlib import Path
+        cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+        if cfg_path.exists():
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            install_base_dir = str(cfg.get("install_base_dir", "") or "") if isinstance(cfg, dict) else ""
+    except Exception:
+        install_base_dir = ""
+deps_pandoc = os.path.join(install_base_dir, "pandoc") if install_base_dir else ""
+if deps_pandoc and os.path.isdir(deps_pandoc) and deps_pandoc not in os.environ.get("PATH", ""):
     os.environ["PATH"] = deps_pandoc + os.pathsep + os.environ.get("PATH", "")
 if not shutil.which("pandoc"):
     raise RuntimeError("pandoc binary not found (pypandoc is installed but pandoc executable is missing)")

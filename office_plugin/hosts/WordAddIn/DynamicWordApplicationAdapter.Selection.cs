@@ -74,6 +74,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 ApplyManagedEquationStyleById(metadata);
                 object insertedControl = FindFormulaControlById(metadata.Identity.EquationId);
                 ApplyManagedEquationFontSize(insertedControl, oleFontSizePoints);
+                NormalizeManagedInlineEquationBaseline(metadata, insertedControl);
                 WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                     _wordApplication.ActiveDocument,
                     metadata.Identity.EquationId,
@@ -88,8 +89,9 @@ public sealed partial class DynamicWordApplicationAdapter
             ReplaceFormulaContent(control, ooxml, equationOoxml, metadata);
             ApplyManagedEquationFontSizeById(
                 metadata.Identity.EquationId,
-                metadata.FontScale == 1 ? fontSizePoints : WordOleBaseFontPoints * metadata.FontScale);
+                ScaleFontSize(fontSizePoints, metadata.FontScale));
             ApplyManagedEquationStyleById(metadata);
+            NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
             SaveFormulaMetadata(metadata);
         });
         return Task.CompletedTask;

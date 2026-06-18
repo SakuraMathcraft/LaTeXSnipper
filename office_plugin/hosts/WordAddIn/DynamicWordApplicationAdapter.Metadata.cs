@@ -32,9 +32,22 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic shape = formulaObject;
         if (metadata.RenderEngine == RenderEngineKind.Omml)
         {
-            shape.Tag = WordFormulaMetadataStore.Save(
+            string tag = WordFormulaMetadataStore.Save(
                 _wordApplication.ActiveDocument,
                 metadata);
+            shape.Tag = tag;
+            TryCom(() => shape.Title = "LaTeXSnipper Equation");
+            FormulaMetadata stored = WordFormulaMetadataStore.Load(
+                _wordApplication.ActiveDocument,
+                Convert.ToString(shape.Tag) ?? string.Empty);
+            if (!string.Equals(
+                    stored.Identity.EquationId,
+                    metadata.Identity.EquationId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+            }
+
             return;
         }
 

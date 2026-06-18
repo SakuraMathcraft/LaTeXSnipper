@@ -33,11 +33,6 @@ public sealed partial class PowerPointPluginController
     {
         IReadOnlyList<PowerPointFormulaEntry> entries =
             await _powerPointAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
-        if (entries.Count != 1)
-        {
-            throw new InvalidOperationException(PowerPointAddInText.Get("SingleFormulaRequired"));
-        }
-
         int converted = 0;
         foreach (PowerPointFormulaEntry entry in entries)
         {
@@ -85,7 +80,7 @@ public sealed partial class PowerPointPluginController
                 entry.Metadata.SchemaVersion,
                 settings.FormulaColor,
                 settings.FormulaFontStyle,
-                fontScale: 1);
+                settings.FormulaFontScale);
             await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken);
             formatted++;
         }
@@ -145,7 +140,7 @@ public sealed partial class PowerPointPluginController
     {
         return !string.Equals(entry.Metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
             || entry.Metadata.FontStyle != settings.FormulaFontStyle
-            || Math.Abs(entry.Metadata.FontScale - 1) > 0.001
+            || Math.Abs(entry.Metadata.FontScale - settings.FormulaFontScale) > 0.001
             || MathLiveLatexStyleNormalizer.HasColorFormatting(entry.Metadata.Latex)
             || Math.Abs(entry.Scale - 1) > 0.01;
     }

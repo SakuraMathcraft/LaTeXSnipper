@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import sys
 import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 
 def test_pandoc_optional_dependency_uses_pypandoc() -> None:
@@ -49,8 +53,37 @@ def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy(
     source = (ROOT / "src" / "bootstrap" / "deps_pandoc.py").read_text(encoding="utf-8")
 
     assert "mirror.ghproxy.com" not in source
+    assert "github.geekery.cn" not in source
+    assert 'Path.cwd() / "deps" / "pandoc"' not in source
     assert "pandoc-*.msi" not in source
     assert "pandoc-*-windows-x86_64.msi" not in source
+
+
+def test_pandoc_binary_is_installed_under_configured_dependency_root(tmp_path, monkeypatch) -> None:
+    from bootstrap import deps_pandoc
+
+    dependency_root = tmp_path / "LaTexSnipper"
+    external_python_root = tmp_path / "OtherDrive" / "python378"
+    python_exe = external_python_root / "python.exe"
+    python_exe.parent.mkdir(parents=True)
+    python_exe.write_text("", encoding="utf-8")
+
+    scripts_python = external_python_root / "Scripts" / "python.exe"
+    scripts_python.parent.mkdir()
+    scripts_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setenv("LATEXSNIPPER_INSTALL_BASE_DIR", str(dependency_root))
+    monkeypatch.delenv("LATEXSNIPPER_DEPS_DIR", raising=False)
+
+    expected = dependency_root / "pandoc"
+    assert deps_pandoc._pandoc_data_dir(str(python_exe)) == expected
+    assert deps_pandoc._pandoc_data_dir(str(scripts_python)) == expected
+
+
+def test_pandoc_exporter_does_not_scan_cwd_dependency_directory() -> None:
+    source = (ROOT / "src" / "exporting" / "pandoc_exporter.py").read_text(encoding="utf-8")
+
+    assert 'Path.cwd() / "deps" / "pandoc"' not in source
 
 
 def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
