@@ -28,6 +28,8 @@ public interface IWordApplicationAdapter
 
     Task ResetOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
 
+    Task ReplaceNativeWordFormulaWithOleAsync(int sourceStart, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
+
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);

@@ -60,7 +60,31 @@ public sealed partial class WordPluginController
             foreach (WordFormulaEntry entry in formulas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FormulaMetadata formula = entry.Metadata;
+                if (entry.IsNativeWordFormula)
+                {
+                    if (target != FormulaInsertionBackend.Ole)
+                    {
+                        continue;
+                    }
+
+                    FormulaMetadata native = CreateMetadataFromNativeWordFormula(entry);
+                    PreparedWordFormula nativePrepared = await PrepareRenderedFormulaAsync(
+                        native,
+                        includeEquationOoxml: false,
+                        cancellationToken,
+                        FormulaInsertionBackend.Ole);
+                    await _wordAdapter.ReplaceNativeWordFormulaWithOleAsync(
+                        entry.Start,
+                        nativePrepared.Metadata,
+                        nativePrepared.OlePresentation!,
+                        nativePrepared.Display,
+                        cancellationToken);
+                    convertedCount++;
+                    continue;
+                }
+
+                FormulaMetadata formula = entry.Metadata
+                    ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
                 if (formula.RenderEngine == targetEngine)
                 {
                     continue;
@@ -104,7 +128,13 @@ public sealed partial class WordPluginController
             foreach (WordFormulaEntry entry in formulas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FormulaMetadata formula = entry.Metadata;
+                if (entry.IsNativeWordFormula)
+                {
+                    continue;
+                }
+
+                FormulaMetadata formula = entry.Metadata
+                    ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
                 if (!NeedsFormatting(formula, settings))
                 {
                     continue;
@@ -216,5 +246,20 @@ public sealed partial class WordPluginController
             || Math.Abs(metadata.FontScale - settings.FormulaFontScale) > 0.001
             || MathLiveLatexStyleNormalizer.HasColorFormatting(metadata.Latex)
             || _wordAdapter.HasCustomFormulaScale(metadata);
+    }
+
+    private static FormulaMetadata CreateMetadataFromNativeWordFormula(WordFormulaEntry entry)
+    {
+        return new FormulaMetadata(
+            new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
+            entry.NativeMathMl,
+            entry.NativeDisplayMode,
+            NumberingMode.None,
+            string.Empty,
+            RenderEngineKind.MathJaxSvg,
+            schemaVersion: 1,
+            "#000000",
+            FormulaFontStyle.TeX,
+            WordPluginSettings.Load().FormulaFontScale);
     }
 }

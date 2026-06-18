@@ -24,6 +24,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
+    private readonly OmmlToMathMlConverter _ommlToMathMlConverter;
     private int _undoRecordDepth;
 
     [DllImport("user32.dll")]
@@ -131,9 +132,10 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         }
     }
 
-    public DynamicWordApplicationAdapter(object wordApplication)
+    public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
+        _ommlToMathMlConverter = ommlToMathMlConverter ?? new OmmlToMathMlConverter();
     }
 
     public double GetCurrentFontSizePoints()

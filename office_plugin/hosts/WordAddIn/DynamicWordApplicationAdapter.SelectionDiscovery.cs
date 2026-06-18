@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
@@ -37,6 +38,115 @@ public sealed partial class DynamicWordApplicationAdapter
         AddSelectedOleInlineShapes(formulas, seen, range);
         AddSelectedOleInlineShapesFromAnchor(formulas, seen, selection, range);
         return formulas;
+    }
+
+    private IReadOnlyList<WordFormulaEntry> CollectSelectedNativeWordFormulaEntries()
+    {
+        dynamic selection = _wordApplication.Selection;
+        dynamic range = selection.Range;
+        var entries = new List<WordFormulaEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        AddNativeWordFormulasFromRange(entries, seen, range);
+        try
+        {
+            AddNativeWordFormulasFromRange(entries, seen, selection);
+        }
+        catch
+        {
+        }
+
+        return entries;
+    }
+
+    private void AddNativeWordFormulasFromRange(ICollection<WordFormulaEntry> entries, ISet<string> seen, dynamic range)
+    {
+        try
+        {
+            dynamic equations = range.OMaths;
+            int count = Convert.ToInt32(equations.Count);
+            for (int index = 1; index <= count; index++)
+            {
+                AddNativeWordFormula(entries, seen, equations.Item(index));
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void AddNativeWordFormula(ICollection<WordFormulaEntry> entries, ISet<string> seen, object? candidate)
+    {
+        if (candidate == null)
+        {
+            return;
+        }
+
+        dynamic equation = candidate;
+        dynamic range = equation.Range;
+        if (TryGetParentContentControl(range) != null)
+        {
+            return;
+        }
+
+        int start = GetRangeStart(range);
+        int end = GetRangeEnd(range);
+        string key = start.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ":"
+            + end.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!seen.Add(key))
+        {
+            return;
+        }
+
+        string omml = ExtractNativeOmml(range);
+        string mathMl = _ommlToMathMlConverter.Convert(omml);
+        entries.Add(new WordFormulaEntry(start, mathMl, InferNativeFormulaDisplayMode(range)));
+    }
+
+    private static string ExtractNativeOmml(dynamic range)
+    {
+        string wordOpenXml = Convert.ToString(range.WordOpenXML) ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(wordOpenXml))
+        {
+            throw new InvalidOperationException("Selected Word equation did not expose OOXML.");
+        }
+
+        var document = XDocument.Parse(wordOpenXml, LoadOptions.PreserveWhitespace);
+        XNamespace math = "http://schemas.openxmlformats.org/officeDocument/2006/math";
+        XElement? equation = document.Descendants(math + "oMathPara").FirstOrDefault()
+            ?? document.Descendants(math + "oMath").FirstOrDefault();
+        if (equation == null)
+        {
+            throw new InvalidOperationException("Selected Word equation OOXML did not contain OMML.");
+        }
+
+        return equation.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private FormulaDisplayMode InferNativeFormulaDisplayMode(dynamic formulaRange)
+    {
+        try
+        {
+            dynamic paragraphRange = formulaRange.Paragraphs.Item(1).Range;
+            int paragraphStart = GetRangeStart(paragraphRange);
+            int paragraphEnd = Math.Max(paragraphStart, GetRangeEnd(paragraphRange) - 1);
+            int formulaStart = GetRangeStart(formulaRange);
+            int formulaEnd = GetRangeEnd(formulaRange);
+            dynamic leading = CreateDocumentRange(paragraphStart, Math.Max(paragraphStart, formulaStart));
+            dynamic trailing = CreateDocumentRange(Math.Min(formulaEnd, paragraphEnd), paragraphEnd);
+            string leadingText = Convert.ToString(leading.Text) ?? string.Empty;
+            string trailingText = Convert.ToString(trailing.Text) ?? string.Empty;
+            int equationCount = Convert.ToInt32(paragraphRange.OMaths.Count);
+            return equationCount == 1
+                && string.IsNullOrWhiteSpace(leadingText)
+                && string.IsNullOrWhiteSpace(trailingText)
+                    ? FormulaDisplayMode.Display
+                    : FormulaDisplayMode.Inline;
+        }
+        catch
+        {
+            return FormulaDisplayMode.Inline;
+        }
     }
 
     private void AddSelectedFormulasFromRange(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)

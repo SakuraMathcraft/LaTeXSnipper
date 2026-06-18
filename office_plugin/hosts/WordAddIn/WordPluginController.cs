@@ -514,6 +514,11 @@ public sealed partial class WordPluginController : IDisposable
 
     private static string BuildFormattedLatex(FormulaMetadata metadata, bool includeColor)
     {
+        if (IsMathMlSource(metadata.Latex))
+        {
+            return metadata.Latex;
+        }
+
         string latex = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(metadata.Latex, metadata.FontStyle);
 
         if (includeColor &&
@@ -523,6 +528,29 @@ public sealed partial class WordPluginController : IDisposable
         }
 
         return latex;
+    }
+
+    private static bool IsMathMlSource(string source)
+    {
+        string trimmed = source.TrimStart();
+        if (trimmed.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase))
+        {
+            int declarationEnd = trimmed.IndexOf("?>", StringComparison.Ordinal);
+            if (declarationEnd >= 0)
+            {
+                trimmed = trimmed.Substring(declarationEnd + 2).TrimStart();
+            }
+        }
+
+        if (trimmed.StartsWith("<math", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        int colon = trimmed.IndexOf(':');
+        return trimmed.StartsWith("<", StringComparison.Ordinal)
+            && colon > 1
+            && trimmed.Substring(colon + 1).StartsWith("math", StringComparison.OrdinalIgnoreCase);
     }
 
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
