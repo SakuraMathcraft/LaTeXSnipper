@@ -122,6 +122,22 @@ label {
   min-height: 34px;
 }
 
+.range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+
+.range-control input {
+  width: 100%;
+}
+
+.range-control output {
+  color: var(--text);
+  text-align: right;
+}
+
 select {
   min-height: 34px;
   border: 1px solid #bac8da;

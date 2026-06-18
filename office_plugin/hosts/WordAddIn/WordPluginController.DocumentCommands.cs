@@ -51,11 +51,6 @@ public sealed partial class WordPluginController
     private async Task ConvertSelectedAsync(FormulaInsertionBackend target, CancellationToken cancellationToken)
     {
         IReadOnlyList<WordFormulaEntry> formulas = await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
-        if (formulas.Count != 1)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SingleFormulaRequired"));
-        }
-
         RenderEngineKind targetEngine = target == FormulaInsertionBackend.Ole
             ? RenderEngineKind.MathJaxSvg
             : RenderEngineKind.Omml;
@@ -211,14 +206,14 @@ public sealed partial class WordPluginController
             metadata.SchemaVersion,
             settings.FormulaColor,
             settings.FormulaFontStyle,
-            fontScale: 1);
+            settings.FormulaFontScale);
     }
 
     private bool NeedsFormatting(FormulaMetadata metadata, WordPluginSettings settings)
     {
         return !string.Equals(metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
             || metadata.FontStyle != settings.FormulaFontStyle
-            || Math.Abs(metadata.FontScale - 1) > 0.001
+            || Math.Abs(metadata.FontScale - settings.FormulaFontScale) > 0.001
             || MathLiveLatexStyleNormalizer.HasColorFormatting(metadata.Latex)
             || _wordAdapter.HasCustomFormulaScale(metadata);
     }

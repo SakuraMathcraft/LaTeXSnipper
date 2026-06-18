@@ -184,10 +184,17 @@ public sealed partial class DynamicWordApplicationAdapter
             return;
         }
 
-        if (IsEquationControl(control) || IsNumberControl(control))
+        if (IsEquationControl(control))
         {
             FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
             formulas.Add(new SelectedWordFormula(candidate, metadata));
+            return;
+        }
+
+        if (IsNumberControl(control))
+        {
+            SelectedWordFormula formula = LoadFormulaFromNumberControl(equationId);
+            formulas.Add(formula);
         }
     }
 
@@ -250,5 +257,30 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return null;
+    }
+
+    private SelectedWordFormula LoadFormulaFromNumberControl(string equationId)
+    {
+        object? equationControl = TryGetEquationControlById(equationId);
+        if (equationControl != null)
+        {
+            FormulaMetadata metadata = LoadFormulaMetadata(
+                (dynamic)equationControl,
+                equationId,
+                RenderEngineKind.Omml);
+            return new SelectedWordFormula(equationControl, metadata);
+        }
+
+        object? inlineShape = TryFindOleInlineShapeById(equationId);
+        if (inlineShape != null)
+        {
+            FormulaMetadata metadata = LoadFormulaMetadata(
+                (dynamic)inlineShape,
+                equationId,
+                RenderEngineKind.MathJaxSvg);
+            return new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true);
+        }
+
+        throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
     }
 }

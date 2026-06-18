@@ -28,6 +28,7 @@ const TEXT = {
     resetToBlack: "恢复黑色",
     resetToWhite: "恢复白色",
     fontStyleLabel: "默认字体",
+    fontScaleLabel: "公式大小",
     fontTeX: "TeX 原生字体",
     fontRomanUpright: "罗马正体",
     fontBold: "粗体",
@@ -71,6 +72,7 @@ const TEXT = {
     resetToBlack: "Reset to black",
     resetToWhite: "Reset to white",
     fontStyleLabel: "Default font",
+    fontScaleLabel: "Formula size",
     fontTeX: "Native TeX",
     fontRomanUpright: "Roman Upright",
     fontBold: "Bold",
@@ -102,6 +104,7 @@ let formulaColor = "#000000";
 let defaultFormulaColor = "#000000";
 let useSystemFormulaColor = true;
 let formulaFontStyle = "TeX";
+let formulaFontScale = 1;
 
 const numberingPanel = document.getElementById("numberingPanel");
 const buttons = Array.from(document.querySelectorAll("[data-placement]"));
@@ -116,6 +119,8 @@ const numberSeparatorInput = document.getElementById("numberSeparator");
 const formulaColorInput = document.getElementById("formulaColor");
 const resetFormulaColorButton = document.getElementById("resetFormulaColor");
 const formulaFontStyleSelect = document.getElementById("formulaFontStyle");
+const formulaFontScaleInput = document.getElementById("formulaFontScale");
+const formulaFontScaleValue = document.getElementById("formulaFontScaleValue");
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -163,6 +168,8 @@ function renderNumberOptions() {
     ? strings().resetToWhite
     : strings().resetToBlack;
   formulaFontStyleSelect.value = formulaFontStyle;
+  formulaFontScaleInput.value = String(scaleToPercent(formulaFontScale));
+  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
 }
 
 function save() {
@@ -180,7 +187,26 @@ function save() {
     formulaColor,
     useSystemFormulaColor,
     formulaFontStyle,
+    formulaFontScale,
   });
+}
+
+function clampScale(scale) {
+  const value = Number(scale);
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.min(1.5, Math.max(1, value));
+}
+
+function scaleToPercent(scale) {
+  return Math.round((clampScale(scale) - 1) * 200);
+}
+
+function percentToScale(percent) {
+  const value = Number(percent);
+  const safePercent = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+  return 1 + safePercent / 200;
 }
 
 function init(payload) {
@@ -209,6 +235,7 @@ function init(payload) {
   formulaFontStyle = ["TeX", "RomanUpright", "Bold", "Italic"].includes(payload?.formulaFontStyle)
     ? payload.formulaFontStyle
     : "TeX";
+  formulaFontScale = clampScale(payload?.formulaFontScale);
   applyText();
   applyPlatform();
   renderPlacement();
@@ -259,11 +286,19 @@ resetFormulaColorButton.addEventListener("click", () => {
   save();
 });
 formulaFontStyleSelect.addEventListener("change", () => { formulaFontStyle = formulaFontStyleSelect.value; save(); });
+formulaFontScaleInput.addEventListener("input", () => {
+  formulaFontScale = percentToScale(formulaFontScaleInput.value);
+  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
+});
+formulaFontScaleInput.addEventListener("change", () => {
+  formulaFontScale = percentToScale(formulaFontScaleInput.value);
+  save();
+});
 
 window.LaTeXSnipperSettings = { init };
 if (window.__latexSnipperSettingsInit) {
   init(window.__latexSnipperSettingsInit);
   window.__latexSnipperSettingsInit = null;
 } else {
-  init({ locale: navigator.language, numberPlacement, insertionBackend, numberFormat, numberEnclosure });
+  init({ locale: navigator.language, numberPlacement, insertionBackend, numberFormat, numberEnclosure, formulaFontScale });
 }

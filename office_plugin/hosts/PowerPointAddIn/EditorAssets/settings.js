@@ -10,6 +10,7 @@ const TEXT = {
     colorLabel: "字体颜色",
     resetColor: "恢复黑色",
     fontStyleLabel: "默认字体",
+    fontScaleLabel: "公式大小",
     fontTeX: "TeX 原生字体",
     fontRomanUpright: "罗马正体",
     fontBold: "粗体",
@@ -35,6 +36,7 @@ const TEXT = {
     colorLabel: "Font color",
     resetColor: "Reset to black",
     fontStyleLabel: "Default font",
+    fontScaleLabel: "Formula size",
     fontTeX: "Native TeX",
     fontRomanUpright: "Roman Upright",
     fontBold: "Bold",
@@ -55,11 +57,14 @@ let locale = "zh";
 let insertionBackend = "Ole";
 let formulaColor = "#000000";
 let formulaFontStyle = "TeX";
+let formulaFontScale = 1;
 
 const backendButtons = Array.from(document.querySelectorAll("[data-backend]"));
 const formulaColorInput = document.getElementById("formulaColor");
 const resetFormulaColorButton = document.getElementById("resetFormulaColor");
 const formulaFontStyleSelect = document.getElementById("formulaFontStyle");
+const formulaFontScaleInput = document.getElementById("formulaFontScale");
+const formulaFontScaleValue = document.getElementById("formulaFontScaleValue");
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -83,10 +88,30 @@ function render() {
   });
   formulaColorInput.value = formulaColor;
   formulaFontStyleSelect.value = formulaFontStyle;
+  formulaFontScaleInput.value = String(scaleToPercent(formulaFontScale));
+  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
 }
 
 function save() {
-  send({ type: "save", insertionBackend, formulaColor, formulaFontStyle });
+  send({ type: "save", insertionBackend, formulaColor, formulaFontStyle, formulaFontScale });
+}
+
+function clampScale(scale) {
+  const value = Number(scale);
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.min(1.5, Math.max(1, value));
+}
+
+function scaleToPercent(scale) {
+  return Math.round((clampScale(scale) - 1) * 200);
+}
+
+function percentToScale(percent) {
+  const value = Number(percent);
+  const safePercent = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+  return 1 + safePercent / 200;
 }
 
 function init(payload) {
@@ -96,6 +121,7 @@ function init(payload) {
     : "Ole";
   formulaColor = payload?.formulaColor || "#000000";
   formulaFontStyle = payload?.formulaFontStyle || "TeX";
+  formulaFontScale = clampScale(payload?.formulaFontScale);
   applyText();
   render();
 }
@@ -124,10 +150,20 @@ formulaFontStyleSelect.addEventListener("change", () => {
   save();
 });
 
+formulaFontScaleInput.addEventListener("input", () => {
+  formulaFontScale = percentToScale(formulaFontScaleInput.value);
+  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
+});
+
+formulaFontScaleInput.addEventListener("change", () => {
+  formulaFontScale = percentToScale(formulaFontScaleInput.value);
+  save();
+});
+
 window.LaTeXSnipperSettings = { init };
 if (window.__latexSnipperSettingsInit) {
   init(window.__latexSnipperSettingsInit);
   window.__latexSnipperSettingsInit = null;
 } else {
-  init({ locale: navigator.language, insertionBackend, formulaColor, formulaFontStyle });
+  init({ locale: navigator.language, insertionBackend, formulaColor, formulaFontStyle, formulaFontScale });
 }

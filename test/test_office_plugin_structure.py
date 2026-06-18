@@ -461,6 +461,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "WordFormulaMetadataStore.Load(" in adapter
     assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
+    assert "RestoreManagedEquationControlIdentity" in adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load(" in adapter
+    assert "LoadFormulaFromNumberControl" in adapter
+    assert "RenderEngineKind.MathJaxSvg" in adapter.split("private SelectedWordFormula LoadFormulaFromNumberControl", 1)[1]
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedTable" not in adapter
     assert "ApplyNumberedParagraphLayout" in adapter
@@ -493,6 +497,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "inlineShape.Range.Font.Position = -baseline" in adapter
     assert "ResetSelectionFormulaTextFormatting" in adapter
     assert "NormalizePlainTextBaselineAroundRange" in adapter
+    assert "NormalizeManagedInlineEquationBaseline" in adapter
+    assert "NormalizePlainTextBaselineByFormulaId" not in adapter
+    assert "NormalizeManagedInlineEquationBaseline(metadata, insertedControl)" in adapter
+    assert "NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId))" in adapter
     assert "LoadManagedFormulaSpans" in adapter
     assert "ResetPlainTextBaseline" in adapter
     assert "_wordApplication.Selection.Font.Position = 0" in adapter
@@ -1184,7 +1192,7 @@ def test_powerpoint_uses_one_initial_scale_for_ole_and_png() -> None:
         PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
     ).read_text(encoding="utf-8")
     assert "private const double InitialFormulaScale = 2.5;" in controller
-    assert controller.count("FontScale = InitialFormulaScale") == 2
+    assert controller.count("FontScale = InitialFormulaScale * metadata.FontScale") == 2
     assert "FontScale = 3.0" not in controller
 
 
@@ -1218,7 +1226,14 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
 
     assert "ConvertAllToOleAsync" not in commands
     assert "ConvertAllToPngAsync" not in commands
-    assert 'throw new InvalidOperationException(PowerPointAddInText.Get("SingleFormulaRequired"))' in commands
+    convert_method = commands.split("private async Task ConvertSelectedAsync", 1)[1].split(
+        "private async Task FormatAsync",
+        1,
+    )[0]
+    assert "LoadSelectedFormulaEntriesAsync" in convert_method
+    assert "SingleFormulaRequired" not in convert_method
+    assert "entry.Metadata.RenderEngine == target" in convert_method
+    assert "continue;" in convert_method
     assert "LoadAllFormulaEntriesAsync" not in adapter
     assert "ResetCustomFormulaSizesAsync" in adapter
     assert "ResetCustomFormulaSizesAsync" in commands
@@ -1255,10 +1270,15 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString" in metadata
     assert "FormulaColor" in settings
     assert "FormulaFontStyle" in settings
+    assert "FormulaFontScale" in settings
+    assert "MaximumFormulaFontScale = 1.5" in settings
     assert '["formulaColor"] = settings.FormulaColor' in settings_window
     assert '["formulaFontStyle"] = settings.FormulaFontStyle.ToString()' in settings_window
+    assert '["formulaFontScale"] = settings.FormulaFontScale' in settings_window
     assert 'id="formulaColor"' in settings_html
     assert 'id="formulaFontStyle"' in settings_html
+    assert 'id="formulaFontScale"' in settings_html
+    assert "settings.FormulaFontScale" in commands
 
 
 def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
@@ -1305,6 +1325,7 @@ def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wr
     assert "NeedsFormatting(formula, settings)" in commands
     assert "_wordAdapter.HasCustomFormulaScale(metadata)" in commands
     assert "formula.FontStyle != settings.FormulaFontStyle" in commands
+    assert "settings.FormulaFontScale" in commands
     assert "PrepareRenderedFormulaAsync" in commands
     assert "_editorSession.UpdateDraftIfOpenAsync(formatted, updateMode: true" not in commands
     assert "NoFormattingNeededStatus" in commands
@@ -1480,7 +1501,14 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         assert callback in callbacks
 
     assert "ConvertSelectedAsync" in controller
-    assert 'throw new InvalidOperationException(WordAddInText.Get("SingleFormulaRequired"))' in controller
+    convert_method = controller.split("private async Task ConvertSelectedAsync", 1)[1].split(
+        "private async Task FormatAsync",
+        1,
+    )[0]
+    assert "LoadSelectedFormulaEntriesAsync" in convert_method
+    assert "SingleFormulaRequired" not in convert_method
+    assert "formula.RenderEngine == targetEngine" in convert_method
+    assert "continue;" in convert_method
     assert "ConvertAllToOleAsync" not in controller
     assert "ConvertAllToOmmlAsync" not in controller
     assert "NoConversionNeededStatus" in controller
@@ -1555,8 +1583,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "FontScale" in metadata
     assert "FontWeightPercent" not in metadata
     assert "FormulaFontStyle" in settings
+    assert "FormulaFontScale" in settings
+    assert "MaximumFormulaFontScale = 1.5" in settings
     assert "FormulaWeightPercent" not in settings
-    assert "FormulaScale" not in settings
     assert "IncludeChapter" in settings
     assert "IncludeSection" in settings
     assert "HideChapterBoundary" in settings
@@ -1605,8 +1634,11 @@ def test_word_formula_color_default_tracks_windows_theme() -> None:
     assert "defaultValue: true" in settings
     assert '["defaultFormulaColor"] = WordFormulaColorDefaults.Current' in settings_window
     assert '["useSystemFormulaColor"] = settings.UseSystemFormulaColor' in settings_window
+    assert '["formulaFontScale"] = settings.FormulaFontScale' in settings_window
     assert "useSystemFormulaColor = false" in settings_js
     assert "useSystemFormulaColor = true" in settings_js
+    assert "formulaFontScale" in settings_js
+    assert "percentToScale" in settings_js
     assert "resetToWhite" in settings_js
     adapter = read_word_adapter_sources()
     controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
@@ -1753,7 +1785,9 @@ def test_word_formula_metadata_does_not_create_hidden_document_controls() -> Non
 
     assert "WordFormulaMetadataStore.Save(" in metadata_adapter
     assert "SaveFormulaMetadata(equationControl, metadata)" in metadata_adapter
-    assert "shape.Tag = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "string tag = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "shape.Tag = tag" in metadata_adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load" in metadata_adapter
     assert "shape.AlternativeText = WordFormulaMetadataStore.Save" in metadata_adapter
     assert "TryLoadOleNaturalSize(" in metadata_adapter
     assert "ContentControls.Add" not in store

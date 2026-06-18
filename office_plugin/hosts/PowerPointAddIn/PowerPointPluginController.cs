@@ -327,7 +327,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
             acceptedFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
-            previous?.FontScale ?? 1);
+            previous?.FontScale ?? settings.FormulaFontScale);
     }
 
     private static FormulaMetadata CreateEditorDraft()
@@ -342,14 +342,15 @@ public sealed partial class PowerPointPluginController : IDisposable
             RenderEngineKind.Image,
             schemaVersion: 1,
             settings.FormulaColor,
-            settings.FormulaFontStyle);
+            settings.FormulaFontStyle,
+            settings.FormulaFontScale);
     }
 
     private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         var request = new RenderRequest(BuildFormattedLatex(metadata), metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = InitialFormulaScale
+            FontScale = InitialFormulaScale * metadata.FontScale
         };
         RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
@@ -361,7 +362,7 @@ public sealed partial class PowerPointPluginController : IDisposable
     {
         var request = new RenderRequest(BuildFormattedLatex(metadata), FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = InitialFormulaScale
+            FontScale = InitialFormulaScale * metadata.FontScale
         };
         RenderResult svg = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         byte[] png = SvgPngRasterizer.Rasterize(
