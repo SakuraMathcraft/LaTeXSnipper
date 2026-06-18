@@ -103,7 +103,7 @@ npm run build --prefix office_addin/word-macos
 The build creates:
 
 ```text
-office_addin/word-macos/dist/
+docs/word-macos/
   taskpane.html
   taskpane.css
   taskpane.js
@@ -112,15 +112,16 @@ office_addin/word-macos/dist/
   manifest/LaTeXSnipperWordAddin.xml
 ```
 
-The release manifest in `dist/manifest/LaTeXSnipperWordAddin.xml` points to the
-GitHub Pages preview URL:
+The release manifest in `docs/word-macos/manifest/LaTeXSnipperWordAddin.xml`
+points to the GitHub Pages preview URL:
 
 ```text
 https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
 ```
 
-For manual GitHub Pages preview deployment, publish the generated `dist/`
-contents under the Pages path:
+For manual GitHub Pages preview deployment, configure GitHub Pages to publish the
+repository `docs/` directory. The generated add-in files live under the Pages
+path:
 
 ```text
 word-macos/
@@ -140,7 +141,7 @@ Users of the GitHub Pages preview do not need to run `npm install`,
 `npm run dev`, or `npm run build`. They only need the release manifest:
 
 ```text
-office_addin/word-macos/dist/manifest/LaTeXSnipperWordAddin.xml
+docs/word-macos/manifest/LaTeXSnipperWordAddin.xml
 ```
 
 After the preview is published, download that manifest from the repository or

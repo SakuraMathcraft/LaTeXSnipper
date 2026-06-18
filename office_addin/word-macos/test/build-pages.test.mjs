@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  PAGES_OUTPUT_DIR,
   PAGES_TASKPANE_URL,
   buildPagesDist,
   createReleaseManifest,
@@ -20,7 +21,7 @@ test("createReleaseManifest points SourceLocation to GitHub Pages", () => {
 });
 
 test("buildPagesDist writes static task pane files and release manifest", async () => {
-  const distDir = await mkdtemp(path.join(os.tmpdir(), "latexsnipper-word-macos-dist-"));
+  const distDir = await mkdtemp(path.join(os.tmpdir(), "latexsnipper-word-macos-pages-"));
 
   try {
     await buildPagesDist({ distDir });
@@ -44,4 +45,12 @@ test("buildPagesDist writes static task pane files and release manifest", async 
   } finally {
     await rm(distDir, { force: true, recursive: true });
   }
+});
+
+test("default GitHub Pages output directory is repository docs/word-macos", () => {
+  const repositoryRoot = path.resolve(process.cwd(), "../..");
+  assert.equal(
+    path.relative(repositoryRoot, PAGES_OUTPUT_DIR),
+    path.join("docs", "word-macos"),
+  );
 });

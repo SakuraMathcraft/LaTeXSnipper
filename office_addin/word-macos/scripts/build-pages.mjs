@@ -7,6 +7,9 @@ export const PAGES_TASKPANE_URL =
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
+const repositoryRoot = path.resolve(projectRoot, "../..");
+
+export const PAGES_OUTPUT_DIR = path.join(repositoryRoot, "docs", "word-macos");
 
 const staticFiles = [
   ["src/taskpane.html", "taskpane.html"],
@@ -44,7 +47,7 @@ export function createReleaseManifest(sourceLocation = PAGES_TASKPANE_URL) {
 
 export async function buildPagesDist({
   rootDir = projectRoot,
-  distDir = path.join(rootDir, "dist"),
+  distDir = PAGES_OUTPUT_DIR,
 } = {}) {
   await rm(distDir, { force: true, recursive: true });
   await mkdir(path.join(distDir, "manifest"), { recursive: true });
@@ -62,5 +65,5 @@ export async function buildPagesDist({
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   await buildPagesDist();
-  console.log("Built GitHub Pages preview files in dist/");
+  console.log("Built GitHub Pages preview files in docs/word-macos/");
 }
