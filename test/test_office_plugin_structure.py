@@ -1044,6 +1044,19 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert hashlib.sha256(installers[0].read_bytes()).hexdigest() == checksum_text.split()[0]
 
 
+def test_office_formula_metadata_com_regression_script_is_available() -> None:
+    script = PLUGIN / "tools" / "Test-FormulaMetadataCom.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Test-WordFormulaMetadata" in text
+    assert "Test-PowerPointFormulaMetadata" in text
+    assert "Word OMML ContentControl metadata save/update/delete-undo OK" in text
+    assert "Word OLE AlternativeText metadata natural-size/delete-undo OK" in text
+    assert "PowerPoint shape metadata long-latex/update/duplicate/delete-undo OK" in text
+    assert "WordFormulaMetadataStore" in text
+    assert "PowerPointFormulaMetadataStore" in text
+
+
 def test_office_plugin_help_describes_current_paths() -> None:
     for host in ("WordAddIn", "PowerPointAddIn"):
         help_html = (PLUGIN / "hosts" / host / "EditorAssets" / "help.html").read_text(encoding="utf-8")
