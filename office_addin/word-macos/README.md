@@ -49,6 +49,7 @@ office_addin/word-macos/
   src/taskpane.js
   src/latex.js
   src/shortcuts.js
+  scripts/build-pages.mjs
   test/latex.test.mjs
   test/shortcuts.test.mjs
 ```
@@ -64,17 +65,106 @@ npm test --prefix office_addin/word-macos
 The tests use Node's built-in test runner and do not install or modify root
 project dependencies.
 
+## Local Dev Server
+
+Run from `office_addin/word-macos/`:
+
+```bash
+npm run dev
+```
+
+The server listens on `localhost:3000` and serves the add-in directory. The task
+pane is available at:
+
+```text
+http://localhost:3000/src/taskpane.html
+```
+
+The local development manifest is:
+
+```text
+office_addin/word-macos/manifest/word-dev.xml
+```
+
+It points to:
+
+```text
+http://localhost:3000/src/taskpane.html
+```
+
+## GitHub Pages Preview Build
+
+Run from the repository root:
+
+```bash
+npm run build --prefix office_addin/word-macos
+```
+
+The build creates:
+
+```text
+office_addin/word-macos/dist/
+  taskpane.html
+  taskpane.css
+  taskpane.js
+  latex.js
+  shortcuts.js
+  manifest/LaTeXSnipperWordAddin.xml
+```
+
+The release manifest in `dist/manifest/LaTeXSnipperWordAddin.xml` points to the
+GitHub Pages preview URL:
+
+```text
+https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
+```
+
+For manual GitHub Pages preview deployment, publish the generated `dist/`
+contents under the Pages path:
+
+```text
+word-macos/
+```
+
+That makes the task pane available at:
+
+```text
+https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
+```
+
+No GitHub Actions workflow is required for the current manual preview flow.
+
+## Using The GitHub Pages Preview
+
+Users of the GitHub Pages preview do not need to run `npm install`,
+`npm run dev`, or `npm run build`. They only need the release manifest:
+
+```text
+office_addin/word-macos/dist/manifest/LaTeXSnipperWordAddin.xml
+```
+
+After the preview is published, download that manifest from the repository or
+release artifact, then sideload it into Word for macOS. A typical sideload
+location is:
+
+```text
+~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
+```
+
+Restart Word after copying the manifest if the add-in does not appear
+immediately.
+
 ## macOS Sideload Notes
 
 The development manifest points to:
 
 ```text
-https://localhost:3000/src/taskpane.html
+http://localhost:3000/src/taskpane.html
 ```
 
-Serve `office_addin/word-macos/` with a local HTTPS static server on port `3000`,
-then sideload `manifest/word-dev.xml` into Word for Mac. A typical sideload
-location is:
+For quick local static checks, use `npm run dev`. For Word sideload testing,
+serve the same directory on port `3000`, then sideload `manifest/word-dev.xml`
+into Word for Mac. A typical sideload location is:
 
 ```text
 ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/

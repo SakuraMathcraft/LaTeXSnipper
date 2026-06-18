@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-pages.mjs",
+    "dev": "node -e \"const http=require('node:http'),fs=require('node:fs'),path=require('node:path');const root=process.cwd();const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.xml':'application/xml; charset=utf-8'};http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost:3000');const pathname=decodeURIComponent(url.pathname);const file=path.resolve(root,pathname==='/'?'src/taskpane.html':'.'+pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403);res.end('Forbidden');return;}fs.readFile(file,(err,data)=>{if(err){res.writeHead(404);res.end('Not found');return;}res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream'});res.end(data);});}).listen(3000,'localhost',()=>console.log('Serving http://localhost:3000/src/taskpane.html'));\"",
     "test": "node --test test/*.test.mjs"
   }
 }

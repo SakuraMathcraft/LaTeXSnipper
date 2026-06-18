@@ -10,13 +10,13 @@
   <DisplayName DefaultValue="LaTeXSnipper Word"/>
   <Description DefaultValue="Minimal LaTeXSnipper task pane for Word on macOS."/>
   <AppDomains>
-    <AppDomain>http://localhost:3000</AppDomain>
+    <AppDomain>https://galileo927.github.io</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="http://localhost:3000/src/taskpane.html"/>
+    <SourceLocation DefaultValue="https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>

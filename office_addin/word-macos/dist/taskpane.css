@@ -1,0 +1,159 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  background: Canvas;
+  color: CanvasText;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.pane-shell {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  min-width: 260px;
+}
+
+.section {
+  display: grid;
+  gap: 10px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+h2 {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, CanvasText 78%, transparent);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 72%, transparent);
+}
+
+.latex-input {
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 6px;
+  padding: 10px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.latex-input:focus {
+  outline: 2px solid Highlight;
+  outline-offset: 1px;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 1px solid Highlight;
+  background: Highlight;
+  color: HighlightText;
+  font-weight: 600;
+}
+
+.secondary-button {
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  background: color-mix(in srgb, CanvasText 4%, Canvas);
+  color: CanvasText;
+}
+
+.secondary-button:disabled {
+  cursor: not-allowed;
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+}
+
+.operation-status {
+  min-height: 20px;
+  color: color-mix(in srgb, CanvasText 72%, transparent);
+  font-size: 12px;
+}
+
+.bridge-section {
+  border-top: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  padding-top: 14px;
+}
+
+.bridge-status {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.bridge-status div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bridge-status dt,
+.bridge-status dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.bridge-status dt {
+  color: color-mix(in srgb, CanvasText 66%, transparent);
+}
+
+.bridge-status dd {
+  font-weight: 600;
+}
