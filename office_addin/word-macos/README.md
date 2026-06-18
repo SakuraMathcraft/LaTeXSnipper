@@ -3,37 +3,56 @@
 This directory contains the scoped Word for macOS Office.js MVP. It is separate
 from the Windows VSTO plugin in `office_plugin/`.
 
-## What This MVP Does
+Windows uses VSTO for native Office integration. Word for macOS does not support
+VSTO or COM add-ins, so this add-in uses Office.js. The macOS version targets
+feature parity with the Windows plugin over time, not implementation parity.
 
-- Opens a Word Office.js task pane.
-- Accepts manual LaTeX input.
-- Inserts the input at the current Word cursor as plain inline LaTeX text:
+## What Is Implemented
+
+- Word for macOS Office.js task pane.
+- Manual LaTeX source input.
+- Lightweight formula preview that shows the Office.js-safe text fallback.
+- Inline, display, and numbered display insertion modes.
+- Manual number field for numbered display fallback.
+- Insert Inline, Insert Display, Insert Numbered, and Clear actions.
+- macOS shortcuts:
+  - Command + Enter inserts using the selected mode.
+  - Command + K clears the input.
+  - Escape dismisses transient focus/status.
+- Status feedback:
+  - Ready.
+  - Inserting...
+  - Inserted at cursor.
+  - Office.js unavailable.
+- OCR Bridge placeholder only:
+  - Bridge: Not connected.
+  - OCR: Coming soon.
+
+Insertion is still plain text by design in this phase:
 
 ```text
 \( ... \)
+\[ ... \]
+\[ ... \]    (#)
 ```
 
-- Clears the input.
-- Supports macOS shortcuts:
-  - Command + Enter inserts the formula text.
-  - Command + K clears the input.
-- Shows placeholder OCR status:
-  - Bridge not connected.
-  - OCR coming soon.
+It does not yet insert native editable Word equations.
 
-## What This MVP Does Not Do
+## Deferred
 
-- No MathLive editor.
-- No MathJax preview or rendering.
-- No SVG/PNG managed formula insertion.
-- No image marker or document-level metadata store.
-- No selected formula loading, updating, or deleting.
-- No real OCR Bridge calls.
-- No desktop Bridge integration or Bridge endpoint changes.
-- No OMML generation.
-- No OLE/OMML conversion.
-- No automatic numbering or references.
-- No document-wide formula restore.
+- Full MathLive editor assets.
+- MathJax rendering.
+- SVG/PNG managed formula insertion.
+- Image markers and document-level metadata store.
+- Selected formula loading, updating, or deleting.
+- Real OCR Bridge calls.
+- Desktop Bridge integration or Bridge endpoint changes.
+- Word-native OMML insertion.
+- OLE/OMML conversion.
+- Automatic renumbering and references.
+- Settings window.
+- AppSource packaging.
+- Document-wide formula restore.
 
 ## Files
 
@@ -44,14 +63,16 @@ office_addin/word-macos/
   README.md
   package.json
   manifest/word-dev.xml
+  scripts/build-pages.mjs
+  src/editor/mathEditor.js
+  src/formula/formulaModel.js
+  src/office/wordInsert.js
   src/taskpane.html
   src/taskpane.css
   src/taskpane.js
   src/latex.js
   src/shortcuts.js
-  scripts/build-pages.mjs
-  test/latex.test.mjs
-  test/shortcuts.test.mjs
+  test/*.test.mjs
 ```
 
 ## Local Tests
@@ -92,6 +113,16 @@ It points to:
 http://localhost:3000/src/taskpane.html
 ```
 
+For Word sideload testing, serve the directory on port `3000`, then sideload
+`manifest/word-dev.xml` into Word for macOS. A typical sideload location is:
+
+```text
+~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
+```
+
+Restart Word after copying the manifest if the add-in does not appear
+immediately.
+
 ## GitHub Pages Preview Build
 
 Run from the repository root:
@@ -100,24 +131,33 @@ Run from the repository root:
 npm run build --prefix office_addin/word-macos
 ```
 
-The build creates:
+The build creates the static GitHub Pages preview under:
 
 ```text
 docs/word-macos/
-  taskpane.html
-  taskpane.css
-  taskpane.js
-  latex.js
-  shortcuts.js
-  manifest/LaTeXSnipperWordAddin.xml
 ```
 
-The release manifest in `docs/word-macos/manifest/LaTeXSnipperWordAddin.xml`
-points to the GitHub Pages preview URL:
+Required output includes:
+
+```text
+docs/word-macos/taskpane.html
+docs/word-macos/taskpane.css
+docs/word-macos/taskpane.js
+docs/word-macos/editor/mathEditor.js
+docs/word-macos/formula/formulaModel.js
+docs/word-macos/latex.js
+docs/word-macos/office/wordInsert.js
+docs/word-macos/shortcuts.js
+docs/word-macos/manifest/LaTeXSnipperWordAddin.xml
+```
+
+The release manifest points to the fork Pages preview:
 
 ```text
 https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
 ```
+
+Do not switch it to the upstream Pages URL until the release target changes.
 
 For manual GitHub Pages preview deployment, configure GitHub Pages to publish the
 repository `docs/` directory. The generated add-in files live under the Pages
@@ -155,28 +195,9 @@ location is:
 Restart Word after copying the manifest if the add-in does not appear
 immediately.
 
-## macOS Sideload Notes
-
-The development manifest points to:
-
-```text
-http://localhost:3000/src/taskpane.html
-```
-
-For quick local static checks, use `npm run dev`. For Word sideload testing,
-serve the same directory on port `3000`, then sideload `manifest/word-dev.xml`
-into Word for Mac. A typical sideload location is:
-
-```text
-~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
-```
-
-Restart Word after copying the manifest if it does not appear immediately.
-
 ## Platform Notes
 
-- macOS: primary MVP target.
-- Windows: the existing VSTO plugin remains the full native Office integration.
-  This Office.js MVP is a lightweight cross-platform option only.
-- Linux: there is no Microsoft Word desktop app. Any usage is through Word for
-  the web and depends on Office.js browser support.
+- macOS: primary Office.js MVP target.
+- Windows: the existing VSTO plugin remains the native Word integration.
+- Linux: there is no Microsoft Word desktop app. Usage is limited to Word for
+  the web where Office.js add-ins are supported.

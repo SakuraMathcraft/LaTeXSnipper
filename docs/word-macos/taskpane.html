@@ -10,13 +10,27 @@
   </head>
   <body>
     <main class="pane-shell">
-      <section class="section">
-        <div class="section-heading">
+      <section class="section header-section">
+        <div class="section-heading app-heading">
           <h1>LaTeXSnipper</h1>
           <span id="host-status" class="status-pill">Waiting for Word</span>
         </div>
+      </section>
 
-        <label class="input-label" for="latex-input">LaTeX</label>
+      <section class="section editor-section" aria-labelledby="editor-heading">
+        <div class="section-heading">
+          <h2 id="editor-heading">Formula</h2>
+          <span id="editor-status" class="subtle-status">Math editor unavailable; using LaTeX source</span>
+        </div>
+
+        <div
+          id="formula-preview"
+          class="formula-preview"
+          aria-live="polite"
+          aria-label="Formula preview"
+        >Preview</div>
+
+        <label class="input-label" for="latex-input">LaTeX source</label>
         <textarea
           id="latex-input"
           class="latex-input"
@@ -24,9 +38,44 @@
           autocomplete="off"
           placeholder="x^2 + y^2 = z^2"
         ></textarea>
+      </section>
 
-        <div class="button-row">
-          <button id="insert-button" class="primary-button" type="button">Insert Formula</button>
+      <section class="section options-section" aria-labelledby="options-heading">
+        <h2 id="options-heading">Options</h2>
+        <fieldset class="mode-fieldset">
+          <legend class="visually-hidden">Formula mode</legend>
+          <label class="mode-option">
+            <input type="radio" name="formula-mode" value="inline" checked>
+            <span>Inline formula</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="formula-mode" value="display">
+            <span>Display formula</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="formula-mode" value="numbered">
+            <span>Numbered display formula</span>
+          </label>
+        </fieldset>
+
+        <label class="input-label" for="manual-number">Manual number</label>
+        <input
+          id="manual-number"
+          class="number-input"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          placeholder="#"
+          disabled
+        >
+      </section>
+
+      <section class="section action-section" aria-labelledby="actions-heading">
+        <h2 id="actions-heading">Actions</h2>
+        <div class="button-grid">
+          <button id="insert-inline-button" class="primary-button" type="button">Insert Inline</button>
+          <button id="insert-display-button" class="secondary-button" type="button">Insert Display</button>
+          <button id="insert-numbered-button" class="secondary-button" type="button">Insert Numbered</button>
           <button id="clear-button" class="secondary-button" type="button">Clear</button>
         </div>
 
@@ -45,7 +94,7 @@
             <dd>Coming soon</dd>
           </div>
         </dl>
-        <button class="secondary-button" type="button" disabled>OCR Coming Soon</button>
+        <button id="ocr-button" class="secondary-button" type="button" disabled>OCR coming soon</button>
       </section>
     </main>
   </body>

@@ -8,7 +8,7 @@
   <ProviderName>LaTeXSnipper</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper Word"/>
-  <Description DefaultValue="Minimal LaTeXSnipper task pane for Word on macOS."/>
+  <Description DefaultValue="LaTeXSnipper formula task pane for Word on macOS."/>
   <AppDomains>
     <AppDomain>https://galileo927.github.io</AppDomain>
   </AppDomains>

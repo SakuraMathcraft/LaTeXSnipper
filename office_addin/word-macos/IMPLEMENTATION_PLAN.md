@@ -1,94 +1,147 @@
 # Word macOS Office.js MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Goal:** Evolve the Word for macOS Office.js MVP from a plain-text prototype
+into a realistic formula task pane that moves toward Windows Word plugin feature
+intent while remaining Office.js-safe.
 
-**Goal:** Build a scoped Word for macOS Office.js task pane MVP that inserts manual LaTeX as plain inline text.
-
-**Architecture:** Static Office.js add-in under `office_addin/word-macos/`. Core behavior lives in small ES modules with Node built-in tests; the task pane is plain HTML/CSS/JavaScript and has no root build dependency.
+**Architecture:** Static Office.js add-in under `office_addin/word-macos/`.
+GitHub Pages preview output is generated under `docs/word-macos/`. Core behavior
+lives in small browser ES modules with Node built-in tests.
 
 **Tech Stack:** Office.js, browser ES modules, HTML, CSS, Node `node:test`.
 
----
-
 ## File Map
 
-- `office_addin/word-macos/DESIGN.md`: scoped MVP design and feature boundary.
+- `office_addin/word-macos/DESIGN.md`: design, feature boundary, parity table.
 - `office_addin/word-macos/IMPLEMENTATION_PLAN.md`: this implementation plan.
-- `office_addin/word-macos/README.md`: sideload usage and platform notes.
-- `office_addin/word-macos/package.json`: local test script only.
-- `office_addin/word-macos/manifest/word-dev.xml`: Word task pane manifest for local sideload testing.
+- `office_addin/word-macos/README.md`: local dev, Pages preview, sideload usage.
+- `office_addin/word-macos/package.json`: local dev, build, and test scripts.
+- `office_addin/word-macos/manifest/word-dev.xml`: local Word task pane manifest.
+- `office_addin/word-macos/scripts/build-pages.mjs`: GitHub Pages static build.
 - `office_addin/word-macos/src/taskpane.html`: task pane markup.
-- `office_addin/word-macos/src/taskpane.css`: compact macOS-oriented styling.
-- `office_addin/word-macos/src/taskpane.js`: UI and Office.js integration.
-- `office_addin/word-macos/src/latex.js`: LaTeX normalization and inline text formatting.
+- `office_addin/word-macos/src/taskpane.css`: macOS-oriented styling.
+- `office_addin/word-macos/src/taskpane.js`: UI state, shortcuts, status wiring.
+- `office_addin/word-macos/src/latex.js`: LaTeX normalization and inline format.
 - `office_addin/word-macos/src/shortcuts.js`: macOS shortcut detection.
-- `office_addin/word-macos/test/latex.test.mjs`: LaTeX formatting tests.
-- `office_addin/word-macos/test/shortcuts.test.mjs`: shortcut tests.
+- `office_addin/word-macos/src/office/wordInsert.js`: insertion abstraction.
+- `office_addin/word-macos/src/formula/formulaModel.js`: formula model helpers.
+- `office_addin/word-macos/src/editor/mathEditor.js`: editor availability state.
+- `office_addin/word-macos/test/*.test.mjs`: Node tests.
 
-## Tasks
+## Phase 1 Tasks
 
-### Task 1: Add failing core tests
+### Task 1: Add tests for the expanded MVP
 
-**Files:**
-- Create: `office_addin/word-macos/package.json`
-- Create: `office_addin/word-macos/test/latex.test.mjs`
-- Create: `office_addin/word-macos/test/shortcuts.test.mjs`
+- [x] Test LaTeX normalization.
+- [x] Test inline insertion fallback text.
+- [x] Test display insertion fallback text.
+- [x] Test numbered display fallback text with manual number.
+- [x] Test numbered display placeholder number.
+- [x] Test Command + Enter insertion shortcut.
+- [x] Test Command + K clear shortcut.
+- [x] Test Escape dismiss shortcut.
+- [x] Test formula model mode normalization.
+- [x] Test MathLive fallback status.
+- [x] Test GitHub Pages build output.
+- [x] Test release manifest SourceLocation remains the fork Pages URL.
+- [x] Test task pane source does not make OCR Bridge network requests.
 
-- [ ] Add a local `npm test` script that runs Node's built-in test runner.
-- [ ] Test `formatInlineFormula("x^2")` returns `"\\( x^2 \\)"`.
-- [ ] Test whitespace is trimmed before formatting.
-- [ ] Test empty input is rejected.
-- [ ] Test Command + Enter is detected as insert.
-- [ ] Test Command + K is detected as clear.
-- [ ] Run `npm test --prefix office_addin/word-macos` and confirm tests fail because implementation modules do not exist yet.
+### Task 2: Add Office.js-safe insertion abstraction
 
-### Task 2: Implement core behavior
+- [x] Add `src/office/wordInsert.js`.
+- [x] Support `insertFormula({ latex, mode, manualNumber })`.
+- [x] Keep inline fallback as `\( ... \)`.
+- [x] Add display fallback as `\[ ... \]`.
+- [x] Add numbered fallback as `\[ ... \]    (number)`.
+- [x] Keep Word insertion text-based through `setSelectedDataAsync`.
+- [x] Avoid claiming native editable Word equation support.
 
-**Files:**
-- Create: `office_addin/word-macos/src/latex.js`
-- Create: `office_addin/word-macos/src/shortcuts.js`
+### Task 3: Add future-facing formula model
 
-- [ ] Implement `normalizeLatexInput(value)`.
-- [ ] Implement `formatInlineFormula(value)`.
-- [ ] Implement `shouldInsertFormulaShortcut(event)`.
-- [ ] Implement `shouldClearInputShortcut(event)`.
-- [ ] Run `npm test --prefix office_addin/word-macos` and confirm tests pass.
+- [x] Add `src/formula/formulaModel.js`.
+- [x] Normalize LaTeX and manual number.
+- [x] Normalize supported modes.
+- [x] Generate formula ids.
+- [x] Store createdAt and updatedAt timestamps.
+- [x] Avoid implementing document metadata, selected load, update, or delete.
 
-### Task 3: Add static Office task pane
+### Task 4: Add MathLive fallback boundary
 
-**Files:**
-- Create: `office_addin/word-macos/src/taskpane.html`
-- Create: `office_addin/word-macos/src/taskpane.css`
-- Create: `office_addin/word-macos/src/taskpane.js`
+- [x] Add `src/editor/mathEditor.js`.
+- [x] Report `Math editor unavailable; using LaTeX source` when MathLive is not
+  available.
+- [x] Do not vendor MathLive assets in this phase.
+- [x] Keep textarea and fallback preview as the source of truth.
 
-- [ ] Add the task pane HTML with manual LaTeX textarea, Insert Formula button,
-  Clear button, Bridge placeholder, OCR placeholder, and status area.
-- [ ] Add task pane styling with stable button sizes and compact layout.
-- [ ] Wire Insert Formula to `Office.context.document.setSelectedDataAsync` with
-  text coercion.
-- [ ] Wire Clear button and Command + K.
-- [ ] Wire Command + Enter to insert.
-- [ ] Keep OCR controls disabled and placeholder-only.
-- [ ] Run `npm test --prefix office_addin/word-macos`.
+### Task 5: Upgrade task pane UI
 
-### Task 4: Add Word manifest and docs
+- [x] Add header with LaTeXSnipper and host status.
+- [x] Add formula preview area.
+- [x] Add LaTeX source textarea.
+- [x] Add inline, display, and numbered mode controls.
+- [x] Add manual number field.
+- [x] Add Insert Inline, Insert Display, Insert Numbered, and Clear buttons.
+- [x] Keep OCR Bridge visible but disabled.
+- [x] Add concise operation statuses.
+- [x] Use macOS-style layout, spacing, rounded controls, focus states, and
+  light/dark mode variables.
 
-**Files:**
-- Create: `office_addin/word-macos/manifest/word-dev.xml`
-- Create: `office_addin/word-macos/README.md`
+### Task 6: Keep GitHub Pages preview working
 
-- [ ] Add a Word task pane development manifest pointing to the local task pane URL.
-- [ ] Document macOS sideload assumptions and local HTTPS serving requirement.
-- [ ] Document Windows and Linux usage boundaries.
-- [ ] Document explicitly deferred features.
+- [x] Build to `docs/word-macos/`.
+- [x] Copy `taskpane.html`, `taskpane.css`, and `taskpane.js`.
+- [x] Copy required ES modules under `editor/`, `formula/`, and `office/`.
+- [x] Generate `manifest/LaTeXSnipperWordAddin.xml`.
+- [x] Keep release manifest SourceLocation at:
 
-### Task 5: Verify isolation
+```text
+https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
+```
 
-**Files:**
-- Inspect only.
+### Task 7: Documentation
 
-- [ ] Run `git status --short`.
-- [ ] Confirm all new files are under `office_addin/word-macos/`.
-- [ ] Confirm no files under `office_plugin/` changed.
-- [ ] Confirm no root dependency/build config changed.
-- [ ] Run `npm test --prefix office_addin/word-macos`.
+- [x] Update README with local dev, build, Pages preview, manifest, and sideload
+  instructions.
+- [x] Update DESIGN with current implementation, Windows/macOS parity mapping,
+  and deferred features.
+- [x] Update this implementation plan with completed Phase 1 tasks.
+
+## Deferred Work
+
+- Real Word-native OMML insertion.
+- Full MathLive editor assets.
+- MathJax rendering.
+- SVG/PNG managed formula insertion.
+- Managed formula identity in the document.
+- Selected formula load, update, and delete.
+- Real OCR Bridge.
+- Desktop Bridge integration.
+- OLE / OMML conversion.
+- Automatic renumbering and references.
+- Settings window.
+- AppSource packaging.
+
+## Validation
+
+Run before considering the phase complete:
+
+```bash
+npm test --prefix office_addin/word-macos
+npm run build --prefix office_addin/word-macos
+test -f docs/word-macos/taskpane.html
+test -f docs/word-macos/taskpane.js
+test -f docs/word-macos/taskpane.css
+test -f docs/word-macos/manifest/LaTeXSnipperWordAddin.xml
+xmllint --noout docs/word-macos/manifest/LaTeXSnipperWordAddin.xml
+```
+
+Also run JavaScript syntax checks for changed modules:
+
+```bash
+node --check office_addin/word-macos/src/taskpane.js
+node --check office_addin/word-macos/src/office/wordInsert.js
+node --check office_addin/word-macos/src/formula/formulaModel.js
+node --check office_addin/word-macos/src/editor/mathEditor.js
+node --check office_addin/word-macos/src/shortcuts.js
+node --check office_addin/word-macos/scripts/build-pages.mjs
+```

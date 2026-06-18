@@ -1,10 +1,37 @@
 :root {
   color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --pane-bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-muted: #f1f2f4;
+  --text: #1f2328;
+  --text-muted: #667085;
+  --border: #d8dce2;
+  --accent: #0a84ff;
+  --accent-hover: #0071e3;
+  --accent-text: #ffffff;
+  --focus: rgba(10, 132, 255, 0.34);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--pane-bg);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pane-bg: #1f2024;
+    --surface: #2a2b31;
+    --surface-muted: #24252a;
+    --text: #f3f4f6;
+    --text-muted: #a9b0bd;
+    --border: #3e424b;
+    --accent: #0a84ff;
+    --accent-hover: #3395ff;
+    --accent-text: #ffffff;
+    --focus: rgba(10, 132, 255, 0.42);
+    --shadow: none;
+  }
 }
 
 * {
@@ -13,23 +40,26 @@
 
 body {
   margin: 0;
+  background: var(--pane-bg);
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
 
 .pane-shell {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 16px;
   min-width: 260px;
+  max-width: 420px;
+  padding: 16px;
 }
 
 .section {
   display: grid;
-  gap: 10px;
+  gap: 11px;
 }
 
 .section-heading {
@@ -37,6 +67,10 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.app-heading {
+  align-items: flex-start;
 }
 
 h1,
@@ -51,6 +85,7 @@ h1 {
 }
 
 h2 {
+  color: var(--text);
   font-size: 13px;
   font-weight: 650;
 }
@@ -60,76 +95,161 @@ h2 {
   align-items: center;
   min-height: 24px;
   padding: 2px 8px;
-  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: color-mix(in srgb, CanvasText 78%, transparent);
+  background: var(--surface);
+  color: var(--text-muted);
   white-space: nowrap;
   font-size: 12px;
+  box-shadow: var(--shadow);
+}
+
+.subtle-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
 }
 
 .input-label {
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
-  color: color-mix(in srgb, CanvasText 72%, transparent);
+}
+
+.formula-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.latex-input,
+.number-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }
 
 .latex-input {
-  width: 100%;
-  min-height: 128px;
-  resize: vertical;
-  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-  border-radius: 6px;
+  min-height: 126px;
   padding: 10px;
-  background: Canvas;
-  color: CanvasText;
+  resize: vertical;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-.latex-input:focus {
-  outline: 2px solid Highlight;
-  outline-offset: 1px;
+.number-input {
+  min-height: 34px;
+  padding: 6px 10px;
 }
 
-.button-row {
+.number-input:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
+.latex-input:focus-visible,
+.number-input:focus-visible,
+button:focus-visible,
+.mode-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.mode-fieldset {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mode-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mode-option input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
 .primary-button,
 .secondary-button {
   min-height: 34px;
-  border-radius: 6px;
   padding: 6px 12px;
+  border-radius: 8px;
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .primary-button {
-  border: 1px solid Highlight;
-  background: Highlight;
-  color: HighlightText;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
+.primary-button:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
 .secondary-button {
-  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-  background: color-mix(in srgb, CanvasText 4%, Canvas);
-  color: CanvasText;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: var(--surface-muted);
 }
 
 .secondary-button:disabled {
+  color: var(--text-muted);
   cursor: not-allowed;
-  color: color-mix(in srgb, CanvasText 45%, transparent);
+  opacity: 0.72;
 }
 
 .operation-status {
   min-height: 20px;
-  color: color-mix(in srgb, CanvasText 72%, transparent);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .bridge-section {
-  border-top: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
-  padding-top: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .bridge-status {
@@ -151,9 +271,40 @@ h2 {
 }
 
 .bridge-status dt {
-  color: color-mix(in srgb, CanvasText 66%, transparent);
+  color: var(--text-muted);
 }
 
 .bridge-status dd {
   font-weight: 600;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 320px) {
+  .pane-shell {
+    padding: 12px;
+  }
+
+  .button-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .subtle-status {
+    text-align: left;
+  }
 }

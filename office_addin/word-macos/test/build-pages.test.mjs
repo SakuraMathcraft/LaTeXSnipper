@@ -29,7 +29,13 @@ test("buildPagesDist writes static task pane files and release manifest", async 
     const taskpaneHtml = await readFile(path.join(distDir, "taskpane.html"), "utf8");
     const taskpaneJs = await readFile(path.join(distDir, "taskpane.js"), "utf8");
     const taskpaneCss = await readFile(path.join(distDir, "taskpane.css"), "utf8");
+    const mathEditorJs = await readFile(path.join(distDir, "editor", "mathEditor.js"), "utf8");
+    const formulaModelJs = await readFile(
+      path.join(distDir, "formula", "formulaModel.js"),
+      "utf8",
+    );
     const latexJs = await readFile(path.join(distDir, "latex.js"), "utf8");
+    const wordInsertJs = await readFile(path.join(distDir, "office", "wordInsert.js"), "utf8");
     const shortcutsJs = await readFile(path.join(distDir, "shortcuts.js"), "utf8");
     const manifest = await readFile(
       path.join(distDir, "manifest", "LaTeXSnipperWordAddin.xml"),
@@ -37,9 +43,15 @@ test("buildPagesDist writes static task pane files and release manifest", async 
     );
 
     assert.match(taskpaneHtml, /LaTeXSnipper Word/);
-    assert.match(taskpaneJs, /formatInlineFormula/);
+    assert.match(taskpaneHtml, /Insert Inline/);
+    assert.match(taskpaneHtml, /Insert Display/);
+    assert.match(taskpaneHtml, /Insert Numbered/);
+    assert.match(taskpaneJs, /insertFormulaIntoWord/);
     assert.match(taskpaneCss, /pane-shell/);
+    assert.match(mathEditorJs, /Math editor unavailable; using LaTeX source/);
+    assert.match(formulaModelJs, /createFormulaModel/);
     assert.match(latexJs, /formatInlineFormula/);
+    assert.match(wordInsertJs, /formatFormulaForInsertion/);
     assert.match(shortcutsJs, /shouldInsertFormulaShortcut/);
     assert.match(manifest, new RegExp(PAGES_TASKPANE_URL));
   } finally {

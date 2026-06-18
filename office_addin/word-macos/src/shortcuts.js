@@ -5,3 +5,7 @@ export function shouldInsertFormulaShortcut(event) {
 export function shouldClearInputShortcut(event) {
   return Boolean(event?.metaKey) && !event?.ctrlKey && String(event?.key ?? "").toLowerCase() === "k";
 }
+
+export function shouldDismissShortcut(event) {
+  return event?.key === "Escape";
+}

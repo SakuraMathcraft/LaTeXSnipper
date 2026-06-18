@@ -15,7 +15,10 @@ const staticFiles = [
   ["src/taskpane.html", "taskpane.html"],
   ["src/taskpane.css", "taskpane.css"],
   ["src/taskpane.js", "taskpane.js"],
+  ["src/editor/mathEditor.js", "editor/mathEditor.js"],
+  ["src/formula/formulaModel.js", "formula/formulaModel.js"],
   ["src/latex.js", "latex.js"],
+  ["src/office/wordInsert.js", "office/wordInsert.js"],
   ["src/shortcuts.js", "shortcuts.js"],
 ];
 
@@ -30,7 +33,7 @@ export function createReleaseManifest(sourceLocation = PAGES_TASKPANE_URL) {
   <ProviderName>LaTeXSnipper</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper Word"/>
-  <Description DefaultValue="Minimal LaTeXSnipper task pane for Word on macOS."/>
+  <Description DefaultValue="LaTeXSnipper formula task pane for Word on macOS."/>
   <AppDomains>
     <AppDomain>https://galileo927.github.io</AppDomain>
   </AppDomains>
@@ -53,7 +56,9 @@ export async function buildPagesDist({
   await mkdir(path.join(distDir, "manifest"), { recursive: true });
 
   for (const [source, destination] of staticFiles) {
-    await copyFile(path.join(rootDir, source), path.join(distDir, destination));
+    const outputPath = path.join(distDir, destination);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await copyFile(path.join(rootDir, source), outputPath);
   }
 
   await writeFile(

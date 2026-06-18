@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   shouldClearInputShortcut,
+  shouldDismissShortcut,
   shouldInsertFormulaShortcut,
 } from "../src/shortcuts.js";
 
@@ -32,4 +33,8 @@ test("shouldClearInputShortcut ignores Control K", () => {
     shouldClearInputShortcut({ key: "k", metaKey: false, ctrlKey: true }),
     false,
   );
+});
+
+test("shouldDismissShortcut detects Escape", () => {
+  assert.equal(shouldDismissShortcut({ key: "Escape" }), true);
 });
