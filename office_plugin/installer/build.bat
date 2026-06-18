@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal
 
 :: LaTeXSnipper Office Plugin Installer Builder
@@ -6,7 +6,7 @@ setlocal
 ::   config:  Debug or Release (defaults to Release)
 
 set VERSION=%1
-if "%VERSION%"=="" set VERSION=2.3.2
+if "%VERSION%"=="" set VERSION=2.4.0
 
 set CONFIG=%2
 if "%CONFIG%"=="" set CONFIG=Release

@@ -1,4 +1,4 @@
-# Microsoft Store MSIX Packaging
+﻿# Microsoft Store MSIX Packaging
 
 This folder contains the Store-channel MSIX manifest template for LaTeXSnipper.
 
@@ -15,7 +15,7 @@ Store ID: 9NM3W4C98PFC
 Build the Store-channel MSIX package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.4.100.0 -StoreRuntimeDir Store_CPU
 ```
 
 The Store package must bundle a CPU-only dependency runtime. `Store_CPU` must contain `python311\python.exe` and `.deps_state.json`, and the state file must declare `MATHCRAFT_CPU` without `MATHCRAFT_GPU`.
@@ -25,13 +25,13 @@ The Store package also bundles MathCraft models by default. The script looks in 
 By default the script runs PyInstaller with the developer build interpreter at `tools\deps\python311\python.exe`, not the Python found on `PATH`. This interpreter is only used to build the package; the runtime bundled into the MSIX comes from `-StoreRuntimeDir`. Override the build interpreter only when deliberately testing another environment:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -MathCraftModelsRoot "$env:APPDATA\MathCraft\models" -PythonPath tools\deps\python311\python.exe
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.4.100.0 -StoreRuntimeDir Store_CPU -MathCraftModelsRoot "$env:APPDATA\MathCraft\models" -PythonPath tools\deps\python311\python.exe
 ```
 
 The script emits an unsigned `.msix` under `dist\store` for Partner Center upload. For local install testing only:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.3.100.0 -StoreRuntimeDir Store_CPU -SignForLocalTest
+powershell -ExecutionPolicy Bypass -File scripts\build_store_msix.ps1 -PackageVersion 2.4.100.0 -StoreRuntimeDir Store_CPU -SignForLocalTest
 ```
 
 The local-test package is signed with a self-signed certificate. Trust that certificate before installing the signed local-test package:

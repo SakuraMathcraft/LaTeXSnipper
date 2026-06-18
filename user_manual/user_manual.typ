@@ -1,5 +1,5 @@
-// LaTeXSnipper 用户手册
-// 版本: v2.3.2_Final_Stable | 最终稳定版
+﻿// LaTeXSnipper 用户手册
+// 版本: v2.4.0-LTS | 长期支持版
 #set page(paper: "a4", margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm))
 #set text(
   font: ("Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", "SimHei", "Noto Sans", "Helvetica"),
@@ -98,7 +98,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.3.2_Final_Stable | 最终稳定版]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.4.0-LTS | 长期支持版]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -1300,13 +1300,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-OfficePluginSetup-2.3.2.exe /silent
+OfficePluginSetup-2.4.0.exe /silent
 
 # 完全静默（无界面）
-OfficePluginSetup-2.3.2.exe /verysilent
+OfficePluginSetup-2.4.0.exe /verysilent
 
 # 自定义安装目录
-OfficePluginSetup-2.3.2.exe /dir="D:\Tools\LaTeXSnipper"
+OfficePluginSetup-2.4.0.exe /dir="D:\Tools\LaTeXSnipper"
 ```
 
 #pagebreak()
@@ -2474,6 +2474,6 @@ Linux / macOS（仅当前终端）：
 #v(1.5em)
 #align(center)[
   #text(size: 8pt, fill: rgb("#9E9E9E"))[
-    LaTeXSnipper FAQ · 版本 v2.3.2_Final_Stable · https://github.com/SakuraMathcraft/LaTeXSnipper
+    LaTeXSnipper FAQ · 版本 v2.4.0-LTS · https://github.com/SakuraMathcraft/LaTeXSnipper
   ]
 ]

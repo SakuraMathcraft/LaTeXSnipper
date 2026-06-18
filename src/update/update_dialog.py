@@ -332,7 +332,7 @@ a{{color:{theme['accent']};}}
         signature_status = _read_signature_status(path)
         if isinstance(info, ReleaseInfo):
             _save_installer_meta(info, path, sha256_hex)
-        if os.name != "nt" or not getattr(sys, "frozen", False) or ext not in (".exe", ".msi"):
+        if os.name != "nt" or not getattr(sys, "frozen", False) or ext != ".exe":
             lbl_status.setText(f"下载完成: {path}")
             InfoBar.success(
                 title="更新已下载",

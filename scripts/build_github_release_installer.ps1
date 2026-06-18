@@ -355,7 +355,7 @@ $iscc = Find-Tool -ToolName "ISCC.exe" -Candidates $isccCandidates
 $buildName = "LaTeXSnipper"
 $spec = Join-Path $root "LaTeXSnipper.spec"
 $iss = Join-Path $root "Inno\latexsnipper.iss"
-$installer = Join-Path $root "dist\installer\LaTeXSnipperSetup-2.3.2.exe"
+$installerOutputDir = Join-Path $root "dist\installer"
 
 if (-not (Test-Path $spec)) {
     throw "PyInstaller spec not found: $spec"
@@ -405,6 +405,10 @@ if ($Sign) {
 $oldRepoRoot = $env:LATEXSNIPPER_REPO_ROOT
 try {
     $env:LATEXSNIPPER_REPO_ROOT = $root
+    if (Test-Path $installerOutputDir) {
+        Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+            Remove-Item -Force
+    }
     & $iscc $iss
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup failed with exit code $LASTEXITCODE"
@@ -414,19 +418,22 @@ finally {
     $env:LATEXSNIPPER_REPO_ROOT = $oldRepoRoot
 }
 
-if (-not (Test-Path $installer)) {
-    throw "Installer output not found: $installer"
+$installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+    Sort-Object LastWriteTimeUtc -Descending |
+    Select-Object -First 1
+if (-not $installer -or -not (Test-Path -LiteralPath $installer.FullName)) {
+    throw "Installer output not found in: $installerOutputDir"
 }
 
 if ($Sign) {
-    Invoke-CodeSign -Signtool $signtool -Path $installer -Thumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    Invoke-CodeSign -Signtool $signtool -Path $installer.FullName -Thumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
 }
 
-$hash = Write-Sha256File -Path $installer
+$hash = Write-Sha256File -Path $installer.FullName
 
 Write-Host ""
 Write-Host "GitHub release installer created:"
-Write-Host "  $installer"
+Write-Host "  $($installer.FullName)"
 Write-Host "SHA256:"
 Write-Host "  $hash"
 if ($Sign) {

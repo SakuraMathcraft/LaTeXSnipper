@@ -1,11 +1,13 @@
+import platform
 import re
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QUrl
 
 from update.release_types import ReleaseInfo, _normalize_sha256
 
-_INSTALLER_ASSET_SUFFIXES = (".exe", ".msi", ".zip")
+_INSTALLER_ASSET_SUFFIXES = (".exe", ".dmg", ".deb", ".app.zip")
 _ASSET_SIDECAR_SUFFIXES = (
     ".sigstore.json",
     ".sha256",
@@ -26,7 +28,7 @@ def _asset_sha256_from_payload(payload: dict) -> str:
 
 def _asset_supported_suffix_rank(name: str) -> int:
     lower = str(name or "").lower()
-    for rank, suffix in enumerate(_INSTALLER_ASSET_SUFFIXES):
+    for rank, suffix in enumerate(sorted(_INSTALLER_ASSET_SUFFIXES, key=len, reverse=True)):
         if lower.endswith(suffix):
             return rank
     return len(_INSTALLER_ASSET_SUFFIXES)
@@ -37,28 +39,51 @@ def _is_asset_sidecar(name: str) -> bool:
     return any(lower.endswith(suffix) for suffix in _ASSET_SIDECAR_SUFFIXES)
 
 
-def _installer_channel_rank(name: str) -> int:
-    compact = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
-    is_latexsnipper = "latexsnipper" in compact
-    is_setup = "setup" in compact
-    is_offline = "offline" in compact
-    if is_latexsnipper and is_setup and not is_offline:
-        return 0
-    if is_setup and not is_offline:
+def _platform_asset_rank(name: str) -> int | None:
+    lower = str(name or "").lower()
+    compact = re.sub(r"[^a-z0-9]+", "", lower)
+    machine = platform.machine().lower()
+
+    if sys.platform.startswith("win"):
+        if lower.endswith(".exe") and compact.startswith("latexsnippersetup"):
+            return 0
+        return None
+
+    if sys.platform == "darwin":
+        if not compact.startswith("latexsnipper") or not lower.endswith((".dmg", ".app.zip")):
+            return None
+        if "universal" in lower:
+            arch_rank = 0
+        elif machine in {"arm64", "aarch64"}:
+            arch_rank = 0 if "arm64" in lower or "aarch64" in lower else 2
+        elif machine in {"x86_64", "amd64"}:
+            arch_rank = 0 if "x86_64" in lower or "x64" in lower or "amd64" in lower else 2
+        else:
+            arch_rank = 1
+        suffix_rank = 0 if lower.endswith(".dmg") else 1
+        return arch_rank * 10 + suffix_rank
+
+    if sys.platform.startswith("linux"):
+        if not compact.startswith("latexsnipper") or not lower.endswith(".deb"):
+            return None
+        if machine in {"x86_64", "amd64"}:
+            return 0 if "amd64" in lower or "x86_64" in lower else 2
+        if machine in {"arm64", "aarch64"}:
+            return 0 if "arm64" in lower or "aarch64" in lower else 2
         return 1
-    if is_latexsnipper and is_setup and is_offline:
-        return 2
-    if is_offline:
-        return 3
-    return 4
+
+    return None
 
 
 def _release_asset_sort_key(asset: dict) -> tuple[int, int, int, str]:
     name = str(asset.get("name", "") or "")
+    platform_rank = _platform_asset_rank(name)
+    if platform_rank is None:
+        platform_rank = 999
     return (
+        platform_rank,
         _asset_supported_suffix_rank(name),
         1 if _is_asset_sidecar(name) else 0,
-        _installer_channel_rank(name),
         name.lower(),
     )
 
@@ -92,11 +117,10 @@ def _pick_release_asset(rel: dict) -> tuple[str, str, str, int, str, str]:
         if _asset_supported_suffix_rank(str(asset.get("name", "") or ""))
         < len(_INSTALLER_ASSET_SUFFIXES)
         and not _is_asset_sidecar(str(asset.get("name", "") or ""))
+        and _platform_asset_rank(str(asset.get("name", "") or "")) is not None
     ]
     if installers:
         return _release_asset_tuple(min(installers, key=_release_asset_sort_key))
-    if candidates:
-        return _release_asset_tuple(candidates[0])
     return "", "", "", 0, "", ""
 
 

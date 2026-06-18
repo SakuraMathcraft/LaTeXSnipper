@@ -1,6 +1,6 @@
 ﻿; LaTeXSnipper Office Plugin - Inno Setup Installer
 ; Build: iscc /DVersion=%VERSION% /DConfig=Release installer.iss
-;   or for Debug: iscc /DVersion=2.3.2 /DConfig=Debug installer.iss
+;   or for Debug: iscc /DVersion=2.4.0 /DConfig=Debug installer.iss
 
 #define AppName "LaTeXSnipper Office Plugin"
 #define AppPublisher "SakuraMathcraft"
@@ -9,7 +9,7 @@
 #define PowerPointAddInName "LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn"
 
 #ifndef Version
-  #define Version "2.3.2"
+  #define Version "2.4.0"
 #endif
 #ifndef Config
   #define Config "Release"

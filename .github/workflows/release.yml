@@ -1,4 +1,4 @@
-name: Release Build
+﻿name: Release Build
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       release_tag:
         description: "Existing GitHub Release tag to upload assets to"
         required: true
-        default: "v2.3.2_Final_Stable"
+        default: "v2.4.0-LTS"
         type: string
       publish_assets:
         description: "Upload artifacts to the GitHub Release"

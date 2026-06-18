@@ -5,7 +5,7 @@ from runtime.app_paths import app_state_dir
 from update.release_types import ReleaseInfo
 
 _ETAG_PATH = app_state_dir() / "release_etag_cache.json"
-_RELEASE_CACHE_SCHEMA_VERSION = 2
+_RELEASE_CACHE_SCHEMA_VERSION = 3
 
 
 def _load_cached_info():

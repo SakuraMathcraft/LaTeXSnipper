@@ -1,5 +1,5 @@
-<!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v2.3.2_Final_Stable | 最终稳定版 -->
+﻿<!-- LaTeXSnipper 用户手册 -->
+<!-- 版本: v2.4.0-LTS | 长期支持版 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v2.3.2_Final_Stable | 最终稳定版*
+*适用于 v2.4.0-LTS | 长期支持版*
 
 ---
 
@@ -1014,13 +1014,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 :: 静默安装（显示进度条）
-OfficePluginSetup-2.3.2.exe /silent
+OfficePluginSetup-2.4.0.exe /silent
 
 :: 完全静默（无界面）
-OfficePluginSetup-2.3.2.exe /verysilent
+OfficePluginSetup-2.4.0.exe /verysilent
 
 :: 自定义安装目录
-OfficePluginSetup-2.3.2.exe /dir="D:\Tools\LaTeXSnipper"
+OfficePluginSetup-2.4.0.exe /dir="D:\Tools\LaTeXSnipper"
 ```
 
 ---
@@ -1937,6 +1937,6 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 <div align="center">
 
-*LaTeXSnipper FAQ · 版本 v2.3.2_Final_Stable · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
+*LaTeXSnipper FAQ · 版本 v2.4.0-LTS · <https://github.com/SakuraMathcraft/LaTeXSnipper>*
 
 </div>

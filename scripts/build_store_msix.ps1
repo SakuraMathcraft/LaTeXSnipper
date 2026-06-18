@@ -1,5 +1,5 @@
-param(
-    [string]$PackageVersion = "2.3.100.0",
+﻿param(
+    [string]$PackageVersion = "2.4.100.0",
     [string]$IdentityName = "MathCraft.LaTeXSnipper",
     [string]$Publisher = "CN=126B7303-E9CB-485C-8DA9-542DD30D121A",
     [string]$PublisherDisplayName = "MathCraft",
@@ -28,7 +28,7 @@ function Resolve-RepoRoot {
 function Test-PackageVersion {
     param([string]$Version)
     if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-        throw "PackageVersion must use four numeric parts, for example 2.3.100.0"
+        throw "PackageVersion must use four numeric parts, for example 2.4.100.0"
     }
 }
 

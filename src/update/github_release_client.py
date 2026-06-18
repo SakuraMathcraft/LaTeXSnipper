@@ -131,28 +131,6 @@ def _fmt_reset(ts_utc: Optional[str]):
         return ts_utc
 
 
-def _fetch_latest_release_fallback(
-    diagnostics: List[Tuple[str, str]]
-) -> tuple[Optional[ReleaseInfo], str]:
-    latest_api = f"{_API_RELEASES}/latest"
-    headers: Dict[str, str] = {}
-    _attach_auth_headers(headers)
-    try:
-        resp = _session.get(latest_api, headers=headers, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-        if resp.status_code == 404:
-            diagnostics.append((latest_api, "latest release not found"))
-            return None, ""
-        resp.raise_for_status()
-        payload = resp.json()
-        if not isinstance(payload, dict) or not payload.get("tag_name"):
-            diagnostics.append((latest_api, "invalid latest release response"))
-            return None, ""
-        return _release_info_from_payload(payload), str(resp.headers.get("ETag") or "")
-    except Exception as e:
-        diagnostics.append((latest_api, _brief_error_message(e)))
-        return None, ""
-
-
 def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[str, str]]]:
     diagnostics: List[Tuple[str, str]] = []
     headers: Dict[str, str] = {}
@@ -209,14 +187,6 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         rel = stable_releases[0] if stable_releases else (ordered[0] if ordered else None)
         if not rel:
             diagnostics.append(("EMPTY_RELEASES", "GitHub Releases API returned an empty list"))
-            fallback_info, fallback_etag = _fetch_latest_release_fallback(diagnostics)
-            if fallback_info:
-                if fallback_etag:
-                    _save_cached_info(fallback_etag, fallback_info)
-                return fallback_info, None, diagnostics
-            if cached_info:
-                diagnostics.append(("CACHE", "using cached release after empty GitHub response"))
-                return cached_info, None, diagnostics
             return None, "GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。", diagnostics
 
         info = _release_info_from_payload(rel)

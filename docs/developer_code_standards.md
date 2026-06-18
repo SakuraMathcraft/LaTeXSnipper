@@ -1,4 +1,4 @@
-# Developer Code Standards
+﻿# Developer Code Standards
 
 These rules are mandatory for pull requests. They keep the desktop app,
 MathCraft OCR package, dependency bootstrap flow, and platform packaging paths
@@ -159,7 +159,7 @@ git push origin MathCraft
   SignPath is unavailable or signing fails, the workflow may publish the
   unsigned Windows installer artifact so the final release still contains a
   Windows package.
-- The Windows installer filename remains `LaTeXSnipperSetup-2.3.2.exe` for both
+- The Windows installer filename remains `LaTeXSnipperSetup-2.4.0.exe` for both
   signed and unsigned release assets.
 - Keep the SignPath artifact configuration in
   `.signpath/artifact-configurations/windows-installer.xml` synchronized with

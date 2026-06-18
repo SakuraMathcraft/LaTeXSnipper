@@ -158,3 +158,5 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
     assert "$env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot" in script
     assert "Normalize-BundledPythonSeed -Root $root" not in script
+    assert "LaTeXSnipperSetup-2.4.0.exe" not in script
+    assert 'Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File' in script

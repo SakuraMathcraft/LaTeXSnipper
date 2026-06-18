@@ -1,4 +1,4 @@
-VSVersionInfo(
+﻿VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=(2, 3, 2, 0),
     prodvers=(2, 3, 2, 0),
@@ -17,11 +17,11 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'Mathcraft'),
             StringStruct('FileDescription', 'LaTeXSnipper'),
-            StringStruct('FileVersion', '2.3.2'),
+            StringStruct('FileVersion', '2.4.0'),
             StringStruct('InternalName', 'LaTeXSnipper'),
             StringStruct('OriginalFilename', 'LaTeXSnipper.exe'),
             StringStruct('ProductName', 'LaTeXSnipper'),
-            StringStruct('ProductVersion', '2.3.2')
+            StringStruct('ProductVersion', '2.4.0')
           ]
         )
       ]
