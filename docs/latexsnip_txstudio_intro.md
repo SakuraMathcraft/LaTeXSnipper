@@ -1,4 +1,4 @@
-﻿# LaTeXSnipper：开源全平台 LaTeX 公式工作台与 Office 插件
+# LaTeXSnipper：开源全平台 LaTeX 公式工作台与 Office 插件
 
 > 截图即识别、手写即输入、桌面端与 Office 无缝衔接
 ![alt text](插件.png)

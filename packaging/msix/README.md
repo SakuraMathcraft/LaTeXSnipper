@@ -1,4 +1,4 @@
-﻿# Microsoft Store MSIX Packaging
+# Microsoft Store MSIX Packaging
 
 This folder contains the Store-channel MSIX manifest template for LaTeXSnipper.
 

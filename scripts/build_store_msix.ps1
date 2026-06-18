@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$PackageVersion = "2.4.100.0",
     [string]$IdentityName = "MathCraft.LaTeXSnipper",
     [string]$Publisher = "CN=126B7303-E9CB-485C-8DA9-542DD30D121A",
