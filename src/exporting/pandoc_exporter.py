@@ -69,17 +69,6 @@ def _find_pandoc_binary() -> str | None:
         os.environ["PYPANDOC_PANDOC"] = str(configured)
         return str(configured)
 
-    try:
-        deps_dir = Path.cwd() / "deps" / "pandoc"
-        if deps_dir.is_dir():
-            for candidate in ("pandoc.exe", "pandoc"):
-                deps_pandoc = deps_dir / candidate
-                if deps_pandoc.exists() and deps_pandoc.is_file():
-                    _append_to_path_once(deps_pandoc.parent)
-                    os.environ["PYPANDOC_PANDOC"] = str(deps_pandoc)
-                    return str(deps_pandoc)
-    except Exception:
-        pass
     found = shutil.which("pandoc")
     if found:
         os.environ["PYPANDOC_PANDOC"] = found

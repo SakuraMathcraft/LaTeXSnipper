@@ -120,6 +120,7 @@ internal sealed class PowerPointSettingsWindow : Form
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
             ["formulaColor"] = settings.FormulaColor,
             ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
+            ["formulaFontScale"] = settings.FormulaFontScale,
         });
         string script =
             "(function(payload){" +
@@ -164,7 +165,15 @@ internal sealed class PowerPointSettingsWindow : Form
         FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedStyle)
             ? parsedStyle
             : FormulaFontStyle.TeX;
-        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle).Save();
+        double formulaFontScale = message.TryGetValue("formulaFontScale", out object rawScale) &&
+            double.TryParse(
+                Convert.ToString(rawScale, CultureInfo.InvariantCulture),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double parsedScale)
+            ? parsedScale
+            : 1;
+        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle, formulaFontScale).Save();
         _ = SendSettingsAsync();
     }
 

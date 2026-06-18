@@ -419,9 +419,9 @@ class UninstallLayerWorker(QThread):
 
         if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
             self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
-            _cleanup_pandoc_leftovers(log_fn=self.log_updated.emit)
+            _cleanup_pandoc_leftovers(self.pyexe, log_fn=self.log_updated.emit)
 
-            pandoc_dir = _pandoc_data_dir()
+            pandoc_dir = _pandoc_data_dir(self.pyexe)
             if pandoc_dir.exists():
                 try:
                     import shutil as _shutil
@@ -434,7 +434,7 @@ class UninstallLayerWorker(QThread):
             current_path = os.environ.get("PATH", "")
             if pandoc_dir_str in current_path:
                 os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
-                self.log_updated.emit("[PANDOC] 已从 PATH 中移除 deps/pandoc")
+                self.log_updated.emit("[PANDOC] 已从 PATH 中移除依赖目录下的 pandoc")
             try:
                 from runtime.pandoc_runtime import clear_configured_pandoc_path
                 clear_configured_pandoc_path()

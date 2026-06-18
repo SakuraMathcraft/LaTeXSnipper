@@ -116,6 +116,22 @@ select {
   background: #fff;
 }
 
+.range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+
+.range-control input {
+  width: 100%;
+}
+
+.range-control output {
+  color: var(--text);
+  text-align: right;
+}
+
 .segmented button.active {
   border-color: #77a2e8;
   background: var(--accent-soft);

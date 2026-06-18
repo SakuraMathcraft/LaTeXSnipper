@@ -26,9 +26,7 @@ public sealed partial class DynamicWordApplicationAdapter
             (object equationControl, object? numberControl) =
                 FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
 
-            double naturalFontSize = metadata.FontScale == 1
-                ? fontSizePoints
-                : WordOleBaseFontPoints * metadata.FontScale;
+            double naturalFontSize = ScaleFontSize(fontSizePoints, metadata.FontScale);
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
             ShowContentControlChrome((dynamic)equationControl);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
@@ -317,6 +315,13 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = contentControl;
         double fontSize = ReadPointSize(control.Range.Font.Size);
         return fontSize > 0 ? fontSize : GetCurrentFontSizePoints();
+    }
+
+    private static double ScaleFontSize(double fontSizePoints, double fontScale)
+    {
+        double baseSize = fontSizePoints > 0 ? fontSizePoints : WordOleBaseFontPoints;
+        double scale = fontScale > 0 ? fontScale : 1;
+        return baseSize * scale;
     }
 
     private void ApplyManagedEquationFontSizeById(string equationId, double fontSizePoints)
