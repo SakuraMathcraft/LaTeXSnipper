@@ -209,7 +209,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
   + *编辑区：* 主窗口右侧是 LaTeX 编辑器，支持实时预览渲染
   + *数学工作台：* 点击"数学工作台"按钮打开独立窗口，会自动载入主编辑器中的公式。在工作台中可以编辑公式、进行数值计算或表达式化简，完成后可写回主编辑器
   + *手写识别：* 从主窗口打开手写窗口，内置识别固定使用 MathCraft 混合模式，手写文字和公式会一起识别
-  + *导出：* 右键或菜单可选择 30+ 种格式导出（部分需要 Pandoc）
+  + *导出：* 右键或菜单可选择 20 种桌面端导出格式（部分需要 Pandoc）
 ])
 
 == 日志文件在哪里（关键！）
@@ -240,8 +240,13 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - #text(weight: "bold")[手写识别：] 打开独立手写画布，写完后自动触发识别，结果可复制或写回主编辑器。
 - #text(weight: "bold")[双语阅读：] 打开 PDF 阅读/翻译窗口，左侧查看 PDF，右侧显示当前页原文与中文。
 - #text(weight: "bold")[数学工作台：] 将主编辑器中的公式载入 MathLive 工作台，进行计算、化简、展开、因式分解、求解等操作。
-- #text(weight: "bold")[复制 / 导出：] 复制当前编辑器内容，或通过统一导出菜单导出为 LaTeX、Markdown、MathML、HTML、OMML、SVG 以及 Pandoc 扩展格式。
+- #text(weight: "bold")[复制 / 导出：] 复制当前编辑器内容，或通过统一导出菜单导出为 LaTeX、Markdown、MathML、HTML、OMML、SVG 以及 Pandoc 扩展格式（Word、ODT、PowerPoint、EPUB、PDF、HTML 独立页、Typst、纯文本）。
 - #text(weight: "bold")[收藏夹 / 历史记录：] 历史项和收藏项都支持复制、编辑、导出、重命名和删除。
+
+桌面端当前共有 #text(weight: "bold")[20 种导出格式]：
+
+- #text(weight: "bold")[内置格式（无需 Pandoc）：] LaTeX 行内、LaTeX display、LaTeX equation、Markdown 行内、Markdown 块级、MathML、MathML `.mml`、MathML `<m>`、MathML 属性形式、HTML、Word OMML、SVG Code
+- #text(weight: "bold")[Pandoc 扩展格式：] Word `.docx`、ODT `.odt`、PowerPoint `.pptx`、EPUB `.epub`、PDF `.pdf`、HTML 独立页 `.html`、Typst `.typ`、纯文本 `.txt`
 
 托盘或菜单栏状态菜单还提供 #text(weight: "bold")[截图屏幕模式]：自动模式会按鼠标释放点选择屏幕，也可以固定到某一块显示器。多屏截图位置不对时，优先检查这里。
 
@@ -758,18 +763,19 @@ https://www.python.org/downloads/macos/
 
 == 导出功能不可用（Pandoc 相关）
 
-*现象：* 导出 Word / EPUB / Typst 等格式时报错或选项灰色。
+*现象：* 导出 Word / PowerPoint / EPUB / PDF / Typst 等格式时报错或选项灰色。
 
 #v(0.35em)
 
-*原因：* 这些格式依赖 Pandoc。Pandoc 是可选的外部工具。
+*原因：* 这些格式依赖 Pandoc。Pandoc 是可选的外部工具；PDF 导出还需要系统中可用的 LaTeX PDF 引擎（XeLaTeX、LuaLaTeX 或 pdfLaTeX）。
 
 #v(0.35em)
 
 *解决：*
 - 打开依赖向导，安装 "PANDOC" 层
 - 或手动安装 Pandoc（https://pandoc.org）并确保在 PATH 中
-- 核心功能（LaTeX / Markdown / MathML / HTML 导出）不需要 Pandoc
+- 核心功能（LaTeX / Markdown / MathML / HTML / OMML / SVG 导出）不需要 Pandoc
+- PDF 导出如果继续失败，请确认已安装 TeX Live / MiKTeX 等 LaTeX 发行版，并且 `xelatex`、`lualatex` 或 `pdflatex` 可在 PATH 中找到
 
 == 手写识别不触发 / 延迟太高
 

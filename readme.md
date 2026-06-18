@@ -37,7 +37,7 @@
 | ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
 | 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
 | ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
-| 🔄 Multi-format export | 30 export choices across LaTeX, Markdown, MathML, HTML, OMML, SVG, Typst, Word, EPUB, RTF, wiki formats, and more |
+| 🔄 Multi-format export | 20 export formats across LaTeX, Markdown, MathML, HTML, OMML, SVG, Word, ODT, PowerPoint, EPUB, PDF, Typst, and plain text |
 | 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
 | 🧠 Advanced fallback | Local `SymPy/mpmath` engine for harder expressions |
 | 🌙 Theme support | Light/Dark adaptation across windows and tools |
@@ -82,7 +82,7 @@ The workbench currently covers common scenarios such as:
 
 ## Export Formats
 
-LaTeXSnipper exposes a shared export menu in the main window and favorites window.
+LaTeXSnipper exposes a shared export menu in the main window and favorites window. The desktop app currently provides 20 export formats.
 
 Built-in formula export formats:
 
@@ -93,10 +93,9 @@ Built-in formula export formats:
 
 Optional Pandoc export formats are enabled after installing the `PANDOC` layer in the dependency wizard:
 
-- Word `.docx`, ODT `.odt`, EPUB `.epub`, InDesign `.icml`
-- RTF, plain text, standalone HTML, LaTeX `.tex`, Typst `.typ`
-- GitHub Markdown, CommonMark, reStructuredText
-- MediaWiki, DokuWiki, Org-mode, Textile, Jira Wiki, and man page output
+- Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`
+- PDF `.pdf` (requires Pandoc plus a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX)
+- Standalone HTML `.html`, Typst `.typ`, and plain text `.txt`
 
 ---
 
