@@ -471,7 +471,18 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ApplyNumberedParagraphLayout" in adapter
     assert "TabStops.Add" in adapter
     assert "ClearParagraphContent(paragraphRange)" in adapter
-    assert "ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId)" in adapter
+    assert "metadata.NumberingMode != currentMetadata.NumberingMode ||" in adapter
+    assert "metadata.NumberingMode != NumberingMode.None" in adapter.split(
+        "private void ReplaceFormulaContent",
+        1,
+    )[1].split("private void ReplaceParagraphWithFormula", 1)[0]
+    assert "metadata.DisplayMode != FormulaDisplayMode.Inline" in adapter.split(
+        "private void ReplaceFormulaContent",
+        1,
+    )[1].split("private void ReplaceParagraphWithFormula", 1)[0]
+    assert "ReplaceExistingEquationControlContent(control, equationContentOoxml, metadata)" in adapter
+    assert "SaveFormulaMetadata(control, metadata)" in adapter
+    assert "ReplaceParagraphWithFormula(control, ooxml, metadata)" in adapter
     assert "ReplaceNumberedFormulaControl" not in adapter
     assert "RemoveEmptyParagraphBeforeFollowingContent" in adapter
     assert "paragraphRange.Delete()" not in adapter
@@ -1784,6 +1795,7 @@ def test_word_managed_content_control_chrome_matches_control_role() -> None:
     assert "HideContentControlChrome(control)" in boundary_visibility
     assert "ApplyMetadataControlFormatting" not in metadata
     assert 'xmlns:w15=\\"http://schemas.microsoft.com/office/word/2012/wordml\\"' in builder
+    assert "BuildFlatOpcEquationContentDocument" in builder
     assert builder.count('<w15:appearance w15:val=\\"hidden\\"/>') == 1
     assert '<w15:appearance w15:val=\\"tags\\"/>' not in builder
 

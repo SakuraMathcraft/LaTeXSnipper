@@ -170,6 +170,7 @@ public sealed partial class WordPluginController
                             formatted.Identity.EquationId,
                             prepared.Ooxml!,
                             prepared.EquationOoxml!,
+                            prepared.EquationContentOoxml!,
                             formatted,
                             prepared.Display,
                             cancellationToken);

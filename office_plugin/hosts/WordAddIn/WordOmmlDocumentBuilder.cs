@@ -83,6 +83,20 @@ public static class WordOmmlDocumentBuilder
         return WrapFlatOpc(documentXml);
     }
 
+    public static string BuildFlatOpcEquationContentDocument(string omml)
+    {
+        if (string.IsNullOrWhiteSpace(omml))
+        {
+            throw new ArgumentException("OMML is required.", nameof(omml));
+        }
+
+        string documentXml =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+            " xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">" +
+            "<w:body><w:p>" + ExtractEquationOmml(omml) + "</w:p></w:body></w:document>";
+        return WrapFlatOpc(documentXml);
+    }
+
     private static string BuildInlineBody(string omml, FormulaMetadata metadata)
     {
         return "<w:p>" +

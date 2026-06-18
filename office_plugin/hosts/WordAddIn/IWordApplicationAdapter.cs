@@ -34,7 +34,14 @@ public interface IWordApplicationAdapter
 
     Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 
-    Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken);
+    Task UpdateFormulaAsync(
+        string equationId,
+        string ooxml,
+        string equationOoxml,
+        string equationContentOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken);
 
     Task ResetManagedEquationFormattingAsync(FormulaMetadata metadata, CancellationToken cancellationToken);
 
