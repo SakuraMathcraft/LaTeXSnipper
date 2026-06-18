@@ -1,4 +1,4 @@
-# LaTeXSnipper Office Plugin
+﻿# LaTeXSnipper Office Plugin
 
 Released Windows VSTO add-in for Microsoft Word and PowerPoint. It inserts and maintains LaTeXSnipper OLE formulas and provides native Word OMML and PowerPoint PNG alternatives. Formula editing and rendering are fully local; the desktop Bridge at `127.0.0.1:28765` is used only for screenshot recognition.
 
@@ -62,9 +62,9 @@ Shared libraries target `net48;net9.0`. Office hosts target .NET Framework 4.8. 
 The release build requires Visual Studio 2022 with Office/SharePoint and Visual C++ ATL workloads, .NET 9 SDK, and Inno Setup 6. Run from the repository root:
 
 ```batch
-office_plugin\installer\build.bat 2.3.2 Release
+office_plugin\installer\build.bat 2.4.0 Release
 ```
 
-Output: `office_plugin\dist\OfficePluginSetup-2.3.2.exe`
+Output: `office_plugin\dist\OfficePluginSetup-2.4.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.

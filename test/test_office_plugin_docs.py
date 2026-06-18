@@ -1,4 +1,4 @@
-# coding: utf-8
+﻿# coding: utf-8
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def test_office_docs_describe_the_released_plugin() -> None:
     assert "released Windows plugin" in root_readme
     assert "OfficePluginSetup-<version>.exe" in root_readme
     assert "Released Windows VSTO add-in" in plugin_readme
-    assert "office_plugin\\installer\\build.bat 2.3.2 Release" in plugin_readme
+    assert "office_plugin\\installer\\build.bat 2.4.0 Release" in plugin_readme
     assert "127.0.0.1:28765" in plugin_readme
     assert "Office 2016 is not officially supported" in plugin_readme
     assert "Office 2024 / 2021 / 2019" in plugin_readme

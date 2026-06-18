@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+﻿# -*- mode: python ; coding: utf-8 -*-
 """
 LaTeXSnipper PyInstaller spec for macOS.
 
@@ -340,8 +340,8 @@ app_bundle = BUNDLE(
         "CFBundleName": APP_NAME,
         "CFBundleDisplayName": "LaTeXSnipper",
         "CFBundleIdentifier": "com.mathcraft.latexsnipper",
-        "CFBundleVersion": "2.3.2",
-        "CFBundleShortVersionString": "2.3.2",
+        "CFBundleVersion": "2.4.0",
+        "CFBundleShortVersionString": "2.4.0",
         "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
         "CFBundleDocumentTypes": [],
         "LSMinimumSystemVersion": "11.0",

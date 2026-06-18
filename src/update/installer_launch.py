@@ -54,7 +54,7 @@ def _prepare_app_for_update_exit() -> None:
 
 def _read_signature_status(path: str) -> str:
     ext = Path(path).suffix.lower()
-    if os.name != "nt" or ext not in (".exe", ".msi"):
+    if os.name != "nt" or ext != ".exe":
         return "未校验（非 Windows 安装器）"
     try:
         escaped_path = path.replace("'", "''")

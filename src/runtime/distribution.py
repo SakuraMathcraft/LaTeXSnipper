@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-APP_VERSION = "v2.3.2"
+APP_VERSION = "v2.4.0"
 
 CHANNEL_GITHUB = "github"
 CHANNEL_STORE = "store"
