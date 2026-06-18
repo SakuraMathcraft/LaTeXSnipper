@@ -21,10 +21,16 @@ public sealed partial class DynamicWordApplicationAdapter
     public Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<WordFormulaEntry> entries = FindSelectedFormulas()
+        IReadOnlyList<WordFormulaEntry> entries = CollectSelectedFormulas()
             .Select(item => new WordFormulaEntry(GetFormulaStart(item), item.Metadata))
+            .Concat(CollectSelectedNativeWordFormulaEntries())
             .OrderByDescending(item => item.Start)
             .ToArray();
+        if (entries.Count == 0)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
         return Task.FromResult(entries);
     }
 

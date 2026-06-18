@@ -112,7 +112,7 @@ window.LaTeXSnipperMathJax = {
       const display = input.displayMode !== 'Inline';
       const scale = Number(input.fontScale) > 0 ? Number(input.fontScale) : 1;
       const trimmed = originalSource.trim();
-      const isMathMl = /^<math(\s|>|:)/i.test(trimmed);
+      const isMathMl = /^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(trimmed);
       const source = isMathMl ? trimmed : this.normalizeMathLiveLatex(originalSource);
       const container = isMathMl && MathJax.mathml2svg
         ? MathJax.mathml2svg(source, { display: display })
@@ -142,6 +142,14 @@ window.LaTeXSnipperMathJax = {
     try {
       const originalSource = input.latex || '';
       const display = input.displayMode !== 'Inline';
+      const trimmed = originalSource.trim();
+      if (/^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(trimmed)) {
+        return {
+          mathml: trimmed,
+          version: this.version
+        };
+      }
+
       const source = this.normalizeMathLiveLatex(originalSource);
       const root = MathJax.startup.document.convert(source, {
         display: display,

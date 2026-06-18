@@ -94,7 +94,7 @@ function sourceLatex(stripDefaultWrapper) {
 function removeDefaultFontWrapper(latex) {
   const commands = {
     RomanUpright: ["\\mathrm"],
-    Bold: ["\\mathbf", "\\boldsymbol"],
+    Bold: ["\\mathbf", "\\boldsymbol", "\\bm"],
     Italic: ["\\mathit"],
   }[defaultFontStyle] || [];
   for (const command of commands) {

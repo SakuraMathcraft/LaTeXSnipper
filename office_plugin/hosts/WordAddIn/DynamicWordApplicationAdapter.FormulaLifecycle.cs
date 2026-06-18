@@ -89,6 +89,44 @@ public sealed partial class DynamicWordApplicationAdapter
         return ReplaceOleFormulaObjectAsync(equationId, metadata, presentation, display, preserveUserScale: false, cancellationToken);
     }
 
+    public Task ReplaceNativeWordFormulaWithOleAsync(
+        int sourceStart,
+        FormulaMetadata metadata,
+        OlePresentationResult presentation,
+        bool display,
+        CancellationToken cancellationToken)
+    {
+        if (metadata == null)
+        {
+            throw new ArgumentNullException(nameof(metadata));
+        }
+
+        if (presentation == null)
+        {
+            throw new ArgumentNullException(nameof(presentation));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        ExecuteWithScreenUpdatingSuspended(() =>
+        {
+            dynamic nativeEquation = FindNativeWordFormulaByStart(sourceStart);
+            string originalOoxml = Convert.ToString(nativeEquation.Range.WordOpenXML) ?? string.Empty;
+            dynamic insertionRange = RemoveNativeWordFormulaSource(nativeEquation, display);
+            try
+            {
+                dynamic inserted = InsertPlainOleInlineShape(insertionRange, metadata, presentation, display);
+                SaveFormulaMetadata(metadata);
+                MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
+            }
+            catch
+            {
+                RestoreNativeWordFormula(insertionRange, originalOoxml);
+                throw;
+            }
+        });
+        return Task.CompletedTask;
+    }
+
     private Task ReplaceOleFormulaObjectAsync(
         string equationId,
         FormulaMetadata metadata,
@@ -193,6 +231,55 @@ public sealed partial class DynamicWordApplicationAdapter
         });
 
         return Task.CompletedTask;
+    }
+
+    private dynamic FindNativeWordFormulaByStart(int sourceStart)
+    {
+        dynamic equations = _wordApplication.ActiveDocument.OMaths;
+        int count = Convert.ToInt32(equations.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic equation = equations.Item(index);
+            if (GetRangeStart(equation.Range) == sourceStart)
+            {
+                return equation;
+            }
+        }
+
+        throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+    }
+
+    private dynamic RemoveNativeWordFormulaSource(dynamic nativeEquation, bool display)
+    {
+        dynamic sourceRange = nativeEquation.Range;
+        if (display)
+        {
+            dynamic paragraphRange = sourceRange.Paragraphs.Item(1).Range;
+            return ClearParagraphContent(paragraphRange);
+        }
+
+        int insertionPoint = GetRangeStart(sourceRange);
+        sourceRange.Text = InlineConversionSlot;
+        return CreateDocumentRange(
+            insertionPoint,
+            insertionPoint + InlineConversionSlot.Length);
+    }
+
+    private static void RestoreNativeWordFormula(dynamic insertionRange, string originalOoxml)
+    {
+        if (string.IsNullOrWhiteSpace(originalOoxml))
+        {
+            return;
+        }
+
+        try
+        {
+            insertionRange.Text = string.Empty;
+            insertionRange.InsertXML(originalOoxml);
+        }
+        catch
+        {
+        }
     }
 
     private dynamic InsertPlainOleInlineShape(dynamic range, FormulaMetadata metadata, OlePresentationResult presentation, bool display)

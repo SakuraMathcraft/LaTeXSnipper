@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import io
+import sys
+import types
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -178,6 +181,60 @@ def test_real_world_mixed_problem_exports_are_structured() -> None:
     assert isinstance(pdf, bytes)
     assert pdf.startswith(b"%PDF-")
     assert len(pdf) > 1000
+
+
+def test_pdf_export_returns_generated_pdf_after_pandoc_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_pypandoc = types.SimpleNamespace()
+
+    def convert_text(*args: object, outputfile: str, **kwargs: object) -> None:
+        Path(outputfile).write_bytes(b"%PDF-1.7\npartial pdf")
+        raise RuntimeError("LaTeX returned a non-zero exit code")
+
+    fake_pypandoc.convert_text = convert_text
+    monkeypatch.setitem(sys.modules, "pypandoc", fake_pypandoc)
+    monkeypatch.setattr(pandoc_exporter, "is_available", lambda: True)
+    monkeypatch.setattr(pandoc_exporter, "_find_pdf_engine", lambda: "xelatex")
+
+    result = pandoc_exporter.convert_latex_to("pandoc_pdf", r"\frac{1}{x}")
+
+    assert result == b"%PDF-1.7\npartial pdf"
+
+
+def test_pdf_export_rejects_invalid_file_after_pandoc_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_pypandoc = types.SimpleNamespace()
+
+    def convert_text(*args: object, outputfile: str, **kwargs: object) -> None:
+        Path(outputfile).write_bytes(b"not a pdf")
+        raise RuntimeError("LaTeX returned a non-zero exit code")
+
+    fake_pypandoc.convert_text = convert_text
+    monkeypatch.setitem(sys.modules, "pypandoc", fake_pypandoc)
+    monkeypatch.setattr(pandoc_exporter, "is_available", lambda: True)
+    monkeypatch.setattr(pandoc_exporter, "_find_pdf_engine", lambda: "xelatex")
+
+    with pytest.raises(pandoc_exporter.PandocConversionError):
+        pandoc_exporter.convert_latex_to("pandoc_pdf", r"\frac{1}{x}")
+
+
+def test_non_pdf_file_export_still_fails_after_pandoc_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_pypandoc = types.SimpleNamespace()
+
+    def convert_text(*args: object, outputfile: str, **kwargs: object) -> None:
+        Path(outputfile).write_bytes(b"PK\x03\x04partial zip")
+        raise RuntimeError("Pandoc returned a non-zero exit code")
+
+    fake_pypandoc.convert_text = convert_text
+    monkeypatch.setitem(sys.modules, "pypandoc", fake_pypandoc)
+    monkeypatch.setattr(pandoc_exporter, "is_available", lambda: True)
+
+    with pytest.raises(pandoc_exporter.PandocConversionError):
+        pandoc_exporter.convert_latex_to("pandoc_docx", r"\frac{1}{x}")
 
 
 def _read_zip(result: str | bytes) -> dict[str, bytes]:

@@ -90,6 +90,7 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert "requestIdleCallback(syncSourceNow" in editor_js
         assert "cancelIdleCallback(sourceSyncHandle)" in editor_js
         assert "removeDefaultFontWrapper" in editor_js
+        assert 'Bold: ["\\\\mathbf", "\\\\boldsymbol", "\\\\bm"]' in editor_js
         assert "mathfield.onScrollIntoView = scheduleCaretVisibility" in editor_js
         assert 'querySelector(".ML__caret, .ML__latex-caret")' in editor_js
         assert (
@@ -1170,7 +1171,26 @@ def test_editor_applies_formula_metadata_color() -> None:
 
 def test_office_native_conversion_paths_use_local_mathjax() -> None:
     word_controller = (PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs").read_text(encoding="utf-8")
+    word_document_commands = (
+        PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.DocumentCommands.cs"
+    ).read_text(encoding="utf-8")
     omml_converter = (PLUGIN / "hosts" / "WordAddIn" / "MathMlToOmmlConverter.cs").read_text(encoding="utf-8")
+    native_omml_converter = (
+        PLUGIN / "hosts" / "WordAddIn" / "OmmlToMathMlConverter.cs"
+    ).read_text(encoding="utf-8")
+    word_entry = (PLUGIN / "hosts" / "WordAddIn" / "WordFormulaEntry.cs").read_text(encoding="utf-8")
+    word_adapter = (
+        PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.SelectionDiscovery.cs"
+    ).read_text(encoding="utf-8")
+    word_lifecycle = (
+        PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.FormulaLifecycle.cs"
+    ).read_text(encoding="utf-8")
+    mathjax_script = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Rendering"
+        / "MathJaxRenderScriptBuilder.cs"
+    ).read_text(encoding="utf-8")
     power_point_controller = (
         PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
     ).read_text(encoding="utf-8")
@@ -1181,7 +1201,22 @@ def test_office_native_conversion_paths_use_local_mathjax() -> None:
     assert "ConvertToMathMlAsync" in word_controller
     assert 'new[] { "omml" }' not in word_controller
     assert "MML2OMML.XSL" in omml_converter
+    assert "OMML2MML.XSL" in native_omml_converter
     assert "XslCompiledTransform" in omml_converter
+    assert "XslCompiledTransform" in native_omml_converter
+    assert "NormalizeMathMl(output.ToString())" in native_omml_converter
+    assert 'document.Root?.Name.LocalName == "math"' in native_omml_converter
+    assert "IsNativeWordFormula" in word_entry
+    assert "CollectSelectedNativeWordFormulaEntries" in word_adapter
+    assert "TryGetParentContentControl(range) != null" in word_adapter
+    assert "ReplaceNativeWordFormulaWithOleAsync" in word_document_commands
+    assert "ReplaceNativeWordFormulaWithOleAsync" in word_lifecycle
+    assert "RestoreNativeWordFormula(insertionRange, originalOoxml)" in word_lifecycle
+    assert "insertionRange.InsertXML(originalOoxml)" in word_lifecycle
+    assert 'StartsWith("<?xml"' in word_controller
+    assert "<\\?xml[\\s\\S]*?\\?>" in mathjax_script
+    assert "^<([a-z_][\\w.-]*:)?math" not in mathjax_script
+    assert "mathml: trimmed" in mathjax_script
     assert "SvgPngRasterizer.Rasterize" in power_point_controller
     assert 'new[] { "png" }' not in power_point_controller
     assert "SvgVectorGraphicsRenderer.Draw" in png_rasterizer

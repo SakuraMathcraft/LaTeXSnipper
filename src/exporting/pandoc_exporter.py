@@ -171,11 +171,23 @@ def _wrap_formula_in_document(latex: str) -> str:
 
 
 def _find_pdf_engine() -> str | None:
-    import shutil as _shutil
     for engine in ("xelatex", "lualatex", "pdflatex"):
-        if _shutil.which(engine):
+        if shutil.which(engine):
             return engine
     return None
+
+
+def _pdf_text_font_args() -> list[str]:
+    if os.name == "nt":
+        main_font = "Times New Roman"
+        cjk_font = "SimSun"
+    elif sys.platform == "darwin":
+        main_font = "Times New Roman"
+        cjk_font = "Songti SC"
+    else:
+        main_font = "TeX Gyre Termes"
+        cjk_font = "Noto Serif CJK SC"
+    return ["-V", f"mainfont={main_font}", "-V", f"CJKmainfont={cjk_font}"]
 
 
 def _preprocess_for_pptx(text: str) -> str:
@@ -215,6 +227,16 @@ def _ensure_mathjax_script(html: str) -> str:
     if head_end >= 0:
         return html[:head_end] + script + html[head_end:]
     return script + html
+
+
+def _read_valid_file_output(path: str, target_key: str) -> bytes | None:
+    output_path = Path(path)
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        return None
+    data = output_path.read_bytes()
+    if target_key == "pandoc_pdf" and not data.startswith(b"%PDF-"):
+        return None
+    return data
 
 
 def convert_latex_to(
@@ -277,11 +299,7 @@ def convert_latex_to(
                 "未找到 LaTeX 引擎，无法导出 PDF。"
             )
         if is_text_content and "--pdf-engine" in args:
-            font_path = Path(__file__).resolve().parent.parent.parent / "LaTeXSnipper_user_manual" / "fonts" / "NotoSansCJKsc-Regular.otf"
-            if font_path.is_file():
-                args.extend(["-V", f"mainfont={font_path}", "-V", f"CJKmainfont={font_path}"])
-            else:
-                args.extend(["-V", "CJKmainfont=Microsoft YaHei"])
+            args.extend(_pdf_text_font_args())
 
     if fmt.needs_file:
         with tempfile.NamedTemporaryFile(
@@ -296,9 +314,20 @@ def convert_latex_to(
                 outputfile=tmp_path,
                 extra_args=args,
             )
-            data = Path(tmp_path).read_bytes()
+            data = _read_valid_file_output(tmp_path, target_key)
+            if data is None:
+                raise PandocConversionError(
+                    f"Pandoc conversion to {fmt.pandoc_format} produced no output"
+                )
             return data
         except Exception as exc:
+            data = _read_valid_file_output(tmp_path, target_key)
+            if target_key == "pandoc_pdf" and data is not None:
+                logger.warning(
+                    "Pandoc reported a PDF conversion error after producing a valid PDF: %s",
+                    exc,
+                )
+                return data
             raise PandocConversionError(
                 f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
             ) from exc

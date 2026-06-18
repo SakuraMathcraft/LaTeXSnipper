@@ -55,7 +55,6 @@ def find_dependency_python(base_dir: str | Path | None) -> Path | None:
         return find_existing_python(base)
     except Exception:
         return None
-    return None
 
 
 def _existing_file(path: str | Path | None) -> str:
