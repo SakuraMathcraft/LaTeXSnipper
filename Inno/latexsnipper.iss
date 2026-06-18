@@ -1,4 +1,4 @@
-﻿#define MyAppName "LaTeXSnipper"
+#define MyAppName "LaTeXSnipper"
 #define MyAppVersion "2.4.0"
 #define MyAppPublisher "MathCraft"
 #define MyAppURL "https://github.com/SakuraMathcraft/LaTeXSnipper"

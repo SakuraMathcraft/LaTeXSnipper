@@ -3,9 +3,45 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
+BOM_CHECK_ROOTS = (
+    ".github",
+    "docs",
+    "Inno",
+    "office_plugin",
+    "packaging",
+    "scripts",
+    "src",
+    "test",
+    "user_manual",
+)
+BOM_CHECK_EXTENSIONS = {
+    ".bat",
+    ".cmd",
+    ".cs",
+    ".csproj",
+    ".css",
+    ".html",
+    ".iss",
+    ".isl",
+    ".js",
+    ".json",
+    ".md",
+    ".props",
+    ".ps1",
+    ".py",
+    ".rc",
+    ".sh",
+    ".targets",
+    ".txt",
+    ".typ",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
 
 
 def test_dependency_wizard_does_not_manage_system_screenshot_packages() -> None:
@@ -59,6 +95,35 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     assert "tools/deps/" not in macos_spec
     assert "BUNDLED_PY311" not in macos_spec
     assert "LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME" not in macos_spec
+
+
+def test_debian_control_template_is_dpkg_safe() -> None:
+    control_bytes = (ROOT / "packaging" / "debian" / "DEBIAN" / "control").read_bytes()
+    package_common = (ROOT / "scripts" / "package_common.sh").read_text(encoding="utf-8")
+
+    assert not control_bytes.startswith(b"\xef\xbb\xbf")
+    assert control_bytes.startswith(b"Package: latexsnipper\n")
+    assert 'encoding="utf-8-sig"' in package_common
+
+
+def test_text_sources_do_not_use_utf8_bom() -> None:
+    offenders: list[str] = []
+    ignored_parts = {"bin", "obj", "node_modules"}
+    for root_name in BOM_CHECK_ROOTS:
+        root = ROOT / root_name
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in BOM_CHECK_EXTENSIONS:
+                continue
+            if path.name.endswith(".user.props"):
+                continue
+            if ignored_parts.intersection(path.parts):
+                continue
+            if path.read_bytes().startswith(b"\xef\xbb\xbf"):
+                offenders.append(path.relative_to(ROOT).as_posix())
+
+    assert offenders == []
 
 
 def test_macos_spec_bundles_collected_dependencies() -> None:
@@ -160,3 +225,20 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "Normalize-BundledPythonSeed -Root $root" not in script
     assert "LaTeXSnipperSetup-2.4.0.exe" not in script
     assert 'Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File' in script
+
+
+def test_windows_version_resource_matches_release_version() -> None:
+    version_info = (ROOT / "version_info.txt").read_text(encoding="utf-8")
+    file_version = re.search(r"StringStruct\('FileVersion', '([^']+)'\)", version_info)
+    product_version = re.search(r"StringStruct\('ProductVersion', '([^']+)'\)", version_info)
+    filevers = re.search(r"filevers=\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)", version_info)
+    prodvers = re.search(r"prodvers=\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)", version_info)
+
+    assert file_version is not None
+    assert product_version is not None
+    assert filevers is not None
+    assert prodvers is not None
+    expected = tuple(int(part) for part in file_version.group(1).split(".")) + (0,)
+    assert product_version.group(1) == file_version.group(1)
+    assert tuple(int(part) for part in filevers.groups()) == expected
+    assert tuple(int(part) for part in prodvers.groups()) == expected

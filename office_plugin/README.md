@@ -1,4 +1,4 @@
-﻿# LaTeXSnipper Office Plugin
+# LaTeXSnipper Office Plugin
 
 Released Windows VSTO add-in for Microsoft Word and PowerPoint. It inserts and maintains LaTeXSnipper OLE formulas and provides native Word OMML and PowerPoint PNG alternatives. Formula editing and rendering are fully local; the desktop Bridge at `127.0.0.1:28765` is used only for screenshot recognition.
 
@@ -17,6 +17,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 ## Features
 
 ### Word
+
 - OLE formula insertion and update
 - Native OMML formula insertion (inline, display, numbered)
 - Load, update, and delete managed formulas
@@ -26,6 +27,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Screenshot OCR via desktop Bridge
 
 ### PowerPoint
+
 - OLE and PNG formula insertion
 - Load, update, and delete managed formulas
 - In-place conversion of one selected managed formula between OLE and PNG
@@ -34,6 +36,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Screenshot OCR via desktop Bridge
 
 ### Shared
+
 - Reusable WebView2/MathLive formula editor
 - 18-category shared symbol and formula library
 - Chinese and English Ribbon, task pane, editor, settings, and help

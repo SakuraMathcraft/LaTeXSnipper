@@ -1,4 +1,4 @@
-﻿# coding: utf-8
+# coding: utf-8
 
 from __future__ import annotations
 
@@ -1044,6 +1044,19 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert hashlib.sha256(installers[0].read_bytes()).hexdigest() == checksum_text.split()[0]
 
 
+def test_office_formula_metadata_com_regression_script_is_available() -> None:
+    script = PLUGIN / "tools" / "Test-FormulaMetadataCom.ps1"
+    text = script.read_text(encoding="utf-8")
+
+    assert "Test-WordFormulaMetadata" in text
+    assert "Test-PowerPointFormulaMetadata" in text
+    assert "Word OMML ContentControl metadata save/update/delete-undo OK" in text
+    assert "Word OLE AlternativeText metadata natural-size/delete-undo OK" in text
+    assert "PowerPoint shape metadata long-latex/update/duplicate/delete-undo OK" in text
+    assert "WordFormulaMetadataStore" in text
+    assert "PowerPointFormulaMetadataStore" in text
+
+
 def test_office_plugin_help_describes_current_paths() -> None:
     for host in ("WordAddIn", "PowerPointAddIn"):
         help_html = (PLUGIN / "hosts" / host / "EditorAssets" / "help.html").read_text(encoding="utf-8")
@@ -1588,6 +1601,16 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "replacementOoxml = equationOoxml" in adapter
     assert 'private const string InlineConversionSlot = "\\u2060";' in adapter
     assert "CreateInlineConversionSlot(insertionPoint)" in adapter
+    inline_update = adapter.split("private void ReplaceExistingEquationControlContent", 1)[1].split(
+        "private void ValidateInsertionTarget",
+        1,
+    )[0]
+    assert "ReplaceOmmlRangeWithParsedFormula(equations.Item(1).Range, equationContentOoxml)" in inline_update
+    assert "targetEquationRange.FormattedText = scratchEquations.Item(1).Range.FormattedText" in inline_update
+    assert "_wordApplication.Documents.Add()" in inline_update
+    assert "scratchDocument.Close(false)" in inline_update
+    assert "equationRange.Text = InlineConversionSlot" not in inline_update
+    assert "control.Range.Text = InlineConversionSlot" not in inline_update
     assert "control.Delete(false)" in adapter
     assert "dynamic insertionRange = RemoveOmmlConversionSource(control, metadata)" in adapter
     remove_source = adapter.split("private dynamic RemoveOmmlConversionSource", 1)[1].split(

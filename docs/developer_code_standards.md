@@ -1,4 +1,4 @@
-﻿# Developer Code Standards
+# Developer Code Standards
 
 These rules are mandatory for pull requests. They keep the desktop app,
 MathCraft OCR package, dependency bootstrap flow, and platform packaging paths

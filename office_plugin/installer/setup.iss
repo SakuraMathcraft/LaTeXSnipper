@@ -1,4 +1,4 @@
-﻿; LaTeXSnipper Office Plugin - Inno Setup Installer
+; LaTeXSnipper Office Plugin - Inno Setup Installer
 ; Build: iscc /DVersion=%VERSION% /DConfig=Release installer.iss
 ;   or for Debug: iscc /DVersion=2.4.0 /DConfig=Debug installer.iss
 

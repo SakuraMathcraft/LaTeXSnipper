@@ -274,7 +274,7 @@ import sys
 
 control_path = pathlib.Path(sys.argv[1])
 package_name, version, installed_size, description = sys.argv[2:6]
-lines = control_path.read_text(encoding="utf-8").splitlines()
+lines = control_path.read_text(encoding="utf-8-sig").splitlines()
 out = []
 for line in lines:
     if line.startswith("Package:"):
