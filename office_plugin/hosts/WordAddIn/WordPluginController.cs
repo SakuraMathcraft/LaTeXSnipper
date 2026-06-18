@@ -32,13 +32,20 @@ public sealed partial class WordPluginController : IDisposable
 
     private sealed class PreparedWordFormula
     {
-        public PreparedWordFormula(FormulaMetadata metadata, bool display, OlePresentationResult? olePresentation, string? ooxml, string? equationOoxml)
+        public PreparedWordFormula(
+            FormulaMetadata metadata,
+            bool display,
+            OlePresentationResult? olePresentation,
+            string? ooxml,
+            string? equationOoxml,
+            string? equationContentOoxml)
         {
             Metadata = metadata;
             Display = display;
             OlePresentation = olePresentation;
             Ooxml = ooxml;
             EquationOoxml = equationOoxml;
+            EquationContentOoxml = equationContentOoxml;
         }
 
         public FormulaMetadata Metadata { get; }
@@ -50,6 +57,8 @@ public sealed partial class WordPluginController : IDisposable
         public string? Ooxml { get; }
 
         public string? EquationOoxml { get; }
+
+        public string? EquationContentOoxml { get; }
     }
 
     public WordPluginController(
@@ -414,7 +423,7 @@ public sealed partial class WordPluginController : IDisposable
 
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, renderedLatex, cancellationToken);
-            return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null);
+            return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null, null);
         }
 
         if (reportProgress)
@@ -425,7 +434,8 @@ public sealed partial class WordPluginController : IDisposable
         string omml = _ommlConverter.Convert(mathMl);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
         string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(omml, metadata) : null;
-        return new PreparedWordFormula(metadata, IsDisplay(metadata), null, ooxml, equationOoxml);
+        string? equationContentOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcEquationContentDocument(omml) : null;
+        return new PreparedWordFormula(metadata, IsDisplay(metadata), null, ooxml, equationOoxml, equationContentOoxml);
     }
 
     private async Task InsertPreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken)
@@ -454,7 +464,14 @@ public sealed partial class WordPluginController : IDisposable
             return;
         }
 
-        await _wordAdapter.UpdateFormulaAsync(prepared.Metadata.Identity.EquationId, prepared.Ooxml!, prepared.EquationOoxml!, prepared.Metadata, prepared.Display, cancellationToken);
+        await _wordAdapter.UpdateFormulaAsync(
+            prepared.Metadata.Identity.EquationId,
+            prepared.Ooxml!,
+            prepared.EquationOoxml!,
+            prepared.EquationContentOoxml!,
+            prepared.Metadata,
+            prepared.Display,
+            cancellationToken);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
     }
 

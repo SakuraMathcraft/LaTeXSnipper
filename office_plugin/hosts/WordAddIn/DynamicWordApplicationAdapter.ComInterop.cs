@@ -195,4 +195,12 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new ArgumentNullException(nameof(metadata));
         }
     }
+
+    private static void ValidateManagedEquationContentInput(string ooxml)
+    {
+        if (string.IsNullOrWhiteSpace(ooxml))
+        {
+            throw new ArgumentException("Equation content OOXML is required.", nameof(ooxml));
+        }
+    }
 }

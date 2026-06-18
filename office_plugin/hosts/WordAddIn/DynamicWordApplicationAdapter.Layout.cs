@@ -9,51 +9,54 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    private void ReplaceFormulaContent(object contentControl, string ooxml, string equationOoxml, FormulaMetadata metadata)
+    private void ReplaceFormulaContent(
+        object contentControl,
+        string ooxml,
+        string equationContentOoxml,
+        FormulaMetadata metadata,
+        FormulaMetadata currentMetadata)
     {
         dynamic control = contentControl;
-        if (metadata.NumberingMode != NumberingMode.None)
+        if (metadata.NumberingMode != currentMetadata.NumberingMode ||
+            metadata.NumberingMode != NumberingMode.None ||
+            metadata.DisplayMode != FormulaDisplayMode.Inline)
         {
-            ReplaceParagraphWithNumberedFormula(control, ooxml, metadata.Identity.EquationId);
-            ApplyNumberControlVerticalAlignmentById(metadata);
-            NormalizeNumberedParagraph(metadata.Identity.EquationId);
-        }
-        else
-        {
-            dynamic range = ResolveReplacementRange(control, metadata);
-            range.InsertXML(ooxml);
+            ReplaceParagraphWithFormula(control, ooxml, metadata);
+            return;
         }
 
-        SaveFormulaMetadata(metadata);
-        NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
+        ReplaceExistingEquationControlContent(control, equationContentOoxml, metadata);
+        SaveFormulaMetadata(control, metadata);
+        NormalizeManagedInlineEquationBaseline(metadata, control);
     }
 
-    private void ReplaceFormulaContent(object contentControl, string ooxml, FormulaMetadata metadata)
-    {
-        ReplaceFormulaContent(contentControl, ooxml, ooxml, metadata);
-    }
-
-    private void ReplaceParagraphWithNumberedFormula(object contentControl, string ooxml, string equationId)
+    private void ReplaceParagraphWithFormula(object contentControl, string ooxml, FormulaMetadata metadata)
     {
         dynamic control = contentControl;
         dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
         insertionRange.InsertXML(ooxml);
-        RemoveEmptyParagraphBeforeFollowingContent(equationId);
+        RemoveEmptyParagraphBeforeFollowingContent(metadata.Identity.EquationId);
+        ApplyNumberControlVerticalAlignmentById(metadata);
+        NormalizeNumberedParagraph(metadata.Identity.EquationId);
+        SaveFormulaMetadata(metadata);
+        NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
     }
 
-    private static dynamic ResolveReplacementRange(dynamic control, FormulaMetadata metadata)
+    private void ReplaceExistingEquationControlContent(dynamic control, string equationContentOoxml, FormulaMetadata metadata)
     {
-        if (metadata.DisplayMode == FormulaDisplayMode.Inline)
+        int insertionPoint = GetRangeStart(control.Range);
+        TryCom(() => control.LockContents = false);
+        TryCom(() => control.LockContentControl = false);
+        control.Range.Text = InlineConversionSlot;
+        dynamic insertionRange = CreateDocumentRange(
+            insertionPoint,
+            insertionPoint + InlineConversionSlot.Length);
+        insertionRange.InsertXML(equationContentOoxml);
+        ShowContentControlChrome(control);
+        if (metadata.DisplayMode == FormulaDisplayMode.Display)
         {
-            return control.Range;
+            TryCom(() => control.Range.ParagraphFormat.Alignment = WdAlignParagraphCenter);
         }
-
-        dynamic paragraphRange = GetContainingParagraphRange(control);
-        int start = GetRangeStart(paragraphRange);
-        int end = Math.Max(start, GetRangeEnd(paragraphRange) - 1);
-        dynamic content = paragraphRange.Document.Range(start, end);
-        content.Delete();
-        return paragraphRange.Document.Range(start, start);
     }
 
     private void ValidateInsertionTarget(dynamic range)

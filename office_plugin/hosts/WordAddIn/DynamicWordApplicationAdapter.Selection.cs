@@ -34,10 +34,18 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.FromResult(entries);
     }
 
-    public Task UpdateFormulaAsync(string equationId, string ooxml, string equationOoxml, FormulaMetadata metadata, bool display, CancellationToken cancellationToken)
+    public Task UpdateFormulaAsync(
+        string equationId,
+        string ooxml,
+        string equationOoxml,
+        string equationContentOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken)
     {
         ValidateManagedEquationInput(ooxml, metadata);
         ValidateManagedEquationInput(equationOoxml, metadata);
+        ValidateManagedEquationContentInput(equationContentOoxml);
         cancellationToken.ThrowIfCancellationRequested();
         ExecuteWithScreenUpdatingSuspended(() =>
         {
@@ -92,7 +100,8 @@ public sealed partial class DynamicWordApplicationAdapter
 
             object control = FindFormulaControlById(equationId);
             double fontSizePoints = ReadManagedEquationFontSize(control);
-            ReplaceFormulaContent(control, ooxml, equationOoxml, metadata);
+            FormulaMetadata currentMetadata = LoadFormulaMetadata((dynamic)control, equationId, RenderEngineKind.Omml);
+            ReplaceFormulaContent(control, ooxml, equationContentOoxml, metadata, currentMetadata);
             ApplyManagedEquationFontSizeById(
                 metadata.Identity.EquationId,
                 ScaleFontSize(fontSizePoints, metadata.FontScale));
