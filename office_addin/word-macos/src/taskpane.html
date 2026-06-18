@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LaTeXSnipper Word</title>
+    <link rel="stylesheet" href="./taskpane.css">
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script type="module" src="./taskpane.js"></script>
+  </head>
+  <body>
+    <main class="pane-shell">
+      <section class="section">
+        <div class="section-heading">
+          <h1>LaTeXSnipper</h1>
+          <span id="host-status" class="status-pill">Waiting for Word</span>
+        </div>
+
+        <label class="input-label" for="latex-input">LaTeX</label>
+        <textarea
+          id="latex-input"
+          class="latex-input"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="x^2 + y^2 = z^2"
+        ></textarea>
+
+        <div class="button-row">
+          <button id="insert-button" class="primary-button" type="button">Insert Formula</button>
+          <button id="clear-button" class="secondary-button" type="button">Clear</button>
+        </div>
+
+        <p id="operation-status" class="operation-status" role="status">Ready</p>
+      </section>
+
+      <section class="section bridge-section" aria-labelledby="bridge-heading">
+        <h2 id="bridge-heading">OCR Bridge</h2>
+        <dl class="bridge-status">
+          <div>
+            <dt>Bridge</dt>
+            <dd>Not connected</dd>
+          </div>
+          <div>
+            <dt>OCR</dt>
+            <dd>Coming soon</dd>
+          </div>
+        </dl>
+        <button class="secondary-button" type="button" disabled>OCR Coming Soon</button>
+      </section>
+    </main>
+  </body>
+</html>
