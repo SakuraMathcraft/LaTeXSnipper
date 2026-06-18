@@ -8,9 +8,10 @@
   <ProviderName>LaTeXSnipper</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="LaTeXSnipper Word"/>
-  <Description DefaultValue="Minimal LaTeXSnipper task pane for Word on macOS."/>
+  <Description DefaultValue="LaTeXSnipper formula task pane for Word on macOS."/>
   <AppDomains>
     <AppDomain>http://localhost:3000</AppDomain>
+    <AppDomain>https://cdn.jsdelivr.net</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>

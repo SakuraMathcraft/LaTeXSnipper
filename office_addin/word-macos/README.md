@@ -11,7 +11,8 @@ feature parity with the Windows plugin over time, not implementation parity.
 
 - Word for macOS Office.js task pane.
 - Manual LaTeX source input.
-- Lightweight formula preview that shows the Office.js-safe text fallback.
+- MathJax SVG formula preview loaded from a static CDN.
+- Visual formula insertion as an SVG image through Office.js HTML insertion.
 - Inline, display, and numbered display insertion modes.
 - Manual number field for numbered display fallback.
 - Insert Inline, Insert Display, Insert Numbered, and Clear actions.
@@ -28,7 +29,12 @@ feature parity with the Windows plugin over time, not implementation parity.
   - Bridge: Not connected.
   - OCR: Coming soon.
 
-Insertion is still plain text by design in this phase:
+The primary insertion path is now visual and image-based. The add-in renders
+LaTeX to SVG with MathJax, wraps the SVG as an image, and asks Word to insert it
+through Office.js HTML coercion.
+
+If MathJax rendering or HTML image insertion fails, the add-in falls back to
+plain LaTeX text:
 
 ```text
 \( ... \)
@@ -36,18 +42,17 @@ Insertion is still plain text by design in this phase:
 \[ ... \]    (#)
 ```
 
-It does not yet insert native editable Word equations.
+This is not Word-native editable OMML yet.
 
 ## Deferred
 
 - Full MathLive editor assets.
-- MathJax rendering.
-- SVG/PNG managed formula insertion.
+- Managed SVG/PNG formula insertion with editable identity.
 - Image markers and document-level metadata store.
 - Selected formula loading, updating, or deleting.
 - Real OCR Bridge calls.
 - Desktop Bridge integration or Bridge endpoint changes.
-- Word-native OMML insertion.
+- Word-native editable OMML insertion.
 - OLE/OMML conversion.
 - Automatic renumbering and references.
 - Settings window.
@@ -67,6 +72,7 @@ office_addin/word-macos/
   src/editor/mathEditor.js
   src/formula/formulaModel.js
   src/office/wordInsert.js
+  src/render/mathjaxRenderer.js
   src/taskpane.html
   src/taskpane.css
   src/taskpane.js
@@ -147,6 +153,7 @@ docs/word-macos/editor/mathEditor.js
 docs/word-macos/formula/formulaModel.js
 docs/word-macos/latex.js
 docs/word-macos/office/wordInsert.js
+docs/word-macos/render/mathjaxRenderer.js
 docs/word-macos/shortcuts.js
 docs/word-macos/manifest/LaTeXSnipperWordAddin.xml
 ```
@@ -194,6 +201,10 @@ location is:
 
 Restart Word after copying the manifest if the add-in does not appear
 immediately.
+
+The preview loads MathJax from `https://cdn.jsdelivr.net/`. If that script is
+blocked or unavailable, insertion falls back to the plain LaTeX text formats
+shown above.
 
 ## Platform Notes
 

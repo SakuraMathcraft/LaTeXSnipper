@@ -133,6 +133,16 @@ h2 {
   white-space: pre-wrap;
 }
 
+.formula-preview.is-rendered {
+  background: var(--surface);
+  font-family: inherit;
+}
+
+.formula-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .latex-input,
 .number-input {
   width: 100%;

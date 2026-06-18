@@ -6,6 +6,17 @@
     <title>LaTeXSnipper Word</title>
     <link rel="stylesheet" href="./taskpane.css">
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script>
+      window.MathJax = {
+        startup: {
+          typeset: false
+        },
+        svg: {
+          fontCache: "none"
+        }
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
     <script type="module" src="./taskpane.js"></script>
   </head>
   <body>
@@ -20,7 +31,7 @@
       <section class="section editor-section" aria-labelledby="editor-heading">
         <div class="section-heading">
           <h2 id="editor-heading">Formula</h2>
-          <span id="editor-status" class="subtle-status">Math editor unavailable; using LaTeX source</span>
+          <span id="editor-status" class="subtle-status">MathJax preview</span>
         </div>
 
         <div

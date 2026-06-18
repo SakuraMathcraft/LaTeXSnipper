@@ -21,7 +21,8 @@ and root dependency/build configuration remain out of scope.
 - Word for macOS Office.js task pane.
 - Header with LaTeXSnipper title and Word ready / Office.js unavailable status.
 - Manual LaTeX source textarea.
-- Lightweight formula preview area that mirrors the current text fallback.
+- MathJax SVG formula preview loaded from a static CDN.
+- Visual formula insertion as an SVG image through Office.js HTML coercion.
 - Inline formula mode.
 - Display formula mode.
 - Numbered display formula mode.
@@ -41,16 +42,17 @@ and root dependency/build configuration remain out of scope.
   - OCR: Coming soon.
   - disabled OCR button.
 
-## Office.js Insertion Fallback
+## Office.js Visual Insertion
 
-This phase still inserts plain text at the current Word cursor. It does not
-claim full Word-native equation support.
+This phase renders LaTeX to SVG using MathJax, wraps the SVG as an image, and
+inserts the image with Office.js HTML coercion. It does not claim full
+Word-native editable equation support.
 
-| Mode | Inserted fallback |
+| Mode | Inserted visual output |
 | --- | --- |
-| Inline | `\( ... \)` |
-| Display | `\[ ... \]` with paragraph spacing |
-| Numbered | `\[ ... \]    (manual number or #)` |
+| Inline | Inline SVG image |
+| Display | Centered SVG image block |
+| Numbered | Centered SVG image with manual number or `#` |
 
 The insertion behavior is isolated behind:
 
@@ -58,8 +60,17 @@ The insertion behavior is isolated behind:
 src/office/wordInsert.js
 ```
 
-Future OOXML or OMML insertion can replace the fallback there without rewriting
-the task pane UI.
+If SVG rendering or HTML image insertion fails, the add-in falls back to plain
+text:
+
+```text
+\( ... \)
+\[ ... \]
+\[ ... \]    (#)
+```
+
+Future OOXML or OMML insertion can replace the image path there without
+rewriting the task pane UI.
 
 ## macOS Interaction And Visual Style
 
@@ -81,18 +92,24 @@ Windows concepts are translated into macOS Office.js equivalents:
 | Dense VSTO settings/actions | Compact task pane sections |
 | Managed formula identity | Future model and metadata work |
 
-## Math Editor Strategy
+## MathJax Strategy
 
-This phase does not vendor MathLive. The add-in includes a small editor state
-module so the UI can report:
+The task pane loads MathJax from:
 
 ```text
-Math editor unavailable; using LaTeX source
+https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js
 ```
 
-MathLive can be added later as static assets if size, licensing, loading, and
-GitHub Pages compatibility are acceptable. Until then, the LaTeX textarea and
-fallback preview are the source of truth.
+This keeps the GitHub Pages preview static and avoids root build dependency
+changes. If MathJax is blocked or unavailable, the UI reports:
+
+```text
+MathJax unavailable; using text fallback
+```
+
+MathLive editing can still be added later as static assets if size, licensing,
+loading, and GitHub Pages compatibility are acceptable. The LaTeX textarea
+remains the source of truth.
 
 ## Formula Model
 
@@ -109,9 +126,8 @@ metadata yet.
 
 ## Deferred Features
 
-- Full MathLive editor assets.
-- MathJax rendering.
-- SVG/PNG managed formula insertion.
+- MathLive editor assets.
+- PNG managed formula insertion.
 - Image markers.
 - Document-level metadata store.
 - Editable formula identity in the document.
@@ -120,7 +136,7 @@ metadata yet.
 - Real OCR Bridge calls.
 - Desktop Bridge integration.
 - Bridge HTTP endpoint changes.
-- Word-native OMML insertion.
+- Word-native editable OMML insertion.
 - OLE/OMML conversion.
 - Automatic numbering and references.
 - Settings window.
@@ -133,16 +149,17 @@ metadata yet.
 | --- | --- | --- |
 | Open LaTeXSnipper controls inside Word | In MVP | Implemented as an Office.js task pane. |
 | Manual LaTeX input | In MVP | Plain textarea input. |
-| Formula preview | In MVP / partial | Text fallback preview, not MathJax. |
-| Insert inline formula | In MVP / partial | Inserts plain text `\( ... \)`. |
-| Insert display formula | In MVP / partial | Inserts plain text `\[ ... \]`. |
-| Numbered display UI | In MVP / partial | Manual number fallback only, no automatic renumbering. |
+| Formula preview | In MVP | MathJax SVG preview with text fallback. |
+| Insert inline formula | In MVP / partial | Inserts SVG image through Office.js HTML, not OMML. |
+| Insert display formula | In MVP / partial | Inserts centered SVG image through Office.js HTML, not OMML. |
+| Numbered display UI | In MVP / partial | Manual number with image insertion, no automatic renumbering. |
 | Clear input | In MVP | Button and Command + K shortcut. |
 | Status feedback | In MVP | Host, editor, operation, and Bridge placeholder status. |
 | macOS Command shortcuts | In MVP | Command + Enter, Command + K, Escape. |
 | MathLive editor | Deferred / planned | Static asset strategy still pending. |
-| MathJax preview | Deferred / planned | Future render preview. |
-| SVG/PNG managed formula insertion | Deferred / planned | Future managed formula mode. |
+| MathJax preview | In MVP | Uses static CDN and SVG output. |
+| SVG image insertion | In MVP / partial | Image-based visual formula, not managed editable equation. |
+| PNG managed formula insertion | Deferred / planned | Future managed formula mode. |
 | Editable formula identity | Deferred / planned | Requires markers and metadata. |
 | Selected formula loading | Deferred / planned | Requires managed formula identity. |
 | Update selected formula | Deferred / planned | Requires managed formula identity. |
@@ -164,6 +181,7 @@ The add-in is a static Office.js add-in:
   insertion.
 - `src/formula/formulaModel.js` owns normalized formula metadata.
 - `src/editor/mathEditor.js` owns editor availability and fallback status.
+- `src/render/mathjaxRenderer.js` owns MathJax SVG rendering and image HTML.
 - `src/latex.js` owns LaTeX input normalization and inline formatting.
 - `src/shortcuts.js` owns macOS shortcut detection.
 - `src/taskpane.css` provides the macOS-oriented task pane layout.
@@ -175,13 +193,16 @@ runner and do not require root project dependency changes.
 ## Data Flow
 
 1. User types LaTeX into the textarea.
-2. Preview updates using the selected insertion mode.
+2. Preview updates using MathJax SVG rendering when available.
 3. User chooses Inline, Display, or Numbered mode.
 4. Insert calls `createFormulaModel(...)`.
-5. The task pane calls `insertFormula(...)` from `src/office/wordInsert.js`.
-6. The insertion module uses `Office.context.document.setSelectedDataAsync` with
-   text coercion.
-7. Status changes to Inserting..., Inserted at cursor, or an error message.
+5. The task pane calls `insertFormula(..., visual: true)` from
+   `src/office/wordInsert.js`.
+6. The insertion module renders SVG and uses
+   `Office.context.document.setSelectedDataAsync` with HTML coercion.
+7. If visual insertion fails, the insertion module retries with text coercion.
+8. Status changes to Inserting..., Inserted visual formula, fallback status, or
+   an error message.
 
 ## Error Handling
 
@@ -189,7 +210,7 @@ runner and do not require root project dependency changes.
 - Office.js insertion failure reports the returned Office error message.
 - If Office.js is unavailable, the task pane remains visible and reports that it
   should be opened from Word.
-- MathLive absence is reported as a concise fallback status.
+- MathJax absence is reported as a concise fallback status.
 - OCR controls are disabled and no Bridge request is made.
 
 ## Distribution
@@ -214,6 +235,6 @@ https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
 - Command + Enter inserts using the selected mode.
 - Command + K clears the input.
 - Escape dismisses transient focus/status.
-- Unit tests cover LaTeX normalization, insertion fallback formatting,
-  shortcuts, MathLive fallback, build output, release manifest URL, and no OCR
-  Bridge network request.
+- Unit tests cover LaTeX normalization, insertion fallback formatting, visual
+  insertion fallback, MathJax rendering fallback, shortcuts, build output,
+  release manifest URL, and no OCR Bridge network request.

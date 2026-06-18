@@ -19,6 +19,7 @@ const staticFiles = [
   ["src/formula/formulaModel.js", "formula/formulaModel.js"],
   ["src/latex.js", "latex.js"],
   ["src/office/wordInsert.js", "office/wordInsert.js"],
+  ["src/render/mathjaxRenderer.js", "render/mathjaxRenderer.js"],
   ["src/shortcuts.js", "shortcuts.js"],
 ];
 
@@ -36,6 +37,7 @@ export function createReleaseManifest(sourceLocation = PAGES_TASKPANE_URL) {
   <Description DefaultValue="LaTeXSnipper formula task pane for Word on macOS."/>
   <AppDomains>
     <AppDomain>https://galileo927.github.io</AppDomain>
+    <AppDomain>https://cdn.jsdelivr.net</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>

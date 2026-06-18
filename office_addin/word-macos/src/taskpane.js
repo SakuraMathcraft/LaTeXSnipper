@@ -1,12 +1,12 @@
-import {
-  canUseMathLive,
-  createMathEditorState,
-} from "./editor/mathEditor.js";
 import { createFormulaModel } from "./formula/formulaModel.js";
 import {
   formatFormulaForInsertion,
   insertFormula as insertFormulaIntoWord,
 } from "./office/wordInsert.js";
+import {
+  getMathJaxUnavailableMessage,
+  renderLatexToSvg,
+} from "./render/mathjaxRenderer.js";
 import {
   shouldClearInputShortcut,
   shouldDismissShortcut,
@@ -27,6 +27,8 @@ const elements = {
   operationStatus: document.getElementById("operation-status"),
 };
 
+let previewRequestId = 0;
+
 function setStatus(message) {
   elements.operationStatus.textContent = message;
 }
@@ -42,7 +44,7 @@ function setSelectedMode(mode) {
     input.checked = input.value === mode;
   }
   updateNumberInputState();
-  updatePreview();
+  void updatePreview();
 }
 
 function updateNumberInputState() {
@@ -66,8 +68,46 @@ function getPreviewText() {
   }
 }
 
-function updatePreview() {
-  elements.formulaPreview.textContent = getPreviewText();
+function setPreviewText(message) {
+  elements.formulaPreview.classList.remove("is-rendered");
+  elements.formulaPreview.textContent = message;
+}
+
+function setPreviewSvg(svg) {
+  elements.formulaPreview.classList.add("is-rendered");
+  elements.formulaPreview.innerHTML = svg;
+}
+
+async function updatePreview() {
+  const requestId = ++previewRequestId;
+  const latex = elements.latexInput.value.trim();
+
+  if (!latex) {
+    setPreviewText("Preview");
+    elements.editorStatus.textContent = "MathJax preview";
+    return;
+  }
+
+  setPreviewText(getPreviewText());
+  elements.editorStatus.textContent = "Rendering preview...";
+
+  try {
+    const svg = await renderLatexToSvg({
+      latex,
+      mode: getSelectedMode(),
+    });
+    if (requestId !== previewRequestId) {
+      return;
+    }
+    setPreviewSvg(svg);
+    elements.editorStatus.textContent = "Visual preview ready";
+  } catch (error) {
+    if (requestId !== previewRequestId) {
+      return;
+    }
+    setPreviewText(getPreviewText());
+    elements.editorStatus.textContent = getMathJaxUnavailableMessage();
+  }
 }
 
 function clearInput() {
@@ -89,16 +129,29 @@ async function insertSelectedFormula(mode = getSelectedMode()) {
 
   try {
     setStatus("Inserting...");
-    await insertFormulaIntoWord({
+    const result = await insertFormulaIntoWord({
       latex: formula.latex,
       manualNumber: formula.manualNumber,
       mode: formula.mode,
+      visual: true,
     });
-    setStatus("Inserted at cursor");
+    setStatus(resultStatusMessage(result));
   } catch (error) {
     setStatus(error.message);
     elements.latexInput.focus();
   }
+}
+
+function resultStatusMessage(result) {
+  if (result.insertedAs === "visual") {
+    return "Inserted visual formula";
+  }
+
+  if (result.insertedAs === "text-fallback") {
+    return "Visual insert failed; inserted text fallback";
+  }
+
+  return "Inserted at cursor";
 }
 
 function dismissTransientState() {
@@ -129,17 +182,9 @@ function markOfficeReady() {
   setStatus("Ready");
 }
 
-function initializeMathEditorStatus() {
-  const editorState = createMathEditorState({
-    mathLiveAvailable: canUseMathLive(globalThis),
-  });
-  elements.editorStatus.textContent = editorState.message;
-}
-
 function initialize() {
-  initializeMathEditorStatus();
   updateNumberInputState();
-  updatePreview();
+  void updatePreview();
 
   elements.insertInlineButton.addEventListener("click", () => {
     void insertSelectedFormula("inline");
@@ -151,12 +196,16 @@ function initialize() {
     void insertSelectedFormula("numbered");
   });
   elements.clearButton.addEventListener("click", clearInput);
-  elements.latexInput.addEventListener("input", updatePreview);
-  elements.manualNumber.addEventListener("input", updatePreview);
+  elements.latexInput.addEventListener("input", () => {
+    void updatePreview();
+  });
+  elements.manualNumber.addEventListener("input", () => {
+    void updatePreview();
+  });
   for (const input of elements.modeInputs) {
     input.addEventListener("change", () => {
       updateNumberInputState();
-      updatePreview();
+      void updatePreview();
     });
   }
   document.addEventListener("keydown", handleKeydown);

@@ -1,8 +1,8 @@
 # Word macOS Office.js MVP Implementation Plan
 
 **Goal:** Evolve the Word for macOS Office.js MVP from a plain-text prototype
-into a realistic formula task pane that moves toward Windows Word plugin feature
-intent while remaining Office.js-safe.
+into a realistic formula task pane with MathJax SVG preview and image-based
+visual formula insertion while remaining Office.js-safe.
 
 **Architecture:** Static Office.js add-in under `office_addin/word-macos/`.
 GitHub Pages preview output is generated under `docs/word-macos/`. Core behavior
@@ -26,6 +26,8 @@ lives in small browser ES modules with Node built-in tests.
 - `office_addin/word-macos/src/office/wordInsert.js`: insertion abstraction.
 - `office_addin/word-macos/src/formula/formulaModel.js`: formula model helpers.
 - `office_addin/word-macos/src/editor/mathEditor.js`: editor availability state.
+- `office_addin/word-macos/src/render/mathjaxRenderer.js`: MathJax SVG rendering
+  and visual formula HTML.
 - `office_addin/word-macos/test/*.test.mjs`: Node tests.
 
 ## Phase 1 Tasks
@@ -41,10 +43,14 @@ lives in small browser ES modules with Node built-in tests.
 - [x] Test Command + K clear shortcut.
 - [x] Test Escape dismiss shortcut.
 - [x] Test formula model mode normalization.
-- [x] Test MathLive fallback status.
+- [x] Test MathLive editor fallback boundary for the deferred editor.
 - [x] Test GitHub Pages build output.
 - [x] Test release manifest SourceLocation remains the fork Pages URL.
 - [x] Test task pane source does not make OCR Bridge network requests.
+- [x] Test MathJax SVG rendering fallback.
+- [x] Test SVG image HTML formatting.
+- [x] Test visual insertion through Office.js HTML coercion.
+- [x] Test text fallback when visual insertion fails.
 
 ### Task 2: Add Office.js-safe insertion abstraction
 
@@ -71,7 +77,7 @@ lives in small browser ES modules with Node built-in tests.
 - [x] Report `Math editor unavailable; using LaTeX source` when MathLive is not
   available.
 - [x] Do not vendor MathLive assets in this phase.
-- [x] Keep textarea and fallback preview as the source of truth.
+- [x] Keep textarea as the source of truth.
 
 ### Task 5: Upgrade task pane UI
 
@@ -91,6 +97,7 @@ lives in small browser ES modules with Node built-in tests.
 - [x] Build to `docs/word-macos/`.
 - [x] Copy `taskpane.html`, `taskpane.css`, and `taskpane.js`.
 - [x] Copy required ES modules under `editor/`, `formula/`, and `office/`.
+- [x] Copy required MathJax render module under `render/`.
 - [x] Generate `manifest/LaTeXSnipperWordAddin.xml`.
 - [x] Keep release manifest SourceLocation at:
 
@@ -106,12 +113,24 @@ https://galileo927.github.io/LaTeXSnipper/word-macos/taskpane.html
   and deferred features.
 - [x] Update this implementation plan with completed Phase 1 tasks.
 
+### Task 8: Add MathJax visual formula insertion
+
+- [x] Add static MathJax script loading to `src/taskpane.html`.
+- [x] Render task pane preview through MathJax SVG when available.
+- [x] Add `src/render/mathjaxRenderer.js`.
+- [x] Convert MathJax SVG to an image data URI.
+- [x] Generate inline, display, and numbered visual HTML.
+- [x] Extend `src/office/wordInsert.js` with visual insertion.
+- [x] Use Office.js HTML coercion for visual insertion.
+- [x] Fall back to text insertion if MathJax rendering or HTML insertion fails.
+- [x] Keep text fallback formatting for inline, display, and numbered modes.
+- [x] Document visual insertion as image-based, not Word-native OMML.
+
 ## Deferred Work
 
-- Real Word-native OMML insertion.
+- Real Word-native editable OMML insertion.
 - Full MathLive editor assets.
-- MathJax rendering.
-- SVG/PNG managed formula insertion.
+- PNG managed formula insertion.
 - Managed formula identity in the document.
 - Selected formula load, update, and delete.
 - Real OCR Bridge.

@@ -11,6 +11,7 @@
   <Description DefaultValue="LaTeXSnipper formula task pane for Word on macOS."/>
   <AppDomains>
     <AppDomain>https://galileo927.github.io</AppDomain>
+    <AppDomain>https://cdn.jsdelivr.net</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
