@@ -116,7 +116,7 @@ Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture
 
 ## Why is Pandoc optional?
 
-Pandoc is only needed for optional export formats such as `.docx`, `.odt`, `.epub`, `.typ`, `.tex`, and wiki formats. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
+Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
 The dependency wizard manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; local developer/build tools belong under `tools/deps/` or the app-managed dependency directory.
 
