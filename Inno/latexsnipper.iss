@@ -38,6 +38,16 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"
 
+[CustomMessages]
+english.UninstallCleanupTitle=Optional cleanup
+english.UninstallCleanupDetail=LaTeXSnipper preserves user data by default so upgrades and reinstalls keep settings, history, dependencies, and downloaded MathCraft models.
+english.UninstallCleanupAppData=Remove LaTeXSnipper settings, history, logs, dependency state, and temporary files
+english.UninstallCleanupModels=Remove MathCraft model weights from %APPDATA%\MathCraft\models
+chinesesimplified.UninstallCleanupTitle=可选清理
+chinesesimplified.UninstallCleanupDetail=LaTeXSnipper 默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和已下载的 MathCraft 模型。
+chinesesimplified.UninstallCleanupAppData=删除 LaTeXSnipper 设置、历史记录、日志、依赖状态和临时文件
+chinesesimplified.UninstallCleanupModels=删除 %APPDATA%\MathCraft\models 中的 MathCraft 模型权重
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
@@ -55,6 +65,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 var
   DeleteAppDataOnUninstall: Boolean;
   DeleteMathCraftModelsOnUninstall: Boolean;
+  UninstallAppDataCheckBox: TNewCheckBox;
+  UninstallModelsCheckBox: TNewCheckBox;
 
 function CleanupPath(Path: String): Boolean;
 begin
@@ -66,99 +78,74 @@ begin
 end;
 
 function InitializeUninstall(): Boolean;
-var
-  Form: TSetupForm;
-  TitleLabel: TNewStaticText;
-  DetailLabel: TNewStaticText;
-  AppDataCheckBox: TNewCheckBox;
-  ModelsCheckBox: TNewCheckBox;
-  OKButton: TNewButton;
-  CancelButton: TNewButton;
 begin
-  Result := True;
   DeleteAppDataOnUninstall := False;
   DeleteMathCraftModelsOnUninstall := False;
+  Result := True;
+end;
 
+procedure InitializeUninstallProgressForm();
+var
+  Delta: Integer;
+  BaseTop: Integer;
+  TitleLabel: TNewStaticText;
+  DetailLabel: TNewStaticText;
+begin
   if UninstallSilent then
     Exit;
 
-  Form := CreateCustomForm(ScaleX(500), ScaleY(230), False, True);
-  try
-    Form.Caption := 'Uninstall LaTeXSnipper';
+  Delta := ScaleY(128);
+  BaseTop := UninstallProgressForm.CancelButton.Top;
+  UninstallProgressForm.ClientHeight := UninstallProgressForm.ClientHeight + Delta;
+  UninstallProgressForm.CancelButton.Top := UninstallProgressForm.CancelButton.Top + Delta;
 
-    TitleLabel := TNewStaticText.Create(Form);
-    TitleLabel.Parent := Form;
-    TitleLabel.Left := ScaleX(16);
-    TitleLabel.Top := ScaleY(16);
-    TitleLabel.Width := ScaleX(468);
-    TitleLabel.Height := ScaleY(28);
-    TitleLabel.Font.Style := [fsBold];
-    TitleLabel.Caption := 'Choose whether to remove user data';
+  TitleLabel := TNewStaticText.Create(UninstallProgressForm);
+  TitleLabel.Parent := UninstallProgressForm;
+  TitleLabel.Left := ScaleX(16);
+  TitleLabel.Top := BaseTop + ScaleY(6);
+  TitleLabel.Width := UninstallProgressForm.ClientWidth - ScaleX(32);
+  TitleLabel.Height := ScaleY(18);
+  TitleLabel.Font.Style := [fsBold];
+  TitleLabel.Caption := CustomMessage('UninstallCleanupTitle');
 
-    DetailLabel := TNewStaticText.Create(Form);
-    DetailLabel.Parent := Form;
-    DetailLabel.Left := ScaleX(16);
-    DetailLabel.Top := ScaleY(48);
-    DetailLabel.Width := ScaleX(468);
-    DetailLabel.Height := ScaleY(64);
-    DetailLabel.WordWrap := True;
-    DetailLabel.Caption :=
-      'LaTeXSnipper keeps settings, history, dependency state, logs, temporary files, and MathCraft model weights outside the installation directory. ' +
-      'These files are preserved by default so upgrades and reinstalls keep working.';
+  DetailLabel := TNewStaticText.Create(UninstallProgressForm);
+  DetailLabel.Parent := UninstallProgressForm;
+  DetailLabel.Left := ScaleX(16);
+  DetailLabel.Top := TitleLabel.Top + ScaleY(22);
+  DetailLabel.Width := UninstallProgressForm.ClientWidth - ScaleX(32);
+  DetailLabel.Height := ScaleY(34);
+  DetailLabel.WordWrap := True;
+  DetailLabel.Caption := CustomMessage('UninstallCleanupDetail');
 
-    AppDataCheckBox := TNewCheckBox.Create(Form);
-    AppDataCheckBox.Parent := Form;
-    AppDataCheckBox.Left := ScaleX(16);
-    AppDataCheckBox.Top := ScaleY(120);
-    AppDataCheckBox.Width := ScaleX(468);
-    AppDataCheckBox.Height := ScaleY(24);
-    AppDataCheckBox.Caption := 'Remove LaTeXSnipper user data, logs, dependency state, and temporary files';
-    AppDataCheckBox.Checked := False;
+  UninstallAppDataCheckBox := TNewCheckBox.Create(UninstallProgressForm);
+  UninstallAppDataCheckBox.Parent := UninstallProgressForm;
+  UninstallAppDataCheckBox.Left := ScaleX(16);
+  UninstallAppDataCheckBox.Top := DetailLabel.Top + ScaleY(42);
+  UninstallAppDataCheckBox.Width := UninstallProgressForm.ClientWidth - ScaleX(32);
+  UninstallAppDataCheckBox.Height := ScaleY(20);
+  UninstallAppDataCheckBox.Caption := CustomMessage('UninstallCleanupAppData');
+  UninstallAppDataCheckBox.Checked := False;
 
-    ModelsCheckBox := TNewCheckBox.Create(Form);
-    ModelsCheckBox.Parent := Form;
-    ModelsCheckBox.Left := ScaleX(16);
-    ModelsCheckBox.Top := ScaleY(150);
-    ModelsCheckBox.Width := ScaleX(468);
-    ModelsCheckBox.Height := ScaleY(24);
-    ModelsCheckBox.Caption := 'Remove MathCraft model weights from %APPDATA%\MathCraft\models';
-    ModelsCheckBox.Checked := False;
-
-    OKButton := TNewButton.Create(Form);
-    OKButton.Parent := Form;
-    OKButton.Left := Form.ClientWidth - ScaleX(172);
-    OKButton.Top := Form.ClientHeight - ScaleY(40);
-    OKButton.Width := ScaleX(80);
-    OKButton.Height := ScaleY(26);
-    OKButton.Caption := 'Uninstall';
-    OKButton.ModalResult := mrOk;
-
-    CancelButton := TNewButton.Create(Form);
-    CancelButton.Parent := Form;
-    CancelButton.Left := Form.ClientWidth - ScaleX(80);
-    CancelButton.Top := Form.ClientHeight - ScaleY(40);
-    CancelButton.Width := ScaleX(80);
-    CancelButton.Height := ScaleY(26);
-    CancelButton.Caption := 'Cancel';
-    CancelButton.ModalResult := mrCancel;
-
-    if Form.ShowModal = mrCancel then
-    begin
-      Result := False;
-      Exit;
-    end;
-
-    DeleteAppDataOnUninstall := AppDataCheckBox.Checked;
-    DeleteMathCraftModelsOnUninstall := ModelsCheckBox.Checked;
-  finally
-    Form.Free;
-  end;
+  UninstallModelsCheckBox := TNewCheckBox.Create(UninstallProgressForm);
+  UninstallModelsCheckBox.Parent := UninstallProgressForm;
+  UninstallModelsCheckBox.Left := ScaleX(16);
+  UninstallModelsCheckBox.Top := UninstallAppDataCheckBox.Top + ScaleY(24);
+  UninstallModelsCheckBox.Width := UninstallProgressForm.ClientWidth - ScaleX(32);
+  UninstallModelsCheckBox.Height := ScaleY(20);
+  UninstallModelsCheckBox.Caption := CustomMessage('UninstallCleanupModels');
+  UninstallModelsCheckBox.Checked := False;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep <> usPostUninstall then
     Exit;
+
+  if not UninstallSilent then
+  begin
+    DeleteAppDataOnUninstall := UninstallAppDataCheckBox.Checked;
+    DeleteMathCraftModelsOnUninstall := UninstallModelsCheckBox.Checked;
+  end;
 
   if DeleteAppDataOnUninstall then
   begin
