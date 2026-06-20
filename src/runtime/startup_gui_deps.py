@@ -113,7 +113,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
 
     if os.name == "nt":
         try:
-            import win32api as _win32api
+            _win32api = importlib.import_module("win32api")
             _ = _win32api
         except ImportError:
             print("[WARN] win32api is missing; attempting pywin32 installation.")

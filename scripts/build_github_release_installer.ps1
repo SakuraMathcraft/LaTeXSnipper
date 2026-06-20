@@ -259,8 +259,51 @@ function Normalize-BundledPythonSeed {
         }
     }
 
+    $removePaths = @(
+        "include",
+        "libs",
+        "tcl",
+        "NEWS.txt",
+        "Lib\ensurepip",
+        "Lib\idlelib",
+        "Lib\lib2to3",
+        "Lib\pydoc_data",
+        "Lib\tkinter",
+        "Lib\turtledemo",
+        "Lib\unittest",
+        "Lib\doctest.py",
+        "Lib\pdb.py",
+        "Lib\pydoc.py",
+        "Lib\turtle.py",
+        "DLLs\_ctypes_test.pyd",
+        "DLLs\_testbuffer.pyd",
+        "DLLs\_testcapi.pyd",
+        "DLLs\_testconsole.pyd",
+        "DLLs\_testimportmultiple.pyd",
+        "DLLs\_testinternalcapi.pyd",
+        "DLLs\_testmultiphase.pyd",
+        "DLLs\_tkinter.pyd",
+        "DLLs\tcl86t.dll",
+        "DLLs\tk86t.dll",
+        "DLLs\py.ico",
+        "DLLs\pyc.ico",
+        "DLLs\pyd.ico",
+        "DLLs\python_lib.cat",
+        "DLLs\python_tools.cat"
+    )
+    foreach ($relativePath in $removePaths) {
+        $target = Join-Path $seedRoot $relativePath
+        if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+            Write-Host "Pruned bundled Python runtime artifact: $relativePath"
+        }
+    }
+
+    Remove-PythonCache -Root $seedRoot
+
     $verifyCode = @'
 import json
+import importlib
 import pathlib
 import sys
 
@@ -281,6 +324,8 @@ if pathlib.Path(sys.base_prefix).resolve() != root:
     raise SystemExit("sys.base_prefix does not point to bundled python311")
 if bad:
     raise SystemExit("sys.path contains paths outside bundled python311")
+for mod in ("pip", "setuptools", "wheel", "packaging"):
+    importlib.import_module(mod)
 '@
     $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
     try {
@@ -300,6 +345,20 @@ if bad:
     Write-Host "  executable: $($verify.executable)"
     Write-Host "  prefix: $($verify.prefix)"
     Test-PythonHttpsRuntime -PythonExe $pythonExe
+    Remove-PythonCache -Root $seedRoot
+}
+
+function Remove-PythonCache {
+    param([string]$Root)
+
+    if (-not (Test-Path -LiteralPath $Root)) {
+        return
+    }
+    Get-ChildItem -LiteralPath $Root -Recurse -Force -Directory -Filter "__pycache__" |
+        Remove-Item -Recurse -Force
+    Get-ChildItem -LiteralPath $Root -Recurse -Force -File |
+        Where-Object { $_.Extension -in @(".pyc", ".pyo") } |
+        Remove-Item -Force
 }
 
 function Stage-BundledPythonSeed {
@@ -375,6 +434,7 @@ try {
     }
     $distPython = Join-Path $root "dist\$buildName\_internal\deps\python311\python.exe"
     Test-PythonHttpsRuntime -PythonExe $distPython
+    Remove-PythonCache -Root (Join-Path $root "dist\$buildName\_internal\deps\python311")
 }
 finally {
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName

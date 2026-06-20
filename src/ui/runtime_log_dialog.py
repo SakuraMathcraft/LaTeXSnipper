@@ -19,7 +19,7 @@ class RuntimeLogDialog(QDialog):
 
     def __init__(self, log_file: Path, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("LaTeXSnipper 初始化与运行日志")
+        self.setWindowTitle("LaTeXSnipper 运行日志")
         self.resize(980, 620)
         self._log_file = Path(log_file)
         self._pos = 0

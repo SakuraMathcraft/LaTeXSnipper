@@ -26,7 +26,7 @@ The main differences are platform integration details:
 | Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
-| Dependency runtime | GitHub builds bundle the normalized dependency runtime. | Creates `~/.latexsnipper/deps/python311` with system Python `>=3.10,<3.13` and venv/pip support. | Creates `~/Library/Application Support/LaTeXSnipper/deps/python311` with system Python `>=3.10,<3.13` and venv/pip support. |
+| Dependency runtime | GitHub builds start from the bundled dependency root `<install-dir>\_internal\deps`; users may switch to another root. | Defaults to `~/.latexsnipper/deps`; users may switch to another root. | Defaults to `~/Library/Application Support/LaTeXSnipper/deps`; users may switch to another root. |
 | Packaging | Inno installer from GitHub Releases. | Debian/Ubuntu `.deb`. | `.dmg` and `.app.zip`. |
 
 The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS.
@@ -47,9 +47,17 @@ Core editing and local recognition workflows are designed to work locally after 
 
 ## Where are dependency files stored?
 
-- Windows builds use the bundled dependency environment.
-- Linux creates runtime dependency files under `~/.latexsnipper/deps/python311`.
-- macOS creates runtime dependency files under `~/Library/Application Support/LaTeXSnipper/deps/python311`.
+`install_base_dir` is the active dependency root. Windows packaged builds start
+with `<install-dir>\_internal\deps`; Linux defaults to `~/.latexsnipper/deps`;
+macOS defaults to `~/Library/Application Support/LaTeXSnipper/deps`. If the user
+changes the dependency directory, all dependency-managed files follow the new
+root.
+
+Within that root, LaTeXSnipper creates:
+
+- `python311` for the isolated dependency Python/venv.
+- `pandoc` for the optional dependency-managed Pandoc binary.
+- `translation_env` for the optional Argos local translation environment.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
@@ -61,7 +69,7 @@ If the selected directory already contains a usable Python environment, the wiza
 
 ## Why do Linux and macOS need Python 3?
 
-The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.13` only to create the isolated optional dependency environment. Linux uses `~/.latexsnipper/deps/python311`; macOS uses `~/Library/Application Support/LaTeXSnipper/deps/python311`. Python 3.11 is preferred because it matches the Windows bundled runtime; Python 3.13+ is intentionally rejected until all dependency layers are verified against it.
+The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.13` only to create the isolated optional dependency environment under the active dependency root. Python 3.11 is preferred because it matches the Windows bundled runtime; Python 3.13+ is intentionally rejected until all dependency layers are verified against it.
 
 Linux `.deb` packages declare `python3` and `python3-venv`. macOS users should install a supported Python, preferably Homebrew `python@3.11` or the official python.org 3.11/3.12 macOS installer, if no usable `python3` is available.
 
@@ -136,7 +144,7 @@ Bilingual Reading is a PDF reading and translation window, not OCR. It reads the
 - Google Cloud Translation
 - DeepL API Free
 
-Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses an optional independent translation environment. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
+Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses a separate optional translation environment at `<dependency-root>/translation_env`, following the same active dependency root as Pandoc. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
 
 ## Which external model protocols are supported?
 

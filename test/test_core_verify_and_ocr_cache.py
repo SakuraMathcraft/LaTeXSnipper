@@ -158,10 +158,13 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         if os.name == "nt":
             path_entries = [Path(item) for item in env["PATH"].split(os.pathsep) if item]
-            self.assertGreaterEqual(len(path_entries), 2)
             deps_root = python_env_root(get_deps_python())
-            self.assertEqual(path_entries[0], deps_root)
-            self.assertEqual(path_entries[1], deps_root / "DLLs")
+            expected_prefix = [deps_root]
+            for child in (deps_root / "DLLs", deps_root / "Library" / "bin", deps_root / "Scripts"):
+                if child.exists():
+                    expected_prefix.append(child)
+            self.assertGreaterEqual(len(path_entries), len(expected_prefix))
+            self.assertEqual(path_entries[: len(expected_prefix)], expected_prefix)
 
         worker_code = wrapper._worker_argv()[-1]
         self.assertIn("HTTPSHandler", worker_code)

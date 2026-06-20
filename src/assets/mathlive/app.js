@@ -40,7 +40,7 @@ function setRenderedResult(latex, detail = '') {
 function normalizeComputeError(err, fallback = '计算失败') {
   const message = String(err ?? '').trim();
   if (!message) return fallback;
-  if (message.includes('Timeout exceeded')) return '前端计算超时，已超过当前时限';
+  if (message.includes('Timeout exceeded')) return '前端计算引擎无法完成当前表达式';
   if (message.includes('Nothing')) return '表达式当前无法得到可用结果';
   if (message.includes('unexpected') || message.includes('parse')) return `公式解析失败：${message}`;
   if (message.includes('undefined')) return `表达式未定义：${message}`;
@@ -605,6 +605,7 @@ async function bootstrap() {
     const { ComputeEngine, expand, factor, solve } = computeModule;
     computeHelpers = { expand, factor, solve };
     ce = new ComputeEngine();
+    ce.timeLimit = 0;
     MathfieldElement.computeEngine = ce;
     installClipboardBridge();
     MathfieldElement.fontsDirectory = new URL('./vendor/fonts', window.location.href).href;

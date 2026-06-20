@@ -235,6 +235,8 @@ def _read_config_install_dir(cfg_path: Path) -> str | None:
 def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
     try:
         import json
+        from runtime.config_manager import remember_dependency_root
+
         data = {}
         if cfg_path.exists():
             try:
@@ -242,6 +244,7 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
             except Exception:
                 data = {}
         data["install_base_dir"] = deps_dir
+        remember_dependency_root(data, deps_dir)
         Path(cfg_path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
