@@ -443,7 +443,7 @@ https://www.python.org/downloads/macos/
 
 **现象：** `pip install -r requirements.txt` 报错。
 
-依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（>=3.10,<3.13）创建隔离环境。
+依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.12）创建隔离环境。
 
 **原因：**
 
