@@ -19,10 +19,8 @@ from bootstrap.deps_context import (
 )
 from bootstrap.deps_entry import (
     _ensure_pip,
-    _find_local_python311_installer,
     _load_config_path,
     _read_config_install_dir,
-    _run_local_python311_installer,
     _setup_python_venv_from_system,
     _system_python_install_hint,
     _write_config_install_dir,

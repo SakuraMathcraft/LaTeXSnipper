@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -707,7 +706,7 @@ def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
 
 
 def _find_full_python(base_dir: Path) -> str | None:
-    """Reuse an existing Python from the install directory before installing python311."""
+    """Reuse an existing dependency Python or a supported system Python."""
     candidate = _find_install_base_python(base_dir)
     if candidate is not None:
         try:
@@ -717,49 +716,17 @@ def _find_full_python(base_dir: Path) -> str | None:
             pass
         print(f"[WARN] Ignoring Python without bootstrap modules: {candidate}")
     if getattr(sys, "frozen", False):
-        installer = base_dir / "python-3.11.0-amd64.exe"
-        if os.name == "nt" and installer.exists():
-            if _run_python_installer(installer, base_dir / "python311"):
-                candidate = _find_install_base_python(base_dir)
-                if candidate is not None and candidate.exists():
-                    return str(candidate)
         return None
 
-    if os.name != "nt":
-        try:
-            from bootstrap.deps_python_runtime import find_system_python3
-
-            system_python = find_system_python3()
-            if system_python is not None and _has_full_python_bootstrap_modules(str(system_python)):
-                return str(system_python)
-        except Exception:
-            pass
-        return None
-
-    for name in ("python3.11.exe", "python.exe", "python3.exe"):
-        which = _norm_path(shutil.which(name))
-        if which and os.path.exists(which) and _has_full_python_bootstrap_modules(which):
-            return which
-    return None
-
-
-def _run_python_installer(installer: Path, target_dir: Path) -> bool:
-    import subprocess
     try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        args = [str(installer), "/quiet", "InstallAllUsers=0",
-                f"TargetDir={str(target_dir)}",
-                "Include_pip=1", "PrependPath=0", "Include_test=0",
-                "Include_doc=0", "Include_launcher=0", "SimpleInstall=1"]
-        print(f"[INFO] 正在静默安装 Python 到: {target_dir}")
-        r = subprocess.run(args, timeout=600, **_win_subprocess_kwargs())
-        if r.returncode != 0:
-            print(f"[WARN] 静默安装返回码: {r.returncode}")
-            return False
-        return True
-    except Exception as e:
-        print(f"[WARN] 启动安装器失败: {e}")
-        return False
+        from bootstrap.deps_python_runtime import find_system_python3
+
+        system_python = find_system_python3()
+        if system_python is not None and _has_full_python_bootstrap_modules(str(system_python)):
+            return str(system_python)
+    except Exception:
+        pass
+    return None
 
 
 def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
@@ -783,33 +750,11 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         return py
 
 
-    if os.name != "nt":
-        try:
-            from bootstrap.deps_python_runtime import supported_system_python_range_label
+    try:
+        from bootstrap.deps_python_runtime import supported_system_python_range_label
 
-            version_hint = supported_system_python_range_label()
-        except Exception:
-            version_hint = ">=3.10,<3.13"
-        print(f"[ERROR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
-        return None
-
-    installer: Path | None = None
-    for root in (base_dir, Path(__file__).resolve().parent, Path(os.getcwd())):
-        try:
-            cands = list(Path(root).glob("python-3.11*.exe")) + list(Path(root).glob("python311*.exe"))
-            if cands:
-                installer = cands[0]
-                break
-        except Exception:
-            pass
-
-    if installer:
-        target_dir = base_dir / "python311"
-        if _run_python_installer(installer, target_dir):
-            py = _find_full_python(base_dir)
-            if py:
-                print(f"[INFO] Python 3.11 已安装到: {py}")
-                return py
-
-    print("[ERROR] 未找到可用的 Python 3.11；请将安装器放入安装目录_internal下或手动安装后重试。")
+        version_hint = supported_system_python_range_label()
+    except Exception:
+        version_hint = ">=3.10,<3.13"
+    print(f"[ERROR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
     return None

@@ -25,7 +25,6 @@ SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
-BUNDLE_PYTHON_INSTALLER = os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER", "1").strip() != "0"
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
@@ -274,18 +273,6 @@ if BUNDLED_DEPS_STATE.exists():
 else:
     print(f"[SPEC] bundled deps state not found, skip: {BUNDLED_DEPS_STATE}")
 
-# Optional bundled Python installer.
-BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-amd64.exe"
-optional_root_datas = []
-if BUNDLE_PYTHON_INSTALLER and BUNDLED_PY_INSTALLER.exists():
-    optional_root_datas.append((str(BUNDLED_PY_INSTALLER), "."))
-    print(f"[SPEC] include bundled installer: {BUNDLED_PY_INSTALLER}")
-elif not BUNDLE_PYTHON_INSTALLER:
-    print("[SPEC] bundled Python installer disabled by LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER=0.")
-else:
-    print(f"[SPEC] bundled installer not found, skip: {BUNDLED_PY_INSTALLER}")
-
-
 a = Analysis(
     [str(SRC / "main.py")],
     pathex=[str(SRC), str(ROOT)],
@@ -294,7 +281,7 @@ a = Analysis(
         (str(SRC / "assets"), "assets"),
         # Launched by the dependency Python as a file-based CAS worker.
         (str(SRC / "editor" / "advanced_cas.py"), "editor"),
-    ] + optional_root_datas + extra_datas,
+    ] + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine core
         "PyQt6",

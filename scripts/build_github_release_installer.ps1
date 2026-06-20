@@ -3,8 +3,7 @@ param(
     [string]$CertificateThumbprint = "",
     [string]$TimestampUrl = "http://timestamp.digicert.com",
     [string]$InnoCompiler = "",
-    [string]$PythonPath = "",
-    [switch]$SkipPythonInstaller
+    [string]$PythonPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -365,11 +364,9 @@ if (-not (Test-Path $iss)) {
 }
 
 $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
-$oldBundlePythonInstaller = $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER
 $oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
 try {
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
-    $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = if ($SkipPythonInstaller) { "0" } else { "1" }
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot
 
     & $python -m PyInstaller $spec --clean --noconfirm
@@ -381,7 +378,6 @@ try {
 }
 finally {
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
-    $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = $oldBundlePythonInstaller
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
 }
 

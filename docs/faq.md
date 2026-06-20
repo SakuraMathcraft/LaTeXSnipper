@@ -57,7 +57,7 @@ Linux/macOS release packages do not bundle build-machine environments from `tool
 
 The dependency wizard opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
 
-If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. If no usable Python environment exists, Windows initializes the local `python311` template through the bundled `python-3.11.0-amd64.exe`, while Linux/macOS use system Python `>=3.10,<3.13` to create the isolated environment.
+If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.13`) to create the isolated environment.
 
 ## Why do Linux and macOS need Python 3?
 
