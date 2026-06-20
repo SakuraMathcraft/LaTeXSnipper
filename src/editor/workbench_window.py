@@ -313,7 +313,6 @@ class WorkbenchWindow(QWidget):
             "已复制",
             "已载入",
             "已写回",
-            "已切换本地高级引擎完成",
         )
         if message.startswith(success_prefixes):
             self.show_success("操作完成", message)

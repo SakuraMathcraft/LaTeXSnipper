@@ -43,7 +43,6 @@ QT6_DIR = PYQT6_DIR / "Qt6"
 QT6_RESOURCES = QT6_DIR / "resources"
 QT6_LOCALES = QT6_DIR / "translations" / "qtwebengine_locales"
 QT6_PLUGINS = QT6_DIR / "plugins"
-QT6_QML = QT6_DIR / "qml"
 
 if QT6_RESOURCES.exists():
     extra_datas.append((str(QT6_RESOURCES), "PyQt6/Qt6/resources"))
@@ -126,10 +125,6 @@ if ASSETS_DIR.exists():
     extra_datas.append((str(ASSETS_DIR), "assets"))
     print("[SPEC] include assets")
 
-ADV_CAS = SRC / "editor" / "advanced_cas.py"
-if ADV_CAS.exists():
-    extra_datas.append((str(ADV_CAS), "editor"))
-
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
@@ -172,7 +167,6 @@ a = Analysis(
         "editor",
         "editor.workbench_bridge",
         "editor.workbench_window",
-        "editor.advanced_cas",
         "editor.latex_snippet_panel",
         "bootstrap",
         "bootstrap.deps_bootstrap",
@@ -377,6 +371,28 @@ def _prune_qt_webengine_payload(dist_root: Path):
                         child.unlink(missing_ok=True)
                     except Exception:
                         pass
+
+        qml_dir = qt_root / "qml"
+        if qml_dir.exists():
+            shutil.rmtree(qml_dir, ignore_errors=True)
+
+        translations_dir = qt_root / "translations"
+        if translations_dir.exists():
+            keep_translation_markers = ("_zh_CN", "_zh_TW", "_en")
+            for child in translations_dir.iterdir():
+                if child.name == "qtwebengine_locales":
+                    continue
+                if child.is_file() and child.suffix.lower() == ".qm" and any(
+                    marker in child.stem for marker in keep_translation_markers
+                ):
+                    continue
+                try:
+                    if child.is_dir():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         locales_dir = qt_root / "translations" / "qtwebengine_locales"
         if locales_dir.exists():

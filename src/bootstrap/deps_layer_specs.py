@@ -30,8 +30,6 @@ LAYER_MAP = {
         "rapidocr==3.5.0",
         "numpy>=1.26,<3",
         "flatbuffers>=24.3.25",
-        "coloredlogs>=15.0.1",
-        "sympy>=1.13,<1.15",
         "protobuf>=3.20,<5",
         "pymupdf~=1.27.2.2",
     ],

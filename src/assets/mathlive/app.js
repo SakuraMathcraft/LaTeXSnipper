@@ -4,8 +4,6 @@ let resultView = null;
 let ce = null;
 let mathJsonFormatted = '';
 let computeHelpers = {};
-let advancedComputeSeq = 0;
-const pendingAdvancedRequests = new Map();
 
 const latexOutput = document.getElementById('latex-output');
 const mathjsonOutput = document.getElementById('mathjson-output');
@@ -47,85 +45,6 @@ function normalizeComputeError(err, fallback = '计算失败') {
   if (message.includes('unexpected') || message.includes('parse')) return `公式解析失败：${message}`;
   if (message.includes('undefined')) return `表达式未定义：${message}`;
   return `${fallback}：${message}`;
-}
-
-function shouldUseAdvancedFallback(err, action) {
-  const message = String(err ?? '');
-  const latex = currentLatex();
-  if (message.includes('Timeout exceeded') || message.includes('CancellationError')) return true;
-  if (action === 'solve' && /^[^=]+$/.test(latex)) return true;
-  if (['evaluate', 'numeric', 'simplify'].includes(action) && /\\(sum|prod|int|lim)/.test(latex)) return true;
-  return false;
-}
-
-function isHeavyExpressionLatex(latex) {
-  return /\\(sum|prod|int|lim)/.test(String(latex || ''));
-}
-
-function isStructuredLinearAlgebraExpression() {
-  const payload = String(mathJsonFormatted || '');
-  return /"Determinant"|"Matrix"/.test(payload);
-}
-
-function looksLikeSuspiciousExactResult(rendered) {
-  const text = String(rendered || '');
-  if (!text) return false;
-  const digitRuns = text.match(/\d+/g) || [];
-  return (
-    text.length > 80 ||
-    digitRuns.some((part) => part.length >= 18) ||
-    /\\frac\{[^}]{18,}\}\{[^}]{18,}\}/.test(text)
-  );
-}
-
-function normalizeLatexForCompare(text) {
-  return String(text || '')
-    .replace(/\s+/g, '')
-    .replace(/\\left|\\right/g, '')
-    .trim();
-}
-
-function isNoOpTransform(originalLatex, renderedLatex) {
-  const original = normalizeLatexForCompare(originalLatex);
-  const rendered = normalizeLatexForCompare(renderedLatex);
-  return !!original && !!rendered && original === rendered;
-}
-
-function requestAdvancedCompute(action) {
-  if (!bridge?.requestAdvancedCompute) {
-    return Promise.reject(new Error('本地高级求解引擎不可用'));
-  }
-  if (!mathJsonFormatted || mathJsonFormatted === '计算引擎尚未就绪') {
-    return Promise.reject(new Error('当前表达式尚未生成可用的 MathJSON'));
-  }
-  return new Promise((resolve, reject) => {
-    const requestId = `adv-${Date.now()}-${++advancedComputeSeq}`;
-    pendingAdvancedRequests.set(requestId, { resolve, reject });
-    bridge.requestAdvancedCompute(requestId, action, mathJsonFormatted);
-  });
-}
-
-async function runAdvancedFallback(action, fallbackLabel, originalError) {
-  setStatus('前端计算未完成，正在切换本地高级求解引擎...');
-  resultOutput.textContent = '正在调用本地高级求解引擎，请稍候...';
-  clearRenderedResult();
-  try {
-    const payload = await requestAdvancedCompute(action);
-    if (!payload?.success) {
-      throw new Error(payload?.detail || '本地高级求解失败');
-    }
-    setRenderedResult(payload.latex, payload.detail || '结果由本地高级求解引擎提供。');
-    bridge?.onEvaluationResult?.(payload.latex || '');
-    setStatus(payload.status || '已切换本地高级引擎');
-  } catch (advancedErr) {
-    clearRenderedResult();
-    const detail = normalizeComputeError(
-      advancedErr,
-      `${fallbackLabel}失败`
-    );
-    resultOutput.textContent = `${normalizeComputeError(originalError, fallbackLabel)}；本地高级引擎也未能完成求解。${detail ? ` ${detail}` : ''}`;
-    setStatus(resultOutput.textContent);
-  }
 }
 
 function inferSolveVariable(latex) {
@@ -495,28 +414,16 @@ function syncOutputs() {
 
 async function evaluateExpression() {
   try {
-    const { latex, expr } = currentExpression('计算');
-    if (isStructuredLinearAlgebraExpression()) {
-      await runAdvancedFallback('evaluate', '计算', new Error('矩阵与行列式表达式已切换本地高级引擎'));
-      return;
-    }
+    const { expr } = currentExpression('计算');
     const result = await expr.evaluateAsync();
     if (isEmptyResult(result)) {
       throw new Error('表达式当前没有可显示的计算结果');
     }
     const rendered = extractResultLatex(result);
-    if (isHeavyExpressionLatex(latex) && looksLikeSuspiciousExactResult(rendered)) {
-      await runAdvancedFallback('evaluate', '计算', new Error('前端返回了过长的精确结果，已切换本地高级引擎'));
-      return;
-    }
     setRenderedResult(rendered, '已完成符号计算。');
     bridge?.onEvaluationResult?.(rendered);
     setStatus('计算完成');
   } catch (err) {
-    if (shouldUseAdvancedFallback(err, 'evaluate')) {
-      await runAdvancedFallback('evaluate', '计算', err);
-      return;
-    }
     clearRenderedResult();
     resultOutput.textContent = normalizeComputeError(err, '计算失败');
     setStatus(resultOutput.textContent);
@@ -525,17 +432,9 @@ async function evaluateExpression() {
 
 async function simplifyExpression() {
   try {
-    if (isStructuredLinearAlgebraExpression()) {
-      await runAdvancedFallback('simplify', '化简', new Error('矩阵与行列式表达式已切换本地高级引擎'));
-      return;
-    }
     const { expr } = currentExpression('化简');
     const result = expr.simplify();
     const rendered = extractResultLatex(result);
-    if (shouldUseAdvancedFallback('', 'simplify') && /(\\infty|Infinity|∞)/.test(rendered)) {
-      await runAdvancedFallback('simplify', '化简', new Error('前端化简未得到可靠结果'));
-      return;
-    }
     if (isEmptyResult(result)) {
       throw new Error('当前公式无法进一步化简');
     }
@@ -543,10 +442,6 @@ async function simplifyExpression() {
     bridge?.onEvaluationResult?.(rendered);
     setStatus('化简完成');
   } catch (err) {
-    if (shouldUseAdvancedFallback(err, 'simplify')) {
-      await runAdvancedFallback('simplify', '化简', err);
-      return;
-    }
     clearRenderedResult();
     resultOutput.textContent = normalizeComputeError(err, '化简失败');
     setStatus(resultOutput.textContent);
@@ -555,28 +450,16 @@ async function simplifyExpression() {
 
 async function numericEvaluate() {
   try {
-    const { latex, expr } = currentExpression('数值化');
-    if (isStructuredLinearAlgebraExpression()) {
-      await runAdvancedFallback('numeric', '数值化', new Error('矩阵与行列式表达式已切换本地高级引擎'));
-      return;
-    }
+    const { expr } = currentExpression('数值化');
     const result = expr.N();
     if (isEmptyResult(result)) {
       throw new Error('当前公式无法数值化');
     }
     const rendered = extractResultLatex(result);
-    if (isHeavyExpressionLatex(latex) && looksLikeSuspiciousExactResult(rendered)) {
-      await runAdvancedFallback('numeric', '数值化', new Error('前端数值结果不够可靠，已切换本地高级引擎'));
-      return;
-    }
     setRenderedResult(rendered, '已完成数值化计算。');
     bridge?.onEvaluationResult?.(rendered);
     setStatus('数值化完成');
   } catch (err) {
-    if (shouldUseAdvancedFallback(err, 'numeric')) {
-      await runAdvancedFallback('numeric', '数值化', err);
-      return;
-    }
     clearRenderedResult();
     resultOutput.textContent = normalizeComputeError(err, '数值化失败');
     setStatus(resultOutput.textContent);
@@ -605,7 +488,7 @@ async function expandExpression() {
 
 async function factorExpression() {
   try {
-    const { latex, expr } = currentExpression('因式分解');
+    const { expr } = currentExpression('因式分解');
     const result = typeof expr.factor === 'function'
       ? expr.factor()
       : computeHelpers.factor?.(expr) ?? null;
@@ -613,18 +496,10 @@ async function factorExpression() {
       throw new Error('当前公式无法做因式分解');
     }
     const rendered = extractResultLatex(result);
-    if (isNoOpTransform(latex, rendered)) {
-      await runAdvancedFallback('factor', '因式分解', new Error('前端因式分解未得到有效结果'));
-      return;
-    }
     setRenderedResult(rendered, '已完成因式分解。');
     bridge?.onEvaluationResult?.(rendered);
     setStatus('因式分解完成');
   } catch (err) {
-    if (shouldUseAdvancedFallback(err, 'factor') || String(err ?? '').includes('未得到有效结果')) {
-      await runAdvancedFallback('factor', '因式分解', err);
-      return;
-    }
     clearRenderedResult();
     resultOutput.textContent = normalizeComputeError(err, '因式分解失败');
     setStatus(resultOutput.textContent);
@@ -653,10 +528,6 @@ async function solveExpression() {
     bridge?.onEvaluationResult?.(rendered);
     setStatus('求解完成');
   } catch (err) {
-    if (shouldUseAdvancedFallback(err, 'solve')) {
-      await runAdvancedFallback('solve', '求解', err);
-      return;
-    }
     clearRenderedResult();
     resultOutput.textContent = normalizeComputeError(err, '求解失败');
     setStatus(resultOutput.textContent);
@@ -718,16 +589,6 @@ function setupBridge() {
     }
     new QWebChannel(qt.webChannelTransport, (channel) => {
       bridge = channel.objects.pyBridge || null;
-      bridge?.advancedComputeFinished?.connect?.((requestId, payloadJson) => {
-        const pending = pendingAdvancedRequests.get(requestId);
-        if (!pending) return;
-        pendingAdvancedRequests.delete(requestId);
-        try {
-          pending.resolve(JSON.parse(payloadJson || '{}'));
-        } catch (err) {
-          pending.reject(err);
-        }
-      });
       resolve();
     });
   });

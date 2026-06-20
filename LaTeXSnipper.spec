@@ -186,6 +186,30 @@ def _prune_qt_webengine_payload(dist_root: Path):
                     except Exception as exc:
                         print(f"[SPEC] prune Qt WebEngine debug resource skip {child}: {exc}")
 
+        qml_dir = qt_root / "qml"
+        if qml_dir.exists():
+            shutil.rmtree(qml_dir, ignore_errors=True)
+            print(f"[SPEC] pruned Qt QML modules: {qml_dir.relative_to(dist_root)}")
+
+        translations_dir = qt_root / "translations"
+        if translations_dir.exists():
+            keep_translation_markers = ("_zh_CN", "_zh_TW", "_en")
+            for child in translations_dir.iterdir():
+                if child.name == "qtwebengine_locales":
+                    continue
+                if child.is_file() and child.suffix.lower() == ".qm" and any(
+                    marker in child.stem for marker in keep_translation_markers
+                ):
+                    continue
+                try:
+                    if child.is_dir():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink(missing_ok=True)
+                    print(f"[SPEC] pruned Qt translation: {child.relative_to(dist_root)}")
+                except Exception as exc:
+                    print(f"[SPEC] prune Qt translation skip {child}: {exc}")
+
         locales_dir = qt_root / "translations" / "qtwebengine_locales"
         if locales_dir.exists():
             keep_locales = {"en-US.pak", "en-GB.pak", "zh-CN.pak", "zh-TW.pak"}
@@ -279,8 +303,6 @@ a = Analysis(
     binaries=[] + extra_binaries,
     datas=[
         (str(SRC / "assets"), "assets"),
-        # Launched by the dependency Python as a file-based CAS worker.
-        (str(SRC / "editor" / "advanced_cas.py"), "editor"),
     ] + extra_datas,
     hiddenimports=[
         # PyQt6 / WebEngine core
@@ -335,7 +357,6 @@ a = Analysis(
         "editor",
         "editor.workbench_bridge",
         "editor.workbench_window",
-        "editor.advanced_cas",
         "bootstrap",
         "bootstrap.deps_bootstrap",
         "bootstrap.deps_pip_runner",
