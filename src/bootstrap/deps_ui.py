@@ -21,6 +21,7 @@ from bootstrap.deps_qt_compat import QIcon
 from bootstrap.deps_runtime_verify import _verify_layer_runtime
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
 from bootstrap.deps_workers import UninstallLayerWorker
+from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
 
 
 def activate_dependency_dialog(dlg) -> None:
@@ -62,6 +63,53 @@ def _load_config_path():
     from bootstrap.deps_entry import _load_config_path as _entry_load_config_path
 
     return _entry_load_config_path()
+
+
+def _runtime_layer_names() -> tuple[str, ...]:
+    if sys.platform == "darwin":
+        return ("MATHCRAFT_CPU",)
+    return tuple(MATHCRAFT_RUNTIME_LAYERS)
+
+
+def _visible_layer_names() -> list[str]:
+    layers = list(LAYER_MAP.keys())
+    if sys.platform == "darwin":
+        layers = [layer for layer in layers if layer != "MATHCRAFT_GPU"]
+    return layers
+
+
+def _layer_description_text() -> str:
+    if sys.platform == "darwin":
+        return (
+            "📦 层级说明：\n"
+            "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
+            "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
+            "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
+            "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
+            "• 识别功能实际运行需要 BASIC + CORE + MATHCRAFT_CPU。\n"
+            "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU。\n"
+            "\n"
+            "⚠️ 重要提示：\n"
+            "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
+            "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
+            "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
+        )
+    return (
+        "📦 层级说明：\n"
+        "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
+        "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
+        "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
+        "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
+        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
+        "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
+        "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
+        "\n"
+        "⚠️ 重要提示：\n"
+        "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
+        "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
+        "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
+        "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
+    )
 
 
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
@@ -263,11 +311,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         missing_layers.append("BASIC")
     if "CORE" not in installed_layers["layers"]:
         missing_layers.append("CORE")
-    if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+    if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
         missing_layers.append("MATHCRAFT_CPU")
 
     def _build_status_text(current_deps_dir: str, current_py_ready: bool,
                            current_installed_layers: list[str], current_failed_layers: list[str]) -> tuple[str, str]:
+        visible_layers = set(_visible_layer_names())
+        display_installed_layers = [layer for layer in current_installed_layers if layer in visible_layers]
+        display_failed_layers = [layer for layer in current_failed_layers if layer in visible_layers]
         if not current_py_ready:
             return (
                 f"当前依赖环境： {current_deps_dir}\n"
@@ -275,23 +326,23 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 "如需在此目录安装依赖，请先点击【下载】并按提示初始化。",
                 theme["hint"],
             )
-        if current_failed_layers:
+        if display_failed_layers:
             return (
                 f"当前依赖环境： {current_deps_dir}\n"
-                f"⚠️ 以下功能层安装但无法使用: {', '.join(current_failed_layers)}\n"
-                f"可用功能层： {', '.join(current_installed_layers) if current_installed_layers else '(无)'}",
+                f"⚠️ 以下功能层安装但无法使用: {', '.join(display_failed_layers)}\n"
+                f"可用功能层： {', '.join(display_installed_layers) if display_installed_layers else '(无)'}",
                 theme["warn"],
             )
-        if current_installed_layers:
-            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")) or not any(layer in current_installed_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
+        if display_installed_layers:
+            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")) or not any(layer in current_installed_layers for layer in _runtime_layer_names()):
                 return (
                     f"检测到当前环境 {current_deps_dir} 的功能层不完整\n"
-                    f"已完整安装的功能层：{', '.join(current_installed_layers)}",
+                    f"已完整安装的功能层：{', '.join(display_installed_layers)}",
                     theme["muted"],
                 )
             return (
                 f"当前依赖环境： {current_deps_dir}\n"
-                f"已完整安装的功能层：{', '.join(current_installed_layers)}",
+                f"已完整安装的功能层：{', '.join(display_installed_layers)}",
                 theme["ok"],
             )
         return (
@@ -317,15 +368,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     checks = {}
     delete_buttons = {}
 
+    def _layer_display_name(layer: str) -> str:
+        return layer
+
     def _effective_default_select() -> set[str]:
         defaults = {"BASIC", "CORE"}
         active_runtime = {
             str(x) for x in (installed_layers.get("layers", []) or [])
-            if str(x) in MATHCRAFT_RUNTIME_LAYERS
+            if str(x) in _runtime_layer_names()
         }
         active_runtime.update(
             str(x) for x in (failed_layer_names or [])
-            if str(x) in MATHCRAFT_RUNTIME_LAYERS
+            if str(x) in _runtime_layer_names()
         )
         if not active_runtime:
             defaults.add("MATHCRAFT_CPU")
@@ -335,21 +389,21 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if layer in failed_layer_names:
             cb.setChecked(True)
             cb.setEnabled(True)
-            cb.setText(f"{layer}（需要修复）")
+            cb.setText(f"{_layer_display_name(layer)}（需要修复）")
             _style_layer_checkbox(cb, warn_text=True)
             del_btn.setVisible(True)
             del_btn.setEnabled(True)
         elif layer in installed_layers["layers"]:
             cb.setChecked(False)
             cb.setEnabled(False)
-            cb.setText(f"{layer}（已安装）")
+            cb.setText(f"{_layer_display_name(layer)}（已安装）")
             _style_installed_layer_label(cb)
             del_btn.setVisible(True)
             del_btn.setEnabled(True)
         else:
             cb.setEnabled(True)
             cb.setChecked(layer in effective_defaults)
-            cb.setText(layer)
+            cb.setText(_layer_display_name(layer))
             _style_layer_checkbox(cb)
             del_btn.setVisible(False)
             del_btn.setEnabled(False)
@@ -412,7 +466,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
 
     effective_default_select = _effective_default_select()
-    for layer in LAYER_MAP.keys():
+    for layer in _visible_layer_names():
         row = QHBoxLayout()
         cb = QCheckBox(layer)
         del_btn = QToolButton()
@@ -443,6 +497,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     gpu_info_label = QLabel()
 
     def _refresh_gpu_info_label() -> None:
+        if sys.platform == "darwin":
+            return
         current_installed_layers = {
             str(layer) for layer in (installed_layers.get("layers", []) or [])
         }
@@ -465,8 +521,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         gpu_info_label.setText(text)
         gpu_info_label.setStyleSheet(f"color:{color};font-size:12px;margin:4px 0;")
 
-    _refresh_gpu_info_label()
-    lay.addWidget(gpu_info_label)
+    if sys.platform != "darwin":
+        _refresh_gpu_info_label()
+        lay.addWidget(gpu_info_label)
 
     path_row = QHBoxLayout()
     path_edit = QLineEdit(deps_dir)
@@ -479,6 +536,18 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     path_row.addWidget(btn_path)
     lay.addLayout(path_row)
 
+    btn_cleanup_macos_local_data = None
+    if sys.platform == "darwin":
+        cleanup_row = QHBoxLayout()
+        cleanup_row.setContentsMargins(0, 0, 0, 0)
+        cleanup_row.setSpacing(6)
+        btn_cleanup_macos_local_data = PushButton(FluentIcon.BROOM, "清理本机依赖与缓存")
+        btn_cleanup_macos_local_data.setFixedHeight(36)
+        btn_cleanup_macos_local_data.setToolTip(
+            "移除本机下载的依赖、缓存和日志；默认保留应用设置"
+        )
+        cleanup_row.addWidget(btn_cleanup_macos_local_data)
+        lay.addLayout(cleanup_row)
 
     mirror_row = QHBoxLayout()
     mirror_row.setContentsMargins(0, 0, 0, 0)
@@ -567,22 +636,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     lay.addWidget(warn)
 
 
-    desc = QLabel(
-        "📦 层级说明：\n"
-        "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
-        "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
-        "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
-        "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
-        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
-        "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
-        "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
-        "\n"
-        "⚠️ 重要提示：\n"
-        "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
-        "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-        "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
-    )
+    desc = QLabel(_layer_description_text())
     desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
     lay.addWidget(desc)
 
@@ -613,7 +667,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     def update_ui():
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
-        if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+        if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
             missing.append("MATHCRAFT_CPU")
         is_lack_critical = bool(missing)
         py_ready = _current_py_ready()
@@ -697,6 +751,68 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
 
     btn_path.clicked.connect(choose_path)
 
+    def cleanup_local_data():
+        nonlocal failed_layer_names, pyexe, state_path, state_file
+        target_lines = "\n".join(f"• {path}" for path in macos_cleanup_targets())
+        reply = _exec_close_only_message_box(
+            dlg,
+            "清理本机依赖与缓存",
+            "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n"
+            "应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n"
+            f"将清理：\n{target_lines}\n\n是否继续？",
+            icon=QMessageBox.Icon.Warning,
+            buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            default_button=QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        result = cleanup_macos_local_data()
+        if result.failed:
+            first_path, first_error = result.failed[0]
+            custom_warning_dialog(
+                "清理未完成",
+                f"{len(result.failed)} 个项目清理失败。\n\n示例：{first_path}\n{first_error}",
+                dlg,
+            )
+            return
+
+        current_deps_dir = Path(_current_deps_dir()).expanduser().absolute()
+        removed_paths = {Path(path).expanduser().absolute() for path in result.removed}
+        if current_deps_dir in removed_paths:
+            installed_layers["layers"] = []
+            failed_layer_names = []
+            state_path = current_deps_dir / STATE_FILE
+            state_file = str(state_path)
+            pyexe = _find_existing_python(current_deps_dir)
+            chosen["verified_in_ui"] = False
+
+        try:
+            dlg.refresh_ui()
+        except Exception:
+            update_ui()
+
+        from qfluentwidgets import InfoBar, InfoBarPosition
+        if result.removed:
+            InfoBar.success(
+                title="清理完成",
+                content=f"已清理 {len(result.removed)} 个项目；设置已保留，请按需重新下载依赖。",
+                parent=dlg,
+                duration=4000,
+                position=InfoBarPosition.TOP,
+            )
+        else:
+            InfoBar.info(
+                title="无需清理",
+                content="没有发现已下载的本机依赖、缓存或日志。",
+                parent=dlg,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+
+    if btn_cleanup_macos_local_data is not None:
+        btn_cleanup_macos_local_data.clicked.connect(cleanup_local_data)
+
     def enter():
         """Enter when the environment is complete, or apply the configured skip policy."""
         sel = _normalize_chosen_layers([L for L, c in checks.items() if c.isChecked()])
@@ -718,7 +834,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         print(f"[DEBUG] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
-        if not any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS):
+        if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
             missing.append("MATHCRAFT_CPU")
 
 
@@ -786,7 +902,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             if (
                 "BASIC" in installed_layers["layers"]
                 and "CORE" in installed_layers["layers"]
-                and any(layer in installed_layers["layers"] for layer in MATHCRAFT_RUNTIME_LAYERS)
+                and any(layer in installed_layers["layers"] for layer in _runtime_layer_names())
             ):
                 warn.setVisible(False)
                 btn_enter.setText("进入")

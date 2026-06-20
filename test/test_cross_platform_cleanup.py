@@ -257,6 +257,18 @@ def test_platform_protocols_cover_main_window_provider_calls() -> None:
         assert method_name in protocols
 
 
+def test_shutdown_cleans_office_bridge_toggle_workers() -> None:
+    lifecycle = (ROOT / "src" / "ui" / "app_lifecycle_controller.py").read_text(encoding="utf-8")
+    office_bridge = (ROOT / "src" / "ui" / "office_bridge_controller.py").read_text(encoding="utf-8")
+
+    assert "def _cleanup_office_bridge_workers" in office_bridge
+    assert "worker.completed.disconnect(receiver.handle_completed)" in office_bridge
+    assert "worker.wait(timeout_ms)" in office_bridge
+    assert "result_server.stop()" in office_bridge
+    assert "self._office_bridge_toggle_workers.clear()" in office_bridge
+    assert "self._cleanup_office_bridge_workers()" in lifecycle
+
+
 def test_release_workflow_uses_node24_actions_and_pinned_windows_runner() -> None:
     workflows = "\n".join(
         path.read_text(encoding="utf-8")

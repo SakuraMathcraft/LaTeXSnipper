@@ -86,6 +86,8 @@ STATE_FILE = ".deps_state.json"
 
 
 def _config_dir_path() -> Path:
+    from runtime.app_paths import app_state_dir
+
     p = app_state_dir()
     try:
         p.mkdir(parents=True, exist_ok=True)

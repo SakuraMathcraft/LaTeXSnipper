@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 from ui.settings_dialog_helpers import _select_open_file_with_icon
 
@@ -9,12 +10,15 @@ class SettingsLatexMixin:
     def _compiler_for_engine(self, engine: str) -> str:
         return "xelatex" if str(engine or "").strip() == "latex_xelatex" else "pdflatex"
 
+    def _compiler_executable_name(self, compiler: str) -> str:
+        return f"{compiler}.exe" if os.name == "nt" else compiler
+
     def _sync_latex_path_for_engine(self, engine: str) -> None:
         if not str(engine or "").startswith("latex_"):
             return
         target = self._compiler_for_engine(engine)
-        target_exe = f"{target}.exe"
-        other_exe = "pdflatex.exe" if target == "xelatex" else "xelatex.exe"
+        target_exe = self._compiler_executable_name(target)
+        other_exe = self._compiler_executable_name("pdflatex" if target == "xelatex" else "xelatex")
         current_path = (self.latex_path_input.text() or "").strip()
         if current_path:
             base = os.path.basename(current_path).lower()
@@ -100,7 +104,11 @@ class SettingsLatexMixin:
             self,
             "选择 pdflatex 或 xelatex 可执行文件",
             "",
-            "可执行文件 (pdflatex.exe xelatex.exe);;所有文件 (*.*)"
+            (
+                "可执行文件 (pdflatex xelatex);;所有文件 (*)"
+                if sys.platform == "darwin"
+                else "可执行文件 (pdflatex.exe xelatex.exe);;所有文件 (*.*)"
+            )
         )
         if file_path:
             self.latex_path_input.setText(file_path)
@@ -126,7 +134,7 @@ class SettingsLatexMixin:
             selected_compiler = "pdflatex"
         else:
             base = os.path.basename((self.latex_path_input.text() or "").strip()).lower()
-            selected_compiler = "xelatex" if base == "xelatex.exe" else "pdflatex"
+            selected_compiler = "xelatex" if base == self._compiler_executable_name("xelatex") else "pdflatex"
         current_path = self.latex_path_input.text().strip()
 
         def worker(preferred: str, current: str):
@@ -140,8 +148,9 @@ class SettingsLatexMixin:
                 if current:
                     base_dir = os.path.dirname(current)
                     if base_dir and os.path.isdir(base_dir):
-                        pdflatex_exe = os.path.join(base_dir, "pdflatex.exe")
-                        xelatex_exe = os.path.join(base_dir, "xelatex.exe")
+                        suffix = ".exe" if os.name == "nt" else ""
+                        pdflatex_exe = os.path.join(base_dir, f"pdflatex{suffix}")
+                        xelatex_exe = os.path.join(base_dir, f"xelatex{suffix}")
                         if (not candidates["pdflatex"]) and os.path.exists(pdflatex_exe):
                             candidates["pdflatex"] = pdflatex_exe
                         if (not candidates["xelatex"]) and os.path.exists(xelatex_exe):
@@ -249,7 +258,11 @@ class SettingsLatexMixin:
                     self._save_latex_settings()
             except Exception:
                 pass
-            compiler = "xelatex" if os.path.basename((tested_path or "").strip()).lower() == "xelatex.exe" else "pdflatex"
+            compiler = (
+                "xelatex"
+                if os.path.basename((tested_path or "").strip()).lower() == self._compiler_executable_name("xelatex")
+                else "pdflatex"
+            )
             self._show_notification("success", title or "验证成功", f"已验证编译器: {compiler}\n路径: {tested_path or ''}")
             return
         self.btn_test_latex.setText("验证路径")

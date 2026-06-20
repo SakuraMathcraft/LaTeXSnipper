@@ -1,5 +1,6 @@
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from bootstrap.deps_context import flags
@@ -140,6 +141,8 @@ def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
 
 
 def _gpu_available():
+    if sys.platform == "darwin":
+        return False
     try:
         r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=2, creationflags=flags)
         return r.returncode == 0
@@ -148,6 +151,8 @@ def _gpu_available():
 
 
 def _cuda_toolkit_available():
+    if sys.platform == "darwin":
+        return False
     try:
         r = subprocess.run(
             ["nvcc", "--version"],

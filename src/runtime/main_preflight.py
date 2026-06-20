@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import faulthandler
 import os
-import pathlib
 
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.app_paths import app_log_dir
@@ -28,7 +27,8 @@ def pre_bootstrap_runtime() -> None:
     apply_linux_graphics_fallbacks()
     early_ensure_pyqt6_and_pywin32()
 
-    log_dir = pathlib.Path(app_log_dir())
+    log_dir = app_log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
     crash_log = log_dir / "crash-native.log"
 
     try:

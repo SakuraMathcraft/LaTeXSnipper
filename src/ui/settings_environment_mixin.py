@@ -107,13 +107,18 @@ class SettingsEnvironmentMixin:
             f"echo   python -c \"import sys; sys.path.insert(0, r'{project_root}'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
             "echo.",
         ]
-        help_lines += [
+        diagnostics_lines = [
             "echo [Diagnostics]",
             "echo   pip list",
             "echo   pip check",
             "echo   python -c \"import onnxruntime as ort; print(ort.__version__, ort.get_available_providers())\"",
-            "echo   nvidia-smi",
-            "echo   nvcc --version",
+        ]
+        if sys.platform != "darwin":
+            diagnostics_lines += [
+                "echo   nvidia-smi",
+                "echo   nvcc --version",
+            ]
+        diagnostics_lines += [
             "echo.",
             "echo [Cache Clean]",
             "echo   pip cache purge",
@@ -121,6 +126,7 @@ class SettingsEnvironmentMixin:
             "echo ================================================================================",
             "echo.",
         ]
+        help_lines += diagnostics_lines
         try:
             launcher_dir = self._terminal_launcher_dir()
 
@@ -315,6 +321,47 @@ class SettingsEnvironmentMixin:
                 duration=5000,
                 position=InfoBarPosition.TOP
             )
+
+    def _cleanup_macos_local_data(self):
+        """Remove macOS user-scoped dependency data without touching app settings."""
+        if sys.platform != "darwin":
+            self._show_info("清理不可用", "本清理入口仅适用于 macOS。", "info")
+            return
+
+        from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
+
+        target_lines = "\n".join(f"• {path}" for path in macos_cleanup_targets())
+        msg = MessageBox(
+            "清理本机依赖与缓存",
+            "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n"
+            "应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n"
+            f"将清理：\n{target_lines}\n\n是否继续？",
+            self,
+        )
+        _apply_app_window_icon(msg)
+        msg.yesButton.setText("清理")
+        msg.cancelButton.setText("取消")
+
+        if not msg.exec():
+            return
+
+        result = cleanup_macos_local_data()
+        if result.failed:
+            first_path, first_error = result.failed[0]
+            self._show_info(
+                "清理未完成",
+                f"{len(result.failed)} 个项目清理失败。示例：{first_path}: {first_error}",
+                "error",
+            )
+            return
+        if result.removed:
+            self._show_info(
+                "清理完成",
+                f"已清理 {len(result.removed)} 个项目；应用设置已保留，请重启后按需重新下载依赖。",
+                "success",
+            )
+            return
+        self._show_info("无需清理", "没有发现已下载的本机依赖、缓存或日志。", "info")
 
     def _show_info(self, title: str, content: str, level: str = "info"):
         """Show a Fluent floating notification."""

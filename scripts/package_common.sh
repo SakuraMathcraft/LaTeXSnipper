@@ -46,11 +46,13 @@ PY
 
 prepare_python_runtime() {
     local project_root="$1"
-    local platform arch runtime_dir
+    local platform arch runtime_dir runtime_python create_python
     platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
     arch="$(uname -m | tr '[:upper:]' '[:lower:]')"
     runtime_dir="$project_root/tools/deps/python311-$platform-$arch"
-    local runtime_python="$runtime_dir/bin/python3"
+    runtime_python="$runtime_dir/bin/python3"
+    create_python="$(find_python311_command)"
+    [[ -n "$create_python" ]] || exit 1
 
     mkdir -p "$(dirname "$runtime_dir")"
 
@@ -59,18 +61,61 @@ prepare_python_runtime() {
         rebuild=true
     elif [[ -L "$runtime_python" ]]; then
         rebuild=true
+    elif ! "$runtime_python" - <<'PY' >/dev/null 2>&1; then
+import sys
+
+raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)
+PY
+        rebuild=true
     elif ! "$runtime_python" -c "print('ok')" >/dev/null 2>&1; then
         rebuild=true
     fi
 
     if [[ "$rebuild" == "true" ]]; then
         rm -rf "$runtime_dir"
-        python3 -m venv --copies "$runtime_dir" || die "failed to create isolated runtime at $runtime_dir"
+        "$create_python" -m venv --copies "$runtime_dir" || die "failed to create isolated Python 3.11 runtime at $runtime_dir"
     fi
+
+    "$runtime_python" - <<'PY' >/dev/null 2>&1 || die "isolated build runtime must be Python 3.11: $runtime_python"
+import sys
+
+raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)
+PY
 
     "$runtime_python" -m ensurepip --upgrade >/dev/null 2>&1 || true
     "$runtime_python" -m pip install --upgrade pip wheel setuptools >&2
     echo "$runtime_python"
+}
+
+find_python311_command() {
+    local override="${PYTHON311:-}"
+    if [[ -n "$override" ]]; then
+        [[ -x "$override" ]] || die "PYTHON311 is not executable: $override"
+        "$override" - <<'PY' >/dev/null 2>&1 || die "PYTHON311 must point to Python 3.11: $override"
+import sys
+
+raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)
+PY
+        echo "$override"
+        return
+    fi
+
+    local candidate resolved
+    for candidate in python3.11 python3; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            resolved="$(command -v "$candidate")"
+            if "$resolved" - <<'PY' >/dev/null 2>&1; then
+import sys
+
+raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)
+PY
+                echo "$resolved"
+                return
+            fi
+        fi
+    done
+
+    die "Python 3.11 is required for packaging; install python3.11 or set PYTHON311=/path/to/python3.11"
 }
 
 install_python_requirements() {

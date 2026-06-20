@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from runtime.hotkey_config import hotkey_help_text, normalize_hotkey, normalize_hotkey_or_default
+from runtime.hotkey_config import display_hotkey, hotkey_help_text, normalize_hotkey, normalize_hotkey_or_default
 from ui.hotkey_dialog import create_hotkey_dialog
 
 
@@ -72,7 +74,10 @@ class HotkeyControllerMixin:
             self.shortcut_window.activateWindow()
             return
 
-        current_hotkey = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+        current_hotkey = display_hotkey(
+            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+            sys.platform,
+        )
         dlg = create_hotkey_dialog(
             self,
             current_hotkey,
@@ -87,11 +92,11 @@ class HotkeyControllerMixin:
     def update_hotkey(self, text: str, dialog: QDialog):
         from qfluentwidgets import InfoBar, InfoBarPosition
 
-        normalized_hotkey = normalize_hotkey(text)
+        normalized_hotkey = normalize_hotkey(text, sys.platform)
         if normalized_hotkey is None:
             InfoBar.error(
                 title="快捷键格式错误",
-                content=f"格式必须为 {hotkey_help_text()}",
+                content=f"格式必须为 {hotkey_help_text(sys.platform)}",
                 parent=self._get_infobar_parent(),
                 duration=3000,
                 position=InfoBarPosition.TOP,
@@ -104,7 +109,7 @@ class HotkeyControllerMixin:
         ):
             InfoBar.error(
                 title="快捷键注册失败",
-                content=f"请更换其他 {hotkey_help_text()} 组合后重试",
+                content=f"请更换其他 {hotkey_help_text(sys.platform)} 组合后重试",
                 parent=self._get_infobar_parent(),
                 duration=3500,
                 position=InfoBarPosition.TOP,
@@ -117,7 +122,7 @@ class HotkeyControllerMixin:
             pass
         InfoBar.success(
             title="快捷键已更新",
-            content=f"已更新为 {normalized_hotkey}",
+            content=f"已更新为 {display_hotkey(normalized_hotkey, sys.platform)}",
             parent=self._get_infobar_parent(),
             duration=2500,
             position=InfoBarPosition.TOP,

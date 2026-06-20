@@ -95,6 +95,9 @@ def run_application(main_window_cls) -> int:
     ensure_std_streams()
 
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationName("LaTeXSnipper")
+    app.setApplicationDisplayName("LaTeXSnipper")
+    app.setOrganizationName("MathCraft")
     app.setQuitOnLastWindowClosed(False)
 
     if getattr(sys, "frozen", False):

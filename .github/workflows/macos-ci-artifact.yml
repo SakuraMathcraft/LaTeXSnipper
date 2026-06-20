@@ -1,0 +1,105 @@
+name: macOS CI Artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/macos-native-experience
+    tags-ignore:
+      - '**'
+
+permissions:
+  contents: read
+
+jobs:
+  full-tests:
+    name: Full tests / macOS
+    runs-on: macos-latest
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      QT_QPA_PLATFORM: offscreen
+      QT_OPENGL: software
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: "--disable-gpu --disable-dev-shm-usage"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          python -m pip install -e ".[cpu,pandoc]"
+          python -m pip install pytest
+
+      - name: Collect tests
+        run: |
+          python -m pytest --collect-only -q
+
+      - name: Run full tests
+        run: |
+          python -m pytest -q
+
+      - name: Shell syntax check
+        run: |
+          bash -n scripts/package_common.sh
+          bash -n scripts/build_macos.sh
+
+      - name: Diff whitespace check
+        run: |
+          git diff --check
+
+  build-macos-artifact:
+    name: Build downloadable macOS CI artifact
+    runs-on: macos-latest
+    needs: full-tests
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      CI: "1"
+      SKIP_CODESIGN: "1"
+      SKIP_NOTARIZE: "1"
+      NOTARIZE: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build macOS CI package
+        run: |
+          chmod +x scripts/build_macos.sh
+          CI=1 SKIP_CODESIGN=1 SKIP_NOTARIZE=1 NOTARIZE=0 ./scripts/build_macos.sh
+
+      - name: Show build outputs
+        if: always()
+        run: |
+          echo "dist:"
+          find dist -maxdepth 4 -print || true
+          echo "build:"
+          find build -maxdepth 4 -print || true
+
+      - name: Upload macOS CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaTeXSnipper-macOS-app-ci-unsigned-${{ github.sha }}
+          path: |
+            dist/LaTeXSnipper_*.app.zip
+            dist/LaTeXSnipper*.dmg
+          if-no-files-found: error
+          retention-days: 7

@@ -89,6 +89,7 @@ class _OfficeBridgeToggleWorker(QThread):
         self._token = token
         self._server = server
         self._recognition_service = recognition_service
+        self._result_server = None
 
     def run(self) -> None:
         try:
@@ -100,12 +101,15 @@ class _OfficeBridgeToggleWorker(QThread):
                     recognition_service=self._recognition_service,
                 )
                 server.start()
+                self._result_server = server
                 self.completed.emit(True, f"Office bridge: {server.base_url}", server)
                 return
             if self._server is not None:
                 self._server.stop()
+            self._result_server = None
             self.completed.emit(True, "Office bridge: disabled", None)
         except Exception as exc:
+            self._result_server = None
             self.completed.emit(False, str(exc), None)
 
 
@@ -184,6 +188,45 @@ class OfficeBridgeControllerMixin:
             workers = []
             self._office_bridge_toggle_workers = workers
         return workers
+
+    def _cleanup_office_bridge_workers(self, timeout_ms: int = 3000) -> None:
+        workers = list(getattr(self, "_office_bridge_toggle_workers", []) or [])
+        if not workers:
+            return
+        current_server = getattr(self, "_office_bridge_server", None)
+        for worker, receiver in workers:
+            try:
+                worker.completed.disconnect(receiver.handle_completed)
+            except Exception:
+                pass
+            try:
+                if worker.isRunning():
+                    worker.quit()
+                    worker.wait(timeout_ms)
+            except Exception:
+                pass
+            result_server = getattr(worker, "_result_server", None)
+            if result_server is not None and result_server is not current_server:
+                try:
+                    result_server.stop()
+                except Exception:
+                    pass
+                try:
+                    worker._result_server = None
+                except Exception:
+                    pass
+            try:
+                worker.deleteLater()
+            except Exception:
+                pass
+            try:
+                receiver.deleteLater()
+            except Exception:
+                pass
+        try:
+            self._office_bridge_toggle_workers.clear()
+        except Exception:
+            self._office_bridge_toggle_workers = []
 
     def _run_office_bridge_worker(self, worker: _OfficeBridgeToggleWorker, on_done) -> None:
         workers = self._office_bridge_workers()

@@ -6,8 +6,9 @@ import os
 import sys
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
-from PyQt6.QtWidgets import QMessageBox, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
+from backend.platform import ApplicationMenuHandlers
 from runtime.runtime_logging import cleanup_runtime_log_session, open_debug_console
 from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
 
@@ -25,6 +26,12 @@ class _MacApplicationQuitFilter(QObject):
                 window._graceful_shutdown()
             except Exception:
                 pass
+        elif sys.platform == "darwin" and event.type() == QEvent.Type.ApplicationActivate:
+            window = self._window
+            try:
+                QTimer.singleShot(0, window._reactivate_from_dock)
+            except Exception:
+                pass
         return False
 
 
@@ -37,6 +44,51 @@ class AppLifecycleMixin:
             return
         self._mac_quit_filter = _MacApplicationQuitFilter(self)
         app.installEventFilter(self._mac_quit_filter)
+        self._install_macos_application_menu()
+
+    def _install_macos_application_menu(self):
+        if sys.platform != "darwin":
+            return
+        provider = getattr(self, "system_provider", None)
+        installer = getattr(provider, "install_application_menu", None)
+        if not callable(installer):
+            return
+        handlers = ApplicationMenuHandlers(
+            on_about=self._show_about_dialog,
+            on_preferences=self.open_settings,
+            on_capture=self.start_capture,
+            on_show_window=self.show_window,
+            on_close_window=self._close_active_window,
+            on_quit=self.truly_exit,
+        )
+        installer(self, handlers)
+
+    def _show_about_dialog(self):
+        QMessageBox.about(
+            self,
+            "About LaTeXSnipper",
+            "LaTeXSnipper\n\nScreenshot, recognize, edit, and export mathematical content.",
+        )
+
+    def _close_active_window(self):
+        app = QApplication.instance()
+        active = app.activeWindow() if app is not None else None
+        if active is not None and active is not self:
+            try:
+                active.close()
+                return
+            except Exception:
+                pass
+        self.close()
+
+    def _reactivate_from_dock(self):
+        if sys.platform != "darwin" or getattr(self, "_force_exit", False):
+            return
+        try:
+            if not self.isVisible() or self.isMinimized():
+                self.show_window()
+        except Exception:
+            pass
 
     def apply_startup_console_preference(self, enabled: bool):
         """Apply the startup log-window preference."""
@@ -116,6 +168,13 @@ class AppLifecycleMixin:
         try:
             if getattr(self, "tray_icon", None):
                 self.tray_icon.hide()
+                self.tray_icon.deleteLater()
+        except Exception:
+            pass
+        try:
+            timer = getattr(self, "_auto_theme_refresh_timer", None)
+            if timer is not None:
+                timer.stop()
         except Exception:
             pass
         try:
@@ -127,6 +186,11 @@ class AppLifecycleMixin:
         try:
             if hasattr(self, "_stop_office_bridge"):
                 self._stop_office_bridge()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_cleanup_office_bridge_workers"):
+                self._cleanup_office_bridge_workers()
         except Exception:
             pass
 
@@ -237,13 +301,9 @@ class AppLifecycleMixin:
             return
 
         if sys.platform == "darwin":
-            if not event.spontaneous():
-                self._force_exit = True
-                self._graceful_shutdown()
-                event.accept()
-                return
-            self.showMinimized()
-            event.ignore()
+            self.hide()
+            self.set_action_status("主窗口已关闭，可通过 Dock 或菜单栏重新打开")
+            event.accept()
             return
 
         self.hide()

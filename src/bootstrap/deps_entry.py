@@ -285,6 +285,26 @@ def _dependency_python_path(py_root: Path) -> Path:
     return py_root / bin_dir / exe_name
 
 
+def _install_failure_dialog_copy() -> tuple[str, str]:
+    if sys.platform == "darwin":
+        return (
+            "依赖安装未完成",
+            "部分依赖没有安装成功。\n\n"
+            "请查看安装日志后重试。若日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，"
+            "请使用 Python 3.11、3.12 或 3.13 重新初始化依赖环境。",
+        )
+    return (
+        "Install Incomplete",
+        "Some dependencies failed to install. Please check logs and retry.",
+    )
+
+
+def _install_failure_log_line() -> str:
+    if sys.platform == "darwin":
+        return "\n[ERR] 依赖安装未完成，请查看日志后重试"
+    return "\n[ERR] Install has failures, check logs ❌"
+
+
 def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool:
     """Create a Python venv at target_dir using a supported system Python."""
     import time
@@ -981,12 +1001,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         return
 
                     if not success:
-                        _append_log("\n[ERR] Install has failures, check logs")
+                        _append_log(_install_failure_log_line())
                         if _is_alive(dlg):
+                            title, message = _install_failure_dialog_copy()
                             _exec_close_only_message_box(
                                 dlg,
-                                "Install Incomplete",
-                                "Some dependencies failed to install. Please check logs and retry.",
+                                title,
+                                message,
                                 icon=QMessageBox.Icon.Warning,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

@@ -34,6 +34,9 @@ class CaptureControllerMixin:
             self._restore_hidden_unpinned_predict_result_dialog()
             self._restore_predict_result_dialog_visibility()
             custom_warning_dialog("权限不足", getattr(perm, "message", "截图权限被拒绝"), self)
+            opener = getattr(self.screenshot_provider, "open_permission_settings", None)
+            if callable(opener):
+                opener()
             return
         cfg = ScreenshotConfig(
             capture_display_mode=self._get_capture_display_mode(),

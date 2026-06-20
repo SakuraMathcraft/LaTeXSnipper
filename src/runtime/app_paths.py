@@ -9,6 +9,7 @@ import sys
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
 APP_NAME = "LaTeXSnipper"
+APP_SUPPORT_NAME = APP_NAME
 
 _APP_LOG_DIR_CACHE: pathlib.Path | None = None
 _APP_STATE_DIR_CACHE: pathlib.Path | None = None
@@ -27,14 +28,30 @@ def app_state_dir() -> pathlib.Path:
         return _APP_STATE_DIR_CACHE
 
     if sys.platform == "darwin":
-        p = pathlib.Path.home() / "Library" / "Application Support" / APP_NAME
+        p = pathlib.Path.home() / "Library" / "Application Support" / APP_SUPPORT_NAME
     else:
         p = pathlib.Path.home() / APP_STATE_DIRNAME
     try:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     _APP_STATE_DIR_CACHE = p
+    return p
+
+
+def app_cache_dir() -> pathlib.Path:
+    if sys.platform == "darwin":
+        p = pathlib.Path.home() / "Library" / "Caches" / APP_SUPPORT_NAME
+    else:
+        p = app_state_dir() / "cache"
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     return p
 
 
@@ -48,7 +65,7 @@ def app_log_dir() -> pathlib.Path:
 
     candidates = []
     if sys.platform == "darwin":
-        candidates.append(pathlib.Path.home() / "Library" / "Logs" / APP_NAME)
+        candidates.append(pathlib.Path.home() / "Library" / "Logs" / APP_SUPPORT_NAME)
     candidates.append(app_state_dir() / "logs")
     if sys.platform == "win32":
         local_app_data = os.environ.get("LOCALAPPDATA")

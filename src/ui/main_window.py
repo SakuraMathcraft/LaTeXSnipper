@@ -14,6 +14,7 @@ from ui.editor_actions_controller import EditorActionsControllerMixin
 from ui.file_drop import FileDropMixin
 from ui.history_controller import HistoryControllerMixin
 from ui.hotkey_controller import HotkeyControllerMixin
+from ui.image_staging import ImageStagingMixin
 from ui.main_window_setup import MainWindowSetupMixin
 from ui.menu_helpers import action_btn_style as _action_btn_style
 from ui.model_runtime_controller import ModelRuntimeControllerMixin
@@ -29,6 +30,7 @@ class MainWindow(
     MainWindowSetupMixin,
     ThemeControllerMixin,
     PreviewControllerMixin,
+    ImageStagingMixin,
     FileDropMixin,
     TrayControllerMixin,
     ModelRuntimeControllerMixin,

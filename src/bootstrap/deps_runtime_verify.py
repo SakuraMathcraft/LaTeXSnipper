@@ -294,6 +294,16 @@ print("CORE OK")
 """
 
 
+_CONFIG_PATH_SNIPPET = """
+def _latexsnipper_config_path():
+    from pathlib import Path
+    import sys
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "LaTeXSnipper_config.json"
+    return Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+"""
+
+
 def _onnxruntime_session_verify_code(*, expect_gpu: bool) -> str:
     expected_provider = "CUDAExecutionProvider" if expect_gpu else "CPUExecutionProvider"
     requested_providers = (
@@ -380,7 +390,7 @@ print("BASIC OK")
     "CORE": _CORE_VERIFY_CODE,
     "MATHCRAFT_CPU": _onnxruntime_session_verify_code(expect_gpu=False),
     "MATHCRAFT_GPU": _onnxruntime_session_verify_code(expect_gpu=True),
-    "PANDOC": """
+    "PANDOC": _CONFIG_PATH_SNIPPET + """
 import importlib.util, shutil, os, sys
 if importlib.util.find_spec("pypandoc") is None:
     raise RuntimeError("pypandoc not installed")
@@ -467,6 +477,10 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
 def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
     if layer != "MATHCRAFT_GPU":
         return []
+    if sys.platform == "darwin":
+        return [
+            "MATHCRAFT_GPU 当前表示 NVIDIA CUDA 后端，主要适用于 Windows / Linux NVIDIA GPU 环境；macOS 默认使用 CPU 后端。"
+        ]
     try:
         from backend.cuda_diagnostics import diagnose_cuda_dll_paths
 

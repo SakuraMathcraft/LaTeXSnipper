@@ -73,8 +73,13 @@ class SettingsMathCraftMixin:
     def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
         try:
             env_root = self._python_env_root(pyexe)
-            site = env_root / "Lib" / "site-packages"
-            if not site.exists():
+            try:
+                from bootstrap.deps_python_runtime import site_packages_root
+
+                site = site_packages_root(Path(pyexe))
+            except Exception:
+                site = env_root / "Lib" / "site-packages"
+            if not site or not site.exists():
                 return {}
             names = {d.name.lower() for d in site.iterdir()}
             has_ort = any(name.startswith("onnxruntime-") for name in names) or (site / "onnxruntime").exists()
@@ -99,7 +104,7 @@ class SettingsMathCraftMixin:
 
     def _probe_compute_mode_info(self, pyexe: str) -> dict:
         if not pyexe or not os.path.exists(pyexe):
-            return {"present": False, "error": "python.exe not found"}
+            return {"present": False, "error": "Python executable not found"}
         code = (
             "import json\n"
             "out={'present': False, 'providers': [], 'gpu_available': False, 'gpu_name': '', 'cpu_name': ''}\n"
@@ -155,6 +160,10 @@ class SettingsMathCraftMixin:
             return {"present": False, "error": str(e)}
 
     def _probe_local_device_names(self) -> tuple[str, str]:
+        if sys.platform == "darwin":
+            self._device_name_cache = {"gpu": "", "cpu": "", "ts": time.monotonic()}
+            return "", ""
+
         now = time.monotonic()
         cached = getattr(self, "_device_name_cache", {}) or {}
         ttl = 300.0

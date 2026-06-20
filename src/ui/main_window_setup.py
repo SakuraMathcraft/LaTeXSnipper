@@ -8,14 +8,14 @@ import sys
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
-from qfluentwidgets import FluentIcon, MessageBox, PushButton
+from qfluentwidgets import FluentIcon, MessageBox, PushButton, ToolButton
 
 from backend.model_factory import create_model_wrapper
 from backend.platform import PlatformCapabilityRegistry
 from bootstrap.deps_bootstrap import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
-from runtime.config_manager import ConfigManager, default_user_data_file
+from runtime.config_manager import ConfigManager, resolve_user_data_file
 from runtime.dependency_bootstrap_controller import ensure_deps, show_dependency_wizard
 from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
@@ -53,6 +53,7 @@ class MainWindowSetupMixin:
         self._capture_waiting_for_hidden_result_window = False
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
+        self._staged_image_path = None
         self.predict_thread = None
         self.predict_worker = None
         self.pdf_predict_thread = None
@@ -176,7 +177,7 @@ class MainWindowSetupMixin:
 
         print("[DEBUG] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
-        self.history_path = str(default_user_data_file(DEFAULT_HISTORY_NAME))
+        self.history_path = resolve_user_data_file(self.cfg, "history_path", DEFAULT_HISTORY_NAME)
         self.history = []
 
 
@@ -198,7 +199,7 @@ class MainWindowSetupMixin:
         self.system_provider = self.platform_providers.system
         if self.hotkey_provider.activated is not None:
             self.hotkey_provider.activated.connect(self.on_hotkey_triggered)
-        seq = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+        seq = normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform)
         self._pending_hotkey_seq = seq
 
         self._report_startup_progress("构建主窗口界面...")
@@ -271,13 +272,13 @@ class MainWindowSetupMixin:
         self.editor_title_label = QLabel("LaTeX 编辑器")
         editor_header.addWidget(self.editor_title_label)
         editor_header.addSpacing(6)
-        self.upload_image_btn = PushButton(FluentIcon.PHOTO, "图片识别")
+        self.upload_image_btn = PushButton(FluentIcon.PHOTO, "添加图片")
         self.upload_image_btn.clicked.connect(self._upload_image_recognition)
         self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, "PDF识别")
         self.upload_pdf_btn.clicked.connect(self._upload_pdf_recognition)
         try:
             img_exts = self._get_supported_image_extensions()
-            self.upload_image_btn.setToolTip("支持格式: " + ", ".join(img_exts))
+            self.upload_image_btn.setToolTip("添加待识别图片，支持格式: " + ", ".join(img_exts))
         except Exception:
             pass
         self.upload_pdf_btn.setToolTip("支持格式: PDF")
@@ -303,6 +304,28 @@ class MainWindowSetupMixin:
         editor_actions.addWidget(self.workbench_btn)
         editor_header.addLayout(editor_actions)
         right_layout.addLayout(editor_header)
+
+        self.staged_image_bar = QWidget()
+        staged_image_layout = QHBoxLayout(self.staged_image_bar)
+        staged_image_layout.setContentsMargins(0, 0, 0, 0)
+        staged_image_layout.setSpacing(6)
+        self.staged_image_thumbnail = QLabel()
+        self.staged_image_thumbnail.setFixedSize(44, 32)
+        self.staged_image_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.staged_image_filename = QLabel()
+        self.staged_image_filename.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.staged_image_recognize_button = PushButton(FluentIcon.SEARCH, "识别图片")
+        self.staged_image_recognize_button.setToolTip("开始识别当前添加的图片")
+        self.staged_image_recognize_button.clicked.connect(self._recognize_staged_image)
+        self.clear_staged_image_button = ToolButton(FluentIcon.CLOSE)
+        self.clear_staged_image_button.setToolTip("移除当前图片")
+        self.clear_staged_image_button.clicked.connect(self._clear_staged_image)
+        staged_image_layout.addWidget(self.staged_image_thumbnail)
+        staged_image_layout.addWidget(self.staged_image_filename, 1)
+        staged_image_layout.addWidget(self.staged_image_recognize_button)
+        staged_image_layout.addWidget(self.clear_staged_image_button)
+        self.staged_image_bar.hide()
+        right_layout.addWidget(self.staged_image_bar)
 
 
         from qfluentwidgets import PlainTextEdit
@@ -357,7 +380,7 @@ class MainWindowSetupMixin:
             except Exception:
                 pass
 
-            html = build_math_html("", center_viewport=True)
+            html = build_math_html("")
             base_url = get_mathjax_base_url()
 
             try:

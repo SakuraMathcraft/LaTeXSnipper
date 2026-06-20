@@ -602,7 +602,7 @@ class ModelWrapper(QObject):
         for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
             env.pop(key, None)
         pyexe = get_deps_python()
-        env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
+        env["PYTHONNOUSERSITE"] = "1"
         if os.name == "nt":
             env["PATH"] = _worker_path_value(pyexe, env.get("PATH"))
         env["ORT_DISABLE_AZURE"] = "1"
