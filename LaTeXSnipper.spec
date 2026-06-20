@@ -11,7 +11,6 @@ This spec bundles required resources/dependencies so the app can run on target m
 import os
 import sys
 import shutil
-import json
 from pathlib import Path
 
 import PyQt6
@@ -25,12 +24,8 @@ ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
-BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
-STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
 BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
 BUNDLE_PYTHON_INSTALLER = os.environ.get("LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER", "1").strip() != "0"
-if BUILD_CHANNEL not in {"github", "store"}:
-    raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
@@ -41,24 +36,6 @@ QT6_BIN = QT6_DIR / "bin"
 
 extra_datas = []
 extra_binaries = []
-generated_root = ROOT / "build" / "generated"
-generated_root.mkdir(parents=True, exist_ok=True)
-distribution_channel_file = generated_root / "distribution_channel.json"
-distribution_channel_file.write_text(
-    json.dumps(
-        {
-            "channel": BUILD_CHANNEL,
-            "store_product_id": STORE_PRODUCT_ID,
-        },
-        ensure_ascii=False,
-        indent=2,
-    ),
-    encoding="utf-8",
-)
-extra_datas.append((str(distribution_channel_file), "."))
-print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
-if BUILD_CHANNEL == "store" and not STORE_PRODUCT_ID:
-    print("[SPEC] store product id is not set; Store build will open the Store updates page.")
 if QT6_RESOURCES.exists():
     extra_datas.append((str(QT6_RESOURCES), "PyQt6/Qt6/resources"))
 if QT6_LOCALES.exists():
@@ -281,7 +258,7 @@ def _resolve_bundled_deps_root() -> Path:
     return ROOT
 
 
-# Bundle dependency runtime. Store builds pass a clean CPU-only deps root here.
+# Bundle dependency runtime.
 BUNDLED_DEPS_ROOT = _resolve_bundled_deps_root()
 BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
 if BUNDLED_PY311.exists():
@@ -297,15 +274,12 @@ if BUNDLED_DEPS_STATE.exists():
 else:
     print(f"[SPEC] bundled deps state not found, skip: {BUNDLED_DEPS_STATE}")
 
-# Optional bundled Python installer. Store packages carry a complete CPU runtime
-# and do not include a nested Python installer.
+# Optional bundled Python installer.
 BUNDLED_PY_INSTALLER = ROOT / "python-3.11.0-amd64.exe"
 optional_root_datas = []
-if BUILD_CHANNEL != "store" and BUNDLE_PYTHON_INSTALLER and BUNDLED_PY_INSTALLER.exists():
+if BUNDLE_PYTHON_INSTALLER and BUNDLED_PY_INSTALLER.exists():
     optional_root_datas.append((str(BUNDLED_PY_INSTALLER), "."))
     print(f"[SPEC] include bundled installer: {BUNDLED_PY_INSTALLER}")
-elif BUILD_CHANNEL == "store":
-    print("[SPEC] store build skips bundled Python installer.")
 elif not BUNDLE_PYTHON_INSTALLER:
     print("[SPEC] bundled Python installer disabled by LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER=0.")
 else:

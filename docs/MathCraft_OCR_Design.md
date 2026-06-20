@@ -10,7 +10,7 @@ Current design goals:
 
 1. Use ONNX Runtime for active inference.
 2. Keep model cache checks, downloads, provider selection, warmup, and worker calls explicit.
-3. Use one standard model cache root: `%APPDATA%\MathCraft\models` or `MATHCRAFT_HOME\models` on Windows, and `~/.mathcraft/models` or `MATHCRAFT_HOME/models` on Linux/macOS.
+3. Use one standard model cache root per platform: `%APPDATA%\MathCraft\models` on Windows, `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models` on Linux, and `~/Library/Application Support/LaTeXSnipper/MathCraft/models` on macOS. `MATHCRAFT_HOME` can explicitly override the root.
 4. Keep the active manifest limited to models that are required by the current ONNX runtime.
 5. Keep the standalone package independent from the desktop UI modules under `src/`.
 

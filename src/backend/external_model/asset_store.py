@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import base64
 import shutil
-import tempfile
 from pathlib import Path
+
+from runtime.app_paths import app_temp_dir
 
 from .structured_document import DocumentAsset
 
@@ -15,7 +16,7 @@ class PdfAssetStore:
         root_dir: str | None = None,
         overwrite_existing: bool = False,
     ):
-        base = Path(root_dir or (Path(tempfile.gettempdir()) / "latexsnipper" / "pdf_assets"))
+        base = Path(root_dir or (app_temp_dir() / "pdf-assets"))
         self.task_id = str(task_id or "latest")
         self.root_dir = base / self.task_id
         if overwrite_existing and self.root_dir.exists():

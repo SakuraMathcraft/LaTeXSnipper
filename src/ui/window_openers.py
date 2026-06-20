@@ -137,7 +137,7 @@ class WindowOpenersMixin:
         else:
             from editor.workbench_window import WorkbenchWindow
 
-            self.workbench_window = WorkbenchWindow(None, on_insert_latex=self._on_workbench_insert)
+            self.workbench_window = WorkbenchWindow(self, on_insert_latex=self._on_workbench_insert)
             self.workbench_window.destroyed.connect(lambda: setattr(self, "workbench_window", None))
             self.workbench_window.apply_theme_styles(force=True)
             self.workbench_window.show()
@@ -161,7 +161,7 @@ class WindowOpenersMixin:
         try:
             from handwriting.bilingual_pdf_window import BilingualPdfWindow
 
-            window = BilingualPdfWindow(cfg=self.cfg, parent=None)
+            window = BilingualPdfWindow(cfg=self.cfg, parent=self)
         except Exception as exc:
             custom_warning_dialog("错误", f"双语阅读窗口初始化失败: {exc}", self)
             return

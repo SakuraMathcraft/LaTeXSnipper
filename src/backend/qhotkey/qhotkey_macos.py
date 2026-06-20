@@ -189,6 +189,17 @@ class MacHotkey(QObject):
             raise ValueError(f"Unsupported macOS hotkey key: {key_part}")
         return modifiers, key_code
 
+    @staticmethod
+    def _qt_sequence_text(keyseq_str: str) -> str:
+        parts = []
+        for part in str(keyseq_str or "").split("+"):
+            token = part.strip()
+            if token.upper() in {"COMMAND", "CMD"}:
+                parts.append("Meta")
+            else:
+                parts.append(token)
+        return "+".join(part for part in parts if part)
+
     def _ensure_handler(self) -> None:
         if self._handler_ref.value:
             return
@@ -233,7 +244,7 @@ class MacHotkey(QObject):
     def register(self, seq: Union[QKeySequence, str, None] = None) -> None:
         if seq is not None:
             if isinstance(seq, str):
-                seq = QKeySequence(seq)
+                seq = QKeySequence(self._qt_sequence_text(seq))
             self.setShortcut(seq)
         if not self._seq_str:
             raise RuntimeError("No shortcut set")

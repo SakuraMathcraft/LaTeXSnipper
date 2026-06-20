@@ -8,6 +8,7 @@ import os
 import pathlib
 
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
+from runtime.app_paths import app_log_dir
 from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 _CRASH_FH = None
@@ -27,8 +28,7 @@ def pre_bootstrap_runtime() -> None:
     apply_linux_graphics_fallbacks()
     early_ensure_pyqt6_and_pywin32()
 
-    log_dir = pathlib.Path.home() / ".latexsnipper" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir = pathlib.Path(app_log_dir())
     crash_log = log_dir / "crash-native.log"
 
     try:

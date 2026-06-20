@@ -51,6 +51,10 @@ git push origin MathCraft
 - If a PR changes packaging, dependency bootstrap, platform providers, or
   release workflows, the PR description must say which platform package jobs or
   local target-platform checks were run.
+- Before platform cleanup work, check `docs/platform_adaptation_audit.md` and
+  update the relevant status when the PR fixes or intentionally accepts an item.
+- Before adding persistent user files, reusable caches, or temp directories,
+  check and update `docs/user_data_storage.md`.
 
 ## Dependency Rules
 
@@ -84,9 +88,11 @@ git push origin MathCraft
   build-machine virtual environment into the packaged app. Packaged Linux/macOS
   installs create dependency environments in the user's app state directory.
 - Linux and macOS dependency bootstrap behavior must stay aligned. Both
-  platforms use a system Python 3.10+ only to create the user-writable venv, and
-  runtime messages/docs must declare the platform-specific way to install that
-  prerequisite.
+  platforms use a supported system Python `>=3.10,<3.13` only to create the
+  user-writable venv, preferring Python 3.11 when available. Runtime
+  messages/docs must declare the platform-specific way to install that
+  prerequisite. Do not accept newer Python versions until all dependency layers
+  have been verified against them.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
 - Keep build tools pinned in `requirements-build.txt` unless the PR explicitly

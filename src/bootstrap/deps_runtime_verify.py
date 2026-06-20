@@ -16,6 +16,7 @@ from bootstrap.deps_context import (
 from bootstrap.deps_pip_runner import PipInstallRunner
 from bootstrap.deps_python_runtime import site_packages_root as _site_packages_root
 from bootstrap.deps_layer_specs import _diagnose_install_failure, _version_satisfies_spec
+from runtime.app_paths import app_config_path
 
 
 CRITICAL_VERSIONS = {
@@ -204,6 +205,8 @@ def _force_repair_broken_runtime_imports(
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=240,
                 creationflags=flags,
             )
@@ -244,7 +247,15 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
             if use_mirror:
                 cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             timeout_sec = 180
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec, creationflags=flags)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_sec,
+                creationflags=flags,
+            )
             if log_fn:
                 if result.returncode == 0:
                     log_fn(f"  [OK] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
@@ -381,7 +392,7 @@ configured_pandoc = None
 try:
     import json
     from pathlib import Path
-    cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+    cfg_path = Path(os.environ.get("LATEXSNIPPER_CONFIG_PATH", ""))
     if cfg_path.exists():
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
         raw = str(cfg.get("pandoc_executable_path", "") or "").strip() if isinstance(cfg, dict) else ""
@@ -400,7 +411,7 @@ if not install_base_dir:
     try:
         import json
         from pathlib import Path
-        cfg_path = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+        cfg_path = Path(os.environ.get("LATEXSNIPPER_CONFIG_PATH", ""))
         if cfg_path.exists():
             cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
             install_base_dir = str(cfg.get("install_base_dir", "") or "") if isinstance(cfg, dict) else ""
@@ -433,6 +444,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
+        env["LATEXSNIPPER_CONFIG_PATH"] = str(app_config_path())
         result = subprocess.run(
             [pyexe, "-c", code],
             capture_output=True, text=True, timeout=timeout,
@@ -576,7 +588,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
                 log_fn=log_fn,
             )
         if log_fn:
-            log_fn(f"[OK] 已卸载冲突的 {pkg_key} ✅")
+            log_fn(f"[OK] 已卸载冲突的 {pkg_key}")
         return True
     except Exception as e:
         if log_fn:
@@ -664,6 +676,8 @@ def _current_installed(pyexe):
                 out = subprocess.check_output(
                     [str(pyexe), "-c", code],
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     creationflags=flags,
                 )
             payload = (out or "").strip()
@@ -688,7 +702,10 @@ def _current_installed(pyexe):
         with subprocess_lock:
             out = subprocess.check_output(
                 [str(pyexe), "-m", "pip", "list", "--disable-pip-version-check", "--format=json"],
-                text=True, creationflags=flags)
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=flags)
         raw = (out or "").strip()
         data = None
         try:

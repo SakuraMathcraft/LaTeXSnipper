@@ -41,7 +41,7 @@ def build_handwriting_preview_html(text: str, output_mode: str = "latex") -> str
         return _build_markdown_math_html(content)
     if mode != "latex":
         return _build_plain_text_html(content)
-    return build_math_html(normalize_latex_preview_source(content))
+    return build_math_html(normalize_latex_preview_source(content), center_viewport=not content)
 
 
 def _build_markdown_math_html(content: str) -> str:

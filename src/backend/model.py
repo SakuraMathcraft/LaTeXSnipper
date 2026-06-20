@@ -15,6 +15,7 @@ import threading
 from typing import Any
 
 from PIL import Image
+from runtime.app_paths import app_config_path
 from runtime.dependency_python import clean_path_value, find_dependency_python, python_env_root
 
 try:
@@ -327,7 +328,7 @@ def _configured_install_base_python() -> Path | None:
         if raw:
             raw_values.append(raw)
     try:
-        cfg = Path.home() / ".latexsnipper" / "LaTeXSnipper_config.json"
+        cfg = app_config_path()
         if cfg.exists():
             data = json.loads(cfg.read_text(encoding="utf-8"))
             raw = clean_path_value(data.get("install_base_dir", "")) if isinstance(data, dict) else ""

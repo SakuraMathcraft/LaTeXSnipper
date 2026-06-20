@@ -156,16 +156,17 @@ python src/main.py
 
 | Platform | Status | Notes |
 |------|------|------|
-| Windows | Primary release target | Native global hotkey, Qt capture, GitHub/Inno and Store/MSIX packaging. |
+| Windows | Primary release target | Native global hotkey, Qt capture, GitHub/Inno packaging. |
 | Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
 | macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
 
 Linux and macOS both create optional runtime dependency environments in the
-user state directory, so they need a usable system Python 3.10+ with venv/pip
-support. Debian/Ubuntu `.deb` installs declare `python3` and `python3-venv`;
-macOS users should install Python through Homebrew (`brew install python`) or
-the official python.org macOS installer when the system does not provide a
-usable `python3`.
+user state directory, so they need a usable system Python `>=3.10,<3.13` with
+venv/pip support. Python 3.11 is preferred because it matches the Windows
+bundled runtime. Debian/Ubuntu `.deb` installs declare `python3` and
+`python3-venv`; macOS users should install Homebrew `python@3.11` or an
+official python.org 3.11/3.12 installer when the system does not provide a
+usable supported `python3`.
 
 ---
 

@@ -364,14 +364,10 @@ if (-not (Test-Path $iss)) {
     throw "Inno Setup script not found: $iss"
 }
 
-$oldChannel = $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL
-$oldStoreProduct = $env:LATEXSNIPPER_STORE_PRODUCT_ID
 $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
 $oldBundlePythonInstaller = $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER
 $oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
 try {
-    $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = "github"
-    $env:LATEXSNIPPER_STORE_PRODUCT_ID = ""
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
     $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = if ($SkipPythonInstaller) { "0" } else { "1" }
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot
@@ -384,8 +380,6 @@ try {
     Test-PythonHttpsRuntime -PythonExe $distPython
 }
 finally {
-    $env:LATEXSNIPPER_DISTRIBUTION_CHANNEL = $oldChannel
-    $env:LATEXSNIPPER_STORE_PRODUCT_ID = $oldStoreProduct
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
     $env:LATEXSNIPPER_BUNDLE_PYTHON_INSTALLER = $oldBundlePythonInstaller
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir

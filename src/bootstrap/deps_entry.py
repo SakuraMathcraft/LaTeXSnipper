@@ -33,6 +33,7 @@ from bootstrap.deps_python_runtime import (
     is_usable_python as _is_usable_python,
     normalize_deps_base_dir as _normalize_deps_base_dir,
     site_packages_root as _site_packages_root,
+    supported_system_python_range_label as _supported_system_python_range_label,
 )
 from bootstrap.deps_qt_compat import QTimer
 from bootstrap.deps_runtime_verify import _verify_installed_layers
@@ -253,10 +254,11 @@ def _find_local_python311_installer(deps_dir: Path) -> Path | None:
 
 def _system_python_install_hint(reason: str) -> str:
     """Return platform-specific instructions for creating the dependency venv."""
+    version_range = _supported_system_python_range_label()
     lines = [
         reason,
         "",
-        "请安装带 venv/pip 支持的 Python 3.10+ 后重试。",
+        f"请安装带 venv/pip 支持的 Python（{version_range}）后重试。",
     ]
     if sys.platform == "darwin":
         lines.extend([
@@ -1091,7 +1093,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         return
 
                     if not success:
-                        _append_log("\n[ERR] Install has failures, check logs ❌")
+                        _append_log("\n[ERR] Install has failures, check logs")
                         if _is_alive(dlg):
                             _exec_close_only_message_box(
                                 dlg,

@@ -10,6 +10,19 @@ from shutil import which
 
 
 _PY311_INSTALLER_NAME = "python-3.11.0-amd64.exe"
+SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)
+SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)
+PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 11), (3, 12), (3, 10))
+
+
+def _version_label(version: tuple[int, int]) -> str:
+    return f"{version[0]}.{version[1]}"
+
+
+def supported_system_python_range_label() -> str:
+    min_label = _version_label(SUPPORTED_SYSTEM_PYTHON_MIN)
+    max_major, max_minor = SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE
+    return f">={min_label},<{max_major}.{max_minor}"
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -191,7 +204,8 @@ def _system_python3_score(pyexe: Path) -> int:
             return 0
         base_check = (
             "import sys, venv; "
-            "raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
+            f"v=sys.version_info[:2]; "
+            f"raise SystemExit(0 if {SUPPORTED_SYSTEM_PYTHON_MIN!r} <= v < {SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE!r} else 1)"
         )
         proc = subprocess.run(
             [str(pyexe), "-c", base_check],
@@ -222,19 +236,41 @@ def find_system_python3() -> Path | None:
     """
     if os.name == "nt":
         return None
+    versioned_names = [f"python{major}.{minor}" for major, minor in PREFERRED_SYSTEM_PYTHON_VERSIONS]
     path_python = which("python3")
+    path_versioned = [which(name) for name in versioned_names]
     if sys.platform == "darwin":
         candidates = [
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+            "/opt/homebrew/bin/python3.11",
+            "/usr/local/bin/python3.11",
+            *path_versioned,
+            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+            "/opt/homebrew/bin/python3.12",
+            "/usr/local/bin/python3.12",
+            "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
+            "/opt/homebrew/bin/python3.10",
+            "/usr/local/bin/python3.10",
             path_python,
             "/opt/homebrew/bin/python3",
             "/usr/local/bin/python3",
-            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
-            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
-            "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
             "/usr/bin/python3",
         ]
     else:
         candidates = [
+            "/usr/bin/python3.11",
+            "/usr/local/bin/python3.11",
+            "/opt/homebrew/bin/python3.11",
+            "/home/linuxbrew/.linuxbrew/bin/python3.11",
+            *path_versioned,
+            "/usr/bin/python3.12",
+            "/usr/local/bin/python3.12",
+            "/opt/homebrew/bin/python3.12",
+            "/home/linuxbrew/.linuxbrew/bin/python3.12",
+            "/usr/bin/python3.10",
+            "/usr/local/bin/python3.10",
+            "/opt/homebrew/bin/python3.10",
+            "/home/linuxbrew/.linuxbrew/bin/python3.10",
             "/usr/bin/python3",
             "/usr/local/bin/python3",
             "/opt/homebrew/bin/python3",

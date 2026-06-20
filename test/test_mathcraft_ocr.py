@@ -1223,6 +1223,28 @@ def test_hardware_video_controller_payload_parser() -> None:
     assert driver == "32.0.15.9597"
 
 
+def test_hardware_memory_status_uses_psutil_when_available(monkeypatch) -> None:
+    class _Memory:
+        total = 16 * 1024 * 1024 * 1024
+        available = 10 * 1024 * 1024 * 1024
+
+    class _Psutil:
+        @staticmethod
+        def virtual_memory():
+            return _Memory()
+
+    monkeypatch.setitem(sys.modules, "psutil", _Psutil)
+    assert hardware_mod._psutil_memory_status() == (16384, 10240)
+
+
+def test_hardware_memory_status_combines_posix_total_with_macos_free(monkeypatch) -> None:
+    monkeypatch.setattr(hardware_mod, "_psutil_memory_status", lambda: (0, 0))
+    monkeypatch.setattr(hardware_mod, "_windows_memory_status", lambda: (0, 0))
+    monkeypatch.setattr(hardware_mod, "_posix_memory_status", lambda: (8192, 0))
+    monkeypatch.setattr(hardware_mod, "_macos_vm_stat_memory_status", lambda: (0, 4096))
+    assert hardware_mod._memory_status() == (8192, 4096)
+
+
 def test_hardware_batch_policy_keeps_cpu_batches_moderate() -> None:
     provider = ProviderInfo(
         available_providers=("CPUExecutionProvider",),

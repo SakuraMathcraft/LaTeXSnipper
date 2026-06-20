@@ -8,6 +8,7 @@ from functools import lru_cache
 import json
 import os
 import subprocess
+import sys
 
 from .providers import GPU_PROVIDER_NAMES, ProviderInfo
 
@@ -25,7 +26,7 @@ class HardwareInfo:
 
 @lru_cache(maxsize=1)
 def detect_hardware_info() -> HardwareInfo:
-    total_mb, free_mb = _windows_memory_status()
+    total_mb, free_mb = _memory_status()
     gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi()
     if not gpu_name:
         gpu_name, gpu_total_mb, gpu_driver = _query_windows_video_controller()
@@ -38,6 +39,79 @@ def detect_hardware_info() -> HardwareInfo:
         gpu_free_memory_mb=gpu_free_mb,
         gpu_driver_version=gpu_driver,
     )
+
+
+def _memory_status() -> tuple[int, int]:
+    for probe in (_psutil_memory_status, _windows_memory_status, _posix_memory_status):
+        total_mb, free_mb = probe()
+        if total_mb > 0:
+            if free_mb <= 0:
+                _, macos_free_mb = _macos_vm_stat_memory_status()
+                free_mb = macos_free_mb
+            return total_mb, free_mb
+    return 0, 0
+
+
+def _psutil_memory_status() -> tuple[int, int]:
+    try:
+        import psutil  # type: ignore[import-not-found]
+
+        mem = psutil.virtual_memory()
+        return _bytes_to_mb(int(mem.total)), _bytes_to_mb(int(mem.available))
+    except Exception:
+        return 0, 0
+
+
+def _posix_memory_status() -> tuple[int, int]:
+    if os.name == "nt":
+        return 0, 0
+    try:
+        page_size = int(os.sysconf("SC_PAGE_SIZE"))
+        phys_pages = int(os.sysconf("SC_PHYS_PAGES"))
+    except Exception:
+        return 0, 0
+    total_mb = _bytes_to_mb(page_size * phys_pages)
+    free_mb = 0
+    try:
+        avail_pages = int(os.sysconf("SC_AVPHYS_PAGES"))
+        free_mb = _bytes_to_mb(page_size * avail_pages)
+    except Exception:
+        pass
+    return total_mb, free_mb
+
+
+def _macos_vm_stat_memory_status() -> tuple[int, int]:
+    if sys.platform != "darwin":
+        return 0, 0
+    try:
+        proc = subprocess.run(
+            ["vm_stat"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=2.0,
+        )
+    except Exception:
+        return 0, 0
+    if proc.returncode != 0:
+        return 0, 0
+    page_size = 4096
+    free_pages = 0
+    for raw_line in proc.stdout.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Mach Virtual Memory Statistics:") and "page size of" in line:
+            page_size = _safe_int(line.rsplit("page size of", 1)[-1].split("bytes", 1)[0])
+            if page_size <= 0:
+                page_size = 4096
+            continue
+        if line.startswith(("Pages free:", "Pages inactive:", "Pages speculative:")):
+            value = line.split(":", 1)[-1].strip().rstrip(".")
+            free_pages += _safe_int(value)
+    if free_pages <= 0:
+        return 0, 0
+    return 0, _bytes_to_mb(page_size * free_pages)
 
 
 def choose_rec_batch_num(
@@ -198,6 +272,10 @@ def _windows_memory_status() -> tuple[int, int]:
 
 def _safe_int(value: str) -> int:
     try:
-        return int(float(str(value).strip()))
+        return int(float(str(value).strip().replace(",", "")))
     except Exception:
         return 0
+
+
+def _bytes_to_mb(value: int) -> int:
+    return max(0, int(value) // (1024 * 1024))

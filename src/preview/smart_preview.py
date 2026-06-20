@@ -35,7 +35,7 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer, *, 
     try:
         tokens = preview_theme_tokens()
         if not items:
-            return build_math_html("")
+            return build_math_html("", center_viewport=True)
 
         body_content = "\n".join(
             render_content_block(content, label, content_type, formula_renderer, debug=debug)

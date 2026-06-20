@@ -9,7 +9,6 @@ Build:
 import os
 import sys
 import shutil
-import json
 from pathlib import Path
 
 import PyQt6
@@ -24,35 +23,16 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-BUILD_CHANNEL = os.environ.get("LATEXSNIPPER_DISTRIBUTION_CHANNEL", "github").strip().lower()
-STORE_PRODUCT_ID = os.environ.get("LATEXSNIPPER_STORE_PRODUCT_ID", "").strip()
 ICON_ICNS_ENV = os.environ.get("LATEXSNIPPER_ICON_ICNS", "").strip()
 ICON_ICNS = Path(ICON_ICNS_ENV).expanduser() if ICON_ICNS_ENV else SRC / "assets" / "icon.icns"
 if not ICON_ICNS.exists():
     ICON_ICNS = None
 
-if BUILD_CHANNEL not in {"github", "store"}:
-    raise SystemExit(f"[SPEC] invalid LATEXSNIPPER_DISTRIBUTION_CHANNEL: {BUILD_CHANNEL!r}")
-
 print("[SPEC] platform: macOS")
-print(f"[SPEC] distribution channel: {BUILD_CHANNEL}")
 print(f"[SPEC] output name: {APP_NAME}")
-
-# ---------------------------------------------------------------------------
-# Generate distribution channel metadata
-# ---------------------------------------------------------------------------
-generated_root = ROOT / "build" / "generated"
-generated_root.mkdir(parents=True, exist_ok=True)
-distribution_channel_file = generated_root / "distribution_channel.json"
-distribution_channel_file.write_text(
-    json.dumps({"channel": BUILD_CHANNEL, "store_product_id": STORE_PRODUCT_ID}, ensure_ascii=False, indent=2),
-    encoding="utf-8",
-)
 
 extra_datas: list[tuple[str, str]] = []
 extra_binaries: list[tuple[str, str]] = []
-
-extra_datas.append((str(distribution_channel_file), "."))
 
 # ---------------------------------------------------------------------------
 # PyQt6 / Qt6 resources

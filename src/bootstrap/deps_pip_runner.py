@@ -37,8 +37,10 @@ def _pip_env(pyexe) -> dict:
     env = os.environ.copy()
     main_site = Path(pyexe).parent / "Lib" / "site-packages"
     if main_site.exists():
-        env["PYTHONPATH"] = f"{main_site};{env.get('PYTHONPATH', '')}"
+        env["PYTHONPATH"] = os.pathsep.join(item for item in (str(main_site), env.get("PYTHONPATH", "")) if item)
     env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     return env
 
 
@@ -65,6 +67,7 @@ def _spawn_process(args, *, env: dict, flags=0, safe_run: Callable | None = None
                 "text": True,
                 "bufsize": 1,
                 "encoding": "utf-8",
+                "errors": "replace",
                 "env": env,
                 "creationflags": flags,
             }
@@ -77,6 +80,7 @@ def _spawn_process(args, *, env: dict, flags=0, safe_run: Callable | None = None
             "text": True,
             "bufsize": 1,
             "encoding": "utf-8",
+            "errors": "replace",
             "env": env,
             "creationflags": flags,
         }

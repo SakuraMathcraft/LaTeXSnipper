@@ -14,7 +14,11 @@ def default_user_models_dir() -> Path:
     appdata = os.environ.get("APPDATA", "")
     if appdata:
         return Path(appdata) / "MathCraft" / "models"
-    return Path.home() / ".mathcraft" / "models"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "MathCraft" / "models"
+    xdg_data_home = os.environ.get("XDG_DATA_HOME", "").strip()
+    data_root = Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
+    return data_root / "LaTeXSnipper" / "MathCraft" / "models"
 
 
 def resolve_user_models_dir(cache_dir: str | Path | None = None) -> Path:

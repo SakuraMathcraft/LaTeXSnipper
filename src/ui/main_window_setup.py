@@ -15,7 +15,7 @@ from backend.platform import PlatformCapabilityRegistry
 from bootstrap.deps_bootstrap import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
-from runtime.config_manager import ConfigManager, resolve_user_data_file
+from runtime.config_manager import ConfigManager, default_user_data_file
 from runtime.dependency_bootstrap_controller import ensure_deps, show_dependency_wizard
 from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
@@ -176,7 +176,7 @@ class MainWindowSetupMixin:
 
         print("[DEBUG] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
-        self.history_path = resolve_user_data_file(self.cfg, "history_path", DEFAULT_HISTORY_NAME)
+        self.history_path = str(default_user_data_file(DEFAULT_HISTORY_NAME))
         self.history = []
 
 
@@ -198,7 +198,7 @@ class MainWindowSetupMixin:
         self.system_provider = self.platform_providers.system
         if self.hotkey_provider.activated is not None:
             self.hotkey_provider.activated.connect(self.on_hotkey_triggered)
-        seq = normalize_hotkey_or_default(self.cfg.get("hotkey", "Ctrl+F"))
+        seq = normalize_hotkey_or_default(self.cfg.get("hotkey"))
         self._pending_hotkey_seq = seq
 
         self._report_startup_progress("构建主窗口界面...")
@@ -357,7 +357,7 @@ class MainWindowSetupMixin:
             except Exception:
                 pass
 
-            html = build_math_html("")
+            html = build_math_html("", center_viewport=True)
             base_url = get_mathjax_base_url()
 
             try:

@@ -93,10 +93,12 @@ mathcraft worker --provider auto
 
 ## Model Cache
 
-MathCraft reads models from:
+MathCraft reads models from a platform-specific default user data root:
 
 ```text
-%APPDATA%\MathCraft\models
+Windows: %APPDATA%\MathCraft\models
+macOS: ~/Library/Application Support/LaTeXSnipper/MathCraft/models
+Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 ```
 
 or from a custom root:
@@ -123,7 +125,9 @@ mathcraft doctor --provider auto
 Open a new PowerShell window after removing the persistent variable. The default root is:
 
 ```text
-%APPDATA%\MathCraft\models
+Windows: %APPDATA%\MathCraft\models
+macOS: ~/Library/Application Support/LaTeXSnipper/MathCraft/models
+Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 ```
 
 Model artifacts are downloaded from the MathCraft-Models release assets declared in `mathcraft_ocr/manifests/models.v1.json`.

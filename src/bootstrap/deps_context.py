@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
+from runtime.app_paths import app_state_dir
 
 try:
     import psutil
@@ -48,9 +49,18 @@ def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """Start a subprocess and return the Popen object without eagerly reading stdout."""
     print(f"[RUN] {' '.join(cmd)}")
 
+    env = popen_kwargs.get("env")
+    if env is None:
+        env = os.environ.copy()
+        popen_kwargs["env"] = env
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+
     popen_kwargs.setdefault("stdout", subprocess.PIPE)
     popen_kwargs.setdefault("stderr", subprocess.STDOUT)
     popen_kwargs.setdefault("text", True)
+    popen_kwargs.setdefault("encoding", "utf-8")
+    popen_kwargs.setdefault("errors", "replace")
     for key, value in _hidden_subprocess_kwargs().items():
         popen_kwargs.setdefault(key, value)
 
@@ -76,7 +86,7 @@ STATE_FILE = ".deps_state.json"
 
 
 def _config_dir_path() -> Path:
-    p = Path.home() / ".latexsnipper"
+    p = app_state_dir()
     try:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:

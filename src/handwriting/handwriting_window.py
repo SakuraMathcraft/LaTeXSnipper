@@ -5,8 +5,8 @@ import time
 from dataclasses import replace
 
 from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QMouseEvent, QWheelEvent
-from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtGui import QGuiApplication, QIcon, QMouseEvent, QWheelEvent
+from PyQt6.QtWidgets import QApplication, QCheckBox, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
@@ -56,7 +56,7 @@ class _HandwritingDocumentLayoutWorker(QObject):
             self.failed.emit(str(exc))
 
 
-class HandwritingWindow(QDialog):
+class HandwritingWindow(QWidget):
     latexInserted = pyqtSignal(str)
 
     def __init__(self, model_wrapper, owner=None, parent=None):
@@ -81,11 +81,13 @@ class HandwritingWindow(QDialog):
         self._last_busy_notice_ts = 0.0
         self._last_stroke_ts = 0.0
         self._document_preview_window = None
+        self._centered_once = False
         self._build_ui()
         self._wire_events()
 
     def _build_ui(self) -> None:
         self.setWindowTitle("手写识别")
+        self.setObjectName("handwritingWindow")
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.CustomizeWindowHint
@@ -98,6 +100,7 @@ class HandwritingWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, True)
         self.setWindowFlag(Qt.WindowType.WindowMinMaxButtonsHint, True)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.resize(1120, 760)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
@@ -318,9 +321,28 @@ class HandwritingWindow(QDialog):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self._center_on_owner_screen_once()
         if self._ui_ready:
             self._refresh_recognition_context()
             self.apply_theme_styles(force=True)
+
+    def _center_on_owner_screen_once(self) -> None:
+        if self._centered_once:
+            return
+        self._centered_once = True
+        try:
+            screen = None
+            if self.owner is not None and self.owner.windowHandle() is not None:
+                screen = self.owner.windowHandle().screen()
+            if screen is None:
+                screen = QGuiApplication.primaryScreen()
+            if screen is None:
+                return
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())
+        except Exception:
+            pass
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
@@ -452,7 +474,7 @@ class HandwritingWindow(QDialog):
             divider = "rgba(148, 163, 184, 0.22)"
         self.setStyleSheet(
             f"""
-            QDialog {{ background: {bg}; }}
+            QWidget#handwritingWindow {{ background: {bg}; }}
             QLabel#handwritingTitle {{ color: {text}; font-size: 24px; font-weight: 600; padding-right: 10px; }}
             QLabel#handwritingModeHint {{ color: {subtext}; font-size: 12px; }}
             QLabel#handwritingSectionTitle {{ color: {text}; font-size: 14px; font-weight: 600; }}

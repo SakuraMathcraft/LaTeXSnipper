@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from runtime.hotkey_config import HOTKEY_HELP_TEXT, normalize_hotkey, normalize_hotkey_or_default
+from runtime.hotkey_config import hotkey_help_text, normalize_hotkey, normalize_hotkey_or_default
 from ui.hotkey_dialog import create_hotkey_dialog
 
 
@@ -72,7 +72,7 @@ class HotkeyControllerMixin:
             self.shortcut_window.activateWindow()
             return
 
-        current_hotkey = normalize_hotkey_or_default(self.cfg.get("hotkey", "Ctrl+F"))
+        current_hotkey = normalize_hotkey_or_default(self.cfg.get("hotkey"))
         dlg = create_hotkey_dialog(
             self,
             current_hotkey,
@@ -91,7 +91,7 @@ class HotkeyControllerMixin:
         if normalized_hotkey is None:
             InfoBar.error(
                 title="快捷键格式错误",
-                content=f"格式必须为 {HOTKEY_HELP_TEXT}",
+                content=f"格式必须为 {hotkey_help_text()}",
                 parent=self._get_infobar_parent(),
                 duration=3000,
                 position=InfoBarPosition.TOP,
@@ -104,7 +104,7 @@ class HotkeyControllerMixin:
         ):
             InfoBar.error(
                 title="快捷键注册失败",
-                content=f"请更换其他 {HOTKEY_HELP_TEXT} 组合后重试",
+                content=f"请更换其他 {hotkey_help_text()} 组合后重试",
                 parent=self._get_infobar_parent(),
                 duration=3500,
                 position=InfoBarPosition.TOP,
