@@ -373,6 +373,8 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("onnxruntime", all_specs)
         self.assertIn("numpy", all_specs)
         self.assertIn("protobuf", all_specs)
+        self.assertNotIn("coloredlogs", all_specs)
+        self.assertNotIn("sympy", all_specs)
         self.assertNotIn("sentencepiece", all_specs)
         self.assertNotIn("argostranslate", all_specs)
 
@@ -412,8 +414,11 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
     def test_critical_repair_covers_onnxruntime_dependency_chain(self):
         import bootstrap.deps_bootstrap as deps_bootstrap
 
-        for pkg in ("numpy", "sympy", "flatbuffers", "packaging", "coloredlogs", "protobuf"):
+        for pkg in ("numpy", "flatbuffers", "packaging", "protobuf"):
             self.assertIn(pkg, deps_bootstrap.CRITICAL_VERSIONS)
+
+        self.assertNotIn("coloredlogs", deps_bootstrap.CRITICAL_VERSIONS)
+        self.assertNotIn("sympy", deps_bootstrap.CRITICAL_VERSIONS)
 
         source = inspect.getsource(deps_bootstrap._repair_gpu_onnxruntime_runtime)
         self.assertIn("_fix_critical_versions", source)
@@ -538,11 +543,19 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn('"psutil"', excludes.group(1))
         self.assertNotIn('"psutil"', prune_prefixes.group(1))
 
-    def test_pyinstaller_spec_keeps_file_based_external_workers(self):
-        spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+    def test_pyinstaller_spec_does_not_bundle_removed_cas_worker(self):
+        for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+            spec = (ROOT / spec_name).read_text(encoding="utf-8")
+            self.assertNotIn("advanced_cas.py", spec)
+            self.assertNotIn("editor.advanced_cas", spec)
+            self.assertNotIn('(str(SRC / "editor"), "editor")', spec)
 
-        self.assertIn('SRC / "editor" / "advanced_cas.py"', spec)
-        self.assertNotIn('(str(SRC / "editor"), "editor")', spec)
+    def test_runtime_requirements_do_not_keep_removed_cas_dependencies(self):
+        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
+
+        for pkg in ("humanfriendly", "mpmath", "networkx"):
+            self.assertNotIn(pkg, requirements)
+        self.assertNotIn("sympy", requirements)
 
     def test_pyinstaller_specs_do_not_keep_removed_startup_dependency_flow(self):
         for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):

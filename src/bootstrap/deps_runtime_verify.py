@@ -21,10 +21,8 @@ from runtime.app_paths import app_config_path
 
 CRITICAL_VERSIONS = {
     "numpy": "numpy>=1.26,<3",
-    "sympy": "sympy>=1.13,<1.15",
     "flatbuffers": "flatbuffers>=24.3.25",
     "packaging": "packaging>=23",
-    "coloredlogs": "coloredlogs>=15.0.1",
     "rapidocr": "rapidocr==3.5.0",
     "protobuf": "protobuf>=3.20,<5",
 }
@@ -32,10 +30,8 @@ CRITICAL_VERSIONS = {
 
 RUNTIME_IMPORT_CHECKS = {
     "numpy": "numpy",
-    "sympy": "sympy",
     "flatbuffers": "flatbuffers",
     "packaging": "packaging",
-    "coloredlogs": "coloredlogs",
     "protobuf": "google.protobuf",
 }
 
