@@ -228,9 +228,9 @@ class InstallWorker(QThread):
                     percent = int(done_count / total * pip_progress_max)
                     self.progress_updated.emit(percent)
                     if ok:
-                        self.log_updated.emit(f"[OK] {pkg} 安装成功 ✅")
+                        self.log_updated.emit(f"[OK] {pkg} 安装成功")
                     else:
-                        self.log_updated.emit(f"[ERR] {pkg} 安装失败 ❌")
+                        self.log_updated.emit(f"[ERR] {pkg} 安装失败")
                         fail_count += 1
                         failed_pkgs.append(pkg)
 
@@ -285,35 +285,35 @@ class InstallWorker(QThread):
             all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
 
             if all_ok:
-                self.log_updated.emit("[OK] 依赖安装阶段完成 ✅")
+                self.log_updated.emit("[OK] 依赖安装阶段完成")
             elif fail_count == 0 and not runtime_ort_ok:
-                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败 ❌")
+                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败")
                 if runtime_ort_err:
                     self.log_updated.emit(f"[DIAG] {runtime_ort_err[:600]}")
                 self.log_updated.emit("")
-                self.log_updated.emit("💡 建议操作:")
+                self.log_updated.emit("[HINT] 建议操作:")
                 self.log_updated.emit("  1. 在依赖向导中仅选择 MATHCRAFT_CPU 或 MATHCRAFT_GPU 之一重装")
                 self.log_updated.emit("  2. 如仍失败，先卸载 onnxruntime / onnxruntime-gpu 后再重装对应后端")
                 self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
             else:
-                self.log_updated.emit(f"[WARN] 部分安装失败，共 {fail_count}/{total} 个 ❌")
+                self.log_updated.emit(f"[WARN] 部分安装失败，共 {fail_count}/{total} 个")
                 self.log_updated.emit("")
                 self.log_updated.emit("=" * 70)
-                self.log_updated.emit("📋 失败包汇总 - 可在终端中手动安装:")
+                self.log_updated.emit("[SUMMARY] 失败包汇总 - 可在终端中手动安装:")
                 self.log_updated.emit("")
                 for pkg in failed_pkgs:
                     self.log_updated.emit(f'  pip install "{pkg}" --upgrade --user')
                 self.log_updated.emit("")
                 self.log_updated.emit("=" * 70)
                 self.log_updated.emit("")
-                self.log_updated.emit("🔍 常见失败原因及解决方案:")
+                self.log_updated.emit("[DIAG] 常见失败原因及解决方案:")
                 self.log_updated.emit("")
-                self.log_updated.emit("  1. 🔒 程序占用文件：关闭本程序后再手动安装")
-                self.log_updated.emit("  2. 🔐 权限不足：以管理员身份运行终端")
-                self.log_updated.emit("  3. 🌐 网络问题：尝试使用镜像源或 VPN")
-                self.log_updated.emit("  4. ⚠️ 依赖冲突：查看上方 [DIAG] 诊断信息")
+                self.log_updated.emit("  1. 程序占用文件：关闭本程序后再手动安装")
+                self.log_updated.emit("  2. 权限不足：以管理员身份运行终端")
+                self.log_updated.emit("  3. 网络问题：尝试使用镜像源或 VPN")
+                self.log_updated.emit("  4. 依赖冲突：查看上方 [DIAG] 诊断信息")
                 self.log_updated.emit("")
-                self.log_updated.emit("💡 推荐操作:")
+                self.log_updated.emit("[HINT] 推荐操作:")
                 self.log_updated.emit("  1. 关闭本程序")
                 self.log_updated.emit("  2. 打开 CMD 终端（以管理员身份）")
                 self.log_updated.emit("  3. 执行上述 pip install 命令")
@@ -397,6 +397,8 @@ class UninstallLayerWorker(QThread):
                     check=False,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     creationflags=flags
                 )
                 output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()

@@ -16,7 +16,8 @@ case "$1" in
         if [[ "$1" == "purge" ]]; then
             rm -rf /usr/lib/latexsnipper
             rm -f /usr/bin/latexsnipper
-            echo "User configuration is preserved. Remove ~/.latexsnipper, ~/.MathCraft, or ~/.mathcraft manually if needed."
+            rm -f /usr/bin/latexsnipper-clean-user-data
+            echo "User data is preserved. Run latexsnipper-clean-user-data before purge, or remove ~/.latexsnipper and ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper manually if needed."
         fi
         ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

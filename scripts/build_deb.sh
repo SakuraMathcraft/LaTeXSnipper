@@ -58,6 +58,7 @@ MAIN_BIN="$DEB_LIB_DIR/LaTeXSnipper"
 [[ -f "$MAIN_BIN" ]] || die "missing packaged executable: $MAIN_BIN"
 chmod 755 "$MAIN_BIN"
 write_debian_launcher "$PACKAGE_ROOT" "/usr/lib/latexsnipper/LaTeXSnipper"
+install -m 755 "$PROJECT_ROOT/scripts/latexsnipper-clean-user-data.sh" "$PACKAGE_ROOT/usr/bin/latexsnipper-clean-user-data"
 write_debian_desktop_file "$PACKAGE_ROOT"
 install_debian_icons "$PACKAGE_ROOT" "$PROJECT_ROOT/src/assets/icon.ico" "$BUILD_PYTHON"
 

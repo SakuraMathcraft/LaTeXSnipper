@@ -1,11 +1,15 @@
 import os
+import shlex
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from qfluentwidgets import MessageBox
 
 from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
 from core.restart_contract import build_restart_with_wizard_launch
+from runtime.app_paths import app_temp_dir
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
     _normalize_windows_drive_letter,
@@ -13,6 +17,13 @@ from ui.settings_dialog_helpers import (
 
 
 class SettingsEnvironmentMixin:
+
+    def _terminal_launcher_dir(self) -> Path:
+        path = app_temp_dir() / "terminal-launchers"
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def _get_terminal_env_key(self) -> str:
         return "main"
@@ -26,8 +37,6 @@ class SettingsEnvironmentMixin:
     def _open_terminal(self, env_key: str | None = None):
         if isinstance(env_key, bool):
             env_key = None
-        import subprocess
-        import os
         if env_key is None:
             env_key = self._get_terminal_env_key()
         # Always open only the main environment terminal.
@@ -49,41 +58,17 @@ class SettingsEnvironmentMixin:
             msg.cancelButton.hide()
             msg.exec()
             return
-        pyexe = _normalize_windows_drive_letter(pyexe)
+        if os.name == "nt":
+            pyexe = _normalize_windows_drive_letter(pyexe)
         env_root = self._python_env_root(pyexe)
         pyexe_dir = str(env_root)
         scripts_dir = os.path.join(pyexe_dir, "Scripts")
         base_dir = self._current_install_base_dir()
         venv_dir = str(base_dir or env_root)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
         env_name = {
             "main": "主环境",
         }.get(env_key, "主环境")
-        msg = MessageBox(
-            "打开环境终端",
-            "是否以管理员模式打开终端？\n"
-            "\n• 管理员：推荐用于修复权限问题"
-            "\n• 普通：快速打开，可能遇到权限错误"
-            "\n• ESC：取消操作",
-            self
-        )
-        _apply_app_window_icon(msg)
-        msg.yesButton.setText("管理员")
-        msg.cancelButton.setText("普通")
-        esc_pressed = [False]
-        from PyQt6.QtCore import Qt as QtCore_Qt
-        from PyQt6.QtGui import QKeyEvent
-        original_keyPressEvent = msg.keyPressEvent
-        def custom_keyPressEvent(event: QKeyEvent):
-            if event.key() == QtCore_Qt.Key.Key_Escape:
-                esc_pressed[0] = True
-                msg.close()
-            else:
-                original_keyPressEvent(event)
-        msg.keyPressEvent = custom_keyPressEvent
-        result = msg.exec()
-        if esc_pressed[0]:
-            return
-        as_admin = result
         env_desc = "主环境（程序 / MathCraft / 核心依赖）"
         gpu_onnx_cmd = self._onnxruntime_gpu_command()
         cpu_onnx_cmd = f'pip install "{self._onnxruntime_cpu_spec()}"'
@@ -115,11 +100,11 @@ class SettingsEnvironmentMixin:
             "echo   # Step-by-step install (stable order)",
             "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   # MathCraft is shipped with LaTeXSnipper source/package; verify it from the project root.",
+            f"echo   # MathCraft is shipped with LaTeXSnipper source/package; project root: {project_root}",
             "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo.",
             "echo [MathCraft CPU/ONNX Check]",
-            "echo   python -c \"import sys; sys.path.insert(0, r'%CD%'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
+            f"echo   python -c \"import sys; sys.path.insert(0, r'{project_root}'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
             "echo.",
         ]
         help_lines += [
@@ -136,58 +121,108 @@ class SettingsEnvironmentMixin:
             "echo ================================================================================",
             "echo.",
         ]
-        help_text = "\n".join(help_lines) + "\n"
-        python_bind_lines = (
-            f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
-            f'doskey python="{pyexe}" $*\n'
-            f'doskey py="{pyexe}" $*\n'
-            f'doskey pip="{pyexe}" -m pip $*\n'
-            "echo [*] python macro : %LATEXSNIPPER_PYEXE%\n"
-            "echo [*] pip macro    : %LATEXSNIPPER_PYEXE% -m pip\n"
-            "echo.\n"
-        )
         try:
-            if as_admin:
-                import tempfile
-                batch_content = ("@echo off\n"
+            launcher_dir = self._terminal_launcher_dir()
+
+            if os.name == "nt":
+                help_text = "\n".join(help_lines) + "\n"
+                python_bind_lines = (
+                    f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
+                    f'doskey python="{pyexe}" $*\n'
+                    f'doskey py="{pyexe}" $*\n'
+                    f'doskey pip="{pyexe}" -m pip $*\n'
+                    "echo [*] python macro : %LATEXSNIPPER_PYEXE%\n"
+                    "echo [*] pip macro    : %LATEXSNIPPER_PYEXE% -m pip\n"
+                    "echo.\n"
+                )
+                batch_content = (
+                    "@echo off\n"
                     + f'cd /d "{venv_dir}"\n'
                     + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
                     + python_bind_lines
                     + help_text
                 )
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
+                batch_path = launcher_dir / "latexsnipper-terminal.bat"
+                with open(batch_path, "w", encoding="mbcs", newline="\r\n") as f:
                     f.write(batch_content)
-                    batch_path = f.name
-                import ctypes
-                ctypes.windll.shell32.ShellExecuteW(
-                    None, "runas", "cmd.exe", f"/k \"{batch_path}\"", None, 1
-                )
-                self._show_info("终端已打开", "已弹出 UAC 授权提示。", "success")
-            else:
-                import tempfile
-                batch_content_normal = ("@echo off\n"
-                    + f'cd /d "{venv_dir}"\n'
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
-                    + python_bind_lines
-                    + help_text
-                )
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".bat", delete=False, encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content_normal)
-                    batch_path = f.name
                 subprocess.Popen(
-                    ["cmd.exe", "/k", batch_path],
+                    ["cmd.exe", "/k", str(batch_path)],
                     cwd=venv_dir,
                     creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
                 )
-                self._show_info("终端已打开", "已以普通模式打开。", "success")
+            else:
+                wrapper_dir_path = launcher_dir / "bin"
+                wrapper_dir_path.mkdir(parents=True, exist_ok=True)
+                wrapper_dir = str(wrapper_dir_path)
+                for name, command in {
+                    "python": f'exec {shlex.quote(pyexe)} "$@"\n',
+                    "py": f'exec {shlex.quote(pyexe)} "$@"\n',
+                    "pip": f'exec {shlex.quote(pyexe)} -m pip "$@"\n',
+                }.items():
+                    wrapper_path = os.path.join(wrapper_dir, name)
+                    with open(wrapper_path, "w", encoding="utf-8", newline="\n") as f:
+                        f.write("#!/bin/sh\n" + command)
+                    os.chmod(wrapper_path, 0o755)
+
+                shell_help_lines = []
+                for line in help_lines:
+                    if line == "echo.":
+                        shell_help_lines.append("")
+                    elif line.startswith("echo "):
+                        shell_help_lines.append(line[5:])
+                    else:
+                        shell_help_lines.append(line)
+                shell_help = "\n".join(shell_help_lines)
+                pyexe_bin = os.path.dirname(pyexe)
+                path_prefix = os.pathsep.join(
+                    item for item in (wrapper_dir, pyexe_bin, os.environ.get("PATH", "")) if item
+                )
+                script_suffix = ".command" if sys.platform == "darwin" else ".sh"
+                script_path = launcher_dir / f"latexsnipper-terminal{script_suffix}"
+                with open(script_path, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(
+                        "#!/bin/sh\n"
+                        f"cd {shlex.quote(venv_dir)} || exit 1\n"
+                        f"export LATEXSNIPPER_PYEXE={shlex.quote(pyexe)}\n"
+                        f"export PATH={shlex.quote(path_prefix)}\n"
+                        "cat <<'LATEXSNIPPER_HELP'\n"
+                        f"{shell_help}\n"
+                        "LATEXSNIPPER_HELP\n"
+                        "echo \"[*] python command: $(command -v python)\"\n"
+                        "echo \"[*] pip command   : $(command -v pip)\"\n"
+                        "echo\n"
+                        "exec \"${SHELL:-/bin/sh}\" -i\n"
+                    )
+                os.chmod(script_path, 0o755)
+
+                if sys.platform == "darwin":
+                    subprocess.Popen(["open", str(script_path)], cwd=venv_dir)
+                else:
+                    launchers = []
+                    env_terminal = os.environ.get("TERMINAL", "").strip()
+                    if env_terminal:
+                        launchers.append([env_terminal, "-e", script_path])
+                    launchers.extend([
+                        ["x-terminal-emulator", "-e", script_path],
+                        ["gnome-terminal", "--", script_path],
+                        ["konsole", "-e", script_path],
+                        ["xfce4-terminal", "-e", script_path],
+                        ["xterm", "-e", script_path],
+                    ])
+                    for launcher in launchers:
+                        if shutil.which(launcher[0]):
+                            subprocess.Popen(launcher, cwd=venv_dir)
+                            break
+                    else:
+                        raise RuntimeError("No supported terminal emulator was found.")
+            self._show_info("终端已打开", "已打开当前依赖环境终端。", "success")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 
     def _resolve_mathcraft_cache_dir(self) -> str:
-        appdata = (os.environ.get("APPDATA", "") or "").strip()
-        if appdata:
-            return os.path.normpath(os.path.join(appdata, "MathCraft", "models"))
-        return os.path.normpath(os.path.expanduser("~/.MathCraft/models"))
+        from mathcraft_ocr.cache import resolve_user_models_dir
+
+        return os.path.normpath(str(resolve_user_models_dir()))
 
     def _open_mathcraft_cache_dir(self):
         path = self._resolve_mathcraft_cache_dir()

@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLa
 from qfluentwidgets import ComboBox, FluentIcon, PrimaryPushButton, PushButton
 
 from backend.external_model import PRESET_ITEMS
-from runtime.distribution import is_store_distribution
 from update.update_dialog import check_update_dialog
 
 
@@ -279,8 +278,7 @@ class SettingsLayoutMixin:
         lay.addWidget(self.latex_options_widget)
         # Check for updates.
         lay.addWidget(QLabel("检查更新:"))
-        update_text = "打开 Microsoft Store 更新" if is_store_distribution() else "检查更新"
-        self.btn_update = PushButton(FluentIcon.UPDATE, update_text)
+        self.btn_update = PushButton(FluentIcon.UPDATE, "检查更新")
         self.btn_update.setFixedHeight(36)
         lay.addWidget(self.btn_update)
         # Startup behavior.

@@ -90,6 +90,8 @@ fi
 
 [[ -n "${APP_PATH:-}" && -d "$APP_PATH" ]] || die "generated .app bundle was not found"
 [[ -f "$APP_PATH/Contents/MacOS/$APP_NAME" ]] || die "missing app executable: $APP_PATH/Contents/MacOS/$APP_NAME"
+mkdir -p "$APP_PATH/Contents/Resources"
+install -m 755 "$PROJECT_ROOT/scripts/latexsnipper-clean-user-data.sh" "$APP_PATH/Contents/Resources/Uninstall User Data.command"
 
 log_step "5/6" "Signing app bundle"
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
@@ -122,6 +124,7 @@ if command -v create-dmg >/dev/null 2>&1; then
     rm -rf "$DMG_STAGING_DIR"
     mkdir -p "$DMG_STAGING_DIR"
     ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"
+    install -m 755 "$PROJECT_ROOT/scripts/latexsnipper-clean-user-data.sh" "$DMG_STAGING_DIR/Uninstall User Data.command"
 
     CREATE_DMG_ARGS=(
         --volname "LaTeXSnipper ${VERSION}"

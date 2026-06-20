@@ -8,8 +8,10 @@ import sys
 
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
+APP_NAME = "LaTeXSnipper"
 
 _APP_LOG_DIR_CACHE: pathlib.Path | None = None
+_APP_STATE_DIR_CACHE: pathlib.Path | None = None
 
 
 def resource_path(relative_path):
@@ -20,11 +22,19 @@ def resource_path(relative_path):
 
 
 def app_state_dir() -> pathlib.Path:
-    p = pathlib.Path.home() / APP_STATE_DIRNAME
+    global _APP_STATE_DIR_CACHE
+    if _APP_STATE_DIR_CACHE is not None:
+        return _APP_STATE_DIR_CACHE
+
+    if sys.platform == "darwin":
+        p = pathlib.Path.home() / "Library" / "Application Support" / APP_NAME
+    else:
+        p = pathlib.Path.home() / APP_STATE_DIRNAME
     try:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
+    _APP_STATE_DIR_CACHE = p
     return p
 
 
@@ -36,12 +46,14 @@ def app_log_dir() -> pathlib.Path:
 
     import tempfile
 
-    candidates = [
-        app_state_dir() / "logs",
-    ]
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        candidates.append(pathlib.Path(local_app_data) / "LaTeXSnipper" / "logs")
+    candidates = []
+    if sys.platform == "darwin":
+        candidates.append(pathlib.Path.home() / "Library" / "Logs" / APP_NAME)
+    candidates.append(app_state_dir() / "logs")
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            candidates.append(pathlib.Path(local_app_data) / APP_NAME / "logs")
     candidates.append(pathlib.Path(tempfile.gettempdir()) / "LaTeXSnipper" / "logs")
 
     for candidate in candidates:
@@ -61,6 +73,17 @@ def app_log_dir() -> pathlib.Path:
     fallback = pathlib.Path(tempfile.gettempdir())
     _APP_LOG_DIR_CACHE = fallback
     return fallback
+
+
+def app_temp_dir() -> pathlib.Path:
+    import tempfile
+
+    p = pathlib.Path(tempfile.gettempdir()) / APP_NAME
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return p
 
 
 def app_config_path() -> pathlib.Path:

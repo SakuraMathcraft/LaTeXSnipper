@@ -55,7 +55,7 @@ class WorkbenchWindow(QWidget):
         self._theme_is_dark_cached = None
         self._centered_once = False
 
-        self.setWindowTitle("LaTeXSnipper 数学工作台")
+        self.setWindowTitle("数学工作台")
         self.resize(1160, 760)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))

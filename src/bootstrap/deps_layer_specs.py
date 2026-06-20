@@ -184,7 +184,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "winerror 32",
         "errno 13",
     ]):
-        return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
+        return "[LOCK] 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
 
 
     if any(x in output_lower for x in [
@@ -195,7 +195,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "resolutionimpossible",
         "package requires",
     ]):
-        return "⚠️ 依赖版本冲突 - 某些包的版本要求互相矛盾"
+        return "[WARN] 依赖版本冲突 - 某些包的版本要求互相矛盾"
 
 
     if any(x in output_lower for x in [
@@ -209,7 +209,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "readtimeouterror",
         "connectionerror",
     ]):
-        return "🌐 网络连接失败 - 请检查网络或尝试使用镜像源"
+        return "[NET] 网络连接失败 - 请检查网络或尝试使用镜像源"
 
 
     if any(x in output_lower for x in [

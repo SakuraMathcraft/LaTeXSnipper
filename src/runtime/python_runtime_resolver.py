@@ -507,7 +507,7 @@ def _same_runtime_version_as_current(pyexe: str | None) -> bool:
 def _scrub_path_inplace(env: dict | None = None):
     """Remove Windows Store Python aliases from PATH."""
     e = env if env is not None else os.environ
-    paths = (e.get("PATH") or "").split(";")
+    paths = (e.get("PATH") or "").split(os.pathsep)
     bad_tokens = ("\\WindowsApps\\Python", "Microsoft\\WindowsApps")
     keep = []
     for p in paths:
@@ -515,10 +515,10 @@ def _scrub_path_inplace(env: dict | None = None):
         if not q:
             continue
         low = q.lower()
-        if any(tok.lower() in low for tok in bad_tokens):
+        if os.name == "nt" and any(tok.lower() in low for tok in bad_tokens):
             continue
         keep.append(q)
-    e["PATH"] = ";".join(keep)
+    e["PATH"] = os.pathsep.join(keep)
 
 
 def _append_private_site_packages(pyexe: str | None):
@@ -718,12 +718,24 @@ def _find_full_python(base_dir: Path) -> str | None:
         print(f"[WARN] Ignoring Python without bootstrap modules: {candidate}")
     if getattr(sys, "frozen", False):
         installer = base_dir / "python-3.11.0-amd64.exe"
-        if installer.exists():
+        if os.name == "nt" and installer.exists():
             if _run_python_installer(installer, base_dir / "python311"):
                 candidate = _find_install_base_python(base_dir)
                 if candidate is not None and candidate.exists():
                     return str(candidate)
         return None
+
+    if os.name != "nt":
+        try:
+            from bootstrap.deps_python_runtime import find_system_python3
+
+            system_python = find_system_python3()
+            if system_python is not None and _has_full_python_bootstrap_modules(str(system_python)):
+                return str(system_python)
+        except Exception:
+            pass
+        return None
+
     for name in ("python3.11.exe", "python.exe", "python3.exe"):
         which = _norm_path(shutil.which(name))
         if which and os.path.exists(which) and _has_full_python_bootstrap_modules(which):
@@ -770,6 +782,16 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         print(f"[INFO] 使用依赖目录 Python: {py}")
         return py
 
+
+    if os.name != "nt":
+        try:
+            from bootstrap.deps_python_runtime import supported_system_python_range_label
+
+            version_hint = supported_system_python_range_label()
+        except Exception:
+            version_hint = ">=3.10,<3.13"
+        print(f"[ERROR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
+        return None
 
     installer: Path | None = None
     for root in (base_dir, Path(__file__).resolve().parent, Path(os.getcwd())):

@@ -11,7 +11,6 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QVBoxLayout
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PushButton
 
-from runtime.distribution import is_store_distribution
 from update.dialog_helpers import (
     _clear_global,
     _hidden_subprocess_kwargs,
@@ -45,13 +44,9 @@ from update.release_types import (
     _normalize_sha256,
 )
 from update.remote_image_browser import RemoteImageBrowser
-from update.store_dialog import _store_update_dialog
 
 
 def check_update_dialog(parent=None):
-    if is_store_distribution():
-        return _store_update_dialog(parent)
-
     existing = _show_existing_update_dialog()
     if existing is not None:
         return existing

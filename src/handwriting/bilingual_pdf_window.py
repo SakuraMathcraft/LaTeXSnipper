@@ -9,7 +9,7 @@ import subprocess
 from types import ModuleType
 
 from PyQt6.QtCore import QEvent, QProcess, Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QGuiApplication, QIcon
 from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton, isDarkTheme
 
@@ -298,10 +298,12 @@ _ENGINE_ITEMS = [
 
 class BilingualPdfWindow(QWidget):
     def __init__(self, cfg=None, parent=None):
-        super().__init__(parent)
+        super().__init__(None)
         self.cfg = cfg
+        self._owner = parent
         self._closing = False
         self._initializing = True
+        self._centered_once = False
         self._fitz_doc = None
         self._pdf_path = ""
         self._pdf_view = None
@@ -341,6 +343,28 @@ class BilingualPdfWindow(QWidget):
         self._load_saved_preferences()
         self._rebuild_pdf_backend_view(show_feedback=False)
         self._initializing = False
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._center_on_owner_screen_once()
+
+    def _center_on_owner_screen_once(self) -> None:
+        if self._centered_once:
+            return
+        self._centered_once = True
+        try:
+            screen = None
+            if self._owner is not None and self._owner.windowHandle() is not None:
+                screen = self._owner.windowHandle().screen()
+            if screen is None:
+                screen = QGuiApplication.primaryScreen()
+            if screen is None:
+                return
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())
+        except Exception:
+            pass
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)

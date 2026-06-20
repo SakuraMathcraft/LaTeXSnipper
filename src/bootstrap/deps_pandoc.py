@@ -37,7 +37,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
         current_ver = _get_pandoc_version(pandoc_exe)
         if current_ver and not _pandoc_version_too_old(current_ver, _PANDOC_VERSION):
             if log_fn:
-                log_fn(f"[PANDOC] pandoc 已就绪 (v{'.'.join(str(x) for x in current_ver)})，跳过下载 ✅")
+                log_fn(f"[PANDOC] pandoc 已就绪 (v{'.'.join(str(x) for x in current_ver)})，跳过下载")
             try:
                 from runtime.pandoc_runtime import save_configured_pandoc_path
                 save_configured_pandoc_path(pandoc_exe)
@@ -60,7 +60,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
     ok = _download_pandoc_from_mirrors(pyexe, log_fn)
     if ok:
         if log_fn:
-            log_fn("[PANDOC] pandoc 二进制文件就绪 ✅")
+            log_fn("[PANDOC] pandoc 二进制文件就绪")
         if progress_fn:
             progress_fn(100)
         _cleanup_pandoc_leftovers(pyexe, log_fn)
@@ -163,7 +163,11 @@ def _get_pandoc_version(
     try:
         result = subprocess.run(
             [str(exe), "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
             creationflags=flags if sys.platform == "win32" else 0,
         )
         if result.returncode != 0:
@@ -371,7 +375,11 @@ def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool
             verify_cmd = [str(exe_path), "--version"]
             result = subprocess.run(
                 verify_cmd,
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
                 creationflags=flags if sys.platform == "win32" else 0,
             )
             if result.returncode == 0:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import tempfile
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +12,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, Prima
 
 from editor.latex_snippet_panel import LaTeXSnippetPanel, insert_snippet_into_editor
 from editor.workbench_bridge import WorkbenchBridge
-from runtime.app_paths import resource_path
+from runtime.app_paths import app_temp_dir, resource_path
 
 from .tex_document_utils import WRAP_ENVIRONMENTS, validate_tex_document, wrap_tex_document
 
@@ -191,7 +190,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self._pdf_jump_indicator_timer.setSingleShot(True)
         self._pdf_jump_indicator_timer.setInterval(1500)
         self._pdf_jump_indicator_timer.timeout.connect(self._hide_pdf_jump_indicator)
-        self._preview_tempdir = Path(tempfile.gettempdir()) / "latexsnipper-doc-preview"
+        self._preview_tempdir = app_temp_dir() / "doc-preview"
+        if self._preview_tempdir.exists():
+            shutil.rmtree(self._preview_tempdir, ignore_errors=True)
         self._preview_tempdir.mkdir(parents=True, exist_ok=True)
         self._preview_pdf_path = None
         self._pdf_backend_preference = "auto"

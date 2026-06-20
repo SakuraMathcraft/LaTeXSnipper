@@ -14,6 +14,8 @@ from PyQt6.QtGui import QAction, QColor, QCursor, QImage, QMouseEvent, QPainter,
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QLabel, QMenu, QScrollArea, QSizePolicy, QWidget
 
+from runtime.app_paths import app_temp_dir
+
 try:
     from qfluentwidgets import InfoBar, InfoBarPosition
 except Exception:  # pragma: no cover
@@ -391,7 +393,7 @@ class PopplerPdfView(QScrollArea):
         if not PopplerPdfView._legacy_temp_cleaned:
             _cleanup_legacy_poppler_temp_dirs()
             PopplerPdfView._legacy_temp_cleaned = True
-        fixed_temp_root = Path(tempfile.gettempdir()) / "latexsnipper-poppler-svg"
+        fixed_temp_root = app_temp_dir() / "poppler-svg"
         self._temp_dir = _ReusableTempDir(fixed_temp_root)
         self._temp_dir.clear()
         self._canvas = _PopplerSvgCanvas(self, self)

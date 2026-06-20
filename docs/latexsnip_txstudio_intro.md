@@ -102,7 +102,7 @@ Word 和 PowerPoint 共享同一个 MathLive 公式编辑器，里面内置了 *
 
 | 平台 | 怎么装 |
 |------|--------|
-| Windows | GitHub Releases 下载 `LaTeXSnipperSetup-*.exe`，一键安装；或 Microsoft Store 直接装 |
+| Windows | GitHub Releases 下载 `LaTeXSnipperSetup-*.exe`，一键安装 |
 | Linux | 下载 `.deb` 包（Debian/Ubuntu） |
 | macOS | 下载 `.dmg` 或 `.app.zip` |
 

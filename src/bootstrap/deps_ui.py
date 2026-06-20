@@ -271,14 +271,14 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if not current_py_ready:
             return (
                 f"当前依赖环境： {current_deps_dir}\n"
-                "⚠️ 该目录尚未检测到可复用的 Python 环境。\n"
+                "[WARN] 该目录尚未检测到可复用的 Python 环境。\n"
                 "如需在此目录安装依赖，请先点击【下载】并按提示初始化。",
                 theme["hint"],
             )
         if current_failed_layers:
             return (
                 f"当前依赖环境： {current_deps_dir}\n"
-                f"⚠️ 以下功能层安装但无法使用: {', '.join(current_failed_layers)}\n"
+                f"[WARN] 以下功能层安装但无法使用: {', '.join(current_failed_layers)}\n"
                 f"可用功能层： {', '.join(current_installed_layers) if current_installed_layers else '(无)'}",
                 theme["warn"],
             )
@@ -448,19 +448,19 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         }
         current_failed_layers = {str(layer) for layer in (failed_layer_names or [])}
         if "MATHCRAFT_GPU" in current_installed_layers:
-            text = "✅ MATHCRAFT_GPU 已安装，GPU 加速可用"
+            text = "[OK] MATHCRAFT_GPU 已安装，GPU 加速可用"
             color = theme["ok"]
         elif "MATHCRAFT_GPU" in current_failed_layers:
-            text = "⚠️ MATHCRAFT_GPU 验证失败，请使用MATHCRAFT_CPU后端"
+            text = "[WARN] MATHCRAFT_GPU 验证失败，请使用MATHCRAFT_CPU后端"
             color = theme["warn"]
         elif _gpu_available() and _cuda_toolkit_available():
-            text = "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可尝试 MATHCRAFT_GPU"
+            text = "[OK] 检测到 NVIDIA GPU 和 CUDA Toolkit；可尝试 MATHCRAFT_GPU"
             color = theme["ok"]
         elif _gpu_available():
-            text = "⚠️ 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU后端"
+            text = "[WARN] 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU后端"
             color = theme["hint"]
         else:
-            text = "⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端"
+            text = "[WARN] 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端"
             color = theme["hint"]
         gpu_info_label.setText(text)
         gpu_info_label.setStyleSheet(f"color:{color};font-size:12px;margin:4px 0;")
@@ -577,7 +577,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
         "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
         "\n"
-        "⚠️ 重要提示：\n"
+        "[WARN] 重要提示：\n"
         "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
@@ -804,7 +804,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             env_info.setText(status_text)
             env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
-            print("[OK] 依赖状态刷新成功 ✅")
+            print("[OK] 依赖状态刷新成功")
         except Exception as e:
             print(f"[WARN] UI 刷新失败: {e}")
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 
-from runtime.app_paths import app_config_path, app_log_dir
+from runtime.app_paths import app_config_path, app_log_dir, app_state_dir
 from runtime.startup_splash import ensure_startup_splash, startup_status_message
 
 APP_LOG_FILE: Path | None = None
@@ -233,7 +233,7 @@ def init_app_logging() -> Path:
     try:
         from backend.latex_renderer import init_latex_settings
 
-        config_dir = Path.home() / ".latexsnipper"
+        config_dir = app_state_dir()
         config_dir.mkdir(parents=True, exist_ok=True)
         init_latex_settings(config_dir)
         print("[LaTeX] 设置初始化完成")

@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -160,13 +161,15 @@ class SettingsMathCraftMixin:
         if (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl:
             return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
 
-        def _run_ps(cmd: str) -> str:
+        def _first_line(args: list[str], *, timeout: float = 5.0) -> str:
             try:
                 res = subprocess.run(
-                    ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+                    args,
                     capture_output=True,
                     text=True,
-                    timeout=5,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=timeout,
                     **_hidden_subprocess_kwargs(),
                 )
                 lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
@@ -174,26 +177,108 @@ class SettingsMathCraftMixin:
             except Exception:
                 return ""
 
-        gpu_name = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-        if not gpu_name:
-            gpu_name = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-        if not gpu_name:
+        def _nvidia_gpu_name() -> str:
+            return _first_line(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                timeout=3,
+            )
+
+        def _windows_device_names() -> tuple[str, str]:
+            def _run_ps(cmd: str) -> str:
+                return _first_line(
+                    ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+                    timeout=5,
+                )
+
+            gpu = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
+            if not gpu:
+                gpu = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
+            if not gpu:
+                gpu = _nvidia_gpu_name()
+
+            cpu = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
+            if not cpu:
+                cpu = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
+            return gpu, cpu
+
+        def _macos_device_names() -> tuple[str, str]:
+            cpu = _first_line(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=3)
+            gpu = ""
             try:
                 res = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    ["system_profiler", "SPDisplaysDataType"],
                     capture_output=True,
                     text=True,
-                    timeout=3,
-                    **_hidden_subprocess_kwargs(),
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=6,
                 )
-                names = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
-                gpu_name = names[0] if names else ""
+                for raw in (res.stdout or "").splitlines():
+                    line = raw.strip()
+                    if line.startswith("Chipset Model:"):
+                        gpu = line.split(":", 1)[1].strip()
+                        break
             except Exception:
-                gpu_name = ""
+                gpu = ""
+            if not gpu:
+                gpu = _nvidia_gpu_name()
+            return gpu, cpu
 
-        cpu_name = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
-        if not cpu_name:
-            cpu_name = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
+        def _linux_cpu_name() -> str:
+            try:
+                res = subprocess.run(
+                    ["lscpu"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=3,
+                )
+                for raw in (res.stdout or "").splitlines():
+                    if raw.lower().startswith("model name:"):
+                        return raw.split(":", 1)[1].strip()
+            except Exception:
+                pass
+            try:
+                for raw in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
+                    if raw.lower().startswith("model name"):
+                        return raw.split(":", 1)[1].strip()
+            except Exception:
+                pass
+            return ""
+
+        def _linux_gpu_name() -> str:
+            gpu = _nvidia_gpu_name()
+            if gpu:
+                return gpu
+            try:
+                res = subprocess.run(
+                    ["lspci"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=3,
+                )
+                for raw in (res.stdout or "").splitlines():
+                    lower = raw.lower()
+                    if "vga compatible controller" in lower or "3d controller" in lower or "display controller" in lower:
+                        return raw.split(":", 2)[-1].strip()
+            except Exception:
+                pass
+            return ""
+
+        def _linux_device_names() -> tuple[str, str]:
+            return _linux_gpu_name(), _linux_cpu_name()
+
+        if os.name == "nt":
+            gpu_name, cpu_name = _windows_device_names()
+        elif sys.platform == "darwin":
+            gpu_name, cpu_name = _macos_device_names()
+        elif sys.platform.startswith("linux"):
+            gpu_name, cpu_name = _linux_device_names()
+        else:
+            gpu_name, cpu_name = _nvidia_gpu_name(), ""
 
         self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
         return gpu_name, cpu_name

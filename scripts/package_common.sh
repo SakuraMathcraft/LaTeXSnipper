@@ -90,12 +90,13 @@ install_python_requirements() {
 
 find_mathcraft_models_root() {
     local project_root="$1"
+    local xdg_data_home="${XDG_DATA_HOME:-${HOME:-}/.local/share}"
     local candidates=(
         "${MATHCRAFT_MODELS_ROOT:-}"
         "$project_root/MathCraft/models"
         "${APPDATA:-}/MathCraft/models"
-        "${HOME:-}/.MathCraft/models"
-        "${HOME:-}/.mathcraft/models"
+        "${HOME:-}/Library/Application Support/LaTeXSnipper/MathCraft/models"
+        "$xdg_data_home/LaTeXSnipper/MathCraft/models"
     )
 
     for candidate in "${candidates[@]}"; do
