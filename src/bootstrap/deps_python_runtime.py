@@ -9,7 +9,6 @@ from pathlib import Path
 from shutil import which
 
 
-_PY311_INSTALLER_NAME = "python-3.11.0-amd64.exe"
 SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)
 SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)
 PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 11), (3, 12), (3, 10))
@@ -109,97 +108,12 @@ def inject_private_python_paths(pyexe: Path) -> None:
             pass
 
 
-def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | None:
-    """Locate the bundled/local Python 3.11 installer without downloading anything.
-
-    Windows-only: the .exe installer only exists on Windows.
-    """
-    if os.name != "nt":
-        return None
-    deps_dir = Path(deps_dir)
-    candidates: list[Path] = []
-
-    def add_candidate(path: Path | str | None) -> None:
-        if path is None:
-            return
-        try:
-            candidates.append(Path(path))
-        except Exception:
-            pass
-
-    def add_installer_at(base: Path | str | None) -> None:
-        if base is None:
-            return
-        try:
-            add_candidate(Path(base) / _PY311_INSTALLER_NAME)
-        except Exception:
-            pass
-
-    def add_parent_tree(start: Path | str | None) -> None:
-        if start is None:
-            return
-        try:
-            path = Path(start).resolve()
-        except Exception:
-            try:
-                path = Path(start)
-            except Exception:
-                return
-        if path.is_file():
-            path = path.parent
-        for base in (path, *path.parents):
-            add_installer_at(base)
-            try:
-                if (base / "pyproject.toml").exists() or (base / ".git").exists():
-                    # Keep walking; nested repos or editable checkouts can still
-                    # have another useful parent.
-                    add_installer_at(base)
-            except Exception:
-                pass
-
-    try:
-        add_installer_at(deps_dir)
-        add_parent_tree(deps_dir)
-    except Exception:
-        pass
-    try:
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            meipass = Path(sys._MEIPASS)
-            add_installer_at(meipass)
-            add_installer_at(meipass.parent / "_internal")
-            add_installer_at(meipass.parent)
-    except Exception:
-        pass
-    try:
-        exe_dir = Path(sys.executable).resolve().parent
-        add_installer_at(exe_dir / "_internal")
-        add_installer_at(exe_dir)
-    except Exception:
-        pass
-    add_parent_tree(os.environ.get("LATEXSNIPPER_REPO_ROOT"))
-    add_parent_tree(module_file)
-    add_parent_tree(Path.cwd())
-
-    seen: set[str] = set()
-    for candidate in candidates:
-        try:
-            key = str(candidate.resolve()).lower()
-        except Exception:
-            key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            if candidate.exists():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
 def _system_python3_score(pyexe: Path) -> int:
     """Return a suitability score for a system Python used to create a venv."""
     try:
+        path_text = str(pyexe).lower()
+        if os.name == "nt" and ("microsoft\\windowsapps" in path_text or "\\windowsapps\\python" in path_text):
+            return 0
         if not pyexe.exists() or not pyexe.is_file():
             return 0
         base_check = (
@@ -230,16 +144,45 @@ def _system_python3_score(pyexe: Path) -> int:
 
 
 def find_system_python3() -> Path | None:
-    """Find a usable system Python 3 interpreter on Linux/macOS.
-
-    On Windows this always returns None; the .exe installer path is used instead.
-    """
-    if os.name == "nt":
-        return None
+    """Find a usable system Python 3 interpreter for creating dependency venvs."""
     versioned_names = [f"python{major}.{minor}" for major, minor in PREFERRED_SYSTEM_PYTHON_VERSIONS]
     path_python = which("python3")
     path_versioned = [which(name) for name in versioned_names]
-    if sys.platform == "darwin":
+    if os.name == "nt":
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        program_files = os.environ.get("ProgramFiles", "")
+        program_files_x86 = os.environ.get("ProgramFiles(x86)", "")
+        windows_install_roots = []
+        if local_appdata:
+            windows_install_roots.extend([
+                Path(local_appdata) / "Programs" / "Python" / "Python311" / "python.exe",
+                Path(local_appdata) / "Programs" / "Python" / "Python312" / "python.exe",
+                Path(local_appdata) / "Programs" / "Python" / "Python310" / "python.exe",
+            ])
+        for root in (program_files, program_files_x86):
+            if not root:
+                continue
+            windows_install_roots.extend([
+                Path(root) / "Python311" / "python.exe",
+                Path(root) / "Python312" / "python.exe",
+                Path(root) / "Python310" / "python.exe",
+            ])
+        candidates = [
+            which("python3.11"),
+            which("python3.11.exe"),
+            which("python3.12"),
+            which("python3.12.exe"),
+            which("python3.10"),
+            which("python3.10.exe"),
+            which("python"),
+            which("python.exe"),
+            which("python3"),
+            which("python3.exe"),
+            *path_versioned,
+            path_python,
+            *windows_install_roots,
+        ]
+    elif sys.platform == "darwin":
         candidates = [
             "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
             "/opt/homebrew/bin/python3.11",

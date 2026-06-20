@@ -102,6 +102,7 @@ jobs:
           if (-not (Test-Path (Join-Path $target "python.exe"))) {
             throw "Bundled Python seed was not created: $target"
           }
+          Remove-Item -LiteralPath $installer -Force
           & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel setuptools
 
       - name: Build unsigned installer

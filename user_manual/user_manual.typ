@@ -597,7 +597,7 @@ https://www.python.org/downloads/macos/
 
 #v(0.35em)
 
-依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境；若没有可用 Python，Windows 会调用本地 `python-3.11.0-amd64.exe` 初始化模板环境，Linux/macOS 会使用系统 Python 3.10+ 创建隔离环境。
+依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.12）创建隔离环境。
 
 #v(0.35em)
 
