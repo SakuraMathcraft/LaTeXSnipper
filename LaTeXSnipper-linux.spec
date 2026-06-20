@@ -323,7 +323,66 @@ def _prune_collect_tree_linux(dist_root: Path):
         except Exception as exc:
             print(f"[SPEC] prune skip {child}: {exc}")
 
+    _prune_bundled_python_runtime(dist_root)
     _prune_qt_webengine_payload(dist_root)
+
+
+def _prune_bundled_python_runtime(dist_root: Path):
+    """Trim an embedded dependency Python seed when present."""
+    py_roots = [
+        dist_root / "deps" / "python311",
+        dist_root / "python311",
+    ]
+    remove_relatives = (
+        "include",
+        "libs",
+        "tcl",
+        "NEWS.txt",
+        "Lib/ensurepip",
+        "Lib/idlelib",
+        "Lib/lib2to3",
+        "Lib/pydoc_data",
+        "Lib/tkinter",
+        "Lib/turtledemo",
+        "Lib/unittest",
+        "Lib/doctest.py",
+        "Lib/pdb.py",
+        "Lib/pydoc.py",
+        "Lib/turtle.py",
+        "DLLs/_ctypes_test.pyd",
+        "DLLs/_testbuffer.pyd",
+        "DLLs/_testcapi.pyd",
+        "DLLs/_testconsole.pyd",
+        "DLLs/_testimportmultiple.pyd",
+        "DLLs/_testinternalcapi.pyd",
+        "DLLs/_testmultiphase.pyd",
+        "DLLs/_tkinter.pyd",
+        "DLLs/tcl86t.dll",
+        "DLLs/tk86t.dll",
+        "DLLs/py.ico",
+        "DLLs/pyc.ico",
+        "DLLs/pyd.ico",
+        "DLLs/python_lib.cat",
+        "DLLs/python_tools.cat",
+    )
+    for py_root in py_roots:
+        if not py_root.exists():
+            continue
+        for relative in remove_relatives:
+            target = py_root / relative
+            if not target.exists():
+                continue
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+                else:
+                    target.unlink(missing_ok=True)
+            except Exception:
+                pass
+        lib_root = py_root / "Lib"
+        if lib_root.exists():
+            for cache_dir in lib_root.rglob("__pycache__"):
+                shutil.rmtree(cache_dir, ignore_errors=True)
 
 
 def _prune_qt_webengine_payload(dist_root: Path):

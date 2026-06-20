@@ -16,7 +16,7 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
 from runtime.app_paths import resource_path
-from runtime.dependency_python import clean_path_value, python_env_root, resolve_dependency_python
+from runtime.dependency_python import dependency_root_from_python, dependency_tool_dir, resolve_dependency_python
 
 @dataclass(frozen=True)
 class _PagePayload:
@@ -1352,18 +1352,10 @@ class BilingualPdfWindow(QWidget):
         return resolve_dependency_python((configured_base,), fallback_to_current=True)
 
     def _resolve_argos_env_dir(self) -> Path:
-        try:
-            raw = str(self.cfg.get("argos_translation_env_dir", "") or "").strip() if self.cfg else ""
-        except Exception:
-            raw = ""
-        if raw:
-            return Path(clean_path_value(raw)).expanduser()
-
-        pyexe = Path(self._resolve_dependency_python()).resolve()
-        env_root = python_env_root(pyexe)
-        if env_root.name.lower() in {"venv", ".venv", "python_full"} or env_root.name.lower().startswith("python"):
-            return env_root.parent / "translation_env"
-        return env_root / "translation_env"
+        configured_base = str(self.cfg.get("install_base_dir", "") or "").strip() if self.cfg else ""
+        if configured_base:
+            return dependency_tool_dir(configured_base, "translation_env")
+        return dependency_root_from_python(Path(self._resolve_dependency_python()).resolve()) / "translation_env"
 
     def _resolve_argos_python(self) -> str:
         env_py = _translation_env_python(self._resolve_argos_env_dir())

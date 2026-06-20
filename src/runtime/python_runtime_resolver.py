@@ -319,12 +319,15 @@ def _select_install_base_dir() -> Path:
 def _save_install_base_dir(p: Path) -> None:
     """Save the dependency directory to the config file."""
     try:
+        from runtime.config_manager import remember_dependency_root
+
         p = _normalize_install_base_dir(p)
         cfg = {}
         c = _config_path()
         if c.exists():
             cfg = json.loads(c.read_text("utf-8") or "{}")
         cfg["install_base_dir"] = str(p)
+        remember_dependency_root(cfg, p)
         c.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[INFO] 配置已保存: {p}")
     except Exception as e:

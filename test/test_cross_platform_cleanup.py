@@ -164,6 +164,82 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "PrivilegesRequired=admin" not in inno
     assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
     assert (ROOT / "Inno" / "ChineseSimplified.isl").exists()
+    assert "function ConfirmUninstallCleanup" in inno
+    assert "InitializeUninstallProgressForm" not in inno
+    assert "TSetupForm.Create" not in inno
+    assert "CreateCustomForm(ScaleX(430), ScaleY(190), False, True)" in inno
+    assert "{userprofile}" not in inno.lower()
+    assert "{%USERPROFILE}" in inno
+    assert "DeleteDependencyEnvsOnUninstall" in inno
+    assert r'Type: filesandordirs; Name: "{app}\_internal"' in inno
+    assert "已记录依赖根目录" in inno
+    assert "安装目录下的依赖环境" not in inno
+    assert "function ConfiguredDependencyRoot" in inno
+    assert "JsonStringValue(String(ConfigText), 'install_base_dir')" in inno
+    assert "procedure CleanupDependencyRootHistory" in inno
+    assert "install_base_dir_cleanup_roots" in inno
+    assert "procedure CleanupDependencyRootChildren" in inno
+    assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" in inno
+    assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" in inno
+    assert "CleanupDependencyRootHistory()" in inno
+    assert inno.index("if DeleteDependencyEnvsOnUninstall then") < inno.index("if DeleteAppDataOnUninstall then")
+    assert "CleanupPath(AddBackslash(Root) + 'pandoc')" in inno
+    assert "CleanupPath(AddBackslash(Root) + 'translation_env')" in inno
+
+
+def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
+    cleanup_script = (ROOT / "scripts" / "latexsnipper-clean-user-data.sh").read_text(encoding="utf-8")
+    user_data_doc = (ROOT / "docs" / "user_data_storage.md").read_text(encoding="utf-8")
+    faq_doc = (ROOT / "docs" / "faq.md").read_text(encoding="utf-8")
+    manual_doc = (ROOT / "user_manual" / "user_manual.md").read_text(encoding="utf-8")
+    manual_typ = (ROOT / "user_manual" / "user_manual.typ").read_text(encoding="utf-8")
+    audit_doc = (ROOT / "docs" / "platform_adaptation_audit.md").read_text(encoding="utf-8")
+
+    assert "--deps" in cleanup_script
+    assert "install_base_dir" in cleanup_script
+    assert "install_base_dir_cleanup_roots" in cleanup_script
+    assert "argos_translation_env_dir" not in cleanup_script
+    assert "pandoc" in cleanup_script
+    assert "translation_env" in cleanup_script
+    assert "rm -rf \"$root\"" not in cleanup_script
+    assert "`<dependency-root>/pandoc`" in user_data_doc
+    assert "`<dependency-root>/translation_env`" in user_data_doc
+    assert "Direct child of the selected dependency root" in user_data_doc
+    assert "Pandoc and Argos translation are not fixed to the application install" in user_data_doc
+    assert "`pandoc` for the optional dependency-managed Pandoc binary" in faq_doc
+    assert "`translation_env` for the optional Argos local translation environment" in faq_doc
+    assert "following the same active dependency root as Pandoc" in faq_doc
+    assert "<依赖根>/pandoc" in manual_doc
+    assert "<依赖根>/translation_env" in manual_doc
+    assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_doc
+    assert "<依赖根>/pandoc" in manual_typ
+    assert "<依赖根>/translation_env" in manual_typ
+    assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
+    assert "install-directory dependency environment" not in audit_doc
+    assert "prompts before uninstall starts" in audit_doc
+
+
+def test_dependency_wizard_keeps_ui_status_icons_for_visible_labels() -> None:
+    deps_ui = (ROOT / "src" / "bootstrap" / "deps_ui.py").read_text(encoding="utf-8")
+    deps_layer_specs = (ROOT / "src" / "bootstrap" / "deps_layer_specs.py").read_text(encoding="utf-8")
+
+    assert "✅ MATHCRAFT_GPU 已安装" in deps_ui
+    assert "⚠️ MATHCRAFT_GPU 验证失败" in deps_ui
+    assert "[OK] MATHCRAFT_GPU 已安装" not in deps_ui
+    assert "[WARN] MATHCRAFT_GPU 验证失败" not in deps_ui
+    assert '"[WARN] 该目录尚未检测到可复用的 Python 环境' not in deps_ui
+    assert '"[WARN] 重要提示' not in deps_ui
+    assert '"[LOCK]' not in deps_layer_specs
+    assert '"[WARN] 依赖版本冲突' not in deps_layer_specs
+    assert '"[NET]' not in deps_layer_specs
+
+
+def test_workbench_disables_compute_engine_time_limit_after_cas_removal() -> None:
+    app_js = (ROOT / "src" / "assets" / "mathlive" / "app.js").read_text(encoding="utf-8")
+
+    assert "ce.timeLimit = 0;" in app_js
+    assert "前端计算超时，已超过当前时限" not in app_js
+    assert "前端计算引擎无法完成当前表达式" in app_js
 
 
 def test_platform_protocols_cover_main_window_provider_calls() -> None:
@@ -213,11 +289,17 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
     assert "python311._pth" in script
     assert "Lib\\site-packages" in script
+    assert '"Lib\\ensurepip"' in script
+    assert '"Lib\\idlelib"' in script
+    assert '"DLLs\\_tkinter.pyd"' in script
+    assert '"include"' in script
+    assert '"libs"' in script
     assert "$verifyCode = @'" in script
     assert '$verifyCode = @"' not in script
     assert "latexsnipper_verify_python_seed_" in script
     assert "& $pythonExe $verifyScript $seedRoot" in script
     assert "& $pythonExe -c $verifyCode $seedRoot" not in script
+    assert 'for mod in ("pip", "setuptools", "wheel", "packaging")' in script
     assert "sys.prefix does not point to bundled python311" in script
     assert "sys.path contains paths outside bundled python311" in script
     assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
@@ -225,6 +307,17 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "Normalize-BundledPythonSeed -Root $root" not in script
     assert "LaTeXSnipperSetup-2.4.0.exe" not in script
     assert 'Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File' in script
+
+
+def test_pyinstaller_specs_prune_bundled_python_seed_payload() -> None:
+    for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+        spec = (ROOT / spec_name).read_text(encoding="utf-8")
+        assert "_prune_bundled_python_runtime" in spec
+        assert '"Lib/ensurepip"' in spec
+        assert '"Lib/idlelib"' in spec
+        assert '"DLLs/_tkinter.pyd"' in spec
+        assert '"include"' in spec
+        assert '"libs"' in spec
 
 
 def test_windows_version_resource_matches_release_version() -> None:
