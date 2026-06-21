@@ -103,10 +103,26 @@ begin
     (Length(Normalized) <= 3);
 end;
 
+function IsPythonEnvironmentRoot(Path: String): Boolean;
+begin
+  Result :=
+    FileExists(AddBackslash(Path) + 'pyvenv.cfg') or
+    FileExists(AddBackslash(Path) + 'python.exe') or
+    FileExists(AddBackslash(Path) + 'pythonw.exe') or
+    FileExists(AddBackslash(Path) + 'Scripts\python.exe') or
+    FileExists(AddBackslash(Path) + 'bin\python');
+end;
+
 procedure CleanupDependencyRootChildren(Root: String);
 begin
   if IsUnsafeDependencyRoot(Root) then
     Exit;
+
+  if IsPythonEnvironmentRoot(Root) then
+  begin
+    CleanupPath(Root);
+    Exit;
+  end;
 
   CleanupFile(AddBackslash(Root) + '.deps_state.json');
   CleanupPath(AddBackslash(Root) + 'python311');
