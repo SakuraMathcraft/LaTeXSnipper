@@ -96,7 +96,6 @@ def run_application(main_window_cls) -> int:
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("LaTeXSnipper")
-    app.setApplicationDisplayName("LaTeXSnipper")
     app.setOrganizationName("MathCraft")
     app.setQuitOnLastWindowClosed(False)
 
