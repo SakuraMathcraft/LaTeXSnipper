@@ -63,6 +63,13 @@ is important when a user chooses a broad folder such as `D:\deps` or `~/deps`.
 `pandoc` and `translation_env` are direct children of the selected dependency
 root; they are not created under an extra nested `deps` directory.
 
+If the selected dependency root is itself a Python environment, such as a
+user-selected `D:\LaTexSnipper\python378-custom` directory containing
+`python.exe`, `Scripts\python.exe`, `bin/python`, or `pyvenv.cfg`, dependency
+cleanup treats that recorded root as the environment and removes the whole root.
+This covers advanced users who point `install_base_dir` directly at a custom
+venv instead of at a parent directory containing `python311`.
+
 Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.13` only to
 create the isolated dependency environment. The packaged app itself does not run
 on the user's system Python.

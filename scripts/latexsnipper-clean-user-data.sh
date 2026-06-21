@@ -145,10 +145,25 @@ is_dangerous_root() {
     return 1
 }
 
+is_python_environment_root() {
+    root="$1"
+    [ -f "$root/pyvenv.cfg" ] && return 0
+    [ -f "$root/python.exe" ] && return 0
+    [ -f "$root/pythonw.exe" ] && return 0
+    [ -f "$root/Scripts/python.exe" ] && return 0
+    [ -f "$root/bin/python" ] && return 0
+    return 1
+}
+
 remove_dependency_root_children() {
     root="$1"
     if is_dangerous_root "$root"; then
         printf 'Skipped dependency root with unsafe scope: %s\n' "$root"
+        return
+    fi
+
+    if is_python_environment_root "$root"; then
+        remove_path "$root" "dependency environment root"
         return
     fi
 
