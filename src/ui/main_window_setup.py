@@ -37,7 +37,7 @@ class MainWindowSetupMixin:
         self._startup_centered_once = False
         self._pending_hotkey_seq = None
 
-        self.setWindowTitle("LaTeX Snipper")
+        self.setWindowTitle("LaTeXSnipper")
         self.resize(1280, 760)
         self.setMinimumSize(1280, 760)
 
