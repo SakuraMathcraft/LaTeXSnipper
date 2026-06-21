@@ -40,9 +40,9 @@ def test_normalize_hotkey_default() -> None:
 
 
 def test_macos_default_hotkey_uses_command_letter() -> None:
-    assert default_hotkey("darwin") == "Meta+S"
+    assert default_hotkey("darwin") == "Meta+F"
     assert hotkey_help_text("darwin") == "Command+字母 或 Command+Shift+字母"
-    assert normalize_hotkey_or_default("Ctrl+F", "darwin") == "Meta+S"
+    assert normalize_hotkey_or_default("Ctrl+F", "darwin") == "Meta+F"
 
 
 def test_macos_hotkey_accepts_command_letters_with_optional_modifiers() -> None:

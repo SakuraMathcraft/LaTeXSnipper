@@ -171,7 +171,7 @@ def _try_screenshot_cmd(
 
         subprocess.run(
             cmd, timeout=15, check=True,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
 
         image = QImage(tmp_path)
@@ -190,7 +190,18 @@ def _try_screenshot_cmd(
                 return cropped
 
         return image.copy()
-    except Exception:
+    except subprocess.CalledProcessError as exc:
+        tool_name = cmd_template[0] if cmd_template else "screenshot tool"
+        detail = str(exc.stderr or "").strip().replace("\n", " ")
+        print(f"[ScreenshotTools] {tool_name} failed exit={exc.returncode}: {detail[:500]}")
+        return None
+    except subprocess.TimeoutExpired:
+        tool_name = cmd_template[0] if cmd_template else "screenshot tool"
+        print(f"[ScreenshotTools] {tool_name} timed out after 15 seconds")
+        return None
+    except Exception as exc:
+        tool_name = cmd_template[0] if cmd_template else "screenshot tool"
+        print(f"[ScreenshotTools] {tool_name} could not start: {exc}")
         return None
     finally:
         if tmp_path:

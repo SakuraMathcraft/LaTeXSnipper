@@ -33,6 +33,43 @@ def test_macos_screen_recording_denial_is_blocking_and_native() -> None:
     assert "Screen Recording" in macos_provider
 
 
+def test_macos_screen_recording_denial_explains_the_running_permission_target() -> None:
+    macos_provider = (ROOT / "src" / "backend" / "platform" / "macos_provider.py").read_text(encoding="utf-8")
+
+    assert "Command+Q" in macos_provider
+    assert "/Applications" in macos_provider
+    assert "DMG" in macos_provider
+    assert "Python" in macos_provider
+    assert "Terminal" in macos_provider
+    assert "VS Code" in macos_provider
+
+
+def test_macos_screen_recording_request_requires_a_fresh_app_process() -> None:
+    macos_provider = (ROOT / "src" / "backend" / "platform" / "macos_provider.py").read_text(encoding="utf-8")
+
+    assert "requested is True or self._preflight_screen_capture_access() is True" not in macos_provider
+    assert "_screen_capture_restart_required" in macos_provider
+    assert "授权后请使用 Command+Q 完全退出" in macos_provider
+
+
+def test_macos_screen_capture_docs_cover_tcc_reset_and_launch_modes() -> None:
+    faq = (ROOT / "docs" / "faq.md").read_text(encoding="utf-8")
+
+    assert "tccutil reset ScreenCapture" in faq
+    assert "com.mathcraft.latexsnipper" in faq
+    assert "Command+Q" in faq
+    assert "/Applications" in faq
+    assert "DMG" in faq
+
+
+def test_macos_capture_empty_image_is_not_misreported_as_a_permission_toggle() -> None:
+    overlay = (ROOT / "src" / "backend" / "capture_overlay.py").read_text(encoding="utf-8")
+
+    assert "权限已通过预检" in overlay
+    assert "截图接口没有返回图像" in overlay
+    assert "已允许 LaTeXSnipper" not in overlay
+
+
 def test_macos_screen_recording_settings_opener_uses_system_preferences_url() -> None:
     macos_provider = (ROOT / "src" / "backend" / "platform" / "macos_provider.py").read_text(encoding="utf-8")
 

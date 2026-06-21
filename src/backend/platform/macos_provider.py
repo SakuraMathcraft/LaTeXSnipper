@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import ctypes
 import subprocess
+import sys
+from pathlib import Path
 
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
@@ -62,7 +64,52 @@ class MacOSScreenshotProvider:
 
     def __init__(self):
         self._screen_capture_prompted = False
+        self._screen_capture_restart_required = False
         self._settings_opened = False
+        self._last_permission_state = PermissionState.UNKNOWN
+
+    @staticmethod
+    def _screen_capture_permission_target() -> tuple[str, bool]:
+        """Describe the process identity macOS can associate with capture access."""
+        executable = Path(sys.executable or "python3").expanduser()
+        bundle = next(
+            (candidate for candidate in (executable, *executable.parents) if candidate.suffix.lower() == ".app"),
+            None,
+        )
+        if bundle is not None and bool(getattr(sys, "frozen", False)):
+            temporary_copy = str(bundle).startswith("/Volumes/") or "/AppTranslocation/" in str(bundle)
+            return f"LaTeXSnipper.app ({bundle})", temporary_copy
+
+        if bool(getattr(sys, "frozen", False)):
+            return f"LaTeXSnipper 打包可执行文件 ({executable})", False
+
+        return (
+            "当前开发启动进程 "
+            f"(Python: {executable}；以系统设置中实际显示的 Python、Terminal、iTerm 或 VS Code 为准)",
+            False,
+        )
+
+    def _screen_capture_denial_message(self) -> str:
+        target, temporary_copy = self._screen_capture_permission_target()
+        temporary_guidance = (
+            "检测到当前副本位于 DMG 或 App Translocation 临时位置。请先将 LaTeXSnipper.app 移到 /Applications，"
+            "再从该位置重新打开并授权。\n\n"
+            if temporary_copy
+            else "如果是从 DMG 或 Downloads 直接打开，请先将 LaTeXSnipper.app 移到 /Applications，"
+            "并确保授权的是当前运行的同一副本。\n\n"
+        )
+        return (
+            "LaTeXSnipper 无法获得当前运行副本的屏幕录制权限。\n\n"
+            f"当前授权对象：{target}\n\n"
+            "请打开 System Settings -> Privacy & Security -> Screen & System Audio Recording "
+            "(旧版 macOS 显示为 Screen Recording)，授权上述对象。\n\n"
+            f"{temporary_guidance}"
+            "授权后请使用 Command+Q 完全退出 LaTeXSnipper，再从同一位置重新打开。"
+        )
+
+    def _permission_result(self, state: PermissionState, message: str) -> PermissionResult:
+        self._last_permission_state = state
+        return PermissionResult(state, message)
 
     def _preflight_screen_capture_access(self) -> bool | None:
         try:
@@ -87,26 +134,40 @@ class MacOSScreenshotProvider:
             return None
 
     def request_permission(self) -> PermissionResult:
-        # macOS persists Screen Recording permission by bundle id. Preflight it
-        # before Qt/screencapture touches the screen so the native prompt is not
-        # triggered repeatedly by fallback capture attempts.
+        # Preflight before Qt/screencapture touches the screen. The actual TCC
+        # target is the active app bundle in packaged mode and the launch process
+        # in source mode, not merely the product name shown to the user.
+        if self._screen_capture_restart_required:
+            print("[macOS Capture] Screen Recording access changed in this process; restart still required")
+            return self._permission_result(
+                PermissionState.DENIED,
+                self._screen_capture_denial_message(),
+            )
+
+        target, temporary_copy = self._screen_capture_permission_target()
         allowed = self._preflight_screen_capture_access()
+        print(
+            "[macOS Capture] Screen Recording preflight "
+            f"result={allowed!r} target={target} temporary_copy={temporary_copy}"
+        )
         if allowed is True:
-            return PermissionResult(PermissionState.ALLOWED, "macos-screen-recording-allowed")
+            return self._permission_result(PermissionState.ALLOWED, "macos-screen-recording-allowed")
         if allowed is None:
-            return PermissionResult(PermissionState.UNKNOWN, "macos-screen-recording-unknown")
+            return self._permission_result(PermissionState.UNKNOWN, "macos-screen-recording-unknown")
 
         if not self._screen_capture_prompted:
             self._screen_capture_prompted = True
+            self._screen_capture_restart_required = True
+            print("[macOS Capture] Requesting Screen Recording access through CoreGraphics")
             requested = self._request_screen_capture_access()
-            if requested is True or self._preflight_screen_capture_access() is True:
-                return PermissionResult(PermissionState.ALLOWED, "macos-screen-recording-allowed")
+            print(
+                "[macOS Capture] Screen Recording request "
+                f"result={requested!r}; a fresh app process is required before retrying capture"
+            )
 
-        return PermissionResult(
+        return self._permission_result(
             PermissionState.DENIED,
-            "LaTeXSnipper needs Screen Recording permission to capture the screen.\n\n"
-            "Open System Settings -> Privacy & Security -> Screen Recording, "
-            "enable LaTeXSnipper, then restart the app if macOS asks you to.",
+            self._screen_capture_denial_message(),
         )
 
     def open_permission_settings(self) -> None:
@@ -119,11 +180,13 @@ class MacOSScreenshotProvider:
             print(f"[WARN] macOS privacy settings open failed: {exc}")
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
-        return ScreenCaptureOverlay(
+        overlay = ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
             screenshot_tool=cfg.screenshot_tool,
         )
+        overlay.macos_permission_preflight_state = self._last_permission_state.value
+        return overlay
 
 
 class MacOSSystemProvider:

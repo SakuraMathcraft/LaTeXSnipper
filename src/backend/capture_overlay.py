@@ -970,10 +970,17 @@ class ScreenCaptureOverlay(QWidget):
         if pixmap.isNull():
             print("[Overlay] 所有截图方式均失败！pixmap 为空")
         if pixmap.isNull() and sys.platform == "darwin":
-            self.last_capture_failure_message = (
-                "无法获取屏幕内容。请确认系统设置 > 隐私与安全性 > 录屏中已允许 LaTeXSnipper，"
-                "授权变更后请完全退出并重新打开应用。"
-            )
+            permission_state = str(getattr(self, "macos_permission_preflight_state", "unknown") or "unknown")
+            if permission_state == "allowed":
+                self.last_capture_failure_message = (
+                    "屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。"
+                    "这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。"
+                )
+            else:
+                self.last_capture_failure_message = (
+                    "无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。"
+                    "请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。"
+                )
         self.last_capture_screen_index = int(target_idx)
         print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
 
