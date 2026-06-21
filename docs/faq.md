@@ -37,6 +37,42 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 - Linux: use the `.deb` package on Debian/Ubuntu-compatible systems.
 - macOS: use the `.dmg` or `.app.zip` artifact.
 
+## Why does macOS still say Screen Recording is unavailable after I enabled it?
+
+LaTeXSnipper checks access with `CGPreflightScreenCaptureAccess()` before each
+capture attempt. If access is missing, it requests it once with
+`CGRequestScreenCaptureAccess()` and then opens the relevant System Settings
+page. macOS associates this permission with the process that performs capture,
+so the correct entry depends on how the application was started:
+
+- For a packaged application opened from `/Applications/LaTeXSnipper.app`,
+  authorize that exact `LaTeXSnipper` entry in **System Settings -> Privacy &
+  Security -> Screen & System Audio Recording**. Older macOS versions call this
+  pane **Screen Recording**.
+- For a source checkout started with `python src/main.py`, authorize the entry
+  that System Settings actually shows for the launch process, such as Python,
+  Terminal, iTerm, or VS Code. It is not necessarily named LaTeXSnipper.
+- Do not keep running the app directly from a mounted DMG, Downloads, or an
+  App Translocation path. Move `LaTeXSnipper.app` to `/Applications`, quit with
+  `Command+Q`, then relaunch that same copy before granting permission.
+
+After changing the toggle, use `Command+Q` to quit the application completely;
+closing the red window button alone does not exit the macOS app process. Open
+the application again from the same location. If a development or test machine
+has a stale TCC decision, reset it manually in Terminal and retry; the app never
+runs these commands automatically:
+
+```bash
+tccutil reset ScreenCapture
+# Packaged application only; the bundle identifier is stable.
+tccutil reset ScreenCapture com.mathcraft.latexsnipper
+```
+
+If the permission preflight succeeds but capture still returns an empty image,
+the failure is reported separately from OCR. Check the selected region,
+multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt or
+`screencapture` diagnostics.
+
 ## What is the Office plugin direction?
 
 LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OMML insertion, managed formula metadata, screenshot OCR integration, and a local Bridge pipeline without requiring Microsoft 365 enterprise deployment.

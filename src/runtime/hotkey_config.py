@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 DEFAULT_HOTKEY = "Ctrl+F"
-MACOS_DEFAULT_HOTKEY = "Meta+S"
+MACOS_DEFAULT_HOTKEY = "Meta+F"
 HOTKEY_HELP_TEXT = "Ctrl+字母 或 Ctrl+Shift+字母"
 MACOS_HOTKEY_HELP_TEXT = "Command+字母 或 Command+Shift+字母"
 

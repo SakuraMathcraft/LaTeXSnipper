@@ -60,8 +60,26 @@ class AppLifecycleMixin:
             on_show_window=self.show_window,
             on_close_window=self._close_active_window,
             on_quit=self.truly_exit,
+            on_paste=self._handle_latex_editor_image_paste,
         )
         installer(self, handlers)
+
+    def _handle_latex_editor_image_paste(self) -> bool:
+        """Route Command+V images through OCR only when the LaTeX editor owns focus."""
+        editor = getattr(self, "latex_editor", None)
+        if editor is None:
+            return False
+        try:
+            viewport = editor.viewport()
+            if not editor.hasFocus() and (viewport is None or not viewport.hasFocus()):
+                return False
+        except Exception:
+            return False
+        try:
+            return bool(self._handle_clipboard_image_paste())
+        except Exception as exc:
+            print(f"[WARN] macOS image paste handling failed: {exc}")
+            return False
 
     def _show_about_dialog(self):
         QMessageBox.about(

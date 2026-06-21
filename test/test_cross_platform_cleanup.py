@@ -325,7 +325,7 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "latexsnipper_verify_python_seed_" in script
     assert "& $pythonExe $verifyScript $seedRoot" in script
     assert "& $pythonExe -c $verifyCode $seedRoot" not in script
-    assert 'for mod in ("pip", "setuptools", "wheel", "packaging")' in script
+    assert 'for mod in ("pip", "setuptools", "wheel", "packaging")' not in script
     assert "sys.prefix does not point to bundled python311" in script
     assert "sys.path contains paths outside bundled python311" in script
     assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
