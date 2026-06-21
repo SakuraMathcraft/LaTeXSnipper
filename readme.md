@@ -122,9 +122,11 @@ Before requesting review, run:
 
 ## 💖 支持本项目
 LaTeXSnipper 是完全免费开源、无广告、无内购的个人业余项目。
-如果你觉得本工具对你论文写作、公式识别带来了帮助，可以小额赞助支持作者继续维护项目（such as 一杯咖啡？😘），十分感谢💗
+如果你觉得本工具对你论文写作、公式识别带来了帮助，可以小额赞助支持作者继续维护项目（such as 一杯咖啡？😘），或者加入官方群聊来催更？十分感谢💗
 
-<img width="1260" height="1890" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" />
+| 支付宝 | 微信 | 交流群 |
+|--------|------|--------|
+| <img width="300" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="300" alt="微信收款码" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="300" alt="LaTeXSnipper群聊" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
 
 ---
 
