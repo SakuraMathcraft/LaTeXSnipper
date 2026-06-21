@@ -124,7 +124,10 @@ if command -v create-dmg >/dev/null 2>&1; then
     rm -rf "$DMG_STAGING_DIR"
     mkdir -p "$DMG_STAGING_DIR"
     ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"
-    install -m 755 "$PROJECT_ROOT/scripts/latexsnipper-clean-user-data.sh" "$DMG_STAGING_DIR/Uninstall User Data.command"
+    UNEXPECTED_DMG_ENTRY="$(find "$DMG_STAGING_DIR" -mindepth 1 -maxdepth 1 ! -name "$APP_BUNDLE" -print -quit)"
+    if [[ -n "$UNEXPECTED_DMG_ENTRY" ]]; then
+        die "unexpected file in DMG staging directory: $UNEXPECTED_DMG_ENTRY"
+    fi
 
     CREATE_DMG_ARGS=(
         --volname "LaTeXSnipper ${VERSION}"

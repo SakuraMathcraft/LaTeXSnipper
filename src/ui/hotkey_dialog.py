@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QVBoxLayout
 from qfluentwidgets import FluentIcon, PushButton
 
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
-from runtime.hotkey_config import hotkey_help_text, hotkey_modifier_label
+from runtime.hotkey_config import hotkey_help_text
 from ui.window_helpers import apply_close_only_window_flags
 
 
@@ -30,15 +30,13 @@ def create_hotkey_dialog(
         dlg.destroyed.connect(lambda: on_destroyed())
 
     t = dialog_theme_tokens()
-    is_macos = sys.platform == "darwin"
-    modifier_label = hotkey_modifier_label()
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(14, 12, 14, 12)
     lay.setSpacing(6)
 
     current_label = QLabel(f"当前快捷键：{current_hotkey}")
     current_label.setStyleSheet(f"color: {t['text']}; font-weight: 600;")
-    hint_label = QLabel(f"按下新的：{hotkey_help_text()}")
+    hint_label = QLabel(f"按下新的：{hotkey_help_text(sys.platform)}")
     hint_label.setStyleSheet(f"color: {t['muted']};")
     lay.addWidget(current_label)
     lay.addWidget(hint_label)
@@ -70,20 +68,41 @@ QLineEdit:focus {{
             return
         k = ev.key()
         mods = ev.modifiers()
-        has_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-        has_meta = bool(mods & Qt.KeyboardModifier.MetaModifier)
         has_shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        if sys.platform == "darwin":
+            has_command = bool(mods & Qt.KeyboardModifier.MetaModifier)
+            has_extra = bool(
+                mods
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.GroupSwitchModifier
+                )
+            )
+            if has_command and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
+                modifiers = ["Meta"]
+                if mods & Qt.KeyboardModifier.AltModifier:
+                    modifiers.append("Alt")
+                if has_shift:
+                    modifiers.append("Shift")
+                edit.setText("+".join([*modifiers, chr(k)]))
+                edit.setFocus()
+                edit.selectAll()
+            else:
+                edit.setText("")
+                edit.setFocus()
+            return
+
+        has_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         has_extra = bool(
             mods
             & (
                 Qt.KeyboardModifier.AltModifier
+                | Qt.KeyboardModifier.MetaModifier
                 | Qt.KeyboardModifier.GroupSwitchModifier
             )
         )
-        has_primary = has_meta if is_macos else has_ctrl
-        has_forbidden_primary = has_ctrl if is_macos else has_meta
-        if has_primary and not has_forbidden_primary and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
-            edit.setText(f"{modifier_label}+Shift+{chr(k)}" if has_shift else f"{modifier_label}+{chr(k)}")
+        if has_ctrl and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
+            edit.setText(f"Ctrl+Shift+{chr(k)}" if has_shift else f"Ctrl+{chr(k)}")
             edit.setFocus()
             edit.selectAll()
         else:

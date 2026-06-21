@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import datetime
 import os
+import sys
 
 import pyperclip
 from PyQt6.QtCore import QSize, Qt
@@ -14,7 +15,7 @@ from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
-from runtime.hotkey_config import normalize_hotkey_or_default
+from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
 from ui.window_helpers import exec_close_only_message_box as _exec_close_only_message_box
@@ -390,7 +391,10 @@ class PredictResultControllerMixin:
                     cooldown_ok = (now_ts - float(getattr(self, "_last_capture_toast_ts", 0.0) or 0.0)) >= 12.0
                     bg_mode = (not self.isVisible()) or self.isMinimized() or (not self.isActiveWindow())
                     if cooldown_ok and bg_mode:
-                        hk = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+                        hk = display_hotkey(
+                            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+                            sys.platform,
+                        )
                         self.system_provider.show_notification(
                             self.tray_icon,
                             "识别完成",
@@ -507,7 +511,10 @@ class PredictResultControllerMixin:
             external_model=external_model,
         )
         if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
-            hk = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+            hk = display_hotkey(
+                normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+                sys.platform,
+            )
             try:
                 self.system_provider.show_notification(
                     self.tray_icon,

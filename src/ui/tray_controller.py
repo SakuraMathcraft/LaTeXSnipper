@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import sys
+
 from PyQt6.QtGui import QGuiApplication
 
 from backend.platform import TrayMenuHandlers
-from runtime.hotkey_config import normalize_hotkey_or_default
+from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 
 
 class TrayControllerMixin:
     def update_tray_tooltip(self):
-        hk = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+        hk = display_hotkey(
+            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+            sys.platform,
+        )
         mode = self._get_capture_display_mode()
         if mode == "index":
             idx = self._get_capture_display_index()
@@ -69,11 +74,15 @@ class TrayControllerMixin:
             act.triggered.connect(lambda _=False, screen_idx=i: self._set_capture_display_mode("index", screen_idx))
 
     def update_tray_menu(self):
-        hk = normalize_hotkey_or_default(self.cfg.get("hotkey"))
+        hk = display_hotkey(
+            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+            sys.platform,
+        )
         handlers = TrayMenuHandlers(
             on_open=self.show_window,
             on_capture=self.start_capture,
             on_exit=self.truly_exit,
+            on_preferences=self.open_settings,
             build_capture_submenu=self._build_capture_display_submenu,
         )
         self.system_provider.update_tray_menu(self.tray_icon, hk, handlers)

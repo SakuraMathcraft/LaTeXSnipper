@@ -123,7 +123,12 @@ def onnxruntime_gpu_policy(
     cuda_info: CudaRuntimeInfo | None = None,
     python_version: tuple[int, int] | None = None,
 ) -> OnnxRuntimeGpuPolicy:
-    cuda = cuda_info or detect_cuda_runtime()
+    if cuda_info is not None:
+        cuda = cuda_info
+    elif sys.platform == "darwin":
+        cuda = CudaRuntimeInfo(source="macos-skip")
+    else:
+        cuda = detect_cuda_runtime()
     pyver = python_version or python_version_for_executable(pyexe)
 
     if cuda.major == 11:

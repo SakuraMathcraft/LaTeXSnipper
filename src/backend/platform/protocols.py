@@ -32,7 +32,18 @@ class TrayMenuHandlers:
     on_open: Callable[[], None]
     on_capture: Callable[[], None]
     on_exit: Callable[[], None]
+    on_preferences: Callable[[], None] | None = None
     build_capture_submenu: Callable[[QMenu], None] | None = None
+
+
+@dataclass
+class ApplicationMenuHandlers:
+    on_about: Callable[[], None]
+    on_preferences: Callable[[], None]
+    on_capture: Callable[[], None]
+    on_show_window: Callable[[], None]
+    on_close_window: Callable[[], None]
+    on_quit: Callable[[], None]
 
 
 class IHotkeyProvider(Protocol):
@@ -84,4 +95,11 @@ class ISystemProvider(Protocol):
         ...
 
     def activate_window(self, window) -> None:
+        ...
+
+    def install_application_menu(
+        self,
+        window,
+        handlers: ApplicationMenuHandlers,
+    ) -> None:
         ...

@@ -10,7 +10,7 @@ from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 from backend.capture_overlay import ScreenCaptureOverlay
-from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
+from backend.platform.protocols import ApplicationMenuHandlers, PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
 from backend.qhotkey import QHotkey
 
 
@@ -122,3 +122,6 @@ class LinuxSystemProvider:
             window.show()
         window.raise_()
         window.activateWindow()
+
+    def install_application_menu(self, window, handlers: ApplicationMenuHandlers) -> None:
+        return None

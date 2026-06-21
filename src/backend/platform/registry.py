@@ -4,6 +4,7 @@ import sys
 from dataclasses import dataclass
 
 from backend.platform.protocols import (
+    ApplicationMenuHandlers,
     IHotkeyProvider,
     IScreenshotProvider,
     ISystemProvider,
@@ -65,4 +66,9 @@ class PlatformCapabilityRegistry:
         return PlatformProviders(hotkey=hotkey, screenshot=screenshot, system=system)
 
 
-__all__ = ["PlatformCapabilityRegistry", "PlatformProviders", "TrayMenuHandlers"]
+__all__ = [
+    "ApplicationMenuHandlers",
+    "PlatformCapabilityRegistry",
+    "PlatformProviders",
+    "TrayMenuHandlers",
+]

@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -59,6 +60,33 @@ def _touch_model(root: Path, manifest, model_id: str) -> None:
     spec = manifest.models[model_id]
     for file_spec in spec.files:
         _touch(root / model_id / file_spec.path)
+
+
+def _sample_or_synthetic_image(sample_name: str, synthetic_factory: Callable[[], np.ndarray]) -> np.ndarray:
+    sample_path = ROOT / "test_samples" / sample_name
+    if sample_path.exists():
+        return load_image_rgb(sample_path)
+    return synthetic_factory()
+
+
+def _synthetic_compact_fraction_expression_image() -> np.ndarray:
+    image = np.full((120, 260, 3), 255, dtype=np.uint8)
+    image[24:44, 58:210] = 0
+    image[56:104, 4:256] = 0
+    return image
+
+
+def _synthetic_matrix_like_wide_line_image() -> np.ndarray:
+    image = np.full((120, 300, 3), 255, dtype=np.uint8)
+    image[18:102, 18:25] = 0
+    image[18:102, 275:282] = 0
+    image[28:42, 52:110] = 0
+    image[28:42, 142:202] = 0
+    image[61:75, 52:110] = 0
+    image[61:75, 142:202] = 0
+    image[84:98, 52:110] = 0
+    image[84:98, 142:202] = 0
+    return image
 
 
 def test_manifest_loads_expected_models() -> None:
@@ -472,15 +500,16 @@ def test_formula_line_groups_split_extra_wide_single_row_into_segments() -> None
 
 
 def test_formula_line_groups_keep_compact_fraction_expression_whole() -> None:
-    image = load_image_rgb(ROOT / "test_samples" / "\u5206\u53f7-\u7b49\u53f7\u516c\u5f0f.png")
+    image = _sample_or_synthetic_image(
+        "\u5206\u53f7-\u7b49\u53f7\u516c\u5f0f.png",
+        _synthetic_compact_fraction_expression_image,
+    )
 
     assert split_formula_line_groups(image) == ()
 
 
 def test_formula_line_groups_keep_synthetic_compact_fraction_expression_whole() -> None:
-    image = np.full((120, 260, 3), 255, dtype=np.uint8)
-    image[24:44, 58:210] = 0
-    image[56:104, 4:256] = 0
+    image = _synthetic_compact_fraction_expression_image()
 
     assert split_formula_line_groups(image) == ()
 
@@ -497,7 +526,10 @@ def test_formula_line_groups_still_split_regular_multiline_equations() -> None:
 
 
 def test_formula_line_groups_keep_matrix_like_wide_line_whole() -> None:
-    image = load_image_rgb(ROOT / "test_samples" / "\u77e9\u96352.png")
+    image = _sample_or_synthetic_image(
+        "\u77e9\u96352.png",
+        _synthetic_matrix_like_wide_line_image,
+    )
 
     groups = split_formula_line_groups(image)
 

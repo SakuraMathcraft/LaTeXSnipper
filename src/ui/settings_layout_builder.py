@@ -1,3 +1,5 @@
+import sys
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, PrimaryPushButton, PushButton
@@ -85,7 +87,9 @@ class SettingsLayoutMixin:
         mathcraft_env_layout.setSpacing(6)
         mathcraft_env_layout.addWidget(QLabel("MathCraft 运行环境:"))
         self.mathcraft_pyexe_input = QLineEdit()
-        self.mathcraft_pyexe_input.setPlaceholderText("使用主依赖环境 python.exe")
+        self.mathcraft_pyexe_input.setPlaceholderText(
+            "使用主依赖环境 Python" if sys.platform == "darwin" else "使用主依赖环境 python.exe"
+        )
         self.mathcraft_pyexe_input.setFixedHeight(30)
         self.mathcraft_pyexe_input.setReadOnly(True)
         mathcraft_env_layout.addWidget(self.mathcraft_pyexe_input)
@@ -252,7 +256,11 @@ class SettingsLayoutMixin:
         latex_path_layout = QHBoxLayout()
         latex_path_layout.addWidget(QLabel("LaTeX 路径:"))
         self.latex_path_input = QLineEdit()
-        self.latex_path_input.setPlaceholderText("例：C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe")
+        self.latex_path_input.setPlaceholderText(
+            "例：/Library/TeX/texbin/pdflatex"
+            if sys.platform == "darwin"
+            else "例：C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe"
+        )
         self.latex_path_input.setFixedHeight(32)
         latex_path_layout.addWidget(self.latex_path_input)
         self.btn_browse_latex = PushButton(FluentIcon.FOLDER, "浏览")
@@ -270,7 +278,11 @@ class SettingsLayoutMixin:
         latex_btn_layout.addWidget(self.btn_test_latex)
         latex_layout.addLayout(latex_btn_layout)
         # LaTeX description.
-        self.lbl_latex_desc = QLabel("💡 需要本地安装 MiKTeX 或 TeX Live，验证通过后才能使用")
+        self.lbl_latex_desc = QLabel(
+            "💡 需要本地安装 MacTeX 或 TeX Live，验证通过后才能使用"
+            if sys.platform == "darwin"
+            else "💡 需要本地安装 MiKTeX 或 TeX Live，验证通过后才能使用"
+        )
         self.lbl_latex_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
         self.lbl_latex_desc.setWordWrap(True)
         latex_layout.addWidget(self.lbl_latex_desc)
@@ -344,6 +356,14 @@ class SettingsLayoutMixin:
         self.btn_open_mathcraft_cache.setToolTip("打开 MathCraft 模型缓存目录")
         deps_row_layout.addWidget(self.btn_open_mathcraft_cache, 1)
         lay.addWidget(deps_row)
+        self.btn_cleanup_macos_local_data = None
+        if sys.platform == "darwin":
+            self.btn_cleanup_macos_local_data = PushButton(FluentIcon.BROOM, "清理本机依赖与缓存")
+            self.btn_cleanup_macos_local_data.setFixedHeight(36)
+            self.btn_cleanup_macos_local_data.setToolTip(
+                "移除本机下载的依赖、缓存和日志；默认保留应用设置"
+            )
+            lay.addWidget(self.btn_cleanup_macos_local_data)
         # Stretch spacer.
         lay.addStretch()
         # Connect signals.
@@ -355,6 +375,8 @@ class SettingsLayoutMixin:
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
+        if self.btn_cleanup_macos_local_data is not None:
+            self.btn_cleanup_macos_local_data.clicked.connect(self._cleanup_macos_local_data)
         self.startup_console_button.clicked.connect(self._on_startup_console_button_clicked)
         self.office_bridge_button.clicked.connect(self._on_office_bridge_button_clicked)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)

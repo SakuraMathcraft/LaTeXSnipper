@@ -176,7 +176,7 @@ class MacHotkey(QObject):
                 modifiers |= _CONTROL_KEY
             elif part == "SHIFT":
                 modifiers |= _SHIFT_KEY
-            elif part == "ALT":
+            elif part in ("ALT", "OPTION"):
                 modifiers |= _OPTION_KEY
             elif part in ("META", "CMD", "COMMAND", "WIN"):
                 modifiers |= _CMD_KEY
@@ -287,8 +287,7 @@ class MacHotkey(QObject):
     def is_registered(self) -> bool:
         return self._registered and bool(self._hotkey_ref.value)
 
-    def cleanup(self) -> None:
-        self.unregister()
+    def _remove_handler(self) -> None:
         if self._handler_ref.value and self._carbon is not None:
             try:
                 self._carbon.RemoveEventHandler(self._handler_ref)
@@ -296,3 +295,7 @@ class MacHotkey(QObject):
                 print(f"[Hotkey] macOS handler cleanup error: {exc}")
         self._handler_ref = ctypes.c_void_p()
         self._handler_proc = None
+
+    def cleanup(self) -> None:
+        self.unregister()
+        self._remove_handler()

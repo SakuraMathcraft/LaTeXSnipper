@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 from shutil import which
 
 
 SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)
 SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)
-PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 11), (3, 12), (3, 10))
+PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 12), (3, 11), (3, 10))
 
 
 def _version_label(version: tuple[int, int]) -> str:
@@ -22,6 +22,15 @@ def supported_system_python_range_label() -> str:
     min_label = _version_label(SUPPORTED_SYSTEM_PYTHON_MIN)
     max_major, max_minor = SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE
     return f">={min_label},<{max_major}.{max_minor}"
+
+
+_NATIVE_PATH_CLS = type(Path.cwd())
+
+
+def _native_path(value: Path | str) -> Path:
+    if isinstance(value, PurePath):
+        return value  # type: ignore[return-value]
+    return _NATIVE_PATH_CLS(value)
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -108,6 +117,94 @@ def inject_private_python_paths(pyexe: Path) -> None:
             pass
 
 
+def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | None:
+    """Locate the bundled/local Python 3.11 installer without downloading anything.
+
+    Windows-only: the .exe installer only exists on Windows.
+    """
+    if os.name != "nt":
+        return None
+    deps_dir = _native_path(deps_dir)
+    candidates: list[Path] = []
+
+    def add_candidate(path: Path | str | None) -> None:
+        if path is None:
+            return
+        try:
+            candidates.append(_native_path(path))
+        except Exception:
+            pass
+
+    def add_installer_at(base: Path | str | None) -> None:
+        if base is None:
+            return
+        try:
+            add_candidate(_native_path(base) / _PY311_INSTALLER_NAME)
+        except Exception:
+            pass
+
+    def add_parent_tree(start: Path | str | None) -> None:
+        if start is None:
+            return
+        try:
+            path = _native_path(start).resolve()
+        except Exception:
+            try:
+                path = _native_path(start)
+            except Exception:
+                return
+        if path.is_file():
+            path = path.parent
+        for base in (path, *path.parents):
+            add_installer_at(base)
+            try:
+                if (base / "pyproject.toml").exists() or (base / ".git").exists():
+                    # Keep walking; nested repos or editable checkouts can still
+                    # have another useful parent.
+                    add_installer_at(base)
+            except Exception:
+                pass
+
+    try:
+        add_installer_at(deps_dir)
+        add_parent_tree(deps_dir)
+    except Exception:
+        pass
+    try:
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            meipass = _native_path(sys._MEIPASS)
+            add_installer_at(meipass)
+            add_installer_at(meipass.parent / "_internal")
+            add_installer_at(meipass.parent)
+    except Exception:
+        pass
+    try:
+        exe_dir = _native_path(sys.executable).resolve().parent
+        add_installer_at(exe_dir / "_internal")
+        add_installer_at(exe_dir)
+    except Exception:
+        pass
+    add_parent_tree(os.environ.get("LATEXSNIPPER_REPO_ROOT"))
+    add_parent_tree(module_file)
+    add_parent_tree(_NATIVE_PATH_CLS.cwd())
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve()).lower()
+        except Exception:
+            key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
 def _system_python3_score(pyexe: Path) -> int:
     """Return a suitability score for a system Python used to create a venv."""
     try:
@@ -118,8 +215,7 @@ def _system_python3_score(pyexe: Path) -> int:
             return 0
         base_check = (
             "import sys, venv; "
-            f"v=sys.version_info[:2]; "
-            f"raise SystemExit(0 if {SUPPORTED_SYSTEM_PYTHON_MIN!r} <= v < {SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE!r} else 1)"
+            "raise SystemExit(0 if (3, 10) <= sys.version_info < (3, 14) else 1)"
         )
         proc = subprocess.run(
             [str(pyexe), "-c", base_check],
@@ -184,13 +280,13 @@ def find_system_python3() -> Path | None:
         ]
     elif sys.platform == "darwin":
         candidates = [
-            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
-            "/opt/homebrew/bin/python3.11",
-            "/usr/local/bin/python3.11",
-            *path_versioned,
             "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
             "/opt/homebrew/bin/python3.12",
             "/usr/local/bin/python3.12",
+            *path_versioned,
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+            "/opt/homebrew/bin/python3.11",
+            "/usr/local/bin/python3.11",
             "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
             "/opt/homebrew/bin/python3.10",
             "/usr/local/bin/python3.10",
@@ -328,10 +424,9 @@ def find_existing_python(base_dir: Path) -> Path | None:
 def normalize_deps_base_dir(selected_dir: Path) -> Path:
     """Normalize user-selected dependency base directories."""
     path = Path(selected_dir)
-    try:
-        name = path.name.lower()
-    except Exception:
-        return path
+    raw_text = str(selected_dir).rstrip("\\/")
+    normalized_text = raw_text.replace("\\", "/")
+    name = normalized_text.rsplit("/", 1)[-1].lower()
 
     looks_like_python_leaf = name in {"venv", ".venv", "python_full"} or name.startswith("python")
     if not looks_like_python_leaf:
@@ -341,7 +436,11 @@ def normalize_deps_base_dir(selected_dir: Path) -> Path:
     if existing_py is not None:
         return path
 
-    parent = path.parent
+    if raw_text and normalized_text != name:
+        parent_text = raw_text[: max(raw_text.rfind("\\"), raw_text.rfind("/"))]
+        parent = Path(parent_text)
+    else:
+        parent = path.parent
     try:
         if parent and str(parent) != str(path):
             return parent

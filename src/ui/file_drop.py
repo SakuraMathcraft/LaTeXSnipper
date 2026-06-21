@@ -160,6 +160,6 @@ class FileDropMixin:
 
         event.acceptProposedAction()
         if kind == "image":
-            self._recognize_image_file(path)
+            self._stage_image_file(path)
         elif kind == "pdf":
             self._recognize_pdf_file(path)

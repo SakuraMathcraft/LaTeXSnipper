@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 import traceback
 from pathlib import Path
@@ -30,6 +31,57 @@ from bootstrap.deps_runtime_verify import (
     _verify_onnxruntime_runtime,
 )
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
+
+
+def _install_failure_guidance(failed_pkgs: list[str], fail_count: int, total: int) -> list[str]:
+    if sys.platform == "darwin":
+        lines = [
+            f"[WARN] 部分依赖安装失败，共 {fail_count}/{total} 个",
+            "",
+            "失败的依赖包:",
+        ]
+        lines.extend(f"  - {pkg}" for pkg in failed_pkgs)
+        lines.extend([
+            "",
+            "可能原因:",
+            "  1. 当前依赖环境使用了不兼容的 Python 版本。",
+            "  2. 网络或 PyPI 镜像连接不稳定。",
+            "  3. 依赖目录写入失败或磁盘空间不足。",
+            "",
+            "建议操作:",
+            "  1. 优先使用 Python 3.11、3.12 或 3.13 初始化依赖环境。",
+            "  2. 返回依赖向导，换用清华镜像或重新点击下载。",
+            "  3. 如果日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，请更换兼容 Python 后重试。",
+        ])
+        return lines
+
+    lines = [
+        f"[WARN] 部分安装失败，共 {fail_count}/{total} 个 ❌",
+        "",
+        "=" * 70,
+        "📋 失败包汇总 - 可在终端中手动安装:",
+        "",
+    ]
+    lines.extend(f'  pip install "{pkg}" --upgrade --user' for pkg in failed_pkgs)
+    lines.extend([
+        "",
+        "=" * 70,
+        "",
+        "🔍 常见失败原因及解决方案:",
+        "",
+        "  1. 🔒 程序占用文件：关闭本程序后再手动安装",
+        "  2. 🔐 权限不足：以管理员身份运行终端",
+        "  3. 🌐 网络问题：尝试使用镜像源或 VPN",
+        "  4. ⚠️ 依赖冲突：查看上方 [DIAG] 诊断信息",
+        "",
+        "💡 推荐操作:",
+        "  1. 关闭本程序",
+        "  2. 打开 CMD 终端（以管理员身份）",
+        "  3. 执行上述 pip install 命令",
+        "  4. 重新启动程序",
+        "=" * 70,
+    ])
+    return lines
 
 
 class InstallWorker(QThread):
@@ -296,29 +348,8 @@ class InstallWorker(QThread):
                 self.log_updated.emit("  2. 如仍失败，先卸载 onnxruntime / onnxruntime-gpu 后再重装对应后端")
                 self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
             else:
-                self.log_updated.emit(f"[WARN] 部分安装失败，共 {fail_count}/{total} 个")
-                self.log_updated.emit("")
-                self.log_updated.emit("=" * 70)
-                self.log_updated.emit("[SUMMARY] 失败包汇总 - 可在终端中手动安装:")
-                self.log_updated.emit("")
-                for pkg in failed_pkgs:
-                    self.log_updated.emit(f'  pip install "{pkg}" --upgrade --user')
-                self.log_updated.emit("")
-                self.log_updated.emit("=" * 70)
-                self.log_updated.emit("")
-                self.log_updated.emit("[DIAG] 常见失败原因及解决方案:")
-                self.log_updated.emit("")
-                self.log_updated.emit("  1. 程序占用文件：关闭本程序后再手动安装")
-                self.log_updated.emit("  2. 权限不足：以管理员身份运行终端")
-                self.log_updated.emit("  3. 网络问题：尝试使用镜像源或 VPN")
-                self.log_updated.emit("  4. 依赖冲突：查看上方 [DIAG] 诊断信息")
-                self.log_updated.emit("")
-                self.log_updated.emit("[HINT] 推荐操作:")
-                self.log_updated.emit("  1. 关闭本程序")
-                self.log_updated.emit("  2. 打开 CMD 终端（以管理员身份）")
-                self.log_updated.emit("  3. 执行上述 pip install 命令")
-                self.log_updated.emit("  4. 重新启动程序")
-                self.log_updated.emit("=" * 70)
+                for line in _install_failure_guidance(failed_pkgs, fail_count, total):
+                    self.log_updated.emit(line)
 
             self.progress_updated.emit(100)
             self._emit_done_safe(all_ok)

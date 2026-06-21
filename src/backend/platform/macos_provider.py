@@ -6,13 +6,20 @@ Provides hotkey, screenshot, and system integration using Qt and native macOS AP
 from __future__ import annotations
 
 import ctypes
+import subprocess
 
 from PyQt6.QtCore import QObject
-from PyQt6.QtGui import QIcon, QKeySequence
-from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
+from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from backend.capture_overlay import ScreenCaptureOverlay
-from backend.platform.protocols import PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
+from backend.platform.protocols import (
+    ApplicationMenuHandlers,
+    PermissionResult,
+    PermissionState,
+    ScreenshotConfig,
+    TrayMenuHandlers,
+)
 from backend.qhotkey import QHotkey
 
 
@@ -55,6 +62,7 @@ class MacOSScreenshotProvider:
 
     def __init__(self):
         self._screen_capture_prompted = False
+        self._settings_opened = False
 
     def _preflight_screen_capture_access(self) -> bool | None:
         try:
@@ -95,9 +103,20 @@ class MacOSScreenshotProvider:
                 return PermissionResult(PermissionState.ALLOWED, "macos-screen-recording-allowed")
 
         return PermissionResult(
-            PermissionState.UNKNOWN,
-            "请在系统设置 > 隐私与安全性 > 录屏中允许 LaTeXSnipper。授权后如仍无法截图，请重启应用。",
+            PermissionState.DENIED,
+            "LaTeXSnipper needs Screen Recording permission to capture the screen.\n\n"
+            "Open System Settings -> Privacy & Security -> Screen Recording, "
+            "enable LaTeXSnipper, then restart the app if macOS asks you to.",
         )
+
+    def open_permission_settings(self) -> None:
+        if self._settings_opened:
+            return
+        self._settings_opened = True
+        try:
+            subprocess.Popen(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
+        except Exception as exc:
+            print(f"[WARN] macOS privacy settings open failed: {exc}")
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
         return ScreenCaptureOverlay(
@@ -124,13 +143,15 @@ class MacOSSystemProvider:
         if tray_menu is None:
             return
         tray_menu.clear()
-        tray_menu.addAction(f"截图识别（{hotkey}）", handlers.on_capture)
+        tray_menu.addAction(f"Start Capture / Snip ({hotkey})", handlers.on_capture)
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
         tray_menu.addSeparator()
-        tray_menu.addAction("打开主窗口", handlers.on_open)
+        tray_menu.addAction("Show Main Window", handlers.on_open)
+        if callable(handlers.on_preferences):
+            tray_menu.addAction("Preferences...", handlers.on_preferences)
         tray_menu.addSeparator()
-        tray_menu.addAction("退出", handlers.on_exit)
+        tray_menu.addAction("Quit", handlers.on_exit)
 
     def show_notification(
         self,
@@ -156,3 +177,99 @@ class MacOSSystemProvider:
             window.show()
         window.raise_()
         window.activateWindow()
+
+    def install_application_menu(self, window, handlers: ApplicationMenuHandlers) -> None:
+        if getattr(window, "_macos_application_menu_installed", False):
+            return
+        menu_bar = window.menuBar()
+        if menu_bar is None:
+            return
+
+        app_menu = menu_bar.addMenu("LaTeXSnipper")
+
+        about_action = QAction("About LaTeXSnipper", app_menu)
+        about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        about_action.triggered.connect(handlers.on_about)
+        app_menu.addAction(about_action)
+
+        prefs_action = QAction("Preferences...", app_menu)
+        prefs_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        prefs_action.setShortcut(QKeySequence("Meta+,"))
+        prefs_action.triggered.connect(handlers.on_preferences)
+        app_menu.addAction(prefs_action)
+
+        app_menu.addSeparator()
+
+        hide_action = QAction("Hide LaTeXSnipper", app_menu)
+        hide_action.setShortcut(QKeySequence("Meta+H"))
+        hide_action.triggered.connect(self._hide_application)
+        app_menu.addAction(hide_action)
+
+        hide_others_action = QAction("Hide Others", app_menu)
+        hide_others_action.setShortcut(QKeySequence("Alt+Meta+H"))
+        hide_others_action.triggered.connect(self._hide_other_applications)
+        app_menu.addAction(hide_others_action)
+
+        app_menu.addSeparator()
+
+        quit_action = QAction("Quit LaTeXSnipper", app_menu)
+        quit_action.setMenuRole(QAction.MenuRole.QuitRole)
+        quit_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Quit))
+        quit_action.triggered.connect(handlers.on_quit)
+        app_menu.addAction(quit_action)
+
+        file_menu = menu_bar.addMenu("File")
+        capture_action = QAction("Start Capture / Snip", file_menu)
+        capture_action.setShortcut(QKeySequence("Meta+Alt+S"))
+        capture_action.triggered.connect(handlers.on_capture)
+        file_menu.addAction(capture_action)
+
+        show_action = QAction("Show Main Window", file_menu)
+        show_action.triggered.connect(handlers.on_show_window)
+        file_menu.addAction(show_action)
+
+        close_action = QAction("Close Window", file_menu)
+        close_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Close))
+        close_action.triggered.connect(handlers.on_close_window)
+        file_menu.addAction(close_action)
+
+        edit_menu = menu_bar.addMenu("Edit")
+        self._add_standard_edit_action(edit_menu, "Copy", QKeySequence.StandardKey.Copy, "copy")
+        self._add_standard_edit_action(edit_menu, "Paste", QKeySequence.StandardKey.Paste, "paste")
+        self._add_standard_edit_action(edit_menu, "Select All", QKeySequence.StandardKey.SelectAll, "selectAll")
+
+        setattr(window, "_macos_application_menu_installed", True)
+
+    def _add_standard_edit_action(self, menu: QMenu, text: str, key, method_name: str) -> None:
+        action = QAction(text, menu)
+        action.setShortcut(QKeySequence(key))
+        action.triggered.connect(lambda _=False, name=method_name: self._trigger_focused_widget_method(name))
+        menu.addAction(action)
+
+    def _trigger_focused_widget_method(self, method_name: str) -> None:
+        app = QApplication.instance()
+        widget = app.focusWidget() if app is not None else None
+        method = getattr(widget, method_name, None)
+        if callable(method):
+            method()
+
+    def _hide_application(self) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        for widget in app.topLevelWidgets():
+            try:
+                if widget.isVisible():
+                    widget.hide()
+            except Exception:
+                pass
+
+    def _hide_other_applications(self) -> None:
+        script = (
+            'tell application "System Events" to set visible of every process '
+            'whose visible is true and name is not "LaTeXSnipper" to false'
+        )
+        try:
+            subprocess.Popen(["osascript", "-e", script])
+        except Exception as exc:
+            print(f"[WARN] macOS hide others failed: {exc}")
