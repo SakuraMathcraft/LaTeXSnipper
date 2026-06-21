@@ -328,14 +328,18 @@ for mod in ("setuptools", "pip", "wheel", "packaging"):
     importlib.import_module(mod)
 '@
     $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
+    $verifyEnvName = "SETUPTOOLS_USE_DISTUTILS"
+    $verifyEnvPrevious = [System.Environment]::GetEnvironmentVariable($verifyEnvName, "Process")
     try {
         [System.IO.File]::WriteAllText($verifyScript, $verifyCode, $utf8NoBom)
+        [System.Environment]::SetEnvironmentVariable($verifyEnvName, "stdlib", "Process")
         $verifyJson = & $pythonExe $verifyScript $seedRoot
         if ($LASTEXITCODE -ne 0) {
             throw "Bundled Python seed verification failed."
         }
     }
     finally {
+        [System.Environment]::SetEnvironmentVariable($verifyEnvName, $verifyEnvPrevious, "Process")
         if (Test-Path $verifyScript) {
             Remove-Item -LiteralPath $verifyScript -Force
         }
