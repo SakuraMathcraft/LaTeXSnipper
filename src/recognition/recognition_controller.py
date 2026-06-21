@@ -243,7 +243,7 @@ class RecognitionControllerMixin:
         )
         if not file_path:
             return
-        self._stage_image_file(Path(file_path))
+        self._recognize_image_file(Path(file_path))
 
     def _recognize_image_file(self, file_path: str | Path):
         """Recognize a local image file selected by dialog or dropped onto the window."""
