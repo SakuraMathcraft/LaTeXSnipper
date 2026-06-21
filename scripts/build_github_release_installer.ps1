@@ -324,7 +324,7 @@ if pathlib.Path(sys.base_prefix).resolve() != root:
     raise SystemExit("sys.base_prefix does not point to bundled python311")
 if bad:
     raise SystemExit("sys.path contains paths outside bundled python311")
-for mod in ("pip", "setuptools", "wheel", "packaging"):
+for mod in ("setuptools", "pip", "wheel", "packaging"):
     importlib.import_module(mod)
 '@
     $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
