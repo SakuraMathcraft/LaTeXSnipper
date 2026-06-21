@@ -33,15 +33,13 @@
 |------|------|
 | 📸 Formula recognition | MathCraft OCR for formulas, text, and mixed content |
 | 📄 PDF recognition | Page-based PDF recognition with Markdown/LaTeX output and DPI control |
-| 🌐 Bilingual reading | PDF text-layer reading with local Argos or remote translation engines |
 | ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
 | 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
 | ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
 | 🔄 Multi-format export | 20 export formats across LaTeX, Markdown, MathML, HTML, OMML, SVG, Word, ODT, PowerPoint, EPUB, PDF, Typst, and plain text |
 | 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
-| 🧠 Advanced fallback | Local `SymPy/mpmath` engine for harder expressions |
 | 🌙 Theme support | Light/Dark adaptation across windows and tools |
-| 🔐 Offline-first | Recognition and advanced solving can run locally for privacy |
+| 🔐 Offline-first | Recognition and computation can run locally for privacy |
 
 ---
 
@@ -63,23 +61,6 @@ See the [Office plugin documentation](office_plugin/README.md) for requirements 
 
 ---
 
-## Computation Coverage
-
-The workbench currently covers common scenarios such as:
-
-- Polynomial expansion
-- Factorization
-- Equation solving
-- Irrational/complex root fallback solving
-- Definite and improper integrals
-- Infinite series
-- Infinite products
-- Limits
-- Derivatives
-- Numeric approximation and constant recognition
-
----
-
 ## Export Formats
 
 LaTeXSnipper exposes a shared export menu in the main window and favorites window. The desktop app currently provides 20 export formats.
@@ -96,59 +77,6 @@ Optional Pandoc export formats are enabled after installing the `PANDOC` layer i
 - Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`
 - PDF `.pdf` (requires Pandoc plus a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX)
 - Standalone HTML `.html`, Typst `.typ`, and plain text `.txt`
-
----
-
-## Quick Start
-
-### Option 1: Download the executable
-
-1. Visit the [Releases page](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-2. Download the latest `LaTeXSnipperSetup-<version>.exe`
-3. Run the installer
-4. Complete environment setup via the dependency wizard on first launch
-5. Start capturing, handwriting, or using the math workbench
-
-### Option 2: Run from source
-
-Windows:
-
-```bash
-git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
-cd LaTeXSnipper
-
-python -m venv .venv
-.\.venv\Scripts\activate
-
-pip install -r requirements.txt
-python src/main.py
-```
-
-Linux:
-
-```bash
-git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
-cd LaTeXSnipper
-
-python3 -m venv .venv
-source .venv/bin/activate
-
-pip install -r requirements-linux.txt
-python src/main.py
-```
-
-macOS:
-
-```bash
-git clone https://github.com/SakuraMathcraft/LaTeXSnipper.git
-cd LaTeXSnipper
-
-python3 -m venv .venv
-source .venv/bin/activate
-
-pip install -r requirements-macos.txt
-python src/main.py
-```
 
 ---
 
@@ -189,6 +117,14 @@ Before requesting review, run:
 .\tools\deps\python311\python.exe -m pyright
 .\tools\deps\python311\python.exe -m compileall -q src mathcraft_ocr test
 ```
+
+---
+
+## 💖 支持本项目
+LaTeXSnipper 是完全免费开源、无广告、无内购的个人业余项目。
+如果你觉得本工具对你论文写作、公式识别带来了帮助，可以小额赞助支持作者继续维护项目（such as 一杯咖啡？😘），十分感谢💗
+
+<img width="1260" height="1890" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" />
 
 ---
 
