@@ -44,6 +44,7 @@ class ApplicationMenuHandlers:
     on_show_window: Callable[[], None]
     on_close_window: Callable[[], None]
     on_quit: Callable[[], None]
+    on_paste: Callable[[], bool] | None = None
 
 
 class IHotkeyProvider(Protocol):

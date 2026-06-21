@@ -235,7 +235,7 @@ class MacOSSystemProvider:
 
         edit_menu = menu_bar.addMenu("Edit")
         self._add_standard_edit_action(edit_menu, "Copy", QKeySequence.StandardKey.Copy, "copy")
-        self._add_standard_edit_action(edit_menu, "Paste", QKeySequence.StandardKey.Paste, "paste")
+        self._add_paste_action(edit_menu, handlers.on_paste)
         self._add_standard_edit_action(edit_menu, "Select All", QKeySequence.StandardKey.SelectAll, "selectAll")
 
         setattr(window, "_macos_application_menu_installed", True)
@@ -245,6 +245,21 @@ class MacOSSystemProvider:
         action.setShortcut(QKeySequence(key))
         action.triggered.connect(lambda _=False, name=method_name: self._trigger_focused_widget_method(name))
         menu.addAction(action)
+
+    def _add_paste_action(self, menu: QMenu, image_paste_handler) -> None:
+        action = QAction("Paste", menu)
+        action.setShortcut(QKeySequence(QKeySequence.StandardKey.Paste))
+        action.triggered.connect(lambda _=False: self._trigger_paste(image_paste_handler))
+        menu.addAction(action)
+
+    def _trigger_paste(self, image_paste_handler) -> None:
+        if callable(image_paste_handler):
+            try:
+                if image_paste_handler():
+                    return
+            except Exception as exc:
+                print(f"[WARN] macOS image paste handler failed: {exc}")
+        self._trigger_focused_widget_method("paste")
 
     def _trigger_focused_widget_method(self, method_name: str) -> None:
         app = QApplication.instance()

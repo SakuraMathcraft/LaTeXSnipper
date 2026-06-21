@@ -18,6 +18,19 @@ def test_main_window_pastes_clipboard_images_into_existing_recognition_flow() ->
     assert "self._handle_clipboard_image_paste(event)" in capture
 
 
+def test_macos_paste_menu_routes_images_to_the_existing_recognition_flow() -> None:
+    lifecycle = (ROOT / "src" / "ui" / "app_lifecycle_controller.py").read_text(encoding="utf-8")
+    macos_provider = (ROOT / "src" / "backend" / "platform" / "macos_provider.py").read_text(encoding="utf-8")
+    protocols = (ROOT / "src" / "backend" / "platform" / "protocols.py").read_text(encoding="utf-8")
+
+    assert "on_paste: Callable[[], bool] | None = None" in protocols
+    assert "on_paste=self._handle_latex_editor_image_paste" in lifecycle
+    assert "def _handle_latex_editor_image_paste(self) -> bool:" in lifecycle
+    assert "self._add_paste_action(edit_menu, handlers.on_paste)" in macos_provider
+    assert "self._trigger_paste(image_paste_handler)" in macos_provider
+    assert "self._trigger_focused_widget_method(\"paste\")" in macos_provider
+
+
 def test_export_dependencies_use_bundled_mathjax_instead_of_python_renderers() -> None:
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
     layers = (ROOT / "src" / "bootstrap" / "deps_layer_specs.py").read_text(encoding="utf-8").lower()
