@@ -103,7 +103,7 @@ jobs:
             throw "Bundled Python seed was not created: $target"
           }
           Remove-Item -LiteralPath $installer -Force
-          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel "setuptools<82"
+          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel
 
       - name: Build unsigned installer
         shell: pwsh
