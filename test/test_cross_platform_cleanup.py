@@ -179,6 +179,10 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "procedure CleanupDependencyRootHistory" in inno
     assert "install_base_dir_cleanup_roots" in inno
     assert "procedure CleanupDependencyRootChildren" in inno
+    assert "function IsPythonEnvironmentRoot" in inno
+    assert "FileExists(AddBackslash(Path) + 'pyvenv.cfg')" in inno
+    assert "FileExists(AddBackslash(Path) + 'Scripts\\python.exe')" in inno
+    assert "CleanupPath(Root);" in inno
     assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" in inno
     assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" in inno
     assert "CleanupDependencyRootHistory()" in inno
@@ -201,11 +205,14 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "argos_translation_env_dir" not in cleanup_script
     assert "pandoc" in cleanup_script
     assert "translation_env" in cleanup_script
+    assert "is_python_environment_root()" in cleanup_script
+    assert 'remove_path "$root" "dependency environment root"' in cleanup_script
     assert "rm -rf \"$root\"" not in cleanup_script
     assert "`<dependency-root>/pandoc`" in user_data_doc
     assert "`<dependency-root>/translation_env`" in user_data_doc
     assert "Direct child of the selected dependency root" in user_data_doc
     assert "Pandoc and Argos translation are not fixed to the application install" in user_data_doc
+    assert "cleanup treats that recorded root as the environment and removes the whole root" in user_data_doc
     assert "`pandoc` for the optional dependency-managed Pandoc binary" in faq_doc
     assert "`translation_env` for the optional Argos local translation environment" in faq_doc
     assert "following the same active dependency root as Pandoc" in faq_doc
@@ -217,6 +224,13 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
     assert "install-directory dependency environment" not in audit_doc
     assert "prompts before uninstall starts" in audit_doc
+
+
+def test_release_workflow_pins_setuptools_before_bundled_seed_verification() -> None:
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert '"setuptools<82"' in release_workflow
+    assert "pip install --upgrade pip wheel setuptools" not in release_workflow
 
 
 def test_dependency_wizard_keeps_ui_status_icons_for_visible_labels() -> None:
