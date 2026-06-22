@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from qfluentwidgets import PrimaryPushButton, PushButton
 
 from runtime.app_paths import resource_path
 
@@ -118,17 +119,24 @@ def show_formula_rename_dialog(
     dlg.setModal(True)
 
     lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(14, 14, 14, 14)
+    lay.setSpacing(10)
     lay.addWidget(QLabel(prompt))
 
     edit = QLineEdit(dlg)
     edit.setText(current_name or "")
     edit.selectAll()
     edit.setClearButtonEnabled(True)
+    edit.setFixedHeight(32)
     lay.addWidget(edit)
 
     btn_row = QHBoxLayout()
-    btn_ok = QPushButton("OK", dlg)
-    btn_cancel = QPushButton("Cancel", dlg)
+    btn_row.setContentsMargins(0, 4, 0, 0)
+    btn_row.setSpacing(8)
+    btn_ok = PrimaryPushButton("确定", dlg)
+    btn_cancel = PushButton("取消", dlg)
+    btn_ok.setFixedHeight(32)
+    btn_cancel.setFixedHeight(32)
     btn_ok.clicked.connect(dlg.accept)
     btn_cancel.clicked.connect(dlg.reject)
     edit.returnPressed.connect(dlg.accept)
@@ -137,7 +145,7 @@ def show_formula_rename_dialog(
     lay.addLayout(btn_row)
 
     dlg.adjustSize()
-    dlg.setFixedSize(max(340, dlg.width()), dlg.height())
+    dlg.setFixedSize(max(380, dlg.width()), max(182, dlg.height()))
     apply_app_window_icon(dlg)
     QTimer.singleShot(0, edit.setFocus)
     if dlg.exec() != QDialog.DialogCode.Accepted:

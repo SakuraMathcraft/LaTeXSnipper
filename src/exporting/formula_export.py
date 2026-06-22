@@ -81,6 +81,26 @@ def get_all_export_format_specs() -> tuple[ExportFormatSpec, ...]:
     return EXPORT_FORMAT_SPECS + _get_pandoc_format_specs()
 
 
+def export_format_label(format_type: str) -> str:
+    key = str(format_type or "").strip()
+    if not key:
+        return ""
+    for spec in get_all_export_format_specs():
+        if spec.key == key and not spec.separator_before and key != "_pandoc_header":
+            return spec.label or spec.key
+    return FORMAT_DISPLAY_NAMES.get(key, key)
+
+
+def is_export_format_available(format_type: str) -> bool:
+    key = str(format_type or "").strip()
+    if not key or key == "_pandoc_header":
+        return False
+    return any(
+        spec.key == key and not spec.separator_before and spec.key != "_pandoc_header"
+        for spec in get_all_export_format_specs()
+    )
+
+
 def build_formula_export(
     format_type: str,
     latex: str,

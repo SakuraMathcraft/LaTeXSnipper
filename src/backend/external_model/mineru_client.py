@@ -74,8 +74,7 @@ class MineruClient:
         url = f"{base_url}{endpoint}"
         try:
             resp = requests.get(url, headers=self._headers(), timeout=timeout)
-            if resp.status_code >= 500:
-                resp.raise_for_status()
+            resp.raise_for_status()
         except requests.RequestException as exc:
             raise ExternalModelConnectionError(self._format_request_error(exc, "MinerU 连通性检查", url)) from exc
         return True, f"MinerU 连通成功: {endpoint}"

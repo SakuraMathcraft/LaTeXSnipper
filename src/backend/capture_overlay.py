@@ -200,16 +200,16 @@ class ScreenCaptureOverlay(QWidget):
         self.setCursor(QCursor(Qt.CursorShape.BlankCursor))
 
     def _selection_rect(self) -> QRect | None:
-        if not self.start_pos or not self.end_pos:
+        if self.start_pos is None or self.end_pos is None:
             return None
         return QRect(self.start_pos, self.end_pos).normalized()
 
     def _selection_size(self) -> tuple[int, int]:
-        if self.start_global_pos and self.end_global_pos:
+        if self.start_global_pos is not None and self.end_global_pos is not None:
             width = abs(int(self.end_global_pos.x() - self.start_global_pos.x()))
             height = abs(int(self.end_global_pos.y() - self.start_global_pos.y()))
             return (width, height)
-        if not self.start_pos or not self.end_pos:
+        if self.start_pos is None or self.end_pos is None:
             return (0, 0)
         width = abs(int(self.end_pos.x() - self.start_pos.x()))
         height = abs(int(self.end_pos.y() - self.start_pos.y()))
@@ -712,7 +712,7 @@ class ScreenCaptureOverlay(QWidget):
             # Show logical selection size and global top-left coordinates.
             width, height = self._selection_size()
             if width > 0 and height > 0:
-                if self.start_global_pos and self.end_global_pos:
+                if self.start_global_pos is not None and self.end_global_pos is not None:
                     gx = min(int(self.start_global_pos.x()), int(self.end_global_pos.x()))
                     gy = min(int(self.start_global_pos.y()), int(self.end_global_pos.y()))
                 else:
@@ -758,7 +758,7 @@ class ScreenCaptureOverlay(QWidget):
     def mouseMoveEvent(self, event):
         self.current_pos = event.position().toPoint()
         self.current_global_pos = event.globalPosition().toPoint()
-        if self.start_pos:
+        if self.start_pos is not None:
             self.end_pos = self.current_pos
             self.end_global_pos = self.current_global_pos
         self.update()
@@ -835,7 +835,7 @@ class ScreenCaptureOverlay(QWidget):
     def capture_selection(self):
         self.last_capture_failure_message = ""
         self.last_capture_screen_index = None
-        if not self.start_pos or not self.end_pos:
+        if self.start_pos is None or self.end_pos is None:
             self._finish_capture(None)
             return
         rect = self._selection_rect()
@@ -843,7 +843,7 @@ class ScreenCaptureOverlay(QWidget):
             self._finish_capture(None)
             return
 
-        if self.start_global_pos and self.end_global_pos:
+        if self.start_global_pos is not None and self.end_global_pos is not None:
             global_x = min(int(self.start_global_pos.x()), int(self.end_global_pos.x()))
             global_y = min(int(self.start_global_pos.y()), int(self.end_global_pos.y()))
             width = abs(int(self.end_global_pos.x() - self.start_global_pos.x()))

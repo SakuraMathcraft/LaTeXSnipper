@@ -8,7 +8,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QIcon, QTextCursor
-from PyQt6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QVBoxLayout
+from PyQt6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout
+from qfluentwidgets import FluentIcon, PushButton
 
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
 from runtime.app_paths import resource_path
@@ -37,26 +38,11 @@ class RuntimeLogDialog(QDialog):
         self.txt = QPlainTextEdit()
         self.txt.setReadOnly(True)
 
-        use_fluent = False
-        try:
-            from qfluentwidgets import PushButton as FluentPushButton, FluentIcon
-
-            use_fluent = True
-        except Exception:
-            FluentPushButton = None
-            FluentIcon = None
-
         btn_row = QHBoxLayout()
-        if use_fluent and FluentPushButton and FluentIcon:
-            self.btn_open = FluentPushButton(FluentIcon.FOLDER, "打开目录")
-            self.btn_copy_all = FluentPushButton(FluentIcon.COPY, "复制全部")
-            self.btn_clear_view = FluentPushButton(FluentIcon.BROOM, "清空视图")
-            self.btn_close = FluentPushButton(FluentIcon.CLOSE, "关闭")
-        else:
-            self.btn_open = QPushButton("打开目录")
-            self.btn_copy_all = QPushButton("复制全部")
-            self.btn_clear_view = QPushButton("清空视图")
-            self.btn_close = QPushButton("关闭")
+        self.btn_open = PushButton(FluentIcon.FOLDER, "打开目录")
+        self.btn_copy_all = PushButton(FluentIcon.COPY, "复制全部")
+        self.btn_clear_view = PushButton(FluentIcon.BROOM, "清空视图")
+        self.btn_close = PushButton(FluentIcon.CLOSE, "关闭")
         btn_row.addWidget(self.btn_open)
         btn_row.addWidget(self.btn_copy_all)
         btn_row.addWidget(self.btn_clear_view)

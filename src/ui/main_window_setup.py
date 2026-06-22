@@ -273,7 +273,7 @@ class MainWindowSetupMixin:
         editor_header.addSpacing(6)
         self.upload_image_btn = PushButton(FluentIcon.PHOTO, "图片识别")
         self.upload_image_btn.clicked.connect(self._upload_image_recognition)
-        self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, "PDF识别")
+        self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, "PDF 识别")
         self.upload_pdf_btn.clicked.connect(self._upload_pdf_recognition)
         try:
             img_exts = self._get_supported_image_extensions()
@@ -409,6 +409,7 @@ class MainWindowSetupMixin:
 
         self._report_startup_progress("初始化系统托盘与历史记录...")
         self.tray_icon = self.system_provider.create_tray(self.icon, self)
+        self.connect_tray_activation()
         self.update_tray_tooltip()
         try:
             from PyQt6.QtGui import QGuiApplication

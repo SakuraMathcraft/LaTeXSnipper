@@ -5,7 +5,7 @@ Provides hotkey, screenshot, and system integration using Qt and pynput.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -116,10 +116,8 @@ class LinuxSystemProvider:
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
-        if hasattr(window, "isMinimized") and window.isMinimized():
-            window.showNormal()
-        else:
-            window.show()
+        window.showNormal()
+        window.setWindowState((window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
         window.raise_()
         window.activateWindow()
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QApplication
+from exporting.formula_export import export_format_label, is_export_format_available
 from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from ui.favorites_window import FavoritesWindow
 from ui.formula_export_menu import export_formula_to_clipboard, show_formula_export_menu
@@ -11,6 +12,21 @@ from ui.window_helpers import select_save_file_with_icon as _select_save_file_wi
 
 
 class EditorActionsControllerMixin:
+    def _remember_export_format(self, format_type: str) -> None:
+        key = str(format_type or "").strip()
+        if not is_export_format_available(key):
+            return
+        try:
+            self.cfg.set("last_export_format", key)
+        except Exception:
+            pass
+        dialog = getattr(self, "_predict_result_dialog", None)
+        if dialog is not None and hasattr(dialog, "_refresh_quick_export_button"):
+            try:
+                dialog._refresh_quick_export_button(key, export_format_label(key))
+            except Exception:
+                pass
+
     def _ensure_favorites_window(self):
         if self.favorites_window is None:
             print("[DEBUG] 延迟初始化收藏窗口")
@@ -77,6 +93,7 @@ class EditorActionsControllerMixin:
 
     def _export_as(self, format_type: str, latex: str, info_parent=None):
         """Export the formula in the requested format."""
+        self._remember_export_format(format_type)
         try:
             _ok, message = export_formula_to_clipboard(
                 format_type,

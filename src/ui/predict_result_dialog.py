@@ -28,6 +28,9 @@ def show_predict_result_dialog(
     set_pinned: Callable[[QDialog, object, bool], None],
     move_to_screen: Callable[[QDialog, int | None], None],
     clear_dialog_ref: Callable[[QDialog], None],
+    default_export_format: str = "",
+    default_export_label: str = "",
+    quick_export: Callable[[str, str, QDialog], None] | None = None,
 ) -> QDialog:
     dlg = QDialog(parent)
     apply_no_minimize_window_flags(dlg)
@@ -125,6 +128,37 @@ def show_predict_result_dialog(
 
     btn_row = QHBoxLayout()
     btn_row.addStretch()
+    quick_export_btn = PushButton(FluentIcon.SAVE, "")
+    quick_export_btn.setFixedHeight(32)
+    quick_export_btn.setVisible(False)
+    dlg._quick_export_btn = quick_export_btn
+    dlg._quick_export_format = ""
+
+    def _quick_label(label: str) -> str:
+        text = str(label or "").strip()
+        if len(text) > 18:
+            text = f"{text[:17]}..."
+        return f"导出 {text}" if text else ""
+
+    def _refresh_quick_export_button(format_type: str = "", label: str = ""):
+        key = str(format_type or "").strip()
+        text = _quick_label(label)
+        dlg._quick_export_format = key
+        quick_export_btn.setText(text)
+        quick_export_btn.setVisible(bool(key and text and quick_export is not None))
+
+    dlg._refresh_quick_export_button = _refresh_quick_export_button
+    _refresh_quick_export_button(default_export_format, default_export_label)
+
+    quick_export_btn.clicked.connect(
+        lambda: quick_export(
+            dlg._quick_export_format,
+            te.toPlainText(),
+            dlg,
+        )
+        if quick_export is not None and str(dlg._quick_export_format or "").strip()
+        else None
+    )
     export_btn = PushButton(FluentIcon.SHARE, "导出")
     export_btn.setFixedHeight(32)
     export_btn.clicked.connect(
@@ -138,6 +172,7 @@ def show_predict_result_dialog(
     confirm_btn = PrimaryPushButton(FluentIcon.ACCEPT, "确定")
     confirm_btn.setFixedHeight(32)
     confirm_btn.clicked.connect(lambda: accept_latex(dlg, te))
+    btn_row.addWidget(quick_export_btn)
     btn_row.addWidget(export_btn)
     btn_row.addWidget(confirm_btn)
     lay.addLayout(btn_row)

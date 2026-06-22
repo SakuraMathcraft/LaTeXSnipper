@@ -10,7 +10,7 @@ import pytest
 
 from exporting import formula_converters
 from exporting.formula_converters import _find_mml2omml_xsl
-from exporting.formula_export import build_formula_export, get_all_export_format_specs
+from exporting.formula_export import build_formula_export, export_format_label, get_all_export_format_specs, is_export_format_available
 from exporting.pandoc_exporter import check_pandoc_available
 
 
@@ -88,6 +88,13 @@ def test_export_registry_contains_exactly_formats() -> None:
     ]
     assert len(keys) == 20
     assert len(keys) == len(set(keys))
+
+
+def test_export_format_lookup_supports_quick_export_preference() -> None:
+    assert is_export_format_available("latex")
+    assert export_format_label("latex") == "LaTeX (行内 $...$)"
+    assert not is_export_format_available("")
+    assert not is_export_format_available("_pandoc_header")
 
 
 def test_all_native_exports_use_real_bundled_mathjax(

@@ -12,7 +12,8 @@ def test_macos_ci_artifact_workflow_has_safe_triggers() -> None:
 
     assert "name: macOS CI Artifact" in text
     assert "workflow_dispatch:" in text
-    assert "branches:\n      - codex/macos-native-experience" in text
+    assert "branches:\n      - main\n      - office-plugin" in text
+    assert "codex/macos-native-experience" not in text
     assert "tags-ignore:\n      - '**'" in text
     assert "release:" not in text
     assert "tags:\n" not in text
@@ -47,7 +48,9 @@ def test_macos_ci_artifact_workflow_uploads_unsigned_ci_artifact_only() -> None:
     assert "APPLE_TEAM_ID" not in text
     assert "gh release" not in text
     assert "softprops/action-gh-release" not in text
-    assert "actions/upload-artifact@v4" in text
+    assert "actions/checkout@v6" in text
+    assert "actions/setup-python@v6" in text
+    assert "actions/upload-artifact@v7" in text
     assert "LaTeXSnipper-macOS-app-ci-unsigned-${{ github.sha }}" in text
     assert "dist/LaTeXSnipper_*.app.zip" in text
     assert "dist/LaTeXSnipper*.dmg" in text

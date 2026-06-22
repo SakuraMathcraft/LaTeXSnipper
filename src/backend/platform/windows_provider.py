@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject
+import ctypes
+
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -97,9 +99,16 @@ class WindowsSystemProvider:
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
-        window.show()
+        window.showNormal()
+        window.setWindowState((window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
         window.raise_()
         window.activateWindow()
+        try:
+            hwnd = int(window.winId())
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
 
     def install_application_menu(self, window, handlers: ApplicationMenuHandlers) -> None:
         return None

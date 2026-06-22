@@ -24,6 +24,15 @@ def supported_system_python_range_label() -> str:
     return f">={min_label},<{max_major}.{max_minor}"
 
 
+def _supported_system_python_check() -> str:
+    min_major, min_minor = SUPPORTED_SYSTEM_PYTHON_MIN
+    max_major, max_minor = SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE
+    return (
+        "import sys, venv; "
+        f"raise SystemExit(0 if ({min_major}, {min_minor}) <= sys.version_info < ({max_major}, {max_minor}) else 1)"
+    )
+
+
 def _hidden_subprocess_kwargs() -> dict:
     if os.name != "nt":
         return {}
@@ -116,10 +125,7 @@ def _system_python3_score(pyexe: Path) -> int:
             return 0
         if not pyexe.exists() or not pyexe.is_file():
             return 0
-        base_check = (
-            "import sys, venv; "
-            "raise SystemExit(0 if (3, 10) <= sys.version_info < (3, 14) else 1)"
-        )
+        base_check = _supported_system_python_check()
         proc = subprocess.run(
             [str(pyexe), "-c", base_check],
             stdout=subprocess.DEVNULL,
