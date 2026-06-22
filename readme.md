@@ -99,16 +99,14 @@ usable supported `python3`.
 ---
 
 ## Contributing
-Contributions are welcome with updated rules as follows:
+
+Contributions are welcome:
 
 1. Fork the repository
-2. Create an independent feature branch for your work
-3. Commit your changes to your own feature branch
-4. Push your feature branch to your forked repo
-
-### Important Notice
-The `main` branch no longer accepts Pull Requests.
-All new feature development should be completed and merged within your separate independent branch by yourself, without submitting PRs targeting the `main` branch.
+2. Create a feature branch
+3. Commit your changes
+4. Push your branch
+5. Open a Pull Request
 
 All pull requests must follow [Developer Code Standards](docs/developer_code_standards.md).
 Before requesting review, run:
