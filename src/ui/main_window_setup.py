@@ -289,7 +289,7 @@ class MainWindowSetupMixin:
         self.handwriting_btn.clicked.connect(self.open_handwriting_window)
         self.bilingual_reading_btn = PushButton(FluentIcon.BOOK_SHELF, "双语阅读")
         self.bilingual_reading_btn.clicked.connect(self.open_bilingual_reader)
-        self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "工作台")
+        self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "数学工作台")
         self.workbench_btn.clicked.connect(self.open_workbench)
         editor_actions = QHBoxLayout()
         editor_actions.setContentsMargins(0, 0, 0, 0)
