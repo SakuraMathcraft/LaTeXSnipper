@@ -190,6 +190,8 @@ Scanned PDFs without a text layer should be processed through PDF recognition fi
 
 LaTeXSnipper supports the built-in MathCraft OCR path and external providers such as Ollama, OpenAI-compatible APIs, and MinerU-style services. Recommended presets include GLM-OCR, PaddleOCR-VL, Qwen2.5/Qwen3-VL, Ollama Vision, and MinerU Native. For external providers, configure the protocol, base URL, model name, API key when required, output preference, timeout, and prompt template.
 
+The Base URL is the service root, not a concrete endpoint. The app appends protocol routes itself: Ollama uses `/api/tags` and `/api/chat`, OpenAI-compatible services use `/v1/models` and `/v1/chat/completions`, and MinerU uses the configured health and parse paths.
+
 External output preference affects normal image, screenshot, and handwriting recognition. PDF recognition asks for output format and DPI at the PDF entry point.
 
 ## Why does Ollama fail when I use `/v1`?

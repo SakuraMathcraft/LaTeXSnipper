@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 DEFAULT_CONFIG = {
-    "external_model_provider": "openai_compatible",
+    "external_model_provider": "ollama",
     "external_model_base_url": "http://127.0.0.1:11434",
     "external_model_model_name": "",
     "external_model_api_key": "",
@@ -26,7 +26,7 @@ def get_config_value(mapping, key: str):
 
 @dataclass(slots=True)
 class ExternalModelConfig:
-    provider: str = "openai_compatible"
+    provider: str = "ollama"
     base_url: str = "http://127.0.0.1:11434"
     model_name: str = ""
     api_key: str = ""
@@ -39,8 +39,8 @@ class ExternalModelConfig:
     mineru_test_endpoint: str = "/health"
 
     def normalized_provider(self) -> str:
-        value = str(self.provider or "openai_compatible").strip().lower()
-        return value if value in ("openai_compatible", "ollama", "mineru") else "openai_compatible"
+        value = str(self.provider or "ollama").strip().lower()
+        return value if value in ("openai_compatible", "ollama", "mineru") else "ollama"
 
     def normalized_output_mode(self) -> str:
         value = str(self.output_mode or "latex").strip().lower()
@@ -162,7 +162,7 @@ class ExternalModelResult:
 
 def load_config_from_mapping(mapping) -> ExternalModelConfig:
     return ExternalModelConfig(
-        provider=str(get_config_value(mapping, "external_model_provider") or "openai_compatible"),
+        provider=str(get_config_value(mapping, "external_model_provider") or "ollama"),
         base_url=str(get_config_value(mapping, "external_model_base_url") or "http://127.0.0.1:11434"),
         model_name=str(get_config_value(mapping, "external_model_model_name") or ""),
         api_key=str(get_config_value(mapping, "external_model_api_key") or ""),

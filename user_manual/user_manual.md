@@ -281,6 +281,18 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 **解决：** 先去 **设置 → 外部模型**，至少填上 Base URL 和模型名（或选择预设），点"测试连接"通过后再使用。
 
+### Base URL 应该填服务根地址
+
+**现象：** 服务本身正常，但测试连接访问了重复路径，或提示接口路径不存在。
+
+**原因：** LaTeXSnipper 会按协议自动拼接接口路径：
+
+- Ollama：`<Base URL>/api/tags` 测试模型列表，`<Base URL>/api/chat` 执行识别
+- OpenAI-compatible：`<Base URL>/v1/models` 测试模型列表，`<Base URL>/v1/chat/completions` 执行识别
+- MinerU：`<Base URL>/<健康检查路径>` 测试连接，`<Base URL>/<解析接口路径>` 执行解析
+
+**解决：** Base URL 只填服务根地址，例如 `http://127.0.0.1:11434`、`http://127.0.0.1:8000` 或服务商 HTTPS 根地址；不要手动追加 `/v1`、`/api/chat`、`/v1/chat/completions` 或 `/file_parse`。
+
 ### 模型没预热（冷启动），第一次调用巨慢或超时
 
 **现象：** 首次 OCR 识别等待很久（可能超过 60 秒），然后报超时。

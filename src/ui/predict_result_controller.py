@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
 from bootstrap.deps_bootstrap import custom_warning_dialog
+from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
@@ -440,6 +441,11 @@ class PredictResultControllerMixin:
                 pass
             self._clear_predict_result_dialog_ref(old_dialog)
 
+        default_export_format = str(self.cfg.get("last_export_format", "") or "").strip()
+        if not is_export_format_available(default_export_format):
+            default_export_format = ""
+        default_export_label = export_format_label(default_export_format) if default_export_format else ""
+
         self._predict_result_dialog = show_predict_result_dialog(
             parent=self,
             code=code,
@@ -454,6 +460,13 @@ class PredictResultControllerMixin:
             set_pinned=self._set_predict_result_pinned,
             move_to_screen=self._move_predict_result_dialog_to_screen,
             clear_dialog_ref=self._clear_predict_result_dialog_ref,
+            default_export_format=default_export_format,
+            default_export_label=default_export_label,
+            quick_export=lambda format_type, text, dialog: self._export_as(
+                format_type,
+                text,
+                info_parent=dialog,
+            ),
         )
 
     def _build_mixed_html(self, content: str) -> str:

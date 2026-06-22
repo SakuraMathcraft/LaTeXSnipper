@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import importlib
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import unittest
 
@@ -12,12 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
-try:
-    importlib.import_module("onnxruntime")
-except Exception:
-    pass
 
-from PyQt6.QtCore import QRect  # noqa: E402
+from PyQt6.QtCore import QPoint, QRect  # noqa: E402
 from PyQt6.QtGui import QColor, QGuiApplication, QImage  # noqa: E402
 
 from backend.capture_overlay import (  # noqa: E402
@@ -25,6 +21,7 @@ from backend.capture_overlay import (  # noqa: E402
     choose_screen_index,
     crop_screen_snapshot,
     map_global_rect_to_screen_capture,
+    ScreenCaptureOverlay,
 )
 
 
@@ -95,6 +92,20 @@ class CaptureOverlayMappingTests(unittest.TestCase):
 
         self.assertFalse(pixmap.isNull())
         self.assertEqual((pixmap.width(), pixmap.height()), (4, 4))
+
+    def test_selection_accepts_overlay_top_left_origin(self):
+        overlay = SimpleNamespace(
+            start_pos=QPoint(0, 0),
+            end_pos=QPoint(120, 80),
+            start_global_pos=QPoint(0, 0),
+            end_global_pos=QPoint(120, 80),
+        )
+
+        rect = ScreenCaptureOverlay._selection_rect(overlay)
+
+        self.assertIsNotNone(rect)
+        self.assertEqual((rect.x(), rect.y()), (0, 0))
+        self.assertEqual(ScreenCaptureOverlay._selection_size(overlay), (120, 80))
 
 
 if __name__ == "__main__":

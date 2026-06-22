@@ -155,7 +155,7 @@ def check_update_dialog(parent=None):
             return
         state["done"] = True
         bar.setRange(0, 1)
-        lbl_status.setText("获取超时（可能网络握手慢），可重新检查。")
+        lbl_status.setText("获取超时，可重新检查。")
         txt.start_new_html(
             f"<pre>超出设定: connect={CONNECT_TIMEOUT}s read={READ_TIMEOUT}s\n可点 重新检查 再发起。</pre>"
         )

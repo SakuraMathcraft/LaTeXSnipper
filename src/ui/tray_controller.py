@@ -5,12 +5,25 @@ from __future__ import annotations
 import sys
 
 from PyQt6.QtGui import QGuiApplication
+from PyQt6.QtWidgets import QSystemTrayIcon
 
 from backend.platform import TrayMenuHandlers
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 
 
 class TrayControllerMixin:
+    def connect_tray_activation(self):
+        tray = getattr(self, "tray_icon", None)
+        if sys.platform == "darwin" or not tray or getattr(self, "_tray_activation_connected", False):
+            return
+
+        def _on_tray_activated(reason):
+            if reason == QSystemTrayIcon.ActivationReason.Trigger:
+                self.show_window()
+
+        tray.activated.connect(_on_tray_activated)
+        self._tray_activation_connected = True
+
     def update_tray_tooltip(self):
         hk = display_hotkey(
             normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
@@ -59,7 +72,7 @@ class TrayControllerMixin:
         mode = self._get_capture_display_mode()
         idx = self._get_capture_display_index() or 0
 
-        act_auto = submenu.addAction("自动（按鼠标释放点）")
+        act_auto = submenu.addAction("自动")
         act_auto.setCheckable(True)
         act_auto.setChecked(mode == "auto")
         act_auto.triggered.connect(lambda _=False: self._set_capture_display_mode("auto"))

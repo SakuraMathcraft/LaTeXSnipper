@@ -111,7 +111,7 @@ class SettingsLayoutMixin:
         self.mathcraft_mode_combo = ComboBox()
         self.mathcraft_mode_combo.setFixedHeight(30)
         self.mathcraft_mode_combo.addItem("公式", userData="formula")
-        self.mathcraft_mode_combo.addItem("混合(文字+公式)", userData="mixed")
+        self.mathcraft_mode_combo.addItem("混合", userData="mixed")
         self.mathcraft_mode_combo.addItem("纯文字", userData="text")
         self.mathcraft_mode_combo.currentIndexChanged.connect(self._on_mathcraft_mode_changed)
         mathcraft_mode_layout.addWidget(self.mathcraft_mode_combo)
@@ -358,12 +358,17 @@ class SettingsLayoutMixin:
         lay.addWidget(deps_row)
         self.btn_cleanup_macos_local_data = None
         if sys.platform == "darwin":
+            cleanup_row = QWidget()
+            cleanup_row_layout = QHBoxLayout(cleanup_row)
+            cleanup_row_layout.setContentsMargins(0, 0, 0, 0)
+            cleanup_row_layout.setSpacing(6)
             self.btn_cleanup_macos_local_data = PushButton(FluentIcon.BROOM, "清理本机依赖与缓存")
             self.btn_cleanup_macos_local_data.setFixedHeight(36)
             self.btn_cleanup_macos_local_data.setToolTip(
                 "移除本机下载的依赖、缓存和日志；默认保留应用设置"
             )
-            lay.addWidget(self.btn_cleanup_macos_local_data)
+            cleanup_row_layout.addWidget(self.btn_cleanup_macos_local_data, 1)
+            lay.addWidget(cleanup_row)
         # Stretch spacer.
         lay.addStretch()
         # Connect signals.

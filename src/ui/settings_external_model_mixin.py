@@ -1,3 +1,5 @@
+import hashlib
+
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
@@ -55,7 +57,7 @@ class SettingsExternalModelMixin:
 
     def _collect_external_model_config(self):
         config = load_config_from_mapping({})
-        config.provider = self._get_external_combo_value(self.external_provider_combo, "openai_compatible")
+        config.provider = self._get_external_combo_value(self.external_provider_combo, "ollama")
         config.base_url = self.external_base_url_input.text().strip()
         config.model_name = self.external_model_name_input.text().strip()
         config.api_key = self.external_api_key_input.text().strip()
@@ -76,7 +78,10 @@ class SettingsExternalModelMixin:
         base_url = config.normalized_base_url()
         model_name = config.normalized_model_name()
         mineru_endpoint = config.normalized_mineru_endpoint()
-        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}"
+        mineru_test_endpoint = config.normalized_mineru_test_endpoint()
+        api_key = config.normalized_api_key()
+        api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else ""
+        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}|{mineru_test_endpoint}|{api_key_fingerprint}"
 
     def _is_external_required_fields_ready(self, config) -> bool:
         provider = config.normalized_provider()
@@ -150,7 +155,7 @@ class SettingsExternalModelMixin:
         if not preset:
             self._show_info("未选择预设", "请选择一个推荐预设后再应用。", "warning")
             return
-        self._set_combo_value(self.external_provider_combo, str(preset.get("provider") or "openai_compatible"))
+        self._set_combo_value(self.external_provider_combo, str(preset.get("provider") or "ollama"))
         self._set_lineedit_value(self.external_base_url_input, str(preset.get("base_url") or ""))
         self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
         self._set_combo_value(self.external_output_combo, str(preset.get("output_mode") or "latex"))

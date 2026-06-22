@@ -1,11 +1,17 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QLabel, QPlainTextEdit, QVBoxLayout
-from qfluentwidgets import FluentIcon, PrimaryPushButton
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtWidgets import QDialog, QLabel, QScrollArea, QVBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton
+
+from preview.math_preview import dialog_theme_tokens, is_dark_ui
 
 
 class ExternalModelHelpWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._theme_is_dark_cached = None
+        self._title_label = None
+        self._section_title_labels = []
+        self._section_body_labels = []
         self.setWindowFlags(
             (
                 self.windowFlags()
@@ -24,61 +30,103 @@ class ExternalModelHelpWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         self.setWindowTitle("外部模型配置说明")
         self.setFixedSize(500, 600)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
-        title = QLabel("外部模型使用教程")
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        layout.addWidget(title)
-        editor = QPlainTextEdit(self)
-        editor.setReadOnly(True)
-        editor.setPlainText(
-            "适用范围\n"
-            "1. 本地接口：推荐，适合 Ollama、本地 OpenAI-compatible 服务。\n"
-            "2. 线上接口：支持 OpenAI-compatible / Ollama 在线接口，但需要你自己确认鉴权、模型名和额度。\n\n"
-            "字段说明\n"
-            "1. 协议：必填。决定请求格式。\n"
-            "2. Base URL：必填。本地示例 http://127.0.0.1:11434 ，线上示例 https://example.com 。\n"
-            "3. 模型名：必填。必须与服务中实际可用的模型名称完全一致。\n"
-            "4. API Key：选填。本地服务通常留空，线上接口通常必填。\n"
-            "5. 超时：选填。默认 60 秒，模型较大或网络较慢时可适当提高。\n"
-            "6. 输出偏好：选填。影响图片、截图、手写识别优先返回 LaTeX、Markdown 还是纯文本。\n"
-            "7. 提示词模板 / 自定义提示词：选填。优先使用自定义提示词，留空则使用模板。\n\n"
-            "提示词生效边界（重要）\n"
-            "1. 自定义提示词优先级最高：只要填写，就会覆盖模板选择。\n"
-            "2. 普通图片、截图、手写识别：使用当前设置中的输出偏好和提示词规则。\n"
-            "3. PDF 外部模型识别：导出格式和 DPI 在 PDF 入口单独选择；默认固定使用通用文档恢复模板。\n"
-            "4. 如果填写了自定义提示词，OpenAI-compatible / Ollama 的 PDF 识别也会优先使用自定义提示词。\n"
-            "5. MinerU 原生协议：走原生文档接口，不使用上述模板/自定义提示词文本；解析模式由服务端接口决定是否采用。\n\n"
-            "本地 Ollama 示例\n"
-            "1. 协议：Ollama\n"
-            "2. Base URL：http://127.0.0.1:11434\n"
-            "3. 模型名：qwen2.5vl:7b 或 glm-ocr\n"
-            "4. API Key：留空\n\n"
-            "MinerU 示例\n"
-            "1. 协议：MinerU\n"
-            "2. Base URL：http://127.0.0.1:8000\n"
-            "3. 解析接口路径：按实际服务填写，例如 /file_parse\n"
-            "4. 健康检查路径：按实际服务填写，例如 /health\n\n"
-            "线上接口示例\n"
-            "1. 协议：按服务要求选择 OpenAI-compatible 或 Ollama\n"
-            "2. Base URL：填写服务商提供的 HTTPS 地址\n"
-            "3. 模型名：填写服务商控制台或模型列表中的真实名称\n"
-            "4. API Key：填写服务商发放的密钥\n\n"
-            "常见问题\n"
-            "1. 测试连接失败：先确认服务已启动、地址可访问、协议选对。\n"
-            "2. 模型名填写错误：通常会返回 404、model not found、unknown model 或类似报错。\n"
-            "3. 本地接口连不上：先用 curl 或浏览器访问 Base URL 对应接口确认服务是否真的在运行。\n"
-            "4. 线上接口失败：优先检查 API Key、账户额度、IP 限制和模型权限。\n"
-            "5. PDF 结果不稳定：可优先调整 DPI；清晰文档可尝试更低 DPI，普通文档建议 140-170 DPI。\n\n"
-            "建议顺序\n"
-            "1. 先应用预设。\n"
-            "2. 再把模型名改成你实际部署或购买的模型名。\n"
-            "3. 点测试连接。\n"
-            "4. 先测截图 / 图片识别，再测 PDF。\n"
-            "5. PDF 若效果不稳，优先调整 DPI，再考虑改模型或自定义提示词。"
+
+        self._title_label = QLabel("外部模型使用教程")
+        layout.addWidget(self._title_label)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget(scroll)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+
+        self._add_section(
+            content_layout,
+            "适用范围",
+            "本地接口推荐用于 Ollama、本地 OpenAI-compatible 服务。线上接口也可使用，但需要自行确认鉴权、模型名、额度和服务协议。",
         )
-        layout.addWidget(editor, 1)
+        self._add_section(
+            content_layout,
+            "字段说明",
+            "协议决定请求格式。Base URL 只填服务根地址，不要手动追加 /v1/chat/completions、/api/chat 或 /file_parse。模型名必须与服务中实际可用名称完全一致。API Key 本地通常留空，线上接口通常必填。",
+        )
+        self._add_section(
+            content_layout,
+            "提示词边界",
+            "自定义提示词优先级最高。普通图片、截图、手写识别使用设置页的输出偏好和提示词。PDF 外部识别的导出格式和 DPI 在 PDF 入口单独选择。MinerU 原生协议走文档接口，不使用模板或自定义提示词文本。",
+        )
+        self._add_section(
+            content_layout,
+            "本地 Ollama",
+            "协议选择 Ollama，Base URL 填 http://127.0.0.1:11434，模型名填 qwen2.5vl:7b、glm-ocr 或实际 pull 的模型名，API Key 留空。",
+        )
+        self._add_section(
+            content_layout,
+            "MinerU",
+            "协议选择 MinerU，Base URL 填服务根地址，例如 http://127.0.0.1:8000。解析接口路径和健康检查路径按实际服务填写，常见值为 /file_parse 和 /health。",
+        )
+        self._add_section(
+            content_layout,
+            "线上接口",
+            "按服务要求选择 OpenAI-compatible 或 Ollama。Base URL 填服务商提供的 HTTPS 根地址；OpenAI-compatible 协议会自动追加 /v1。模型名和 API Key 以服务商控制台为准。",
+        )
+        self._add_section(
+            content_layout,
+            "排查顺序",
+            "先应用预设，再改成真实模型名，然后测试连接。连接通过后先测截图或图片识别，再测 PDF。PDF 效果不稳时优先调整 DPI。",
+        )
+
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
         close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
         close_btn.clicked.connect(self.close)
         layout.addWidget(close_btn)
+        self._apply_theme_styles(force=True)
+
+    def _add_section(self, layout: QVBoxLayout, title: str, body: str) -> None:
+        title_label = BodyLabel(title)
+        self._section_title_labels.append(title_label)
+        layout.addWidget(title_label)
+
+        body_label = QLabel(body)
+        body_label.setWordWrap(True)
+        body_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._section_body_labels.append(body_label)
+        layout.addWidget(body_label)
+
+    def _apply_theme_styles(self, force: bool = False) -> None:
+        dark = is_dark_ui()
+        if not force and self._theme_is_dark_cached is dark:
+            return
+        self._theme_is_dark_cached = dark
+        tokens = dialog_theme_tokens()
+        if self._title_label is not None:
+            self._title_label.setStyleSheet(
+                f"font-size: 18px; font-weight: 600; color: {tokens['text']};"
+            )
+        for label in self._section_title_labels:
+            label.setStyleSheet(f"font-weight: 600; color: {tokens['text']};")
+        for label in self._section_body_labels:
+            label.setStyleSheet(f"color: {tokens['muted']}; line-height: 1.35;")
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() in (
+            QEvent.Type.StyleChange,
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        ):
+            self._apply_theme_styles()
+        return result
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_theme_styles(force=True)

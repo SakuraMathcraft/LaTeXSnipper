@@ -321,6 +321,79 @@ def test_platform_protocols_cover_main_window_provider_calls() -> None:
         assert method_name in protocols
 
 
+def test_tray_activation_opens_main_window_only_on_desktop_tray_platforms() -> None:
+    tray_controller = (ROOT / "src" / "ui" / "tray_controller.py").read_text(encoding="utf-8")
+    main_window_setup = (ROOT / "src" / "ui" / "main_window_setup.py").read_text(encoding="utf-8")
+
+    assert "def connect_tray_activation" in tray_controller
+    assert 'sys.platform == "darwin"' in tray_controller
+    assert "QSystemTrayIcon.ActivationReason.Trigger" in tray_controller
+    assert "QSystemTrayIcon.ActivationReason.DoubleClick" not in tray_controller
+    assert "QSystemTrayIcon.ActivationReason.Context" not in tray_controller
+    assert "self.show_window()" in tray_controller
+    assert "self.connect_tray_activation()" in main_window_setup
+
+
+def test_desktop_tray_open_action_raises_existing_main_window() -> None:
+    windows_provider = (ROOT / "src" / "backend" / "platform" / "windows_provider.py").read_text(encoding="utf-8")
+    linux_provider = (ROOT / "src" / "backend" / "platform" / "linux_provider.py").read_text(encoding="utf-8")
+
+    for source in (windows_provider, linux_provider):
+        assert "window.showNormal()" in source
+        assert "WindowMinimized" in source
+        assert "WindowActive" in source
+        assert "window.raise_()" in source
+        assert "window.activateWindow()" in source
+
+    assert "SetForegroundWindow" in windows_provider
+
+
+def test_fluent_dialogs_do_not_keep_legacy_button_fallbacks() -> None:
+    external_help = (ROOT / "src" / "ui" / "settings_external_help.py").read_text(encoding="utf-8")
+    window_helpers = (ROOT / "src" / "ui" / "window_helpers.py").read_text(encoding="utf-8")
+    runtime_log = (ROOT / "src" / "ui" / "runtime_log_dialog.py").read_text(encoding="utf-8")
+
+    assert "QPlainTextEdit" not in external_help
+    assert "QScrollArea" in external_help
+    assert "BodyLabel" in external_help
+
+    rename_dialog = window_helpers.split("def show_formula_rename_dialog", 1)[1].split(
+        "def exec_close_only_message_box", 1
+    )[0]
+    assert "PrimaryPushButton" in rename_dialog
+    assert "PushButton" in rename_dialog
+    assert "QPushButton" not in rename_dialog
+    assert '"OK"' not in rename_dialog
+    assert '"Cancel"' not in rename_dialog
+
+    assert "from qfluentwidgets import FluentIcon, PushButton" in runtime_log
+    assert "QPushButton" not in runtime_log
+    assert "FluentPushButton" not in runtime_log
+    assert "use_fluent" not in runtime_log
+
+
+def test_predict_result_dialog_has_persisted_quick_export_action() -> None:
+    formula_export = (ROOT / "src" / "exporting" / "formula_export.py").read_text(encoding="utf-8")
+    editor_actions = (ROOT / "src" / "ui" / "editor_actions_controller.py").read_text(encoding="utf-8")
+    predict_dialog = (ROOT / "src" / "ui" / "predict_result_dialog.py").read_text(encoding="utf-8")
+    predict_controller = (ROOT / "src" / "ui" / "predict_result_controller.py").read_text(encoding="utf-8")
+
+    assert "def export_format_label" in formula_export
+    assert "def is_export_format_available" in formula_export
+    assert 'self.cfg.set("last_export_format", key)' in editor_actions
+    assert "self._remember_export_format(format_type)" in editor_actions
+
+    assert "quick_export_btn = PushButton(FluentIcon.SAVE" in predict_dialog
+    assert "btn_row.addWidget(quick_export_btn)" in predict_dialog
+    assert "btn_row.addWidget(export_btn)" in predict_dialog
+    assert predict_dialog.index("btn_row.addWidget(quick_export_btn)") < predict_dialog.index("btn_row.addWidget(export_btn)")
+    assert "dlg._refresh_quick_export_button" in predict_dialog
+
+    assert 'self.cfg.get("last_export_format", "")' in predict_controller
+    assert "default_export_format=default_export_format" in predict_controller
+    assert "quick_export=lambda format_type, text, dialog: self._export_as" in predict_controller
+
+
 def test_shutdown_cleans_office_bridge_toggle_workers() -> None:
     lifecycle = (ROOT / "src" / "ui" / "app_lifecycle_controller.py").read_text(encoding="utf-8")
     office_bridge = (ROOT / "src" / "ui" / "office_bridge_controller.py").read_text(encoding="utf-8")

@@ -55,7 +55,7 @@ class WorkbenchWindow(QWidget):
         self._theme_is_dark_cached = None
         self._centered_once = False
 
-        self.setWindowTitle("数学工作台")
+        self.setWindowTitle("工作台")
         self.resize(1160, 760)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
@@ -72,7 +72,7 @@ class WorkbenchWindow(QWidget):
 
         top_bar = QHBoxLayout()
         top_bar.setSpacing(8)
-        self.title_label = QLabel("数学工作台")
+        self.title_label = QLabel("工作台")
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
 

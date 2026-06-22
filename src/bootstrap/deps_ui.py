@@ -108,7 +108,7 @@ def _layer_description_text() -> str:
         "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
         "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
         "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
+        "• 若你只使用外部模型，可点击“跳过安装并进入”，通过设置页面进行配置。"
     )
 
 
@@ -507,13 +507,13 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             text = "✅ MATHCRAFT_GPU 已安装，GPU 加速可用"
             color = theme["ok"]
         elif "MATHCRAFT_GPU" in current_failed_layers:
-            text = "⚠️ MATHCRAFT_GPU 验证失败，请使用MATHCRAFT_CPU后端"
+            text = "⚠️ MATHCRAFT_GPU 验证失败，请使用 MATHCRAFT_CPU 后端"
             color = theme["warn"]
         elif _gpu_available() and _cuda_toolkit_available():
             text = "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可尝试 MATHCRAFT_GPU"
             color = theme["ok"]
         elif _gpu_available():
-            text = "⚠️ 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU后端"
+            text = "⚠️ 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU 后端"
             color = theme["hint"]
         else:
             text = "⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端"
@@ -546,7 +546,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         btn_cleanup_macos_local_data.setToolTip(
             "移除本机下载的依赖、缓存和日志；默认保留应用设置"
         )
-        cleanup_row.addWidget(btn_cleanup_macos_local_data)
+        cleanup_row.addWidget(btn_cleanup_macos_local_data, 1)
         lay.addLayout(cleanup_row)
 
     mirror_row = QHBoxLayout()

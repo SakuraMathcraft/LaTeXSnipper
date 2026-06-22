@@ -47,7 +47,7 @@ def test_find_system_python3_rejects_macos_python_newer_than_supported(monkeypat
     assert found == Path("/Library/Frameworks/Python.framework/Versions/3.12/bin/python3")
 
 
-def test_system_python3_score_rejects_python314_even_with_ensurepip(tmp_path, monkeypatch):
+def test_system_python3_score_rejects_python313_even_with_ensurepip(tmp_path, monkeypatch):
     pyexe = tmp_path / "python3"
     pyexe.write_text("#!/bin/sh\n", encoding="utf-8")
 
@@ -56,7 +56,7 @@ def test_system_python3_score_rejects_python314_even_with_ensurepip(tmp_path, mo
 
     def fake_run(args, *_unused_args, **_kwargs):
         code = args[2]
-        if "sys.version_info < (3, 14)" in code:
+        if "sys.version_info < (3, 13)" in code:
             result = Result()
             result.returncode = 1
             return result

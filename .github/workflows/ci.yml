@@ -4,14 +4,10 @@ on:
   push:
     branches:
       - main
-      - develop
-      - MathCraft
       - office-plugin
   pull_request:
     branches:
       - main
-      - develop
-      - MathCraft
       - office-plugin
   workflow_dispatch:
 
@@ -158,7 +154,11 @@ jobs:
               throw "Release workflow is missing job: $job"
             }
           }
-          foreach ($workflow in @((Get-Content -LiteralPath ".github\workflows\ci.yml" -Raw), $release)) {
+          foreach ($workflow in @(
+            (Get-Content -LiteralPath ".github\workflows\ci.yml" -Raw),
+            $release,
+            (Get-Content -LiteralPath ".github\workflows\macos-ci-artifact.yml" -Raw)
+          )) {
             if ($workflow -match "actions/checkout@v[0-5]\b") {
               throw "GitHub Actions checkout must use a Node 24 version."
             }
