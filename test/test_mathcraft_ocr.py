@@ -145,6 +145,7 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
         source_overrides=None,
         progress_callback=None,
     ):
+        _ = source_overrides, progress_callback
         downloaded.append((spec.model_id, timeout))
         _touch_model(Path(target_root), manifest, spec.model_id)
         return Path(target_root) / spec.model_id
@@ -1325,6 +1326,7 @@ def test_worker_serializes_formula_result() -> None:
 def test_worker_passes_extended_formula_budget_to_mixed_runtime() -> None:
     class _FakeRuntime:
         def recognize_mixed(self, image, *, min_text_score=0.45, max_formula_new_tokens=256):
+            _ = min_text_score
             assert image == "sample.png"
             assert max_formula_new_tokens == FORMULA_MAX_NEW_TOKENS
             return MixedRecognitionResult(text="x", regions=(), blocks=(), provider="CPUExecutionProvider")

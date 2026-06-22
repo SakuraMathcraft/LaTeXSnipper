@@ -71,10 +71,9 @@ Issues = "https://github.com/SakuraMathcraft/LaTeXSnipper/issues"
 [project.scripts]
 mathcraft = "mathcraft_ocr.cli:main"
 mathcraft-ocr = "mathcraft_ocr.cli:main"
-latexsnipper-backend = "latexsnipper_backend.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["mathcraft_ocr*", "latexsnipper_backend*"]
+include = ["mathcraft_ocr*"]
 exclude = ["src*", "test*", "scripts*", "docs*", "release_assets*", "build*", "dist*"]
 
 [tool.setuptools.package-data]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path, PurePath
+from pathlib import Path
 from shutil import which
 
 
@@ -22,15 +22,6 @@ def supported_system_python_range_label() -> str:
     min_label = _version_label(SUPPORTED_SYSTEM_PYTHON_MIN)
     max_major, max_minor = SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE
     return f">={min_label},<{max_major}.{max_minor}"
-
-
-_NATIVE_PATH_CLS = type(Path.cwd())
-
-
-def _native_path(value: Path | str) -> Path:
-    if isinstance(value, PurePath):
-        return value  # type: ignore[return-value]
-    return _NATIVE_PATH_CLS(value)
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -115,94 +106,6 @@ def inject_private_python_paths(pyexe: Path) -> None:
                 os.add_dll_directory(str(dlls_dir))
         except Exception:
             pass
-
-
-def find_local_python311_installer(deps_dir: Path, module_file: str) -> Path | None:
-    """Locate the bundled/local Python 3.11 installer without downloading anything.
-
-    Windows-only: the .exe installer only exists on Windows.
-    """
-    if os.name != "nt":
-        return None
-    deps_dir = _native_path(deps_dir)
-    candidates: list[Path] = []
-
-    def add_candidate(path: Path | str | None) -> None:
-        if path is None:
-            return
-        try:
-            candidates.append(_native_path(path))
-        except Exception:
-            pass
-
-    def add_installer_at(base: Path | str | None) -> None:
-        if base is None:
-            return
-        try:
-            add_candidate(_native_path(base) / _PY311_INSTALLER_NAME)
-        except Exception:
-            pass
-
-    def add_parent_tree(start: Path | str | None) -> None:
-        if start is None:
-            return
-        try:
-            path = _native_path(start).resolve()
-        except Exception:
-            try:
-                path = _native_path(start)
-            except Exception:
-                return
-        if path.is_file():
-            path = path.parent
-        for base in (path, *path.parents):
-            add_installer_at(base)
-            try:
-                if (base / "pyproject.toml").exists() or (base / ".git").exists():
-                    # Keep walking; nested repos or editable checkouts can still
-                    # have another useful parent.
-                    add_installer_at(base)
-            except Exception:
-                pass
-
-    try:
-        add_installer_at(deps_dir)
-        add_parent_tree(deps_dir)
-    except Exception:
-        pass
-    try:
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            meipass = _native_path(sys._MEIPASS)
-            add_installer_at(meipass)
-            add_installer_at(meipass.parent / "_internal")
-            add_installer_at(meipass.parent)
-    except Exception:
-        pass
-    try:
-        exe_dir = _native_path(sys.executable).resolve().parent
-        add_installer_at(exe_dir / "_internal")
-        add_installer_at(exe_dir)
-    except Exception:
-        pass
-    add_parent_tree(os.environ.get("LATEXSNIPPER_REPO_ROOT"))
-    add_parent_tree(module_file)
-    add_parent_tree(_NATIVE_PATH_CLS.cwd())
-
-    seen: set[str] = set()
-    for candidate in candidates:
-        try:
-            key = str(candidate.resolve()).lower()
-        except Exception:
-            key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            if candidate.exists():
-                return candidate
-        except Exception:
-            continue
-    return None
 
 
 def _system_python3_score(pyexe: Path) -> int:
