@@ -33,6 +33,8 @@ OutputBaseFilename=LaTeXSnipperSetup-{#MyAppVersion}
 SetupIconFile={#MyRepoRoot}\src\assets\icon.ico
 SolidCompression=yes
 WizardStyle=modern
+CloseApplications=yes
+CloseApplicationsFilter={#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -42,13 +44,13 @@ Name: "chinesesimplified"; MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.i
 english.UninstallCleanupTitle=Optional cleanup
 english.UninstallCleanupDetail=LaTeXSnipper preserves user data by default so upgrades and reinstalls keep settings, history, dependencies, and downloaded MathCraft models.
 english.UninstallCleanupAppData=Remove LaTeXSnipper settings, history, logs, dependency state, and temporary files
-english.UninstallCleanupDependencies=Remove dependency environments from recorded dependency roots
+english.UninstallCleanupDependencies=Remove dependency environments from recorded roots and shared tools
 english.UninstallCleanupModels=Remove MathCraft model weights from %APPDATA%\MathCraft\models
 english.UninstallCleanupAction=Uninstall
 chinesesimplified.UninstallCleanupTitle=可选清理
 chinesesimplified.UninstallCleanupDetail=LaTeXSnipper 默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和已下载的 MathCraft 模型。
 chinesesimplified.UninstallCleanupAppData=删除 LaTeXSnipper 设置、历史记录、日志、依赖状态和临时文件
-chinesesimplified.UninstallCleanupDependencies=删除已记录依赖根目录中的依赖环境
+chinesesimplified.UninstallCleanupDependencies=删除已记录依赖根目录中的依赖环境和共享工具
 chinesesimplified.UninstallCleanupModels=删除 %APPDATA%\MathCraft\models 中的 MathCraft 模型权重
 chinesesimplified.UninstallCleanupAction=卸载
 
@@ -83,138 +85,75 @@ begin
     Result := DelTree(Path, True, True, True);
 end;
 
-function CleanupFile(Path: String): Boolean;
-begin
-  Result := False;
-  if Path = '' then
-    Exit;
-  if FileExists(Path) then
-    Result := DeleteFile(Path);
-end;
-
-function IsUnsafeDependencyRoot(Path: String): Boolean;
+procedure EnsureApplicationClosed();
 var
-  Normalized: String;
+  ResultCode: Integer;
 begin
-  Normalized := Lowercase(RemoveBackslashUnlessRoot(Path));
-  Result :=
-    (Normalized = '') or
-    (Normalized = Lowercase(RemoveBackslashUnlessRoot(ExpandConstant('{%USERPROFILE}')))) or
-    (Length(Normalized) <= 3);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "{#MyAppExeName}" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1200);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "{#MyAppExeName}" /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(800);
 end;
 
-function IsPythonEnvironmentRoot(Path: String): Boolean;
-begin
-  Result :=
-    FileExists(AddBackslash(Path) + 'pyvenv.cfg') or
-    FileExists(AddBackslash(Path) + 'python.exe') or
-    FileExists(AddBackslash(Path) + 'pythonw.exe') or
-    FileExists(AddBackslash(Path) + 'Scripts\python.exe') or
-    FileExists(AddBackslash(Path) + 'bin\python');
-end;
-
-procedure CleanupDependencyRootChildren(Root: String);
-begin
-  if IsUnsafeDependencyRoot(Root) then
-    Exit;
-
-  if IsPythonEnvironmentRoot(Root) then
-  begin
-    CleanupPath(Root);
-    Exit;
-  end;
-
-  CleanupFile(AddBackslash(Root) + '.deps_state.json');
-  CleanupPath(AddBackslash(Root) + 'python311');
-  CleanupPath(AddBackslash(Root) + 'Python311');
-  CleanupPath(AddBackslash(Root) + 'python_full');
-  CleanupPath(AddBackslash(Root) + 'venv');
-  CleanupPath(AddBackslash(Root) + '.venv');
-  CleanupPath(AddBackslash(Root) + 'pandoc');
-  CleanupPath(AddBackslash(Root) + 'translation_env');
-  RemoveDir(Root);
-end;
-
-function JsonStringValue(Json: String; Key: String): String;
+procedure CleanupDependencyRootsWithPowerShell();
 var
-  Marker: String;
-  StartPos: Integer;
-  EndPos: Integer;
-  Cursor: Integer;
-  Ch: String;
+  ScriptPath: String;
+  ScriptText: String;
+  ResultCode: Integer;
 begin
-  Result := '';
-  Marker := '"' + Key + '"';
-  StartPos := Pos(Marker, Json);
-  if StartPos = 0 then
-    Exit;
+  ScriptPath := ExpandConstant('{tmp}\latexsnipper-clean-deps.ps1');
+  ScriptText :=
+    '$ErrorActionPreference = ''SilentlyContinue''' + #13#10 +
+    '$app = ''' + ExpandConstant('{app}') + '''' + #13#10 +
+    '$config = Join-Path $env:USERPROFILE ''.latexsnipper\LaTeXSnipper_config.json''' + #13#10 +
+    'function Remove-ManagedPath([string]$Path) {' + #13#10 +
+    '  if ([string]::IsNullOrWhiteSpace($Path)) { return }' + #13#10 +
+    '  $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue' + #13#10 +
+    '  if ($null -ne $item) { Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction SilentlyContinue }' + #13#10 +
+    '}' + #13#10 +
+    'function Is-UnsafeRoot([string]$Path) {' + #13#10 +
+    '  if ([string]::IsNullOrWhiteSpace($Path)) { return $true }' + #13#10 +
+    '  try { $full = [System.IO.Path]::GetFullPath($Path).TrimEnd(''\'') } catch { return $true }' + #13#10 +
+    '  $profile = [System.IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd(''\'')' + #13#10 +
+    '  return ($full.Length -le 3 -or $full.Equals($profile, [System.StringComparison]::OrdinalIgnoreCase))' + #13#10 +
+    '}' + #13#10 +
+    'function Is-PythonEnvironmentRoot([string]$Root) {' + #13#10 +
+    '  foreach ($rel in @(''pyvenv.cfg'', ''python.exe'', ''pythonw.exe'', ''Scripts\python.exe'', ''bin\python'')) {' + #13#10 +
+    '    if (Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf) { return $true }' + #13#10 +
+    '  }' + #13#10 +
+    '  return $false' + #13#10 +
+    '}' + #13#10 +
+    'function Cleanup-DependencyRoot([string]$Root) {' + #13#10 +
+    '  if (Is-UnsafeRoot $Root) { return }' + #13#10 +
+    '  if (Is-PythonEnvironmentRoot $Root) { Remove-ManagedPath $Root; return }' + #13#10 +
+    '  foreach ($rel in @(''.deps_state.json'', ''python311'', ''Python311'', ''python_full'', ''venv'', ''.venv'')) {' + #13#10 +
+    '    Remove-ManagedPath (Join-Path $Root $rel)' + #13#10 +
+    '  }' + #13#10 +
+    '  Remove-Item -LiteralPath $Root -Force -ErrorAction SilentlyContinue' + #13#10 +
+    '}' + #13#10 +
+    '$roots = New-Object System.Collections.Generic.List[string]' + #13#10 +
+    '$roots.Add($app)' + #13#10 +
+    'if (Test-Path -LiteralPath $config -PathType Leaf) {' + #13#10 +
+    '  try {' + #13#10 +
+    '    $data = Get-Content -LiteralPath $config -Raw -Encoding UTF8 | ConvertFrom-Json' + #13#10 +
+    '    if ($data.install_base_dir) { $roots.Add([string]$data.install_base_dir) }' + #13#10 +
+    '    $history = $data.install_base_dir_cleanup_roots' + #13#10 +
+    '    if ($history -is [string]) { foreach ($item in $history -split ''\|'') { if ($item.Trim()) { $roots.Add($item.Trim()) } } }' + #13#10 +
+    '    elseif ($history) { foreach ($item in $history) { if ([string]$item) { $roots.Add([string]$item) } } }' + #13#10 +
+    '  } catch {}' + #13#10 +
+    '}' + #13#10 +
+    '$seen = @{}' + #13#10 +
+    'foreach ($root in $roots) {' + #13#10 +
+    '  if ([string]::IsNullOrWhiteSpace($root)) { continue }' + #13#10 +
+    '  $key = $root.ToLowerInvariant()' + #13#10 +
+    '  if ($seen.ContainsKey($key)) { continue }' + #13#10 +
+    '  $seen[$key] = $true' + #13#10 +
+    '  Cleanup-DependencyRoot $root' + #13#10 +
+    '}' + #13#10 +
+    'Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper\tools'')' + #13#10;
 
-  StartPos := Pos(':', Copy(Json, StartPos + Length(Marker), Length(Json)));
-  if StartPos = 0 then
-    Exit;
-  StartPos := Pos(Marker, Json) + Length(Marker) + StartPos;
-
-  while (StartPos <= Length(Json)) and ((Copy(Json, StartPos, 1) = ' ') or (Copy(Json, StartPos, 1) = #9) or (Copy(Json, StartPos, 1) = #13) or (Copy(Json, StartPos, 1) = #10)) do
-    StartPos := StartPos + 1;
-  if Copy(Json, StartPos, 1) <> '"' then
-    Exit;
-
-  StartPos := StartPos + 1;
-  Cursor := StartPos;
-  while Cursor <= Length(Json) do
-  begin
-    Ch := Copy(Json, Cursor, 1);
-    if (Ch = '"') and ((Cursor = StartPos) or (Copy(Json, Cursor - 1, 1) <> '\')) then
-    begin
-      EndPos := Cursor;
-      Result := Copy(Json, StartPos, EndPos - StartPos);
-      StringChangeEx(Result, '\\', '\', True);
-      StringChangeEx(Result, '\/', '/', True);
-      Exit;
-    end;
-    Cursor := Cursor + 1;
-  end;
-end;
-
-function ConfiguredDependencyRoot(): String;
-var
-  ConfigPath: String;
-  ConfigText: AnsiString;
-begin
-  Result := '';
-  ConfigPath := ExpandConstant('{%USERPROFILE}\.latexsnipper\LaTeXSnipper_config.json');
-  if LoadStringFromFile(ConfigPath, ConfigText) then
-    Result := JsonStringValue(String(ConfigText), 'install_base_dir');
-end;
-
-procedure CleanupDependencyRootHistory();
-var
-  ConfigPath: String;
-  ConfigText: AnsiString;
-  Roots: String;
-  Separator: Integer;
-  Root: String;
-begin
-  ConfigPath := ExpandConstant('{%USERPROFILE}\.latexsnipper\LaTeXSnipper_config.json');
-  if not LoadStringFromFile(ConfigPath, ConfigText) then
-    Exit;
-
-  Roots := JsonStringValue(String(ConfigText), 'install_base_dir_cleanup_roots');
-  while Roots <> '' do
-  begin
-    Separator := Pos('|', Roots);
-    if Separator > 0 then
-    begin
-      Root := Copy(Roots, 1, Separator - 1);
-      Delete(Roots, 1, Separator);
-    end
-    else
-    begin
-      Root := Roots;
-      Roots := '';
-    end;
-    CleanupDependencyRootChildren(Root);
-  end;
+  if SaveStringToFile(ScriptPath, ScriptText, False) then
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 function ConfirmUninstallCleanup(): Boolean;
@@ -315,6 +254,8 @@ begin
   DeleteDependencyEnvsOnUninstall := False;
   DeleteMathCraftModelsOnUninstall := False;
   Result := ConfirmUninstallCleanup();
+  if Result then
+    EnsureApplicationClosed();
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -324,9 +265,7 @@ begin
 
   if DeleteDependencyEnvsOnUninstall then
   begin
-    CleanupDependencyRootChildren(ExpandConstant('{app}'));
-    CleanupDependencyRootChildren(ConfiguredDependencyRoot());
-    CleanupDependencyRootHistory();
+    CleanupDependencyRootsWithPowerShell();
   end;
 
   if DeleteAppDataOnUninstall then

@@ -1,10 +1,10 @@
 import os
-import json
 import subprocess
 import sys
 from pathlib import Path
 
-from bootstrap.deps_context import CONFIG_FILE, _config_dir_path, flags
+from bootstrap.deps_context import flags
+from runtime.app_paths import app_tools_dir
 
 
 def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
@@ -16,7 +16,7 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
     import shutil as _shutil
 
     def _resolve_pandoc_exe() -> str | None:
-        """Return the persisted or dependency-managed pandoc executable path first."""
+        """Return the persisted or app-managed pandoc executable path first."""
         try:
             from runtime.pandoc_runtime import load_configured_pandoc_path
             configured = load_configured_pandoc_path()
@@ -276,7 +276,7 @@ def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
 
 
 def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool:
-    """Download pandoc and extract it into the selected dependency root."""
+    """Download pandoc and extract it into the shared app tools directory."""
     import urllib.request
     import time as _time
 
@@ -434,24 +434,11 @@ def _extract_pandoc_binary(
 
 
 def _dependency_install_root() -> Path:
-    """Return the configured dependency install root."""
-    for env_name in ("LATEXSNIPPER_INSTALL_BASE_DIR", "LATEXSNIPPER_DEPS_DIR"):
-        raw = os.environ.get(env_name, "").strip()
-        if raw:
-            return Path(raw).expanduser().resolve()
-
-    cfg_path = _config_dir_path() / CONFIG_FILE
-    if cfg_path.exists():
-        data = json.loads(cfg_path.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            raw = str(data.get("install_base_dir", "") or "").strip()
-            if raw:
-                return Path(raw).expanduser().resolve()
-
-    raise RuntimeError("[PANDOC] 未配置依赖安装目录，无法部署 pandoc")
+    """Return the app-managed shared tool root."""
+    return app_tools_dir()
 
 
 def _pandoc_data_dir(pyexe: str | None = None) -> Path:
-    """Return the dependency-managed pandoc binary directory."""
+    """Return the app-managed shared pandoc binary directory."""
     _ = pyexe
     return _dependency_install_root() / "pandoc"

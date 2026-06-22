@@ -467,7 +467,7 @@ class UninstallLayerWorker(QThread):
             current_path = os.environ.get("PATH", "")
             if pandoc_dir_str in current_path:
                 os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
-                self.log_updated.emit("[PANDOC] 已从 PATH 中移除依赖目录下的 pandoc")
+                self.log_updated.emit("[PANDOC] 已从 PATH 中移除共享工具目录下的 pandoc")
             try:
                 from runtime.pandoc_runtime import clear_configured_pandoc_path
                 clear_configured_pandoc_path()

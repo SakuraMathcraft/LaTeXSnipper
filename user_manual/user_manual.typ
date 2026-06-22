@@ -280,7 +280,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - 原文来自 PyMuPDF 对 PDF 文本层的提取；扫描件或没有文本层的 PDF 需要先走 OCR 识别。
 - PDF 预览后端可选 #text(weight: "bold")[自动]、#text(weight: "bold")[Poppler]、#text(weight: "bold")[Fitz]。自动模式优先使用可用的 Poppler，否则回退 Fitz。
 - 翻译引擎可选 #text(weight: "bold")[仅显示原文]、#text(weight: "bold")[Argos Translate]、#text(weight: "bold")[Azure Translator]、#text(weight: "bold")[Google Cloud Translation]、#text(weight: "bold")[DeepL API Free]。
-- Argos 是可选本地翻译组件，会在活动依赖根下创建 `translation_env` 并安装英译中模型；它不影响主依赖 Python 环境是否完整。
+- Argos 是可选本地翻译组件，会在应用状态目录的 `tools/translation_env` 中安装英译中模型；它不影响主依赖 Python 环境是否完整，也不会随用户切换依赖根而重复部署。
 - Azure、Google、DeepL 的接口配置只对双语阅读功能生效，保存后写入本地配置。
 
 #pagebreak()
@@ -570,7 +570,7 @@ pip install -r requirements-macos.txt
 
 == 依赖环境创建在哪里
 
-LaTeXSnipper 使用 `install_base_dir` 作为活动依赖根。用户在依赖向导或设置中切换依赖目录后，Python 依赖、Pandoc 和 Argos 本地翻译环境都会跟随新的依赖根。
+LaTeXSnipper 使用 `install_base_dir` 作为活动 Python 依赖根。用户在依赖向导或设置中切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 和 Argos 本地翻译环境固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
 
 ```text
 <安装目录>\_internal\deps
@@ -587,8 +587,13 @@ macOS:  ~/Library/Application Support/LaTeXSnipper/deps
 
 ```text
 <依赖根>/python311         主依赖 Python/venv
-<依赖根>/pandoc            可选 Pandoc 二进制目录
-<依赖根>/translation_env   可选 Argos 本地翻译环境
+```
+
+共享工具目录如下：
+
+```text
+<应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
+<应用状态目录>/tools/translation_env   可选 Argos 本地翻译环境
 ```
 
 #info-block("为什么这样设计", [
@@ -649,7 +654,7 @@ https://www.python.org/downloads/macos/
 
 LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和 MathCraft 模型缓存。需要彻底清理时：
 
-- *Windows：* 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，可分别勾选删除用户数据/日志/临时文件、删除已记录依赖根中的依赖环境（包括 `python311`、`pandoc`、`translation_env`）、删除 MathCraft 模型权重。
+- *Windows：* 运行 Windows 安装包自带卸载程序时，会先关闭正在运行的 LaTeXSnipper，再出现可选清理窗口；可分别勾选删除用户数据/日志/临时文件、删除已记录依赖根中的 Python 依赖环境和共享工具目录、删除 MathCraft 模型权重。
 - *Linux `.deb`：* 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、依赖环境和模型缓存。
 - *macOS `.dmg` / `.app.zip`：* 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
 
@@ -1045,8 +1050,10 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 依赖根内：
   python311         主依赖 Python/venv
-  pandoc            可选 Pandoc 二进制目录
-  translation_env   可选 Argos 本地翻译环境
+
+共享工具目录：
+  <应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
+  <应用状态目录>/tools/translation_env   可选 Argos 本地翻译环境
 
 模型缓存（MathCraft ONNX）：
   Windows:  %APPDATA%\MathCraft\models\
@@ -1204,7 +1211,8 @@ py -3.11 -m venv tools\deps\python311
   - `tools/deps/python311/` — 开发、检查、构建环境。
   - `~/.latexsnipper/deps` — Linux 默认运行时依赖根。
   - `~/Library/Application Support/LaTeXSnipper/deps` — macOS 默认运行时依赖根。
-  - `<依赖根>/python311`、`<依赖根>/pandoc`、`<依赖根>/translation_env` — 程序创建的依赖子目录。
+  - `<依赖根>/python311` — 程序创建的主 Python 依赖环境。
+  - `<应用状态目录>/tools/pandoc`、`<应用状态目录>/tools/translation_env` — 程序创建的共享工具目录，切换依赖根后继续复用。
 ])
 
 == 开发者验证命令注意事项

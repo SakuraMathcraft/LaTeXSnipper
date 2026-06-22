@@ -15,7 +15,7 @@ from a different user account.
 
 Options:
   --app-data  Remove settings, history, logs, dependency state, and temp files.
-  --deps      Remove app-managed dependency environments and Pandoc/translation tools.
+  --deps      Remove app-managed dependency environments and shared Pandoc/translation tools.
   --models    Remove MathCraft model weights from the default platform cache.
   --all       Remove app data, dependency environments, and model weights.
   --yes       Do not ask for confirmation.
@@ -173,8 +173,6 @@ remove_dependency_root_children() {
     remove_path "$root/python_full" "dependency Python"
     remove_path "$root/venv" "dependency venv"
     remove_path "$root/.venv" "dependency venv"
-    remove_path "$root/pandoc" "Pandoc dependency"
-    remove_path "$root/translation_env" "translation environment"
     rmdir "$root" 2>/dev/null || true
 }
 
@@ -196,6 +194,7 @@ if [ "$remove_deps" = "true" ]; then
     printf '%s\n' "$dependency_roots" | while IFS= read -r root; do
         [ -n "$root" ] && remove_dependency_root_children "$root"
     done
+    remove_path "$app_state/tools" "shared dependency tools"
 fi
 
 if [ "$remove_app_data" = "true" ]; then
@@ -214,5 +213,5 @@ cat <<EOF
 
 Done.
 Custom MATHCRAFT_HOME directories are not removed automatically. Dependency
-tools created by LaTeXSnipper are grouped under the configured dependency root.
+tools created by LaTeXSnipper are grouped under the app state tools directory.
 EOF
