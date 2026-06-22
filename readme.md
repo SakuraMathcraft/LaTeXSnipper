@@ -111,18 +111,17 @@ Thanks to everyone who supports LaTeXSnipper development, testing, documentation
 ---
 
 ## Contributing
-Contributions are welcome when they keep the project maintainable and do not widen scope unexpectedly:
+The `main` branch no longer accepts pull requests. New feature work should be developed and maintained on an independent branch or fork. Maintainers may selectively port small, reviewed fixes back into release branches when they match the current maintenance scope.
 
 1. Fork the repository
 2. Create a focused branch for your work
 3. Keep changes limited to the bug fix, documentation update, or platform-specific improvement being proposed
-4. Run the checks below before opening a pull request
+4. Run the checks below before sharing a patch or branch for review
 
 ### Important Notice
-Pull requests must not add unrelated features or change existing Windows behavior unless that is the explicit purpose of the PR. macOS/Linux experience improvements should stay behind platform-specific paths and must not regress the Windows release path.
+Patches must not add unrelated features or change existing Windows behavior unless that is the explicit maintenance target. macOS/Linux experience improvements should stay behind platform-specific paths and must not regress the Windows release path.
 
-All pull requests must follow [Developer Code Standards](docs/developer_code_standards.md).
-Before requesting review, run:
+All changes must follow [Developer Code Standards](docs/developer_code_standards.md). Before requesting review, run:
 
 ```powershell
 .\tools\deps\python311\python.exe -m ruff check .

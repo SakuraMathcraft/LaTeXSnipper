@@ -42,15 +42,15 @@ Name: "chinesesimplified"; MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.i
 
 [CustomMessages]
 english.UninstallCleanupTitle=Optional cleanup
-english.UninstallCleanupDetail=LaTeXSnipper preserves user data by default so upgrades and reinstalls keep settings, history, dependencies, and downloaded MathCraft models.
+english.UninstallCleanupDetail=LaTeXSnipper preserves user data by default so upgrades and reinstalls keep settings, history, shared tools, and downloaded MathCraft models.
 english.UninstallCleanupAppData=Remove LaTeXSnipper settings, history, logs, dependency state, and temporary files
-english.UninstallCleanupDependencies=Remove dependency environments from recorded roots and shared tools
+english.UninstallCleanupDependencies=Remove app-managed shared tools
 english.UninstallCleanupModels=Remove MathCraft model weights from %APPDATA%\MathCraft\models
 english.UninstallCleanupAction=Uninstall
 chinesesimplified.UninstallCleanupTitle=可选清理
-chinesesimplified.UninstallCleanupDetail=LaTeXSnipper 默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和已下载的 MathCraft 模型。
+chinesesimplified.UninstallCleanupDetail=LaTeXSnipper 默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、共享工具和已下载的 MathCraft 模型。
 chinesesimplified.UninstallCleanupAppData=删除 LaTeXSnipper 设置、历史记录、日志、依赖状态和临时文件
-chinesesimplified.UninstallCleanupDependencies=删除已记录依赖根目录中的依赖环境和共享工具
+chinesesimplified.UninstallCleanupDependencies=删除 LaTeXSnipper 管理的共享工具
 chinesesimplified.UninstallCleanupModels=删除 %APPDATA%\MathCraft\models 中的 MathCraft 模型权重
 chinesesimplified.UninstallCleanupAction=卸载
 
@@ -95,72 +95,19 @@ begin
   Sleep(800);
 end;
 
-procedure CleanupDependencyRootsWithPowerShell();
+procedure CleanupSharedToolsWithPowerShell();
 var
   ScriptPath: String;
   ScriptText: String;
   ResultCode: Integer;
 begin
-  ScriptPath := ExpandConstant('{tmp}\latexsnipper-clean-deps.ps1');
+  ScriptPath := ExpandConstant('{tmp}\latexsnipper-clean-tools.ps1');
   ScriptText :=
     '$ErrorActionPreference = ''SilentlyContinue''' + #13#10 +
-    '$app = ''' + ExpandConstant('{app}') + '''' + #13#10 +
-    '$config = Join-Path $env:USERPROFILE ''.latexsnipper\LaTeXSnipper_config.json''' + #13#10 +
     'function Remove-ManagedPath([string]$Path) {' + #13#10 +
     '  if ([string]::IsNullOrWhiteSpace($Path)) { return }' + #13#10 +
     '  $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue' + #13#10 +
     '  if ($null -ne $item) { Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction SilentlyContinue }' + #13#10 +
-    '}' + #13#10 +
-    'function Is-UnsafeRoot([string]$Path) {' + #13#10 +
-    '  if ([string]::IsNullOrWhiteSpace($Path)) { return $true }' + #13#10 +
-    '  try { $full = [System.IO.Path]::GetFullPath($Path).TrimEnd(''\'') } catch { return $true }' + #13#10 +
-    '  $profile = [System.IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd(''\'')' + #13#10 +
-    '  return ($full.Length -le 3 -or $full.Equals($profile, [System.StringComparison]::OrdinalIgnoreCase))' + #13#10 +
-    '}' + #13#10 +
-    'function Is-PythonEnvironmentRoot([string]$Root) {' + #13#10 +
-    '  foreach ($rel in @(''pyvenv.cfg'', ''python.exe'', ''pythonw.exe'', ''Scripts\python.exe'', ''bin\python'')) {' + #13#10 +
-    '    if (Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf) { return $true }' + #13#10 +
-    '  }' + #13#10 +
-    '  return $false' + #13#10 +
-    '}' + #13#10 +
-    'function Resolve-PythonEnvironmentRoot([string]$Path) {' + #13#10 +
-    '  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }' + #13#10 +
-    '  try { $full = [System.IO.Path]::GetFullPath($Path).TrimEnd(''\'') } catch { return $null }' + #13#10 +
-    '  $leaf = Split-Path -Path $full -Leaf' + #13#10 +
-    '  if ($leaf -in @(''Scripts'', ''bin'')) {' + #13#10 +
-    '    $parent = Split-Path -Path $full -Parent' + #13#10 +
-    '    if ($parent -and (Test-Path -LiteralPath (Join-Path $parent ''pyvenv.cfg'') -PathType Leaf)) { return $parent }' + #13#10 +
-    '  }' + #13#10 +
-    '  if (Is-PythonEnvironmentRoot $full) { return $full }' + #13#10 +
-    '  return $null' + #13#10 +
-    '}' + #13#10 +
-    'function Cleanup-DependencyRoot([string]$Root) {' + #13#10 +
-    '  if (Is-UnsafeRoot $Root) { return }' + #13#10 +
-    '  $envRoot = Resolve-PythonEnvironmentRoot $Root' + #13#10 +
-    '  if ($envRoot -and -not (Is-UnsafeRoot $envRoot)) { Remove-ManagedPath $envRoot; return }' + #13#10 +
-    '  foreach ($rel in @(''.deps_state.json'', ''python311'', ''Python311'', ''python_full'', ''venv'', ''.venv'')) {' + #13#10 +
-    '    Remove-ManagedPath (Join-Path $Root $rel)' + #13#10 +
-    '  }' + #13#10 +
-    '  Remove-Item -LiteralPath $Root -Force -ErrorAction SilentlyContinue' + #13#10 +
-    '}' + #13#10 +
-    '$roots = New-Object System.Collections.Generic.List[string]' + #13#10 +
-    '$roots.Add($app)' + #13#10 +
-    'if (Test-Path -LiteralPath $config -PathType Leaf) {' + #13#10 +
-    '  try {' + #13#10 +
-    '    $data = Get-Content -LiteralPath $config -Raw -Encoding UTF8 | ConvertFrom-Json' + #13#10 +
-    '    if ($data.install_base_dir) { $roots.Add([string]$data.install_base_dir) }' + #13#10 +
-    '    $history = $data.install_base_dir_cleanup_roots' + #13#10 +
-    '    if ($history -is [string]) { foreach ($item in $history -split ''\|'') { if ($item.Trim()) { $roots.Add($item.Trim()) } } }' + #13#10 +
-    '    elseif ($history) { foreach ($item in $history) { if ([string]$item) { $roots.Add([string]$item) } } }' + #13#10 +
-    '  } catch {}' + #13#10 +
-    '}' + #13#10 +
-    '$seen = @{}' + #13#10 +
-    'foreach ($root in $roots) {' + #13#10 +
-    '  if ([string]::IsNullOrWhiteSpace($root)) { continue }' + #13#10 +
-    '  $key = $root.ToLowerInvariant()' + #13#10 +
-    '  if ($seen.ContainsKey($key)) { continue }' + #13#10 +
-    '  $seen[$key] = $true' + #13#10 +
-    '  Cleanup-DependencyRoot $root' + #13#10 +
     '}' + #13#10 +
     'Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper\tools'')' + #13#10;
 
@@ -288,17 +235,21 @@ begin
   DeleteDependencyEnvsOnUninstall := False;
   DeleteMathCraftModelsOnUninstall := False;
   Result := ConfirmUninstallCleanup();
-  if Result then
-  begin
-    EnsureApplicationClosed();
+end;
 
-    if DeleteDependencyEnvsOnUninstall then
-      CleanupDependencyRootsWithPowerShell();
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep <> usUninstall then
+    Exit;
 
-    if DeleteAppDataOnUninstall then
-      CleanupAppDataWithPowerShell();
+  EnsureApplicationClosed();
 
-    if DeleteMathCraftModelsOnUninstall then
-      CleanupPath(ExpandConstant('{userappdata}\MathCraft\models'));
-  end;
+  if DeleteDependencyEnvsOnUninstall then
+    CleanupSharedToolsWithPowerShell();
+
+  if DeleteAppDataOnUninstall then
+    CleanupAppDataWithPowerShell();
+
+  if DeleteMathCraftModelsOnUninstall then
+    CleanupPath(ExpandConstant('{userappdata}\MathCraft\models'));
 end;

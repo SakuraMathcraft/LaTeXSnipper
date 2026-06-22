@@ -497,10 +497,10 @@ https://www.python.org/downloads/macos/
 
 ### 卸载后如何清理用户数据和模型缓存
 
-LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和 MathCraft 模型缓存。需要彻底清理时：
+LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、用户切换过的依赖环境、共享工具和 MathCraft 模型缓存。需要彻底清理时：
 
-- **Windows：** 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口；确认后卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、已记录依赖根中的 Python 依赖环境和共享工具目录、MathCraft 模型权重。
-- **Linux `.deb`：** 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、依赖环境和模型缓存。
+- **Windows：** 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，随后仍会显示 Inno 标准卸载确认；标准确认通过后，卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、LaTeXSnipper 管理的共享工具目录、MathCraft 模型权重。安装目录内的 `_internal` 会随主程序卸载删除；用户切换到外部的完整 Python 或 venv 不会被卸载器删除。
+- **Linux `.deb`：** 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、共享工具和模型缓存；脚本不会读取或删除用户切换过的外部 Python 依赖根。
 - **macOS `.dmg` / `.app.zip`：** 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
 
 如果你显式设置过 `MATHCRAFT_HOME` 指向自定义目录，卸载和清理脚本都不会自动删除该目录，避免误删用户指定的外部数据位置。

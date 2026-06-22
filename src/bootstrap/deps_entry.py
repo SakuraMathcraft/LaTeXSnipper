@@ -235,7 +235,6 @@ def _read_config_install_dir(cfg_path: Path) -> str | None:
 def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
     try:
         import json
-        from runtime.config_manager import remember_dependency_root
 
         data = {}
         if cfg_path.exists():
@@ -244,7 +243,6 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
             except Exception:
                 data = {}
         data["install_base_dir"] = deps_dir
-        remember_dependency_root(data, deps_dir)
         Path(cfg_path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
@@ -291,7 +289,7 @@ def _install_failure_dialog_copy() -> tuple[str, str]:
             "依赖安装未完成",
             "部分依赖没有安装成功。\n\n"
             "请查看安装日志后重试。若日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，"
-            "请使用 Python 3.11、3.12 或 3.13 重新初始化依赖环境。",
+            "请使用 Python 3.11 或 3.12 重新初始化依赖环境。",
         )
     return (
         "Install Incomplete",

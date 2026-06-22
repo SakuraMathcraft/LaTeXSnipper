@@ -61,7 +61,6 @@ def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy(
 
 def test_pandoc_and_argos_tools_are_installed_under_app_tools_root(tmp_path, monkeypatch) -> None:
     from bootstrap import deps_pandoc
-    from runtime.config_manager import DEPENDENCY_ROOT_CLEANUP_HISTORY_KEY, remember_dependency_root
     from runtime import app_paths
     from runtime.dependency_python import dependency_root_from_python
 
@@ -86,11 +85,6 @@ def test_pandoc_and_argos_tools_are_installed_under_app_tools_root(tmp_path, mon
     assert app_paths.app_tool_dir("translation_env") == app_state / "tools" / "translation_env"
     assert dependency_root_from_python(dependency_root / "python311" / "python.exe") == dependency_root
     assert dependency_root_from_python(dependency_root / "python311" / "Scripts" / "python.exe") == dependency_root
-
-    cfg: dict[str, str] = {}
-    remember_dependency_root(cfg, dependency_root)
-    remember_dependency_root(cfg, dependency_root / "python311")
-    assert str(dependency_root) in cfg[DEPENDENCY_ROOT_CLEANUP_HISTORY_KEY]
 
 
 def test_pandoc_exporter_does_not_scan_cwd_dependency_directory() -> None:

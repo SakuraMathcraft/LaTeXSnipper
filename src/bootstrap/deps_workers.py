@@ -49,7 +49,7 @@ def _install_failure_guidance(failed_pkgs: list[str], fail_count: int, total: in
             "  3. 依赖目录写入失败或磁盘空间不足。",
             "",
             "建议操作:",
-            "  1. 优先使用 Python 3.11、3.12 或 3.13 初始化依赖环境。",
+            "  1. 优先使用 Python 3.11 或 3.12 初始化依赖环境。",
             "  2. 返回依赖向导，换用清华镜像或重新点击下载。",
             "  3. 如果日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，请更换兼容 Python 后重试。",
         ])

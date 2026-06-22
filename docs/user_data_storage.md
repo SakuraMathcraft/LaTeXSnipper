@@ -27,10 +27,9 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 ## Dependency Runtime
 
 `install_base_dir` in `LaTeXSnipper_config.json` is the active dependency root.
-Users can change it from the dependency wizard or settings. Each selected root
-is also appended to the internal `install_base_dir_cleanup_roots` history so a
-later uninstall can clean dependency roots that were used before the final
-active one.
+Users can change it from the dependency wizard or settings. LaTeXSnipper records
+only the current active root and does not keep a cleanup history of previous
+user-selected dependency roots.
 
 Pandoc and Argos translation do not follow the active dependency root. They are
 app-managed shared tools under `<app-state>/tools`, so deploying them once keeps
@@ -39,28 +38,16 @@ them available after the user switches Python dependency roots.
 | Data | Windows | Linux | macOS | Cleanup owner |
 |---|---|---|---|---|
 | Bundled Windows Python template | `<install-dir>\_internal\deps\python311` | Not bundled | Not bundled | Windows uninstaller removes installed `_internal` unconditionally |
-| Active dependency Python | `<dependency-root>\python311` or another reusable venv name under the selected root | `<dependency-root>/python311` | `<dependency-root>/python311` | Windows dependency cleanup checkbox; Linux/macOS `latexsnipper-clean-user-data --deps` |
-| Default packaged dependency root | Windows starts with installed `_internal\deps` for the bundled Python template; switching the dependency path records the new selected root | `~/.latexsnipper/deps` | `~/Library/Application Support/LaTeXSnipper/deps` | Same as above |
-| Dependency layer state | `<dependency-root>\.deps_state.json` | `<dependency-root>/.deps_state.json` | `<dependency-root>/.deps_state.json` | Same as above |
+| Active dependency Python | `<dependency-root>\python311` or another reusable Python/venv selected by the user | `<dependency-root>/python311` or another reusable Python/venv selected by the user | `<dependency-root>/python311` or another reusable Python/venv selected by the user | Not removed automatically after the user changes the dependency root |
+| Default packaged dependency root | Windows starts with installed `_internal\deps` for the bundled Python template | `~/.latexsnipper/deps` | `~/Library/Application Support/LaTeXSnipper/deps` | Windows `_internal` is removed by the uninstaller; Linux/macOS default app-state deps are removed only when app data is removed |
+| Dependency layer state | `<dependency-root>\.deps_state.json` | `<dependency-root>/.deps_state.json` | `<dependency-root>/.deps_state.json` | Stays with the selected dependency root |
 | App-managed Pandoc binary | `%USERPROFILE%\.latexsnipper\tools\pandoc` | `~/.latexsnipper/tools/pandoc` | `~/Library/Application Support/LaTeXSnipper/tools/pandoc` | Dependency cleanup checkbox/script |
 | Argos translation environment | `%USERPROFILE%\.latexsnipper\tools\translation_env` | `~/.latexsnipper/tools/translation_env` | `~/Library/Application Support/LaTeXSnipper/tools/translation_env` | Same as above |
 
-Dependency cleanup deliberately removes only known LaTeXSnipper-managed children
-inside every recorded dependency root: `.deps_state.json`, `python311`,
-`Python311`, `python_full`, `venv`, and `.venv`. It removes the dependency root
-itself only if that directory becomes empty. This is important when a user
-chooses a broad folder such as `D:\deps` or `~/deps`. Shared tools are removed
-from `<app-state>/tools`, not from recorded dependency roots.
-
-If the selected dependency root is itself a Python environment, such as a
-user-selected `D:\LaTexSnipper\python378-custom` directory containing
-`python.exe`, `Scripts\python.exe`, `bin/python`, or `pyvenv.cfg`, dependency
-cleanup treats that recorded root as the environment and removes the whole root.
-If a recorded value points at a virtual environment script directory such as
-`python311\Scripts` or `python311/bin`, cleanup resolves it back to the virtual
-environment root before deletion. This covers advanced users who point
-`install_base_dir` directly at a custom venv instead of at a parent directory
-containing `python311`.
+Dependency cleanup deliberately avoids user-selected external Python roots.
+If a user switches `install_base_dir` to a full Python installation, a venv, or
+a broad directory such as `D:\deps` or `~/deps`, uninstall will not delete it.
+Shared tools are removed from `<app-state>/tools`, not from dependency roots.
 
 Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.13` only to
 create the isolated dependency environment. The packaged app itself does not run
@@ -94,10 +81,10 @@ can explicitly override the model root.
 
 | Directory | Created when | Notes |
 |---|---|---|
-| App state root | First config/state access | Contains settings, history, dependency root history, locks, and update cache |
+| App state root | First config/state access | Contains settings, history, locks, update cache, and shared tools |
 | App log root | Runtime logging/preflight starts | Windows can fall back to `%LOCALAPPDATA%\LaTeXSnipper\logs` if the profile log path is unavailable |
 | App temp root | Preview, PDF asset, or launcher helpers run | Grouped under `LaTeXSnipper` in the OS temp directory |
-| Dependency root | Dependency bootstrap or user path switch | Can be changed repeatedly; all selected roots are tracked for cleanup |
+| Dependency root | Dependency bootstrap or user path switch | Can be changed repeatedly; only the current root is stored in config |
 | `<dependency-root>/python311` | Dependency Python/venv creation | Windows bundled runtime lives under installed `_internal\deps\python311` unless the user switches roots |
 | `<app-state>/tools/pandoc` | Pandoc layer install | Shared app-managed tool; independent from the selected Python dependency root |
 | `<app-state>/tools/translation_env` | Argos local translation deployment | Shared app-managed tool; independent from the selected Python dependency root |
@@ -111,13 +98,14 @@ to paths selected by the user through save dialogs or explicit path settings.
 ## Uninstall Cleanup
 
 LaTeXSnipper preserves user data by default during uninstall so updates and
-reinstalls keep settings, history, dependency environments, and model weights.
+reinstalls keep settings, history, user-selected dependency environments, shared
+tools, and model weights.
 
 | Platform | Cleanup entry |
 |---|---|
-| Windows | Before uninstall starts, the Inno uninstaller prompts for three optional cleanup choices: app data/logs/temp, dependency environments plus shared tools, and MathCraft model weights. After confirmation it asks Windows/Inno to close LaTeXSnipper, force-closes any remaining `LaTeXSnipper.exe`, then runs selected cleanup before the main install payload is removed. Dependency cleanup reads both the active `install_base_dir` and the `install_base_dir_cleanup_roots` history with UTF-8 JSON parsing, then removes only Python dependency environments from recorded roots and removes shared tools from `<app-state>/tools`. |
-| Linux `.deb` | Package removal does not delete home-directory data. Run `latexsnipper-clean-user-data --deps` and any other needed cleanup options before `apt purge`, or remove the documented user data roots manually. The script reads the active dependency root and cleanup history from the app config. |
-| macOS `.dmg` / `.app.zip` | The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
+| Windows | Before the standard Inno uninstall confirmation, the uninstaller prompts for three optional cleanup choices: app data/logs/temp, app-managed shared tools, and MathCraft model weights. After the standard uninstall confirmation is accepted, it asks Windows/Inno to close LaTeXSnipper, force-closes any remaining `LaTeXSnipper.exe`, then runs selected cleanup before the main install payload is removed. The installed `<install-dir>\_internal` directory is removed unconditionally as part of uninstall. User-selected external Python roots are never read from config or deleted. |
+| Linux `.deb` | Package removal does not delete home-directory data. Run `latexsnipper-clean-user-data --deps` and any other needed cleanup options before `apt purge`, or remove the documented user data roots manually. The script removes shared tools under the app state root and does not read or delete `install_base_dir`. |
+| macOS `.dmg` / `.app.zip` | Moving the `.app` to Trash removes the app bundle only. The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
 
 Custom `MATHCRAFT_HOME` directories are never deleted automatically because
 they may point outside LaTeXSnipper-owned storage. Dependency tools created by
