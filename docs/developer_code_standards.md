@@ -51,8 +51,6 @@ git push origin MathCraft
 - If a PR changes packaging, dependency bootstrap, platform providers, or
   release workflows, the PR description must say which platform package jobs or
   local target-platform checks were run.
-- Before platform cleanup work, check `docs/platform_adaptation_audit.md` and
-  update the relevant status when the PR fixes or intentionally accepts an item.
 - Before adding persistent user files, reusable caches, or temp directories,
   check and update `docs/user_data_storage.md`.
 

@@ -169,7 +169,8 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "TSetupForm.Create" not in inno
     assert "CreateCustomForm(ScaleX(430), ScaleY(190), False, True)" in inno
     assert "{userprofile}" not in inno.lower()
-    assert "{%USERPROFILE}" in inno
+    assert "{%USERPROFILE}" not in inno
+    assert "$env:USERPROFILE" in inno
     assert "DeleteDependencyEnvsOnUninstall" in inno
     assert r'Type: filesandordirs; Name: "{app}\_internal"' in inno
     assert "已记录依赖根目录" in inno
@@ -179,10 +180,18 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "procedure CleanupDependencyRootHistory" not in inno
     assert "install_base_dir_cleanup_roots" in inno
     assert "CleanupDependencyRootsWithPowerShell()" in inno
+    assert "procedure CurUninstallStepChanged" not in inno
+    assert "CleanupAppDataWithPowerShell()" in inno
+    assert "Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper'')" in inno
     assert "procedure CleanupDependencyRootChildren" not in inno
     assert "function IsPythonEnvironmentRoot" not in inno
     assert "Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf" in inno
-    assert "Remove-ManagedPath $Root; return" in inno
+    assert "Resolve-PythonEnvironmentRoot $Root" in inno
+    assert "if ($leaf -in @(''Scripts'', ''bin''))" in inno
+    assert "Join-Path $parent ''pyvenv.cfg''" in inno
+    assert "Remove-ManagedPath $envRoot; return" in inno
+    assert "''python.exe'', ''pythonw.exe''" in inno
+    assert "''Scripts\\python.exe'', ''bin\\python''" in inno
     assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" not in inno
     assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" not in inno
     assert "CleanupDependencyRootHistory()" not in inno
@@ -199,14 +208,20 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     faq_doc = (ROOT / "docs" / "faq.md").read_text(encoding="utf-8")
     manual_doc = (ROOT / "user_manual" / "user_manual.md").read_text(encoding="utf-8")
     manual_typ = (ROOT / "user_manual" / "user_manual.typ").read_text(encoding="utf-8")
-    audit_doc = (ROOT / "docs" / "platform_adaptation_audit.md").read_text(encoding="utf-8")
 
     assert "--deps" in cleanup_script
     assert "install_base_dir" in cleanup_script
     assert "install_base_dir_cleanup_roots" in cleanup_script
     assert "shared Pandoc/translation tools" in cleanup_script
     assert "is_python_environment_root()" in cleanup_script
-    assert 'remove_path "$root" "dependency environment root"' in cleanup_script
+    assert "resolve_python_environment_root()" in cleanup_script
+    assert '[ "$leaf" = "Scripts" ] || [ "$leaf" = "bin" ]' in cleanup_script
+    assert '$(dirname "$path")/pyvenv.cfg' in cleanup_script
+    assert '[ -f "$root/python.exe" ]' in cleanup_script
+    assert '[ -f "$root/pythonw.exe" ]' in cleanup_script
+    assert '[ -f "$root/Scripts/python.exe" ]' in cleanup_script
+    assert '[ -f "$root/bin/python" ]' in cleanup_script
+    assert 'remove_path "$env_root" "dependency environment root"' in cleanup_script
     assert "rm -rf \"$root\"" not in cleanup_script
     assert 'remove_path "$root/pandoc"' not in cleanup_script
     assert 'remove_path "$root/translation_env"' not in cleanup_script
@@ -224,8 +239,6 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "<应用状态目录>/tools/pandoc" in manual_typ
     assert "<应用状态目录>/tools/translation_env" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
-    assert "install-directory dependency environment" not in audit_doc
-    assert "prompts before uninstall starts" in audit_doc
 
 
 def test_release_workflow_pins_setuptools_before_bundled_seed_verification() -> None:
@@ -250,10 +263,10 @@ def test_dependency_wizard_keeps_ui_status_icons_for_visible_labels() -> None:
     assert '"[NET]' not in deps_layer_specs
 
 
-def test_workbench_disables_compute_engine_time_limit_after_cas_removal() -> None:
+def test_workbench_uses_default_compute_engine_time_limit_after_cas_removal() -> None:
     app_js = (ROOT / "src" / "assets" / "mathlive" / "app.js").read_text(encoding="utf-8")
 
-    assert "ce.timeLimit = 0;" in app_js
+    assert "ce.timeLimit = 2000;" in app_js
     assert "前端计算超时，已超过当前时限" not in app_js
     assert "前端计算引擎无法完成当前表达式" in app_js
 

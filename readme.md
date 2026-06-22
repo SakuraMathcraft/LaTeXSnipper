@@ -23,6 +23,8 @@
 
 [FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
 
+English · [简体中文](README.zh-CN.md)
+
 </div>
 
 ---
@@ -98,17 +100,26 @@ usable supported `python3`.
 
 ---
 
+## Supporters
+
+Thanks to everyone who supports LaTeXSnipper development, testing, documentation, and community maintenance.
+
+| Supporter | Contribution |
+|---|---|
+| Placeholder | Sponsor / contributor list will be added here. |
+
+---
+
 ## Contributing
-Contributions are welcome with updated rules as follows:
+Contributions are welcome when they keep the project maintainable and do not widen scope unexpectedly:
 
 1. Fork the repository
-2. Create an independent feature branch for your work
-3. Commit your changes to your own feature branch
-4. Push your feature branch to your forked repo
+2. Create a focused branch for your work
+3. Keep changes limited to the bug fix, documentation update, or platform-specific improvement being proposed
+4. Run the checks below before opening a pull request
 
 ### Important Notice
-The `main` branch no longer accepts Pull Requests.
-All new feature development should be completed and merged within your separate independent branch by yourself, without submitting PRs targeting the `main` branch.
+Pull requests must not add unrelated features or change existing Windows behavior unless that is the explicit purpose of the PR. macOS/Linux experience improvements should stay behind platform-specific paths and must not regress the Windows release path.
 
 All pull requests must follow [Developer Code Standards](docs/developer_code_standards.md).
 Before requesting review, run:
@@ -122,9 +133,9 @@ Before requesting review, run:
 
 ---
 
-## 💖 支持本项目
-LaTeXSnipper 是完全免费开源、无广告、无内购的个人业余项目。
-如果你觉得本工具对你论文写作、公式识别带来了帮助，可以小额赞助支持作者继续维护项目（such as 一杯咖啡？😘），或者加入官方群聊来催更？十分感谢💗
+## Support The Project
+
+LaTeXSnipper is a free, open-source, ad-free personal project. If it helps with your writing, OCR, or formula workflow, small sponsorships and community feedback help keep maintenance moving.
 
 | 支付宝 | 微信 | 交流群 |
 |--------|------|--------|

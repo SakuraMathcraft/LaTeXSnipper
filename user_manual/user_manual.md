@@ -88,7 +88,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 - **Windows：** 确保以普通用户（非管理员）运行，且杀毒软件未拦截
 - **Linux：** 确保 `python3 -m venv` 可用（Debian/Ubuntu 通常需要 `python3-venv`）
-- **macOS：** 确保有可用的 Python 3.10+，推荐 Homebrew Python 或 python.org 官方安装包
+- **macOS：** 确保有可用的 Python `>=3.10,<3.13`，推荐 Homebrew Python 或 python.org 官方 3.11/3.12 安装包
 
 ### 软件的基本工作流
 
@@ -381,7 +381,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 **解决：**
 
 - **普通 Windows 安装包用户：** 不需要单独安装 Python，安装包自带规范化的 Python 3.11 模板环境。
-- **Linux/macOS 安装包用户：** 需要系统中有可用 Python 3.10+，仅用于创建用户目录下的隔离依赖环境。
+- **Linux/macOS 安装包用户：** 需要系统中有可用 Python `>=3.10,<3.13`，仅用于创建用户目录下的隔离依赖环境。
 - **源码运行/开发者：** 推荐 Python 3.11，与当前 Windows 打包环境保持一致。
 
 ```bash
@@ -499,7 +499,7 @@ https://www.python.org/downloads/macos/
 
 LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和 MathCraft 模型缓存。需要彻底清理时：
 
-- **Windows：** 运行 Windows 安装包自带卸载程序时，会先关闭正在运行的 LaTeXSnipper，再出现可选清理窗口；可分别勾选删除用户数据/日志/临时文件、删除已记录依赖根中的 Python 依赖环境和共享工具目录、删除 MathCraft 模型权重。
+- **Windows：** 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口；确认后卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、已记录依赖根中的 Python 依赖环境和共享工具目录、MathCraft 模型权重。
 - **Linux `.deb`：** 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、依赖环境和模型缓存。
 - **macOS `.dmg` / `.app.zip`：** 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
 
@@ -727,7 +727,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 | 截图实现 | Qt 框选截图 | Qt 优先，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退 | Qt 优先，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限 |
 | 关闭窗口 / 后台常驻 | 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出 | 有系统托盘时关闭主窗口会隐藏到托盘；没有托盘时会询问是否退出 | 关闭主窗口会最小化并保持应用运行；Dock 或菜单栏"退出"才真正退出 |
 | 权限要求 | 普通截图路径不需要额外系统权限 | Wayland 可能限制截图和全局快捷键 | 截图需要屏幕录制权限；Carbon 全局快捷键通常不需要辅助功能权限 |
-| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python 3.10+ 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python 3.10+ 创建 venv |
+| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv |
 | 安装包 | Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包 | Debian/Ubuntu `.deb` | `.dmg` / `.app.zip` |
 
 快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`，macOS 接受 `Command+字母` 或 `Command+Shift+字母`。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
@@ -805,7 +805,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 **现象：** 依赖向导提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
 
-**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python 3.10+ 在活动依赖根下创建 `python311`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
+**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python `>=3.10,<3.13` 在活动依赖根下创建 `python311`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
 
 **解决：**
 

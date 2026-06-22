@@ -123,9 +123,21 @@ begin
     '  }' + #13#10 +
     '  return $false' + #13#10 +
     '}' + #13#10 +
+    'function Resolve-PythonEnvironmentRoot([string]$Path) {' + #13#10 +
+    '  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }' + #13#10 +
+    '  try { $full = [System.IO.Path]::GetFullPath($Path).TrimEnd(''\'') } catch { return $null }' + #13#10 +
+    '  $leaf = Split-Path -Path $full -Leaf' + #13#10 +
+    '  if ($leaf -in @(''Scripts'', ''bin'')) {' + #13#10 +
+    '    $parent = Split-Path -Path $full -Parent' + #13#10 +
+    '    if ($parent -and (Test-Path -LiteralPath (Join-Path $parent ''pyvenv.cfg'') -PathType Leaf)) { return $parent }' + #13#10 +
+    '  }' + #13#10 +
+    '  if (Is-PythonEnvironmentRoot $full) { return $full }' + #13#10 +
+    '  return $null' + #13#10 +
+    '}' + #13#10 +
     'function Cleanup-DependencyRoot([string]$Root) {' + #13#10 +
     '  if (Is-UnsafeRoot $Root) { return }' + #13#10 +
-    '  if (Is-PythonEnvironmentRoot $Root) { Remove-ManagedPath $Root; return }' + #13#10 +
+    '  $envRoot = Resolve-PythonEnvironmentRoot $Root' + #13#10 +
+    '  if ($envRoot -and -not (Is-UnsafeRoot $envRoot)) { Remove-ManagedPath $envRoot; return }' + #13#10 +
     '  foreach ($rel in @(''.deps_state.json'', ''python311'', ''Python311'', ''python_full'', ''venv'', ''.venv'')) {' + #13#10 +
     '    Remove-ManagedPath (Join-Path $Root $rel)' + #13#10 +
     '  }' + #13#10 +
@@ -151,6 +163,28 @@ begin
     '  Cleanup-DependencyRoot $root' + #13#10 +
     '}' + #13#10 +
     'Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper\tools'')' + #13#10;
+
+  if SaveStringToFile(ScriptPath, ScriptText, False) then
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CleanupAppDataWithPowerShell();
+var
+  ScriptPath: String;
+  ScriptText: String;
+  ResultCode: Integer;
+begin
+  ScriptPath := ExpandConstant('{tmp}\latexsnipper-clean-appdata.ps1');
+  ScriptText :=
+    '$ErrorActionPreference = ''SilentlyContinue''' + #13#10 +
+    'function Remove-ManagedPath([string]$Path) {' + #13#10 +
+    '  if ([string]::IsNullOrWhiteSpace($Path)) { return }' + #13#10 +
+    '  $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue' + #13#10 +
+    '  if ($null -ne $item) { Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction SilentlyContinue }' + #13#10 +
+    '}' + #13#10 +
+    'Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper'')' + #13#10 +
+    'Remove-ManagedPath (Join-Path $env:LOCALAPPDATA ''LaTeXSnipper'')' + #13#10 +
+    'Remove-ManagedPath (Join-Path $env:TEMP ''LaTeXSnipper'')' + #13#10;
 
   if SaveStringToFile(ScriptPath, ScriptText, False) then
     Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -255,26 +289,16 @@ begin
   DeleteMathCraftModelsOnUninstall := False;
   Result := ConfirmUninstallCleanup();
   if Result then
+  begin
     EnsureApplicationClosed();
-end;
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-begin
-  if CurUninstallStep <> usPostUninstall then
-    Exit;
+    if DeleteDependencyEnvsOnUninstall then
+      CleanupDependencyRootsWithPowerShell();
 
-  if DeleteDependencyEnvsOnUninstall then
-  begin
-    CleanupDependencyRootsWithPowerShell();
+    if DeleteAppDataOnUninstall then
+      CleanupAppDataWithPowerShell();
+
+    if DeleteMathCraftModelsOnUninstall then
+      CleanupPath(ExpandConstant('{userappdata}\MathCraft\models'));
   end;
-
-  if DeleteAppDataOnUninstall then
-  begin
-    CleanupPath(ExpandConstant('{%USERPROFILE}\.latexsnipper'));
-    CleanupPath(ExpandConstant('{localappdata}\LaTeXSnipper'));
-    CleanupPath(ExpandConstant('{tmp}\LaTeXSnipper'));
-  end;
-
-  if DeleteMathCraftModelsOnUninstall then
-    CleanupPath(ExpandConstant('{userappdata}\MathCraft\models'));
 end;

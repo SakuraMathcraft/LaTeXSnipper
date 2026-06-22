@@ -155,6 +155,24 @@ is_python_environment_root() {
     return 1
 }
 
+resolve_python_environment_root() {
+    path="$1"
+    [ -z "$path" ] && return 1
+
+    leaf="${path##*/}"
+    if { [ "$leaf" = "Scripts" ] || [ "$leaf" = "bin" ]; } && [ -f "$(dirname "$path")/pyvenv.cfg" ]; then
+        dirname "$path"
+        return 0
+    fi
+
+    if is_python_environment_root "$path"; then
+        printf '%s\n' "$path"
+        return 0
+    fi
+
+    return 1
+}
+
 remove_dependency_root_children() {
     root="$1"
     if is_dangerous_root "$root"; then
@@ -162,8 +180,9 @@ remove_dependency_root_children() {
         return
     fi
 
-    if is_python_environment_root "$root"; then
-        remove_path "$root" "dependency environment root"
+    env_root="$(resolve_python_environment_root "$root" || true)"
+    if [ -n "$env_root" ] && ! is_dangerous_root "$env_root"; then
+        remove_path "$env_root" "dependency environment root"
         return
     fi
 

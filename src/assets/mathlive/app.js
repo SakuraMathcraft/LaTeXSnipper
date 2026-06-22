@@ -605,7 +605,7 @@ async function bootstrap() {
     const { ComputeEngine, expand, factor, solve } = computeModule;
     computeHelpers = { expand, factor, solve };
     ce = new ComputeEngine();
-    ce.timeLimit = 0;
+    ce.timeLimit = 2000;
     MathfieldElement.computeEngine = ce;
     installClipboardBridge();
     MathfieldElement.fontsDirectory = new URL('./vendor/fonts', window.location.href).href;

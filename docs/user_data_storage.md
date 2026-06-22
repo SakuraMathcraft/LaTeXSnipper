@@ -56,8 +56,11 @@ If the selected dependency root is itself a Python environment, such as a
 user-selected `D:\LaTexSnipper\python378-custom` directory containing
 `python.exe`, `Scripts\python.exe`, `bin/python`, or `pyvenv.cfg`, dependency
 cleanup treats that recorded root as the environment and removes the whole root.
-This covers advanced users who point `install_base_dir` directly at a custom
-venv instead of at a parent directory containing `python311`.
+If a recorded value points at a virtual environment script directory such as
+`python311\Scripts` or `python311/bin`, cleanup resolves it back to the virtual
+environment root before deletion. This covers advanced users who point
+`install_base_dir` directly at a custom venv instead of at a parent directory
+containing `python311`.
 
 Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.13` only to
 create the isolated dependency environment. The packaged app itself does not run
@@ -112,7 +115,7 @@ reinstalls keep settings, history, dependency environments, and model weights.
 
 | Platform | Cleanup entry |
 |---|---|
-| Windows | The Inno uninstaller asks Windows/Inno to close LaTeXSnipper, then force-closes any remaining `LaTeXSnipper.exe` before uninstalling files. Before uninstall starts it prompts for three optional cleanup choices: app data/logs/temp, dependency environments plus shared tools, and MathCraft model weights. Dependency cleanup reads both the active `install_base_dir` and the `install_base_dir_cleanup_roots` history with UTF-8 JSON parsing, then removes only Python dependency environments from recorded roots and removes shared tools from `<app-state>/tools`. |
+| Windows | Before uninstall starts, the Inno uninstaller prompts for three optional cleanup choices: app data/logs/temp, dependency environments plus shared tools, and MathCraft model weights. After confirmation it asks Windows/Inno to close LaTeXSnipper, force-closes any remaining `LaTeXSnipper.exe`, then runs selected cleanup before the main install payload is removed. Dependency cleanup reads both the active `install_base_dir` and the `install_base_dir_cleanup_roots` history with UTF-8 JSON parsing, then removes only Python dependency environments from recorded roots and removes shared tools from `<app-state>/tools`. |
 | Linux `.deb` | Package removal does not delete home-directory data. Run `latexsnipper-clean-user-data --deps` and any other needed cleanup options before `apt purge`, or remove the documented user data roots manually. The script reads the active dependency root and cleanup history from the app config. |
 | macOS `.dmg` / `.app.zip` | The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
 
