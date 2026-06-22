@@ -7,27 +7,6 @@ from pathlib import Path
 
 from runtime.app_paths import app_config_path, app_state_dir
 
-DEPENDENCY_ROOT_CLEANUP_HISTORY_KEY = "install_base_dir_cleanup_roots"
-
-
-def remember_dependency_root(config: dict, root: str | Path) -> None:
-    text = str(root or "").strip()
-    if not text:
-        return
-
-    existing = config.get(DEPENDENCY_ROOT_CLEANUP_HISTORY_KEY, "")
-    roots: list[str] = []
-    if isinstance(existing, list):
-        roots = [str(item).strip() for item in existing if str(item).strip()]
-    elif isinstance(existing, str):
-        roots = [item.strip() for item in existing.split("|") if item.strip()]
-
-    normalized = str(Path(text).expanduser())
-    seen = {item.lower() for item in roots}
-    if normalized.lower() not in seen:
-        roots.append(normalized)
-    config[DEPENDENCY_ROOT_CLEANUP_HISTORY_KEY] = "|".join(roots[-16:])
-
 
 class ConfigManager:
     def __init__(self):

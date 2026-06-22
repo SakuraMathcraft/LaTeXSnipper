@@ -86,14 +86,18 @@ Core editing and local recognition workflows are designed to work locally after 
 `install_base_dir` is the active dependency root. Windows packaged builds start
 with `<install-dir>\_internal\deps`; Linux defaults to `~/.latexsnipper/deps`;
 macOS defaults to `~/Library/Application Support/LaTeXSnipper/deps`. If the user
-changes the dependency directory, all dependency-managed files follow the new
-root.
+changes the dependency directory, only the isolated Python dependency
+environment follows the new root.
 
 Within that root, LaTeXSnipper creates:
 
 - `python311` for the isolated dependency Python/venv.
-- `pandoc` for the optional dependency-managed Pandoc binary.
-- `translation_env` for the optional Argos local translation environment.
+
+App-managed optional tools are shared under the app state root, independent of
+the active dependency root:
+
+- `tools/pandoc` for the optional app-managed Pandoc binary.
+- `tools/translation_env` for the optional Argos local translation environment.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
@@ -180,7 +184,7 @@ Bilingual Reading is a PDF reading and translation window, not OCR. It reads the
 - Google Cloud Translation
 - DeepL API Free
 
-Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses a separate optional translation environment at `<dependency-root>/translation_env`, following the same active dependency root as Pandoc. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
+Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses a separate optional translation environment at `<app-state>/tools/translation_env`; it does not follow the active dependency root. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
 
 ## Which external model protocols are supported?
 

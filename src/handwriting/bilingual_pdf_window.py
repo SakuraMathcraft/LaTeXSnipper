@@ -15,8 +15,8 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 
 from handwriting.pdf_view_fitz import FitzPdfView
 from handwriting.pdf_view_poppler import PopplerPdfView, detect_poppler_backend
-from runtime.app_paths import resource_path
-from runtime.dependency_python import dependency_root_from_python, dependency_tool_dir, resolve_dependency_python
+from runtime.app_paths import app_tool_dir, resource_path
+from runtime.dependency_python import resolve_dependency_python
 
 @dataclass(frozen=True)
 class _PagePayload:
@@ -1352,10 +1352,7 @@ class BilingualPdfWindow(QWidget):
         return resolve_dependency_python((configured_base,), fallback_to_current=True)
 
     def _resolve_argos_env_dir(self) -> Path:
-        configured_base = str(self.cfg.get("install_base_dir", "") or "").strip() if self.cfg else ""
-        if configured_base:
-            return dependency_tool_dir(configured_base, "translation_env")
-        return dependency_root_from_python(Path(self._resolve_dependency_python()).resolve()) / "translation_env"
+        return app_tool_dir("translation_env")
 
     def _resolve_argos_python(self) -> str:
         env_py = _translation_env_python(self._resolve_argos_env_dir())

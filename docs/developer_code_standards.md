@@ -1,6 +1,6 @@
 # Developer Code Standards
 
-These rules are mandatory for pull requests. They keep the desktop app,
+These rules are mandatory for contributed changes. They keep the desktop app,
 MathCraft OCR package, dependency bootstrap flow, and platform packaging paths
 clean and reproducible.
 
@@ -16,13 +16,14 @@ clean and reproducible.
 
 ## Collaboration Workflow
 
-- `main` is the release source of truth. Release packages should be built by
-  GitHub Actions from `main` or from the final release tag, not from a local
-  branch whose freshness is unknown.
-- Feature work must be done on a branch and merged by pull request. Do not push
-  direct feature commits to `main`.
-- Before opening or updating a PR, sync the feature branch with the latest
-  `main` and resolve conflicts locally:
+- `main` is the release source of truth and does not accept pull requests.
+  Release packages should be built by GitHub Actions from `main` or from the
+  final release tag, not from a local branch whose freshness is unknown.
+- Feature work must be done on an independent branch or fork. Maintainers may
+  selectively port small, reviewed fixes into release branches when they match
+  the current maintenance scope. Do not push direct feature commits to `main`.
+- Before sharing a patch or branch for review, sync the working branch with the
+  latest `main` and resolve conflicts locally:
 
 ```powershell
 git fetch origin
@@ -30,29 +31,26 @@ git merge --ff-only origin/main
 ```
 
   If fast-forward is not possible, rebase or merge intentionally and document
-  the conflict resolution in the PR.
-- Repository branch protection or rulesets for `main` should require PR review,
-  required status checks, and "require branches to be up to date before
-  merging". This prevents merging a PR that has not been tested against the
-  current `main`.
-- After a PR is merged into `main`, any long-lived working branch such as
-  `MathCraft` must be refreshed from `origin/main` before further development or
+  the conflict resolution in the change notes.
+- Repository branch protection or rulesets for `main` should prevent direct
+  feature work and require maintainers to run the release checks before any
+  curated maintenance update lands on `main`.
+- After a curated maintenance update lands on `main`, any long-lived working
+  branch must be refreshed from `origin/main` before further development or
   packaging work:
 
 ```powershell
 git fetch origin
 git merge --ff-only origin/main
-git push origin MathCraft
+git push origin <branch>
 ```
 
 - If a local branch shows commits behind `origin/main`, do not create release
   artifacts from it. Update the branch first, then rely on the Actions release
   workflow for platform packages.
-- If a PR changes packaging, dependency bootstrap, platform providers, or
-  release workflows, the PR description must say which platform package jobs or
+- If a change touches packaging, dependency bootstrap, platform providers, or
+  release workflows, the change notes must say which platform package jobs or
   local target-platform checks were run.
-- Before platform cleanup work, check `docs/platform_adaptation_audit.md` and
-  update the relevant status when the PR fixes or intentionally accepts an item.
 - Before adding persistent user files, reusable caches, or temp directories,
   check and update `docs/user_data_storage.md`.
 
@@ -95,8 +93,8 @@ git push origin MathCraft
   have been verified against them.
 - Keep common app runtime packages in `requirements.txt`. Platform files may
   include it and then add Linux/macOS-only packages.
-- Keep build tools pinned in `requirements-build.txt` unless the PR explicitly
-  updates and verifies the packaging flow.
+- Keep build tools pinned in `requirements-build.txt` unless the change
+  explicitly updates and verifies the packaging flow.
 
 ## Packaging Rules
 
@@ -109,7 +107,7 @@ git push origin MathCraft
 - README references to packaging scripts or spec files must point to files that
   exist in the repository.
 - GitHub Actions release builds must keep Windows, Linux, macOS, and release
-  publishing jobs in one workflow unless the PR explicitly changes release
+  publishing jobs in one workflow unless the change explicitly updates release
   policy and documents the replacement.
 
 ## Language And Encoding Rules
@@ -135,11 +133,11 @@ git push origin MathCraft
   unused package maps.
 - No settings UI for behavior already owned by the dependency wizard or provider
   layer.
-- No broad refactors mixed into platform support PRs.
+- No broad refactors mixed into platform support changes.
 - Keep large UI windows and worker flows split by responsibility. New features
   should add focused controllers/helpers instead of growing already-large
   window modules.
-- Keep comments short and technical. Avoid PR narrative, changelog prose, or
+- Keep comments short and technical. Avoid change-request narrative, changelog prose, or
   long descriptive banners inside source files.
 - Comments must explain durable implementation constraints, not historical
   decisions that no longer affect the code.
@@ -194,4 +192,4 @@ Run all checks with the project dependency Python:
 ```
 
 For packaging changes, also validate the relevant script/spec on the target
-platform and include the command and result in the PR description.
+platform and include the command and result in the change notes.

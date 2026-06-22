@@ -99,6 +99,22 @@ def app_temp_dir() -> pathlib.Path:
     return p
 
 
+def app_tools_dir() -> pathlib.Path:
+    p = app_state_dir() / "tools"
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return p
+
+
+def app_tool_dir(tool_name: str) -> pathlib.Path:
+    name = str(tool_name or "").strip()
+    if not name or any(sep in name for sep in ("/", "\\")):
+        raise ValueError("tool_name must be a single directory name")
+    return app_tools_dir() / name
+
+
 def app_config_path() -> pathlib.Path:
     return app_state_dir() / CONFIG_FILENAME
 

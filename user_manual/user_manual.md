@@ -88,7 +88,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 - **Windows：** 确保以普通用户（非管理员）运行，且杀毒软件未拦截
 - **Linux：** 确保 `python3 -m venv` 可用（Debian/Ubuntu 通常需要 `python3-venv`）
-- **macOS：** 确保有可用的 Python 3.10+，推荐 Homebrew Python 或 python.org 官方安装包
+- **macOS：** 确保有可用的 Python `>=3.10,<3.13`，推荐 Homebrew Python 或 python.org 官方 3.11/3.12 安装包
 
 ### 软件的基本工作流
 
@@ -170,7 +170,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - 原文来自 PyMuPDF 对 PDF 文本层的提取；扫描件或没有文本层的 PDF 需要先走 OCR 识别。
 - PDF 预览后端可选 **自动**、**Poppler**、**Fitz**。自动模式优先使用可用的 Poppler，否则回退 Fitz。
 - 翻译引擎可选 **仅显示原文**、**Argos Translate**、**Azure Translator**、**Google Cloud Translation**、**DeepL API Free**。
-- Argos 是可选本地翻译组件，会在活动依赖根下创建 `translation_env` 并安装英译中模型；它不影响主依赖 Python 环境是否完整。
+- Argos 是可选本地翻译组件，会在应用状态目录的 `tools/translation_env` 中安装英译中模型；它不影响主依赖 Python 环境是否完整，也不会随用户切换依赖根而重复部署。
 - Azure、Google、DeepL 的接口配置只对双语阅读功能生效，保存后写入本地配置。
 
 ---
@@ -381,7 +381,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 **解决：**
 
 - **普通 Windows 安装包用户：** 不需要单独安装 Python，安装包自带规范化的 Python 3.11 模板环境。
-- **Linux/macOS 安装包用户：** 需要系统中有可用 Python 3.10+，仅用于创建用户目录下的隔离依赖环境。
+- **Linux/macOS 安装包用户：** 需要系统中有可用 Python `>=3.10,<3.13`，仅用于创建用户目录下的隔离依赖环境。
 - **源码运行/开发者：** 推荐 Python 3.11，与当前 Windows 打包环境保持一致。
 
 ```bash
@@ -417,7 +417,7 @@ pip install -r requirements-macos.txt
 
 ### 依赖环境创建在哪里
 
-LaTeXSnipper 使用 `install_base_dir` 作为活动依赖根。用户在依赖向导或设置中切换依赖目录后，Python 依赖、Pandoc 和 Argos 本地翻译环境都会跟随新的依赖根。
+LaTeXSnipper 使用 `install_base_dir` 作为活动 Python 依赖根。用户在依赖向导或设置中切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 和 Argos 本地翻译环境固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
 
 Windows 安装包默认使用内置依赖根：
 
@@ -436,8 +436,13 @@ macOS:  ~/Library/Application Support/LaTeXSnipper/deps
 
 ```text
 <依赖根>/python311         主依赖 Python/venv
-<依赖根>/pandoc            可选 Pandoc 二进制目录
-<依赖根>/translation_env   可选 Argos 本地翻译环境
+```
+
+共享工具目录如下：
+
+```text
+<应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
+<应用状态目录>/tools/translation_env   可选 Argos 本地翻译环境
 ```
 
 > [!NOTE]
@@ -492,10 +497,10 @@ https://www.python.org/downloads/macos/
 
 ### 卸载后如何清理用户数据和模型缓存
 
-LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、依赖环境和 MathCraft 模型缓存。需要彻底清理时：
+LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、用户切换过的依赖环境、共享工具和 MathCraft 模型缓存。需要彻底清理时：
 
-- **Windows：** 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，可分别勾选删除用户数据/日志/临时文件、删除已记录依赖根中的依赖环境（包括 `python311`、`pandoc`、`translation_env`）、删除 MathCraft 模型权重。
-- **Linux `.deb`：** 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、依赖环境和模型缓存。
+- **Windows：** 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，随后仍会显示 Inno 标准卸载确认；标准确认通过后，卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、LaTeXSnipper 管理的共享工具目录、MathCraft 模型权重。安装目录内的 `_internal` 会随主程序卸载删除；用户切换到外部的完整 Python 或 venv 不会被卸载器删除。
+- **Linux `.deb`：** 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、共享工具和模型缓存；脚本不会读取或删除用户切换过的外部 Python 依赖根。
 - **macOS `.dmg` / `.app.zip`：** 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
 
 如果你显式设置过 `MATHCRAFT_HOME` 指向自定义目录，卸载和清理脚本都不会自动删除该目录，避免误删用户指定的外部数据位置。
@@ -722,7 +727,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 | 截图实现 | Qt 框选截图 | Qt 优先，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退 | Qt 优先，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限 |
 | 关闭窗口 / 后台常驻 | 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出 | 有系统托盘时关闭主窗口会隐藏到托盘；没有托盘时会询问是否退出 | 关闭主窗口会最小化并保持应用运行；Dock 或菜单栏"退出"才真正退出 |
 | 权限要求 | 普通截图路径不需要额外系统权限 | Wayland 可能限制截图和全局快捷键 | 截图需要屏幕录制权限；Carbon 全局快捷键通常不需要辅助功能权限 |
-| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python 3.10+ 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python 3.10+ 创建 venv |
+| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv |
 | 安装包 | Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包 | Debian/Ubuntu `.deb` | `.dmg` / `.app.zip` |
 
 快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`，macOS 接受 `Command+字母` 或 `Command+Shift+字母`。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
@@ -800,7 +805,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 **现象：** 依赖向导提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
 
-**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python 3.10+ 在活动依赖根下创建 `python311`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
+**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python `>=3.10,<3.13` 在活动依赖根下创建 `python311`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
 
 **解决：**
 
@@ -823,8 +828,10 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 依赖根内：
   python311         主依赖 Python/venv
-  pandoc            可选 Pandoc 二进制目录
-  translation_env   可选 Argos 本地翻译环境
+
+共享工具目录：
+  <应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
+  <应用状态目录>/tools/translation_env   可选 Argos 本地翻译环境
 
 模型缓存（MathCraft ONNX）：
   Windows:  %APPDATA%\MathCraft\models\
@@ -951,7 +958,8 @@ py -3.11 -m venv tools\deps\python311
 > - `tools/deps/python311/` — 开发、检查、构建环境。
 > - `~/.latexsnipper/deps` — Linux 默认运行时依赖根。
 > - `~/Library/Application Support/LaTeXSnipper/deps` — macOS 默认运行时依赖根。
-> - `<依赖根>/python311`、`<依赖根>/pandoc`、`<依赖根>/translation_env` — 程序创建的依赖子目录。
+> - `<依赖根>/python311` — 程序创建的主 Python 依赖环境。
+> - `<应用状态目录>/tools/pandoc`、`<应用状态目录>/tools/translation_env` — 程序创建的共享工具目录，切换依赖根后继续复用。
 
 ### 开发者验证命令注意事项
 

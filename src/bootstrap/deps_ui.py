@@ -733,12 +733,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     pass
             cfg["install_base_dir"] = normalized
             try:
-                from runtime.config_manager import remember_dependency_root
-
-                remember_dependency_root(cfg, normalized)
-            except Exception:
-                pass
-            try:
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
                 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized

@@ -2,7 +2,6 @@
 set -eu
 
 APP_NAME="LaTeXSnipper"
-CONFIG_FILENAME="LaTeXSnipper_config.json"
 
 usage() {
     cat <<'EOF'
@@ -15,9 +14,9 @@ from a different user account.
 
 Options:
   --app-data  Remove settings, history, logs, dependency state, and temp files.
-  --deps      Remove app-managed dependency environments and Pandoc/translation tools.
+  --deps      Remove app-managed shared Pandoc/translation tools.
   --models    Remove MathCraft model weights from the default platform cache.
-  --all       Remove app data, dependency environments, and model weights.
+  --all       Remove app data, shared tools, and model weights.
   --yes       Do not ask for confirmation.
 EOF
 }
@@ -77,7 +76,6 @@ else
     model_dir="$xdg_data_home/$APP_NAME/MathCraft/models"
 fi
 temp_dir="$tmp_root/$APP_NAME"
-config_file="$app_state/$CONFIG_FILENAME"
 
 ask_yes_no() {
     prompt="$1"
@@ -109,82 +107,11 @@ remove_path() {
     fi
 }
 
-collect_dependency_roots() {
-    printf '%s\n' "$app_state/deps"
-    if command -v python3 >/dev/null 2>&1 && [ -f "$config_file" ]; then
-        python3 - "$config_file" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-cfg_path = Path(sys.argv[1])
-try:
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-except Exception:
-    data = {}
-if isinstance(data, dict):
-    raw_values = [str(data.get("install_base_dir") or "").strip()]
-    history = data.get("install_base_dir_cleanup_roots")
-    if isinstance(history, str):
-        raw_values.extend(item.strip() for item in history.split("|"))
-    elif isinstance(history, list):
-        raw_values.extend(str(item).strip() for item in history)
-    for raw in raw_values:
-        if raw:
-            print(str(Path(raw).expanduser()))
-PY
-    fi
-}
-
-is_dangerous_root() {
-    path="$1"
-    [ -z "$path" ] && return 0
-    [ "$path" = "/" ] && return 0
-    [ "$path" = "$HOME" ] && return 0
-    [ "$path" = "$app_state" ] && return 0
-    return 1
-}
-
-is_python_environment_root() {
-    root="$1"
-    [ -f "$root/pyvenv.cfg" ] && return 0
-    [ -f "$root/python.exe" ] && return 0
-    [ -f "$root/pythonw.exe" ] && return 0
-    [ -f "$root/Scripts/python.exe" ] && return 0
-    [ -f "$root/bin/python" ] && return 0
-    return 1
-}
-
-remove_dependency_root_children() {
-    root="$1"
-    if is_dangerous_root "$root"; then
-        printf 'Skipped dependency root with unsafe scope: %s\n' "$root"
-        return
-    fi
-
-    if is_python_environment_root "$root"; then
-        remove_path "$root" "dependency environment root"
-        return
-    fi
-
-    remove_path "$root/.deps_state.json" "dependency state"
-    remove_path "$root/python311" "dependency Python"
-    remove_path "$root/Python311" "dependency Python"
-    remove_path "$root/python_full" "dependency Python"
-    remove_path "$root/venv" "dependency venv"
-    remove_path "$root/.venv" "dependency venv"
-    remove_path "$root/pandoc" "Pandoc dependency"
-    remove_path "$root/translation_env" "translation environment"
-    rmdir "$root" 2>/dev/null || true
-}
-
-dependency_roots="$(collect_dependency_roots | awk 'NF && !seen[$0]++')"
-
 if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remove_models" = "false" ]; then
     if ask_yes_no "Remove LaTeXSnipper settings, history, logs, dependency state, and temp files?"; then
         remove_app_data=true
     fi
-    if ask_yes_no "Remove app-managed dependency environments, Pandoc, and translation tools?"; then
+    if ask_yes_no "Remove app-managed Pandoc and translation tools?"; then
         remove_deps=true
     fi
     if ask_yes_no "Remove MathCraft model weights from the default cache?"; then
@@ -193,9 +120,7 @@ if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remov
 fi
 
 if [ "$remove_deps" = "true" ]; then
-    printf '%s\n' "$dependency_roots" | while IFS= read -r root; do
-        [ -n "$root" ] && remove_dependency_root_children "$root"
-    done
+    remove_path "$app_state/tools" "shared dependency tools"
 fi
 
 if [ "$remove_app_data" = "true" ]; then
@@ -214,5 +139,5 @@ cat <<EOF
 
 Done.
 Custom MATHCRAFT_HOME directories are not removed automatically. Dependency
-tools created by LaTeXSnipper are grouped under the configured dependency root.
+tools created by LaTeXSnipper are grouped under the app state tools directory.
 EOF

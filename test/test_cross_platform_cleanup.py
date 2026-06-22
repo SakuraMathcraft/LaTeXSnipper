@@ -169,26 +169,45 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "TSetupForm.Create" not in inno
     assert "CreateCustomForm(ScaleX(430), ScaleY(190), False, True)" in inno
     assert "{userprofile}" not in inno.lower()
-    assert "{%USERPROFILE}" in inno
+    assert "{%USERPROFILE}" not in inno
+    assert "$env:USERPROFILE" in inno
     assert "DeleteDependencyEnvsOnUninstall" in inno
     assert r'Type: filesandordirs; Name: "{app}\_internal"' in inno
-    assert "已记录依赖根目录" in inno
-    assert "安装目录下的依赖环境" not in inno
-    assert "function ConfiguredDependencyRoot" in inno
-    assert "JsonStringValue(String(ConfigText), 'install_base_dir')" in inno
-    assert "procedure CleanupDependencyRootHistory" in inno
-    assert "install_base_dir_cleanup_roots" in inno
-    assert "procedure CleanupDependencyRootChildren" in inno
-    assert "function IsPythonEnvironmentRoot" in inno
-    assert "FileExists(AddBackslash(Path) + 'pyvenv.cfg')" in inno
-    assert "FileExists(AddBackslash(Path) + 'Scripts\\python.exe')" in inno
-    assert "CleanupPath(Root);" in inno
-    assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" in inno
-    assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" in inno
-    assert "CleanupDependencyRootHistory()" in inno
+    assert "已记录依赖根目录" not in inno
+    assert "LaTeXSnipper 管理的共享工具" in inno
+    assert "function ConfiguredDependencyRoot" not in inno
+    assert "JsonStringValue" not in inno
+    assert "procedure CleanupDependencyRootHistory" not in inno
+    assert "install_base_dir_cleanup_roots" not in inno
+    assert "install_base_dir" not in inno
+    assert "CleanupSharedToolsWithPowerShell()" in inno
+    assert "CleanupDependencyRootsWithPowerShell()" not in inno
+    assert "procedure CurUninstallStepChanged" in inno
+    assert "CurUninstallStep <> usUninstall" in inno
+    initialize_body = inno.split("function InitializeUninstall(): Boolean;", 1)[1].split("procedure CurUninstallStepChanged", 1)[0]
+    assert "EnsureApplicationClosed()" not in initialize_body
+    assert "CleanupDependencyRootsWithPowerShell()" not in initialize_body
+    assert "CleanupSharedToolsWithPowerShell()" not in initialize_body
+    assert "CleanupAppDataWithPowerShell()" not in initialize_body
+    assert "CleanupAppDataWithPowerShell()" in inno
+    assert "Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper'')" in inno
+    assert "procedure CleanupDependencyRootChildren" not in inno
+    assert "function IsPythonEnvironmentRoot" not in inno
+    assert "Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf" not in inno
+    assert "Resolve-PythonEnvironmentRoot" not in inno
+    assert "pyvenv.cfg" not in inno
+    assert "python.exe" not in inno
+    assert "pythonw.exe" not in inno
+    assert "Scripts\\python.exe" not in inno
+    assert "bin\\python" not in inno
+    assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" not in inno
+    assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" not in inno
+    assert "CleanupDependencyRootHistory()" not in inno
     assert inno.index("if DeleteDependencyEnvsOnUninstall then") < inno.index("if DeleteAppDataOnUninstall then")
-    assert "CleanupPath(AddBackslash(Root) + 'pandoc')" in inno
-    assert "CleanupPath(AddBackslash(Root) + 'translation_env')" in inno
+    assert "CloseApplicationsFilter={#MyAppExeName}" in inno
+    assert "taskkill.exe" in inno
+    assert "''pandoc'', ''translation_env''" not in inno
+    assert "Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper\\tools'')" in inno
 
 
 def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
@@ -197,33 +216,64 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     faq_doc = (ROOT / "docs" / "faq.md").read_text(encoding="utf-8")
     manual_doc = (ROOT / "user_manual" / "user_manual.md").read_text(encoding="utf-8")
     manual_typ = (ROOT / "user_manual" / "user_manual.typ").read_text(encoding="utf-8")
-    audit_doc = (ROOT / "docs" / "platform_adaptation_audit.md").read_text(encoding="utf-8")
 
     assert "--deps" in cleanup_script
-    assert "install_base_dir" in cleanup_script
-    assert "install_base_dir_cleanup_roots" in cleanup_script
-    assert "argos_translation_env_dir" not in cleanup_script
-    assert "pandoc" in cleanup_script
-    assert "translation_env" in cleanup_script
-    assert "is_python_environment_root()" in cleanup_script
-    assert 'remove_path "$root" "dependency environment root"' in cleanup_script
+    assert "install_base_dir" not in cleanup_script
+    assert "install_base_dir_cleanup_roots" not in cleanup_script
+    assert "shared Pandoc/translation tools" in cleanup_script
+    assert "is_python_environment_root()" not in cleanup_script
+    assert "resolve_python_environment_root()" not in cleanup_script
+    assert "pyvenv.cfg" not in cleanup_script
+    assert "python.exe" not in cleanup_script
+    assert "pythonw.exe" not in cleanup_script
+    assert "Scripts/python.exe" not in cleanup_script
+    assert "bin/python" not in cleanup_script
+    assert 'remove_path "$env_root" "dependency environment root"' not in cleanup_script
     assert "rm -rf \"$root\"" not in cleanup_script
-    assert "`<dependency-root>/pandoc`" in user_data_doc
-    assert "`<dependency-root>/translation_env`" in user_data_doc
-    assert "Direct child of the selected dependency root" in user_data_doc
-    assert "Pandoc and Argos translation are not fixed to the application install" in user_data_doc
-    assert "cleanup treats that recorded root as the environment and removes the whole root" in user_data_doc
-    assert "`pandoc` for the optional dependency-managed Pandoc binary" in faq_doc
-    assert "`translation_env` for the optional Argos local translation environment" in faq_doc
-    assert "following the same active dependency root as Pandoc" in faq_doc
-    assert "<依赖根>/pandoc" in manual_doc
-    assert "<依赖根>/translation_env" in manual_doc
+    assert 'remove_path "$root/pandoc"' not in cleanup_script
+    assert 'remove_path "$root/translation_env"' not in cleanup_script
+    assert 'remove_path "$app_state/tools" "shared dependency tools"' in cleanup_script
+    assert "`<app-state>/tools/pandoc`" in user_data_doc
+    assert "`<app-state>/tools/translation_env`" in user_data_doc
+    assert "Pandoc and Argos translation do not follow the active dependency root" in user_data_doc
+    assert "User-selected external Python roots are never read from config or deleted" in user_data_doc
+    assert "Moving the `.app` to Trash removes the app bundle only" in user_data_doc
+    assert "`tools/pandoc` for the optional app-managed Pandoc binary" in faq_doc
+    assert "`tools/translation_env` for the optional Argos local translation environment" in faq_doc
+    assert "does not follow the active dependency root" in faq_doc
+    assert "<应用状态目录>/tools/pandoc" in manual_doc
+    assert "<应用状态目录>/tools/translation_env" in manual_doc
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_doc
-    assert "<依赖根>/pandoc" in manual_typ
-    assert "<依赖根>/translation_env" in manual_typ
+    assert "<应用状态目录>/tools/pandoc" in manual_typ
+    assert "<应用状态目录>/tools/translation_env" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
-    assert "install-directory dependency environment" not in audit_doc
-    assert "prompts before uninstall starts" in audit_doc
+
+
+def test_system_python_range_copy_is_consistent() -> None:
+    deps_python_runtime = (ROOT / "src" / "bootstrap" / "deps_python_runtime.py").read_text(encoding="utf-8")
+    deps_workers = (ROOT / "src" / "bootstrap" / "deps_workers.py").read_text(encoding="utf-8")
+    deps_entry = (ROOT / "src" / "bootstrap" / "deps_entry.py").read_text(encoding="utf-8")
+    docs = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "readme.md",
+            ROOT / "README.zh-CN.md",
+            ROOT / "docs" / "faq.md",
+            ROOT / "docs" / "developer_code_standards.md",
+            ROOT / "docs" / "user_data_storage.md",
+            ROOT / "user_manual" / "user_manual.md",
+            ROOT / "user_manual" / "user_manual.typ",
+        )
+    )
+
+    assert "SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)" in deps_python_runtime
+    assert "SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)" in deps_python_runtime
+    assert "PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 12), (3, 11), (3, 10))" in deps_python_runtime
+    assert "Python 3.11 或 3.12" in deps_workers
+    assert "Python 3.11、3.12 或 3.13" not in deps_workers
+    assert "Python 3.11 或 3.12" in deps_entry
+    assert "Python 3.11、3.12 或 3.13" not in deps_entry
+    assert ">=3.10,<3.13" in docs
 
 
 def test_release_workflow_pins_setuptools_before_bundled_seed_verification() -> None:
@@ -248,10 +298,10 @@ def test_dependency_wizard_keeps_ui_status_icons_for_visible_labels() -> None:
     assert '"[NET]' not in deps_layer_specs
 
 
-def test_workbench_disables_compute_engine_time_limit_after_cas_removal() -> None:
+def test_workbench_uses_default_compute_engine_time_limit_after_cas_removal() -> None:
     app_js = (ROOT / "src" / "assets" / "mathlive" / "app.js").read_text(encoding="utf-8")
 
-    assert "ce.timeLimit = 0;" in app_js
+    assert "ce.timeLimit = 2000;" in app_js
     assert "前端计算超时，已超过当前时限" not in app_js
     assert "前端计算引擎无法完成当前表达式" in app_js
 

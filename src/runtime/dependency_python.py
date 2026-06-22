@@ -38,16 +38,6 @@ def dependency_root_from_python(pyexe: str | Path) -> Path:
     return root
 
 
-def dependency_tool_dir(base_dir: str | Path, tool_name: str) -> Path:
-    name = str(tool_name or "").strip()
-    if not name or any(sep in name for sep in ("/", "\\")):
-        raise ValueError("tool_name must be a single directory name")
-    base = normalize_deps_base_dir(base_dir)
-    if base is None:
-        raise ValueError("base_dir is required")
-    return base / name
-
-
 def normalize_deps_base_dir(path: str | Path | None) -> Path | None:
     raw = normalize_path(path)
     if raw is None:
