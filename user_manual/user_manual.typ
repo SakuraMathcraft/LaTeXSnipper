@@ -925,7 +925,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 *主要差异集中在系统集成层：*
 
 - *截图快捷键：* Windows 使用 Win32 原生全局快捷键；Linux 使用 `pynput` 全局快捷键，X11 最稳定，Wayland 可能受桌面环境策略限制；macOS 使用 Carbon 原生全局快捷键。
-- *可设置快捷键：* Windows/Linux 支持 `Ctrl+字母` 或 `Ctrl+Shift+字母`；macOS 支持 `Command+字母` 或 `Command+Shift+字母`。
+- *可设置快捷键：* Windows/Linux 支持 `Ctrl+字母` 或 `Ctrl+Shift+字母`；macOS 支持非保留 `Command+字母` / `Command+Shift+字母`，也支持 `Option+Command` 组合。
 - *默认快捷键：* Windows/Linux 为 `Ctrl+F`；macOS 为 `Command+F`。
 - *截图实现：* Windows 使用 Qt 框选截图；Linux 先走 Qt，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退；macOS 先走 Qt，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限。
 - *关闭窗口 / 后台常驻：* Windows 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出；Linux 有系统托盘时关闭主窗口会隐藏到托盘，没有托盘时会询问是否退出；macOS 关闭主窗口会最小化并保持应用运行，Dock 或菜单栏"退出"才真正退出。
@@ -934,7 +934,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 - *安装包：* Windows 使用 Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包；Linux 使用 Debian/Ubuntu `.deb`；macOS 使用 `.dmg` 或 `.app.zip`。
 
 #info-block("快捷键兼容性", [
-  快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`，macOS 接受 `Command+字母` 或 `Command+Shift+字母`。
+  快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`。macOS 接受非系统保留的 `Command+字母` / `Command+Shift+字母`，并支持 `Option+Command` 组合；`Command+Q/H/M/W/A/C/V/X/Z/Space/Tab` 和系统截图键会被拒绝。
   若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。
   macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
 ])

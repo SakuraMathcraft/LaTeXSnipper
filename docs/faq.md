@@ -21,7 +21,7 @@ The main differences are platform integration details:
 | Area | Windows | Linux | macOS |
 |---|---|---|---|
 | Global screenshot hotkey | Native Win32 global hotkey. | `pynput` global hotkey; X11 is the most reliable path, while Wayland/compositor policy can block global shortcuts. | Native Carbon global hotkey. |
-| User-configurable hotkeys | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Command+letter` and `Command+Shift+letter`. |
+| User-configurable hotkeys | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Command+letter` / `Command+Shift+letter` for non-reserved keys; `Option+Command` variants are also supported. |
 | Default hotkey | `Ctrl+F`. | `Ctrl+F`. | `Command+F`. |
 | Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
@@ -29,7 +29,7 @@ The main differences are platform integration details:
 | Dependency runtime | GitHub builds start from the bundled dependency root `<install-dir>\_internal\deps`; users may switch to another root. | Defaults to `~/.latexsnipper/deps`; users may switch to another root. | Defaults to `~/Library/Application Support/LaTeXSnipper/deps`; users may switch to another root. |
 | Packaging | Inno installer from GitHub Releases. | Debian/Ubuntu `.deb`. | `.dmg` and `.app.zip`. |
 
-The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS.
+The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS. macOS system and editing shortcuts such as `Command+Q`, `Command+H`, `Command+M`, `Command+W`, `Command+A`, `Command+C`, `Command+V`, `Command+X`, `Command+Z`, `Command+Space`, `Command+Tab`, and screenshot shortcuts are intentionally rejected; use an `Option+Command` combination when a plain Command shortcut is reserved.
 
 ## Which installer should I use?
 

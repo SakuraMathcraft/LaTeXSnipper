@@ -722,7 +722,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 | 项目 | Windows | Linux | macOS |
 |---|---|---|---|
 | 截图快捷键 | Win32 原生全局快捷键 | `pynput` 全局快捷键，X11 最稳定；Wayland 可能受桌面环境策略限制 | Carbon 原生全局快捷键 |
-| 可设置快捷键 | `Ctrl+字母`、`Ctrl+Shift+字母` | `Ctrl+字母`、`Ctrl+Shift+字母` | `Command+字母`、`Command+Shift+字母` |
+| 可设置快捷键 | `Ctrl+字母`、`Ctrl+Shift+字母` | `Ctrl+字母`、`Ctrl+Shift+字母` | 非保留 `Command+字母` / `Command+Shift+字母`，也支持 `Option+Command` 组合 |
 | 默认快捷键 | `Ctrl+F` | `Ctrl+F` | `Command+F` |
 | 截图实现 | Qt 框选截图 | Qt 优先，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退 | Qt 优先，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限 |
 | 关闭窗口 / 后台常驻 | 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出 | 有系统托盘时关闭主窗口会隐藏到托盘；没有托盘时会询问是否退出 | 关闭主窗口会最小化并保持应用运行；Dock 或菜单栏"退出"才真正退出 |
@@ -730,7 +730,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 | 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv |
 | 安装包 | Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包 | Debian/Ubuntu `.deb` | `.dmg` / `.app.zip` |
 
-快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`，macOS 接受 `Command+字母` 或 `Command+Shift+字母`。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
+快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`。macOS 接受非系统保留的 `Command+字母` / `Command+Shift+字母`，并支持 `Option+Command` 组合；`Command+Q/H/M/W/A/C/V/X/Z/Space/Tab` 和系统截图键会被拒绝。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
 
 ### Linux: Wayland 下截图功能异常
 
