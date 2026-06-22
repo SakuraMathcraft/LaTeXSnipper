@@ -10,7 +10,7 @@ def test_macos_cleanup_targets_are_user_library_app_owned_paths(tmp_path, monkey
     from runtime import macos_local_data_cleanup as cleanup
 
     monkeypatch.setattr(cleanup.sys, "platform", "darwin")
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cleanup.Path, "home", staticmethod(lambda: tmp_path))
 
     targets = cleanup.macos_cleanup_targets()
 
@@ -31,7 +31,7 @@ def test_macos_cleanup_removes_downloaded_deps_cache_and_logs_but_keeps_config(
     from runtime import macos_local_data_cleanup as cleanup
 
     monkeypatch.setattr(cleanup.sys, "platform", "darwin")
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cleanup.Path, "home", staticmethod(lambda: tmp_path))
 
     support_dir = tmp_path / "Library" / "Application Support" / "LaTeXSnipper"
     deps_dir = support_dir / "deps"
@@ -59,7 +59,7 @@ def test_macos_cleanup_is_noop_on_other_platforms(tmp_path, monkeypatch) -> None
     from runtime import macos_local_data_cleanup as cleanup
 
     monkeypatch.setattr(cleanup.sys, "platform", "linux")
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cleanup.Path, "home", staticmethod(lambda: tmp_path))
 
     assert cleanup.macos_cleanup_targets() == []
     result = cleanup.cleanup_macos_local_data()

@@ -7,7 +7,6 @@ import threading
 from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
-from runtime.app_paths import app_state_dir
 
 try:
     import psutil

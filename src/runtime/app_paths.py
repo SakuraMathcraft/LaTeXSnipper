@@ -35,10 +35,6 @@ def app_state_dir() -> pathlib.Path:
         p.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
     _APP_STATE_DIR_CACHE = p
     return p
 

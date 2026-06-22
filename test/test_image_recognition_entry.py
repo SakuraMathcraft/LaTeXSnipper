@@ -26,3 +26,11 @@ def test_latex_editor_viewport_intercepts_image_file_drops() -> None:
 
 def test_image_staging_branch_is_removed() -> None:
     assert not (ROOT / "src" / "ui" / "image_staging.py").exists()
+
+
+def test_unused_native_backend_contract_is_removed() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert not (ROOT / "latexsnipper_backend").exists()
+    assert "latexsnipper-backend" not in pyproject
+    assert "latexsnipper_backend" not in pyproject
