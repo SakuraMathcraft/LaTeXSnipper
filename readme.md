@@ -106,7 +106,9 @@ Thanks to everyone who supports LaTeXSnipper development, testing, documentation
 
 | Supporter | Contribution |
 |---|---|
-| Placeholder | Sponsor / contributor list will be added here. |
+| [strangelion](https://github.com/strangelion) | contributor |
+| [Galileo927](https://github.com/Galileo927) | contributor |
+| [ljygo](https://github.com/ljygo) | Sponsor |
 
 ---
 
