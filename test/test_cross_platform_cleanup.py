@@ -172,7 +172,7 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert "pypandoc>=1.15" not in build_requirements
 
     release_builder = (ROOT / "scripts" / "build_github_release_installer.ps1").read_text(encoding="utf-8")
-    assert '"Lib\\ensurepip"' not in release_builder
+    assert '"Lib\\ensurepip"' in release_builder
     assert '"Lib\\venv"' not in release_builder
 
     assert not (ROOT / "Inno" / "latexsnipper_offline.iss").exists()
@@ -224,7 +224,6 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert inno.index("if DeleteDependencyEnvsOnUninstall then") < inno.index("if DeleteAppDataOnUninstall then")
     assert "CloseApplicationsFilter={#MyAppExeName}" in inno
     assert "taskkill.exe" in inno
-    assert "''pandoc'', ''translation_env''" not in inno
     assert "Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper\\tools'')" in inno
 
 
@@ -238,7 +237,7 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "--deps" in cleanup_script
     assert "install_base_dir" not in cleanup_script
     assert "install_base_dir_cleanup_roots" not in cleanup_script
-    assert "shared Pandoc/translation tools" in cleanup_script
+    assert "shared dependency tools" in cleanup_script
     assert "is_python_environment_root()" not in cleanup_script
     assert "resolve_python_environment_root()" not in cleanup_script
     assert "pyvenv.cfg" not in cleanup_script
@@ -248,22 +247,16 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "bin/python" not in cleanup_script
     assert 'remove_path "$env_root" "dependency environment root"' not in cleanup_script
     assert "rm -rf \"$root\"" not in cleanup_script
-    assert 'remove_path "$root/pandoc"' not in cleanup_script
-    assert 'remove_path "$root/translation_env"' not in cleanup_script
     assert 'remove_path "$app_state/tools" "shared dependency tools"' in cleanup_script
     assert "`<app-state>/tools/pandoc`" in user_data_doc
-    assert "`<app-state>/tools/translation_env`" in user_data_doc
-    assert "Pandoc and Argos translation do not follow the active dependency root" in user_data_doc
+    assert "Pandoc does not follow the active dependency root" in user_data_doc
     assert "User-selected external Python roots are never read from config or deleted" in user_data_doc
     assert "Moving the `.app` to Trash removes the app bundle only" in user_data_doc
     assert "`tools/pandoc` for the optional app-managed Pandoc binary" in faq_doc
-    assert "`tools/translation_env` for the optional Argos local translation environment" in faq_doc
     assert "does not follow the active dependency root" in faq_doc
     assert "<应用状态目录>/tools/pandoc" in manual_doc
-    assert "<应用状态目录>/tools/translation_env" in manual_doc
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_doc
     assert "<应用状态目录>/tools/pandoc" in manual_typ
-    assert "<应用状态目录>/tools/translation_env" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
 
 
@@ -471,7 +464,7 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
     assert "python311._pth" in script
     assert "Lib\\site-packages" in script
-    assert '"Lib\\ensurepip"' not in script
+    assert '"Lib\\ensurepip"' in script
     assert '"Lib\\venv"' not in script
     assert '"Lib\\idlelib"' in script
     assert '"DLLs\\_tkinter.pyd"' in script
@@ -485,11 +478,9 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert 'for mod in ("pip", "setuptools", "wheel", "packaging")' not in script
     assert "sys.prefix does not point to bundled python311" in script
     assert "sys.path contains paths outside bundled python311" in script
-    assert 'importlib.import_module("ensurepip")' in script
-    assert 'venv.create(tmp, with_pip=True, clear=True)' in script
-    assert '"bundled python311 cannot create a child venv with pip"' in script
-    assert '"bundled python311 child venv leaked parent site-packages"' in script
-    assert '"bundled python311 child venv pip does not come from child site-packages"' in script
+    assert 'importlib.import_module("ensurepip")' not in script
+    assert 'venv.create(tmp, with_pip=True, clear=True)' not in script
+    assert "child venv" not in script
     assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
     assert "$env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot" in script
     assert "Normalize-BundledPythonSeed -Root $root" not in script
@@ -501,7 +492,7 @@ def test_pyinstaller_specs_prune_bundled_python_seed_payload() -> None:
     for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
         spec = (ROOT / spec_name).read_text(encoding="utf-8")
         assert "_prune_bundled_python_runtime" in spec
-        assert '"Lib/ensurepip"' not in spec
+        assert '"Lib/ensurepip"' in spec
         assert '"Lib/idlelib"' in spec
         assert '"DLLs/_tkinter.pyd"' in spec
         assert '"include"' in spec

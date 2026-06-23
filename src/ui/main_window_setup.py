@@ -38,8 +38,8 @@ class MainWindowSetupMixin:
         self._pending_hotkey_seq = None
 
         self.setWindowTitle("LaTeXSnipper")
-        self.resize(1280, 760)
-        self.setMinimumSize(1280, 760)
+        self.resize(1180, 720)
+        self.setMinimumSize(1180, 720)
 
         self._force_exit = False
 
@@ -71,7 +71,6 @@ class MainWindowSetupMixin:
         self.settings_window = None
         self.shortcut_window = None
         self.handwriting_window = None
-        self.bilingual_pdf_window = None
         self._theme_is_dark_cached = None
         self._auto_theme_sync_in_progress = False
         self._auto_theme_refresh_timer = QTimer(self)
@@ -286,8 +285,6 @@ class MainWindowSetupMixin:
         self.export_btn.clicked.connect(self._show_export_menu)
         self.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, "手写识别")
         self.handwriting_btn.clicked.connect(self.open_handwriting_window)
-        self.bilingual_reading_btn = PushButton(FluentIcon.BOOK_SHELF, "双语阅读")
-        self.bilingual_reading_btn.clicked.connect(self.open_bilingual_reader)
         self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "数学工作台")
         self.workbench_btn.clicked.connect(self.open_workbench)
         editor_actions = QHBoxLayout()
@@ -298,7 +295,6 @@ class MainWindowSetupMixin:
         editor_actions.addWidget(self.handwriting_btn)
         editor_actions.addWidget(self.copy_editor_btn)
         editor_actions.addWidget(self.export_btn)
-        editor_actions.addWidget(self.bilingual_reading_btn)
         editor_actions.addWidget(self.workbench_btn)
         editor_header.addLayout(editor_actions)
         right_layout.addLayout(editor_header)

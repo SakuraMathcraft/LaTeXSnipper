@@ -287,6 +287,7 @@ def _prune_bundled_python_runtime(dist_root: Path):
         "libs",
         "tcl",
         "NEWS.txt",
+        "Lib/ensurepip",
         "Lib/idlelib",
         "Lib/lib2to3",
         "Lib/pydoc_data",

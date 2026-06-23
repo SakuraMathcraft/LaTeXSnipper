@@ -59,7 +59,7 @@ def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy(
     assert "pandoc-*-windows-x86_64.msi" not in source
 
 
-def test_pandoc_and_argos_tools_are_installed_under_app_tools_root(tmp_path, monkeypatch) -> None:
+def test_pandoc_tool_is_installed_under_app_tools_root(tmp_path, monkeypatch) -> None:
     from bootstrap import deps_pandoc
     from runtime import app_paths
     from runtime.dependency_python import dependency_root_from_python
@@ -82,7 +82,6 @@ def test_pandoc_and_argos_tools_are_installed_under_app_tools_root(tmp_path, mon
     expected = app_state / "tools" / "pandoc"
     assert deps_pandoc._pandoc_data_dir(str(python_exe)) == expected
     assert deps_pandoc._pandoc_data_dir(str(scripts_python)) == expected
-    assert app_paths.app_tool_dir("translation_env") == app_state / "tools" / "translation_env"
     assert dependency_root_from_python(dependency_root / "python311" / "python.exe") == dependency_root
     assert dependency_root_from_python(dependency_root / "python311" / "Scripts" / "python.exe") == dependency_root
 

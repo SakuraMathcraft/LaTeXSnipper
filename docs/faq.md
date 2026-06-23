@@ -14,7 +14,7 @@ LaTeXSnipper provides release builds for Windows, Linux, and macOS.
 
 ## What differs between Windows, Linux, and macOS?
 
-The main application behavior is intentionally aligned across all three platforms: screenshot recognition, image recognition, PDF recognition, handwriting recognition, bilingual reading, export, history, favorites, and the math workbench use the same UI flow.
+The main application behavior is intentionally aligned across all three platforms: screenshot recognition, image recognition, PDF recognition, handwriting recognition, export, history, favorites, and the math workbench use the same UI flow.
 
 The main differences are platform integration details:
 
@@ -97,7 +97,10 @@ App-managed optional tools are shared under the app state root, independent of
 the active dependency root:
 
 - `tools/pandoc` for the optional app-managed Pandoc binary.
-- `tools/translation_env` for the optional Argos local translation environment.
+
+Pandoc does not follow the active dependency root. It is deployed once under the
+app-managed tools directory and remains available after the user switches Python
+dependency roots.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
@@ -173,18 +176,6 @@ The dependency wizard manages the optional `PANDOC` layer. Manually downloaded o
 Use the main window's PDF recognition button and choose the page count, output format, and render DPI. Built-in MathCraft PDF recognition uses mixed mode because PDF pages need both text and formula recovery. External providers must be configured first; MinerU native mode uses document parsing and returns Markdown.
 
 The PDF result window lets you edit, copy, and save the recognized document. Markdown saves also copy structured image assets when the provider returns them.
-
-## What is Bilingual Reading?
-
-Bilingual Reading is a PDF reading and translation window, not OCR. It reads the PDF text layer with PyMuPDF, shows the current page beside the extracted source text, and translates with one of these engines:
-
-- source text only
-- Argos Translate
-- Azure Translator
-- Google Cloud Translation
-- DeepL API Free
-
-Scanned PDFs without a text layer should be processed through PDF recognition first. Argos uses a separate optional translation environment at `<app-state>/tools/translation_env`; it does not follow the active dependency root. Remote engines require their own API keys and their configuration only applies to Bilingual Reading.
 
 ## Which external model protocols are supported?
 

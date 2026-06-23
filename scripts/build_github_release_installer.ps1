@@ -208,6 +208,7 @@ function Normalize-BundledPythonSeed {
         ".",
         "DLLs",
         "Lib",
+        "Lib\site-packages",
         "import site"
     )
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -263,6 +264,7 @@ function Normalize-BundledPythonSeed {
         "libs",
         "tcl",
         "NEWS.txt",
+        "Lib\ensurepip",
         "Lib\idlelib",
         "Lib\lib2to3",
         "Lib\pydoc_data",
@@ -303,10 +305,7 @@ function Normalize-BundledPythonSeed {
 import json
 import importlib
 import pathlib
-import subprocess
 import sys
-import tempfile
-import venv
 
 root = pathlib.Path(sys.argv[1]).resolve()
 paths = [pathlib.Path(p).resolve() for p in sys.path]
@@ -325,55 +324,6 @@ if pathlib.Path(sys.base_prefix).resolve() != root:
     raise SystemExit("sys.base_prefix does not point to bundled python311")
 if bad:
     raise SystemExit("sys.path contains paths outside bundled python311")
-importlib.import_module("ensurepip")
-importlib.import_module("venv")
-with tempfile.TemporaryDirectory(prefix="latexsnipper_verify_child_venv_") as tmp:
-    venv.create(tmp, with_pip=True, clear=True)
-    child_python = pathlib.Path(tmp) / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-    proc = subprocess.run(
-        [str(child_python), "-m", "pip", "--version"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-    )
-    if proc.returncode != 0:
-        raise SystemExit("bundled python311 cannot create a child venv with pip")
-    child_probe = subprocess.run(
-        [
-            str(child_python),
-            "-c",
-            (
-                "import json, pathlib, pip, sys; "
-                "base_site = pathlib.Path(sys.base_prefix) / 'Lib' / 'site-packages'; "
-                "child_site = pathlib.Path(sys.prefix) / 'Lib' / 'site-packages'; "
-                "print(json.dumps({"
-                "'prefix': sys.prefix, "
-                "'base_prefix': sys.base_prefix, "
-                "'pip': getattr(pip, '__file__', ''), "
-                "'base_site_in_path': str(base_site) in sys.path, "
-                "'child_site_in_path': str(child_site) in sys.path"
-                "}, ensure_ascii=False))"
-            ),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-    )
-    if child_probe.returncode != 0:
-        raise SystemExit("bundled python311 child venv isolation probe failed")
-    child_result = json.loads(child_probe.stdout.strip().splitlines()[-1])
-    if child_result.get("base_site_in_path"):
-        raise SystemExit("bundled python311 child venv leaked parent site-packages")
-    if not child_result.get("child_site_in_path"):
-        raise SystemExit("bundled python311 child venv did not expose child site-packages")
-    if str(child_result.get("pip", "")).lower().find(str(pathlib.Path(tmp).resolve()).lower()) < 0:
-        raise SystemExit("bundled python311 child venv pip does not come from child site-packages")
 '@
     $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
     try {

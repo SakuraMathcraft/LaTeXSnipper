@@ -147,30 +147,6 @@ class WindowOpenersMixin:
         self.workbench_window.raise_()
         self.workbench_window.activateWindow()
 
-    def open_bilingual_reader(self):
-        window = getattr(self, "bilingual_pdf_window", None)
-        if window is not None:
-            try:
-                if window.isVisible():
-                    window.raise_()
-                    window.activateWindow()
-                    return
-            except RuntimeError:
-                pass
-            self.bilingual_pdf_window = None
-        try:
-            from handwriting.bilingual_pdf_window import BilingualPdfWindow
-
-            window = BilingualPdfWindow(cfg=self.cfg, parent=self)
-        except Exception as exc:
-            custom_warning_dialog("错误", f"双语阅读窗口初始化失败: {exc}", self)
-            return
-        self.bilingual_pdf_window = window
-        window.destroyed.connect(lambda: setattr(self, "bilingual_pdf_window", None))
-        window.show()
-        window.raise_()
-        window.activateWindow()
-
     def show_window(self):
         self.system_provider.activate_window(self)
         self.set_action_status("主窗口已显示")
