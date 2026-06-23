@@ -173,7 +173,7 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
 
     release_builder = (ROOT / "scripts" / "build_github_release_installer.ps1").read_text(encoding="utf-8")
     assert '"Lib\\ensurepip"' in release_builder
-    assert '"Lib\\venv"' not in release_builder
+    assert '"Lib\\venv"' in release_builder
 
     assert not (ROOT / "Inno" / "latexsnipper_offline.iss").exists()
     inno = (ROOT / "Inno" / "latexsnipper.iss").read_text(encoding="utf-8")
@@ -230,6 +230,7 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
 def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     cleanup_script = (ROOT / "scripts" / "latexsnipper-clean-user-data.sh").read_text(encoding="utf-8")
     user_data_doc = (ROOT / "docs" / "user_data_storage.md").read_text(encoding="utf-8")
+    favorites_window = (ROOT / "src" / "ui" / "favorites_window.py").read_text(encoding="utf-8")
     faq_doc = (ROOT / "docs" / "faq.md").read_text(encoding="utf-8")
     manual_doc = (ROOT / "user_manual" / "user_manual.md").read_text(encoding="utf-8")
     manual_typ = (ROOT / "user_manual" / "user_manual.typ").read_text(encoding="utf-8")
@@ -249,6 +250,8 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "rm -rf \"$root\"" not in cleanup_script
     assert 'remove_path "$app_state/tools" "shared dependency tools"' in cleanup_script
     assert "`<app-state>/tools/pandoc`" in user_data_doc
+    assert "`favorites.json`" in user_data_doc
+    assert "without changing the app data path" in user_data_doc
     assert "Pandoc does not follow the active dependency root" in user_data_doc
     assert "User-selected external Python roots are never read from config or deleted" in user_data_doc
     assert "Moving the `.app` to Trash removes the app bundle only" in user_data_doc
@@ -258,6 +261,10 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_doc
     assert "<应用状态目录>/tools/pandoc" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
+    assert "导出数据" in favorites_window
+    assert "default_user_data_file(DEFAULT_FAVORITES_NAME)" in favorites_window
+    assert "cfg.set(\"favorites_path\"" not in favorites_window
+    assert "选择收藏夹保存路径" not in favorites_window
 
 
 def test_user_manual_documents_pdf_page_range_and_macos_logs() -> None:
@@ -460,12 +467,15 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert 'Join-Path $Root "build\\github-release"' in script
     assert 'Join-Path $stagingBase "bundled-deps"' in script
     assert 'Copy-Item -LiteralPath $source -Destination (Join-Path $stagedRoot "python311")' in script
+    assert ".deps_state.json" not in script
     assert "function Normalize-BundledPythonSeed" in script
     assert 'Remove-Item -LiteralPath $pyvenvCfg -Force' in script
     assert "python311._pth" in script
     assert "Lib\\site-packages" in script
     assert '"Lib\\ensurepip"' in script
-    assert '"Lib\\venv"' not in script
+    assert '"Lib\\venv"' in script
+    assert '"Lib\\ctypes\\test"' in script
+    assert '"Lib\\distutils\\tests"' in script
     assert '"Lib\\idlelib"' in script
     assert '"DLLs\\_tkinter.pyd"' in script
     assert '"include"' in script
@@ -484,6 +494,12 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "Normalize-BundledPythonSeed -Root $bundledDepsRoot" in script
     assert "$env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot" in script
     assert "Normalize-BundledPythonSeed -Root $root" not in script
+    assert "$distRoot = Join-Path $root \"dist\"" in script
+    assert "$distAppDir = Join-Path $distRoot $buildName" in script
+    assert "$pyinstallerWorkDir = Join-Path $root \"build\\pyinstaller_windows\"" in script
+    assert "Push-Location $root" in script
+    assert "--distpath $distRoot" in script
+    assert "--workpath $pyinstallerWorkDir" in script
     assert "LaTeXSnipperSetup-2.4.0.exe" not in script
     assert 'Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File' in script
 
@@ -493,10 +509,51 @@ def test_pyinstaller_specs_prune_bundled_python_seed_payload() -> None:
         spec = (ROOT / spec_name).read_text(encoding="utf-8")
         assert "_prune_bundled_python_runtime" in spec
         assert '"Lib/ensurepip"' in spec
+        assert '"Lib/venv"' in spec
+        assert '"Lib/ctypes/test"' in spec
+        assert '"Lib/distutils/tests"' in spec
         assert '"Lib/idlelib"' in spec
         assert '"DLLs/_tkinter.pyd"' in spec
         assert '"include"' in spec
         assert '"libs"' in spec
+
+    windows_spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+    assert "LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS" not in windows_spec
+    assert "MATHCRAFT_MODELS_ROOT" not in windows_spec
+    assert "BUNDLED_DEPS_STATE" not in windows_spec
+    assert ".deps_state.json" not in windows_spec
+
+
+def test_pyinstaller_specs_prune_optional_qt_webengine_payload() -> None:
+    removable_qt_payload = (
+        "qtwebengine_devtools_resources.pak",
+        "Qt6Pdf.dll",
+        "Qt6PdfQuick.dll",
+        "Qt6WebEngineQuick.dll",
+        "Qt6WebEngineQuickDelegatesQml.dll",
+        "Qt6Quick3D.dll",
+        "Qt6Quick3DRuntimeRender.dll",
+        "Qt6Multimedia.dll",
+        "Qt6MultimediaQuick.dll",
+        "Qt6Sensors.dll",
+        "Qt6SensorsQuick.dll",
+        "Qt6RemoteObjects.dll",
+        "Qt6SerialPort.dll",
+        "Qt6TextToSpeech.dll",
+        "Qt6StateMachine.dll",
+        "Qt6QuickTest.dll",
+        "Qt6Test.dll",
+        "Qt6WebSockets.dll",
+        "Qt6SpatialAudio.dll",
+        "Qt6QuickControls2Material.dll",
+        "Qt6QuickControls2Universal.dll",
+        "Qt6QuickControls2Imagine.dll",
+    )
+    for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+        spec = (ROOT / spec_name).read_text(encoding="utf-8")
+        assert "_prune_qt_webengine_payload" in spec
+        for name in removable_qt_payload:
+            assert name in spec
 
 
 def test_windows_version_resource_matches_release_version() -> None:

@@ -265,12 +265,15 @@ function Normalize-BundledPythonSeed {
         "tcl",
         "NEWS.txt",
         "Lib\ensurepip",
+        "Lib\venv",
         "Lib\idlelib",
         "Lib\lib2to3",
         "Lib\pydoc_data",
         "Lib\tkinter",
         "Lib\turtledemo",
         "Lib\unittest",
+        "Lib\ctypes\test",
+        "Lib\distutils\tests",
         "Lib\doctest.py",
         "Lib\pdb.py",
         "Lib\pydoc.py",
@@ -382,10 +385,6 @@ function Stage-BundledPythonSeed {
     New-Item -ItemType Directory -Path $stagedRoot -Force | Out-Null
     Copy-Item -LiteralPath $source -Destination (Join-Path $stagedRoot "python311") -Recurse -Force
 
-    $depsState = Join-Path $Root ".deps_state.json"
-    if (Test-Path -LiteralPath $depsState) {
-        Copy-Item -LiteralPath $depsState -Destination $stagedRoot -Force
-    }
     Write-Host "Bundled Python template staged: $stagedRoot"
     return $stagedRoot
 }
@@ -411,6 +410,9 @@ $iscc = Find-Tool -ToolName "ISCC.exe" -Candidates $isccCandidates
 $buildName = "LaTeXSnipper"
 $spec = Join-Path $root "LaTeXSnipper.spec"
 $iss = Join-Path $root "Inno\latexsnipper.iss"
+$distRoot = Join-Path $root "dist"
+$distAppDir = Join-Path $distRoot $buildName
+$pyinstallerWorkDir = Join-Path $root "build\pyinstaller_windows"
 $installerOutputDir = Join-Path $root "dist\installer"
 
 if (-not (Test-Path $spec)) {
@@ -426,20 +428,42 @@ try {
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot
 
-    & $python -m PyInstaller $spec --clean --noconfirm
+    foreach ($path in @($distAppDir, $pyinstallerWorkDir)) {
+        if (Test-Path -LiteralPath $path) {
+            $resolvedPath = (Resolve-Path -LiteralPath $path).Path
+            $expectedPrefix = $root.TrimEnd('\') + '\'
+            if (-not $resolvedPath.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to remove build output outside repository: $resolvedPath"
+            }
+            Remove-Item -LiteralPath $path -Recurse -Force
+        }
+    }
+
+    Push-Location $root
+    try {
+        & $python -m PyInstaller `
+            --distpath $distRoot `
+            --workpath $pyinstallerWorkDir `
+            --clean `
+            --noconfirm `
+            $spec
+    }
+    finally {
+        Pop-Location
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
-    $distPython = Join-Path $root "dist\$buildName\_internal\deps\python311\python.exe"
+    $distPython = Join-Path $distAppDir "_internal\deps\python311\python.exe"
     Test-PythonHttpsRuntime -PythonExe $distPython
-    Remove-PythonCache -Root (Join-Path $root "dist\$buildName\_internal\deps\python311")
+    Remove-PythonCache -Root (Join-Path $distAppDir "_internal\deps\python311")
 }
 finally {
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
     $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
 }
 
-$appExe = Join-Path $root "dist\$buildName\$buildName.exe"
+$appExe = Join-Path $distAppDir "$buildName.exe"
 if (-not (Test-Path $appExe)) {
     throw "PyInstaller output exe not found: $appExe"
 }

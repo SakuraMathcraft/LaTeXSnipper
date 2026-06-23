@@ -18,7 +18,7 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 |---|---|---|
 | Main settings | `LaTeXSnipper_config.json` | `runtime.config_manager`, dependency bootstrap, theme, Pandoc runtime |
 | Recognition history | `history.json` | Main window history; no user-facing path selector |
-| Favorites | `favorites.json` by default, unless the user changes the favorites save path in the favorites window | Favorites window |
+| Favorites | `favorites.json`; user-facing export writes a copy to a chosen folder without changing the app data path | Favorites window |
 | LaTeX settings | `latex_settings.json` | LaTeX renderer settings |
 | Single-instance lock | `instance.lock` | Runtime single-instance guard |
 | Release cache | `release_etag_cache.json` | Update checker |

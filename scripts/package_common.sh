@@ -133,27 +133,6 @@ install_python_requirements() {
     fi
 }
 
-find_mathcraft_models_root() {
-    local project_root="$1"
-    local xdg_data_home="${XDG_DATA_HOME:-${HOME:-}/.local/share}"
-    local candidates=(
-        "${MATHCRAFT_MODELS_ROOT:-}"
-        "$project_root/MathCraft/models"
-        "${APPDATA:-}/MathCraft/models"
-        "${HOME:-}/Library/Application Support/LaTeXSnipper/MathCraft/models"
-        "$xdg_data_home/LaTeXSnipper/MathCraft/models"
-    )
-
-    for candidate in "${candidates[@]}"; do
-        if [[ -n "$candidate" && -d "$candidate" ]] && find "$candidate" -type f -print -quit | grep -q .; then
-            echo "$candidate"
-            return
-        fi
-    done
-
-    return 1
-}
-
 copy_debian_template() {
     local template_dir="$1"
     local package_root="$2"

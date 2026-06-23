@@ -58,6 +58,8 @@ class _HandwritingDocumentLayoutWorker(QObject):
 
 class HandwritingWindow(QWidget):
     latexInserted = pyqtSignal(str)
+    DEFAULT_SIZE = (980, 620)
+    MINIMUM_SIZE = (820, 560)
 
     def __init__(self, model_wrapper, owner=None, parent=None):
         super().__init__(parent)
@@ -101,7 +103,6 @@ class HandwritingWindow(QWidget):
         self.setWindowFlag(Qt.WindowType.WindowMinMaxButtonsHint, True)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        self.resize(980, 620)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
         except Exception:
@@ -253,6 +254,8 @@ class HandwritingWindow(QWidget):
         self._set_active_tool(HandwritingTool.WRITE)
         self._refresh_recognition_context()
         self._refresh_preview_from_text("")
+        self.setMinimumSize(*self.MINIMUM_SIZE)
+        self.resize(*self.DEFAULT_SIZE)
         self._ui_ready = True
         self.apply_theme_styles(force=True)
         self._apply_auto_focus_state(False)

@@ -23,7 +23,6 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-BUNDLE_MATHCRAFT_MODELS = os.environ.get("LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS", "0") == "1"
 BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
@@ -93,36 +92,6 @@ else:
     print(f"[SPEC] MathCraft OCR package not found, skip: {MATHCRAFT_OCR_SRC}")
 
 
-def _resolve_mathcraft_models_root() -> Path | None:
-    """Locate local MathCraft model files for builds that explicitly bundle models."""
-    env_root = os.environ.get("MATHCRAFT_MODELS_ROOT", "").strip()
-    candidates = []
-    if env_root:
-        candidates.append(Path(env_root))
-    candidates.append(ROOT / "MathCraft" / "models")
-    appdata = os.environ.get("APPDATA", "").strip()
-    if appdata:
-        candidates.append(Path(appdata) / "MathCraft" / "models")
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
-if BUNDLE_MATHCRAFT_MODELS:
-    mathcraft_models_root = _resolve_mathcraft_models_root()
-    if mathcraft_models_root is None:
-        raise SystemExit(
-            "[SPEC] MathCraft model bundling was requested, but no model root was found. "
-            "Set MATHCRAFT_MODELS_ROOT or place models under MathCraft/models."
-        )
-    else:
-        extra_datas += _collect_tree_as_datas(mathcraft_models_root, "MathCraft/models")
-        print(f"[SPEC] include bundled MathCraft models: {mathcraft_models_root}")
-else:
-    print("[SPEC] MathCraft models are not bundled in this build.")
-
-
 def _prune_collect_tree(dist_root: Path):
     """Remove weakly-related runtime artifacts from final onedir output."""
     if not dist_root.exists():
@@ -179,6 +148,17 @@ def _prune_qt_webengine_payload(dist_root: Path):
 
         resources_dir = qt_root / "resources"
         if resources_dir.exists():
+            removable_resources = (
+                "qtwebengine_devtools_resources.pak",
+            )
+            for name in removable_resources:
+                child = resources_dir / name
+                if child.exists():
+                    try:
+                        child.unlink(missing_ok=True)
+                        print(f"[SPEC] pruned Qt WebEngine resource: {child.relative_to(dist_root)}")
+                    except Exception as exc:
+                        print(f"[SPEC] prune Qt WebEngine resource skip {child}: {exc}")
             for pattern in ("*.debug.pak", "*.debug.bin"):
                 for child in resources_dir.glob(pattern):
                     try:
@@ -222,6 +202,57 @@ def _prune_qt_webengine_payload(dist_root: Path):
                     print(f"[SPEC] pruned Qt WebEngine locale: {child.relative_to(dist_root)}")
                 except Exception as exc:
                     print(f"[SPEC] prune Qt WebEngine locale skip {child}: {exc}")
+
+        bin_dir = qt_root / "bin"
+        if bin_dir.exists():
+            removable_bins = {
+                "Qt6Pdf.dll",
+                "Qt6PdfQuick.dll",
+                "Qt6WebEngineQuick.dll",
+                "Qt6WebEngineQuickDelegatesQml.dll",
+                "Qt6Quick3D.dll",
+                "Qt6Quick3DAssetImport.dll",
+                "Qt6Quick3DAssetUtils.dll",
+                "Qt6Quick3DEffects.dll",
+                "Qt6Quick3DHelpers.dll",
+                "Qt6Quick3DHelpersImpl.dll",
+                "Qt6Quick3DParticles.dll",
+                "Qt6Quick3DPhysics.dll",
+                "Qt6Quick3DPhysicsHelpers.dll",
+                "Qt6Quick3DRuntimeRender.dll",
+                "Qt6Quick3DSpatialAudio.dll",
+                "Qt6Quick3DUtils.dll",
+                "Qt6Quick3DXr.dll",
+                "Qt6Multimedia.dll",
+                "Qt6MultimediaQuick.dll",
+                "Qt6Sensors.dll",
+                "Qt6SensorsQuick.dll",
+                "Qt6RemoteObjects.dll",
+                "Qt6RemoteObjectsQml.dll",
+                "Qt6SerialPort.dll",
+                "Qt6TextToSpeech.dll",
+                "Qt6StateMachine.dll",
+                "Qt6StateMachineQml.dll",
+                "Qt6QuickTest.dll",
+                "Qt6Test.dll",
+                "Qt6WebSockets.dll",
+                "Qt6SpatialAudio.dll",
+                "Qt6QuickControls2Imagine.dll",
+                "Qt6QuickControls2ImagineStyleImpl.dll",
+                "Qt6QuickControls2Material.dll",
+                "Qt6QuickControls2MaterialStyleImpl.dll",
+                "Qt6QuickControls2Universal.dll",
+                "Qt6QuickControls2UniversalStyleImpl.dll",
+            }
+            for name in removable_bins:
+                child = bin_dir / name
+                if not child.exists():
+                    continue
+                try:
+                    child.unlink(missing_ok=True)
+                    print(f"[SPEC] pruned optional Qt binary: {child.relative_to(dist_root)}")
+                except Exception as exc:
+                    print(f"[SPEC] prune optional Qt binary skip {child}: {exc}")
 
 
 def _prune_bundled_python_site_packages(dist_root: Path):
@@ -288,12 +319,15 @@ def _prune_bundled_python_runtime(dist_root: Path):
         "tcl",
         "NEWS.txt",
         "Lib/ensurepip",
+        "Lib/venv",
         "Lib/idlelib",
         "Lib/lib2to3",
         "Lib/pydoc_data",
         "Lib/tkinter",
         "Lib/turtledemo",
         "Lib/unittest",
+        "Lib/ctypes/test",
+        "Lib/distutils/tests",
         "Lib/doctest.py",
         "Lib/pdb.py",
         "Lib/pydoc.py",
@@ -347,13 +381,6 @@ if BUNDLED_PY311.exists():
     print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
 else:
     print(f"[SPEC] bundled python311 not found, skip: {BUNDLED_PY311}")
-
-BUNDLED_DEPS_STATE = BUNDLED_DEPS_ROOT / ".deps_state.json"
-if BUNDLED_DEPS_STATE.exists():
-    extra_datas.append((str(BUNDLED_DEPS_STATE), "deps"))
-    print(f"[SPEC] include bundled deps state: {BUNDLED_DEPS_STATE}")
-else:
-    print(f"[SPEC] bundled deps state not found, skip: {BUNDLED_DEPS_STATE}")
 
 a = Analysis(
     [str(SRC / "main.py")],
