@@ -62,6 +62,19 @@ def test_dependency_wizard_does_not_manage_system_screenshot_packages() -> None:
         assert tool_name in screenshot_tools
 
 
+def test_pdf_failure_notice_flow_matches_image_recognition() -> None:
+    pdf_controller = (ROOT / "src" / "recognition" / "pdf_controller.py").read_text(encoding="utf-8")
+    failure_match = re.search(r"def _on_pdf_predict_fail\(self, msg: str\):(.*?)(?=\n    def |\Z)", pdf_controller, re.S)
+    assert failure_match is not None
+    failure_body = failure_match.group(1)
+
+    assert failure_body.count("self.set_action_status(") == 1
+    assert 'self.set_action_status(f"PDF 识别失败: {msg}"' not in failure_body
+    assert "_should_show_recognition_failure_tray_notification()" in failure_body
+    assert "self.system_provider.show_notification(" in failure_body
+    assert "critical=True" in failure_body
+
+
 def test_cross_platform_packaging_docs_do_not_reference_missing_scripts() -> None:
     readme = (ROOT / "readme.md").read_text(encoding="utf-8")
 

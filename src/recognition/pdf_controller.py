@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from PyQt6.QtCore import QThread, QTimer, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QInputDialog, QProgressDialog
@@ -11,6 +12,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import ExternalModelPdfWorker
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from preview.math_preview import is_dark_ui
+from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from ui.pdf_options_dialog import prompt_pdf_output_options
 from ui.pdf_result_window import PdfResultWindow
 from ui.window_helpers import (
@@ -343,7 +345,6 @@ class PdfRecognitionControllerMixin:
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
-        self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
         try:
             if getattr(self, "current_model", "") == "external_model":
                 used = self._get_external_model_display_name(
@@ -364,6 +365,21 @@ class PdfRecognitionControllerMixin:
             pass
 
         content = self._recognition_failure_content(msg, worker_attr="pdf_predict_worker")
+        if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
+            hk = display_hotkey(
+                normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+                sys.platform,
+            )
+            try:
+                self.system_provider.show_notification(
+                    self.tray_icon,
+                    "识别失败",
+                    f"{content}\n可使用快捷键 {hk} 重试。",
+                    critical=True,
+                    timeout_ms=4000,
+                )
+            except Exception:
+                pass
         self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
