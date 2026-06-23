@@ -16,6 +16,10 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from preview.math_preview import configure_math_preview_runtime
 from runtime.app_paths import resource_path
 from runtime.dependency_bootstrap_controller import load_startup_modules
+from runtime.native_runtime_preload import (
+    configure_native_runtime_environment,
+    preload_onnxruntime_before_qt,
+)
 from runtime.python_runtime_resolver import (
     APP_DIR,
     _append_private_site_packages,
@@ -237,6 +241,8 @@ def bootstrap_application() -> BootstrapContext:
     if _BOOTSTRAP_CONTEXT is not None:
         return _BOOTSTRAP_CONTEXT
 
+    configure_native_runtime_environment()
+    preload_onnxruntime_before_qt()
     app = _ensure_qt_application()
     _ensure_single_instance(app)
 
@@ -264,12 +270,10 @@ def bootstrap_application() -> BootstrapContext:
         _maybe_redirect_to_private_python(install_base_dir)
         base_dir, target_py = _prepare_python_runtime(install_base_dir)
     _bootstrap_dependencies(base_dir, target_py)
+    preload_onnxruntime_before_qt()
 
     configure_math_preview_runtime(APP_DIR)
     os.makedirs(base_dir, exist_ok=True)
-    os.environ.setdefault("ORT_DISABLE_OPENCL", "1")
-    os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
-    os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
     for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
