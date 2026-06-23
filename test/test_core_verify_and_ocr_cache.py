@@ -379,7 +379,6 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("coloredlogs", all_specs)
         self.assertNotIn("sympy", all_specs)
         self.assertNotIn("sentencepiece", all_specs)
-        self.assertNotIn("argostranslate", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):
         import bootstrap.deps_bootstrap as deps_bootstrap

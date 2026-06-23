@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 
 from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
-from runtime.config_manager import normalize_content_type, resolve_user_data_file
+from runtime.config_manager import default_user_data_file, normalize_content_type
 from ui.edit_formula_dialog import EditFormulaDialog
 from ui.formula_export_menu import export_formula_to_clipboard, populate_formula_export_menu
 from ui.window_helpers import (
@@ -26,10 +27,10 @@ DEFAULT_FAVORITES_NAME = "favorites.json"
 
 class FavoritesWindow(QMainWindow):
     """Favorites window with list-only functionality."""
-    def __init__(self, cfg, parent=None, select_save_file=None):
+    def __init__(self, cfg, parent=None, select_export_directory=None):
         super().__init__(parent)
         self.cfg = cfg
-        self._select_save_file = select_save_file
+        self._select_export_directory = select_export_directory or self._select_export_directory_fallback
         self._theme_is_dark_cached = None
         self.setWindowFlag(Qt.WindowType.Window, True)
         _apply_close_only_window_flags(self)
@@ -51,9 +52,9 @@ class FavoritesWindow(QMainWindow):
         
         # Top button row.
         top_btn_layout = QHBoxLayout()
-        btn_save_path = PushButton(FluentIcon.FOLDER, "保存路径")
-        btn_save_path.clicked.connect(self.select_file)
-        top_btn_layout.addWidget(btn_save_path)
+        btn_export_data = PushButton(FluentIcon.SAVE, "导出数据")
+        btn_export_data.clicked.connect(self.export_data)
+        top_btn_layout.addWidget(btn_export_data)
         
         btn_clear = PushButton(FluentIcon.DELETE, "清空收藏夹")
         btn_clear.clicked.connect(self._clear_all_favorites)
@@ -80,8 +81,7 @@ class FavoritesWindow(QMainWindow):
         self.favorites = []
         self._favorite_names = {}   # Favorite names: {content: name}.
         self._favorite_types = {}   # Favorite types: {content: content_type}.
-        favorites_path = resolve_user_data_file(self.cfg, "favorites_path", DEFAULT_FAVORITES_NAME)
-        self.file_path = favorites_path
+        self.file_path = str(default_user_data_file(DEFAULT_FAVORITES_NAME))
         self.load_favorites()
 
         # --- ESC shortcut close; fallback when child widgets intercept key events ---
@@ -429,18 +429,35 @@ class FavoritesWindow(QMainWindow):
 
         self.list_widget.setStyleSheet(self._favorites_list_qss())
 
-    def select_file(self):
-        path, _ = self._select_save_file(
+    def _favorites_data(self) -> dict:
+        return {
+            "favorites": self.favorites,
+            "names": self._favorite_names,
+            "types": self._favorite_types,
+        }
+
+    def _select_export_directory_fallback(self, parent, title: str, initial_dir: str) -> str:
+        return QFileDialog.getExistingDirectory(parent, title, initial_dir)
+
+    def export_data(self):
+        directory = self._select_export_directory(
             self,
-            "选择收藏夹保存路径",
-            os.path.dirname(self.file_path),
-            "JSON Files (*.json)",
+            "选择收藏夹导出文件夹",
+            str(Path(self.file_path).parent),
         )
-        if path:
-            self.file_path = path
-            self.cfg.set("favorites_path", path)
-            self.save_favorites()
-            self._set_status("已更新保存路径")
+        if not directory:
+            return
+        target = Path(directory) / DEFAULT_FAVORITES_NAME
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                json.dumps(self._favorites_data(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            self._set_status(f"导出失败: {e}")
+            return
+        self._set_status(f"已导出收藏夹: {target}")
 
     def load_favorites(self):
         if os.path.exists(self.file_path):
@@ -468,14 +485,8 @@ class FavoritesWindow(QMainWindow):
 
     def save_favorites(self):
         try:
-            # Save favorites list, names, and types.
-            data = {
-                "favorites": self.favorites,
-                "names": self._favorite_names,
-                "types": self._favorite_types
-            }
             with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump(self._favorites_data(), f, ensure_ascii=False, indent=2)
         except Exception as e:
             print("[Favorites] 保存失败:", e)
 

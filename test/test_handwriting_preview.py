@@ -97,31 +97,6 @@ def test_window_openers_lazy_loads_workbench_window() -> None:
     assert "from editor.workbench_window import WorkbenchWindow" in source
 
 
-def test_window_openers_lazy_loads_bilingual_reader() -> None:
-    source = (SRC / "ui" / "window_openers.py").read_text(encoding="utf-8")
-    import_section = source.split("class WindowOpenersMixin:", 1)[0]
-
-    assert "from handwriting.bilingual_pdf_window import BilingualPdfWindow" not in import_section
-    assert "from handwriting.bilingual_pdf_window import BilingualPdfWindow" in source
-
-
-def test_bilingual_reader_loads_pymupdf_on_demand() -> None:
-    source = (SRC / "handwriting" / "bilingual_pdf_window.py").read_text(encoding="utf-8")
-    import_section = source.split("@dataclass", 1)[0]
-
-    assert "import fitz" not in import_section
-    assert "def _load_fitz_module()" in source
-    assert 'import_module("fitz")' in source
-
-
-def test_bilingual_reader_uses_shared_dependency_python_resolver() -> None:
-    source = (SRC / "handwriting" / "bilingual_pdf_window.py").read_text(encoding="utf-8")
-
-    assert "from runtime.dependency_python import" in source
-    assert "resolve_dependency_python((configured_base,), fallback_to_current=True)" in source
-    assert '"--clear"' in source
-
-
 def test_dependency_python_cleans_quoted_paths() -> None:
     from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 

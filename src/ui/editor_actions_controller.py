@@ -8,7 +8,7 @@ from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_t
 from ui.favorites_window import FavoritesWindow
 from ui.formula_export_menu import export_formula_to_clipboard, show_formula_export_menu
 from ui.menu_helpers import CenterMenu
-from ui.window_helpers import select_save_file_with_icon as _select_save_file_with_icon
+from ui.window_helpers import select_existing_directory_with_icon as _select_existing_directory_with_icon
 
 
 class EditorActionsControllerMixin:
@@ -30,7 +30,11 @@ class EditorActionsControllerMixin:
     def _ensure_favorites_window(self):
         if self.favorites_window is None:
             print("[DEBUG] 延迟初始化收藏窗口")
-            self.favorites_window = FavoritesWindow(self.cfg, self, select_save_file=_select_save_file_with_icon)
+            self.favorites_window = FavoritesWindow(
+                self.cfg,
+                self,
+                select_export_directory=_select_existing_directory_with_icon,
+            )
         return self.favorites_window
 
     def _copy_editor_content(self):

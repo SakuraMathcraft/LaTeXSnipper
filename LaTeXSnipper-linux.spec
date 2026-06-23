@@ -338,12 +338,16 @@ def _prune_bundled_python_runtime(dist_root: Path):
         "libs",
         "tcl",
         "NEWS.txt",
+        "Lib/ensurepip",
+        "Lib/venv",
         "Lib/idlelib",
         "Lib/lib2to3",
         "Lib/pydoc_data",
         "Lib/tkinter",
         "Lib/turtledemo",
         "Lib/unittest",
+        "Lib/ctypes/test",
+        "Lib/distutils/tests",
         "Lib/doctest.py",
         "Lib/pdb.py",
         "Lib/pydoc.py",
@@ -396,6 +400,13 @@ def _prune_qt_webengine_payload(dist_root: Path):
 
         resources_dir = qt_root / "resources"
         if resources_dir.exists():
+            for name in ("qtwebengine_devtools_resources.pak",):
+                child = resources_dir / name
+                if child.exists():
+                    try:
+                        child.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             for pattern in ("*.debug.pak", "*.debug.bin"):
                 for child in resources_dir.glob(pattern):
                     try:
@@ -435,6 +446,55 @@ def _prune_qt_webengine_payload(dist_root: Path):
                     child.unlink(missing_ok=True)
                 except Exception:
                     pass
+
+        bin_dir = qt_root / "bin"
+        if bin_dir.exists():
+            removable_bins = {
+                "Qt6Pdf.dll",
+                "Qt6PdfQuick.dll",
+                "Qt6WebEngineQuick.dll",
+                "Qt6WebEngineQuickDelegatesQml.dll",
+                "Qt6Quick3D.dll",
+                "Qt6Quick3DAssetImport.dll",
+                "Qt6Quick3DAssetUtils.dll",
+                "Qt6Quick3DEffects.dll",
+                "Qt6Quick3DHelpers.dll",
+                "Qt6Quick3DHelpersImpl.dll",
+                "Qt6Quick3DParticles.dll",
+                "Qt6Quick3DPhysics.dll",
+                "Qt6Quick3DPhysicsHelpers.dll",
+                "Qt6Quick3DRuntimeRender.dll",
+                "Qt6Quick3DSpatialAudio.dll",
+                "Qt6Quick3DUtils.dll",
+                "Qt6Quick3DXr.dll",
+                "Qt6Multimedia.dll",
+                "Qt6MultimediaQuick.dll",
+                "Qt6Sensors.dll",
+                "Qt6SensorsQuick.dll",
+                "Qt6RemoteObjects.dll",
+                "Qt6RemoteObjectsQml.dll",
+                "Qt6SerialPort.dll",
+                "Qt6TextToSpeech.dll",
+                "Qt6StateMachine.dll",
+                "Qt6StateMachineQml.dll",
+                "Qt6QuickTest.dll",
+                "Qt6Test.dll",
+                "Qt6WebSockets.dll",
+                "Qt6SpatialAudio.dll",
+                "Qt6QuickControls2Imagine.dll",
+                "Qt6QuickControls2ImagineStyleImpl.dll",
+                "Qt6QuickControls2Material.dll",
+                "Qt6QuickControls2MaterialStyleImpl.dll",
+                "Qt6QuickControls2Universal.dll",
+                "Qt6QuickControls2UniversalStyleImpl.dll",
+            }
+            for name in removable_bins:
+                child = bin_dir / name
+                if child.exists():
+                    try:
+                        child.unlink(missing_ok=True)
+                    except Exception:
+                        pass
 
 
 _prune_collect_tree_linux(Path(DISTPATH) / APP_NAME / "_internal")
