@@ -688,15 +688,15 @@ def _clean_bad_env():
         os.environ["LATEXSNIPPER_PYEXE"] = p
 
 
-def _has_full_python_bootstrap_modules(pyexe: str) -> bool:
-    """Check whether the interpreter has bootstrap modules and HTTPS support."""
+def _has_dependency_runtime_modules(pyexe: str) -> bool:
+    """Check whether an existing dependency interpreter can run app-managed packages."""
     try:
         import subprocess
         code = (
-            "import ensurepip, ssl, urllib.request, venv; "
+            "import encodings, ssl, sys, urllib.request; "
             "assert any(type(h).__name__ == 'HTTPSHandler' "
             "for h in urllib.request.build_opener().handlers); "
-            "print('ok', ssl.OPENSSL_VERSION)"
+            "print(sys.version_info[:2], ssl.OPENSSL_VERSION)"
         )
         r = subprocess.run([pyexe, "-c", code],
                            capture_output=True, text=True, timeout=20, **_win_subprocess_kwargs())
@@ -710,11 +710,11 @@ def _find_full_python(base_dir: Path) -> str | None:
     candidate = _find_install_base_python(base_dir)
     if candidate is not None:
         try:
-            if candidate.exists() and _has_full_python_bootstrap_modules(str(candidate)):
+            if candidate.exists() and _has_dependency_runtime_modules(str(candidate)):
                 return str(candidate)
         except Exception:
             pass
-        print(f"[WARN] Ignoring Python without bootstrap modules: {candidate}")
+        print(f"[WARN] Ignoring Python without dependency runtime support: {candidate}")
     if getattr(sys, "frozen", False):
         return None
 
@@ -722,7 +722,7 @@ def _find_full_python(base_dir: Path) -> str | None:
         from bootstrap.deps_python_runtime import find_system_python3
 
         system_python = find_system_python3()
-        if system_python is not None and _has_full_python_bootstrap_modules(str(system_python)):
+        if system_python is not None and _has_dependency_runtime_modules(str(system_python)):
             return str(system_python)
     except Exception:
         pass

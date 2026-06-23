@@ -24,7 +24,7 @@ from mathcraft_ocr.runtime import MathCraftRuntime
 from mathcraft_ocr.serialization import mixed_result_to_json
 
 
-DEFAULT_CASES_FROM = ROOT / "test_pdf" / "outputs" / "block_layout_regression_v3" / "summary.json"
+DEFAULT_CASES_FROM = ROOT / "test_pdf" / "outputs" / "block_layout_regression_v4" / "summary.json"
 DEFAULT_OUTPUT = ROOT / "test_pdf" / "outputs" / "block_layout_regression_v4"
 
 
