@@ -17,7 +17,7 @@ class ExternalModelPdfWorker(QObject):
         self,
         config: ExternalModelConfig,
         pdf_path: str,
-        max_pages: int,
+        page_indices: list[int],
         output_format: str,
         dpi: int = 200,
         document_mode: str = "document",
@@ -25,7 +25,7 @@ class ExternalModelPdfWorker(QObject):
         super().__init__()
         self.config = config
         self.pdf_path = pdf_path
-        self.max_pages = max_pages
+        self.page_indices = [int(index) for index in page_indices if int(index) >= 0]
         self.output_format = output_format
         self.dpi = dpi
         self.document_mode = str(document_mode or "document").strip().lower() or "document"
@@ -45,12 +45,15 @@ class ExternalModelPdfWorker(QObject):
 
         if self.config.normalized_provider() == "mineru":
             try:
-                total = max(int(self.max_pages or 1), 1)
+                page_indices = self.page_indices or [0]
+                page_start = min(page_indices)
+                page_end = max(page_indices)
+                total = page_end - page_start + 1
                 asset_store = PdfAssetStore(task_id="latest", overwrite_existing=True)
                 pipeline = ExternalDocumentPipeline(self.config, self.output_format, "parse", asset_store=asset_store)
                 self.progress.emit(0, total)
-                result = MineruClient(self.config).parse_pdf(self.pdf_path, total)
-                page_result = pipeline.process_result(result, 1, "ocr_document_parse_v1")
+                result = MineruClient(self.config).parse_pdf(self.pdf_path, page_start, page_end)
+                page_result = pipeline.process_result(result, page_start + 1, "ocr_document_parse_v1")
                 content = pipeline.compose_document([page_result] if page_result else [])
                 self.structured_result = pipeline.build_structured_result()
                 if not content.strip():
@@ -96,23 +99,27 @@ class ExternalModelPdfWorker(QObject):
             else None
         )
         pipeline = ExternalDocumentPipeline(self.config, self.output_format, self.document_mode, asset_store=asset_store)
-        total = min(max(int(self.max_pages or 1), 1), doc.page_count or 1)
+        page_count = doc.page_count or 1
+        page_indices = [index for index in self.page_indices if 0 <= index < page_count]
+        if not page_indices:
+            page_indices = [0]
+        total = len(page_indices)
         results = []
         try:
-            for i in range(total):
+            for progress_index, page_index in enumerate(page_indices):
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit("已取消")
                     return
-                page = doc.load_page(i)
+                page = doc.load_page(page_index)
                 pix = page.get_pixmap(dpi=int(max(self.dpi, 72)), alpha=False)
                 image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-                page_result = pipeline.process_page(image, i + 1, self.config.prompt_template)
+                page_result = pipeline.process_page(image, page_index + 1, self.config.prompt_template)
                 if page_result:
                     results.append(page_result)
-                self.progress.emit(i + 1, total)
+                self.progress.emit(progress_index + 1, total)
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
                     if asset_store is not None:
                         asset_store.cleanup()

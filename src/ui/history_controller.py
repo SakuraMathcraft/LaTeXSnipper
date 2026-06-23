@@ -198,7 +198,7 @@ class HistoryControllerMixin:
     def _do_copy_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.set_action_status("内容不存在")
+            self.show_action_status("内容不存在", level="warning")
             return
         try:
             QApplication.clipboard().setText(txt)
@@ -208,12 +208,12 @@ class HistoryControllerMixin:
                 pyperclip.copy(txt)
                 self.set_action_status("已复制")
             except Exception:
-                self.set_action_status("复制失败")
+                self.show_action_status("复制失败", level="error")
 
     def _do_fav_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.set_action_status("内容不存在")
+            self.show_action_status("内容不存在", level="warning")
             return
         content_type = None
         try:

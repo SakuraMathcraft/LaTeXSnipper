@@ -12,7 +12,7 @@ from qfluentwidgets import Action
 from exporting.formula_export import build_formula_export, get_all_export_format_specs
 
 
-StatusCallback = Callable[[str], None]
+StatusCallback = Callable[[str, str], None]
 _active_export_threads: list[QThread] = []
 
 
@@ -131,7 +131,11 @@ def _handle_pandoc_file_export(
 
     def finish(message: str) -> None:
         if status_callback is not None:
-            status_callback(message)
+            status_callback(message, "success")
+
+    def fail(message: str) -> None:
+        if status_callback is not None:
+            status_callback(message, "error")
 
     def cleanup() -> None:
         thread.quit()
@@ -144,7 +148,7 @@ def _handle_pandoc_file_export(
             pass
 
     worker.finished.connect(finish)
-    worker.failed.connect(finish)
+    worker.failed.connect(fail)
     worker.finished.connect(cleanup)
     worker.failed.connect(cleanup)
     thread.started.connect(worker.run)
@@ -173,13 +177,13 @@ def show_formula_export_menu(
 
     text = current_text()
     if not text:
-        status_callback(empty_hint)
+        status_callback(empty_hint, "warning")
         return
 
     def export_current(format_type: str) -> None:
         current = current_text()
         if not current:
-            status_callback(empty_hint)
+            status_callback(empty_hint, "warning")
             return
         export_callback(format_type, current)
 

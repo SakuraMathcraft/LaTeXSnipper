@@ -80,7 +80,7 @@ class PdfPredictWorker(QObject):
         self,
         model_wrapper: Any,
         pdf_path: str,
-        max_pages: int,
+        page_indices: list[int],
         model_name: str,
         output_format: str,
         dpi: int = 200,
@@ -88,7 +88,7 @@ class PdfPredictWorker(QObject):
         super().__init__()
         self.model_wrapper = model_wrapper
         self.pdf_path = pdf_path
-        self.max_pages = max_pages
+        self.page_indices = [int(index) for index in page_indices if int(index) >= 0]
         self.model_name = model_name
         self.output_format = output_format
         self.dpi = dpi
@@ -118,7 +118,11 @@ class PdfPredictWorker(QObject):
             self.failed.emit(f"PDF 打开失败: {exc}")
             return
 
-        total = min(max(self.max_pages, 1), doc.page_count or 1)
+        page_count = doc.page_count or 1
+        page_indices = [index for index in self.page_indices if 0 <= index < page_count]
+        if not page_indices:
+            page_indices = [0]
+        total = len(page_indices)
         try:
             doc.close()
         except Exception:
@@ -126,7 +130,7 @@ class PdfPredictWorker(QObject):
 
         render_queue = queue.Queue(maxsize=1)
         render_thread = threading.Thread(
-            target=lambda: self._render_pages(fitz, total, render_queue),
+            target=lambda: self._render_pages(fitz, page_indices, render_queue),
             name="MathCraftPdfRenderPrefetch",
             daemon=True,
         )
@@ -147,7 +151,7 @@ class PdfPredictWorker(QObject):
                     break
                 if isinstance(item, Exception):
                     raise item
-                page_index, img, image_size = item
+                progress_index, page_index, img, image_size = item
                 result = self._predict_page(img)
                 if self._cancel_requested():
                     _set_elapsed()
@@ -157,7 +161,7 @@ class PdfPredictWorker(QObject):
                     result["page_index"] = page_index + 1
                     result.setdefault("image_size", image_size)
                     page_results.append(result)
-                self.progress.emit(page_index + 1, total)
+                self.progress.emit(progress_index + 1, total)
         except Exception as exc:
             _set_elapsed()
             if self._cancel_requested():
@@ -193,17 +197,17 @@ class PdfPredictWorker(QObject):
                 continue
         return False
 
-    def _render_pages(self, fitz, total: int, render_queue: queue.Queue) -> None:
+    def _render_pages(self, fitz, page_indices: list[int], render_queue: queue.Queue) -> None:
         render_doc = None
         try:
             render_doc = fitz.open(self.pdf_path)
-            for page_index in range(total):
+            for progress_index, page_index in enumerate(page_indices):
                 if self._cancelled:
                     break
                 page = render_doc.load_page(page_index)
                 pix = page.get_pixmap(dpi=self.dpi, alpha=False)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                if not self._put_render_item(render_queue, (page_index, img, [pix.width, pix.height])):
+                if not self._put_render_item(render_queue, (progress_index, page_index, img, [pix.width, pix.height])):
                     return
             self._put_render_item(render_queue, None)
         except Exception as exc:

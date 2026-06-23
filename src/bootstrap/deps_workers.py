@@ -23,6 +23,7 @@ from bootstrap.deps_runtime_verify import (
     _cleanup_pip_interrupted_leftovers,
     _current_installed,
     _fix_critical_versions,
+    format_layer_verify_failure,
     _layer_verify_failure_diagnostics,
     _pip_install,
     _repair_gpu_onnxruntime_runtime,
@@ -379,7 +380,7 @@ class LayerVerifyWorker(QThread):
                 self.log_updated.emit(f"  [OK] {lyr} 验证通过")
             else:
                 verify_fail_layers.append(lyr)
-                self.log_updated.emit(f"  [FAIL] {lyr} 验证失败:\n{(v_err or '')[:1000]}")
+                self.log_updated.emit(format_layer_verify_failure(lyr, v_err))
                 for diag_line in _layer_verify_failure_diagnostics(lyr):
                     self.log_updated.emit(f"  [DIAG] {diag_line}")
 

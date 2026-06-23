@@ -55,7 +55,7 @@ class PdfResultWindow(QMainWindow):
 
         container = QWidget(self)
         lay = QVBoxLayout(container)
-        lay.addWidget(BodyLabel("识别结果（可编辑/复制/保存）："))
+        lay.addWidget(BodyLabel("识别结果："))
         self.editor = QPlainTextEdit(self)
         self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         lay.addWidget(self.editor, 1)

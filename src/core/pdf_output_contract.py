@@ -30,13 +30,7 @@ def _wrap_markdown_document(text: str, style_key: str = "document") -> str:
     if is_parse:
         return normalized + "\n"
 
-    header = [
-        "<!-- LaTeXSnipper PDF OCR Export -->",
-        "<!-- 保留原始标题层级、图片占位、表格与公式结构 -->",
-        "<!-- 图片占位统一标记: [IMAGE_PLACEHOLDER: 描述] -->",
-        "",
-    ]
-    return "\n".join(header) + normalized + "\n"
+    return normalized + "\n"
 
 
 def _normalize_markdown_image_placeholders(text: str, normalize_image_syntax: bool = False) -> str:
@@ -66,4 +60,3 @@ def _normalize_markdown_image_placeholders(text: str, normalize_image_syntax: bo
             label = f"{label}: {desc}"
         normalized_lines.append(f"[IMAGE_PLACEHOLDER: {label}]")
     return "\n".join(normalized_lines)
-

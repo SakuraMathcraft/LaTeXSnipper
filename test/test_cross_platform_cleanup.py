@@ -62,17 +62,18 @@ def test_dependency_wizard_does_not_manage_system_screenshot_packages() -> None:
         assert tool_name in screenshot_tools
 
 
-def test_pdf_failure_notice_flow_matches_image_recognition() -> None:
+def test_pdf_failure_notice_flow_uses_error_infobar_and_tray_notification() -> None:
     pdf_controller = (ROOT / "src" / "recognition" / "pdf_controller.py").read_text(encoding="utf-8")
     failure_match = re.search(r"def _on_pdf_predict_fail\(self, msg: str\):(.*?)(?=\n    def |\Z)", pdf_controller, re.S)
     assert failure_match is not None
     failure_body = failure_match.group(1)
 
-    assert failure_body.count("self.set_action_status(") == 1
+    assert "self.set_action_status(" not in failure_body
     assert 'self.set_action_status(f"PDF 识别失败: {msg}"' not in failure_body
     assert "_should_show_recognition_failure_tray_notification()" in failure_body
     assert "self.system_provider.show_notification(" in failure_body
     assert "critical=True" in failure_body
+    assert "InfoBar.error(" in failure_body
 
 
 def test_cross_platform_packaging_docs_do_not_reference_missing_scripts() -> None:
@@ -260,6 +261,21 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "<应用状态目录>/tools/pandoc" in manual_typ
     assert "<应用状态目录>/tools/translation_env" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
+
+
+def test_user_manual_documents_pdf_page_range_and_macos_logs() -> None:
+    manual_doc = (ROOT / "user_manual" / "user_manual.md").read_text(encoding="utf-8")
+    manual_typ = (ROOT / "user_manual" / "user_manual.typ").read_text(encoding="utf-8")
+
+    for source in (manual_doc, manual_typ):
+        assert "识别页码或连续范围" in source
+        assert "`5`、`3-7`" in source
+        assert "默认先填入 `1-5`" in source
+        assert "询问识别页数" not in source
+        assert "默认最多先识别 5 页" not in source
+        assert "~/Library/Logs/LaTeXSnipper/" in source
+        assert "macOS：** `~/.latexsnipper/logs/`" not in source
+        assert "macOS：* `~/.latexsnipper/logs/`" not in source
 
 
 def test_system_python_range_copy_is_consistent() -> None:

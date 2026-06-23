@@ -56,7 +56,8 @@ class WorkbenchWindow(QWidget):
         self._centered_once = False
 
         self.setWindowTitle("数学工作台")
-        self.resize(1160, 760)
+        self.resize(1160, 700)
+        self.setMinimumSize(1160, 700)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
         except Exception:

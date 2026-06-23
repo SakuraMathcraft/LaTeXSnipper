@@ -18,7 +18,7 @@ from bootstrap.deps_python_runtime import (
     normalize_deps_base_dir as _normalize_deps_base_dir,
 )
 from bootstrap.deps_qt_compat import QIcon
-from bootstrap.deps_runtime_verify import _verify_layer_runtime
+from bootstrap.deps_runtime_verify import _verify_layer_runtime, format_layer_verify_failure
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
 from bootstrap.deps_workers import UninstallLayerWorker
 from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
@@ -286,7 +286,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     print(f"  [OK] {layer} 验证通过")
                 else:
                     failed_layers.append((layer, err))
-                    print(f"  [FAIL] {layer} 验证失败: {err[:100]}")
+                    print(format_layer_verify_failure(layer, err))
             installed_layers["layers"] = verified_layers
             if failed_layers:
                 failed_layer_names = [layer for layer, _ in failed_layers]

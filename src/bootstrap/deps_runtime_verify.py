@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,45 @@ CRITICAL_VERSIONS = {
     "rapidocr": "rapidocr==3.5.0",
     "protobuf": "protobuf>=3.20,<5",
 }
+
+VERIFY_LOG_DETAIL_LIMIT = 2000
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def normalize_dependency_log_text(text: object) -> str:
+    """Return subprocess log text that is safe to display in the dependency UI."""
+    raw = str(text or "")
+    if not raw:
+        return ""
+    raw = raw.replace("\ufffd", "?")
+    raw = _ANSI_ESCAPE_RE.sub("", raw)
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = []
+    for ch in raw:
+        code = ord(ch)
+        if ch in "\n\t" or code >= 32:
+            cleaned.append(ch)
+        elif code == 0:
+            cleaned.append(" ")
+    lines = [" ".join(line.rstrip().split("\t")) for line in "".join(cleaned).split("\n")]
+    return "\n".join(lines).strip()
+
+
+def tail_dependency_log_text(text: object, limit: int = VERIFY_LOG_DETAIL_LIMIT) -> str:
+    """Keep the useful tail of long logs without cutting the latest traceback away."""
+    normalized = normalize_dependency_log_text(text)
+    if len(normalized) <= limit:
+        return normalized
+    tail = normalized[-limit:]
+    newline = tail.find("\n")
+    if newline > 0:
+        tail = tail[newline + 1 :]
+    return f"...\n{tail.strip()}"
+
+
+def format_layer_verify_failure(layer: str, err: object, *, limit: int = VERIFY_LOG_DETAIL_LIMIT) -> str:
+    detail = tail_dependency_log_text(err, limit=limit) or "验证失败，但没有可用错误输出。"
+    return f"  [FAIL] {layer} 验证失败:\n{detail}"
 
 
 RUNTIME_IMPORT_CHECKS = {
@@ -456,11 +496,11 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
             return True, ""
         else:
 
-            err = (result.stderr or result.stdout or "").strip()
+            err = normalize_dependency_log_text(result.stderr or result.stdout or "")
             if not err:
                 err = f"验证进程返回码 {result.returncode}，但无可用输出"
 
-            err_lines = err.replace("\r", "").split('\n')[-15:]
+            err_lines = err.split("\n")[-15:]
             return False, '\n'.join(err_lines)
     except subprocess.TimeoutExpired:
         return False, "验证超时"
@@ -495,7 +535,7 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
                 log_fn(f"[OK] {layer} 层验证通过")
         else:
             if log_fn:
-                log_fn(f"[WARN] {layer} 层验证失败: {err[:200]}")
+                log_fn(format_layer_verify_failure(layer, err))
                 for diag_line in _layer_verify_failure_diagnostics(layer):
                     log_fn(f"[DIAG] {diag_line}")
     return verified

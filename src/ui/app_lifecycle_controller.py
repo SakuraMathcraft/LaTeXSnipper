@@ -320,7 +320,7 @@ class AppLifecycleMixin:
 
         if sys.platform == "darwin":
             self.hide()
-            self.set_action_status("主窗口已关闭，可通过 Dock 或菜单栏重新打开")
+            self.show_action_status("主窗口已关闭，可通过 Dock 或菜单栏重新打开", level="info")
             event.accept()
             return
 
