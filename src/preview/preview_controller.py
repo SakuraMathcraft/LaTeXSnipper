@@ -201,7 +201,7 @@ class PreviewControllerMixin:
     def _add_preview_to_history(self):
         """Add the preview formula to history while preserving its label."""
         if not self._rendered_formulas:
-            self.set_action_status("预览中没有公式")
+            self.show_action_status("预览中没有公式", level="warning")
             return
 
         added_count = 0
@@ -230,4 +230,4 @@ class PreviewControllerMixin:
             self.rebuild_history_ui()
             self.set_action_status(f"已添加 {added_count} 个公式到历史")
         else:
-            self.set_action_status("公式已在历史中")
+            self.show_action_status("公式已在历史中", level="info")

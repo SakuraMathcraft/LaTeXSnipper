@@ -99,7 +99,7 @@ class CaptureControllerMixin:
                 self.overlay = None
                 QTimer.singleShot(0, self._restore_predict_result_dialog_visibility)
                 QTimer.singleShot(0, self._restore_hidden_unpinned_predict_result_dialog)
-                self.set_action_status("已取消截图")
+                self.show_action_status("已取消截图", level="info")
                 return True
         return super().eventFilter(obj, event)
 

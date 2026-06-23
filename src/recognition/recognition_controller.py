@@ -155,7 +155,7 @@ class RecognitionControllerMixin:
             self.current_model = preferred
         if self.model and not self.model.is_model_ready(preferred):
             self.set_model_status(f"预热中 ({preferred})")
-            self.set_action_status("模型预热中，完成后将自动开始识别", auto_clear_ms=2200)
+            self.show_action_status("模型预热中，完成后将自动开始识别", level="info", auto_clear_ms=2200)
             self._ensure_model_warmup_async(
                 preferred_model=preferred,
                 on_ready=lambda img=img, template=external_prompt_template: self._start_predict_with_pil(img, template),
@@ -200,7 +200,7 @@ class RecognitionControllerMixin:
         if not self._is_external_model_configured():
             self._restore_hidden_unpinned_predict_result_dialog()
             self.set_model_status("外部模型未配置")
-            self.set_action_status("请先在设置中配置外部模型", auto_clear_ms=3000)
+            self.show_action_status("请先在设置中配置外部模型", level="warning", auto_clear_ms=3000)
             self.open_settings()
             custom_warning_dialog("提示", f"外部模型未配置，{self._get_external_model_required_fields_hint()}", self)
             return

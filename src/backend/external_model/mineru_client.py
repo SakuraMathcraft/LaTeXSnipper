@@ -145,17 +145,18 @@ class MineruClient:
         raw = self._post_file_parse("image.png", image_bytes, "image/png")
         return self._build_result(raw, self.config.normalized_output_mode())
 
-    def parse_pdf(self, pdf_path: str, max_pages: int) -> ExternalModelResult:
+    def parse_pdf(self, pdf_path: str, start_page_index: int, end_page_index: int) -> ExternalModelResult:
         path = Path(pdf_path)
         if not path.is_file():
             raise ExternalModelResponseError(f"PDF 文件不存在: {path}")
-        page_count = max(int(max_pages or 1), 1)
+        start = max(int(start_page_index or 0), 0)
+        end = max(int(end_page_index or start), start)
         raw = self._post_file_parse(
             path.name,
             path.read_bytes(),
             "application/pdf",
-            start_page_id=0,
-            end_page_id=page_count - 1,
+            start_page_id=start,
+            end_page_id=end,
         )
         return self._build_result(raw, self.config.normalized_output_mode())
 

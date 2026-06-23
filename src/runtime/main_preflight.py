@@ -8,6 +8,10 @@ import os
 
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.app_paths import app_log_dir
+from runtime.native_runtime_preload import (
+    configure_native_runtime_environment,
+    preload_onnxruntime_before_qt,
+)
 from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 _CRASH_FH = None
@@ -19,13 +23,11 @@ def pre_bootstrap_runtime() -> None:
 
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     os.environ.setdefault("PYTHONUTF8", "1")
-    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-    os.environ.setdefault("MKL_THREADING_LAYER", "SEQUENTIAL")
-    os.environ.setdefault("ORT_NO_AZURE_EP", "1")
+    configure_native_runtime_environment()
 
     apply_linux_graphics_fallbacks()
     early_ensure_pyqt6_and_pywin32()
+    preload_onnxruntime_before_qt()
 
     log_dir = app_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)

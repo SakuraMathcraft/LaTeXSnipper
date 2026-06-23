@@ -101,7 +101,7 @@ class HandwritingWindow(QWidget):
         self.setWindowFlag(Qt.WindowType.WindowMinMaxButtonsHint, True)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        self.resize(1120, 760)
+        self.resize(980, 620)
         try:
             self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
         except Exception:

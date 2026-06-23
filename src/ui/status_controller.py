@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from qfluentwidgets import InfoBar, InfoBarPosition
+
+ActionStatusLevel = Literal["success", "info", "warning", "error"]
 
 
 class StatusControllerMixin:
@@ -54,12 +58,32 @@ class StatusControllerMixin:
         self.refresh_status_label()
 
     def set_action_status(self, msg: str, auto_clear_ms: int = 2500, parent=None):
-        InfoBar.success(
+        self.show_action_status(msg, level="success", auto_clear_ms=auto_clear_ms, parent=parent)
+
+    def show_action_status(
+        self,
+        msg: str,
+        *,
+        level: ActionStatusLevel = "info",
+        auto_clear_ms: int = 2500,
+        parent=None,
+        position=InfoBarPosition.TOP_RIGHT,
+    ) -> None:
+        text = str(msg or "").strip()
+        if not text:
+            return
+        infobar = {
+            "success": InfoBar.success,
+            "info": InfoBar.info,
+            "warning": InfoBar.warning,
+            "error": InfoBar.error,
+        }.get(level, InfoBar.info)
+        infobar(
             title="提示",
-            content=msg,
+            content=text,
             parent=parent or self,
-            position=InfoBarPosition.TOP_RIGHT,
-            duration=auto_clear_ms
+            position=position,
+            duration=auto_clear_ms,
         )
 
     def show_status_message(self, msg: str):

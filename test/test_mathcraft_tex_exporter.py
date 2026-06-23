@@ -78,6 +78,13 @@ def test_pdf_output_contract_converts_markdown_to_latex() -> None:
     assert "Text with $x$." in tex
 
 
+def test_pdf_output_contract_markdown_export_has_no_header_comments() -> None:
+    markdown = wrap_document_output("# Title\n\nContent", "markdown", "document")
+    assert markdown == "# Title\n\nContent\n"
+    assert "LaTeXSnipper PDF OCR Export" not in markdown
+    assert "IMAGE_PLACEHOLDER" not in markdown
+
+
 def test_tex_exporter_strips_auto_numbered_heading_prefixes() -> None:
     tex = markdown_to_latex_document(
         "\n".join(
@@ -142,6 +149,7 @@ def main() -> None:
     tests = [
         test_tex_exporter_converts_core_markdown_blocks,
         test_pdf_output_contract_converts_markdown_to_latex,
+        test_pdf_output_contract_markdown_export_has_no_header_comments,
         test_tex_exporter_strips_auto_numbered_heading_prefixes,
         test_tex_exporter_repairs_ocr_truncated_display_math,
         test_pdf_output_contract_keeps_existing_latex_document,

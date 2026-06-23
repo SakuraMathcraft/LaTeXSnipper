@@ -37,7 +37,7 @@ class EditorActionsControllerMixin:
         """Copy editor content to the clipboard."""
         text = self.latex_editor.toPlainText().strip()
         if not text:
-            self.set_action_status("编辑器为空")
+            self.show_action_status("编辑器为空", level="warning")
             return
         try:
             QApplication.clipboard().setText(text)
@@ -48,13 +48,13 @@ class EditorActionsControllerMixin:
                 pyperclip.copy(text)
                 self.set_action_status("已复制")
             except Exception:
-                self.set_action_status("复制失败")
+                self.show_action_status("复制失败", level="error")
 
     def _add_editor_to_fav(self):
         """Add editor content to favorites."""
         text = self.latex_editor.toPlainText().strip()
         if not text:
-            self.set_action_status("编辑器为空")
+            self.show_action_status("编辑器为空", level="warning")
             return
         content_type = None
         try:
@@ -86,7 +86,7 @@ class EditorActionsControllerMixin:
             menu_cls=CenterMenu,
             anchor_widget=anchor_widget,
             text_source=text_source,
-            status_callback=lambda message: self.set_action_status(message, parent=info_parent),
+            status_callback=lambda message, level: self.show_action_status(message, level=level, parent=info_parent),
             export_callback=lambda format_type, text: self._export_as(format_type, text, info_parent=info_parent),
             empty_hint=empty_hint,
         )
@@ -95,16 +95,20 @@ class EditorActionsControllerMixin:
         """Export the formula in the requested format."""
         self._remember_export_format(format_type)
         try:
-            _ok, message = export_formula_to_clipboard(
+            ok, message = export_formula_to_clipboard(
                 format_type,
                 latex,
                 mathml_converter=latex_to_mathml,
                 omml_converter=latex_to_omml,
                 svg_converter=latex_to_svg_code,
                 parent=info_parent or self,
-                status_callback=lambda message: self.set_action_status(message, parent=info_parent),
+                status_callback=lambda message, level: self.show_action_status(message, level=level, parent=info_parent),
             )
         except Exception as e:
-            self.set_action_status(f"导出失败: {e}", parent=info_parent)
+            self.show_action_status(f"导出失败: {e}", level="error", parent=info_parent)
             return
-        self.set_action_status(message, parent=info_parent)
+        if ok:
+            level = "info" if message.startswith("正在") else "success"
+        else:
+            level = "info" if "取消" in message else "error"
+        self.show_action_status(message, level=level, parent=info_parent)

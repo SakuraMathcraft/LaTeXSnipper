@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from PyQt6.QtCore import QThread, QTimer, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QInputDialog, QProgressDialog
@@ -11,6 +12,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import ExternalModelPdfWorker
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from preview.math_preview import is_dark_ui
+from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from ui.pdf_options_dialog import prompt_pdf_output_options
 from ui.pdf_result_window import PdfResultWindow
 from ui.window_helpers import (
@@ -19,6 +21,29 @@ from ui.window_helpers import (
     select_save_file_with_icon as _select_save_file_with_icon,
 )
 from workers.recognition_workers import PdfPredictWorker
+
+
+def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
+    """Parse a 1-based PDF page or contiguous page range into inclusive bounds."""
+    total = max(int(total_pages or 1), 1)
+    raw = str(text or "").strip().replace("－", "-").replace("—", "-").replace("–", "-")
+    if not raw:
+        raise ValueError("请输入页码或页码范围。")
+    parts = [part.strip() for part in raw.split("-")]
+    if len(parts) > 2 or any(not part for part in parts):
+        raise ValueError("页码范围格式应为 3 或 3-7。")
+    try:
+        start = int(parts[0])
+        end = int(parts[1]) if len(parts) == 2 else start
+    except ValueError as exc:
+        raise ValueError("页码范围只能包含数字和连字符。") from exc
+    if start < 1 or end < 1:
+        raise ValueError("页码必须从 1 开始。")
+    if start > end:
+        raise ValueError("起始页不能大于结束页。")
+    if end > total:
+        raise ValueError(f"页码不能超过 PDF 总页数 {total}。")
+    return start, end
 
 
 class PdfRecognitionControllerMixin:
@@ -100,12 +125,10 @@ class PdfRecognitionControllerMixin:
 
         default_pages = min(total_pages, 5) if total_pages > 0 else 1
         page_dlg = QInputDialog(self)
-        page_dlg.setWindowTitle("选择页数")
-        page_dlg.setLabelText(f"PDF 共 {total_pages} 页，选择要识别的页数：")
-        page_dlg.setInputMode(QInputDialog.InputMode.IntInput)
-        page_dlg.setIntRange(1, max(total_pages, 1))
-        page_dlg.setIntValue(default_pages)
-        page_dlg.setIntStep(1)
+        page_dlg.setWindowTitle("选择页码")
+        page_dlg.setLabelText(f"PDF 共 {total_pages} 页，输入识别页码或范围：")
+        page_dlg.setInputMode(QInputDialog.InputMode.TextInput)
+        page_dlg.setTextValue(f"1-{default_pages}" if default_pages > 1 else "1")
         page_dlg.setWindowFlags(
             (
                 page_dlg.windowFlags()
@@ -126,7 +149,13 @@ class PdfRecognitionControllerMixin:
         _apply_app_window_icon(page_dlg)
         if page_dlg.exec() != int(QDialog.DialogCode.Accepted):
             return
-        pages = page_dlg.intValue()
+        try:
+            page_start, page_end = parse_pdf_page_range(page_dlg.textValue(), total_pages)
+        except ValueError as exc:
+            custom_warning_dialog("提示", str(exc), self)
+            return
+        page_indices = list(range(page_start - 1, page_end))
+        pages = len(page_indices)
 
         opts = self._prompt_pdf_output_options()
         if not opts:
@@ -153,13 +182,13 @@ class PdfRecognitionControllerMixin:
             self.pdf_predict_worker = ExternalModelPdfWorker(
                 config,
                 str(path),
-                pages,
+                page_indices,
                 fmt_key,
                 dpi,
                 doc_mode,
             )
         else:
-            self.pdf_predict_worker = PdfPredictWorker(self.model, str(path), pages, self.current_model, fmt_key, dpi)
+            self.pdf_predict_worker = PdfPredictWorker(self.model, str(path), page_indices, self.current_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         progress_text = "正在解析 PDF 文档结构..." if doc_mode == "parse" else "正在识别 PDF..."
@@ -271,7 +300,7 @@ class PdfRecognitionControllerMixin:
                 self.pdf_predict_thread.requestInterruption()
             except Exception:
                 pass
-        self.set_action_status("已取消", auto_clear_ms=3000)
+        self.show_action_status("已取消", level="info", auto_clear_ms=3000)
 
     def _wrap_document_output(self, content: str, fmt_key: str, style_key: str) -> str:
         from core.pdf_output_contract import wrap_document_output
@@ -343,7 +372,6 @@ class PdfRecognitionControllerMixin:
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
-        self.set_action_status(f"PDF 识别失败: {msg}", auto_clear_ms=4500)
         try:
             if getattr(self, "current_model", "") == "external_model":
                 used = self._get_external_model_display_name(
@@ -364,7 +392,21 @@ class PdfRecognitionControllerMixin:
             pass
 
         content = self._recognition_failure_content(msg, worker_attr="pdf_predict_worker")
-        self.set_action_status(content, auto_clear_ms=4500)
+        if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
+            hk = display_hotkey(
+                normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+                sys.platform,
+            )
+            try:
+                self.system_provider.show_notification(
+                    self.tray_icon,
+                    "识别失败",
+                    f"{content}\n可使用快捷键 {hk} 重试。",
+                    critical=True,
+                    timeout_ms=4000,
+                )
+            except Exception:
+                pass
         try:
             InfoBar.error(
                 title="识别失败",

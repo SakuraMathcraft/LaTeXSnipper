@@ -383,29 +383,6 @@ class PredictResultControllerMixin:
                 print(f"[INFO] 识别完成 model={used}")
         except Exception:
             pass
-        if getattr(self, "tray_icon", None):
-
-            show_toast = bool(self.cfg.get("show_capture_success_toast", False))
-            if show_toast:
-                try:
-                    now_ts = datetime.datetime.now().timestamp()
-                    cooldown_ok = (now_ts - float(getattr(self, "_last_capture_toast_ts", 0.0) or 0.0)) >= 12.0
-                    bg_mode = (not self.isVisible()) or self.isMinimized() or (not self.isActiveWindow())
-                    if cooldown_ok and bg_mode:
-                        hk = display_hotkey(
-                            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
-                            sys.platform,
-                        )
-                        self.system_provider.show_notification(
-                            self.tray_icon,
-                            "识别完成",
-                            f"公式已识别。使用快捷键 {hk} 可再次截图。",
-                            critical=False,
-                            timeout_ms=2500,
-                        )
-                        self._last_capture_toast_ts = now_ts
-                except Exception:
-                    pass
         self.show_confirm_dialog(latex)
         self._discard_hidden_unpinned_predict_result_dialog()
 
@@ -487,7 +464,7 @@ class PredictResultControllerMixin:
         self._next_predict_result_screen_index = None
         if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(error=msg):
             self.set_model_status("失败")
-            self.set_action_status("Office OCR 失败", auto_clear_ms=4500)
+            self.show_action_status("Office OCR 失败", level="error", auto_clear_ms=4500)
             return
         self._restore_hidden_unpinned_predict_result_dialog()
         if self._is_user_cancelled_recognition_error(msg):
@@ -538,7 +515,6 @@ class PredictResultControllerMixin:
                 )
             except Exception:
                 pass
-        self.set_action_status(content, auto_clear_ms=4500)
         try:
             InfoBar.error(
                 title="识别失败",
@@ -554,7 +530,7 @@ class PredictResultControllerMixin:
         t = te.toPlainText().strip()
         if not t:
             if bool(getattr(dialog, "_predict_result_pinned", False)):
-                self.set_action_status("识别结果为空", parent=dialog)
+                self.show_action_status("识别结果为空", level="warning", parent=dialog)
                 return
             dialog.reject()
             return

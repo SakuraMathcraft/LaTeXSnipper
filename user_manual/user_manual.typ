@@ -218,7 +218,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 #v(0.5em)
 - *Windows：* `%USERPROFILE%\.latexsnipper\logs\` 或 `%LOCALAPPDATA%\LaTeXSnipper\logs\`
 - *Linux：* `~/.latexsnipper/logs/`
-- *macOS：* `~/.latexsnipper/logs/`
+- *macOS：* `~/Library/Logs/LaTeXSnipper/`，如果不可写会回退到 `~/Library/Application Support/LaTeXSnipper/logs/`
 - *崩溃日志：* 同目录下的 `crash-native.log`
 
 #tip-block("建议", [反馈 Bug 时把整个 logs 目录打包发过来，不要只截图报错弹窗。])
@@ -268,7 +268,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - 当前为 #text(weight: "bold")[内置模型] 且不是混合模式时，会提示切换到 MathCraft 混合识别后继续。PDF 文档识别需要混合模式做文本和公式整理。
 - 当前为 #text(weight: "bold")[外部模型] 时，必须先在设置中完成外部模型配置并通过连接测试。
 - MinerU 原生协议会走文档解析模式，输出固定为 Markdown；其他模型会先询问输出 Markdown 还是 LaTeX。
-- 程序会询问识别页数，默认最多先识别 5 页，避免大 PDF 一次性耗时过长。
+- 程序会询问识别页码或连续范围，例如 `5`、`3-7`；默认先填入 `1-5`，避免大 PDF 一次性耗时过长。
 - 程序会询问 PDF 渲染 DPI，范围为 90-300。外部模型默认 150 DPI，内置模型默认 200 DPI。
 - 识别结果会打开独立的 PDF 结果窗口，可编辑、复制或保存。Markdown 文档保存时，如果结构化结果包含图片资源，程序会尽量把相关 assets 一起复制到保存目录。
 
