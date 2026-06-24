@@ -52,40 +52,18 @@ def app_cache_dir() -> pathlib.Path:
 
 
 def app_log_dir() -> pathlib.Path:
-    """Return a writable log directory, falling back when the profile log dir is locked."""
+    """Return the platform log directory."""
     global _APP_LOG_DIR_CACHE
     if _APP_LOG_DIR_CACHE is not None:
         return _APP_LOG_DIR_CACHE
 
-    import tempfile
-
-    candidates = []
     if sys.platform == "darwin":
-        candidates.append(pathlib.Path.home() / "Library" / "Logs" / APP_SUPPORT_NAME)
-    candidates.append(app_state_dir() / "logs")
-    if sys.platform == "win32":
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            candidates.append(pathlib.Path(local_app_data) / APP_NAME / "logs")
-    candidates.append(pathlib.Path(tempfile.gettempdir()) / "LaTeXSnipper" / "logs")
-
-    for candidate in candidates:
-        try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            probe = candidate / f".write-test-{os.getpid()}.tmp"
-            probe.write_text("ok", encoding="utf-8")
-            try:
-                probe.unlink()
-            except Exception:
-                pass
-            _APP_LOG_DIR_CACHE = candidate
-            return candidate
-        except Exception:
-            continue
-
-    fallback = pathlib.Path(tempfile.gettempdir())
-    _APP_LOG_DIR_CACHE = fallback
-    return fallback
+        p = pathlib.Path.home() / "Library" / "Logs" / APP_SUPPORT_NAME
+    else:
+        p = app_state_dir() / "logs"
+    p.mkdir(parents=True, exist_ok=True)
+    _APP_LOG_DIR_CACHE = p
+    return p
 
 
 def app_temp_dir() -> pathlib.Path:

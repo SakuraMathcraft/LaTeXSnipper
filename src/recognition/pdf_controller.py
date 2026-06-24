@@ -385,9 +385,9 @@ class PdfRecognitionControllerMixin:
                 used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "pdf_predict_worker", None), "elapsed", None)
             if elapsed is not None:
-                print(f"[INFO] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
+                print(f"[ERR] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
             else:
-                print(f"[INFO] PDF 识别失败 model={used} err={msg}")
+                print(f"[ERR] PDF 识别失败 model={used} err={msg}")
         except Exception:
             pass
 

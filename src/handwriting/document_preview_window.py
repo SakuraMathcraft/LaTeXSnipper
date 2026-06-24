@@ -1346,7 +1346,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self._update_compile_button_state()
         mode = self._current_render_mode()
         if mode not in {"latex_pdflatex", "latex_xelatex"}:
-            InfoBar.info(title="暂不可用", content="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。", parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.warning(title="暂不可用", content="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。", parent=self, position=InfoBarPosition.TOP, duration=3200)
             return
         if self._compile_thread is not None and self._compile_thread.isRunning():
             InfoBar.info(title="正在编译", content="当前文档正在编译，请稍候。", parent=self, position=InfoBarPosition.TOP, duration=2500)
@@ -1396,7 +1396,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
             if has_errors:
                 InfoBar.warning(title="编译完成但存在错误", content=summary or "已尽量生成 PDF，请查看下方编译日志。", parent=self, position=InfoBarPosition.TOP, duration=4200)
             elif has_warnings:
-                InfoBar.info(title="编译完成但存在警告", content=summary or "PDF 预览已更新，请查看下方编译日志。", parent=self, position=InfoBarPosition.TOP, duration=3200)
+                InfoBar.warning(title="编译完成但存在警告", content=summary or "PDF 预览已更新，请查看下方编译日志。", parent=self, position=InfoBarPosition.TOP, duration=3200)
             else:
                 InfoBar.success(title="编译完成", content="PDF 预览已更新。", parent=self, position=InfoBarPosition.TOP, duration=2500)
             return

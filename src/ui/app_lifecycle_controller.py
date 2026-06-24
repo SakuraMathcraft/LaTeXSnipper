@@ -146,24 +146,24 @@ class AppLifecycleMixin:
 
         try:
             self.save_history()
-            print("[关闭] 历史记录已保存")
+            print("[INFO] 历史记录已保存")
         except Exception as e:
-            print(f"[关闭] 保存历史失败: {e}")
+            print(f"[WARN] 保存历史失败: {e}")
 
 
         try:
             if hasattr(self, 'favorites_window') and self.favorites_window:
                 self.favorites_window.save_favorites()
-                print("[关闭] 收藏夹已保存")
+                print("[INFO] 收藏夹已保存")
         except Exception as e:
-            print(f"[关闭] 保存收藏夹失败: {e}")
+            print(f"[WARN] 保存收藏夹失败: {e}")
 
 
         try:
             self.cfg.save()
-            print("[关闭] 配置已保存")
+            print("[INFO] 配置已保存")
         except Exception as e:
-            print(f"[关闭] 保存配置失败: {e}")
+            print(f"[WARN] 保存配置失败: {e}")
 
 
         try:

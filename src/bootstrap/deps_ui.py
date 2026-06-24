@@ -296,7 +296,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     payload["failed_layers"] = [layer for layer, _ in failed_layers]
                 _save_json(state_file, payload)
                 if failed_layers:
-                    print(f"[INFO] 已更新状态文件，移除失败的层: {[layer for layer, _ in failed_layers]}")
+                    print(f"[WARN] 已更新状态文件，移除验证失败的层: {[layer for layer, _ in failed_layers]}")
             except Exception as e:
                 print(f"[WARN] 更新状态文件失败: {e}")
         else:

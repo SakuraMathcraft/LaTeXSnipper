@@ -182,7 +182,7 @@ def maybe_recover_antlr_wheel_failure(
         return False
 
     suppress = list(_suppress_args if suppress_args is None else suppress_args)
-    log_q.put("[INFO] antlr4-python3-runtime build failed; repairing pip/setuptools/wheel...")
+    log_q.put("[WARN] antlr4-python3-runtime build failed; repairing pip/setuptools/wheel...")
 
     ok_tools, _ = run_logged_pip_command(
         pyexe,

@@ -280,6 +280,7 @@ def test_user_manual_documents_pdf_page_range_and_macos_logs() -> None:
         assert "~/Library/Logs/LaTeXSnipper/" in source
         assert "macOS：** `~/.latexsnipper/logs/`" not in source
         assert "macOS：* `~/.latexsnipper/logs/`" not in source
+        assert "%LOCALAPPDATA%\\LaTeXSnipper\\logs" not in source
 
 
 def test_system_python_range_copy_is_consistent() -> None:
@@ -292,7 +293,6 @@ def test_system_python_range_copy_is_consistent() -> None:
             ROOT / "readme.md",
             ROOT / "README.zh-CN.md",
             ROOT / "docs" / "faq.md",
-            ROOT / "docs" / "developer_code_standards.md",
             ROOT / "docs" / "user_data_storage.md",
             ROOT / "user_manual" / "user_manual.md",
             ROOT / "user_manual" / "user_manual.typ",
@@ -425,6 +425,21 @@ def test_predict_result_dialog_has_persisted_quick_export_action() -> None:
     assert 'self.cfg.get("last_export_format", "")' in predict_controller
     assert "default_export_format=default_export_format" in predict_controller
     assert "quick_export=lambda format_type, text, dialog: self._export_as" in predict_controller
+
+
+def test_recognition_failure_logs_use_error_level() -> None:
+    predict_controller = (ROOT / "src" / "ui" / "predict_result_controller.py").read_text(encoding="utf-8")
+    pdf_controller = (ROOT / "src" / "recognition" / "pdf_controller.py").read_text(encoding="utf-8")
+
+    assert "[ERR] 识别失败" in predict_controller
+    assert "[INFO] 识别失败" not in predict_controller
+    assert "[ERR] PDF 识别失败" in pdf_controller
+    assert "[INFO] PDF 识别失败" not in pdf_controller
+
+
+def test_final_docs_do_not_keep_development_only_design_notes() -> None:
+    assert not (ROOT / "docs" / "developer_code_standards.md").exists()
+    assert not (ROOT / "docs" / "MathCraft_OCR_Design.md").exists()
 
 
 def test_shutdown_cleans_office_bridge_toggle_workers() -> None:

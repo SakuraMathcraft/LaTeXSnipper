@@ -9,7 +9,7 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 | Category | Windows | Linux | macOS |
 |---|---|---|---|
 | App state | `%USERPROFILE%\.latexsnipper` | `~/.latexsnipper` | `~/Library/Application Support/LaTeXSnipper` |
-| App logs | `%USERPROFILE%\.latexsnipper\logs`, with `%LOCALAPPDATA%\LaTeXSnipper\logs` as a fallback | `~/.latexsnipper/logs` | `~/Library/Logs/LaTeXSnipper` |
+| App logs | `%USERPROFILE%\.latexsnipper\logs` | `~/.latexsnipper/logs` | `~/Library/Logs/LaTeXSnipper` |
 | App temp | `%TEMP%\LaTeXSnipper` | `$TMPDIR/LaTeXSnipper` or `/tmp/LaTeXSnipper` | `$TMPDIR/LaTeXSnipper` |
 
 ## Persistent App State
@@ -80,7 +80,7 @@ can explicitly override the model root.
 | Directory | Created when | Notes |
 |---|---|---|
 | App state root | First config/state access | Contains settings, history, locks, update cache, and shared tools |
-| App log root | Runtime logging/preflight starts | Windows can fall back to `%LOCALAPPDATA%\LaTeXSnipper\logs` if the profile log path is unavailable |
+| App log root | Runtime logging/preflight starts | Uses the platform log path listed above |
 | App temp root | Preview, PDF asset, or launcher helpers run | Grouped under `LaTeXSnipper` in the OS temp directory |
 | Dependency root | Dependency bootstrap or user path switch | Can be changed repeatedly; only the current root is stored in config |
 | `<dependency-root>/python311` | Dependency Python/venv creation | Windows bundled runtime lives under installed `_internal\deps\python311` unless the user switches roots |
