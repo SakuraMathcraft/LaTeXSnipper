@@ -4,7 +4,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,25 +62,6 @@ class _ReusableTempDir:
     def cleanup(self) -> None:
         # Keep the fixed directory itself, but clear all generated files.
         self.clear()
-
-
-def _cleanup_legacy_poppler_temp_dirs(max_age_seconds: int = 24 * 3600) -> None:
-    """Best-effort cleanup for old random temp dirs created by legacy builds."""
-    base = Path(tempfile.gettempdir())
-    now = time.time()
-    for path in base.glob("latexsnipper-poppler-svg-*"):
-        if not path.is_dir():
-            continue
-        try:
-            age = now - path.stat().st_mtime
-            if age < max_age_seconds:
-                continue
-        except Exception:
-            continue
-        try:
-            shutil.rmtree(path, ignore_errors=True)
-        except Exception:
-            pass
 
 
 def _which(command: str) -> str:
@@ -321,7 +301,6 @@ class _MagnifierRenderWorker(QObject):
 
 class PopplerPdfView(QScrollArea):
     syncJumpRequested = pyqtSignal(int, float, float)
-    _legacy_temp_cleaned = False
     _magnifier_render_request = pyqtSignal(int, str, float, float, float, float, int, float, float, bool)
 
     def __init__(self, parent=None):
@@ -390,9 +369,6 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_gpu_enabled = bool(QOpenGLWidget is not None and _has_nvidia_gpu_silent())
         if self._magnifier_gpu_enabled and self._window_has_qquickwidget():
             self._magnifier_gpu_enabled = False
-        if not PopplerPdfView._legacy_temp_cleaned:
-            _cleanup_legacy_poppler_temp_dirs()
-            PopplerPdfView._legacy_temp_cleaned = True
         fixed_temp_root = app_temp_dir() / "poppler-svg"
         self._temp_dir = _ReusableTempDir(fixed_temp_root)
         self._temp_dir.clear()

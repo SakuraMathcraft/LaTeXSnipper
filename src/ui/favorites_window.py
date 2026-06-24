@@ -52,7 +52,7 @@ class FavoritesWindow(QMainWindow):
         
         # Top button row.
         top_btn_layout = QHBoxLayout()
-        btn_export_data = PushButton(FluentIcon.SAVE, "导出数据")
+        btn_export_data = PushButton(FluentIcon.SAVE, "导出收藏夹")
         btn_export_data.clicked.connect(self.export_data)
         top_btn_layout.addWidget(btn_export_data)
         
