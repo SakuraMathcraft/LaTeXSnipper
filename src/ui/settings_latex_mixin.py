@@ -237,7 +237,7 @@ class SettingsLatexMixin:
                         title = "验证成功"
                         message = "LaTeX 环境已就绪"
             except Exception as e:
-                print(f"[ERROR] LaTeX 验证失败: {e}")
+                print(f"[ERR] LaTeX 验证失败: {e}")
                 title = "验证出错"
                 message = str(e)[:100]
             self.latex_path_test_done.emit(bool(ok), str(title), str(message), str(engine_value), str(path_value))
@@ -340,4 +340,4 @@ class SettingsLatexMixin:
                         f"已切换到: {mode_names[engine]}"
                     )
         except Exception as e:
-            print(f"[ERROR] 保存渲染模式失败: {e}")
+            print(f"[ERR] 保存渲染模式失败: {e}")

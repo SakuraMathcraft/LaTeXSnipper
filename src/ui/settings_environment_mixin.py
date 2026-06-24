@@ -43,10 +43,10 @@ class SettingsEnvironmentMixin:
         env_key = "main"
         _dbg_text = "主环境"
         _dbg_idx = 0
-        print(f"[DEBUG] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
+        print(f"[INFO] Terminal select: text={_dbg_text!r} idx={_dbg_idx} env_key={env_key}")
         
         pyexe = self._resolve_dynamic_main_pyexe()
-        print(f"[DEBUG] Terminal pyexe initial: {pyexe}")
+        print(f"[INFO] Terminal pyexe initial: {pyexe}")
         if not pyexe or not os.path.exists(pyexe):
             msg = MessageBox(
                 "环境未就绪",

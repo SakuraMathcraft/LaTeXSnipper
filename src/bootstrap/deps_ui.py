@@ -825,7 +825,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             return
 
-        print(f"[DEBUG] Selected layers: {sel}")
+        print(f"[INFO] Selected layers: {sel}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
         if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):

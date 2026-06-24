@@ -163,7 +163,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     ensure_startup_splash("检查 Python 运行时...")
     target_py = ensure_full_python_or_prompt(base_dir)
     if not target_py:
-        print("[ERROR] 未找到可用的完整 Python 3.11。")
+        print("[ERR] 未找到可用的完整 Python 3.11。")
         raise SystemExit(2)
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py
@@ -250,12 +250,12 @@ def bootstrap_application() -> BootstrapContext:
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    print(f"[DEBUG] 应用根目录: {APP_DIR}")
-    print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
+    print(f"[INFO] 应用根目录: {APP_DIR}")
+    print(f"[INFO] 打包模式: {_is_packaged_mode()}")
 
     deps_dir = _initial_deps_dir()
     deps_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[DEBUG] 依赖目录: {deps_dir}")
+    print(f"[INFO] 依赖目录: {deps_dir}")
 
     ensure_startup_splash("加载依赖向导模块...")
     ensure_startup_splash("加载设置模块...")
@@ -277,7 +277,7 @@ def bootstrap_application() -> BootstrapContext:
 
     for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
-            print(f"[DEBUG] 清除环境变量 {var}")
+            print(f"[INFO] 清除环境变量 {var}")
             os.environ.pop(var)
 
     _BOOTSTRAP_CONTEXT = BootstrapContext(

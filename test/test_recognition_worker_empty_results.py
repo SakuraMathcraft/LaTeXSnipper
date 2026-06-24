@@ -26,6 +26,16 @@ class _MixedEmptyResultWrapper:
         }
 
 
+class _TextEmptyResultWrapper:
+    def predict_result(self, _image, model_name: str = "mathcraft_text"):
+        return {
+            "text": "",
+            "mode": "text",
+            "model": model_name,
+            "empty_reason": "empty_image",
+        }
+
+
 def test_prediction_worker_routes_blank_formula_result_to_failure_signal() -> None:
     worker = PredictionWorker(_EmptyResultWrapper(), Image.new("RGB", (32, 16), "white"), "mathcraft")
     finished: list[str] = []
@@ -37,6 +47,23 @@ def test_prediction_worker_routes_blank_formula_result_to_failure_signal() -> No
 
     assert finished == []
     assert failed == ["未识别到公式内容"]
+
+
+def test_prediction_worker_routes_blank_text_result_to_failure_signal() -> None:
+    worker = PredictionWorker(
+        _TextEmptyResultWrapper(),
+        Image.new("RGB", (32, 16), "white"),
+        "mathcraft_text",
+    )
+    finished: list[str] = []
+    failed: list[str] = []
+
+    worker.finished.connect(finished.append)
+    worker.failed.connect(failed.append)
+    worker.run()
+
+    assert finished == []
+    assert failed == ["未识别到文本内容"]
 
 
 def test_prediction_worker_routes_blank_mixed_result_to_failure_signal() -> None:

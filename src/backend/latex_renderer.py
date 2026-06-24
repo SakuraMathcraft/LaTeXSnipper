@@ -532,7 +532,7 @@ class LaTeXRenderer:
                     **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
-                    print(f"[ERROR] LaTeX compile failed:\n{compile_result.stdout}")
+                    print(f"[ERR] LaTeX compile failed:\n{compile_result.stdout}")
                     return None
 
                 try:
@@ -550,9 +550,9 @@ class LaTeXRenderer:
                     print("[WARN] pdftocairo was not found; cannot convert PDF to SVG")
                     return None
         except subprocess.TimeoutExpired:
-            print("[ERROR] LaTeX compile timed out")
+            print("[ERR] LaTeX compile timed out")
         except Exception as e:
-            print(f"[ERROR] LaTeX render failed: {e}")
+            print(f"[ERR] LaTeX render failed: {e}")
         return None
 
     def _enlarge_svg(self, svg_content: str, scale: float = 2.0) -> str:
@@ -630,7 +630,7 @@ class LaTeXSettings:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
             print(f"[LaTeX] Settings saved: {self.config_file}")
         except Exception as e:
-            print(f"[ERROR] Failed to save LaTeX settings: {e}")
+            print(f"[ERR] Failed to save LaTeX settings: {e}")
 
     def set_latex_path(self, path: str):
         """Set the LaTeX executable path."""

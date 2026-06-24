@@ -36,13 +36,13 @@ def _create_window(main_window_cls, splash):
     update_startup_splash(splash, "初始化运行环境...")
     update_startup_splash(splash, "加载主窗口...")
     win = main_window_cls(startup_progress=lambda m: update_startup_splash(splash, m))
-    print("[DEBUG] MainWindow 创建完成，准备显示窗口")
+    print("[INFO] MainWindow 创建完成，准备显示窗口")
     update_startup_splash(splash, "主窗口已加载，正在显示...")
     win.show()
     win.start_post_show_tasks()
     QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
     finish_startup_splash(splash, win)
-    print("[DEBUG] win.show() 完成，进入事件循环")
+    print("[INFO] win.show() 完成，进入事件循环")
     return win
 
 
