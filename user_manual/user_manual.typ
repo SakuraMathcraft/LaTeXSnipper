@@ -216,9 +216,9 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 遇到任何问题时，第一步永远是 #text(fill: rgb("#C62828"), weight: "bold")[查看日志]：
 #v(0.5em)
-- *Windows：* `%USERPROFILE%\.latexsnipper\logs\` 或 `%LOCALAPPDATA%\LaTeXSnipper\logs\`
+- *Windows：* `%USERPROFILE%\.latexsnipper\logs\`
 - *Linux：* `~/.latexsnipper/logs/`
-- *macOS：* `~/Library/Logs/LaTeXSnipper/`，如果不可写会回退到 `~/Library/Application Support/LaTeXSnipper/logs/`
+- *macOS：* `~/Library/Logs/LaTeXSnipper/`
 - *崩溃日志：* 同目录下的 `crash-native.log`
 
 #tip-block("建议", [反馈 Bug 时把整个 logs 目录打包发过来，不要只截图报错弹窗。])
@@ -1101,7 +1101,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
   #text(weight: "bold")[1. 日志文件]
   #v(0.2em)
-  位于 `%USERPROFILE%\.latexsnipper\logs\` 或 `%LOCALAPPDATA%\LaTeXSnipper\logs\`，
+  位于 `%USERPROFILE%\.latexsnipper\logs\`，
   把 #text(fill: rgb("#C62828"), weight: "bold")[整个 logs 目录打包] 发过来。
   命令行运行时 stderr 的输出也要一并附上。
 
@@ -1197,7 +1197,7 @@ py -3.11 -m venv tools\deps\python311
 
 == 开发者验证命令注意事项
 
-开发者文档 `docs/developer_code_standards.md` 中列出的验证命令：
+常用验证命令：
 
 ```text
 .\tools\deps\python311\python.exe -m ruff check .

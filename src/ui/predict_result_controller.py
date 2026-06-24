@@ -490,9 +490,9 @@ class PredictResultControllerMixin:
                 used = getattr(self, "current_model", "mathcraft")
             elapsed = getattr(getattr(self, "predict_worker", None), "elapsed", None)
             if elapsed is not None:
-                print(f"[INFO] 识别失败 model={used} time={elapsed:.2f}s err={msg}")
+                print(f"[ERR] 识别失败 model={used} time={elapsed:.2f}s err={msg}")
             else:
-                print(f"[INFO] 识别失败 model={used} err={msg}")
+                print(f"[ERR] 识别失败 model={used} err={msg}")
         except Exception:
             pass
         content = self._recognition_failure_content(

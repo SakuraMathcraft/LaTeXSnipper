@@ -118,7 +118,7 @@ Linux `.deb` packages declare `python3` and `python3-venv`. macOS users should i
 
 ## Where are logs stored?
 
-- Windows: `%USERPROFILE%\.latexsnipper\logs\` or `%LOCALAPPDATA%\LaTeXSnipper\logs\`
+- Windows: `%USERPROFILE%\.latexsnipper\logs\`
 - Linux: `~/.latexsnipper/logs/`
 - macOS: `~/Library/Logs/LaTeXSnipper/`
 

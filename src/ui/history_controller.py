@@ -284,18 +284,18 @@ class HistoryControllerMixin:
         self.save_history()
         self.rebuild_history_ui()
         self.set_action_status("已加入历史")
-        print(f"[HistoryAdd] total={len(self.history)} type={content_type} last='{t[:60]}'")
+        print(f"[INFO] 已加入历史 total={len(self.history)} type={content_type} last='{t[:60]}'")
 
     def load_history(self):
         try:
             self.history, self._formula_names, self._formula_types = load_history_store(self.history_path)
         except Exception as e:
-            print("加载历史失败:", e)
+            print(f"[WARN] 加载历史失败: {e}")
             self.history = []
         self.rebuild_history_ui()
 
     def delete_history_item(self, widget, text):
-        print(f"[Delete] request text='{text}' history_len={len(self.history)}")
+        print(f"[INFO] 删除历史请求 text='{text}' history_len={len(self.history)}")
         if text in self.history:
             self.history.remove(text)
         if widget:
@@ -326,7 +326,7 @@ class HistoryControllerMixin:
         try:
             save_history_store(self.history_path, self.history, self._formula_names, self._formula_types)
         except Exception as e:
-            print("历史保存失败:", e)
+            print(f"[WARN] 保存历史失败: {e}")
 
     def clear_history(self):
 
