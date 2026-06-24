@@ -261,7 +261,7 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_doc
     assert "<应用状态目录>/tools/pandoc" in manual_typ
     assert "Windows:  <安装目录>\\_internal\\deps（默认，可在依赖向导/设置中切换）" in manual_typ
-    assert "导出数据" in favorites_window
+    assert "导出收藏夹" in favorites_window
     assert "default_user_data_file(DEFAULT_FAVORITES_NAME)" in favorites_window
     assert "cfg.set(\"favorites_path\"" not in favorites_window
     assert "选择收藏夹保存路径" not in favorites_window
@@ -505,19 +505,27 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
 
 
 def test_pyinstaller_specs_prune_bundled_python_seed_payload() -> None:
-    for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
-        spec = (ROOT / spec_name).read_text(encoding="utf-8")
-        assert "_prune_bundled_python_runtime" in spec
-        assert '"Lib/ensurepip"' in spec
-        assert '"Lib/venv"' in spec
-        assert '"Lib/ctypes/test"' in spec
-        assert '"Lib/distutils/tests"' in spec
-        assert '"Lib/idlelib"' in spec
-        assert '"DLLs/_tkinter.pyd"' in spec
-        assert '"include"' in spec
-        assert '"libs"' in spec
-
     windows_spec = (ROOT / "LaTeXSnipper.spec").read_text(encoding="utf-8")
+    assert "_prune_bundled_python_runtime" in windows_spec
+    for item in (
+        '"Lib/ensurepip"',
+        '"Lib/venv"',
+        '"Lib/ctypes/test"',
+        '"Lib/distutils/tests"',
+        '"Lib/idlelib"',
+        '"DLLs/_tkinter.pyd"',
+        '"include"',
+        '"libs"',
+    ):
+        assert item in windows_spec
+
+    for spec_name in ("LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+        spec = (ROOT / spec_name).read_text(encoding="utf-8")
+        assert "_prune_bundled_python_runtime" not in spec
+        assert "deps/python311" not in spec
+        assert '"Lib/ensurepip"' not in spec
+        assert '"Lib/venv"' not in spec
+
     assert "LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS" not in windows_spec
     assert "MATHCRAFT_MODELS_ROOT" not in windows_spec
     assert "BUNDLED_DEPS_STATE" not in windows_spec
@@ -552,6 +560,11 @@ def test_pyinstaller_specs_prune_optional_qt_webengine_payload() -> None:
     for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
         spec = (ROOT / spec_name).read_text(encoding="utf-8")
         assert "_prune_qt_webengine_payload" in spec
+        assert "lib{alias}.so" in spec
+        assert "lib{alias}.so.*" in spec
+        assert "{alias}.framework" in spec
+        assert "lib{stem}.so" in spec
+        assert "lib{stem}.dylib" in spec
         for name in removable_qt_payload:
             assert name in spec
 

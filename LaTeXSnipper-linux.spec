@@ -323,69 +323,7 @@ def _prune_collect_tree_linux(dist_root: Path):
         except Exception as exc:
             print(f"[SPEC] prune skip {child}: {exc}")
 
-    _prune_bundled_python_runtime(dist_root)
     _prune_qt_webengine_payload(dist_root)
-
-
-def _prune_bundled_python_runtime(dist_root: Path):
-    """Trim an embedded dependency Python seed when present."""
-    py_roots = [
-        dist_root / "deps" / "python311",
-        dist_root / "python311",
-    ]
-    remove_relatives = (
-        "include",
-        "libs",
-        "tcl",
-        "NEWS.txt",
-        "Lib/ensurepip",
-        "Lib/venv",
-        "Lib/idlelib",
-        "Lib/lib2to3",
-        "Lib/pydoc_data",
-        "Lib/tkinter",
-        "Lib/turtledemo",
-        "Lib/unittest",
-        "Lib/ctypes/test",
-        "Lib/distutils/tests",
-        "Lib/doctest.py",
-        "Lib/pdb.py",
-        "Lib/pydoc.py",
-        "Lib/turtle.py",
-        "DLLs/_ctypes_test.pyd",
-        "DLLs/_testbuffer.pyd",
-        "DLLs/_testcapi.pyd",
-        "DLLs/_testconsole.pyd",
-        "DLLs/_testimportmultiple.pyd",
-        "DLLs/_testinternalcapi.pyd",
-        "DLLs/_testmultiphase.pyd",
-        "DLLs/_tkinter.pyd",
-        "DLLs/tcl86t.dll",
-        "DLLs/tk86t.dll",
-        "DLLs/py.ico",
-        "DLLs/pyc.ico",
-        "DLLs/pyd.ico",
-        "DLLs/python_lib.cat",
-        "DLLs/python_tools.cat",
-    )
-    for py_root in py_roots:
-        if not py_root.exists():
-            continue
-        for relative in remove_relatives:
-            target = py_root / relative
-            if not target.exists():
-                continue
-            try:
-                if target.is_dir():
-                    shutil.rmtree(target, ignore_errors=True)
-                else:
-                    target.unlink(missing_ok=True)
-            except Exception:
-                pass
-        lib_root = py_root / "Lib"
-        if lib_root.exists():
-            for cache_dir in lib_root.rglob("__pycache__"):
-                shutil.rmtree(cache_dir, ignore_errors=True)
 
 
 def _prune_qt_webengine_payload(dist_root: Path):
@@ -394,6 +332,57 @@ def _prune_qt_webengine_payload(dist_root: Path):
         dist_root / "PyQt6" / "Qt6",
         dist_root / "Qt6",
     ]
+
+    def _qt_name_aliases(stem: str) -> set[str]:
+        aliases = {stem}
+        if stem.startswith("Qt6"):
+            aliases.add("Qt" + stem[3:])
+        return aliases
+
+    def _remove_optional_qt_libraries(qt_root: Path, stems: set[str]) -> None:
+        for library_dir in (qt_root / "bin", qt_root / "lib"):
+            if not library_dir.exists():
+                continue
+            for stem in stems:
+                for alias in _qt_name_aliases(stem):
+                    candidates = [
+                        library_dir / f"{alias}.dll",
+                        library_dir / f"lib{alias}.so",
+                        library_dir / f"lib{alias}.dylib",
+                        library_dir / f"{alias}.dylib",
+                        library_dir / f"{alias}.framework",
+                    ]
+                    candidates.extend(library_dir.glob(f"lib{alias}.so.*"))
+                    for child in candidates:
+                        if not child.exists():
+                            continue
+                        try:
+                            if child.is_dir():
+                                shutil.rmtree(child, ignore_errors=True)
+                            else:
+                                child.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+
+    def _remove_optional_qt_plugins(plugins_dir: Path, relative_paths: set[Path]) -> None:
+        for relative_path in relative_paths:
+            plugin_dir = plugins_dir / relative_path.parent
+            if not plugin_dir.exists():
+                continue
+            stem = relative_path.stem
+            for child in (
+                plugin_dir / f"{stem}.dll",
+                plugin_dir / f"lib{stem}.so",
+                plugin_dir / f"lib{stem}.dylib",
+                plugin_dir / f"{stem}.dylib",
+            ):
+                if not child.exists():
+                    continue
+                try:
+                    child.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
     for qt_root in qt_roots:
         if not qt_root.exists():
             continue
@@ -438,7 +427,7 @@ def _prune_qt_webengine_payload(dist_root: Path):
 
         locales_dir = qt_root / "translations" / "qtwebengine_locales"
         if locales_dir.exists():
-            keep_locales = {"en-US.pak", "en-GB.pak", "zh-CN.pak", "zh-TW.pak"}
+            keep_locales = {"en-US.pak", "zh-CN.pak"}
             for child in locales_dir.glob("*.pak"):
                 if child.name in keep_locales:
                     continue
@@ -495,6 +484,30 @@ def _prune_qt_webengine_payload(dist_root: Path):
                         child.unlink(missing_ok=True)
                     except Exception:
                         pass
+            _remove_optional_qt_libraries(qt_root, {Path(name).stem for name in removable_bins})
+
+        plugins_dir = qt_root / "plugins"
+        removable_plugins = {
+            Path("generic/qtuiotouchplugin.dll"),
+            Path("imageformats/qicns.dll"),
+            Path("imageformats/qpdf.dll"),
+            Path("imageformats/qtga.dll"),
+            Path("imageformats/qwbmp.dll"),
+            Path("platforms/qminimal.dll"),
+            Path("platforms/qoffscreen.dll"),
+            Path("position/qtposition_nmea.dll"),
+            Path("position/qtposition_positionpoll.dll"),
+            Path("position/qtposition_winrt.dll"),
+        }
+        for relative_path in removable_plugins:
+            child = plugins_dir / relative_path
+            if not child.exists():
+                continue
+            try:
+                child.unlink(missing_ok=True)
+            except Exception:
+                pass
+        _remove_optional_qt_plugins(plugins_dir, removable_plugins)
 
 
 _prune_collect_tree_linux(Path(DISTPATH) / APP_NAME / "_internal")

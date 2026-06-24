@@ -14,7 +14,7 @@ from a different user account.
 
 Options:
   --app-data  Remove settings, history, logs, dependency state, and temp files.
-  --deps      Remove app-managed shared Pandoc/translation tools.
+  --deps      Remove app-managed shared tools.
   --models    Remove MathCraft model weights from the default platform cache.
   --all       Remove app data, shared tools, and model weights.
   --yes       Do not ask for confirmation.
@@ -111,7 +111,7 @@ if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remov
     if ask_yes_no "Remove LaTeXSnipper settings, history, logs, dependency state, and temp files?"; then
         remove_app_data=true
     fi
-    if ask_yes_no "Remove app-managed Pandoc and translation tools?"; then
+    if ask_yes_no "Remove app-managed shared tools?"; then
         remove_deps=true
     fi
     if ask_yes_no "Remove MathCraft model weights from the default cache?"; then
@@ -138,6 +138,7 @@ fi
 cat <<EOF
 
 Done.
-Custom MATHCRAFT_HOME directories are not removed automatically. Dependency
-tools created by LaTeXSnipper are grouped under the app state tools directory.
+Custom MATHCRAFT_HOME directories are not removed automatically. App-managed
+shared tools created by LaTeXSnipper are grouped under the app state tools
+directory.
 EOF

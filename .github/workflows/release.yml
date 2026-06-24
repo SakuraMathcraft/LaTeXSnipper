@@ -87,7 +87,7 @@ jobs:
               "InstallAllUsers=0",
               "TargetDir=$target",
               "Include_pip=1",
-              "Include_tcltk=1",
+              "Include_tcltk=0",
               "Include_launcher=0",
               "Include_test=0",
               "Include_doc=0",

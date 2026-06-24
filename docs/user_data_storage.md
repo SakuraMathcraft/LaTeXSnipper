@@ -59,7 +59,6 @@ on the user's system Python.
 | MathCraft OCR models on Windows | `%APPDATA%\MathCraft\models` |
 | MathCraft OCR models on Linux | `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models` |
 | MathCraft OCR models on macOS | `~/Library/Application Support/LaTeXSnipper/MathCraft/models` |
-| Bundled MathCraft models | Packaged under `MathCraft/models` when a distribution includes them |
 
 The MathCraft model cache is owned by `mathcraft_ocr.cache`. The settings UI
 opens the same directory that `mathcraft_ocr.cache` resolves. `MATHCRAFT_HOME`
