@@ -73,7 +73,7 @@ def _install_failure_guidance(failed_pkgs: list[str], fail_count: int, total: in
         "  1. 🔒 程序占用文件：关闭本程序后再手动安装",
         "  2. 🔐 权限不足：以管理员身份运行终端",
         "  3. 🌐 网络问题：尝试使用镜像源或 VPN",
-        "  4. ⚠️ 依赖冲突：查看上方 [DIAG] 诊断信息",
+        "  4. ⚠️ 依赖冲突：查看上方诊断信息",
         "",
         "💡 推荐操作:",
         "  1. 关闭本程序",
@@ -138,7 +138,7 @@ class InstallWorker(QThread):
         """Main dependency install thread; MathCraft v1 only manages ONNX Runtime backends."""
         try:
             self.log_updated.emit(f"[INFO] 开始检查 {len(self.pkgs)} 个包...")
-            self.log_updated.emit(f"[DEBUG] 使用 Python: {self.pyexe}")
+            self.log_updated.emit(f"[INFO] 使用 Python: {self.pyexe}")
             _cleanup_pip_interrupted_leftovers(self.pyexe, self.log_updated.emit)
             installed_before = _current_installed(self.pyexe)
             self.log_updated.emit(f"[INFO] 当前已安装 {len(installed_before)} 个包")
@@ -198,7 +198,7 @@ class InstallWorker(QThread):
                                 if not ort_ok:
                                     pending.append(effective_p)
                                     self.log_updated.emit(
-                                        f"[INFO] {pkg_name} 运行时异常，准备重装: {ort_err[:180]}"
+                                        f"[WARN] {pkg_name} 运行时异常，准备重装: {ort_err[:180]}"
                                     )
                                     continue
                             skipped.append(f"{pkg_name} ({cur_ver})")
@@ -245,11 +245,11 @@ class InstallWorker(QThread):
                 for idx, pkg in enumerate(pending, start=1):
                     while not self.pause_event.is_set():
                         if self.stop_event.is_set():
-                            self.log_updated.emit("[CANCEL] 用户取消安装。")
+                            self.log_updated.emit("[INFO] 用户取消安装。")
                             break
                         time.sleep(0.1)
                     if self.stop_event.is_set():
-                        self.log_updated.emit("[CANCEL] 用户取消安装。")
+                        self.log_updated.emit("[INFO] 用户取消安装。")
                         break
 
                     try:
@@ -271,7 +271,7 @@ class InstallWorker(QThread):
                     except Exception as e:
                         ok = False
                         tb = traceback.format_exc()
-                        self.log_updated.emit(f"[FATAL] 安装 {pkg} 时发生异常: {e}\n{tb}")
+                        self.log_updated.emit(f"[ERR] 安装 {pkg} 时发生异常: {e}\n{tb}")
                     finally:
                         try:
                             self.busy_state_changed.emit(False)
@@ -288,7 +288,7 @@ class InstallWorker(QThread):
                         failed_pkgs.append(pkg)
 
                 if self.stop_event.is_set():
-                    self.log_updated.emit("[CANCEL] 安装已取消。")
+                    self.log_updated.emit("[INFO] 安装已取消。")
                     self._emit_done_safe(False)
                     return
 
@@ -296,7 +296,7 @@ class InstallWorker(QThread):
             pandoc_ok = True
             if want_pandoc:
                 base_progress = pip_progress_max if pending else 20
-                self.log_updated.emit("[PANDOC] 检查 pandoc 二进制文件...")
+                self.log_updated.emit("[INFO] Pandoc: 检查 pandoc 二进制文件...")
 
                 def _pandoc_progress(pct: int):
 
@@ -342,9 +342,9 @@ class InstallWorker(QThread):
             elif fail_count == 0 and not runtime_ort_ok:
                 self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败")
                 if runtime_ort_err:
-                    self.log_updated.emit(f"[DIAG] {runtime_ort_err[:600]}")
+                    self.log_updated.emit(f"[INFO] 诊断: {runtime_ort_err[:600]}")
                 self.log_updated.emit("")
-                self.log_updated.emit("[HINT] 建议操作:")
+                self.log_updated.emit("[INFO] 建议: 建议操作:")
                 self.log_updated.emit("  1. 在依赖向导中仅选择 MATHCRAFT_CPU 或 MATHCRAFT_GPU 之一重装")
                 self.log_updated.emit("  2. 如仍失败，先卸载 onnxruntime / onnxruntime-gpu 后再重装对应后端")
                 self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
@@ -356,7 +356,7 @@ class InstallWorker(QThread):
             self._emit_done_safe(all_ok)
         except Exception as e:
             tb = traceback.format_exc()
-            self.log_updated.emit(f"[FATAL] 安装线程未捕获异常: {e}\n{tb}")
+            self.log_updated.emit(f"[ERR] 安装线程未捕获异常: {e}\n{tb}")
             self._emit_done_safe(False)
 
 
@@ -382,7 +382,7 @@ class LayerVerifyWorker(QThread):
                 verify_fail_layers.append(lyr)
                 self.log_updated.emit(format_layer_verify_failure(lyr, v_err))
                 for diag_line in _layer_verify_failure_diagnostics(lyr):
-                    self.log_updated.emit(f"  [DIAG] {diag_line}")
+                    self.log_updated.emit(f"  [INFO] 诊断: {diag_line}")
 
         try:
             state = _load_json(self.state_path, {"installed_layers": []})
@@ -419,10 +419,10 @@ class UninstallLayerWorker(QThread):
     def run(self):
         ok = True
         total = max(len(self.pkg_names), 1)
-        self.log_updated.emit(f"[STEP] 开始卸载层 {self.layer_name} ...")
+        self.log_updated.emit(f"[INFO] 开始卸载层 {self.layer_name} ...")
         self.progress_updated.emit(5)
         for idx, pkg_name in enumerate(self.pkg_names, start=1):
-            self.log_updated.emit(f"[CMD] {self.pyexe} -m pip uninstall -y {pkg_name}")
+            self.log_updated.emit(f"[INFO] 命令: {self.pyexe} -m pip uninstall -y {pkg_name}")
             try:
                 result = subprocess.run(
                     [self.pyexe, "-m", "pip", "uninstall", "-y", pkg_name],
@@ -452,7 +452,7 @@ class UninstallLayerWorker(QThread):
 
 
         if any(str(name).lower() in {"pypandoc", "pandoc"} for name in self.pkg_names):
-            self.log_updated.emit("[PANDOC] pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
+            self.log_updated.emit("[INFO] Pandoc: pip 包已卸载，正在清理 pandoc 二进制和残留文件...")
             _cleanup_pandoc_leftovers(self.pyexe, log_fn=self.log_updated.emit)
 
             pandoc_dir = _pandoc_data_dir(self.pyexe)
@@ -460,19 +460,19 @@ class UninstallLayerWorker(QThread):
                 try:
                     import shutil as _shutil
                     _shutil.rmtree(pandoc_dir, ignore_errors=True)
-                    self.log_updated.emit(f"[PANDOC] 已删除目录: {pandoc_dir}")
+                    self.log_updated.emit(f"[OK] Pandoc: 已删除目录: {pandoc_dir}")
                 except Exception as e:
-                    self.log_updated.emit(f"[PANDOC] 删除目录失败: {e}")
+                    self.log_updated.emit(f"[WARN] Pandoc: 删除目录失败: {e}")
 
             pandoc_dir_str = str(pandoc_dir)
             current_path = os.environ.get("PATH", "")
             if pandoc_dir_str in current_path:
                 os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
-                self.log_updated.emit("[PANDOC] 已从 PATH 中移除共享工具目录下的 pandoc")
+                self.log_updated.emit("[OK] Pandoc: 已从 PATH 中移除共享工具目录下的 pandoc")
             try:
                 from runtime.pandoc_runtime import clear_configured_pandoc_path
                 clear_configured_pandoc_path()
-                self.log_updated.emit("[PANDOC] 已清理持久化路径配置")
+                self.log_updated.emit("[OK] Pandoc: 已清理持久化路径配置")
             except Exception:
                 pass
 

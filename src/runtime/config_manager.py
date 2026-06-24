@@ -48,15 +48,6 @@ def default_user_data_file(file_name: str) -> Path:
     return root / file_name
 
 
-def resolve_user_data_file(cfg: ConfigManager, key: str, default_name: str) -> str:
-    value = str(cfg.get(key, "") or "").strip()
-    if value:
-        return value
-    target = default_user_data_file(default_name)
-    cfg.set(key, str(target))
-    return str(target)
-
-
 def normalize_content_type(content_type: str | None) -> str:
     """Limit content types to built-in MathCraft modes."""
     value = (content_type or "").strip().lower()

@@ -355,7 +355,7 @@ def get_mathjax_base_url() -> QUrl:
         url = QUrl.fromLocalFile(str(es5_dir) + "/")
         url_str = url.toString()
         if not url_str.startswith("file:///"):
-            print(f"[ERROR] URL 格式异常，应以 file:/// 开头: {url_str}")
+            print(f"[ERR] URL 格式异常，应以 file:/// 开头: {url_str}")
         else:
             local_key = f"local:{source_desc}:{url_str}"
             if local_key not in _MATHJAX_LOGGED_KEYS:
@@ -365,7 +365,7 @@ def get_mathjax_base_url() -> QUrl:
 
         return url
     except Exception as exc:
-        print(f"[ERROR] get_mathjax_base_url 异常: {exc}")
+        print(f"[ERR] get_mathjax_base_url 异常: {exc}")
         import traceback
 
         traceback.print_exc()
@@ -411,7 +411,7 @@ def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False
             html = html.replace(key, value)
         return html
     except Exception as exc:
-        print(f"[ERROR] build_math_html 出错: {exc}")
+        print(f"[ERR] build_math_html 出错: {exc}")
         import traceback
 
         traceback.print_exc()

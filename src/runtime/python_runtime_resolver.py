@@ -312,7 +312,7 @@ def _select_install_base_dir() -> Path:
     except RuntimeError:
         raise
     except Exception as e:
-        print(f"[ERROR] 目录选择失败: {e}")
+        print(f"[ERR] 目录选择失败: {e}")
         raise RuntimeError("user canceled")
 
 
@@ -366,7 +366,7 @@ def resolve_install_base_dir() -> Path:
         try:
             p = _select_install_base_dir()
         except RuntimeError:
-            print("[ERROR] 用户取消了目录选择，退出。")
+            print("[ERR] 用户取消了目录选择，退出。")
             time.sleep(2)
             sys.exit(7)
     p = _normalize_install_base_dir(p)
@@ -618,7 +618,7 @@ def _relaunch_with(pyexe: str):
     """Relaunch with the private interpreter while hiding background windows on Windows."""
     import subprocess
     if not pyexe or not os.path.exists(pyexe):
-        print("[ERROR] 无法重启：未找到目标解释器。")
+        print("[ERR] 无法重启：未找到目标解释器。")
         sys.exit(5)
     env = os.environ.copy()
     env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
@@ -635,7 +635,7 @@ def _relaunch_with(pyexe: str):
     try:
         proc = subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
     except Exception as e:
-        print(f"[ERROR] 启动子进程失败: {e}")
+        print(f"[ERR] 启动子进程失败: {e}")
         sys.exit(6)
     print(f"[INFO] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
@@ -756,5 +756,5 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         version_hint = supported_system_python_range_label()
     except Exception:
         version_hint = ">=3.10,<3.13"
-    print(f"[ERROR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
+    print(f"[ERR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
     return None

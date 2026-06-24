@@ -15,6 +15,8 @@ from recognition.image_preprocess import optimize_mathcraft_input_image
 
 def _empty_recognition_message(result: dict[str, Any] | None = None) -> str:
     mode = str((result or {}).get("mode") or "").strip().lower()
+    if mode == "text":
+        return "未识别到文本内容"
     if mode == "mixed":
         return "未检测到可识别内容"
     return "未识别到公式内容"

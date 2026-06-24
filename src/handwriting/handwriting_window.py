@@ -58,8 +58,8 @@ class _HandwritingDocumentLayoutWorker(QObject):
 
 class HandwritingWindow(QWidget):
     latexInserted = pyqtSignal(str)
-    DEFAULT_SIZE = (980, 620)
-    MINIMUM_SIZE = (820, 560)
+    DEFAULT_SIZE = (1160, 700)
+    MINIMUM_SIZE = (1160, 700)
 
     def __init__(self, model_wrapper, owner=None, parent=None):
         super().__init__(parent)

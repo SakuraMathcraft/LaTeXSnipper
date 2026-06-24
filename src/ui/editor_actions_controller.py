@@ -29,7 +29,7 @@ class EditorActionsControllerMixin:
 
     def _ensure_favorites_window(self):
         if self.favorites_window is None:
-            print("[DEBUG] 延迟初始化收藏窗口")
+            print("[INFO] 延迟初始化收藏窗口")
             self.favorites_window = FavoritesWindow(
                 self.cfg,
                 self,

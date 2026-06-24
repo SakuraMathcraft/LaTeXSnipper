@@ -186,7 +186,7 @@ def clear_deps_state():
     try:
 
         home_config = _load_config_path()
-        print(f"[DEBUG] 清理状态文件：{home_config}")
+        print(f"[INFO] 清理状态文件：{home_config}")
 
         if not home_config.exists():
             print("[WARN] 配置文件不存在，无需清理。")
@@ -474,16 +474,16 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             else:
                 use_bundled_python = True
                 print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将使用独立 Python: {pyexe}")
-            print(f"[DIAG] 当前 Python 解释器: {current_pyexe}")
-            print(f"[DIAG] 当前 site-packages 路径: {current_site if current_site else '(未找到)'}")
-            print(f"[DIAG] 依赖目录路径: {deps_dir_resolved}")
+            print(f"[INFO] 诊断: 当前 Python 解释器: {current_pyexe}")
+            print(f"[INFO] 诊断: 当前 site-packages 路径: {current_site if current_site else '(未找到)'}")
+            print(f"[INFO] 诊断: 依赖目录路径: {deps_dir_resolved}")
             if not current_site:
                 mismatch_reason = "未能定位当前 Python 的 site-packages 路径。"
             elif not current_site_in_deps:
                 mismatch_reason = "当前 Python 的 site-packages 不在依赖目录下。"
             else:
                 mismatch_reason = "未知原因导致环境不一致。"
-            print(f"[DIAG] 环境不一致原因: {mismatch_reason}")
+            print(f"[INFO] 诊断: 环境不一致原因: {mismatch_reason}")
 
         if use_bundled_python and not _is_usable_python(pyexe):
             if from_settings:

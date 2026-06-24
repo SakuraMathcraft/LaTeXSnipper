@@ -147,7 +147,7 @@ def load_webengine_view(app_dir: Path | None = None):
         log_webengine_diagnostics("before-import", app_dir=app_dir)
         from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-        print("[DEBUG] WebEngine 成功导入")
+        print("[INFO] WebEngine 成功导入")
         log_webengine_diagnostics("import-ok", app_dir=app_dir)
         return QWebEngineView
     except Exception as e:
@@ -163,7 +163,7 @@ def ensure_webengine_loaded(app_dir: Path | None = None) -> bool:
     """Delay-load and cache QWebEngineView for all UI controllers."""
     global _QWEBENGINE_VIEW
     if _QWEBENGINE_VIEW is not None:
-        print("[DEBUG] WebEngine 已加载")
+        print("[INFO] WebEngine 已加载")
         return True
     _QWEBENGINE_VIEW = load_webengine_view(app_dir)
     return _QWEBENGINE_VIEW is not None

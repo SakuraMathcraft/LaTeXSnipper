@@ -35,7 +35,7 @@ def test_layer_verify_failure_log_keeps_traceback_tail() -> None:
 
     message = format_layer_verify_failure("MATHCRAFT_GPU", err)
 
-    assert message.startswith("  [FAIL] MATHCRAFT_GPU 验证失败:\n")
+    assert message.startswith("  [ERR] MATHCRAFT_GPU 验证失败:\n")
     assert "ModuleNotFoundError: No module named 'onnxruntime'" in message
     assert not message.rstrip().endswith("No mo")
 

@@ -304,5 +304,5 @@ class PdfResultWindow(QMainWindow):
             self.editor.blockSignals(True)
         except Exception:
             pass
-        print("[DEBUG] PDF 结果窗口关闭")
+        print("[INFO] PDF 结果窗口关闭")
         return super().closeEvent(event)

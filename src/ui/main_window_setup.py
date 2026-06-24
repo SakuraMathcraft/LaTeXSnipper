@@ -15,7 +15,7 @@ from backend.platform import PlatformCapabilityRegistry
 from bootstrap.deps_bootstrap import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
-from runtime.config_manager import ConfigManager, resolve_user_data_file
+from runtime.config_manager import ConfigManager, default_user_data_file
 from runtime.dependency_bootstrap_controller import ensure_deps, show_dependency_wizard
 from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
@@ -116,7 +116,7 @@ class MainWindowSetupMixin:
             self._apply_mathcraft_env()
             self.model = create_model_wrapper(self.current_model, auto_warmup=False)
             self.model.status_signal.connect(self.show_status_message)
-            print("[DEBUG] ModelWrapper 初始化完成")
+            print("[INFO] ModelWrapper 初始化完成")
 
 
             self.model_status = "未加载"
@@ -149,7 +149,7 @@ class MainWindowSetupMixin:
                         print("[WARN] 用户取消了依赖修复，程序退出。")
                         sys.exit(0)
                 except Exception as ee:
-                    print(f"[FATAL] ensure_deps 失败: {ee}")
+                    print(f"[ERR] ensure_deps 失败: {ee}")
                     show_dependency_wizard(always_show_ui=True)
                     return
 
@@ -167,18 +167,18 @@ class MainWindowSetupMixin:
                     if not ok:
                         sys.exit(1)
                 except Exception as ee:
-                    print(f"[FATAL] ensure_deps 异常: {ee}")
+                    print(f"[ERR] ensure_deps 异常: {ee}")
                     show_dependency_wizard(always_show_ui=True)
                     return
 
 
-        print("[DEBUG] 开始初始化历史记录")
+        print("[INFO] 开始初始化历史记录")
         self._report_startup_progress("正在初始化历史记录...")
-        self.history_path = resolve_user_data_file(self.cfg, "history_path", DEFAULT_HISTORY_NAME)
+        self.history_file = str(default_user_data_file(DEFAULT_HISTORY_NAME))
         self.history = []
 
 
-        print("[DEBUG] 开始初始化状态栏")
+        print("[INFO] 开始初始化状态栏")
         self._report_startup_progress("正在初始化状态栏...")
         self.status_label = QLabel()
         self.refresh_status_label()

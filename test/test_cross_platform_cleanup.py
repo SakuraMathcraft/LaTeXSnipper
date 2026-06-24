@@ -264,6 +264,10 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
     assert "导出收藏夹" in favorites_window
     assert "default_user_data_file(DEFAULT_FAVORITES_NAME)" in favorites_window
     assert "cfg.set(\"favorites_path\"" not in favorites_window
+    main_window_setup = (ROOT / "src" / "ui" / "main_window_setup.py").read_text(encoding="utf-8")
+    assert "default_user_data_file(DEFAULT_HISTORY_NAME)" in main_window_setup
+    assert "history_path" not in main_window_setup
+    assert "history_file" in main_window_setup
     assert "选择收藏夹保存路径" not in favorites_window
 
 

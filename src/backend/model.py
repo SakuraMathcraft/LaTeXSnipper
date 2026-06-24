@@ -710,7 +710,7 @@ class ModelWrapper(QObject):
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
-                self._emit(f"[ERROR] MathCraft OCR 运行进程启动失败: {exc}")
+                self._emit(f"[ERR] MathCraft OCR 运行进程启动失败: {exc}")
                 self._worker = None
                 return False
 
@@ -852,7 +852,7 @@ class ModelWrapper(QObject):
         except Exception as exc:
             info = self._set_error(str(exc))
             self._emit(f"[WARN] MathCraft OCR warmup failed [{info['code']}]: {exc}")
-            self._emit(f"[DIAG] {info['log_message']}")
+            self._emit(f"[INFO] 诊断: {info['log_message']}")
             return False
 
     def is_ready(self) -> bool:
@@ -934,14 +934,23 @@ class ModelWrapper(QObject):
     def predict(self, pil_img: Image.Image, model_name: str = "mathcraft") -> str:
         result = self.predict_result(pil_img, model_name=model_name)
         text = str(result.get("text", "") or "").strip()
+        mode = str(result.get("mode") or self._mode_for_model(model_name)).strip().lower()
         # Low-confidence handling: show a hint when the score is very low and output is empty or suspicious.
         score = result.get("score")
         if isinstance(score, (int, float)) and float(score) < 0.2:
             if not text:
+                if mode == "text":
+                    return "未识别到文本内容"
+                if mode == "mixed":
+                    return "未检测到可识别内容"
                 return "未识别到公式内容"
             return f"低置信度: {text}"
         # Mixed mode has no score field; empty text means nothing recognizable was detected.
         if not text:
+            if mode == "text":
+                return "未识别到文本内容"
+            if mode == "formula":
+                return "未识别到公式内容"
             return "未检测到可识别内容"
         return text
 

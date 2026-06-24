@@ -15,7 +15,7 @@ permissions:
 jobs:
   full-tests:
     name: Full tests / macOS
-    runs-on: macos-latest
+    runs-on: macos-15
 
     env:
       PYTHONUNBUFFERED: "1"
@@ -61,7 +61,7 @@ jobs:
 
   build-macos-artifact:
     name: Build downloadable macOS CI artifact
-    runs-on: macos-latest
+    runs-on: macos-15
     needs: full-tests
 
     env:

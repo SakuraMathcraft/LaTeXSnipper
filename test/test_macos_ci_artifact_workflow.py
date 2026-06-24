@@ -28,8 +28,8 @@ def test_macos_ci_artifact_workflow_runs_macos_tests_before_building() -> None:
     assert text.count("lfs: true") >= 2
     assert "needs: full-tests" in text
     assert "ubuntu-latest" not in text
-    assert "macos-latest" in text
-    assert text.count("runs-on: macos-latest") == 2
+    assert "macos-latest" not in text
+    assert text.count("runs-on: macos-15") == 2
     assert "python-version: '3.11'" in text
     assert "python -m pytest --collect-only -q" in text
     assert "python -m pytest -q" in text

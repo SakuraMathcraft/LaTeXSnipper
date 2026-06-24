@@ -65,7 +65,7 @@ def tail_dependency_log_text(text: object, limit: int = VERIFY_LOG_DETAIL_LIMIT)
 
 def format_layer_verify_failure(layer: str, err: object, *, limit: int = VERIFY_LOG_DETAIL_LIMIT) -> str:
     detail = tail_dependency_log_text(err, limit=limit) or "验证失败，但没有可用错误输出。"
-    return f"  [FAIL] {layer} 验证失败:\n{detail}"
+    return f"  [ERR] {layer} 验证失败:\n{detail}"
 
 
 RUNTIME_IMPORT_CHECKS = {
@@ -267,7 +267,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
     import subprocess
 
     if log_fn:
-        log_fn("[INFO] 正在修复关键依赖版本...")
+        log_fn("[INFO] 正在检查关键依赖版本...")
 
     _cleanup_pip_interrupted_leftovers(pyexe, log_fn)
 
@@ -306,7 +306,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
                 log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
 
     if log_fn:
-        log_fn("[INFO] 关键版本修复完成")
+        log_fn("[OK] 关键依赖版本检查完成")
 
     ok, err = _verify_runtime_support_imports(pyexe)
     if not ok:
@@ -537,7 +537,7 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
             if log_fn:
                 log_fn(format_layer_verify_failure(layer, err))
                 for diag_line in _layer_verify_failure_diagnostics(layer):
-                    log_fn(f"[DIAG] {diag_line}")
+                    log_fn(f"[INFO] 诊断: {diag_line}")
     return verified
 
 
@@ -729,7 +729,7 @@ def _current_installed(pyexe):
                 return {}
             data = json.loads(payload)
             if isinstance(data, dict):
-                print(f"[DEBUG] 已安装包数量(元数据回退): {len(data)}")
+                print(f"[INFO] 已安装包数量(元数据回退): {len(data)}")
                 return {str(k).lower(): str(v) for k, v in data.items()}
         except Exception as e:
             print(f"[WARN] importlib.metadata 回退失败: {e}")
@@ -768,7 +768,7 @@ def _current_installed(pyexe):
             metadata_installed = _installed_via_metadata()
             if metadata_installed:
                 return metadata_installed
-        print(f"[DEBUG] 已安装包数量: {len(result)}")
+        print(f"[INFO] 已安装包数量: {len(result)}")
         return result
     except Exception as e:
         print(f"[WARN] 获取已安装包列表失败，使用元数据回退: {e}")

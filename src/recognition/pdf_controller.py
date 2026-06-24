@@ -317,7 +317,7 @@ class PdfRecognitionControllerMixin:
                 is_dark_ui=is_dark_ui,
             )
         self._pdf_result_window.set_content(text, fmt_key, structured_result=structured_result)
-        print(f"[DEBUG] PDF 结果窗口打开 length={len(text or '')}")
+        print(f"[INFO] PDF 结果窗口打开 length={len(text or '')}")
         self._pdf_result_window.show()
         self._pdf_result_window.raise_()
         self._pdf_result_window.activateWindow()

@@ -288,7 +288,7 @@ class HistoryControllerMixin:
 
     def load_history(self):
         try:
-            self.history, self._formula_names, self._formula_types = load_history_store(self.history_path)
+            self.history, self._formula_names, self._formula_types = load_history_store(self.history_file)
         except Exception as e:
             print(f"[WARN] 加载历史失败: {e}")
             self.history = []
@@ -324,7 +324,7 @@ class HistoryControllerMixin:
 
     def save_history(self):
         try:
-            save_history_store(self.history_path, self.history, self._formula_names, self._formula_types)
+            save_history_store(self.history_file, self.history, self._formula_names, self._formula_types)
         except Exception as e:
             print(f"[WARN] 保存历史失败: {e}")
 

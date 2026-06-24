@@ -126,7 +126,7 @@ def run_logged_pip_command(
     args = [str(pyexe), "-m", "pip", *pip_args]
     args += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple" if use_mirror else "https://pypi.org/simple"]
 
-    log_q.put(f"[CMD] {' '.join(args)}")
+    log_q.put(f"[INFO] 命令: {' '.join(args)}")
     try:
         proc = _spawn_process(
             args,
@@ -139,7 +139,7 @@ def run_logged_pip_command(
 
         for line in proc.stdout:
             if stop_event.is_set():
-                log_q.put("[CANCEL] Cancel requested, terminating pip process...")
+                log_q.put("[INFO] 用户取消操作，正在终止 pip 进程...")
                 _terminate_process(proc)
                 return False, "\n".join(output_lines)
             text = line.rstrip()
@@ -275,7 +275,7 @@ class PipInstallRunner:
         self.log_q.put("[INFO] Paused; waiting to resume...")
         while not self.pause_event.is_set():
             if self.stop_event.is_set():
-                self.log_q.put("[CANCEL] Cancel requested.")
+                self.log_q.put("[INFO] 用户取消操作。")
                 return False
             time.sleep(0.1)
         return True
@@ -321,15 +321,15 @@ class PipInstallRunner:
         if ort_gpu_policy is not None and ort_gpu_policy.index_url:
             args += ["-i", ort_gpu_policy.index_url]
             if retry == 0:
-                self.log_q.put(f"[Source] {ort_gpu_policy.source_label}")
+                self.log_q.put(f"[INFO] 来源: {ort_gpu_policy.source_label}")
         elif self.use_mirror:
             args += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
             if retry == 0:
-                self.log_q.put("[Source] Using Tsinghua PyPI mirror")
+                self.log_q.put("[INFO] 来源: 清华 PyPI 镜像")
         else:
             args += ["-i", "https://pypi.org/simple"]
             if retry == 0:
-                self.log_q.put("[Source] Using official PyPI")
+                self.log_q.put("[INFO] 来源: 官方 PyPI")
         return args
 
     def _recover_antlr_if_needed(self, pyexe, pkg, output: str) -> bool:
@@ -382,7 +382,7 @@ class PipInstallRunner:
             proc = None
             try:
                 args = self._build_install_args(pyexe, pkg, name, retry, ort_gpu_policy)
-                self.log_q.put(f"[CMD] {' '.join(args)}")
+                self.log_q.put(f"[INFO] 命令: {' '.join(args)}")
                 proc = _spawn_process(
                     args,
                     env=env,
@@ -395,7 +395,7 @@ class PipInstallRunner:
                 output_lines = []
                 for line in proc.stdout:
                     if self.stop_event.is_set():
-                        self.log_q.put("[CANCEL] Cancel requested, terminating pip process...")
+                        self.log_q.put("[INFO] 用户取消操作，正在终止 pip 进程...")
                         _terminate_process(proc)
                         return False
                     if self.pause_event is not None:
@@ -414,13 +414,13 @@ class PipInstallRunner:
                     return True
 
                 if self.stop_event.is_set():
-                    self.log_q.put("[CANCEL] Cancel requested.")
+                    self.log_q.put("[INFO] 用户取消操作。")
                     return False
 
                 full_output = "\n".join(output_lines[-50:])
                 failure_reason = self._diagnose_failure(full_output, proc.returncode)
                 self.log_q.put(f"[WARN] {pkg} install failed (returncode={proc.returncode})")
-                self.log_q.put(f"[DIAG] Possible reason: {failure_reason}")
+                self.log_q.put(f"[INFO] 诊断: 可能原因: {failure_reason}")
 
                 if not antlr_recovery_applied:
                     antlr_recovery_applied = self._recover_antlr_if_needed(pyexe, pkg, full_output)
@@ -449,7 +449,7 @@ class PipInstallRunner:
                 retry += 1
             except Exception as exc:
                 tb = traceback.format_exc()
-                self.log_q.put(f"[FATAL] {pkg} install raised: {exc}\n{tb}")
+                self.log_q.put(f"[ERR] {pkg} install raised: {exc}\n{tb}")
                 return False
             finally:
                 self._set_proc(None)
