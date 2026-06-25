@@ -104,9 +104,9 @@ class PredictResultControllerMixin:
 
     def _predict_result_mode_title(self, current_mode: str) -> str:
         mode_titles = {
-            "mathcraft": "确认或修改 LaTeX：",
-            "mathcraft_text": "识别的文字内容：",
-            "mathcraft_mixed": "识别结果（文字+公式）：",
+            "mathcraft": "确认或修改公式：",
+            "mathcraft_text": "确认或修改文本：",
+            "mathcraft_mixed": "确认或修改内容：",
         }
         return mode_titles.get(current_mode, "确认或修改内容：")
 

@@ -89,7 +89,7 @@ def show_predict_result_dialog(
             lay.addWidget(fallback)
 
     elif current_mode == "mathcraft_mixed":
-        preview_label = BodyLabel("混合内容预览：")
+        preview_label = BodyLabel("混合预览：")
         lay.addWidget(preview_label)
 
         if ensure_webengine_loaded():

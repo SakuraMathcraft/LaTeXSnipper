@@ -275,7 +275,7 @@ class MainWindowSetupMixin:
         self.upload_pdf_btn.clicked.connect(self._upload_pdf_recognition)
         try:
             img_exts = self._get_supported_image_extensions()
-            self.upload_image_btn.setToolTip("识别图片，支持格式: " + ", ".join(img_exts))
+            self.upload_image_btn.setToolTip("支持格式: " + ", ".join(img_exts))
         except Exception:
             pass
         self.upload_pdf_btn.setToolTip("支持格式: PDF")
