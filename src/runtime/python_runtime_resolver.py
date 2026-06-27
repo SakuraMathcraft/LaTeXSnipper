@@ -556,7 +556,7 @@ def _append_private_site_packages(pyexe: str | None):
                         sys.path.append(pstr)
         except Exception:
             pass
-    print(f"[INFO] packaged: appended dependency runtime path: {base}")
+    print(f"[DEBUG] 已挂载依赖运行时路径: {base}")
 
 
 def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
@@ -737,11 +737,11 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
-                print(f"[INFO] (打包模式) 使用依赖目录内 Python: {py}")
+                print(f"[INFO] 使用依赖目录 Python: {py}")
             else:
-                print(f"[INFO] (打包模式) 使用外部私有 Python: {py}")
+                print(f"[INFO] 使用外部私有 Python: {py}")
             return py
-        print("[INFO] (打包模式) 依赖目录内未检测到可用 Python，先使用内置运行时启动依赖向导。")
+        print("[INFO] 依赖目录未检测到可用 Python，先使用内置运行时启动依赖向导。")
         return sys.executable
 
     py = _find_full_python(base_dir)

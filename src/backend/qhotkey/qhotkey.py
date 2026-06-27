@@ -34,7 +34,7 @@ class WinHotkeyFilter(QAbstractNativeEventFilter):
                     owner.activated.emit()
                     return True, 0
         except Exception as e:
-            print("[Hotkey] nativeEventFilter error:", e)
+            print(f"[WARN] 全局快捷键事件处理失败: {e}")
         return False, 0
 
 
@@ -113,15 +113,15 @@ class GlobalHotkey(QObject):
         self._seq = keyseq_str
         self._registered = True
         self._install_filter()
-        print(f"[Hotkey] registered id={self._id} seq={keyseq_str}")
+        print(f"[DEBUG] 全局快捷键已注册: id={self._id} seq={keyseq_str}")
 
     def unregister(self):
         if self._registered and self._id is not None:
             try:
                 user32.UnregisterHotKey(None, self._id)
-                print(f"[Hotkey] unregistered id={self._id}")
+                print(f"[DEBUG] 全局快捷键已注销: id={self._id}")
             except Exception as e:
-                print("[Hotkey] unregister error:", e)
+                print(f"[WARN] 全局快捷键注销失败: {e}")
         self._registered = False
         self._id = None
         self._seq = None

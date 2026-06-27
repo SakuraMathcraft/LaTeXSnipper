@@ -20,7 +20,7 @@ def save_json(path: Path, data, log_q=None) -> None:
     try:
         Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
-        msg = f"[Deps] 写文件失败: {e}"
+        msg = f"[WARN] 写入依赖状态文件失败: {e}"
         print(msg)
         if log_q:
             log_q.put(msg)

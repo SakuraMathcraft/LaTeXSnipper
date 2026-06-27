@@ -2359,7 +2359,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 == 模型集与识别配置
 
-当前 `mathcraft-ocr` PyPI 包版本为 `0.2.3`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+当前 `mathcraft-ocr` PyPI 包版本为 `0.2.4`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
 
 #block(
   inset: 12pt,

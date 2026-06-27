@@ -491,7 +491,7 @@ class LaTeXRenderer:
                 )
                 if result.returncode == 0:
                     full_path = shutil.which(cmd)
-                    print(f"[LaTeX] Detected {cmd}: {full_path}")
+                    print(f"[DEBUG] 检测到 LaTeX 命令 {cmd}: {full_path}")
                     return full_path
             except Exception:
                 pass
@@ -505,7 +505,7 @@ class LaTeXRenderer:
     def render_to_svg(self, latex_code: str) -> Optional[str]:
         """Render a LaTeX formula to SVG, returning None on failure."""
         if not self.is_available():
-            print("[LaTeX] LaTeX is unavailable; skip SVG rendering")
+            print("[DEBUG] LaTeX 不可用，跳过 SVG 渲染")
             return None
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -516,7 +516,7 @@ class LaTeXRenderer:
 
                 tex_content = self._create_tex_file(latex_code)
                 tex_file.write_text(tex_content, encoding="utf-8")
-                print(f"[LaTeX] Compile: {latex_code[:50]}")
+                print(f"[DEBUG] LaTeX 编译: {latex_code[:50]}")
 
                 compile_result = subprocess.run(
                     [
@@ -544,7 +544,7 @@ class LaTeXRenderer:
                     )
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding="utf-8")
-                        print(f"[LaTeX] Rendered SVG: {len(svg_content)} bytes")
+                        print(f"[DEBUG] LaTeX 已渲染 SVG: {len(svg_content)} bytes")
                         return self._enlarge_svg(svg_content, scale=1.6)
                 except FileNotFoundError:
                     print("[WARN] pdftocairo was not found; cannot convert PDF to SVG")
@@ -628,7 +628,7 @@ class LaTeXSettings:
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
-            print(f"[LaTeX] Settings saved: {self.config_file}")
+            print(f"[DEBUG] LaTeX 设置已保存: {self.config_file}")
         except Exception as e:
             print(f"[ERR] Failed to save LaTeX settings: {e}")
 

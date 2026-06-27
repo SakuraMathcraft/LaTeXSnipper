@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
 import mathcraft_ocr.runtime as runtime_mod
+import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
 from mathcraft_ocr.errors import ModelCacheError
 from mathcraft_ocr.adapters.formula_detector import FormulaBox
 from mathcraft_ocr.formula_lines import (
@@ -38,7 +39,7 @@ from mathcraft_ocr.layout import (
 )
 from mathcraft_ocr.providers import ProviderInfo
 from mathcraft_ocr.results import FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult
-from mathcraft_ocr.serialization import block_to_json
+from mathcraft_ocr.serialization import block_to_json, provider_info_to_json
 from mathcraft_ocr.cache import resolve_model_roots
 from mathcraft_ocr.runtime import (
     FORMULA_MAX_NEW_TOKENS,
@@ -1241,6 +1242,66 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
             gpu_driver_version="32.0.15.9597",
         ),
     ) == 8
+
+
+def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> None:
+    calls: list[tuple[str, bool, bool]] = []
+
+    def _fake_cached(model_dir: str, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, use_cuda, use_dml))
+        return object()
+
+    monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
+    provider = ProviderInfo(
+        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CUDAExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        cpu_fallback=False,
+    )
+
+    text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
+
+    assert calls[0][1:] == (True, False)
+
+
+def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
+    calls: list[tuple[str, bool, bool]] = []
+
+    def _fake_cached(model_dir: str, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, use_cuda, use_dml))
+        return object()
+
+    monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
+    provider = ProviderInfo(
+        available_providers=("DmlExecutionProvider", "CPUExecutionProvider"),
+        active_provider="DmlExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        cpu_fallback=False,
+    )
+
+    text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
+
+    assert calls[0][1:] == (False, True)
+
+
+def test_provider_serialization_exposes_backend_capabilities() -> None:
+    provider = ProviderInfo(
+        available_providers=("DmlExecutionProvider", "CPUExecutionProvider"),
+        active_provider="DmlExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        cpu_fallback=False,
+    )
+
+    payload = provider_info_to_json(provider)
+
+    assert payload["use_cuda"] is False
+    assert payload["use_dml"] is True
 
 
 def test_hardware_video_controller_payload_parser() -> None:

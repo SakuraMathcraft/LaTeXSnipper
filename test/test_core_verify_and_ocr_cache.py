@@ -505,6 +505,32 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("cudnn64_8.dll", dll_names)
         self.assertNotIn("cudart64_12.dll", dll_names)
 
+    def test_cuda_shared_library_diagnostics_checks_linux_so_names(self):
+        from backend.cuda_diagnostics import diagnose_cuda_shared_libraries
+
+        root = ROOT / ".tmp_test_cuda_so_diag" / "lib64"
+        if root.parent.exists():
+            shutil.rmtree(root.parent)
+        self.addCleanup(lambda: shutil.rmtree(ROOT / ".tmp_test_cuda_so_diag", ignore_errors=True))
+        root.mkdir(parents=True)
+        for name in (
+            "libcudart.so.12",
+            "libcublas.so.12",
+            "libcublasLt.so.12",
+            "libcufft.so.11",
+            "libcurand.so.10",
+            "libcudnn.so.9",
+        ):
+            (root / name).write_text("", encoding="utf-8")
+
+        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": str(root)}, clear=True):
+            report = diagnose_cuda_shared_libraries()
+
+        missing = [item.name for item in report.libraries if item.missing]
+
+        self.assertEqual(missing, [])
+        self.assertIn("CUDA/cuDNN SO 检查", report.format_for_log())
+
     def test_pip_interrupted_leftovers_are_cleaned_from_target_site(self):
         import bootstrap.deps_bootstrap as deps_bootstrap
 

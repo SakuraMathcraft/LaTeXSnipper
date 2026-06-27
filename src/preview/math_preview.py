@@ -336,14 +336,14 @@ def get_mathjax_base_url() -> QUrl:
         mode = _current_render_mode()
         if mode == "mathjax_cdn":
             if "cdn" not in _MATHJAX_LOGGED_KEYS:
-                print("[MathJax] 使用 CDN MathJax")
+                print("[INFO] 使用 CDN MathJax")
                 _MATHJAX_LOGGED_KEYS.add("cdn")
             return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
 
         if mode.startswith("latex_"):
             mode_key = f"latex:{mode}"
             if mode_key not in _MATHJAX_LOGGED_KEYS:
-                print(f"[MathJax] LaTeX 模式下仍使用本地 MathJax base: {mode}")
+                print(f"[DEBUG] LaTeX 渲染模式仍使用本地 MathJax base: {mode}")
                 _MATHJAX_LOGGED_KEYS.add(mode_key)
 
         actual_app_dir, source_desc = _mathjax_base_dir()
@@ -360,7 +360,7 @@ def get_mathjax_base_url() -> QUrl:
             local_key = f"local:{source_desc}:{url_str}"
             if local_key not in _MATHJAX_LOGGED_KEYS:
                 label = "使用本地资源" if source_desc == "本地资源" else f"使用本地资源({source_desc})"
-                print(f"[MathJax] {label}: {url_str}")
+                print(f"[INFO] MathJax {label}: {url_str}")
                 _MATHJAX_LOGGED_KEYS.add(local_key)
 
         return url

@@ -208,6 +208,16 @@ def init_app_logging() -> Path:
         if not any(h is file_handler for h in bridge_logger.handlers):
             bridge_logger.addHandler(file_handler)
 
+        def _bridge_log_method(message: str):
+            text = message.lstrip()
+            if text.startswith("[DEBUG]"):
+                return bridge_logger.debug
+            if text.startswith("[WARN]"):
+                return bridge_logger.warning
+            if text.startswith("[ERR]"):
+                return bridge_logger.error
+            return bridge_logger.info
+
         def _print_bridge(*args, **kwargs):
             _ORIGINAL_PRINT(*args, **kwargs)
             try:
@@ -217,7 +227,7 @@ def init_app_logging() -> Path:
                 sep = kwargs.get("sep", " ")
                 msg = sep.join(str(a) for a in args).rstrip("\r\n")
                 if msg:
-                    bridge_logger.info(msg)
+                    _bridge_log_method(msg)(msg)
             except Exception:
                 pass
 
@@ -236,7 +246,7 @@ def init_app_logging() -> Path:
         config_dir = app_state_dir()
         config_dir.mkdir(parents=True, exist_ok=True)
         init_latex_settings(config_dir)
-        print("[LaTeX] 设置初始化完成")
+        print("[INFO] LaTeX 设置初始化完成")
     except Exception as e:
         print(f"[WARN] LaTeX 设置初始化失败: {e}")
 

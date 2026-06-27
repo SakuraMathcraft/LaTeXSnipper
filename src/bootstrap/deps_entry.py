@@ -420,7 +420,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             custom_warning_dialog("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         except Exception:
             print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
-        print("[Deps] 用户选择跳过依赖安装并进入主程序")
+        print("[WARN] 用户选择跳过依赖安装并进入主程序")
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
@@ -433,10 +433,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         if existing_pyexe and existing_pyexe.exists():
-            print(f"[INFO] packaged: use deps python for pip: {pyexe}")
+            print(f"[INFO] 使用依赖目录 Python: {pyexe}")
             use_bundled_python = False
         else:
-            print(f"[INFO] packaged: no reusable deps python yet, wizard will initialize: {pyexe}")
+            print(f"[INFO] 依赖目录尚未初始化 Python: {pyexe}")
             use_bundled_python = True
     else:
 
@@ -444,7 +444,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         deps_dir_resolved = str(Path(deps_dir).resolve())
-        mismatch_reason = ""
 
 
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
@@ -470,20 +469,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             if existing_pyexe and existing_pyexe.exists():
                 use_bundled_python = False
                 pyexe = existing_pyexe
-                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将复用目录内已有 Python: {pyexe}")
+                print(f"[INFO] {mode_str}：使用依赖目录 Python: {pyexe}")
             else:
                 use_bundled_python = True
-                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将使用独立 Python: {pyexe}")
-            print(f"[INFO] 诊断: 当前 Python 解释器: {current_pyexe}")
-            print(f"[INFO] 诊断: 当前 site-packages 路径: {current_site if current_site else '(未找到)'}")
-            print(f"[INFO] 诊断: 依赖目录路径: {deps_dir_resolved}")
-            if not current_site:
-                mismatch_reason = "未能定位当前 Python 的 site-packages 路径。"
-            elif not current_site_in_deps:
-                mismatch_reason = "当前 Python 的 site-packages 不在依赖目录下。"
-            else:
-                mismatch_reason = "未知原因导致环境不一致。"
-            print(f"[INFO] 诊断: 环境不一致原因: {mismatch_reason}")
+                print(f"[INFO] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
 
         if use_bundled_python and not _is_usable_python(pyexe):
             if from_settings:
@@ -520,7 +509,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     try:
         if from_settings and always_show_ui:
-            print("[INFO] settings wizard: defer pip bootstrap until user starts installation.")
+            print("[INFO] 依赖向导：等待用户选择安装后再初始化 pip。")
         else:
             _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
@@ -528,7 +517,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             _save_json(state_path, {"installed_layers": []})
         pip_ready_event.set()
     except Exception as e:
-        print(f"[Deps] 预初始化 pip 失败: {e}")
+        print(f"[WARN] 预初始化 pip 失败: {e}")
         pip_ready_event.set()
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
@@ -740,7 +729,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     try:
                         _ensure_pip(pyexe)
                     except Exception as e:
-                        print(f"[Deps] 初始化目标 Python 后确保 pip 失败: {e}")
+                        print(f"[WARN] 初始化目标 Python 后确保 pip 失败: {e}")
 
                 RESULT_BACK_TO_WIZARD = 1001
                 if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():

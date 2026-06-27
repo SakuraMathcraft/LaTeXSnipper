@@ -449,9 +449,14 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
 
     def _cuda_runtime_diagnostics() -> tuple[str, str]:
         try:
-            from .cuda_diagnostics import diagnose_cuda_dll_paths
+            if sys.platform == "linux":
+                from .cuda_diagnostics import diagnose_cuda_shared_libraries
 
-            report = diagnose_cuda_dll_paths()
+                report = diagnose_cuda_shared_libraries()
+            else:
+                from .cuda_diagnostics import diagnose_cuda_dll_paths
+
+                report = diagnose_cuda_dll_paths()
             return report.format_for_user(), report.format_for_log()
         except Exception:
             return "", ""
@@ -478,10 +483,15 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
     if _looks_like_onnxruntime_install_error():
+        runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖向导重装当前 MathCraft 后端。"
+        if sys.platform == "win32":
+            runtime_hint = (
+                f"{runtime_hint} 如 CPU 后端仍失败，请安装最新 Microsoft Visual C++ Redistributable x64 后重启。"
+            )
         return _pack(
             "ONNXRUNTIME_BROKEN",
             "onnxruntime 依赖异常",
-            "onnxruntime 依赖未正确安装或被残留包污染，请通过依赖向导重装 MATHCRAFT_CPU 或 MATHCRAFT_GPU 后端。",
+            runtime_hint,
             f"onnxruntime 可导入但运行时接口不完整或 provider 查询失败: {raw[:300]}",
         )
     mathcraft_runtime_modules = (
@@ -527,7 +537,8 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         user_message = "CUDA 环境异常，GPU 推理不可用。"
         if user_hint:
             user_message = f"{user_message}{user_hint}"
-        log_message = "CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 PATH 配置错误。"
+        path_name = "LD_LIBRARY_PATH" if sys.platform == "linux" else "PATH"
+        log_message = f"CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 {path_name} 配置错误。"
         if log_hint:
             log_message = f"{log_message} {log_hint}"
         return _pack(
@@ -852,7 +863,7 @@ class ModelWrapper(QObject):
         except Exception as exc:
             info = self._set_error(str(exc))
             self._emit(f"[WARN] MathCraft OCR warmup failed [{info['code']}]: {exc}")
-            self._emit(f"[INFO] 诊断: {info['log_message']}")
+            self._emit(f"[DEBUG] MathCraft OCR warmup detail: {info['log_message']}")
             return False
 
     def is_ready(self) -> bool:

@@ -72,6 +72,8 @@ def provider_info_to_json(provider_info) -> dict:
         "gpu_requested": provider_info.gpu_requested,
         "gpu_runtime_ok": provider_info.gpu_runtime_ok,
         "cpu_fallback": provider_info.cpu_fallback,
+        "use_cuda": provider_info.use_cuda,
+        "use_dml": provider_info.use_dml,
     }
 
 

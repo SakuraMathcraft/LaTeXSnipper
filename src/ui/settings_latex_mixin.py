@@ -199,7 +199,7 @@ class SettingsLatexMixin:
                 _latex_settings.set_render_mode(mode)
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
-                    print(f"[LaTeX] 设置已保存: {latex_path}")
+                    print(f"[DEBUG] LaTeX 设置已保存: {latex_path}")
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
 
@@ -230,7 +230,7 @@ class SettingsLatexMixin:
                     title = "路径无效"
                     message = "找不到 LaTeX 可执行文件"
                 else:
-                    print(f"[LaTeX] 测试路径: {path_value}")
+                    print(f"[DEBUG] 测试 LaTeX 路径: {path_value}")
                     test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
                     if test_svg and len(test_svg) > 100:
                         ok = True

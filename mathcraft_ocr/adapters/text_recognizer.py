@@ -54,12 +54,14 @@ def recognize_pp_text_lines(
 
 def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer:
     model_dir = model_dir.resolve()
-    use_cuda = bool(getattr(provider_info, "device", "") == "gpu")
-    return _create_pp_text_recognizer_cached(str(model_dir), use_cuda)
+    active_provider = str(getattr(provider_info, "active_provider", "") or "")
+    use_cuda = active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+    use_dml = active_provider == "DmlExecutionProvider"
+    return _create_pp_text_recognizer_cached(str(model_dir), use_cuda, use_dml)
 
 
 @lru_cache(maxsize=8)
-def _create_pp_text_recognizer_cached(model_dir: str, use_cuda: bool) -> TextRecognizer:
+def _create_pp_text_recognizer_cached(model_dir: str, use_cuda: bool, use_dml: bool) -> TextRecognizer:
     model_dir = Path(model_dir)
     model_candidates = sorted(model_dir.glob("**/*rec*.onnx"))
     if not model_candidates:
@@ -96,7 +98,7 @@ def _create_pp_text_recognizer_cached(model_dir: str, use_cuda: bool) -> TextRec
                 "cudnn_conv_algo_search": "EXHAUSTIVE",
                 "do_copy_in_default_stream": True,
             },
-            "use_dml": False,
+            "use_dml": use_dml,
             "dm_ep_cfg": None,
             "use_cann": False,
             "cann_ep_cfg": {

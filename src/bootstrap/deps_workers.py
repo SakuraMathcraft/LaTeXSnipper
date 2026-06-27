@@ -25,6 +25,7 @@ from bootstrap.deps_runtime_verify import (
     _fix_critical_versions,
     format_layer_verify_failure,
     _layer_verify_failure_diagnostics,
+    onnxruntime_verify_failure_guidance,
     _pip_install,
     _repair_gpu_onnxruntime_runtime,
     _uninstall_package_if_present,
@@ -325,13 +326,13 @@ class InstallWorker(QThread):
                     proc_setter=lambda p: setattr(self, "proc", p),
                 )
                 if not runtime_ort_ok:
-                    self.log_updated.emit(f"[WARN] onnxruntime-gpu runtime still invalid: {runtime_ort_err[:400]}")
+                    self.log_updated.emit(f"[WARN] onnxruntime-gpu 运行时验证失败: {runtime_ort_err[:400]}")
             elif want_cpu_runtime:
                 runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_runtime(
                     self.pyexe, expect_gpu=False, timeout=45
                 )
                 if not runtime_ort_ok:
-                    self.log_updated.emit(f"[WARN] onnxruntime CPU runtime invalid: {runtime_ort_err[:400]}")
+                    self.log_updated.emit(f"[WARN] onnxruntime CPU 运行时验证失败: {runtime_ort_err[:400]}")
 
             all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
 
@@ -340,12 +341,13 @@ class InstallWorker(QThread):
             elif fail_count == 0 and not runtime_ort_ok:
                 self.log_updated.emit("[WARN] 包安装已完成，但 ONNX Runtime 验证失败")
                 if runtime_ort_err:
-                    self.log_updated.emit(f"[INFO] 诊断: {runtime_ort_err[:600]}")
+                    self.log_updated.emit(f"[DEBUG] ONNX Runtime 验证详情: {runtime_ort_err[:600]}")
                 self.log_updated.emit("")
-                self.log_updated.emit("[INFO] 建议: 建议操作:")
-                self.log_updated.emit("  1. 在依赖向导中仅选择 MATHCRAFT_CPU 或 MATHCRAFT_GPU 之一重装")
-                self.log_updated.emit("  2. 如仍失败，先卸载 onnxruntime / onnxruntime-gpu 后再重装对应后端")
-                self.log_updated.emit("  3. 确认没有混用系统 Python 与 deps\\python311 环境")
+                for line in onnxruntime_verify_failure_guidance(
+                    expect_gpu=want_gpu_runtime,
+                    detail=runtime_ort_err,
+                ):
+                    self.log_updated.emit(line)
             else:
                 for line in _install_failure_guidance(failed_pkgs, fail_count, total):
                     self.log_updated.emit(line)
@@ -380,7 +382,7 @@ class LayerVerifyWorker(QThread):
                 verify_fail_layers.append(lyr)
                 self.log_updated.emit(format_layer_verify_failure(lyr, v_err))
                 for diag_line in _layer_verify_failure_diagnostics(lyr):
-                    self.log_updated.emit(f"  [INFO] 诊断: {diag_line}")
+                    self.log_updated.emit(f"  [DEBUG] {diag_line}")
 
         try:
             state = _load_json(self.state_path, {"installed_layers": []})
