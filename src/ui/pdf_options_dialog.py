@@ -78,7 +78,7 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
     apply_app_window_icon(dlg)
 
     layout = QVBoxLayout(dlg)
-    layout.addWidget(QLabel("请选择 PDF 渲染分辨率（DPI）："))
+    layout.addWidget(QLabel("请选择 PDF 渲染分辨率："))
 
     dpi_label = QLabel()
     dpi_label.setWordWrap(True)

@@ -1185,7 +1185,7 @@ class PopplerPdfView(QScrollArea):
             if self._gpu_probe_remaining > 0:
                 self._gpu_probe_remaining -= 1
                 if self._gpu_surface_has_artifact():
-                    self._switch_magnifier_to_cpu("检测到显卡驱动合成异常（黑边/残影），已自动切换 CPU 放大镜。")
+                    self._switch_magnifier_to_cpu("检测到显卡驱动合成异常，已自动切换 CPU 放大镜。")
                     pixmap = self._compose_magnifier_pixmap(source_image, dpr, lens_d, quality=quality)
                     self._present_magnifier_pixmap(pixmap, viewport_pos)
             return

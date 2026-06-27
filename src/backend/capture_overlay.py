@@ -829,7 +829,7 @@ class ScreenCaptureOverlay(QWidget):
         return (
             f"当前截图模式固定为{target}，但你框选的是{actual}。"
             f"请在托盘菜单选择“截图屏幕模式 > {actual}”，"
-            "或切换为“自动（按鼠标释放点）”后再截图。"
+            "或切换为“自动”后再截图。"
         )
 
     def capture_selection(self):
@@ -906,7 +906,7 @@ class ScreenCaptureOverlay(QWidget):
         # Wayland: grabWindow(0) can return an all-black snapshot; the crop is also black but .isNull() is False,
         # which blocks CLI/portal fallback. Explicitly detect all-black pixels and discard them.
         if _is_wayland and not pixmap.isNull() and is_image_effectively_black(pixmap.toImage()):
-            print("[Overlay] Wayland: 预截图裁剪结果为全黑（grabWindow 无效），跳过并尝试 CLI/portal")
+            print("[Overlay] Wayland: 预截图裁剪结果为全黑，跳过并尝试 CLI/portal")
             pixmap = QPixmap()
 
         if pixmap.isNull():
@@ -942,7 +942,7 @@ class ScreenCaptureOverlay(QWidget):
                 if not pixmap.isNull():
                     pass
                 else:
-                    print("[Overlay] grabWindow(0)（隐藏overlay后）返回空")
+                    print("[Overlay] grabWindow(0) 返回空")
             finally:
                 if os.name != "nt":
                     try:

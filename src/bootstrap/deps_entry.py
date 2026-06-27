@@ -1035,7 +1035,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _exec_close_only_message_box(
                                 dlg,
                                 "部分验证失败",
-                                f"以下功能层安装但无法正常工作:\n{', '.join(fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复。",
+                                f"以下功能层安装但无法正常工作:\n{', '.join(fail_layers)}\n\n请查看日志提示。",
                                 icon=QMessageBox.Icon.Warning,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

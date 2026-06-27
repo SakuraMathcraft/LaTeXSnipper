@@ -77,7 +77,7 @@ def _install_failure_guidance(failed_pkgs: list[str], fail_count: int, total: in
         "",
         "💡 推荐操作:",
         "  1. 关闭本程序",
-        "  2. 打开 CMD 终端（以管理员身份）",
+        "  2. 打开环境终端",
         "  3. 执行上述 pip install 命令",
         "  4. 重新启动程序",
         "=" * 70,
@@ -152,8 +152,7 @@ class InstallWorker(QThread):
             want_cpu_runtime = "MATHCRAFT_CPU" in chosen_layers and not want_gpu_runtime
 
             if want_gpu_runtime and "onnxruntime" in installed_before:
-                self.log_updated.emit("[INFO] 检测到 onnxruntime（CPU），将先卸载以避免与 onnxruntime-gpu 冲突...")
-                self.log_updated.emit("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在。")
+                self.log_updated.emit("[INFO] 检测到 onnxruntime，将先卸载以切换到 MathCraft GPU 后端...")
                 _uninstall_package_if_present(
                     self.pyexe,
                     "onnxruntime",
@@ -162,7 +161,6 @@ class InstallWorker(QThread):
                 )
             elif want_cpu_runtime and "onnxruntime-gpu" in installed_before:
                 self.log_updated.emit("[INFO] 检测到 onnxruntime-gpu，将先卸载以切换到 MathCraft CPU 后端...")
-                self.log_updated.emit("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在。")
                 _uninstall_package_if_present(
                     self.pyexe,
                     "onnxruntime-gpu",
@@ -182,7 +180,7 @@ class InstallWorker(QThread):
             skipped = []
             if self.force_reinstall:
                 pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
-                self.log_updated.emit("[INFO] 启用强制重装模式（忽略已安装包）")
+                self.log_updated.emit("[INFO] 启用强制重装模式")
             else:
                 for p in self.pkgs:
                     effective_p = _resolve_layer_pkg_spec(p)
@@ -340,7 +338,7 @@ class InstallWorker(QThread):
             if all_ok:
                 self.log_updated.emit("[OK] 依赖安装阶段完成")
             elif fail_count == 0 and not runtime_ort_ok:
-                self.log_updated.emit("[WARN] 包安装已完成（0 个安装失败），但 ONNX Runtime 验证失败")
+                self.log_updated.emit("[WARN] 包安装已完成，但 ONNX Runtime 验证失败")
                 if runtime_ort_err:
                     self.log_updated.emit(f"[INFO] 诊断: {runtime_ort_err[:600]}")
                 self.log_updated.emit("")

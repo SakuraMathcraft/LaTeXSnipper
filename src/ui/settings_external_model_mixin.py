@@ -46,7 +46,7 @@ class SettingsExternalModelMixin:
         self._set_combo_value(self.external_preset_combo, data["external_model_preset"])
         self._set_lineedit_value(self.external_base_url_input, data["external_model_base_url"])
         self._set_lineedit_value(self.external_model_name_input, data["external_model_model_name"])
-        self._set_lineedit_value(self.external_api_key_input, data["external_model_api_key"])
+        self._set_lineedit_value(self.external_api_key_input, config.normalized_api_key())
         self._set_lineedit_value(self.external_timeout_input, str(data["external_model_timeout_sec"]))
         self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
         self._set_lineedit_value(self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"])

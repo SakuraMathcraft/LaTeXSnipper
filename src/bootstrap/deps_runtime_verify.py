@@ -317,7 +317,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         )
     if log_fn:
         if ok:
-            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过（numpy/protobuf 等）")
+            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过")
         else:
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
@@ -636,7 +636,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
         return True
     except Exception as e:
         if log_fn:
-            log_fn(f"[WARN] 卸载 {pkg_key} 失败（继续后续修复）: {e}")
+            log_fn(f"[WARN] 卸载 {pkg_key} 失败: {e}")
         return False
 
 
@@ -645,8 +645,7 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
                                     no_cache: bool = False, proc_setter=None) -> tuple[bool, str]:
     installed_now = _current_installed(pyexe)
     if "onnxruntime" in installed_now:
-        log_q.put("[INFO] 检测到 onnxruntime（CPU）被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
-        log_q.put("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在！")
+        log_q.put("[INFO] 检测到 onnxruntime 被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
         _uninstall_package_if_present(
             pyexe,
             "onnxruntime",

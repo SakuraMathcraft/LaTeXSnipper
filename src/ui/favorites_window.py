@@ -303,7 +303,7 @@ class FavoritesWindow(QMainWindow):
             self,
             current_name=current_name,
             title="公式命名",
-            prompt="输入公式名称（留空则清除名称）：",
+            prompt="输入公式名称：",
         )
         if not ok:
             return

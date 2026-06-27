@@ -54,7 +54,7 @@ class ExternalModelHelpWindow(QDialog):
         self._add_section(
             content_layout,
             "字段说明",
-            "协议决定请求格式。Base URL 只填服务根地址，不要手动追加 /v1/chat/completions、/api/chat 或 /file_parse。模型名必须与服务中实际可用名称完全一致。API Key 本地通常留空，线上接口通常必填。",
+            "协议决定请求格式。Base URL 填服务根地址或服务商提供的 /v1 API 前缀，不要填写 /chat/completions、/api/chat 或 /file_parse 这类具体接口。模型名必须与服务中实际可用名称完全一致。API Key 本地加密保存，本地服务通常留空，线上接口通常必填。",
         )
         self._add_section(
             content_layout,
@@ -74,7 +74,7 @@ class ExternalModelHelpWindow(QDialog):
         self._add_section(
             content_layout,
             "线上接口",
-            "按服务要求选择 OpenAI-compatible 或 Ollama。Base URL 填服务商提供的 HTTPS 根地址；OpenAI-compatible 协议会自动追加 /v1。模型名和 API Key 以服务商控制台为准。",
+            "按服务要求选择 OpenAI-compatible 或 Ollama。Base URL 填服务商提供的 HTTPS 根地址或 /v1 API 前缀。模型名和 API Key 以服务商控制台为准。",
         )
         self._add_section(
             content_layout,
