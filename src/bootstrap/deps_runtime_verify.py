@@ -317,7 +317,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         )
     if log_fn:
         if ok:
-            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过（numpy/protobuf 等）")
+            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过")
         else:
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
@@ -509,6 +509,13 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
 
 
 def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
+    if layer == "MATHCRAFT_CPU":
+        if sys.platform == "win32":
+            return [
+                "Windows CPU 后端验证失败时，请优先确认已安装最新 Microsoft Visual C++ Redistributable x64: https://aka.ms/vc14/vc_redist.x64.exe",
+                "安装 VC++ Runtime 并重启后，在依赖向导中重装 MATHCRAFT_CPU。",
+            ]
+        return []
     if layer != "MATHCRAFT_GPU":
         return []
     if sys.platform == "darwin":
@@ -516,12 +523,45 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
             "MATHCRAFT_GPU 当前表示 NVIDIA CUDA 后端，主要适用于 Windows / Linux NVIDIA GPU 环境；macOS 默认使用 CPU 后端。"
         ]
     try:
-        from backend.cuda_diagnostics import diagnose_cuda_dll_paths
+        if sys.platform == "linux":
+            from backend.cuda_diagnostics import diagnose_cuda_shared_libraries
 
-        report = diagnose_cuda_dll_paths()
+            report = diagnose_cuda_shared_libraries()
+        else:
+            from backend.cuda_diagnostics import diagnose_cuda_dll_paths
+
+            report = diagnose_cuda_dll_paths()
         return [report.format_for_user(), report.format_for_log()]
     except Exception as e:
-        return [f"CUDA/cuDNN DLL 诊断失败: {e}"]
+        return [f"CUDA/cuDNN 诊断失败: {e}"]
+
+
+def onnxruntime_verify_failure_guidance(expect_gpu: bool, detail: str = "") -> list[str]:
+    if expect_gpu:
+        lines = [
+            "[INFO] 建议操作:",
+            "  1. 确认 NVIDIA 驱动、CUDA 和 cuDNN 与 onnxruntime-gpu 版本兼容。",
+            "  2. 在依赖向导中重装 MATHCRAFT_GPU。",
+        ]
+        if sys.platform == "linux":
+            lines.append("  3. 确认 CUDA/cuDNN 共享库目录已加入 LD_LIBRARY_PATH。")
+        elif sys.platform == "win32":
+            lines.append("  3. 确认 CUDA/cuDNN DLL 目录已加入 PATH。")
+        return lines
+
+    lines = [
+        "[INFO] 建议操作:",
+        "  1. 在依赖向导中重装 MATHCRAFT_CPU。",
+    ]
+    if sys.platform == "win32":
+        lines.append(
+            "  2. 如仍失败，安装最新 Microsoft Visual C++ Redistributable x64 后重启: https://aka.ms/vc14/vc_redist.x64.exe"
+        )
+    else:
+        lines.append("  2. 如仍失败，确认系统动态库和 Python 依赖包未损坏。")
+    if detail:
+        lines.append("  3. 打开设置中的环境终端，执行 onnxruntime 导入和 provider 查询命令回传结果。")
+    return lines
 
 
 def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
@@ -537,7 +577,7 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
             if log_fn:
                 log_fn(format_layer_verify_failure(layer, err))
                 for diag_line in _layer_verify_failure_diagnostics(layer):
-                    log_fn(f"[INFO] 诊断: {diag_line}")
+                    log_fn(f"[DEBUG] {diag_line}")
     return verified
 
 
@@ -636,7 +676,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
         return True
     except Exception as e:
         if log_fn:
-            log_fn(f"[WARN] 卸载 {pkg_key} 失败（继续后续修复）: {e}")
+            log_fn(f"[WARN] 卸载 {pkg_key} 失败: {e}")
         return False
 
 
@@ -645,8 +685,7 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
                                     no_cache: bool = False, proc_setter=None) -> tuple[bool, str]:
     installed_now = _current_installed(pyexe)
     if "onnxruntime" in installed_now:
-        log_q.put("[INFO] 检测到 onnxruntime（CPU）被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
-        log_q.put("[INFO] 注意：onnxruntime 和 onnxruntime-gpu 不能同时存在！")
+        log_q.put("[INFO] 检测到 onnxruntime 被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
         _uninstall_package_if_present(
             pyexe,
             "onnxruntime",

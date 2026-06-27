@@ -110,7 +110,7 @@ class LinuxHotkey(QObject):
         self.unregister()
 
         if not self._pynput_available:
-            print("[Hotkey] pynput not available, global hotkey disabled")
+            print("[WARN] pynput 不可用，已禁用全局快捷键")
             return
 
         mods, key = self._parse(self._seq_str)
@@ -125,9 +125,9 @@ class LinuxHotkey(QObject):
             )
             self._listener.start()
             self._registered = True
-            print(f"[Hotkey] registered combo={combo} (pynput)")
+            print(f"[DEBUG] 全局快捷键已注册: combo={combo} pynput")
         except Exception as e:
-            print(f"[Hotkey] pynput registration failed: {e}")
+            print(f"[WARN] pynput 全局快捷键注册失败: {e}")
             self._listener = None
 
     def unregister(self) -> None:
@@ -136,7 +136,7 @@ class LinuxHotkey(QObject):
             try:
                 self._listener.stop()
             except Exception as e:
-                print(f"[Hotkey] pynput stop error: {e}")
+                print(f"[WARN] pynput 全局快捷键停止失败: {e}")
             self._listener = None
 
     def is_registered(self) -> bool:

@@ -420,7 +420,7 @@ class PipInstallRunner:
                 full_output = "\n".join(output_lines[-50:])
                 failure_reason = self._diagnose_failure(full_output, proc.returncode)
                 self.log_q.put(f"[WARN] {pkg} install failed (returncode={proc.returncode})")
-                self.log_q.put(f"[INFO] 诊断: 可能原因: {failure_reason}")
+                self.log_q.put(f"[DEBUG] 可能原因: {failure_reason}")
 
                 if not antlr_recovery_applied:
                     antlr_recovery_applied = self._recover_antlr_if_needed(pyexe, pkg, full_output)

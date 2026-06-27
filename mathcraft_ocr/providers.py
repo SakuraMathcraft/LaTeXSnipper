@@ -25,6 +25,14 @@ class ProviderInfo:
     gpu_runtime_ok: bool
     cpu_fallback: bool
 
+    @property
+    def use_cuda(self) -> bool:
+        return self.active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+
+    @property
+    def use_dml(self) -> bool:
+        return self.active_provider == "DmlExecutionProvider"
+
 
 def detect_providers(prefer: str = "auto") -> ProviderInfo:
     prefer_norm = (prefer or "auto").strip().lower()

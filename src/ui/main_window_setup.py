@@ -346,8 +346,8 @@ class MainWindowSetupMixin:
             try:
                 pg = self.preview_view.page()
                 pg.loadStarted.connect(lambda: None)
-                pg.loadFinished.connect(lambda ok: print(f"[WebEngine] loadFinished ok={ok}"))
-                pg.renderProcessTerminated.connect(lambda status, code: print(f"[WebEngine] renderProcessTerminated status={status} code={code}"))
+                pg.loadFinished.connect(lambda ok: print(f"[DEBUG] WebEngine loadFinished ok={ok}"))
+                pg.renderProcessTerminated.connect(lambda status, code: print(f"[WARN] WebEngine renderProcessTerminated status={status} code={code}"))
             except Exception:
                 pass
 

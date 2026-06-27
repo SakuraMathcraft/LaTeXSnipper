@@ -90,7 +90,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         importlib.invalidate_caches()
         import PyQt6 as _PyQt6
         _ = _PyQt6
-        print("[OK] PyQt6 installed.")
+        print("[INFO] PyQt6 installed.")
     else:
         try:
             from PyQt6 import QtWebEngineWidgets as _QtWebEngineWidgets
@@ -109,7 +109,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
         importlib.invalidate_caches()
         import qfluentwidgets as _qfluentwidgets
         _ = _qfluentwidgets
-        print("[OK] PyQt6-Fluent-Widgets installed.")
+        print("[INFO] PyQt6-Fluent-Widgets installed.")
 
     if os.name == "nt":
         try:
@@ -119,7 +119,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
             print("[WARN] win32api is missing; attempting pywin32 installation.")
             subprocess.check_call([pyexe, "-m", "pip", "install", "pywin32"], **_hidden_subprocess_kwargs())
             importlib.invalidate_caches()
-            print("[OK] pywin32 installed. Restart the app to complete initialization.")
+            print("[INFO] pywin32 installed. Restart the app to complete initialization.")
             time.sleep(2)
             sys.exit(0)
 
@@ -133,7 +133,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
             importlib.invalidate_caches()
             import pyperclip as _pyperclip
             _ = _pyperclip
-            print("[OK] pyperclip installed.")
+            print("[INFO] pyperclip installed.")
         except Exception as exc:
             print(f"[WARN] pyperclip automatic installation failed: {exc}")
 
@@ -152,7 +152,7 @@ def early_ensure_pyqt6_and_pywin32() -> None:
             importlib.invalidate_caches()
             import requests as _requests
             _ = _requests
-            print("[OK] requests installed.")
+            print("[INFO] requests installed.")
         except Exception as exc:
             print(f"[WARN] requests automatic installation failed: {exc}")
 

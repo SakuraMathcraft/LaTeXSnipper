@@ -283,7 +283,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 ok, err = _verify_layer_runtime(pyexe, layer, timeout=30)
                 if ok:
                     verified_layers.append(layer)
-                    print(f"  [OK] {layer} 验证通过")
+                    print(f"  [INFO] {layer} 验证通过")
                 else:
                     failed_layers.append((layer, err))
                     print(format_layer_verify_failure(layer, err))
@@ -825,7 +825,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             return
 
-        print(f"[INFO] Selected layers: {sel}")
+        if sel:
+            print(f"[INFO] 已选择安装层: {', '.join(sel)}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
         if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
@@ -920,7 +921,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             )
             env_info.setText(status_text)
             env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
-            print("[OK] 依赖状态刷新成功")
+            print("[INFO] 依赖状态刷新成功")
         except Exception as e:
             print(f"[WARN] UI 刷新失败: {e}")
 

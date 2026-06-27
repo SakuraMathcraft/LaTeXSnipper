@@ -107,10 +107,10 @@ def _configure_tls_verify():
         os.environ["REQUESTS_CA_BUNDLE"] = ca_path
         os.environ["SSL_CERT_FILE"] = ca_path
         if DEBUG_LOG:
-            print(f"[Updater] TLS CA bundle: {ca_path}")
+            print(f"[DEBUG] 更新检查 TLS CA bundle: {ca_path}")
     else:
         if DEBUG_LOG:
-            print("[Updater] WARN: no CA bundle file found; update check may fail on HTTPS.")
+            print("[WARN] 未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
 
 
 def _attach_auth_headers(h: dict):

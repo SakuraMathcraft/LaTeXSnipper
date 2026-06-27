@@ -105,7 +105,7 @@ def show_formula_rename_dialog(
     parent,
     current_name: str = "",
     title: str = "重命名公式",
-    prompt: str = "输入公式名称（留空则清除名称）：",
+    prompt: str = "输入公式名称：",
 ):
     """Shared formula rename dialog with only the top-right close button and fixed size."""
     from PyQt6.QtWidgets import QLineEdit

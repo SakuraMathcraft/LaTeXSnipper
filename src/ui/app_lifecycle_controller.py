@@ -303,8 +303,7 @@ class AppLifecycleMixin:
             reply = QMessageBox.question(
                 self,
                 "确认退出",
-                "关闭窗口将完全退出 LaTeXSnipper，是否确认？\n\n"
-                "（提示：你可以通过系统托盘菜单的「退出」来关闭程序）",
+                "关闭窗口将完全退出 LaTeXSnipper，是否确认？",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )

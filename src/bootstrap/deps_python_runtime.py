@@ -92,7 +92,6 @@ def inject_private_python_paths(pyexe: Path) -> None:
     """Inject private site-packages in source mode without polluting packaged mode."""
     is_frozen = getattr(sys, "frozen", False)
     if is_frozen:
-        print("[INFO] 打包模式：跳过路径注入，AI 模型将在子进程中使用独立 Python")
         return
 
     site_packages = site_packages_root(Path(pyexe))

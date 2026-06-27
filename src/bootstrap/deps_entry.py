@@ -204,12 +204,12 @@ def clear_deps_state():
         state_path = Path(deps_dir) / ".deps_state.json"
         if state_path.exists():
             state_path.unlink()
-            print(f"[OK] 已删除状态文件：{state_path}")
+            print(f"[INFO] 已删除状态文件：{state_path}")
 
 
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
-        print(f"[OK] 已重新生成空状态文件：{state_path}")
+        print(f"[INFO] 已重新生成空状态文件：{state_path}")
 
     except Exception as e:
         print(f"[ERR] 清除依赖状态文件失败: {e}")
@@ -338,7 +338,7 @@ def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool
                     raise subprocess.TimeoutExpired(cmd, timeout)
                 time.sleep(0.2)
             if ret == 0:
-                print(f"[OK] venv 创建成功: {target_dir}")
+                print(f"[INFO] venv 创建成功: {target_dir}")
                 return True
             last_output = proc.stdout.read() if proc.stdout else ""
         print(f"[WARN] venv 创建失败: {last_output[-500:]}")
@@ -420,7 +420,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             custom_warning_dialog("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         except Exception:
             print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
-        print("[Deps] 用户选择跳过依赖安装并进入主程序")
+        print("[WARN] 用户选择跳过依赖安装并进入主程序")
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
@@ -433,10 +433,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         if existing_pyexe and existing_pyexe.exists():
-            print(f"[INFO] packaged: use deps python for pip: {pyexe}")
+            print(f"[INFO] 使用依赖目录 Python: {pyexe}")
             use_bundled_python = False
         else:
-            print(f"[INFO] packaged: no reusable deps python yet, wizard will initialize: {pyexe}")
+            print(f"[INFO] 依赖目录尚未初始化 Python: {pyexe}")
             use_bundled_python = True
     else:
 
@@ -444,7 +444,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         deps_dir_resolved = str(Path(deps_dir).resolve())
-        mismatch_reason = ""
 
 
         is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
@@ -470,20 +469,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             if existing_pyexe and existing_pyexe.exists():
                 use_bundled_python = False
                 pyexe = existing_pyexe
-                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将复用目录内已有 Python: {pyexe}")
+                print(f"[INFO] {mode_str}：使用依赖目录 Python: {pyexe}")
             else:
                 use_bundled_python = True
-                print(f"[INFO] {mode_str}：当前 Python 与依赖目录不一致，将使用独立 Python: {pyexe}")
-            print(f"[INFO] 诊断: 当前 Python 解释器: {current_pyexe}")
-            print(f"[INFO] 诊断: 当前 site-packages 路径: {current_site if current_site else '(未找到)'}")
-            print(f"[INFO] 诊断: 依赖目录路径: {deps_dir_resolved}")
-            if not current_site:
-                mismatch_reason = "未能定位当前 Python 的 site-packages 路径。"
-            elif not current_site_in_deps:
-                mismatch_reason = "当前 Python 的 site-packages 不在依赖目录下。"
-            else:
-                mismatch_reason = "未知原因导致环境不一致。"
-            print(f"[INFO] 诊断: 环境不一致原因: {mismatch_reason}")
+                print(f"[INFO] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
 
         if use_bundled_python and not _is_usable_python(pyexe):
             if from_settings:
@@ -504,7 +493,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         )
                         return False
                     pyexe = _dependency_python_path(py_root)
-                    print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
                 except Exception as e:
                     print(f"[ERR] 自动初始化 Python 失败: {e}")
                     _notify_before_show_ui()
@@ -520,7 +509,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     try:
         if from_settings and always_show_ui:
-            print("[INFO] settings wizard: defer pip bootstrap until user starts installation.")
+            print("[INFO] 依赖向导：等待用户选择安装后再初始化 pip。")
         else:
             _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
@@ -528,7 +517,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             _save_json(state_path, {"installed_layers": []})
         pip_ready_event.set()
     except Exception as e:
-        print(f"[Deps] 预初始化 pip 失败: {e}")
+        print(f"[WARN] 预初始化 pip 失败: {e}")
         pip_ready_event.set()
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
@@ -736,11 +725,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         always_show_ui = True
                         continue
                     pyexe = _dependency_python_path(py_root)
-                    print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
                     try:
                         _ensure_pip(pyexe)
                     except Exception as e:
-                        print(f"[Deps] 初始化目标 Python 后确保 pip 失败: {e}")
+                        print(f"[WARN] 初始化目标 Python 后确保 pip 失败: {e}")
 
                 RESULT_BACK_TO_WIZARD = 1001
                 if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():
@@ -1035,7 +1024,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _exec_close_only_message_box(
                                 dlg,
                                 "部分验证失败",
-                                f"以下功能层安装但无法正常工作:\n{', '.join(fail_layers)}\n\n请查看日志或使用【打开环境终端】手动修复。",
+                                f"以下功能层安装但无法正常工作:\n{', '.join(fail_layers)}\n\n请查看日志提示。",
                                 icon=QMessageBox.Icon.Warning,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )

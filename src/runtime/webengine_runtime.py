@@ -21,7 +21,7 @@ def configure_default_webengine_profile() -> None:
         settings = profile.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
-        print("[MathJax] QWebEngine 配置已应用")
+        print("[INFO] QWebEngine 配置已应用")
     except Exception as e:
         print(f"[WARN] QWebEngine 配置失败: {e}")
 
@@ -48,13 +48,13 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         except Exception:
             return "<invalid>"
 
-    log_info(f"[WebEngine] 诊断阶段: {stage}")
+    log_info(f"[DEBUG] WebEngine 诊断阶段: {stage}")
     if err is not None:
-        log_warn(f"[WebEngine] 异常: {err}")
+        log_warn(f"[WARN] WebEngine 异常: {err}")
 
-    log_info(f"[WebEngine] frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
-    log_info(f"[WebEngine] executable={sys.executable}")
-    log_info(f"[WebEngine] APP_DIR={_fmt(app_dir)}")
+    log_info(f"[DEBUG] WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
+    log_info(f"[DEBUG] WebEngine executable={sys.executable}")
+    log_info(f"[DEBUG] WebEngine APP_DIR={_fmt(app_dir)}")
 
     exe_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = []
@@ -83,9 +83,9 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         candidates = []
 
     found = next((p for p in candidates if p.exists()), None)
-    log_info(f"[WebEngine] QtWebEngineProcess found={_fmt(found)}")
+    log_info(f"[DEBUG] WebEngine QtWebEngineProcess found={_fmt(found)}")
     if not found and candidates:
-        log_warn(f"[WebEngine] QtWebEngineProcess candidates={', '.join(_fmt(p) for p in candidates)}")
+        log_warn(f"[WARN] WebEngine QtWebEngineProcess candidates={', '.join(_fmt(p) for p in candidates)}")
 
     resource_dirs = []
     try:
@@ -111,7 +111,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             continue
         missing = [f for f in required if not (rdir / f).exists()]
         present_opt = [f for f in optional if (rdir / f).exists()]
-        log_info(f"[WebEngine] resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
+        log_info(f"[DEBUG] WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
 
     locale_dirs = []
     try:
@@ -135,7 +135,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             pak_count = len(list(ldir.glob("*.pak")))
         except Exception:
             pak_count = 0
-        log_info(f"[WebEngine] locales_dir={_fmt(ldir)} pak_count={pak_count}")
+        log_info(f"[DEBUG] WebEngine locales_dir={_fmt(ldir)} pak_count={pak_count}")
 
 
 _QWEBENGINE_VIEW = None

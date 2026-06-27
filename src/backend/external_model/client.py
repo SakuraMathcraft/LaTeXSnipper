@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+import json
 from urllib.parse import urlparse
 
 import requests
@@ -35,6 +36,10 @@ class ExternalModelClient:
             headers["Authorization"] = f"Bearer {api_key}"
         return headers
 
+    def _openai_api_base_url(self) -> str:
+        base_url = self.config.normalized_base_url()
+        return base_url if base_url.endswith("/v1") else f"{base_url}/v1"
+
     def _image_to_base64(self, image) -> str:
         buf = BytesIO()
         image.save(buf, format="PNG")
@@ -65,9 +70,60 @@ class ExternalModelClient:
                 return "请求过于频繁，请稍后重试。"
             if 500 <= code < 600:
                 return f"服务端返回 {code}，请稍后重试或检查服务日志。"
-            return f"{action}失败，接口返回 {code}。"
+            detail = self._response_error_detail(resp)
+            if code == 400:
+                if self._is_image_input_rejected(detail):
+                    suffix = "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
+                else:
+                    suffix = f"服务端信息：{detail}" if detail else "请检查模型是否支持图片输入、模型名和请求协议。"
+                return f"{action}失败，接口返回 400。{suffix}"
+            return f"{action}失败，接口返回 {code}。" + (f"服务端信息：{detail}" if detail else "")
 
         return f"{action}失败，请检查服务地址、协议和网络连接。"
+
+    def _response_error_detail(self, resp) -> str:
+        try:
+            raw = resp.json()
+        except Exception:
+            raw = None
+        detail = self._extract_error_detail(raw)
+        if not detail:
+            try:
+                detail = str(resp.text or "").strip()
+            except Exception:
+                detail = ""
+        if not detail:
+            return ""
+        return detail.replace("\r\n", "\n").replace("\r", "\n")[:360]
+
+    def _extract_error_detail(self, value) -> str:
+        if isinstance(value, dict):
+            for key in ("message", "detail", "error_description"):
+                text = value.get(key)
+                if isinstance(text, str) and text.strip():
+                    return text.strip()
+            error = value.get("error")
+            if isinstance(error, str) and error.strip():
+                return error.strip()
+            if isinstance(error, dict):
+                return self._extract_error_detail(error)
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))[:360]
+        if isinstance(value, list):
+            parts = [self._extract_error_detail(item) for item in value]
+            return "; ".join(part for part in parts if part)
+        return ""
+
+    def _is_image_input_rejected(self, detail: str) -> bool:
+        text = str(detail or "").lower()
+        return (
+            "image_url" in text
+            and (
+                "expected text" in text
+                or "unknown variant" in text
+                or "not supported" in text
+                or "unsupported" in text
+            )
+        )
 
     def test_connection(self) -> tuple[bool, str]:
         provider, model_name = self._validate_config()
@@ -83,7 +139,7 @@ class ExternalModelClient:
                 raw = resp.json()
                 names = self._extract_ollama_model_names(raw)
             else:
-                url = f"{base_url}/v1/models"
+                url = f"{self._openai_api_base_url()}/models"
                 resp = requests.get(url, headers=self._headers(), timeout=timeout)
                 resp.raise_for_status()
                 raw = resp.json()
@@ -114,7 +170,6 @@ class ExternalModelClient:
         return self._predict_openai_compatible(image, model_name)
 
     def _predict_openai_compatible(self, image, model_name: str) -> ExternalModelResult:
-        base_url = self.config.normalized_base_url()
         timeout = self.config.normalized_timeout()
         image_b64 = self._image_to_base64(image)
         prompt = build_prompt(self.config)
@@ -131,7 +186,7 @@ class ExternalModelClient:
             ],
         }
         try:
-            url = f"{base_url}/v1/chat/completions"
+            url = f"{self._openai_api_base_url()}/chat/completions"
             resp = requests.post(
                 url,
                 headers=self._headers(),

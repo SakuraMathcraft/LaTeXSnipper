@@ -36,7 +36,7 @@ class ConfigManager:
         try:
             Path(self.path).write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as exc:
-            print("[Config] 保存失败:", exc)
+            print(f"[WARN] 配置保存失败: {exc}")
 
 
 def default_user_data_file(file_name: str) -> Path:

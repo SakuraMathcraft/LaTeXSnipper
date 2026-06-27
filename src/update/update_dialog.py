@@ -183,7 +183,7 @@ a{{color:{theme['accent']};}}
 
     def on_result(info, err, diag):
         if DEBUG_LOG and diag:
-            print(f"[Updater] release diagnostics: {diag}")
+            print(f"[DEBUG] 更新检查诊断: {diag}")
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True

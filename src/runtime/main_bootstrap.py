@@ -112,18 +112,18 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
     py_exe = py_exe_path if py_exe_path is not None else (install_base_dir / "python311" / _default_python_exe_name())
 
     if not py_exe.exists():
-        print(f"[WARN] packaged: private python not found: {py_exe}, keep bundled runtime")
+        print(f"[WARN] 依赖目录 Python 不存在，继续使用内置运行时: {py_exe}")
         return
 
     if os.environ.get("LATEXSNIPPER_FORCE_PRIVATE_PY") != "1":
-        print("[INFO] packaged: keep bundled runtime, mount deps dir")
+        print("[INFO] 使用内置运行时启动，依赖目录由子进程使用。")
         return
 
     if os.environ.get("LATEXSNIPPER_INNER_PY") == "1":
-        print("[INFO] packaged: already in private python")
+        print("[INFO] 已在依赖目录 Python 中运行。")
         return
 
-    print(f"[INFO] packaged: redirect to private python {py_exe}")
+    print(f"[INFO] 切换到依赖目录 Python: {py_exe}")
     env = os.environ.copy()
     env["LATEXSNIPPER_INNER_PY"] = "1"
 
@@ -199,7 +199,7 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
     os.environ.pop("PYTHONPATH", None)
     os.environ.pop("MATHCRAFT_HOME", None)
 
-    print("[INFO] packaged dependency wizard mode: defer full Python preparation until install action.")
+    print("[INFO] 依赖向导模式：等待用户选择安装后再准备 Python 环境。")
     return base_dir, target_py
 
 

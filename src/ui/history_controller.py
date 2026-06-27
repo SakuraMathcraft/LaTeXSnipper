@@ -61,7 +61,7 @@ class HistoryControllerMixin:
             self,
             current_name=current_name,
             title="重命名公式",
-            prompt="输入公式名称（留空则清除名称）：",
+            prompt="输入公式名称：",
         )
         if not ok:
             return
@@ -233,7 +233,7 @@ class HistoryControllerMixin:
     def _do_delete_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.set_action_status("已删除（空）")
+            self.set_action_status("已删除")
             return
 
         self.delete_history_item(row, txt)

@@ -1,12 +1,14 @@
 import re
 from dataclasses import dataclass
 
+from runtime.secret_store import decrypt_secret, encrypt_secret
+
 
 DEFAULT_CONFIG = {
     "external_model_provider": "ollama",
     "external_model_base_url": "http://127.0.0.1:11434",
     "external_model_model_name": "",
-    "external_model_api_key": "",
+    "external_model_api_key_enc": "",
     "external_model_timeout_sec": 60,
     "external_model_output_mode": "latex",
     "external_model_prompt_template": "ocr_formula_v1",
@@ -83,7 +85,7 @@ class ExternalModelConfig:
             "external_model_provider": self.normalized_provider(),
             "external_model_base_url": self.normalized_base_url(),
             "external_model_model_name": self.normalized_model_name(),
-            "external_model_api_key": self.normalized_api_key(),
+            "external_model_api_key_enc": encrypt_secret(self.normalized_api_key()),
             "external_model_timeout_sec": self.normalized_timeout(),
             "external_model_output_mode": self.normalized_output_mode(),
             "external_model_prompt_template": str(self.prompt_template or "ocr_formula_v1").strip() or "ocr_formula_v1",
@@ -165,7 +167,7 @@ def load_config_from_mapping(mapping) -> ExternalModelConfig:
         provider=str(get_config_value(mapping, "external_model_provider") or "ollama"),
         base_url=str(get_config_value(mapping, "external_model_base_url") or "http://127.0.0.1:11434"),
         model_name=str(get_config_value(mapping, "external_model_model_name") or ""),
-        api_key=str(get_config_value(mapping, "external_model_api_key") or ""),
+        api_key=decrypt_secret(str(get_config_value(mapping, "external_model_api_key_enc") or "")),
         timeout_sec=int(get_config_value(mapping, "external_model_timeout_sec") or 60),
         output_mode=str(get_config_value(mapping, "external_model_output_mode") or "latex"),
         prompt_template=str(get_config_value(mapping, "external_model_prompt_template") or "ocr_formula_v1"),

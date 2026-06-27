@@ -46,7 +46,7 @@ def _hidden_subprocess_kwargs() -> dict:
 
 def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """Start a subprocess and return the Popen object without eagerly reading stdout."""
-    print(f"[RUN] {' '.join(cmd)}")
+    print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
 
     env = popen_kwargs.get("env")
     if env is None:

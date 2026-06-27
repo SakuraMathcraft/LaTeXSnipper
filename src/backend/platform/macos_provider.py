@@ -138,7 +138,7 @@ class MacOSScreenshotProvider:
         # target is the active app bundle in packaged mode and the launch process
         # in source mode, not merely the product name shown to the user.
         if self._screen_capture_restart_required:
-            print("[macOS Capture] Screen Recording access changed in this process; restart still required")
+            print("[INFO] macOS 屏幕录制权限状态已变化，需要重启后再截图")
             return self._permission_result(
                 PermissionState.DENIED,
                 self._screen_capture_denial_message(),
@@ -146,10 +146,7 @@ class MacOSScreenshotProvider:
 
         target, temporary_copy = self._screen_capture_permission_target()
         allowed = self._preflight_screen_capture_access()
-        print(
-            "[macOS Capture] Screen Recording preflight "
-            f"result={allowed!r} target={target} temporary_copy={temporary_copy}"
-        )
+        print(f"[DEBUG] macOS 屏幕录制权限预检: result={allowed!r} target={target} temporary_copy={temporary_copy}")
         if allowed is True:
             return self._permission_result(PermissionState.ALLOWED, "macos-screen-recording-allowed")
         if allowed is None:
@@ -158,12 +155,9 @@ class MacOSScreenshotProvider:
         if not self._screen_capture_prompted:
             self._screen_capture_prompted = True
             self._screen_capture_restart_required = True
-            print("[macOS Capture] Requesting Screen Recording access through CoreGraphics")
+            print("[INFO] 通过 CoreGraphics 请求 macOS 屏幕录制权限")
             requested = self._request_screen_capture_access()
-            print(
-                "[macOS Capture] Screen Recording request "
-                f"result={requested!r}; a fresh app process is required before retrying capture"
-            )
+            print(f"[INFO] macOS 屏幕录制权限请求结果: {requested!r}，需要重启应用后再截图")
 
         return self._permission_result(
             PermissionState.DENIED,

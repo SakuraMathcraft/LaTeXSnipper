@@ -26,15 +26,6 @@ PRESETS = {
         "prompt_template": "ocr_formula_v1",
         "hint": "适合作为通用多模态兜底模型；Ollama 下请确认模型已 pull。",
     },
-    "ollama_vision": {
-        "label": "Ollama Vision",
-        "provider": "ollama",
-        "base_url": "http://127.0.0.1:11434",
-        "model_name": "llava:7b",
-        "output_mode": "text",
-        "prompt_template": "ocr_text_v1",
-        "hint": "适合快速验证本地视觉模型链路是否可用。",
-    },
     "mineru_native": {
         "label": "MinerU Native",
         "provider": "mineru",
