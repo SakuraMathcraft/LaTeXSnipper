@@ -169,7 +169,7 @@ class ScreenCaptureOverlay(QWidget):
         self.preferred_screen_index = preferred_screen_index
         self.screenshot_tool = (screenshot_tool or "").strip() or None
         if self.screenshot_tool:
-            print(f"[Overlay] 用户指定截图工具: {self.screenshot_tool}")
+            print(f"[INFO] 用户指定截图工具: {self.screenshot_tool}")
         self.color_display_mode = "rgb"
         self._cursor_override_active = False
         self._finished = False
@@ -233,10 +233,10 @@ class ScreenCaptureOverlay(QWidget):
                             scale_y=float(wayland_bg.height()) / max(1, int(geo.height())),
                         )
                     )
-                print("[Overlay] Wayland: overlay 背景截图成功")
+                print("[DEBUG] Wayland overlay 背景截图成功")
                 return snapshots
-            print("[Overlay] Wayland: 所有 overlay 背景截图方式均失败")
-            print("[Overlay] 提示：建议安装 grim、gnome-screenshot 或 flameshot 以在 Wayland 上正常显示截图遮罩。")
+            print("[WARN] Wayland overlay 背景截图失败")
+            print("[INFO] 建议安装 grim、gnome-screenshot 或 flameshot 以在 Wayland 上正常显示截图遮罩。")
 
         for i, screen in enumerate(QGuiApplication.screens()):
             try:
@@ -246,7 +246,7 @@ class ScreenCaptureOverlay(QWidget):
                 pixmap = screen.grabWindow(0, 0, 0, geo.width(), geo.height())
                 image = pixmap.toImage().copy()
                 if image.isNull():
-                    print(f"[Overlay] 屏幕 {i} grabWindow(0) 返回空图像")
+                    print(f"[WARN] 屏幕 {i} grabWindow(0) 返回空图像")
                     continue
                 snapshots.append(
                     _ScreenSnapshot(
@@ -257,7 +257,7 @@ class ScreenCaptureOverlay(QWidget):
                     )
                 )
             except Exception as e:
-                print(f"[Overlay] 屏幕 {i} 截图异常: {e}")
+                print(f"[WARN] 屏幕 {i} 截图异常: {e}")
                 continue
 
         if not snapshots:
@@ -285,12 +285,12 @@ class ScreenCaptureOverlay(QWidget):
                                 scale_y=float(image.height()) / max(1, int(geo.height())),
                             )
                         )
-                        print(f"[Overlay] macOS: overlay background captured via {source}")
+                        print(f"[DEBUG] macOS overlay 背景截图来源: {source}")
                     except Exception as e:
-                        print(f"[Overlay] macOS CLI background capture failed: {e}")
+                        print(f"[WARN] macOS CLI 背景截图失败: {e}")
                 if snapshots:
                     return snapshots
-            print("[Overlay] 警告：未能捕获任何屏幕快照，overlay 背景将为纯色遮罩")
+            print("[WARN] 未能捕获任何屏幕快照，overlay 背景将为纯色遮罩")
 
         return snapshots
 
@@ -906,11 +906,11 @@ class ScreenCaptureOverlay(QWidget):
         # Wayland: grabWindow(0) can return an all-black snapshot; the crop is also black but .isNull() is False,
         # which blocks CLI/portal fallback. Explicitly detect all-black pixels and discard them.
         if _is_wayland and not pixmap.isNull() and is_image_effectively_black(pixmap.toImage()):
-            print("[Overlay] Wayland: 预截图裁剪结果为全黑，跳过并尝试 CLI/portal")
+            print("[DEBUG] Wayland 预截图裁剪结果为全黑，改用 CLI/portal")
             pixmap = QPixmap()
 
         if pixmap.isNull():
-            print("[Overlay] 预截图裁剪失败，尝试其他方式...")
+            print("[DEBUG] 预截图裁剪失败，尝试其他截图方式")
 
         if pixmap.isNull() and _is_wayland:
             image, source = capture_region_with_tools(
@@ -923,9 +923,9 @@ class ScreenCaptureOverlay(QWidget):
             )
             if image is not None and not image.isNull():
                 pixmap = QPixmap.fromImage(image)
-                print(f"[Overlay] Wayland: 使用 {source} 截图")
+                print(f"[DEBUG] Wayland 截图来源: {source}")
             else:
-                print("[Overlay] Wayland CLI/portal 截图均失败")
+                print("[WARN] Wayland CLI/portal 截图均失败")
 
         # X11 or non-Wayland: traditional grabWindow fallback.
         if pixmap.isNull() and not _is_wayland:
@@ -942,7 +942,7 @@ class ScreenCaptureOverlay(QWidget):
                 if not pixmap.isNull():
                     pass
                 else:
-                    print("[Overlay] grabWindow(0) 返回空")
+                    print("[WARN] grabWindow(0) 返回空")
             finally:
                 if os.name != "nt":
                     try:
@@ -962,13 +962,13 @@ class ScreenCaptureOverlay(QWidget):
             if image is not None and not image.isNull():
                 pixmap = QPixmap.fromImage(image)
                 platform_label = "macOS" if sys.platform == "darwin" else "Linux"
-                print(f"[Overlay] {platform_label}: 使用 {source} 截图")
+                print(f"[DEBUG] {platform_label} 截图来源: {source}")
             else:
                 platform_label = "macOS" if sys.platform == "darwin" else "Linux"
-                print(f"[Overlay] {platform_label} CLI 截图也失败")
+                print(f"[WARN] {platform_label} CLI 截图失败")
 
         if pixmap.isNull():
-            print("[Overlay] 所有截图方式均失败！pixmap 为空")
+            print("[ERR] 所有截图方式均失败，pixmap 为空")
         if pixmap.isNull() and sys.platform == "darwin":
             permission_state = str(getattr(self, "macos_permission_preflight_state", "unknown") or "unknown")
             if permission_state == "allowed":
@@ -982,6 +982,9 @@ class ScreenCaptureOverlay(QWidget):
                     "请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。"
                 )
         self.last_capture_screen_index = int(target_idx)
-        print(f"[Overlay] Captured pixmap size: {pixmap.width()}x{pixmap.height()} screen={target_idx} dpr={screen.devicePixelRatio():.2f}")
+        print(
+            f"[DEBUG] 截图 pixmap: size={pixmap.width()}x{pixmap.height()} "
+            f"screen={target_idx} dpr={screen.devicePixelRatio():.2f}"
+        )
 
         self._finish_capture(pixmap)

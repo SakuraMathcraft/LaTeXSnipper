@@ -480,7 +480,7 @@ class FavoritesWindow(QMainWindow):
                             for k, v in types.items()
                         }
             except Exception as e:
-                print("[Favorites] 加载失败:", e)
+                print(f"[WARN] 收藏夹加载失败: {e}")
         self.refresh_list()
 
     def save_favorites(self):
@@ -488,7 +488,7 @@ class FavoritesWindow(QMainWindow):
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(self._favorites_data(), f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print("[Favorites] 保存失败:", e)
+            print(f"[WARN] 收藏夹保存失败: {e}")
 
     def _clear_all_favorites(self):
         """Clear all favorites."""

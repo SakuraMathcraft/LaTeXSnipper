@@ -204,12 +204,12 @@ def clear_deps_state():
         state_path = Path(deps_dir) / ".deps_state.json"
         if state_path.exists():
             state_path.unlink()
-            print(f"[OK] 已删除状态文件：{state_path}")
+            print(f"[INFO] 已删除状态文件：{state_path}")
 
 
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
-        print(f"[OK] 已重新生成空状态文件：{state_path}")
+        print(f"[INFO] 已重新生成空状态文件：{state_path}")
 
     except Exception as e:
         print(f"[ERR] 清除依赖状态文件失败: {e}")
@@ -338,7 +338,7 @@ def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool
                     raise subprocess.TimeoutExpired(cmd, timeout)
                 time.sleep(0.2)
             if ret == 0:
-                print(f"[OK] venv 创建成功: {target_dir}")
+                print(f"[INFO] venv 创建成功: {target_dir}")
                 return True
             last_output = proc.stdout.read() if proc.stdout else ""
         print(f"[WARN] venv 创建失败: {last_output[-500:]}")
@@ -493,7 +493,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         )
                         return False
                     pyexe = _dependency_python_path(py_root)
-                    print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
                 except Exception as e:
                     print(f"[ERR] 自动初始化 Python 失败: {e}")
                     _notify_before_show_ui()
@@ -725,7 +725,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         always_show_ui = True
                         continue
                     pyexe = _dependency_python_path(py_root)
-                    print(f"[OK] 已通过系统 Python 创建 venv: {pyexe}")
+                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
                     try:
                         _ensure_pip(pyexe)
                     except Exception as e:

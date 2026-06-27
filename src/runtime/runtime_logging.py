@@ -31,6 +31,19 @@ _LSN_RUNTIME_LOG_RESET_DONE = False
 _LSN_RUNTIME_LOG_CLEANUP_HOOKED = False
 
 
+def _configure_utf8_stdio() -> None:
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    for stream_name in ("stdout", "stderr", "__stdout__", "__stderr__"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 class TeeWriter(io.TextIOBase):
     """Write to two streams while tolerating I/O failures."""
 
@@ -141,6 +154,7 @@ class TeeWriter(io.TextIOBase):
 def init_app_logging() -> Path:
     """Initialize application logging and route output to the runtime log."""
     global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
+    _configure_utf8_stdio()
     ensure_startup_splash(startup_status_message("初始化日志..."))
     log_dir = Path(app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -203,7 +217,7 @@ def init_app_logging() -> Path:
         _ORIGINAL_PRINT = builtins.print
 
         bridge_logger = logging.getLogger("runtime.print")
-        bridge_logger.setLevel(logging.INFO)
+        bridge_logger.setLevel(logging.DEBUG)
         bridge_logger.propagate = False
         if not any(h is file_handler for h in bridge_logger.handlers):
             bridge_logger.addHandler(file_handler)

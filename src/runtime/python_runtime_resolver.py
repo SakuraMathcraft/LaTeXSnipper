@@ -375,7 +375,7 @@ def resolve_install_base_dir() -> Path:
 
 
     if py_exe is not None and py_exe.exists():
-        print(f"[OK] ✓ 已复用目录内 Python: {py_exe}")
+        print(f"[INFO] 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
         return p
 

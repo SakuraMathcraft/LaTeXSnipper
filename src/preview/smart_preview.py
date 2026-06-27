@@ -204,7 +204,7 @@ def render_content_block(
         content_type = normalize_content_type(str(content_type or "mathcraft"))
 
         if debug:
-            print(f"[RenderBlock] 处理内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
+            print(f"[DEBUG] 处理预览内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
 
         type_name, type_class = {
             "mathcraft": ("公式", ""),
@@ -229,10 +229,10 @@ def render_content_block(
     <div class="block-content">{rendered_content}</div>
 </div>'''
         if debug:
-            print(f"[RenderBlock] 渲染成功，输出长度: {len(result)}")
+            print(f"[DEBUG] 预览内容块渲染成功，输出长度: {len(result)}")
         return result
     except Exception as exc:
-        print(f"[RenderBlock] 处理内容块失败: {exc}")
+        print(f"[WARN] 预览内容块渲染失败: {exc}")
         tokens = preview_theme_tokens()
         error_msg = f"内容块渲染失败: {exc}"
         return (
@@ -285,5 +285,5 @@ def render_mixed_content(content: str) -> str:
 
         return "".join(result_parts)
     except Exception as exc:
-        print(f"[RenderMixed] 混合内容渲染失败: {exc}")
+        print(f"[WARN] 混合内容渲染失败: {exc}")
         return f'<div style="color: red;">{html_module.escape(f"混合内容渲染失败: {exc}")}</div>'

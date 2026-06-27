@@ -193,15 +193,15 @@ def _try_screenshot_cmd(
     except subprocess.CalledProcessError as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
         detail = str(exc.stderr or "").strip().replace("\n", " ")
-        print(f"[ScreenshotTools] {tool_name} failed exit={exc.returncode}: {detail[:500]}")
+        print(f"[WARN] 截图工具 {tool_name} 返回 {exc.returncode}: {detail[:500]}")
         return None
     except subprocess.TimeoutExpired:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[ScreenshotTools] {tool_name} timed out after 15 seconds")
+        print(f"[WARN] 截图工具 {tool_name} 超时（15 秒）")
         return None
     except Exception as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[ScreenshotTools] {tool_name} could not start: {exc}")
+        print(f"[WARN] 截图工具 {tool_name} 启动失败: {exc}")
         return None
     finally:
         if tmp_path:

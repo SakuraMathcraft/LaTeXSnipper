@@ -110,7 +110,7 @@ class EditFormulaDialog(QDialog):
             html, base_url = self._build_preview_payload(latex)
             self.preview_view.setHtml(html, base_url)
         except Exception as exc:
-            print(f"[EditDialog Render] 渲染失败: {exc}")
+            print(f"[WARN] 重命名公式预览渲染失败: {exc}")
 
     def closeEvent(self, event):
         try:

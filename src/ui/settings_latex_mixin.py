@@ -324,7 +324,7 @@ class SettingsLatexMixin:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
-                print(f"[Render] 已切换渲染引擎: {engine}")
+                print(f"[INFO] 已切换渲染引擎: {engine}")
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（推荐）",
