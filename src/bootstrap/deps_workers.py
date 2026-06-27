@@ -17,6 +17,7 @@ from bootstrap.deps_layer_specs import (
     _version_satisfies_spec,
 )
 from bootstrap.deps_pandoc import _cleanup_pandoc_leftovers, _ensure_pandoc_binary, _pandoc_data_dir
+from bootstrap.deps_pip_runner import _terminate_process
 from bootstrap.deps_qt_compat import QThread, pyqtSignal
 from bootstrap.deps_runtime_verify import (
     _cleanup_orphan_onnxruntime_namespace,
@@ -94,11 +95,9 @@ class InstallWorker(QThread):
     done = pyqtSignal(bool)
 
     def __init__(self, pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path, chosen_layers, log_q,
-                 mirror=False, force_reinstall=False, no_cache=False):
+                 mirror=False):
         super().__init__()
         self.mirror = mirror
-        self.force_reinstall = force_reinstall
-        self.no_cache = no_cache
         self._done_emitted = False
         self.proc = None
         self.pyexe = pyexe
@@ -127,12 +126,8 @@ class InstallWorker(QThread):
         """Stop an install from the UI."""
         self.stop_event.set()
         if hasattr(self, "proc") and self.proc and self.proc.poll() is None:
-            try:
-                self.proc.terminate()
-            except Exception:
-                pass
-            finally:
-                self.proc = None
+            _terminate_process(self.proc)
+            self.proc = None
 
 
     def run(self):
@@ -143,10 +138,6 @@ class InstallWorker(QThread):
             _cleanup_pip_interrupted_leftovers(self.pyexe, self.log_updated.emit)
             installed_before = _current_installed(self.pyexe)
             self.log_updated.emit(f"[INFO] 当前已安装 {len(installed_before)} 个包")
-            if self.no_cache:
-                self.log_updated.emit("[INFO] pip 缓存策略: 禁用缓存（--no-cache-dir）")
-            else:
-                self.log_updated.emit("[INFO] pip 缓存策略: 使用本地缓存（默认）")
 
             chosen_layers = _normalize_chosen_layers(self.chosen_layers or [])
             want_gpu_runtime = "MATHCRAFT_GPU" in chosen_layers
@@ -179,35 +170,31 @@ class InstallWorker(QThread):
 
             pending = []
             skipped = []
-            if self.force_reinstall:
-                pending = [_resolve_layer_pkg_spec(p) for p in self.pkgs]
-                self.log_updated.emit("[INFO] 启用强制重装模式")
-            else:
-                for p in self.pkgs:
-                    effective_p = _resolve_layer_pkg_spec(p)
-                    pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
-                    if pkg_name in installed_before:
-                        cur_ver = installed_before[pkg_name]
-                        if _version_satisfies_spec(pkg_name, cur_ver, effective_p):
-                            if pkg_name in ("onnxruntime", "onnxruntime-gpu"):
-                                expect_gpu_ort = pkg_name == "onnxruntime-gpu"
-                                ort_ok, ort_err = _verify_onnxruntime_runtime(
-                                    self.pyexe, expect_gpu=expect_gpu_ort, timeout=20
-                                )
-                                if not ort_ok:
-                                    pending.append(effective_p)
-                                    self.log_updated.emit(
-                                        f"[WARN] {pkg_name} 运行时异常，准备重装: {ort_err[:180]}"
-                                    )
-                                    continue
-                            skipped.append(f"{pkg_name} ({cur_ver})")
-                        else:
-                            pending.append(effective_p)
-                            self.log_updated.emit(
-                                f"[INFO] {pkg_name} 版本不满足要求，准备重装: 当前 {cur_ver}，要求 {effective_p}"
+            for p in self.pkgs:
+                effective_p = _resolve_layer_pkg_spec(p)
+                pkg_name = re.split(r'[<>=!~ ]', effective_p, 1)[0].lower()
+                if pkg_name in installed_before:
+                    cur_ver = installed_before[pkg_name]
+                    if _version_satisfies_spec(pkg_name, cur_ver, effective_p):
+                        if pkg_name in ("onnxruntime", "onnxruntime-gpu"):
+                            expect_gpu_ort = pkg_name == "onnxruntime-gpu"
+                            ort_ok, ort_err = _verify_onnxruntime_runtime(
+                                self.pyexe, expect_gpu=expect_gpu_ort, timeout=20
                             )
+                            if not ort_ok:
+                                pending.append(effective_p)
+                                self.log_updated.emit(
+                                    f"[WARN] {pkg_name} 运行时异常，准备重装: {ort_err[:180]}"
+                                )
+                                continue
+                        skipped.append(f"{pkg_name} ({cur_ver})")
                     else:
                         pending.append(effective_p)
+                        self.log_updated.emit(
+                            f"[INFO] {pkg_name} 版本不满足要求，准备重装: 当前 {cur_ver}，要求 {effective_p}"
+                        )
+                else:
+                    pending.append(effective_p)
 
             if skipped:
                 self.log_updated.emit(f"[INFO] 跳过已安装: {', '.join(skipped[:10])}{'...' if len(skipped) > 10 else ''}")
@@ -263,8 +250,6 @@ class InstallWorker(QThread):
                             use_mirror=self.mirror,
                             flags=flags,
                             pause_event=self.pause_event,
-                            force_reinstall=self.force_reinstall,
-                            no_cache=self.no_cache,
                             proc_setter=lambda p: setattr(self, "proc", p),
                         )
                     except Exception as e:
@@ -321,8 +306,6 @@ class InstallWorker(QThread):
                     self.pause_event,
                     self.log_q,
                     use_mirror=self.mirror,
-                    force_reinstall=self.force_reinstall,
-                    no_cache=self.no_cache,
                     proc_setter=lambda p: setattr(self, "proc", p),
                 )
                 if not runtime_ort_ok:

@@ -100,6 +100,28 @@ def _set_proc(proc_setter, proc) -> None:
 
 def _terminate_process(proc) -> None:
     try:
+        import psutil
+
+        parent = psutil.Process(proc.pid)
+        children = parent.children(recursive=True)
+        for child in children:
+            try:
+                child.terminate()
+            except Exception:
+                pass
+        parent.terminate()
+        gone, alive = psutil.wait_procs([parent, *children], timeout=5)
+        for item in alive:
+            try:
+                item.kill()
+            except Exception:
+                pass
+        if gone or not alive:
+            return
+    except Exception:
+        pass
+
+    try:
         proc.terminate()
         proc.wait(timeout=5)
     except Exception:
@@ -233,8 +255,6 @@ class PipInstallRunner:
         use_mirror=False,
         flags=0,
         pause_event=None,
-        force_reinstall=False,
-        no_cache=False,
         proc_setter=None,
         pip_ready_event=None,
         suppress_args: list[str] | None = None,
@@ -251,8 +271,6 @@ class PipInstallRunner:
         self.use_mirror = use_mirror
         self.flags = flags
         self.pause_event = pause_event
-        self.force_reinstall = force_reinstall
-        self.no_cache = no_cache
         self.proc_setter = proc_setter
         self.pip_ready_event = pip_ready_event
         self.suppress_args = list(suppress_args or _suppress_args)
@@ -308,11 +326,7 @@ class PipInstallRunner:
         if ort_gpu_policy is not None and ort_gpu_policy.pre:
             args.append("--pre")
 
-        if self.force_reinstall:
-            args.append("--force-reinstall")
-            if self.no_cache:
-                args.append("--no-cache-dir")
-        elif name in {"protobuf"}:
+        if name in {"protobuf"}:
             args.append("--force-reinstall")
 
         if name in {"onnxruntime", "onnxruntime-gpu"}:

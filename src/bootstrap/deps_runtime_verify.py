@@ -681,8 +681,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
 
 
 def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, pause_event, log_q,
-                                    use_mirror: bool = False, force_reinstall: bool = False,
-                                    no_cache: bool = False, proc_setter=None) -> tuple[bool, str]:
+                                    use_mirror: bool = False, proc_setter=None) -> tuple[bool, str]:
     installed_now = _current_installed(pyexe)
     if "onnxruntime" in installed_now:
         log_q.put("[INFO] 检测到 onnxruntime 被后续依赖重新带入，正在移除以避免覆盖 GPU providers...")
@@ -715,8 +714,6 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
         use_mirror=use_mirror,
         flags=flags,
         pause_event=pause_event,
-        force_reinstall=False,
-        no_cache=no_cache,
         proc_setter=proc_setter,
     )
     if not repaired:
@@ -768,7 +765,6 @@ def _current_installed(pyexe):
                 return {}
             data = json.loads(payload)
             if isinstance(data, dict):
-                print(f"[INFO] 已安装包数量(元数据回退): {len(data)}")
                 return {str(k).lower(): str(v) for k, v in data.items()}
         except Exception as e:
             print(f"[WARN] importlib.metadata 回退失败: {e}")
@@ -807,7 +803,6 @@ def _current_installed(pyexe):
             metadata_installed = _installed_via_metadata()
             if metadata_installed:
                 return metadata_installed
-        print(f"[INFO] 已安装包数量: {len(result)}")
         return result
     except Exception as e:
         print(f"[WARN] 获取已安装包列表失败，使用元数据回退: {e}")
@@ -815,7 +810,7 @@ def _current_installed(pyexe):
 
 
 def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause_event=None,
-                 force_reinstall=False, no_cache=False, proc_setter=None):
+                 proc_setter=None):
     """Install one dependency package with live logs, mirrors, retries, and nonblocking output."""
     return PipInstallRunner(
         pyexe=pyexe,
@@ -825,8 +820,6 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
         use_mirror=use_mirror,
         flags=flags,
         pause_event=pause_event,
-        force_reinstall=force_reinstall,
-        no_cache=no_cache,
         proc_setter=proc_setter,
         pip_ready_event=pip_ready_event,
         suppress_args=PIP_INSTALL_SUPPRESS_ARGS,

@@ -12,6 +12,7 @@ from bootstrap.deps_context import (
     PIP_INSTALL_SUPPRESS_ARGS,
     STATE_FILE,
     _config_dir_path,
+    _hidden_subprocess_kwargs,
     flags,
     pip_ready_event,
     psutil,
@@ -34,7 +35,8 @@ from bootstrap.deps_python_runtime import (
     site_packages_root as _site_packages_root,
     supported_system_python_range_label as _supported_system_python_range_label,
 )
-from bootstrap.deps_qt_compat import QTimer
+from bootstrap.deps_pip_runner import _terminate_process
+from bootstrap.deps_qt_compat import QThread, QTimer, pyqtSignal
 from bootstrap.deps_runtime_verify import _verify_installed_layers
 from bootstrap.deps_state import save_json as _save_json
 from bootstrap.deps_ui import (
@@ -51,12 +53,10 @@ from bootstrap.deps_workers import InstallWorker, LayerVerifyWorker
 def _ensure_pip(main_python: Path) -> bool:
     """Ensure pip is available for the target interpreter."""
     import subprocess
-    import urllib.request
 
     if not main_python.exists():
         raise RuntimeError(f"[ERR] 主 Python 不存在: {main_python}")
 
-    # Verify this looks like a real python executable before bootstrap
     try:
         name = main_python.name.lower()
         is_python_exe = (
@@ -76,8 +76,7 @@ def _ensure_pip(main_python: Path) -> bool:
         for pth_file in pth_candidates:
             content = pth_file.read_text(encoding="utf-8")
             if "#import site" in content:
-                from pathlib import Path
-                Path(pth_file).write_text(content.replace("#import site", "import site"), encoding="utf-8")
+                pth_file.write_text(content.replace("#import site", "import site"), encoding="utf-8")
     except Exception:
         pass
 
@@ -162,11 +161,8 @@ def _ensure_pip(main_python: Path) -> bool:
             pip_version = None
 
     if pip_version is None:
-        gp_url = "https://bootstrap.pypa.io/get-pip.py"
-        gp_path = main_python.parent / "get-pip.py"
-        urllib.request.urlretrieve(gp_url, gp_path)
-        subprocess.check_call([str(main_python), str(gp_path)], timeout=180, creationflags=flags)
-        pip_version = _query_pip_version()
+        print("[ERR] pip 不可用，且当前 Python 无法通过 ensurepip 初始化 pip。")
+        return False
 
     needs_upgrade = pip_version is None or pip_version < (23, 0) or not _has_packaging_toolchain()
     ok = True
@@ -303,56 +299,113 @@ def _install_failure_log_line() -> str:
     return "\n[ERR] Install has failures, check logs ❌"
 
 
-def _setup_python_venv_from_system(target_dir: Path, timeout: int = 300) -> bool:
+def _setup_python_venv_from_system(
+    target_dir: Path,
+    timeout: int = 300,
+    log_fn=print,
+    stop_event: threading.Event | None = None,
+    proc_setter=None,
+) -> bool:
     """Create a Python venv at target_dir using a supported system Python."""
     import time
 
     system_python = _find_system_python3()
     if system_python is None:
-        print("[WARN] 未找到系统 Python 3，无法创建 venv")
+        log_fn("[WARN] 未找到系统 Python 3，无法创建 venv")
         return False
 
     target_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
+    log_fn(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
+    proc = None
     try:
-        commands = [
-            [str(system_python), "-m", "venv", "--copies", str(target_dir)],
-            [str(system_python), "-m", "venv", "--copies", "--without-pip", str(target_dir)],
-        ]
-        last_output = ""
-        for cmd in commands:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            deadline = time.monotonic() + timeout
-            while True:
-                ret = proc.poll()
-                if ret is not None:
-                    break
-                if time.monotonic() >= deadline:
-                    raise subprocess.TimeoutExpired(cmd, timeout)
-                time.sleep(0.2)
-            if ret == 0:
-                print(f"[INFO] venv 创建成功: {target_dir}")
-                return True
-            last_output = proc.stdout.read() if proc.stdout else ""
-        print(f"[WARN] venv 创建失败: {last_output[-500:]}")
+        cmd = [str(system_python), "-m", "venv", "--copies", str(target_dir)]
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            **_hidden_subprocess_kwargs(),
+        )
+        if proc_setter is not None:
+            proc_setter(proc)
+        deadline = time.monotonic() + timeout
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                _terminate_process(proc)
+                log_fn("[INFO] 用户取消虚拟环境初始化。")
+                return False
+            ret = proc.poll()
+            if ret is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(cmd, timeout)
+            time.sleep(0.2)
+        output = proc.stdout.read() if proc.stdout else ""
+        if ret == 0:
+            log_fn(f"[OK] venv 创建成功: {target_dir}")
+            return True
+        log_fn(f"[WARN] venv 创建失败: {output[-500:]}")
         return False
     except subprocess.TimeoutExpired:
-        print(f"[WARN] venv 创建超时（{timeout} 秒）")
+        log_fn(f"[WARN] venv 创建超时（{timeout} 秒）")
         try:
-            proc.kill()
+            if proc is not None:
+                _terminate_process(proc)
         except Exception:
             pass
         return False
     except Exception as e:
-        print(f"[WARN] venv 创建异常: {e}")
+        log_fn(f"[WARN] venv 创建异常: {e}")
         return False
+    finally:
+        if proc_setter is not None:
+            proc_setter(None)
+
+
+class PythonVenvInitWorker(QThread):
+    log_updated = pyqtSignal(str)
+    progress_updated = pyqtSignal(int)
+    status_updated = pyqtSignal(str)
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, target_dir: Path, pyexe: Path, stop_event: threading.Event):
+        super().__init__()
+        self.target_dir = Path(target_dir)
+        self.pyexe = Path(pyexe)
+        self.stop_event = stop_event
+        self.proc = None
+
+    def stop(self) -> None:
+        self.stop_event.set()
+        if self.proc is not None and self.proc.poll() is None:
+            _terminate_process(self.proc)
+            self.proc = None
+
+    def run(self) -> None:
+        try:
+            self.status_updated.emit("正在初始化 Python 依赖环境...")
+            self.progress_updated.emit(5)
+            ok = _setup_python_venv_from_system(
+                self.target_dir,
+                log_fn=self.log_updated.emit,
+                stop_event=self.stop_event,
+                proc_setter=lambda proc: setattr(self, "proc", proc),
+            )
+            if not ok or self.stop_event.is_set():
+                self.done.emit(False, "无法创建 Python 虚拟环境")
+                return
+            self.progress_updated.emit(25)
+            self.status_updated.emit("正在初始化 pip 工具链...")
+            if not _ensure_pip(self.pyexe):
+                self.done.emit(False, "无法初始化 pip")
+                return
+            self.progress_updated.emit(30)
+            self.done.emit(True, "")
+        except Exception as e:
+            self.log_updated.emit(f"[ERR] 初始化 Python 依赖环境失败: {e}")
+            self.done.emit(False, str(e))
 
 
 def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
@@ -475,63 +528,33 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 print(f"[INFO] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
 
         if use_bundled_python and not _is_usable_python(pyexe):
-            if from_settings:
-                print("[INFO] 设置入口：目标依赖目录未检测到可复用 Python，先打开依赖向导，待用户确认后再初始化。")
-            else:
-                try:
-                    ok = _setup_python_venv_from_system(py_root)
-                    if not ok:
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "未找到 Python 3",
-                            _system_python_install_hint(
-                                "未检测到可复用的 Python 环境，且系统中未找到可用于创建依赖环境的 Python。"
-                            ),
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        return False
-                    pyexe = _dependency_python_path(py_root)
-                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
-                except Exception as e:
-                    print(f"[ERR] 自动初始化 Python 失败: {e}")
-                    _notify_before_show_ui()
-                    _exec_close_only_message_box(
-                        None,
-                        "初始化失败",
-                        f"使用系统 Python 创建依赖环境失败：{e}",
-                        icon=QMessageBox.Icon.Critical,
-                        buttons=QMessageBox.StandardButton.Ok,
-                    )
-                    return False
+            print("[INFO] 目标依赖目录未检测到可复用 Python，等待用户在依赖向导中确认初始化。")
 
 
+    pip_ready_event.clear()
     try:
         if from_settings and always_show_ui:
             print("[INFO] 依赖向导：等待用户选择安装后再初始化 pip。")
+        elif use_bundled_python and not _is_usable_python(pyexe):
+            print("[INFO] 依赖目录 Python 尚未初始化，跳过 pip 预检查。")
         else:
             _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
         if not state_path.exists():
             _save_json(state_path, {"installed_layers": []})
-        pip_ready_event.set()
     except Exception as e:
         print(f"[WARN] 预初始化 pip 失败: {e}")
-        pip_ready_event.set()
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
         sp_local = _site_packages_root(active_pyexe)
 
-        if (
-            os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") != "1"
-            and active_pyexe is not None
-            and active_pyexe.exists()
-        ):
+        if active_pyexe is not None:
             _inject_private_python_paths(active_pyexe)
         os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
         if active_pyexe is not None and active_pyexe.exists():
             os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
+        else:
+            os.environ.pop("LATEXSNIPPER_PYEXE", None)
         os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(deps_path)
         os.environ["LATEXSNIPPER_DEPS_DIR"] = str(deps_path)
 
@@ -602,6 +625,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     def _switch_deps_context(target_deps_dir: str) -> tuple[list[str], bool]:
         nonlocal deps_dir, deps_path, state_path, state, installed, missing_layers, pyexe
+        pip_ready_event.clear()
         deps_dir = str(_normalize_deps_base_dir(Path(target_deps_dir or deps_dir)))
         deps_path = Path(deps_dir)
         py_root = deps_path / "python311"
@@ -690,11 +714,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
             print(f"[INFO] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
             py_root = deps_path / "python311"
-            need_install = bool(chosen_layers) and bool(missing_layers)
             need_install = bool(chosen_layers)
 
         if need_install:
             if chosen_layers:
+                init_python_required = False
                 if use_bundled_python and not _is_usable_python(Path(pyexe)):
                     _notify_before_show_ui()
                     confirm = _exec_close_only_message_box(
@@ -710,26 +734,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         always_show_ui = True
                         continue
 
-                    ok = _setup_python_venv_from_system(py_root)
-                    if not ok:
-                        _notify_before_show_ui()
-                        _exec_close_only_message_box(
-                            None,
-                            "未找到 Python 3",
-                            _system_python_install_hint(
-                                "系统中未找到可用于创建依赖环境的 Python，无法初始化依赖环境。"
-                            ),
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
-                        )
-                        always_show_ui = True
-                        continue
                     pyexe = _dependency_python_path(py_root)
-                    print(f"[INFO] 已通过系统 Python 创建 venv: {pyexe}")
-                    try:
-                        _ensure_pip(pyexe)
-                    except Exception as e:
-                        print(f"[WARN] 初始化目标 Python 后确保 pip 失败: {e}")
+                    init_python_required = True
 
                 RESULT_BACK_TO_WIZARD = 1001
                 if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():
@@ -742,11 +748,38 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if r != QMessageBox.StandardButton.Yes:
-                        chosen_layers = [c for c in chosen_layers if c != "MATHCRAFT_GPU"]
+                        print("[INFO] 用户取消 MATHCRAFT_GPU 安装，返回依赖向导。")
+                        always_show_ui = True
+                        continue
 
                 if "CORE" in chosen_layers and not any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
                     chosen_layers = list(chosen_layers) + ["MATHCRAFT_CPU"]
                     print("[INFO] CORE 未指定 MathCraft 后端，已自动补充 MATHCRAFT_CPU")
+
+                if (not init_python_required) and (not pip_ready_event.is_set()):
+                    try:
+                        if not _ensure_pip(Path(pyexe)):
+                            _notify_before_show_ui()
+                            _exec_close_only_message_box(
+                                None,
+                                "pip 不可用",
+                                "当前依赖环境缺少 pip，且无法通过 ensurepip 初始化。请更换依赖目录或使用正常 Python 环境。",
+                                icon=QMessageBox.Icon.Critical,
+                                buttons=QMessageBox.StandardButton.Ok,
+                            )
+                            always_show_ui = True
+                            continue
+                    except Exception as e:
+                        _notify_before_show_ui()
+                        _exec_close_only_message_box(
+                            None,
+                            "pip 初始化失败",
+                            f"当前依赖环境无法初始化 pip：{e}",
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        always_show_ui = True
+                        continue
 
                 pkgs = []
                 for layer in chosen_layers:
@@ -768,6 +801,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 ui_closed = {"value": False}
                 timer_holder = {"log": None, "speed": None}
                 verify_worker_holder = {"obj": None}
+                init_worker_holder = {"obj": None}
                 post_install_verify_passed = {"value": False}
                 completion_state = {
                     "install_done_handled": False,
@@ -920,9 +954,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 worker = InstallWorker(
                     pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path,
-                    chosen_layers, log_q, mirror=use_mirror,
-                    force_reinstall=False, no_cache=False
+                    chosen_layers, log_q, mirror=use_mirror
                 )
+                init_worker = None
+                if init_python_required:
+                    init_worker = PythonVenvInitWorker(py_root, Path(pyexe), stop_event)
+                    init_worker_holder["obj"] = init_worker
 
                 def request_cancel():
                     ui_closed["value"] = True
@@ -934,6 +971,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             except Exception:
                                 pass
                     try:
+                        if init_worker is not None and init_worker.isRunning():
+                            init_worker.stop()
                         if worker.isRunning():
                             worker.stop()
                     except Exception:
@@ -950,6 +989,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 worker.progress_updated.connect(_set_progress)
                 worker.status_updated.connect(_set_info_text)
                 worker.busy_state_changed.connect(_set_network_speed_busy)
+                if init_worker is not None:
+                    init_worker.log_updated.connect(_append_log)
+                    init_worker.progress_updated.connect(_set_progress)
+                    init_worker.status_updated.connect(_set_info_text)
 
                 def _finalize_done_ui():
                     if completion_state["final_ui_applied"]:
@@ -1043,6 +1086,31 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 worker.done.connect(on_install_done)
 
+                def on_python_init_done(success: bool, message: str):
+                    if ui_closed["value"] or stop_event.is_set() or (not _is_alive(dlg)):
+                        return
+                    if init_worker is not None:
+                        try:
+                            init_worker.done.disconnect(on_python_init_done)
+                        except Exception:
+                            pass
+                    if not success:
+                        _append_log(f"\n[ERR] Python 依赖环境初始化失败: {message}")
+                        _exec_close_only_message_box(
+                            dlg,
+                            "初始化失败",
+                            _system_python_install_hint(
+                                "无法使用系统 Python 创建可用的依赖环境。"
+                            ),
+                            icon=QMessageBox.Icon.Critical,
+                            buttons=QMessageBox.StandardButton.Ok,
+                        )
+                        _finalize_done_ui()
+                        return
+                    _apply_runtime_context(Path(pyexe))
+                    _append_log("[OK] Python 依赖环境初始化完成，开始安装依赖包。")
+                    worker.start()
+
 
                 timer = QTimer(dlg)
                 timer_holder["log"] = timer
@@ -1096,6 +1164,30 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             worker.done.disconnect(on_install_done)
                         except Exception:
                             pass
+                        iw = init_worker_holder.get("obj")
+                        if iw is not None:
+                            try:
+                                iw.log_updated.disconnect(_append_log)
+                            except Exception:
+                                pass
+                            try:
+                                iw.progress_updated.disconnect(_set_progress)
+                            except Exception:
+                                pass
+                            try:
+                                iw.status_updated.disconnect(_set_info_text)
+                            except Exception:
+                                pass
+                            try:
+                                iw.done.disconnect(on_python_init_done)
+                            except Exception:
+                                pass
+                            try:
+                                if iw.isRunning():
+                                    iw.stop()
+                                    iw.wait(5000)
+                            except Exception:
+                                pass
                         vw = verify_worker_holder.get("obj")
                         if vw is not None:
                             try:
@@ -1120,8 +1212,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 dlg.closeEvent = on_close_event
 
-                worker.start()
+                if init_worker is not None:
+                    init_worker.done.connect(on_python_init_done)
+                    init_worker.start()
+                else:
+                    worker.start()
                 result = dlg.exec()
+                if init_worker is not None and init_worker.isRunning():
+                    init_worker.stop()
+                    init_worker.wait(3000)
                 if worker.isRunning():
                     worker.stop()
                     worker.wait(3000)
