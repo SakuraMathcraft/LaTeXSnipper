@@ -424,8 +424,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
 
         source = inspect.getsource(deps_bootstrap._repair_gpu_onnxruntime_runtime)
         self.assertIn("_fix_critical_versions", source)
-        self.assertIn("force_reinstall=False", source)
-        self.assertNotIn("force_reinstall=True", source)
+        self.assertNotIn("force_reinstall", source)
 
     def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
         from backend.cuda_runtime_policy import (

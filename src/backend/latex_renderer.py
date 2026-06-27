@@ -626,14 +626,22 @@ class LaTeXSettings:
     def save(self):
         """Save settings to disk."""
         try:
-            with open(self.config_file, "w", encoding="utf-8") as f:
-                json.dump(self.settings, f, indent=2, ensure_ascii=False)
+            payload = json.dumps(self.settings, indent=2, ensure_ascii=False)
+            if self.config_file.exists():
+                try:
+                    if self.config_file.read_text(encoding="utf-8") == payload:
+                        return
+                except Exception:
+                    pass
+            self.config_file.write_text(payload, encoding="utf-8")
             print(f"[DEBUG] LaTeX 设置已保存: {self.config_file}")
         except Exception as e:
             print(f"[ERR] Failed to save LaTeX settings: {e}")
 
     def set_latex_path(self, path: str):
         """Set the LaTeX executable path."""
+        if self.settings.get("latex_path") == path:
+            return
         self.settings["latex_path"] = path
         self.save()
 
@@ -649,6 +657,8 @@ class LaTeXSettings:
             print(f"[WARN] Invalid render mode: {mode}")
             return
 
+        if self.settings.get("render_mode") == mode:
+            return
         self.settings["render_mode"] = mode
 
         self.save()

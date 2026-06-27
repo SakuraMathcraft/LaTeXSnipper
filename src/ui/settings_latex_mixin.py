@@ -199,7 +199,6 @@ class SettingsLatexMixin:
                 _latex_settings.set_render_mode(mode)
                 if latex_path:
                     _latex_settings.set_latex_path(latex_path)
-                    print(f"[DEBUG] LaTeX 设置已保存: {latex_path}")
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
 

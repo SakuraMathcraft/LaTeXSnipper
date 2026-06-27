@@ -12,6 +12,8 @@ from shutil import which
 SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)
 SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)
 PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 12), (3, 11), (3, 10))
+_active_site_packages: str | None = None
+_active_dll_directory_handle = None
 
 
 def _version_label(version: tuple[int, int]) -> str:
@@ -88,30 +90,59 @@ def site_packages_root(pyexe: Path):
     return None
 
 
-def inject_private_python_paths(pyexe: Path) -> None:
-    """Inject private site-packages in source mode without polluting packaged mode."""
-    is_frozen = getattr(sys, "frozen", False)
-    if is_frozen:
-        return
+def _path_key(path: str | Path | None) -> str:
+    if not path:
+        return ""
+    try:
+        return os.path.normcase(os.path.abspath(str(path)))
+    except Exception:
+        return os.path.normcase(str(path))
 
-    site_packages = site_packages_root(Path(pyexe))
-    if not site_packages:
-        return
+
+def inject_private_python_paths(pyexe: Path) -> None:
+    """Refresh dependency site-packages and DLL search paths for the active interpreter."""
+    global _active_dll_directory_handle, _active_site_packages
+
+    site_packages = site_packages_root(Path(pyexe)) if pyexe and Path(pyexe).exists() else None
+    new_site = str(site_packages) if site_packages else ""
+    new_site_key = _path_key(new_site)
+    old_site_keys = {
+        _path_key(_active_site_packages),
+        _path_key(os.environ.get("LATEX_SNIPPER_SITE")),
+    }
+    old_site_keys.discard("")
 
     bad_markers = [
         os.sep + ".venv" + os.sep,
         os.sep + "env" + os.sep,
         os.sep + "venv" + os.sep,
     ]
-    sys.path[:] = [p for p in sys.path if not any(marker in p for marker in bad_markers)]
-    if str(site_packages) not in sys.path:
-        sys.path.insert(0, str(site_packages))
+    refreshed_path = []
+    seen: set[str] = set()
+    for item in sys.path:
+        item_key = _path_key(item)
+        if item_key in old_site_keys and item_key != new_site_key:
+            continue
+        if any(marker in item for marker in bad_markers):
+            continue
+        if item_key in seen:
+            continue
+        refreshed_path.append(item)
+        seen.add(item_key)
+    sys.path[:] = refreshed_path
+
+    if new_site and new_site_key not in seen:
+        sys.path.insert(0, new_site)
+    _active_site_packages = new_site or None
 
     if os.name == "nt":
         try:
+            if _active_dll_directory_handle is not None:
+                _active_dll_directory_handle.close()
+                _active_dll_directory_handle = None
             dlls_dir = Path(pyexe).parent / "DLLs"
             if dlls_dir.exists():
-                os.add_dll_directory(str(dlls_dir))
+                _active_dll_directory_handle = os.add_dll_directory(str(dlls_dir))
         except Exception:
             pass
 
@@ -142,7 +173,7 @@ def _system_python3_score(pyexe: Path) -> int:
             timeout=10,
             **_hidden_subprocess_kwargs(),
         )
-        return 2 if ensurepip_proc.returncode == 0 else 1
+        return 2 if ensurepip_proc.returncode == 0 else 0
     except Exception:
         return 0
 
@@ -226,7 +257,6 @@ def find_system_python3() -> Path | None:
         ]
 
     seen: set[str] = set()
-    fallback: Path | None = None
     for candidate in candidates:
         if not candidate:
             continue
@@ -242,10 +272,6 @@ def find_system_python3() -> Path | None:
         score = _system_python3_score(p)
         if score >= 2:
             return p
-        if score == 1 and fallback is None:
-            fallback = p
-    if fallback is not None:
-        return fallback
     return None
 
 
