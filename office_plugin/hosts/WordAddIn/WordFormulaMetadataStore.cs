@@ -8,12 +8,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 internal static class WordFormulaMetadataStore
 {
     public const string EquationTagPrefix = "latexsnipper-eq-";
-    public const string NumberControlTagPrefix = "latexsnipper-eqn-";
-    public const string NumberControlAliasPrefix = "LaTeXSnipperEqNum-";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
-    private const string AutoNumberCounterKey = "LaTeXSnipper.AutoNumberCounter";
-    private const string AutoNumberChapterKey = "LaTeXSnipper.AutoNumberChapter";
-    private const string AutoNumberSectionKey = "LaTeXSnipper.AutoNumberSection";
     private const string MetadataSeparator = "|";
     private const string MetadataVariablePrefix = "LS.E.";
     private const int MaxWordTagLength = 64;
@@ -59,36 +54,6 @@ internal static class WordFormulaMetadataStore
     public static FormulaMetadata Load(dynamic document, string tag)
     {
         return Deserialize(LoadPayload(document, tag));
-    }
-
-    public static string BuildNumberTag(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return ValidateTagLength(NumberControlTagPrefix + equationId);
-    }
-
-    public static string BuildNumberAlias(string equationId)
-    {
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
-        }
-
-        return ValidateTagLength(NumberControlAliasPrefix + equationId);
-    }
-
-    public static string EquationIdFromNumberTag(string tag)
-    {
-        if (string.IsNullOrWhiteSpace(tag) || !tag.StartsWith(NumberControlTagPrefix, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        return tag.Substring(NumberControlTagPrefix.Length);
     }
 
     public static bool TryLoadOleNaturalSize(
@@ -159,8 +124,6 @@ internal static class WordFormulaMetadataStore
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
             ["renderEngine"] = metadata.RenderEngine.ToString(),
-            ["fontColor"] = metadata.FontColor,
-            ["fontStyle"] = metadata.FontStyle.ToString(),
             ["fontScale"] = metadata.FontScale,
         };
         if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
@@ -224,8 +187,6 @@ internal static class WordFormulaMetadataStore
             ReadString(dto, "numberText"),
             ReadEnum<RenderEngineKind>(dto, "renderEngine"),
             ReadInt(dto, "schemaVersion"),
-            ReadString(dto, "fontColor"),
-            ReadEnum<FormulaFontStyle>(dto, "fontStyle"),
             ReadRequiredDouble(dto, "fontScale"));
     }
 
@@ -289,65 +250,6 @@ internal static class WordFormulaMetadataStore
         }
 
         return tag;
-    }
-
-    public static int GetAutoNumberCounter(dynamic document)
-    {
-        try
-        {
-            dynamic variable = document.Variables.Item(AutoNumberCounterKey);
-            return Convert.ToInt32(variable.Value, System.Globalization.CultureInfo.InvariantCulture);
-        }
-        catch
-        {
-            return 1;
-        }
-    }
-
-    public static void SetAutoNumberCounter(dynamic document, int value)
-    {
-        SetIntegerVariable(document, AutoNumberCounterKey, value);
-    }
-
-    public static int GetAutoNumberChapter(dynamic document)
-    {
-        return GetIntegerVariable(document, AutoNumberChapterKey, 1);
-    }
-
-    public static void SetAutoNumberChapter(dynamic document, int value)
-    {
-        SetIntegerVariable(document, AutoNumberChapterKey, value);
-    }
-
-    public static int GetAutoNumberSection(dynamic document)
-    {
-        return GetIntegerVariable(document, AutoNumberSectionKey, 1);
-    }
-
-    public static void SetAutoNumberSection(dynamic document, int value)
-    {
-        SetIntegerVariable(document, AutoNumberSectionKey, value);
-    }
-
-    private static int GetIntegerVariable(dynamic document, string key, int fallback)
-    {
-        try
-        {
-            dynamic variable = document.Variables.Item(key);
-            return Convert.ToInt32(variable.Value, System.Globalization.CultureInfo.InvariantCulture);
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static void SetIntegerVariable(dynamic document, string key, int value)
-    {
-        SaveVariable(
-            document,
-            key,
-            value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static void SaveVariable(dynamic document, string key, string value)

@@ -8,14 +8,12 @@ public sealed class FormulaEditorAcceptedEventArgs : EventArgs
         FormulaMetadata? initialFormula,
         bool updateMode,
         string latex,
-        bool display,
-        FormulaFontStyle fontStyle)
+        bool display)
     {
         InitialFormula = initialFormula;
         UpdateMode = updateMode;
         Latex = latex ?? string.Empty;
         Display = display;
-        FontStyle = fontStyle;
     }
 
     public FormulaMetadata? InitialFormula { get; }
@@ -26,5 +24,4 @@ public sealed class FormulaEditorAcceptedEventArgs : EventArgs
 
     public bool Display { get; }
 
-    public FormulaFontStyle FontStyle { get; }
 }

@@ -110,8 +110,6 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontColor,
-            metadata.FontStyle,
             metadata.FontScale);
     }
 
@@ -127,36 +125,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private void ReplaceNumberControlTextById(string equationId, string numberText)
-    {
-        object? control = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
-        if (control != null)
-        {
-            ReplaceNumberControlText(control, numberText);
-        }
-    }
-
-    private static void ReplaceNumberControlText(object numberControl, string numberText)
-    {
-        dynamic control = numberControl;
-        HideContentControlChrome(control);
-        TryCom(() => control.Range.Text = numberText);
-    }
-
-    private static string CleanRangeText(string value)
-    {
-        return value
-            .Replace("\a", string.Empty)
-            .Replace("\r", string.Empty)
-            .Replace("\n", string.Empty)
-            .Trim();
-    }
-
-    private static object? TryGetNumberControlById(dynamic document, string equationId)
-    {
-        return TryGetControlByTag(document, WordFormulaMetadataStore.BuildNumberTag(equationId));
-    }
-
     private object? TryGetEquationControlById(string equationId)
     {
         try
@@ -167,29 +135,6 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 dynamic control = controls.Item(i);
                 if (GetEquationControlId(control) == equationId)
-                {
-                    return control;
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return null;
-    }
-
-    private static object? TryGetControlByTag(dynamic document, string expectedTag)
-    {
-        try
-        {
-            dynamic controls = document.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                dynamic control = controls.Item(i);
-                string tag = Convert.ToString(control.Tag) ?? string.Empty;
-                if (string.Equals(tag, expectedTag, StringComparison.Ordinal))
                 {
                     return control;
                 }

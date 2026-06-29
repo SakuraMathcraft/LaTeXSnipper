@@ -9,96 +9,101 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    private const string ReferencePlaceholderTag = "latexsnipper-reference-pending";
-    private const string ReferenceTagPrefix = "latexsnipper-reference:";
     private const string ChapterBoundaryTag = "latexsnipper-number-boundary-chapter";
     private const string SectionBoundaryTag = "latexsnipper-number-boundary-section";
-    private object? _pendingReferenceControl;
-
-    private sealed class NumberingDocumentEntry
-    {
-        public NumberingDocumentEntry(int start, NumberedFormulaEntry? formula, WordNumberingBoundary? boundary)
-        {
-            Start = start;
-            Formula = formula;
-            Boundary = boundary;
-        }
-
-        public int Start { get; }
-
-        public NumberedFormulaEntry? Formula { get; }
-
-        public WordNumberingBoundary? Boundary { get; }
-    }
+    private object? _pendingReferenceRange;
 
     public Task InsertReferencePlaceholderAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         dynamic range = _wordApplication.Selection.Range;
-        double fontSize = ReadPointSize(range.Font.Size);
-        dynamic control = range.ContentControls.Add(WdContentControlRichText);
-        control.Tag = ReferencePlaceholderTag;
-        control.Title = "LaTeXSnipper Reference";
-        control.Range.Text = WordAddInText.Get("ReferencePlaceholderText");
-        ApplyReferenceControlFormatting(control, fontSize);
-        _pendingReferenceControl = control;
+        range.Text = WordAddInText.Get("ReferencePlaceholderText");
+        _pendingReferenceRange = range.Duplicate;
         return Task.CompletedTask;
     }
 
     public Task<bool> CompletePendingReferenceAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_pendingReferenceControl == null)
+        if (_pendingReferenceRange == null)
         {
             return Task.FromResult(false);
         }
 
-        dynamic selectionRange = _wordApplication.Selection.Range;
-        object? selectedControl = TryGetParentContentControl(selectionRange) ?? TryGetFirstManagedContentControl(selectionRange);
-        if (selectedControl == null)
+        string equationId = FindSelectedEquationIdFromReferenceTarget();
+        FormulaMetadata metadata = LoadFormulaMetadataByEquationId(equationId);
+        if (metadata.NumberingMode == NumberingMode.None)
         {
             return Task.FromResult(false);
         }
 
-        dynamic numberControl = selectedControl;
-        string equationId = WordFormulaMetadataStore.EquationIdFromNumberTag(Convert.ToString(numberControl.Tag) ?? string.Empty);
-        if (string.IsNullOrWhiteSpace(equationId))
-        {
-            return Task.FromResult(false);
-        }
-
-        string bookmarkName = BuildReferenceBookmarkName(equationId);
-        dynamic document = _wordApplication.ActiveDocument;
-        if (Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
-        {
-            document.Bookmarks.Item(bookmarkName).Delete();
-        }
-
-        document.Bookmarks.Add(bookmarkName, numberControl.Range);
-        dynamic placeholder = _pendingReferenceControl;
-        dynamic placeholderRange = placeholder.Range;
+        AddOrReplaceEquationBookmark(equationId, FindEquationNumberRangeById(equationId));
+        dynamic placeholderRange = _pendingReferenceRange;
         placeholderRange.Text = string.Empty;
-        placeholderRange = placeholder.Range;
-        placeholderRange.End = Math.Max(Convert.ToInt32(placeholderRange.Start), Convert.ToInt32(placeholderRange.End) - 1);
         placeholderRange.Collapse(1);
-        document.Fields.Add(placeholderRange, -1, " REF " + bookmarkName + " \\h ", true);
-        placeholder.Tag = ReferenceTagPrefix + equationId;
-        placeholder.Title = "LaTeXSnipper Formula Reference";
-        ApplyReferenceControlFormatting(placeholder, ReadSurroundingTextFontSize(placeholder));
-        _pendingReferenceControl = null;
+        dynamic referenceField = _wordApplication.ActiveDocument.Fields.Add(
+            placeholderRange,
+            WdFieldEmpty,
+            " REF " + WordEquationNumbering.BuildBookmarkName(equationId) + " \\h ",
+            true);
+        TryCom(() => referenceField.Update());
+        ResetPlainTextBaseline(referenceField.Result);
+        _pendingReferenceRange = null;
         return Task.FromResult(true);
     }
 
-    private static void ApplyReferenceControlFormatting(dynamic control, double fontSize)
+    private string FindSelectedEquationIdFromReferenceTarget()
     {
-        HideContentControlChrome(control);
-        TryCom(() => control.Range.Font.Position = 0);
-        TryCom(() => control.Range.Font.Superscript = 0);
-        TryCom(() => control.Range.Font.Subscript = 0);
-        if (fontSize > 0)
+        try
         {
-            TryCom(() => control.Range.Font.Size = fontSize);
+            SelectedWordFormula formula = FindSelectedFormula();
+            return formula.Metadata.Identity.EquationId;
         }
+        catch
+        {
+        }
+
+        return FindSelectedFormulaFromReferenceTarget().Metadata.Identity.EquationId;
+    }
+
+    private FormulaMetadata LoadFormulaMetadataByEquationId(string equationId)
+    {
+        object? equationControl = TryGetEquationControlById(equationId);
+        if (equationControl != null)
+        {
+            return LoadFormulaMetadata(equationControl, equationId, RenderEngineKind.Omml);
+        }
+
+        object? oleInlineShape = TryFindOleInlineShapeById(equationId);
+        if (oleInlineShape != null)
+        {
+            return LoadFormulaMetadata(oleInlineShape, equationId, RenderEngineKind.MathJaxSvg);
+        }
+
+        throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+    }
+
+    private SelectedWordFormula FindSelectedFormulaFromReferenceTarget()
+    {
+        try
+        {
+            return FindSelectedFormula();
+        }
+        catch
+        {
+        }
+
+        dynamic paragraphRange = _wordApplication.Selection.Range.Paragraphs.Item(1).Range;
+        var formulas = new List<SelectedWordFormula>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        AddSelectedFormulasFromRange(formulas, seen, paragraphRange);
+        AddSelectedOleInlineShapes(formulas, seen, paragraphRange);
+        if (formulas.Count == 0)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        return formulas[0];
     }
 
     public Task InsertNumberingBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken)
@@ -201,58 +206,86 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private static bool IsCommandControlTag(string tag)
     {
-        return string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal)
-            || tag.StartsWith(ReferenceTagPrefix, StringComparison.Ordinal)
-            || string.Equals(tag, ChapterBoundaryTag, StringComparison.Ordinal)
+        return string.Equals(tag, ChapterBoundaryTag, StringComparison.Ordinal)
             || string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
     }
 
     private void DeleteCommandControl(object selected)
     {
         dynamic control = selected;
-        string tag = ReadControlTag(control);
-        if (string.Equals(tag, ReferencePlaceholderTag, StringComparison.Ordinal))
-        {
-            _pendingReferenceControl = null;
-        }
-
         control.Delete(true);
     }
 
-    private static string BuildReferenceBookmarkName(string equationId)
+    private IReadOnlyList<object> FindSelectedReferenceFields()
     {
-        return "LaTeXSnipperEq_" + equationId;
-    }
-
-    private void UpdateFormulaReferences(IReadOnlyList<NumberingDocumentEntry> entries)
-    {
-        dynamic document = _wordApplication.ActiveDocument;
-        foreach (NumberingDocumentEntry documentEntry in entries)
+        dynamic selectionRange = _wordApplication.Selection.Range;
+        int selectionStart = GetRangeStart(selectionRange);
+        int selectionEnd = GetRangeEnd(selectionRange);
+        var fields = new List<object>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        dynamic documentFields = _wordApplication.ActiveDocument.Fields;
+        int fieldCount = Convert.ToInt32(documentFields.Count);
+        for (int index = 1; index <= fieldCount; index++)
         {
-            NumberedFormulaEntry? entry = documentEntry.Formula;
-            if (entry == null)
+            dynamic field = documentFields.Item(index);
+            if (!IsLaTeXSnipperReferenceField(field))
             {
                 continue;
             }
 
-            string bookmarkName = BuildReferenceBookmarkName(entry.EquationId);
-            if (!Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
+            int fieldStart = GetRangeStart(field.Result);
+            int fieldEnd = GetRangeEnd(field.Result);
+            bool selected = selectionStart == selectionEnd
+                ? selectionStart >= fieldStart && selectionStart <= fieldEnd
+                : RangesOverlap(selectionStart, selectionEnd, fieldStart, fieldEnd);
+            string key = fieldStart.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + ":"
+                + fieldEnd.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (selected && seen.Add(key))
             {
-                dynamic numberControl = entry.NumberControl;
-                document.Bookmarks.Add(bookmarkName, numberControl.Range);
+                fields.Add((object)field);
             }
         }
 
-        dynamic controls = document.ContentControls;
-        int count = Convert.ToInt32(controls.Count);
-        for (int index = 1; index <= count; index++)
+        return fields;
+    }
+
+    private object? FindSelectedPendingReferencePlaceholder()
+    {
+        if (_pendingReferenceRange == null)
         {
-            dynamic control = controls.Item(index);
-            if (ReadControlTag(control).StartsWith(ReferenceTagPrefix, StringComparison.Ordinal))
-            {
-                TryCom(() => control.Range.Fields.Update());
-            }
+            return null;
         }
+
+        dynamic selectionRange = _wordApplication.Selection.Range;
+        dynamic placeholderRange = _pendingReferenceRange;
+        int selectionStart = GetRangeStart(selectionRange);
+        int selectionEnd = GetRangeEnd(selectionRange);
+        int placeholderStart = GetRangeStart(placeholderRange);
+        int placeholderEnd = GetRangeEnd(placeholderRange);
+        bool selected = selectionStart == selectionEnd
+            ? selectionStart >= placeholderStart && selectionStart <= placeholderEnd
+            : RangesOverlap(selectionStart, selectionEnd, placeholderStart, placeholderEnd);
+        return selected ? _pendingReferenceRange : null;
+    }
+
+    private static bool IsLaTeXSnipperReferenceField(dynamic field)
+    {
+        string code = Convert.ToString(field.Code.Text) ?? string.Empty;
+        return code.IndexOf(" REF " + WordEquationNumbering.BookmarkPrefix, StringComparison.Ordinal) >= 0;
+    }
+
+    private static void DeleteReferenceField(object selected)
+    {
+        dynamic field = selected;
+        field.Delete();
+    }
+
+    private void DeletePendingReferencePlaceholder(object selected)
+    {
+        dynamic range = selected;
+        range.Delete();
+        _pendingReferenceRange = null;
     }
 
     private static bool IsNumberingBoundary(dynamic control, out WordNumberingBoundary boundary)
@@ -266,83 +299,6 @@ public sealed partial class DynamicWordApplicationAdapter
 
         boundary = WordNumberingBoundary.Section;
         return string.Equals(tag, SectionBoundaryTag, StringComparison.Ordinal);
-    }
-
-    private IReadOnlyList<NumberingDocumentEntry> LoadNumberingDocumentEntries()
-    {
-        var entries = new List<NumberingDocumentEntry>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var formulaObjects = new Dictionary<string, IndexedFormulaObject>(StringComparer.Ordinal);
-        int previousStart = -1;
-        bool ordered = true;
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
-        int count = Convert.ToInt32(controls.Count);
-        for (int index = 1; index <= count; index++)
-        {
-            dynamic control = controls.Item(index);
-            string equationId = GetEquationControlId(control);
-            if (!string.IsNullOrWhiteSpace(equationId))
-            {
-                formulaObjects[equationId] = new IndexedFormulaObject(control, RenderEngineKind.Omml);
-            }
-        }
-
-        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
-        int shapeCount = Convert.ToInt32(inlineShapes.Count);
-        for (int index = 1; index <= shapeCount; index++)
-        {
-            dynamic inlineShape = inlineShapes.Item(index);
-            string equationId = GetOleInlineShapeEquationId(inlineShape);
-            if (!string.IsNullOrWhiteSpace(equationId))
-            {
-                formulaObjects[equationId] = new IndexedFormulaObject(
-                    inlineShape,
-                    RenderEngineKind.MathJaxSvg);
-            }
-        }
-
-        for (int index = 1; index <= count; index++)
-        {
-            dynamic control = controls.Item(index);
-            if (IsNumberingBoundary(control, out WordNumberingBoundary boundary))
-            {
-                int start = GetRangeStart(control.Range);
-                ordered &= start >= previousStart;
-                previousStart = start;
-                entries.Add(new NumberingDocumentEntry(start, null, boundary));
-                continue;
-            }
-
-            string tag = Convert.ToString(control.Tag) ?? string.Empty;
-            string equationId = WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
-            if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
-            {
-                continue;
-            }
-
-            if (!formulaObjects.TryGetValue(equationId, out IndexedFormulaObject formulaObject))
-            {
-                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-            }
-
-            FormulaMetadata metadata = LoadFormulaMetadata(
-                formulaObject.Value,
-                equationId,
-                formulaObject.RenderEngine);
-            var formula = new NumberedFormulaEntry(
-                equationId,
-                formulaObject.Value,
-                control,
-                metadata,
-                GetRangeStart(control.Range));
-            ordered &= formula.Start >= previousStart;
-            previousStart = formula.Start;
-            entries.Add(new NumberingDocumentEntry(formula.Start, formula, null));
-        }
-
-        return ordered
-            ? entries
-            : entries.OrderBy(entry => entry.Start).ToArray();
     }
 
     private void ApplyNumberingBoundaryVisibility(WordPluginSettings settings)

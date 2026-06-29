@@ -47,12 +47,15 @@ loader.init({
       '[tex]/boldsymbol',
       '[tex]/color',
       '[tex]/enclose',
-      '[tex]/mhchem'
+      '[tex]/mhchem',
+      '[tex]/textmacros',
+      '[tex]/unicode',
+      '[tex]/upgreek'
     ]
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem']
+      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem', 'textmacros', 'unicode', 'upgreek']
     }
   },
   svg: {fontCache: 'none'}
@@ -95,6 +98,64 @@ def test_export_format_lookup_supports_quick_export_preference() -> None:
     assert export_format_label("latex") == "LaTeX (行内 $...$)"
     assert not is_export_format_available("")
     assert not is_export_format_available("_pandoc_header")
+
+
+def test_bundled_mathjax_renders_default_formula_font_wrappers() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable for bundled MathJax verification")
+
+    mathjax = (
+        Path(__file__).parents[1]
+        / "src"
+        / "assets"
+        / "MathJax-3.2.2"
+        / "es5"
+        / "node-main.js"
+    )
+    script = r"""
+const mathjaxPath = process.argv[1];
+const loader = require(mathjaxPath);
+const samples = [
+  String.raw`\mathcal{e^{i\pi}+1=0}`,
+  String.raw`\mathscr{e^{i\pi}+1=0}`,
+  String.raw`\mathfrak{e^{i\pi}+1=0}`,
+  String.raw`\mathbb{e^{i\pi}+1=0}`,
+];
+loader.init({
+  loader: {load: ['input/tex', 'output/svg']},
+  svg: {fontCache: 'none'}
+}).then(MathJax => {
+  const adaptor = MathJax.startup.adaptor;
+  const results = samples.map(source => {
+    const mathml = MathJax.tex2mml(source, {display: true});
+    const container = MathJax.tex2svg(source, {display: true});
+    const svg = adaptor.outerHTML(adaptor.firstChild(container));
+    return {
+      source,
+      ok: !/data-mjx-error|mjx-merror|Unknown|invalid|�|□/.test(svg + mathml),
+      mathml
+    };
+  });
+  process.stdout.write(JSON.stringify(results));
+}).catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+    completed = subprocess.run(
+        [node, "-e", script, str(mathjax)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    results = json.loads(completed.stdout)
+    assert all(result["ok"] for result in results)
+    assert 'mathvariant="script"' in results[0]["mathml"]
+    assert 'mathvariant="script"' in results[1]["mathml"]
+    assert 'mathvariant="fraktur"' in results[2]["mathml"]
+    assert 'mathvariant="double-struck"' in results[3]["mathml"]
 
 
 def test_all_native_exports_use_real_bundled_mathjax(

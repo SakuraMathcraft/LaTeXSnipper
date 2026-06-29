@@ -70,16 +70,18 @@ public sealed partial class PowerPointPluginController
                 continue;
             }
 
+            string latex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+                MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex),
+                settings.FormulaFontStyle);
+            latex = ApplyFormulaColor(latex, settings.FormulaColor);
             FormulaMetadata metadata = new FormulaMetadata(
                 entry.Metadata.Identity,
-                MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex),
+                latex,
                 entry.Metadata.DisplayMode,
                 entry.Metadata.NumberingMode,
                 entry.Metadata.NumberText,
                 entry.Metadata.RenderEngine,
                 entry.Metadata.SchemaVersion,
-                settings.FormulaColor,
-                settings.FormulaFontStyle,
                 settings.FormulaFontScale);
             await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken);
             formatted++;
@@ -138,10 +140,24 @@ public sealed partial class PowerPointPluginController
 
     private static bool NeedsFormatting(PowerPointFormulaEntry entry, PowerPointPluginSettings settings)
     {
-        return !string.Equals(entry.Metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
-            || entry.Metadata.FontStyle != settings.FormulaFontStyle
+        string colorlessLatex = MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex);
+        string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+            colorlessLatex,
+            settings.FormulaFontStyle);
+        formattedLatex = ApplyFormulaColor(formattedLatex, settings.FormulaColor);
+        return !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(entry.Metadata.Latex), formattedLatex, StringComparison.Ordinal)
             || Math.Abs(entry.Metadata.FontScale - settings.FormulaFontScale) > 0.001
-            || MathLiveLatexStyleNormalizer.HasColorFormatting(entry.Metadata.Latex)
             || Math.Abs(entry.Scale - 1) > 0.01;
+    }
+
+    private static string ApplyFormulaColor(string latex, string fontColor)
+    {
+        if (MathLiveLatexStyleNormalizer.HasColorFormatting(latex)
+            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        {
+            return latex;
+        }
+
+        return "\\color{" + fontColor + "}{" + latex + "}";
     }
 }

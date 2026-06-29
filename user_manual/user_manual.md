@@ -983,10 +983,10 @@ py -3.11 -m venv tools\deps\python311
 
 ### 什么是 Office 加载项
 
-LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。加载项通过本机 Bridge 与 LaTeXSnipper 桌面端通信，实现 LaTeX 公式的转换、识别与插入。
+LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。OLE 公式对象和 Word OMML 公式都由本地组件处理；本机 Bridge 仅用于与 LaTeXSnipper 桌面端通信并读取截图 OCR 识别结果。
 
 > [!NOTE]
-> 加载项本身不包含 LaTeX 渲染引擎。所有公式转换（LaTeX → OMML / PNG）和截图 OCR 均由本机运行的 LaTeXSnipper 桌面端完成。使用加载项前，请确保桌面端已启动并开启了 Office 插件功能。
+> OLE 公式对象和 Word OMML 公式不依赖桌面端 Bridge。只有截图 OCR 需要本机运行的 LaTeXSnipper 桌面端提供识别结果；使用截图识别前，请确保桌面端已启动并开启了 Office 插件功能。
 
 ### 系统要求
 

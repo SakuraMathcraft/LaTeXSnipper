@@ -14,7 +14,6 @@ public sealed partial class DynamicWordApplicationAdapter
         int resetCount = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            var numberControls = new Dictionary<string, object>(StringComparer.Ordinal);
             var equationControls = new List<object>();
             dynamic controls = _wordApplication.ActiveDocument.ContentControls;
             int controlCount = Convert.ToInt32(controls.Count);
@@ -23,12 +22,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 cancellationToken.ThrowIfCancellationRequested();
                 dynamic control = controls.Item(index);
                 string tag = Convert.ToString(control.Tag) ?? string.Empty;
-                string numberEquationId = WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
-                if (!string.IsNullOrWhiteSpace(numberEquationId))
-                {
-                    numberControls[numberEquationId] = control;
-                }
-                else if (IsEquationControl(control))
+                if (IsEquationControl(control))
                 {
                     equationControls.Add(control);
                 }
@@ -54,11 +48,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 TryCom(() => control.Range.Font.Size = expectedSize);
-                if (numberControls.TryGetValue(equationId, out object numberControl))
-                {
-                    FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
-                    ApplyNumberControlVerticalAlignment(numberControl, metadata);
-                }
 
                 resetCount++;
             }
@@ -93,14 +82,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 SetOleInlineShapeSize(inlineShape, (float)naturalWidth, (float)naturalHeight);
-                if (numberControls.TryGetValue(equationId, out object numberControl))
-                {
-                    FormulaMetadata metadata = LoadFormulaMetadata(
-                        inlineShape,
-                        equationId,
-                        RenderEngineKind.MathJaxSvg);
-                    ApplyNumberControlVerticalAlignment(numberControl, metadata, naturalHeight);
-                }
 
                 resetCount++;
             }
@@ -125,7 +106,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 fontSize);
             ApplyManagedEquationStyleById(metadata);
             NormalizeManagedInlineEquationBaseline(metadata, control);
-            ApplyNumberControlVerticalAlignmentById(metadata);
             SaveFormulaMetadata(metadata);
         });
         return System.Threading.Tasks.Task.CompletedTask;
@@ -294,20 +274,6 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic control = contentControl;
         string originalTag = ReadControlTag(control);
-        TryCom(() => control.Range.Font.Bold = metadata.FontStyle == FormulaFontStyle.Bold ? -1 : 0);
-        TryCom(() => control.Range.Font.Italic = metadata.FontStyle == FormulaFontStyle.Italic ? -1 : 0);
-        int color = WordPluginSettings.Load().UseSystemFormulaColor
-            ? WdColorAutomatic
-            : ParseWordColor(metadata.FontColor);
-        TryCom(() => control.Range.Font.Color = color);
-        dynamic equations = control.Range.OMaths;
-        int equationCount = Convert.ToInt32(equations.Count);
-        for (int index = 1; index <= equationCount; index++)
-        {
-            dynamic equation = equations.Item(index);
-            TryCom(() => equation.Range.Font.Color = color);
-        }
-
         RestoreManagedEquationControlIdentity(control, originalTag, metadata.Identity.EquationId);
     }
 
@@ -323,17 +289,4 @@ public sealed partial class DynamicWordApplicationAdapter
         TryCom(() => control.Title = "LaTeXSnipper Equation");
     }
 
-    private static int ParseWordColor(string color)
-    {
-        string value = (color ?? string.Empty).Trim().TrimStart('#');
-        if (value.Length != 6 || !int.TryParse(value, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
-        {
-            return 0;
-        }
-
-        int red = (rgb >> 16) & 0xff;
-        int green = (rgb >> 8) & 0xff;
-        int blue = rgb & 0xff;
-        return red | (green << 8) | (blue << 16);
-    }
 }

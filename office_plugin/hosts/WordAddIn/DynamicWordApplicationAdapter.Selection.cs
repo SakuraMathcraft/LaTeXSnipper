@@ -53,6 +53,7 @@ public sealed partial class DynamicWordApplicationAdapter
             if (ole != null)
             {
                 dynamic inlineShape = ole;
+                int insertionPoint = GetRangeStart(inlineShape.Range);
                 double oleFontSizePoints = ReadOleEquivalentFontSize(inlineShape);
                 dynamic insertionRange;
                 string replacementOoxml;
@@ -61,7 +62,6 @@ public sealed partial class DynamicWordApplicationAdapter
                     bool restoreInlineParagraph =
                         metadata.DisplayMode == FormulaDisplayMode.Inline &&
                         HasContentAfterRangeInParagraph(inlineShape.Range);
-                    int insertionPoint = GetRangeStart(inlineShape.Range);
                     inlineShape.Delete();
                     insertionRange = CreateInlineConversionSlot(insertionPoint);
                     replacementOoxml = equationOoxml;
@@ -88,6 +88,20 @@ public sealed partial class DynamicWordApplicationAdapter
                 ApplyManagedEquationStyleById(metadata);
                 object insertedControl = FindFormulaControlById(metadata.Identity.EquationId);
                 ApplyManagedEquationFontSize(insertedControl, oleFontSizePoints);
+                if (metadata.NumberingMode != NumberingMode.None)
+                {
+                    dynamic insertedRange = ((dynamic)insertedControl).Range;
+                    ApplyNumberedFormulaParagraphLayout(insertedRange);
+                    if (metadata.NumberingMode == NumberingMode.Automatic)
+                    {
+                        ReplaceEquationNumberAtRange(
+                            FindEquationNumberRange(insertedRange, metadata),
+                            metadata,
+                            BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()),
+                            formulaHeightPoints: 0);
+                    }
+                }
+
                 NormalizeManagedInlineEquationBaseline(metadata, insertedControl);
                 WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
                     _wordApplication.ActiveDocument,
@@ -246,19 +260,27 @@ public sealed partial class DynamicWordApplicationAdapter
         var selectedFormulas = new List<SelectedWordFormula>(CollectSelectedFormulas());
         AddOleInlineShapesInsideSelection(selectedFormulas);
         IReadOnlyList<object> selectedCommandControls = FindSelectedCommandControls();
-        if (selectedFormulas.Count == 0 && selectedCommandControls.Count == 0)
+        IReadOnlyList<object> selectedReferenceFields = FindSelectedReferenceFields();
+        object? selectedPendingReference = FindSelectedPendingReferencePlaceholder();
+        if (selectedFormulas.Count == 0 &&
+            selectedCommandControls.Count == 0 &&
+            selectedReferenceFields.Count == 0 &&
+            selectedPendingReference == null)
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
         string[] deletedEquationIds = selectedFormulas
             .Select(formula => formula.Metadata.Identity.EquationId)
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var targets = new List<DeletionTarget>();
+        var targets = new List<(int Start, int End, Action Delete)>();
+        var formulaDeleteIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (SelectedWordFormula selected in selectedFormulas)
         {
+            formulaDeleteIds.Add(selected.Metadata.Identity.EquationId);
             int start = GetFormulaStart(selected);
-            targets.Add(new DeletionTarget(start, start, () => DeleteFormula(selected)));
+            targets.Add((start, start, () => DeleteFormula(selected)));
         }
 
         foreach (object selected in selectedCommandControls)
@@ -266,12 +288,31 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic control = selected;
             int start = GetRangeStart(control.Range);
             int end = GetRangeEnd(control.Range);
-            targets.Add(new DeletionTarget(start, end, () => DeleteCommandControl(selected)));
+            targets.Add((start, end, () => DeleteCommandControl(selected)));
+        }
+
+        foreach (object selected in selectedReferenceFields)
+        {
+            dynamic field = selected;
+            int start = GetRangeStart(field.Result);
+            int end = GetRangeEnd(field.Result);
+            targets.Add((start, end, () => DeleteReferenceField(selected)));
+        }
+
+        if (selectedPendingReference != null)
+        {
+            dynamic range = selectedPendingReference;
+            int start = GetRangeStart(range);
+            int end = GetRangeEnd(range);
+            targets.Add((start, end, () => DeletePendingReferencePlaceholder(selectedPendingReference)));
         }
 
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            DeleteTargetsInDocumentOrder(targets);
+            foreach ((int _, int _, Action delete) in targets.OrderByDescending(target => target.Start))
+            {
+                delete();
+            }
         });
 
         return Task.FromResult<IReadOnlyList<string>>(deletedEquationIds);

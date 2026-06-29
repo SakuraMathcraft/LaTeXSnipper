@@ -23,8 +23,7 @@ public sealed partial class DynamicWordApplicationAdapter
             int insertionPoint = GetRangeStart(range);
             double fontSizePoints = ReadPointSize(range.Font.Size);
             range.InsertXML(ooxml);
-            (object equationControl, object? numberControl) =
-                FindInsertedFormulaControls(insertionPoint, metadata.Identity.EquationId);
+            object equationControl = FindInsertedFormulaControl(insertionPoint, metadata.Identity.EquationId);
 
             double naturalFontSize = ScaleFontSize(fontSizePoints, metadata.FontScale);
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
@@ -38,10 +37,18 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 ResetManagedEquationBaseline(equationControl);
             }
-
-            if (numberControl != null)
+            else if (metadata.NumberingMode != NumberingMode.None)
             {
-                ApplyNumberControlVerticalAlignment(numberControl, metadata);
+                dynamic formulaRange = ((dynamic)equationControl).Range;
+                ApplyNumberedFormulaParagraphLayout(formulaRange);
+                if (metadata.NumberingMode == NumberingMode.Automatic)
+                {
+                    ReplaceEquationNumberAtRange(
+                        FindEquationNumberRange(formulaRange, metadata),
+                        metadata,
+                        BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()),
+                        formulaHeightPoints: 0);
+                }
             }
 
             SaveFormulaMetadata(metadata);
@@ -164,33 +171,18 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic inlineShape = existingOle;
             (float originalWidth, float originalHeight) = GetInlineShapeSize((object)inlineShape);
             (double naturalWidth, double naturalHeight) = GetOleNaturalSize((object)inlineShape);
-            object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
-            if (metadata.NumberingMode == NumberingMode.None && numberControl != null)
+            FormulaMetadata currentMetadata = LoadFormulaMetadata(
+                inlineShape,
+                equationId,
+                RenderEngineKind.MathJaxSvg);
+            if (metadata.NumberingMode != currentMetadata.NumberingMode ||
+                metadata.NumberingMode != NumberingMode.None)
             {
                 dynamic paragraphRange = GetContainingParagraphRange(inlineShape);
                 dynamic range = ClearParagraphContent(paragraphRange);
-                dynamic inserted = InsertPlainOleInlineShape(range, metadata, presentation, display);
-                if (preserveUserScale)
-                {
-                    _ = ApplyUserScaleToReplacement(
-                        inserted,
-                        naturalWidth,
-                        naturalHeight,
-                        originalWidth,
-                        originalHeight,
-                        presentation,
-                        display);
-                }
-                SaveFormulaMetadata(metadata);
-                MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
-                return;
-            }
-
-            if (metadata.NumberingMode != NumberingMode.None && numberControl == null)
-            {
-                dynamic paragraphRange = GetContainingParagraphRange(inlineShape);
-                dynamic range = ClearParagraphContent(paragraphRange);
-                dynamic inserted = InsertNumberedOleInlineShape(range, metadata, presentation);
+                dynamic inserted = metadata.NumberingMode == NumberingMode.None
+                    ? InsertPlainOleInlineShape(range, metadata, presentation, display)
+                    : InsertNumberedOleInlineShape(range, metadata, presentation);
                 float shapeScale = preserveUserScale
                     ? ApplyUserScaleToReplacement(
                         inserted,
@@ -201,7 +193,11 @@ public sealed partial class DynamicWordApplicationAdapter
                         presentation,
                         display)
                     : 1f;
-                ApplyNumberedOleInlineShapeBaseline(inserted, presentation, shapeScale);
+                if (metadata.NumberingMode == NumberingMode.None && !display)
+                {
+                    ApplyOleInlineShapeBaseline(inserted, presentation, shapeScale);
+                }
+
                 SaveFormulaMetadata(metadata);
                 MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
                 return;
@@ -218,13 +214,7 @@ public sealed partial class DynamicWordApplicationAdapter
                     presentation,
                     display)
                 : 1f;
-            if (metadata.NumberingMode != NumberingMode.None)
-            {
-                ApplyNumberedOleInlineShapeBaseline(replacement, presentation, replacementScale);
-                ReplaceNumberControlTextById(metadata.Identity.EquationId, metadata.NumberText);
-                ApplyNumberControlVerticalAlignmentById(metadata, presentation.HeightPoints * replacementScale);
-                NormalizeNumberedParagraph(metadata.Identity.EquationId);
-            }
+            NormalizeFormulaParagraphAfterOleReplacement(replacement, metadata, presentation, replacementScale, display);
 
             SaveFormulaMetadata(metadata);
             MoveSelectionAfterInlineShape(replacement, metadata.Identity.EquationId, display);
@@ -296,12 +286,19 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic cursor = range.Duplicate;
         cursor.Collapse(WdCollapseEnd);
-        ApplyNumberedParagraphLayout(cursor);
         WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
-        dynamic paragraphRange = cursor.Paragraphs.Item(1).Range;
-        int paragraphStart = GetRangeStart(paragraphRange);
+        EquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), WordPluginSettings.Load());
+        ApplyNumberedFormulaParagraphLayout(cursor);
+        dynamic? numberRange = null;
         if (placement == WordNumberPlacement.Left)
         {
+            numberRange = InsertEquationNumberAtRange(
+                cursor,
+                metadata,
+                numberState.Prefix,
+                numberState.ResetSequence,
+                numberState.Format,
+                numberState.Enclosure);
             InsertTextAtRange(cursor, "\t");
         }
         else
@@ -310,22 +307,24 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic inlineShape = AddOleInlineShapeAtRange(cursor, metadata, presentation);
-        ApplyNumberedOleInlineShapeBaseline(inlineShape, presentation);
         cursor = CreateDocumentRange(GetRangeEnd(inlineShape.Range), GetRangeEnd(inlineShape.Range));
-        if (placement == WordNumberPlacement.Left)
-        {
-            ApplyNumberControlVerticalAlignment(
-                InsertNumberControlAtRange(CreateDocumentRange(paragraphStart, paragraphStart), metadata),
-                metadata,
-                presentation.HeightPoints);
-        }
-        else
+        if (placement == WordNumberPlacement.Right)
         {
             InsertTextAtRange(cursor, "\t");
-            ApplyNumberControlVerticalAlignment(InsertNumberControlAtRange(cursor, metadata), metadata, presentation.HeightPoints);
+            numberRange = InsertEquationNumberAtRange(
+                cursor,
+                metadata,
+                numberState.Prefix,
+                numberState.ResetSequence,
+                numberState.Format,
+                numberState.Enclosure);
         }
 
-        ApplyNumberedParagraphLayout(inlineShape.Range, inlineShape.Range);
+        if (numberRange != null)
+        {
+            ApplyEquationNumberBaseline(numberRange, presentation.HeightPoints);
+        }
+
         return inlineShape;
     }
 
@@ -359,6 +358,27 @@ public sealed partial class DynamicWordApplicationAdapter
         range.Collapse(WdCollapseEnd);
     }
 
+    private void NormalizeFormulaParagraphAfterOleReplacement(
+        dynamic inlineShape,
+        FormulaMetadata metadata,
+        OlePresentationResult presentation,
+        float replacementScale,
+        bool display)
+    {
+        if (metadata.NumberingMode != NumberingMode.None)
+        {
+            ApplyNumberedFormulaParagraphLayout(inlineShape.Range);
+            ApplyNumberedOleInlineShapeBaseline(inlineShape, presentation, replacementScale);
+            ApplyEquationNumberBaseline(FindEquationNumberRange(inlineShape.Range, metadata), presentation.HeightPoints * replacementScale);
+            return;
+        }
+
+        if (!display)
+        {
+            ApplyOleInlineShapeBaseline(inlineShape, presentation, replacementScale);
+        }
+    }
+
     private dynamic ClearParagraphContent(dynamic paragraphRange)
     {
         int start = GetRangeStart(paragraphRange);
@@ -368,33 +388,120 @@ public sealed partial class DynamicWordApplicationAdapter
         return CreateDocumentRange(start, start);
     }
 
-    private dynamic InsertNumberControlAtRange(dynamic range, FormulaMetadata metadata)
+    private void ApplyNumberedFormulaParagraphLayout(dynamic range)
     {
-        dynamic control = range.ContentControls.Add(WdContentControlRichText);
-        TryCom(() => control.Tag = WordFormulaMetadataStore.BuildNumberTag(metadata.Identity.EquationId));
-        TryCom(() => control.Title = WordFormulaMetadataStore.BuildNumberAlias(metadata.Identity.EquationId));
-        TryCom(() => control.Range.Text = metadata.NumberText);
-        HideContentControlChrome(control);
-        return control;
+        dynamic paragraphRange = range.Paragraphs.Item(1).Range;
+        double contentWidth = GetPageContentWidthPoints();
+        TryCom(() => paragraphRange.ParagraphFormat.Alignment = WdAlignParagraphLeft);
+        TryCom(() => paragraphRange.ParagraphFormat.LeftIndent = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.RightIndent = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.FirstLineIndent = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.SpaceBefore = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.SpaceAfter = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.LineSpacingRule = 0);
+        TryCom(() => paragraphRange.ParagraphFormat.DisableLineHeightGrid = true);
+        TryCom(() => paragraphRange.ParagraphFormat.TabStops.ClearAll());
+        TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(
+            contentWidth / 2,
+            WdAlignTabCenter,
+            WdTabLeaderSpaces));
+        TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(
+            contentWidth,
+            WdAlignTabRight,
+            WdTabLeaderSpaces));
     }
 
-    private void ApplyNumberControlVerticalAlignmentById(FormulaMetadata metadata, double renderedHeightPoints = 0)
+    private void AddOrReplaceEquationBookmark(string equationId, dynamic range)
     {
-        object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, metadata.Identity.EquationId);
-        if (numberControl != null)
+        string bookmarkName = WordEquationNumbering.BuildBookmarkName(equationId);
+        dynamic document = _wordApplication.ActiveDocument;
+        if (Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
         {
-            ApplyNumberControlVerticalAlignment(numberControl, metadata, renderedHeightPoints);
+            document.Bookmarks.Item(bookmarkName).Delete();
         }
+
+        document.Bookmarks.Add(bookmarkName, range);
     }
 
-    private static void ApplyNumberControlVerticalAlignment(object numberControl, FormulaMetadata metadata, double renderedHeightPoints = 0)
+    private dynamic FindEquationNumberRange(dynamic formulaRange, FormulaMetadata metadata)
     {
-        double offset = CalculateNumberVerticalOffset(metadata, renderedHeightPoints);
-        dynamic control = numberControl;
-        HideContentControlChrome(control);
-        TryCom(() => control.Range.Font.Superscript = 0);
-        TryCom(() => control.Range.Font.Subscript = 0);
-        TryCom(() => control.Range.Font.Position = offset);
+        return FindEquationNumberRangeById(metadata.Identity.EquationId);
+    }
+
+    private dynamic FindEquationNumberRangeById(string equationId)
+    {
+        string bookmarkName = WordEquationNumbering.BuildBookmarkName(equationId);
+        dynamic bookmarks = _wordApplication.ActiveDocument.Bookmarks;
+        if (Convert.ToBoolean(bookmarks.Exists(bookmarkName)))
+        {
+            return bookmarks.Item(bookmarkName).Range;
+        }
+
+        throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+    }
+
+    private dynamic InsertEquationNumberAtRange(dynamic range, FormulaMetadata metadata)
+    {
+        WordPluginSettings settings = WordPluginSettings.Load();
+        return InsertEquationNumberAtRange(
+            range,
+            metadata,
+            string.Empty,
+            false,
+            settings.NumberFormat,
+            settings.NumberEnclosure);
+    }
+
+    private dynamic InsertEquationNumberAtRange(
+        dynamic range,
+        FormulaMetadata metadata,
+        string prefix,
+        bool resetSequence,
+        WordNumberFormat format,
+        WordNumberEnclosure enclosure)
+    {
+        int start = GetRangeStart(range);
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            dynamic field = _wordApplication.ActiveDocument.Fields.Add(
+                range,
+                WdFieldEmpty,
+                WordEquationNumbering.BuildSequenceFieldCode(resetSequence, format, prefix, enclosure),
+                true);
+            TryCom(() => field.Update());
+            range = field.Result.Duplicate;
+            range.Collapse(WdCollapseEnd);
+        }
+        else
+        {
+            InsertTextAtRange(range, WordEquationNumbering.GetLeftEnclosure(enclosure));
+            InsertTextAtRange(range, metadata.NumberText);
+            InsertTextAtRange(range, WordEquationNumbering.GetRightEnclosure(enclosure));
+        }
+
+        int end = GetRangeStart(range);
+        dynamic numberRange = CreateDocumentRange(start, end);
+        AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);
+        return numberRange;
+    }
+
+    private dynamic ReplaceEquationNumberAtRange(
+        dynamic numberRange,
+        FormulaMetadata metadata,
+        EquationNumberState state,
+        double formulaHeightPoints)
+    {
+        int start = GetRangeStart(numberRange);
+        numberRange.Delete();
+        dynamic inserted = InsertEquationNumberAtRange(
+            CreateDocumentRange(start, start),
+            metadata,
+            state.Prefix,
+            state.ResetSequence,
+            state.Format,
+            state.Enclosure);
+        ApplyEquationNumberBaseline(inserted, formulaHeightPoints);
+        return inserted;
     }
 
     private double ReadManagedEquationFontSize(object contentControl)
@@ -452,7 +559,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private (object EquationControl, object? NumberControl) FindInsertedFormulaControls(
+    private object FindInsertedFormulaControl(
         int insertionPoint,
         string equationId)
     {
@@ -460,7 +567,6 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic controls = paragraph.ContentControls;
         int count = Convert.ToInt32(controls.Count);
         object? equationControl = null;
-        object? numberControl = null;
         for (int index = 1; index <= count; index++)
         {
             dynamic control = controls.Item(index);
@@ -472,13 +578,6 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 equationControl = control;
             }
-            else if (string.Equals(
-                WordFormulaMetadataStore.EquationIdFromNumberTag(tag),
-                equationId,
-                StringComparison.Ordinal))
-            {
-                numberControl = control;
-            }
         }
 
         if (equationControl == null)
@@ -486,78 +585,7 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new InvalidOperationException("Word did not preserve the inserted formula control.");
         }
 
-        return (equationControl, numberControl);
-    }
-
-    private static double CalculateNumberVerticalOffset(FormulaMetadata metadata, double renderedHeightPoints)
-    {
-        double heightOffset = renderedHeightPoints > 0
-            ? Math.Max(0, (renderedHeightPoints - WordOleBaseFontPoints) / 2)
-            : 0;
-        double rowOffset = Math.Max(0, EstimateFormulaRows(metadata.Latex) - 1) * WordOleBaseFontPoints * 0.65;
-        return Math.Max(heightOffset, rowOffset);
-    }
-
-    private static int EstimateFormulaRows(string latex)
-    {
-        if (string.IsNullOrWhiteSpace(latex))
-        {
-            return 1;
-        }
-
-        return Math.Max(ContainsMultilineEnvironment(latex) ? 2 : 1, CountLatexLineBreaks(latex) + 1);
-    }
-
-    private static bool ContainsMultilineEnvironment(string latex)
-    {
-        return ContainsOrdinal(latex, @"\begin{aligned}")
-            || ContainsOrdinal(latex, @"\begin{gathered}")
-            || ContainsOrdinal(latex, @"\begin{cases}")
-            || ContainsOrdinal(latex, @"\begin{matrix}")
-            || ContainsOrdinal(latex, @"\begin{pmatrix}")
-            || ContainsOrdinal(latex, @"\begin{bmatrix}")
-            || ContainsOrdinal(latex, @"\begin{vmatrix}")
-            || ContainsOrdinal(latex, @"\begin{Vmatrix}");
-    }
-
-    private static bool ContainsOrdinal(string value, string fragment)
-    {
-        return value.IndexOf(fragment, StringComparison.Ordinal) >= 0;
-    }
-
-    private static int CountLatexLineBreaks(string latex)
-    {
-        int count = 0;
-        for (int index = 0; index < latex.Length - 1; index++)
-        {
-            if (latex[index] == '\\' && latex[index + 1] == '\\')
-            {
-                count++;
-                index++;
-            }
-        }
-
-        return count;
-    }
-
-    private void ApplyNumberedParagraphLayout(dynamic range, dynamic? formulaRange = null)
-    {
-        dynamic paragraphRange = range.Paragraphs.Item(1).Range;
-        double contentWidth = GetPageContentWidthPoints();
-        TryCom(() => paragraphRange.ParagraphFormat.Alignment = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.LeftIndent = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.RightIndent = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.FirstLineIndent = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.SpaceBefore = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.SpaceAfter = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.LineSpacingRule = 0);
-        TryCom(() => paragraphRange.ParagraphFormat.DisableLineHeightGrid = true);
-        TryCom(() => paragraphRange.ParagraphFormat.TabStops.ClearAll());
-        TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(
-            contentWidth / 2,
-            WdAlignTabCenter,
-            WdTabLeaderSpaces));
-        TryCom(() => paragraphRange.ParagraphFormat.TabStops.Add(contentWidth, WdAlignTabRight, WdTabLeaderSpaces));
+        return equationControl;
     }
 
     private double GetPageContentWidthPoints()
@@ -662,8 +690,19 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private static void ApplyNumberedOleInlineShapeBaseline(dynamic inlineShape, OlePresentationResult presentation, float scale = 1f)
     {
-        double offset = Math.Max(0.5, Math.Min(18.0, presentation.HeightPoints * 0.22 * scale));
-        TryCom(() => inlineShape.Range.Font.Position = -offset);
+        TryCom(() => inlineShape.Range.Font.Position = 0);
+    }
+
+    private static void ApplyEquationNumberBaseline(dynamic numberRange, double formulaHeightPoints)
+    {
+        if (formulaHeightPoints <= WordOleBaseFontPoints)
+        {
+            TryCom(() => numberRange.Font.Position = 0);
+            return;
+        }
+
+        double offset = Math.Max(0, (formulaHeightPoints - WordOleBaseFontPoints) * 0.5);
+        TryCom(() => numberRange.Font.Position = offset);
     }
 
     private static double ReadPointSize(object value)

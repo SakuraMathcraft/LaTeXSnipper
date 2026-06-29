@@ -93,6 +93,35 @@
       <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。Ctrl+F、Ctrl+R、Ctrl+H、Ctrl+L、Ctrl+J 分别插入分式、根号、上标、下标和上下标。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
     </section>
 
+    <section>
+      <h2>字体与宏包命令</h2>
+      <p>设置页提供常用论文写作字体。下列字体既可作为新公式默认字体，也可在源码编辑框显式输入。</p>
+      <table>
+        <thead><tr><th>用途</th><th>源码示例</th><th>MathJax 扩展</th><th>插件支持</th></tr></thead>
+        <tbody>
+          <tr><td>TeX 原生数学字体</td><td><code>e^{i\pi}+1=0</code></td><td>内置</td><td>默认字体选项</td></tr>
+          <tr><td>罗马正体</td><td><code>\mathrm{rank}\,A</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>数学斜体</td><td><code>\mathit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗体字母</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗体符号</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗斜体</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线</td><td><code>\mathsf{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线粗体</td><td><code>\mathbfsf{ABC}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线斜体</td><td><code>\mathsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线粗斜体</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>等宽</td><td><code>\mathtt{code123}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>花体</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>手写体</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>哥特体</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>黑板粗体</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>数学文本</td><td><code>\text{if }x&gt;0</code>、<code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>源码可用</td></tr>
+          <tr><td>直立希腊</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>源码可用</td></tr>
+          <tr><td>化学式文本</td><td><code>\ce{H2O}</code>、<code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>源码可用</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">默认字体会保存为对应的 LaTeX 字体命令。数学字母类字体适合变量、集合、空间、算子等论文记号；具体字符覆盖取决于对应字体命令本身。</div>
+    </section>
+
     <section class="platform-word">
       <h2>Word 功能</h2>
       <h3>OLE 与 OMML</h3>
@@ -104,7 +133,7 @@
       <h3>添加编号与重编号</h3>
       <p>添加编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；Ribbon 可插入章或节边界，后续编号会递归重置。章、节分隔符可以分别隐藏，也可以选中后通过“删除所选”移除。</p>
       <h3>转换、引用与格式化</h3>
-      <p>“转换”将当前选中的单个受管理公式在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落。“引用”先插入占位符，再单击公式编号创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。引用占位符和编号边界均可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
+      <p>“转换”将当前选中的单个受管理公式在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落。“引用”先插入占位符，再选择编号公式或其所在段落创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。编号边界可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
       <h3>带编号公式布局</h3>
       <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
       <h3>OLE 对象尺寸</h3>
@@ -190,6 +219,35 @@
       <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Ctrl+F, Ctrl+R, Ctrl+H, Ctrl+L, and Ctrl+J insert a fraction, root, superscript, subscript, and combined scripts. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
     </section>
 
+    <section>
+      <h2>Fonts and Macro Commands</h2>
+      <p>The settings page includes common fonts used in academic writing. These styles can be used as new-formula defaults and as explicit source commands.</p>
+      <table>
+        <thead><tr><th>Use</th><th>Source example</th><th>MathJax extension</th><th>Add-in support</th></tr></thead>
+        <tbody>
+          <tr><td>Native TeX math</td><td><code>e^{i\pi}+1=0</code></td><td>Built in</td><td>Default font option</td></tr>
+          <tr><td>Roman upright</td><td><code>\mathrm{rank}\,A</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Math italic</td><td><code>\mathit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Bold letters</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Bold symbols</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>Default font option; source command</td></tr>
+          <tr><td>Bold italic</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif</td><td><code>\mathsf{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif bold</td><td><code>\mathbfsf{ABC}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif italic</td><td><code>\mathsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif bold italic</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Typewriter</td><td><code>\mathtt{code123}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Calligraphic</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Script</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Fraktur</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Blackboard bold</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Math text</td><td><code>\text{if }x&gt;0</code>, <code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>Source command</td></tr>
+          <tr><td>Upright Greek</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>Source command</td></tr>
+          <tr><td>Chemical text</td><td><code>\ce{H2O}</code>, <code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>Source command</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">Default fonts are saved as the corresponding LaTeX font commands. Mathematical alphabet fonts are intended for notation such as variables, sets, spaces, and operators; character coverage depends on the font command itself.</div>
+    </section>
+
     <section class="platform-word">
       <h2>Word Features</h2>
       <h3>OLE and OMML</h3>
@@ -201,7 +259,7 @@
       <h3>Add Number &amp; Renumber</h3>
       <p>Add Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
       <h3>Conversion, References &amp; Formatting</h3>
-      <p>Conversion replaces exactly one selected managed formula in place between Word OMML and OLE without touching adjacent text or paragraphs. Insert Reference creates a placeholder; clicking a formula number creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Reference placeholders and numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
+      <p>Conversion replaces exactly one selected managed formula in place between Word OMML and OLE without touching adjacent text or paragraphs. Insert Reference creates a placeholder; selecting a numbered formula or its paragraph creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
       <h3>Numbered Formula Layout</h3>
       <p>Numbered formulas center the formula and place the number on the left or right according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
       <h3>OLE Object Size</h3>

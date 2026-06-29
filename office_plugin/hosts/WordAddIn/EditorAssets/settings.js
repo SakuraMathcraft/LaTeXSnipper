@@ -31,8 +31,19 @@ const TEXT = {
     fontScaleLabel: "公式大小",
     fontTeX: "TeX 原生字体",
     fontRomanUpright: "罗马正体",
-    fontBold: "粗体",
+    fontBold: "粗体符号",
+    fontBoldUpright: "粗体字母",
+    fontBoldItalic: "粗斜体",
     fontItalic: "斜体",
+    fontSansSerif: "无衬线",
+    fontSansSerifBold: "无衬线粗体",
+    fontSansSerifItalic: "无衬线斜体",
+    fontSansSerifBoldItalic: "无衬线粗斜体",
+    fontTypewriter: "等宽",
+    fontCalligraphic: "花体",
+    fontScript: "手写体",
+    fontFraktur: "哥特体",
+    fontBlackboard: "黑板粗体",
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
     newlineShortcut: "新建数学行",
@@ -75,8 +86,19 @@ const TEXT = {
     fontScaleLabel: "Formula size",
     fontTeX: "Native TeX",
     fontRomanUpright: "Roman Upright",
-    fontBold: "Bold",
+    fontBold: "Bold Symbol",
+    fontBoldUpright: "Bold Upright",
+    fontBoldItalic: "Bold Italic",
     fontItalic: "Italic",
+    fontSansSerif: "Sans Serif",
+    fontSansSerifBold: "Sans Serif Bold",
+    fontSansSerifItalic: "Sans Serif Italic",
+    fontSansSerifBoldItalic: "Sans Serif Bold Italic",
+    fontTypewriter: "Typewriter",
+    fontCalligraphic: "Calligraphic",
+    fontScript: "Script",
+    fontFraktur: "Fraktur",
+    fontBlackboard: "Blackboard Bold",
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
     newlineShortcut: "start a new math row",
@@ -88,6 +110,23 @@ const TEXT = {
     cancelShortcut: "hide the MathLive virtual keyboard",
   },
 };
+const FONT_STYLE_VALUES = Object.freeze([
+  "TeX",
+  "RomanUpright",
+  "Bold",
+  "BoldUpright",
+  "BoldItalic",
+  "Italic",
+  "SansSerif",
+  "SansSerifBold",
+  "SansSerifItalic",
+  "SansSerifBoldItalic",
+  "Typewriter",
+  "Calligraphic",
+  "Script",
+  "Fraktur",
+  "Blackboard",
+]);
 
 let locale = "zh";
 let platform = "word";
@@ -232,7 +271,7 @@ function init(payload) {
   formulaColor = useSystemFormulaColor
     ? defaultFormulaColor
     : String(payload?.formulaColor || defaultFormulaColor).toUpperCase();
-  formulaFontStyle = ["TeX", "RomanUpright", "Bold", "Italic"].includes(payload?.formulaFontStyle)
+  formulaFontStyle = FONT_STYLE_VALUES.includes(payload?.formulaFontStyle)
     ? payload.formulaFontStyle
     : "TeX";
   formulaFontScale = clampScale(payload?.formulaFontScale);
@@ -300,5 +339,20 @@ if (window.__latexSnipperSettingsInit) {
   init(window.__latexSnipperSettingsInit);
   window.__latexSnipperSettingsInit = null;
 } else {
-  init({ locale: navigator.language, numberPlacement, insertionBackend, numberFormat, numberEnclosure, formulaFontScale });
+  init({
+    locale: navigator.language,
+    numberPlacement,
+    insertionBackend,
+    numberFormat,
+    numberEnclosure,
+    includeChapter,
+    includeSection,
+    hideChapterBoundary,
+    hideSectionBoundary,
+    numberSeparator,
+    formulaColor,
+    useSystemFormulaColor,
+    formulaFontStyle,
+    formulaFontScale,
+  });
 }

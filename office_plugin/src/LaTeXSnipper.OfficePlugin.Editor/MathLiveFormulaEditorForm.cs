@@ -252,8 +252,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
             ["display"] = _options.ForceDisplayMode || _currentInitialFormula?.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
-            ["fontStyle"] = (_currentInitialFormula?.FontStyle ?? FormulaFontStyle.TeX).ToString(),
-            ["fontColor"] = _currentInitialFormula?.FontColor ?? "#000000",
         });
         string script =
             "(function(payload){" +
@@ -306,13 +304,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
         bool display = _options.ForceDisplayMode ||
             !message.TryGetValue("display", out object rawDisplay) ||
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
-        string fontStyleText = message.TryGetValue("fontStyle", out object rawFontStyle)
-            ? Convert.ToString(rawFontStyle, CultureInfo.InvariantCulture) ?? FormulaFontStyle.TeX.ToString()
-            : FormulaFontStyle.TeX.ToString();
-        FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedFontStyle)
-            ? parsedFontStyle
-            : FormulaFontStyle.TeX;
-        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display, fontStyle);
+        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display);
         await SetSubmittingAsync(true).ConfigureAwait(true);
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
         if (result.Success)

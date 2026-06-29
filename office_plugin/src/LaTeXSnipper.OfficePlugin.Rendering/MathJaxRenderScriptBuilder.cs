@@ -15,11 +15,11 @@ internal static class MathJaxRenderScriptBuilder
 window.LaTeXSnipperMathJaxStartupReady = false;
 window.MathJax = {
   loader: {
-    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem']
+    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem', '[tex]/textmacros', '[tex]/unicode', '[tex]/upgreek']
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem']
+      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem', 'textmacros', 'unicode', 'upgreek']
     }
   },
   startup: {
@@ -61,10 +61,8 @@ window.LaTeXSnipperMathJax = {
     }
     return null;
   },
-  normalizeMathLiveLatex: function(source) {
-    let normalized = source
-      .replace(/(^|[^\\])\$/g, '$1')
-      .replace(/\\bm(?=\s*\{)/g, '\\boldsymbol');
+  preprocessTexSource: function(source) {
+    const normalized = source.replace(/(^|[^\\])\$/g, '$1');
     const command = '\\colorbox';
     let result = '';
     let cursor = 0;
@@ -99,7 +97,7 @@ window.LaTeXSnipperMathJax = {
       if (bodyContent.length >= 2 && bodyContent[0] === '$' && bodyContent[bodyContent.length - 1] === '$') {
         bodyContent = bodyContent.slice(1, -1);
       }
-      const bodyLatex = this.normalizeMathLiveLatex(bodyContent);
+      const bodyLatex = this.preprocessTexSource(bodyContent);
       result += '\\bbox[' + color.content.trim() + ']{' + bodyLatex + '}';
       cursor = body.end;
     }
@@ -113,7 +111,7 @@ window.LaTeXSnipperMathJax = {
       const scale = Number(input.fontScale) > 0 ? Number(input.fontScale) : 1;
       const trimmed = originalSource.trim();
       const isMathMl = /^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(trimmed);
-      const source = isMathMl ? trimmed : this.normalizeMathLiveLatex(originalSource);
+      const source = isMathMl ? trimmed : this.preprocessTexSource(originalSource);
       const container = isMathMl && MathJax.mathml2svg
         ? MathJax.mathml2svg(source, { display: display })
         : MathJax.tex2svg(source, { display: display });
@@ -150,7 +148,7 @@ window.LaTeXSnipperMathJax = {
         };
       }
 
-      const source = this.normalizeMathLiveLatex(originalSource);
+      const source = this.preprocessTexSource(originalSource);
       const root = MathJax.startup.document.convert(source, {
         display: display,
         end: 20

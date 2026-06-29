@@ -36,8 +36,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
         insertionRange.InsertXML(ooxml);
         RemoveEmptyParagraphBeforeFollowingContent(metadata.Identity.EquationId);
-        ApplyNumberControlVerticalAlignmentById(metadata);
-        NormalizeNumberedParagraph(metadata.Identity.EquationId);
+        NormalizeNumberedFormulaLayout(metadata.Identity.EquationId);
         SaveFormulaMetadata(metadata);
         NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
     }
@@ -115,7 +114,7 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId = metadata.Identity.EquationId;
         if (metadata.NumberingMode != NumberingMode.None)
         {
-            ApplyNumberedParagraphLayout(control.Range, control.Range);
+            NormalizeNumberedFormulaLayout(equationId);
             MoveSelectionAfterDisplayParagraph(control, equationId);
             return;
         }
@@ -298,32 +297,20 @@ public sealed partial class DynamicWordApplicationAdapter
         return paragraphs.Item(1).Range;
     }
 
-    private void NormalizeNumberedParagraph(string equationId)
+    private void NormalizeNumberedFormulaLayout(string equationId)
     {
-        try
+        object? equationControl = TryGetEquationControlById(equationId);
+        if (equationControl != null)
         {
-            object? numberControl = TryGetNumberControlById(_wordApplication.ActiveDocument, equationId);
-            if (numberControl == null)
-            {
-                return;
-            }
-
-            object? equationControl = TryGetEquationControlById(equationId);
-            if (equationControl != null)
-            {
-                ApplyNumberedParagraphLayout(
-                    ((dynamic)numberControl).Range,
-                    ((dynamic)equationControl).Range);
-                return;
-            }
-
-            object? inlineShape = TryFindOleInlineShapeById(equationId);
-            ApplyNumberedParagraphLayout(
-                ((dynamic)numberControl).Range,
-                inlineShape == null ? null : ((dynamic)inlineShape).Range);
+            ApplyNumberedFormulaParagraphLayout(((dynamic)equationControl).Range);
+            return;
         }
-        catch
+
+        object? inlineShape = TryFindOleInlineShapeById(equationId);
+        if (inlineShape != null)
         {
+            ApplyNumberedFormulaParagraphLayout(((dynamic)inlineShape).Range);
+            return;
         }
     }
 }

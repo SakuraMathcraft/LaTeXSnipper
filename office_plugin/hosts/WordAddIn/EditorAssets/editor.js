@@ -22,8 +22,8 @@ let libraryState = loadLibraryState();
 let sourceIsMathMl = false;
 let sourceSyncHandle = 0;
 let sourceSyncUsesIdleCallback = false;
+let sourceAuthoritative = true;
 let caretVisibilityFrame = 0;
-let defaultFontStyle = "TeX";
 
 const host = document.getElementById("mathfieldHost");
 const latexSource = document.getElementById("latexSource");
@@ -75,50 +75,12 @@ function setSubmitting(value) {
 }
 
 function currentLatex() {
-  return sourceLatex(true);
+  return latexSource.value.trim();
 }
 
-function submittedLatex() {
-  return sourceLatex(false);
-}
-
-function sourceLatex(stripDefaultWrapper) {
-  if (sourceIsMathMl) {
-    return latexSource.value.trim();
-  }
-
+function mathfieldLatex() {
   const latex = mathfield?.getValue("latex-expanded")?.trim() || "";
-  return stripDefaultWrapper ? removeDefaultFontWrapper(latex) : latex;
-}
-
-function removeDefaultFontWrapper(latex) {
-  const commands = {
-    RomanUpright: ["\\mathrm"],
-    Bold: ["\\mathbf", "\\boldsymbol", "\\bm"],
-    Italic: ["\\mathit"],
-  }[defaultFontStyle] || [];
-  for (const command of commands) {
-    const prefix = `${command}{`;
-    if (!latex.startsWith(prefix) || !latex.endsWith("}")) {
-      continue;
-    }
-
-    let depth = 0;
-    for (let index = prefix.length - 1; index < latex.length; index += 1) {
-      if (latex[index] === "{" && latex[index - 1] !== "\\") {
-        depth += 1;
-      } else if (latex[index] === "}" && latex[index - 1] !== "\\") {
-        depth -= 1;
-        if (depth === 0) {
-          return index === latex.length - 1
-            ? latex.slice(prefix.length, -1)
-            : latex;
-        }
-      }
-    }
-  }
-
-  return latex;
+  return window.LaTeXSnipperMathfieldInput.normalizeLatex(latex).trim();
 }
 
 function syncSourceNow() {
@@ -128,7 +90,8 @@ function syncSourceNow() {
     return;
   }
 
-  latexSource.value = currentLatex();
+  latexSource.value = mathfieldLatex();
+  sourceAuthoritative = true;
 }
 
 function scheduleSourceSync() {
@@ -146,17 +109,37 @@ function scheduleSourceSync() {
     : window.setTimeout(syncSourceNow, 180);
 }
 
+function cancelSourceSync() {
+  if (!sourceSyncHandle) {
+    return;
+  }
+
+  if (sourceSyncUsesIdleCallback) {
+    window.cancelIdleCallback(sourceSyncHandle);
+  } else {
+    window.clearTimeout(sourceSyncHandle);
+  }
+  sourceSyncHandle = 0;
+  sourceSyncUsesIdleCallback = false;
+}
+
 function setLatex(latex) {
-  const source = latex || "";
-  sourceIsMathMl = isMathMlSource(source.trim());
+  cancelSourceSync();
+  const rawSource = latex || "";
+  sourceIsMathMl = isMathMlSource(rawSource.trim());
+  const source = sourceIsMathMl
+    ? rawSource
+    : window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
   if (sourceIsMathMl) {
     latexSource.value = source;
+    sourceAuthoritative = true;
     mathfield.setValue("", { silenceNotifications: true });
     return;
   }
 
+  latexSource.value = source;
+  sourceAuthoritative = true;
   mathfield.setValue(source, { silenceNotifications: true });
-  syncSourceNow();
 }
 
 function isMathMlSource(source) {
@@ -409,14 +392,16 @@ function accept() {
     return;
   }
 
-  syncSourceNow();
-  const latex = submittedLatex();
+  if (!sourceAuthoritative) {
+    syncSourceNow();
+  }
+  const latex = currentLatex();
   if (!latex) {
     setStatus(strings().latexRequired);
     return;
   }
 
-  send({ type: "accept", latex, display: true, fontStyle: defaultFontStyle });
+  send({ type: "accept", latex, display: true });
 }
 
 function hideVirtualKeyboard() {
@@ -434,18 +419,9 @@ function configureText() {
 function applyInit(payload) {
   locale = String(payload?.locale || "zh").toLowerCase();
   mode = payload?.mode === "update" ? "update" : "insert";
-  defaultFontStyle = payload?.fontStyle || "TeX";
   setSubmitting(false);
   configureText();
   setLatex(payload?.latex || "");
-  window.LaTeXSnipperMathfieldInput.setDefaultFontStyle(
-    mathfield,
-    defaultFontStyle,
-  );
-  window.LaTeXSnipperMathfieldInput.setDefaultColor(
-    mathfield,
-    payload?.fontColor || "#000000",
-  );
   scheduleCaretVisibility();
 }
 
@@ -459,13 +435,17 @@ async function bootstrap() {
   host.appendChild(mathfield);
   mathfield.addEventListener("input", () => {
     sourceIsMathMl = false;
+    sourceAuthoritative = false;
     scheduleSourceSync();
     scheduleCaretVisibility();
   });
   latexSource.addEventListener("input", () => {
-    const source = latexSource.value || "";
-    sourceIsMathMl = isMathMlSource(source.trim());
+    const rawSource = latexSource.value || "";
+    sourceIsMathMl = isMathMlSource(rawSource.trim());
+    sourceAuthoritative = true;
     if (!sourceIsMathMl) {
+      const source = window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
+      latexSource.value = source;
       mathfield.setValue(source, { silenceNotifications: true });
       scheduleCaretVisibility();
     }

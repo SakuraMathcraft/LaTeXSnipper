@@ -28,8 +28,6 @@ public static class OleFormulaPayloadJson
             ["displayMode"] = metadata.DisplayMode.ToString(),
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
-            ["fontColor"] = metadata.FontColor,
-            ["fontStyle"] = metadata.FontStyle,
             ["fontScale"] = metadata.FontScale.ToString(CultureInfo.InvariantCulture),
             ["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString(),
             ["rendererVersion"] = "MathJax-3.2.2",

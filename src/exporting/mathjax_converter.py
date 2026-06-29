@@ -1,4 +1,4 @@
-"""Local MathJax conversion shared by desktop exports and Office Bridge."""
+"""Local MathJax conversion used by desktop export paths."""
 
 from __future__ import annotations
 
@@ -19,11 +19,11 @@ _CONVERTER_HTML = r"""
 <script>
 window.MathJax = {
   loader: {
-    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem']
+    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem', '[tex]/textmacros', '[tex]/unicode', '[tex]/upgreek']
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem']
+      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem', 'textmacros', 'unicode', 'upgreek']
     }
   },
   svg: {

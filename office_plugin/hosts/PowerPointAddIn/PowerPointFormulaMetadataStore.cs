@@ -13,8 +13,6 @@ public static class PowerPointFormulaMetadataStore
     public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
     public const string SchemaVersionTag = "LaTeXSnipperSchemaVersion";
     public const string RenderEngineTag = "LaTeXSnipperRenderEngine";
-    public const string FontColorTag = "LaTeXSnipperFontColor";
-    public const string FontStyleTag = "LaTeXSnipperFontStyle";
     public const string FontScaleTag = "LaTeXSnipperFontScale";
     public const string NaturalWidthPointsTag = "LaTeXSnipperNaturalWidthPoints";
     public const string NaturalHeightPointsTag = "LaTeXSnipperNaturalHeightPoints";
@@ -48,8 +46,6 @@ public static class PowerPointFormulaMetadataStore
         shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
         shape.Tags.Add(SchemaVersionTag, metadata.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(RenderEngineTag, metadata.RenderEngine.ToString());
-        shape.Tags.Add(FontColorTag, metadata.FontColor);
-        shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString());
         shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
@@ -65,8 +61,6 @@ public static class PowerPointFormulaMetadataStore
             string.Empty,
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
             ReadRequiredIntTag(shape, SchemaVersionTag),
-            ReadRequiredTag(shape, FontColorTag),
-            ReadRequiredEnumTag<FormulaFontStyle>(shape, FontStyleTag),
             ReadRequiredDoubleTag(shape, FontScaleTag));
     }
 

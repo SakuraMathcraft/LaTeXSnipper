@@ -28,14 +28,19 @@ public sealed partial class WordPluginController
         return FormatAsync(all: true, cancellationToken);
     }
 
-    public Task InsertReferenceAsync(CancellationToken cancellationToken)
+    public async Task InsertReferenceAsync(CancellationToken cancellationToken)
     {
-        return _wordAdapter.InsertReferencePlaceholderAsync(cancellationToken);
+        await _wordAdapter.InsertReferencePlaceholderAsync(cancellationToken);
+        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("ReferencePlaceholderStatus"));
     }
 
-    public Task HandleSelectionChangedAsync(CancellationToken cancellationToken)
+    public async Task HandleSelectionChangedAsync(CancellationToken cancellationToken)
     {
-        return _wordAdapter.CompletePendingReferenceAsync(cancellationToken);
+        bool completed = await _wordAdapter.CompletePendingReferenceAsync(cancellationToken);
+        if (completed)
+        {
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ReferenceInsertedStatus"));
+        }
     }
 
     public Task InsertChapterBoundaryAsync(CancellationToken cancellationToken)
@@ -158,27 +163,20 @@ public sealed partial class WordPluginController
                 }
                 else
                 {
-                    if (formula.FontStyle != settings.FormulaFontStyle)
-                    {
-                        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
-                            formatted,
-                            includeEquationOoxml: true,
-                            cancellationToken,
-                            FormulaInsertionBackend.WordOmml,
-                            reportProgress: false);
-                        await _wordAdapter.UpdateFormulaAsync(
-                            formatted.Identity.EquationId,
-                            prepared.Ooxml!,
-                            prepared.EquationOoxml!,
-                            prepared.EquationContentOoxml!,
-                            formatted,
-                            prepared.Display,
-                            cancellationToken);
-                    }
-                    else
-                    {
-                        await _wordAdapter.ResetManagedEquationFormattingAsync(formatted, cancellationToken);
-                    }
+                    PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
+                        formatted,
+                        includeEquationOoxml: true,
+                        cancellationToken,
+                        FormulaInsertionBackend.WordOmml,
+                        reportProgress: false);
+                    await _wordAdapter.UpdateFormulaAsync(
+                        formatted.Identity.EquationId,
+                        prepared.Ooxml!,
+                        prepared.EquationOoxml!,
+                        prepared.EquationContentOoxml!,
+                        formatted,
+                        prepared.Display,
+                        cancellationToken);
                 }
 
                 _currentFormula = formatted;
@@ -227,25 +225,30 @@ public sealed partial class WordPluginController
 
     private static FormulaMetadata WithDefaultStyle(FormulaMetadata metadata, WordPluginSettings settings)
     {
+        string latex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+            MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex),
+            settings.FormulaFontStyle);
+        latex = ApplyFormulaColor(latex, settings.FormulaColor);
         return new FormulaMetadata(
             metadata.Identity,
-            MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex),
+            latex,
             metadata.DisplayMode,
             metadata.NumberingMode,
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            settings.FormulaColor,
-            settings.FormulaFontStyle,
             settings.FormulaFontScale);
     }
 
     private bool NeedsFormatting(FormulaMetadata metadata, WordPluginSettings settings)
     {
-        return !string.Equals(metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
-            || metadata.FontStyle != settings.FormulaFontStyle
+        string colorlessLatex = MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex);
+        string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+            colorlessLatex,
+            settings.FormulaFontStyle);
+        formattedLatex = ApplyFormulaColor(formattedLatex, settings.FormulaColor);
+        return !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(metadata.Latex), formattedLatex, StringComparison.Ordinal)
             || Math.Abs(metadata.FontScale - settings.FormulaFontScale) > 0.001
-            || MathLiveLatexStyleNormalizer.HasColorFormatting(metadata.Latex)
             || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 
@@ -259,8 +262,17 @@ public sealed partial class WordPluginController
             string.Empty,
             RenderEngineKind.MathJaxSvg,
             schemaVersion: 1,
-            "#000000",
-            FormulaFontStyle.TeX,
             WordPluginSettings.Load().FormulaFontScale);
+    }
+
+    private static string ApplyFormulaColor(string latex, string fontColor)
+    {
+        if (MathLiveLatexStyleNormalizer.HasColorFormatting(latex)
+            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        {
+            return latex;
+        }
+
+        return "\\color{" + fontColor + "}{" + latex + "}";
     }
 }

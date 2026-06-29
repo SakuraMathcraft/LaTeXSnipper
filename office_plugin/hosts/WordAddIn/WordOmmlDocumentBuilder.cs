@@ -106,7 +106,7 @@ public static class WordOmmlDocumentBuilder
 
     private static string BuildDisplayBody(string omml, FormulaMetadata metadata, WordNumberPlacement numberPlacement)
     {
-        if (metadata.NumberingMode != NumberingMode.None && !string.IsNullOrWhiteSpace(metadata.NumberText))
+        if (metadata.NumberingMode != NumberingMode.None)
         {
             return BuildNumberedDisplayBody(omml, metadata, numberPlacement);
         }
@@ -118,23 +118,14 @@ public static class WordOmmlDocumentBuilder
 
     private static string BuildNumberedDisplayBody(string omml, FormulaMetadata metadata, WordNumberPlacement numberPlacement)
     {
-        string equationId = metadata.Identity.EquationId;
-        string numberControl = WrapNumberContentControl(
-            WordFormulaMetadataStore.BuildNumberTag(equationId),
-            WordFormulaMetadataStore.BuildNumberAlias(equationId),
-            metadata.NumberText);
         string equationControl = WrapEquationContentControl(omml, metadata);
-        string leftNumber = numberPlacement == WordNumberPlacement.Left ? numberControl : string.Empty;
-        string rightNumber = numberPlacement == WordNumberPlacement.Right ? numberControl : string.Empty;
-        return
-            "<w:p><w:pPr>" + ParagraphSpacing() +
+        string number = BuildEquationNumberRuns(metadata);
+        return "<w:p><w:pPr>" + ParagraphSpacing() +
             "<w:jc w:val=\"left\"/>" +
             "</w:pPr>" +
-            leftNumber +
-            "<w:r><w:tab/></w:r>" +
+            (numberPlacement == WordNumberPlacement.Left ? number + "<w:r><w:tab/></w:r>" : "<w:r><w:tab/></w:r>") +
             equationControl +
-            (numberPlacement == WordNumberPlacement.Right ? "<w:r><w:tab/></w:r>" : string.Empty) +
-            rightNumber +
+            (numberPlacement == WordNumberPlacement.Right ? "<w:r><w:tab/></w:r>" + number : string.Empty) +
             "</w:p>";
     }
 
@@ -149,16 +140,26 @@ public static class WordOmmlDocumentBuilder
             "</w:sdtContent></w:sdt>";
     }
 
-    private static string WrapNumberContentControl(string tag, string alias, string text)
+    private static string BuildEquationNumberRuns(FormulaMetadata metadata)
     {
+        WordPluginSettings settings = WordPluginSettings.Load();
+        string bookmarkName = WordEquationNumbering.BuildBookmarkName(metadata.Identity.EquationId);
+        string numberBody = metadata.NumberingMode == NumberingMode.Automatic
+            ? "<w:fldSimple w:instr=\"" + EscapeXml(WordEquationNumbering.BuildSequenceFieldCode(
+                reset: false,
+                settings.NumberFormat,
+                string.Empty,
+                settings.NumberEnclosure)) +
+                "\"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
+            : "<w:r><w:t>" +
+                EscapeXml(WordEquationNumbering.GetLeftEnclosure(settings.NumberEnclosure) +
+                    metadata.NumberText +
+                    WordEquationNumbering.GetRightEnclosure(settings.NumberEnclosure)) +
+                "</w:t></w:r>";
         return
-            "<w:sdt><w:sdtPr>" +
-            "<w:alias w:val=\"" + EscapeXml(alias) + "\"/>" +
-            "<w:tag w:val=\"" + EscapeXml(tag) + "\"/>" +
-            "<w15:appearance w15:val=\"hidden\"/>" +
-            "</w:sdtPr><w:sdtContent><w:r><w:t>" +
-            EscapeXml(text) +
-            "</w:t></w:r></w:sdtContent></w:sdt>";
+            "<w:bookmarkStart w:id=\"0\" w:name=\"" + EscapeXml(bookmarkName) + "\"/>" +
+            numberBody +
+            "<w:bookmarkEnd w:id=\"0\"/>";
     }
 
     private static string NormalizeOmmlForWord(string omml)

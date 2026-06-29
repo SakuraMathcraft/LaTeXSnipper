@@ -13,8 +13,6 @@ public sealed class FormulaMetadata
         string numberText,
         RenderEngineKind renderEngine,
         int schemaVersion,
-        string fontColor = "#000000",
-        FormulaFontStyle fontStyle = FormulaFontStyle.TeX,
         double fontScale = 1)
     {
         Identity = identity;
@@ -24,8 +22,6 @@ public sealed class FormulaMetadata
         NumberText = numberText ?? string.Empty;
         RenderEngine = renderEngine;
         SchemaVersion = schemaVersion;
-        FontColor = string.IsNullOrWhiteSpace(fontColor) ? "#000000" : fontColor;
-        FontStyle = fontStyle;
         FontScale = fontScale > 0 ? fontScale : 1;
     }
 
@@ -42,10 +38,6 @@ public sealed class FormulaMetadata
     public RenderEngineKind RenderEngine { get; }
 
     public int SchemaVersion { get; }
-
-    public string FontColor { get; }
-
-    public FormulaFontStyle FontStyle { get; }
 
     public double FontScale { get; }
 }
