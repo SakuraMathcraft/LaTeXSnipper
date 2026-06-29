@@ -75,7 +75,7 @@ multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt or
 
 ## What is the Office plugin direction?
 
-LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OMML insertion, managed formula metadata, screenshot OCR integration, and a local Bridge pipeline without requiring Microsoft 365 enterprise deployment.
+LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OMML insertion, managed formula metadata, and screenshot OCR through the local Bridge recognition boundary without requiring Microsoft 365 enterprise deployment.
 
 ## Does LaTeXSnipper require an internet connection?
 

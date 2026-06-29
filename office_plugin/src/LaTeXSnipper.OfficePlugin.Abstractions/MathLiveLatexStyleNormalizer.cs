@@ -1,22 +1,44 @@
 using System;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace LaTeXSnipper.OfficePlugin.Abstractions;
 
 public static class MathLiveLatexStyleNormalizer
 {
     private static readonly string[] ColorCommands = { "\\textcolor", "\\colorbox", "\\color" };
-    private static readonly string[] FontStyleCommands = { "\\mathrm", "\\mathbf", "\\bm", "\\mathit" };
+    private static readonly string[] FontStyleCommands =
+    {
+        "\\mathrm",
+        "\\mathbf",
+        "\\boldsymbol",
+        "\\mathbfit",
+        "\\mathit",
+        "\\mathsf",
+        "\\mathbfsf",
+        "\\mathsfit",
+        "\\mathbfsfit",
+        "\\mathtt",
+        "\\mathcal",
+        "\\mathscr",
+        "\\mathfrak",
+        "\\mathbb"
+    };
     private static readonly string[] MultilineEnvironments = { "aligned", "gathered", "split", "multline" };
+
+    public static string NormalizeLatex(string latex)
+    {
+        return Regex.Replace(latex ?? string.Empty, @"\\bm(?=\s*\{)", "\\boldsymbol");
+    }
 
     public static string RemoveColorFormatting(string latex)
     {
-        return RemoveColorFormattingCore(latex ?? string.Empty);
+        return RemoveColorFormattingCore(NormalizeLatex(latex));
     }
 
     public static string ApplyRenderFontStyle(string latex, FormulaFontStyle fontStyle)
     {
-        string source = latex ?? string.Empty;
+        string source = NormalizeLatex(latex);
         if (fontStyle == FormulaFontStyle.TeX || HasTopLevelFontStyleFormatting(source))
         {
             return source;
@@ -35,9 +57,30 @@ public static class MathLiveLatexStyleNormalizer
         return WrapFontStyle(source, fontStyle);
     }
 
+    public static string ApplyFormattingFontStyle(string latex, FormulaFontStyle fontStyle)
+    {
+        string source = RemoveTopLevelFontStyleFormatting(NormalizeLatex(latex));
+        if (fontStyle == FormulaFontStyle.TeX)
+        {
+            return source;
+        }
+
+        if (TryWrapDisplayLines(source, fontStyle, force: true, out string displayLines))
+        {
+            return displayLines;
+        }
+
+        if (TryWrapMultilineEnvironment(source, fontStyle, force: true, out string environment))
+        {
+            return environment;
+        }
+
+        return WrapFontStyle(source, fontStyle);
+    }
+
     public static bool HasColorFormatting(string latex)
     {
-        string source = latex ?? string.Empty;
+        string source = NormalizeLatex(latex);
         foreach (string command in ColorCommands)
         {
             if (source.IndexOf(command, StringComparison.Ordinal) >= 0)
@@ -126,18 +169,43 @@ public static class MathLiveLatexStyleNormalizer
             && SkipWhitespace(source, end) == source.Length;
     }
 
+    private static string RemoveTopLevelFontStyleFormatting(string source)
+    {
+        int cursor = SkipWhitespace(source, 0);
+        return TryReadFontStyleCommand(source, cursor, out int end, out string body)
+            && SkipWhitespace(source, end) == source.Length
+            ? body
+            : source;
+    }
+
     private static string WrapFontStyle(string latex, FormulaFontStyle fontStyle)
     {
         return fontStyle switch
         {
             FormulaFontStyle.RomanUpright => "\\mathrm{" + latex + "}",
-            FormulaFontStyle.Bold => "\\bm{" + latex + "}",
+            FormulaFontStyle.Bold => "\\boldsymbol{" + latex + "}",
+            FormulaFontStyle.BoldUpright => "\\mathbf{" + latex + "}",
+            FormulaFontStyle.BoldItalic => "\\mathbfit{" + latex + "}",
             FormulaFontStyle.Italic => "\\mathit{" + latex + "}",
+            FormulaFontStyle.SansSerif => "\\mathsf{" + latex + "}",
+            FormulaFontStyle.SansSerifBold => "\\mathbfsf{" + latex + "}",
+            FormulaFontStyle.SansSerifItalic => "\\mathsfit{" + latex + "}",
+            FormulaFontStyle.SansSerifBoldItalic => "\\mathbfsfit{" + latex + "}",
+            FormulaFontStyle.Typewriter => "\\mathtt{" + latex + "}",
+            FormulaFontStyle.Calligraphic => "\\mathcal{" + latex + "}",
+            FormulaFontStyle.Script => "\\mathscr{" + latex + "}",
+            FormulaFontStyle.Fraktur => "\\mathfrak{" + latex + "}",
+            FormulaFontStyle.Blackboard => "\\mathbb{" + latex + "}",
             _ => latex,
         };
     }
 
     private static bool TryWrapDisplayLines(string source, FormulaFontStyle fontStyle, out string result)
+    {
+        return TryWrapDisplayLines(source, fontStyle, force: false, out result);
+    }
+
+    private static bool TryWrapDisplayLines(string source, FormulaFontStyle fontStyle, bool force, out string result)
     {
         result = string.Empty;
         int cursor = SkipWhitespace(source, 0);
@@ -156,12 +224,17 @@ public static class MathLiveLatexStyleNormalizer
         }
 
         result = source.Substring(0, groupStart + 1)
-            + WrapTopLevelSegments(body, fontStyle)
+            + WrapTopLevelSegments(body, fontStyle, force)
             + source.Substring(end - 1);
         return true;
     }
 
     private static bool TryWrapMultilineEnvironment(string source, FormulaFontStyle fontStyle, out string result)
+    {
+        return TryWrapMultilineEnvironment(source, fontStyle, force: false, out result);
+    }
+
+    private static bool TryWrapMultilineEnvironment(string source, FormulaFontStyle fontStyle, bool force, out string result)
     {
         result = string.Empty;
         int cursor = SkipWhitespace(source, 0);
@@ -184,7 +257,7 @@ public static class MathLiveLatexStyleNormalizer
 
             string body = source.Substring(cursor + begin.Length, endStart - cursor - begin.Length);
             result = source.Substring(0, cursor + begin.Length)
-                + WrapTopLevelSegments(body, fontStyle)
+                + WrapTopLevelSegments(body, fontStyle, force)
                 + source.Substring(endStart);
             return true;
         }
@@ -192,7 +265,7 @@ public static class MathLiveLatexStyleNormalizer
         return false;
     }
 
-    private static string WrapTopLevelSegments(string source, FormulaFontStyle fontStyle)
+    private static string WrapTopLevelSegments(string source, FormulaFontStyle fontStyle, bool force)
     {
         var result = new StringBuilder(source.Length + 32);
         var segment = new StringBuilder(source.Length);
@@ -204,7 +277,7 @@ public static class MathLiveLatexStyleNormalizer
             {
                 if (index + 1 < source.Length && source[index + 1] == '\\' && depth == 0)
                 {
-                    AppendWrappedSegment(result, segment.ToString(), fontStyle);
+                    AppendWrappedSegment(result, segment.ToString(), fontStyle, force);
                     segment.Clear();
                     result.Append(@"\\");
                     index++;
@@ -231,7 +304,7 @@ public static class MathLiveLatexStyleNormalizer
             }
             else if (current == '&' && depth == 0)
             {
-                AppendWrappedSegment(result, segment.ToString(), fontStyle);
+                AppendWrappedSegment(result, segment.ToString(), fontStyle, force);
                 segment.Clear();
                 result.Append(current);
                 continue;
@@ -240,13 +313,19 @@ public static class MathLiveLatexStyleNormalizer
             segment.Append(current);
         }
 
-        AppendWrappedSegment(result, segment.ToString(), fontStyle);
+        AppendWrappedSegment(result, segment.ToString(), fontStyle, force);
         return result.ToString();
     }
 
-    private static void AppendWrappedSegment(StringBuilder result, string segment, FormulaFontStyle fontStyle)
+    private static void AppendWrappedSegment(StringBuilder result, string segment, FormulaFontStyle fontStyle, bool force)
     {
-        if (string.IsNullOrWhiteSpace(segment) || HasTopLevelFontStyleFormatting(segment))
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            result.Append(segment);
+            return;
+        }
+
+        if (!force && HasTopLevelFontStyleFormatting(segment))
         {
             result.Append(segment);
             return;
@@ -265,7 +344,8 @@ public static class MathLiveLatexStyleNormalizer
         }
 
         result.Append(segment, 0, prefixLength);
-        result.Append(WrapFontStyle(segment.Substring(prefixLength, suffixStart - prefixLength), fontStyle));
+        string core = segment.Substring(prefixLength, suffixStart - prefixLength);
+        result.Append(WrapFontStyle(RemoveTopLevelFontStyleFormatting(core), fontStyle));
         result.Append(segment, suffixStart, segment.Length - suffixStart);
     }
 

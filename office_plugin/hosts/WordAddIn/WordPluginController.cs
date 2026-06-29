@@ -88,7 +88,7 @@ public sealed partial class WordPluginController : IDisposable
             null,
             _optionsProvider.CurrentLatex,
             previous: null,
-            WordPluginSettings.Load().FormulaFontStyle,
+            FormulaFontStyle.TeX,
             cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
         await _wordAdapter.ActivateForEditingAsync(cancellationToken);
@@ -190,11 +190,6 @@ public sealed partial class WordPluginController : IDisposable
         if (accepted == null)
         {
             throw new ArgumentNullException(nameof(accepted));
-        }
-
-        if (accepted.UpdateMode)
-        {
-            _statusSink.SetCurrentFormula(accepted.Latex, accepted.UpdateMode);
         }
 
         FormulaIdentity identity = accepted.UpdateMode && accepted.InitialFormula != null
@@ -333,7 +328,7 @@ public sealed partial class WordPluginController : IDisposable
         FormulaMetadata numbered = WithNumbering(
             selected,
             NumberingMode.Automatic,
-            _wordAdapter.GetNextAutomaticNumberText());
+            string.Empty);
         await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
@@ -507,14 +502,12 @@ public sealed partial class WordPluginController : IDisposable
 
     private async Task InsertAndRenumberIfNeededAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
-        int nextNumber = 0;
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
-            nextNumber = _wordAdapter.GetNextAutomaticNumber();
             metadata = WithNumbering(
                 metadata,
                 NumberingMode.Automatic,
-                _wordAdapter.GetNextAutomaticNumberText());
+                string.Empty);
         }
 
         await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
@@ -522,10 +515,6 @@ public sealed partial class WordPluginController : IDisposable
         using (_wordAdapter.BeginUndoRecord())
         {
             await InsertPreparedFormulaAsync(prepared, cancellationToken);
-            if (metadata.NumberingMode == NumberingMode.Automatic)
-            {
-                _wordAdapter.SetNextAutomaticNumber(nextNumber + 1);
-            }
         }
     }
 
@@ -579,7 +568,9 @@ public sealed partial class WordPluginController : IDisposable
     {
         if (previous != null)
         {
-            string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim();
+            string normalizedLatex = NormalizeFormulaLatex(latex);
+            FormulaFontStyle canonicalFontStyle = fontStyle;
+            normalizedLatex = CanonicalizeFontStyle(normalizedLatex, ref canonicalFontStyle);
             return Task.FromResult(new FormulaMetadata(
                 identity ?? previous.Identity,
                 normalizedLatex,
@@ -589,12 +580,12 @@ public sealed partial class WordPluginController : IDisposable
                 previous.RenderEngine,
                 previous.SchemaVersion,
                 previous.FontColor,
-                fontStyle,
+                canonicalFontStyle,
                 previous.FontScale));
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
-        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options, optionsProviderFontStyle: null));
+        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options, fontStyle));
     }
 
     private static FormulaMetadata CreateMetadataFromOptions(
@@ -604,14 +595,12 @@ public sealed partial class WordPluginController : IDisposable
         WordFormulaOptions options,
         FormulaFontStyle? optionsProviderFontStyle = null)
     {
-        string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? CreateDefaultLatex() : latex.Trim();
+        string normalizedLatex = NormalizeFormulaLatex(latex);
         NumberingMode numberingMode = options.NumberingMode;
         string numberText = string.Empty;
         if (numberingMode == NumberingMode.Automatic)
         {
-            numberText = previous?.NumberingMode == NumberingMode.Automatic && !string.IsNullOrWhiteSpace(previous.NumberText)
-                ? previous.NumberText
-                : WordAutomaticNumberFormatter.Format(0);
+            numberText = string.Empty;
         }
         else if (numberingMode == NumberingMode.Manual)
         {
@@ -626,6 +615,8 @@ public sealed partial class WordPluginController : IDisposable
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
         WordPluginSettings settings = WordPluginSettings.Load();
+        FormulaFontStyle fontStyle = optionsProviderFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle;
+        normalizedLatex = CanonicalizeFontStyle(normalizedLatex, ref fontStyle);
         FormulaMetadata metadata = new FormulaMetadata(
             identity ?? new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -635,7 +626,7 @@ public sealed partial class WordPluginController : IDisposable
             RenderEngineKind.Omml,
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
-            optionsProviderFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
+            fontStyle,
             previous?.FontScale ?? settings.FormulaFontScale);
         return metadata;
     }
@@ -675,6 +666,20 @@ public sealed partial class WordPluginController : IDisposable
     private static string CreateDefaultLatex()
     {
         return "e^{i\\pi}+1=0";
+    }
+
+    private static string NormalizeFormulaLatex(string latex)
+    {
+        return string.IsNullOrWhiteSpace(latex)
+            ? CreateDefaultLatex()
+            : MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim());
+    }
+
+    private static string CanonicalizeFontStyle(string latex, ref FormulaFontStyle fontStyle)
+    {
+        string canonical = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
+        fontStyle = FormulaFontStyle.TeX;
+        return canonical;
     }
 
     private static bool IsDisplay(FormulaMetadata metadata)

@@ -93,6 +93,35 @@
       <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。Ctrl+F、Ctrl+R、Ctrl+H、Ctrl+L、Ctrl+J 分别插入分式、根号、上标、下标和上下标。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
     </section>
 
+    <section>
+      <h2>字体与宏包命令</h2>
+      <p>设置页的默认字体以本地 MathLive 预览和 MathJax 3.2.2 SVG 渲染的实测结果为准。下列字体既可作为新公式默认字体，也可在源码编辑框显式输入。</p>
+      <table>
+        <thead><tr><th>用途</th><th>源码示例</th><th>MathJax 扩展</th><th>插件支持</th></tr></thead>
+        <tbody>
+          <tr><td>TeX 原生数学字体</td><td><code>e^{i\pi}+1=0</code></td><td>内置</td><td>默认字体选项</td></tr>
+          <tr><td>罗马正体</td><td><code>\mathrm{rank}\,A</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>数学斜体</td><td><code>\mathit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗体字母</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗体符号</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>粗斜体</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线</td><td><code>\mathsf{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线粗体</td><td><code>\mathbfsf{ABC}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线斜体</td><td><code>\mathsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>无衬线粗斜体</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>等宽</td><td><code>\mathtt{code123}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>花体</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>手写体</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>哥特体</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>黑板粗体</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
+          <tr><td>数学文本</td><td><code>\text{if }x&gt;0</code>、<code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>源码可用</td></tr>
+          <tr><td>直立希腊</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>源码可用</td></tr>
+          <tr><td>化学式文本</td><td><code>\ce{H2O}</code>、<code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>源码可用</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">默认字体选项必须同时满足 MathLive 可预览、MathJax 可渲染、源码可保存为宏包命令。数学字母变体的字符覆盖由 MathJax/MathLive 自身定义；插件不再用 Unicode 转写或剥壳兜底。</div>
+    </section>
+
     <section class="platform-word">
       <h2>Word 功能</h2>
       <h3>OLE 与 OMML</h3>
@@ -188,6 +217,35 @@
     <section>
       <h2>Editor Shortcuts</h2>
       <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Ctrl+F, Ctrl+R, Ctrl+H, Ctrl+L, and Ctrl+J insert a fraction, root, superscript, subscript, and combined scripts. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
+    </section>
+
+    <section>
+      <h2>Fonts and Macro Commands</h2>
+      <p>The default font list is based on local MathLive preview and MathJax 3.2.2 SVG rendering checks. These styles can be used as new-formula defaults and as explicit source commands.</p>
+      <table>
+        <thead><tr><th>Use</th><th>Source example</th><th>MathJax extension</th><th>Add-in support</th></tr></thead>
+        <tbody>
+          <tr><td>Native TeX math</td><td><code>e^{i\pi}+1=0</code></td><td>Built in</td><td>Default font option</td></tr>
+          <tr><td>Roman upright</td><td><code>\mathrm{rank}\,A</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Math italic</td><td><code>\mathit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Bold letters</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Bold symbols</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>Default font option; source command</td></tr>
+          <tr><td>Bold italic</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif</td><td><code>\mathsf{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif bold</td><td><code>\mathbfsf{ABC}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif italic</td><td><code>\mathsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Sans serif bold italic</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Typewriter</td><td><code>\mathtt{code123}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Calligraphic</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
+          <tr><td>Script</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Fraktur</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Blackboard bold</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
+          <tr><td>Math text</td><td><code>\text{if }x&gt;0</code>, <code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>Source command</td></tr>
+          <tr><td>Upright Greek</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>Source command</td></tr>
+          <tr><td>Chemical text</td><td><code>\ce{H2O}</code>, <code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>Source command</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">Default font options must be previewable by MathLive, renderable by MathJax, and saved as macro-command source. Character coverage for mathematical alphabet variants is defined by MathJax and MathLive; the add-in does not use Unicode rewriting or wrapper stripping as fallback logic.</div>
     </section>
 
     <section class="platform-word">

@@ -53,12 +53,6 @@ public interface IWordApplicationAdapter
 
     Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 
-    int GetNextAutomaticNumber();
-
-    string GetNextAutomaticNumberText();
-
-    void SetNextAutomaticNumber(int number);
-
     Task InsertReferencePlaceholderAsync(CancellationToken cancellationToken);
 
     Task<bool> CompletePendingReferenceAsync(CancellationToken cancellationToken);

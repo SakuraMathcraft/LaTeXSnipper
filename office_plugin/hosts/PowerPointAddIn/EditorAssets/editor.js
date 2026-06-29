@@ -75,50 +75,12 @@ function setSubmitting(value) {
 }
 
 function currentLatex() {
-  return sourceLatex(true);
-}
-
-function submittedLatex() {
-  return sourceLatex(false);
-}
-
-function sourceLatex(stripDefaultWrapper) {
   if (sourceIsMathMl) {
     return latexSource.value.trim();
   }
 
   const latex = mathfield?.getValue("latex-expanded")?.trim() || "";
-  return stripDefaultWrapper ? removeDefaultFontWrapper(latex) : latex;
-}
-
-function removeDefaultFontWrapper(latex) {
-  const commands = {
-    RomanUpright: ["\\mathrm"],
-    Bold: ["\\mathbf", "\\boldsymbol", "\\bm"],
-    Italic: ["\\mathit"],
-  }[defaultFontStyle] || [];
-  for (const command of commands) {
-    const prefix = `${command}{`;
-    if (!latex.startsWith(prefix) || !latex.endsWith("}")) {
-      continue;
-    }
-
-    let depth = 0;
-    for (let index = prefix.length - 1; index < latex.length; index += 1) {
-      if (latex[index] === "{" && latex[index - 1] !== "\\") {
-        depth += 1;
-      } else if (latex[index] === "}" && latex[index - 1] !== "\\") {
-        depth -= 1;
-        if (depth === 0) {
-          return index === latex.length - 1
-            ? latex.slice(prefix.length, -1)
-            : latex;
-        }
-      }
-    }
-  }
-
-  return latex;
+  return window.LaTeXSnipperMathfieldInput.normalizeLatex(latex).trim();
 }
 
 function syncSourceNow() {
@@ -147,8 +109,11 @@ function scheduleSourceSync() {
 }
 
 function setLatex(latex) {
-  const source = latex || "";
-  sourceIsMathMl = isMathMlSource(source.trim());
+  const rawSource = latex || "";
+  sourceIsMathMl = isMathMlSource(rawSource.trim());
+  const source = sourceIsMathMl
+    ? rawSource
+    : window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
   if (sourceIsMathMl) {
     latexSource.value = source;
     mathfield.setValue("", { silenceNotifications: true });
@@ -410,7 +375,7 @@ function accept() {
   }
 
   syncSourceNow();
-  const latex = submittedLatex();
+  const latex = currentLatex();
   if (!latex) {
     setStatus(strings().latexRequired);
     return;
@@ -463,9 +428,11 @@ async function bootstrap() {
     scheduleCaretVisibility();
   });
   latexSource.addEventListener("input", () => {
-    const source = latexSource.value || "";
-    sourceIsMathMl = isMathMlSource(source.trim());
+    const rawSource = latexSource.value || "";
+    sourceIsMathMl = isMathMlSource(rawSource.trim());
     if (!sourceIsMathMl) {
+      const source = window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
+      latexSource.value = source;
       mathfield.setValue(source, { silenceNotifications: true });
       scheduleCaretVisibility();
     }

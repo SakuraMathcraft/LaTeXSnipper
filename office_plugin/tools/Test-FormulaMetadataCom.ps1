@@ -245,7 +245,7 @@ function Test-PowerPointFormulaMetadata {
         $updatedMetadata = New-FormulaMetadata `
             -DocumentId "ppt-doc" `
             -EquationId "ppt-shape-1" `
-            -Latex "\bm{F=ma}" `
+            -Latex "\boldsymbol{F=ma}" `
             -DisplayMode "Display" `
             -NumberingMode "None" `
             -NumberText "" `
@@ -256,12 +256,12 @@ function Test-PowerPointFormulaMetadata {
         Invoke-StaticMethod $metadataStore ApplyToShape $shape $updatedMetadata ([single]130) ([single]44) | Out-Null
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore LoadFromShape $shape) `
-            "ppt-shape-1" "\bm{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+            "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
 
         $duplicate = $shape.Duplicate().Item(1)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore LoadFromShape $duplicate) `
-            "ppt-shape-1" "\bm{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+            "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
 
         $shape.Select()
         Start-Sleep -Milliseconds 300
@@ -275,7 +275,7 @@ function Test-PowerPointFormulaMetadata {
             try {
                 $candidateMetadata = Invoke-StaticMethod $metadataStore LoadFromShape $slide.Shapes.Item($index)
                 if ($candidateMetadata.Identity.EquationId -eq "ppt-shape-1") {
-                    Assert-FormulaMetadata $candidateMetadata "ppt-shape-1" "\bm{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+                    Assert-FormulaMetadata $candidateMetadata "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
                     $found = $true
                     break
                 }

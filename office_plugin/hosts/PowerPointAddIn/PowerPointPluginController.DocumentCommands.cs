@@ -72,14 +72,16 @@ public sealed partial class PowerPointPluginController
 
             FormulaMetadata metadata = new FormulaMetadata(
                 entry.Metadata.Identity,
-                MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex),
+                MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+                    MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex),
+                    settings.FormulaFontStyle),
                 entry.Metadata.DisplayMode,
                 entry.Metadata.NumberingMode,
                 entry.Metadata.NumberText,
                 entry.Metadata.RenderEngine,
                 entry.Metadata.SchemaVersion,
                 settings.FormulaColor,
-                settings.FormulaFontStyle,
+                FormulaFontStyle.TeX,
                 settings.FormulaFontScale);
             await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken);
             formatted++;
@@ -138,8 +140,13 @@ public sealed partial class PowerPointPluginController
 
     private static bool NeedsFormatting(PowerPointFormulaEntry entry, PowerPointPluginSettings settings)
     {
+        string colorlessLatex = MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex);
+        string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
+            colorlessLatex,
+            settings.FormulaFontStyle);
         return !string.Equals(entry.Metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
-            || entry.Metadata.FontStyle != settings.FormulaFontStyle
+            || entry.Metadata.FontStyle != FormulaFontStyle.TeX
+            || !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(colorlessLatex), formattedLatex, StringComparison.Ordinal)
             || Math.Abs(entry.Metadata.FontScale - settings.FormulaFontScale) > 0.001
             || MathLiveLatexStyleNormalizer.HasColorFormatting(entry.Metadata.Latex)
             || Math.Abs(entry.Scale - 1) > 0.01;

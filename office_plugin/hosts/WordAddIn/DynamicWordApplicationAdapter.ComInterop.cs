@@ -148,13 +148,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private static string GetManagedEquationId(dynamic control)
     {
         string tag = Convert.ToString(control.Tag) ?? string.Empty;
-        string equationId = WordFormulaMetadataStore.EquationIdFromTag(tag);
-        if (!string.IsNullOrWhiteSpace(equationId))
-        {
-            return equationId;
-        }
-
-        return WordFormulaMetadataStore.EquationIdFromNumberTag(tag);
+        return WordFormulaMetadataStore.EquationIdFromTag(tag);
     }
 
     private static string GetOleInlineShapeEquationId(dynamic inlineShape)

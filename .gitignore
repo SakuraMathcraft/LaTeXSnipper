@@ -44,6 +44,7 @@ tools/deps/pandoc/
 python311/
 python-*.exe
 crash_log.txt
+src/assets/MathJax-4.1.2/
 
 # Logs
 *.log

@@ -15,12 +15,15 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const int WdCollapseEnd = 0;
     private const int WdCharacter = 1;
     private const int WdMove = 0;
+    private const int WdAlignParagraphLeft = 0;
     private const int WdAlignParagraphCenter = 1;
-    private const int WdAlignTabLeft = 0;
+    private const int WdAlignParagraphRight = 2;
     private const int WdAlignTabCenter = 1;
     private const int WdAlignTabRight = 2;
     private const int WdTabLeaderSpaces = 0;
     private const int WdContentControlRichText = 0;
+    private const int WdCollapseStart = 1;
+    private const int WdFieldEmpty = -1;
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
@@ -35,26 +38,55 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public NumberedFormulaEntry(
             string equationId,
             object formulaObject,
-            object numberControl,
             FormulaMetadata metadata,
-            int start)
+            int start,
+            RenderEngineKind renderEngine)
         {
             EquationId = equationId;
             FormulaObject = formulaObject;
-            NumberControl = numberControl;
             Metadata = metadata;
             Start = start;
+            RenderEngine = renderEngine;
         }
 
         public string EquationId { get; }
 
         public object FormulaObject { get; }
 
-        public object NumberControl { get; }
-
         public FormulaMetadata Metadata { get; }
 
         public int Start { get; }
+
+        public RenderEngineKind RenderEngine { get; }
+    }
+
+    private sealed class NumberingBoundaryEntry
+    {
+        public NumberingBoundaryEntry(WordNumberingBoundary boundary, int start)
+        {
+            Boundary = boundary;
+            Start = start;
+        }
+
+        public WordNumberingBoundary Boundary { get; }
+
+        public int Start { get; }
+    }
+
+    private sealed class EquationNumberState
+    {
+        public EquationNumberState(string prefix, bool resetSequence, WordNumberFormat format, WordNumberEnclosure enclosure)
+        {
+            Prefix = prefix;
+            ResetSequence = resetSequence;
+            Format = format;
+            Enclosure = enclosure;
+        }
+
+        public string Prefix { get; }
+        public bool ResetSequence { get; }
+        public WordNumberFormat Format { get; }
+        public WordNumberEnclosure Enclosure { get; }
     }
 
     private sealed class ManagedRangeSpan
@@ -68,35 +100,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public int Start { get; }
 
         public int End { get; }
-    }
-
-    private sealed class IndexedFormulaObject
-    {
-        public IndexedFormulaObject(object value, RenderEngineKind renderEngine)
-        {
-            Value = value;
-            RenderEngine = renderEngine;
-        }
-
-        public object Value { get; }
-
-        public RenderEngineKind RenderEngine { get; }
-    }
-
-    private sealed class DeletionTarget
-    {
-        public DeletionTarget(int start, int end, Action delete)
-        {
-            Start = start;
-            End = end;
-            Delete = delete;
-        }
-
-        public int Start { get; }
-
-        public int End { get; }
-
-        public Action Delete { get; }
     }
 
     private sealed class UndoRecordScope : IDisposable

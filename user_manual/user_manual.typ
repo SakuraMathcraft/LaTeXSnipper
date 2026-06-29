@@ -1242,11 +1242,11 @@ py -3.11 -m venv tools\deps\python311
 
 == 什么是 Office 加载项
 
-LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。OLE 公式对象渲染由本机 OLE 服务器独立完成，截图 OCR 和 OMML 转换通过 Bridge 与 LaTeXSnipper 桌面端通信。
+LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。OLE 公式对象渲染和 OMML 转换都由本地组件独立完成；Bridge 仅用于与 LaTeXSnipper 桌面端通信并读取截图 OCR 识别结果。
 
 #info-block("与桌面端的关系", [
-  OLE 公式对象渲染（默认方式）由本机 OLE 服务器独立完成，不依赖桌面端。截图 OCR 和传统 OMML 转换需要通过 Bridge 与本机运行的 LaTeXSnipper 桌面端通信。
-  使用截图识别或 OMML 公式插入前，请确保桌面端已启动并开启了 Office 插件功能。
+  OLE 公式对象渲染（默认方式）和 Word OMML 转换都不依赖桌面端 Bridge。只有截图 OCR 需要通过 Bridge 与本机运行的 LaTeXSnipper 桌面端通信。
+  使用截图识别前，请确保桌面端已启动并开启了 Office 插件功能。
 ])
 
 == 系统要求
@@ -1261,7 +1261,7 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
   - *Office 版本：* Microsoft 365 应用（当前通道或月度企业通道）、Office 2024 / 2021 / 2019 零售版或批量许可版、Office LTSC 2024 / 2021
   - *运行时：* .NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）
   - *Office 体系：* 仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office
-  - *LaTeXSnipper 桌面端：* OLE 公式对象渲染不依赖桌面端；截图 OCR 和 OMML 公式转换需桌面端运行并开启 Office 插件功能，插件通过 `127.0.0.1:28765` 与本机 Bridge 通信
+  - *LaTeXSnipper 桌面端：* OLE 公式对象渲染和 OMML 公式转换不依赖桌面端；截图 OCR 需桌面端运行并开启 Office 插件功能，插件通过 `127.0.0.1:28765` 与本机 Bridge 通信并读取识别结果
 ]
 
 == 安装前检查
@@ -1612,7 +1612,7 @@ PowerPoint 加载项支持两种渲染方式：
 
   - *MathLive 编辑器：* 侧边栏顶部是 MathLive 可视化公式编辑器，支持所见即所得的公式编辑，与下方的 LaTeX 源码区双向同步
   - *LaTeX 源码：* 编辑器下方的 LaTeX 源码输入区，可直接粘贴或输入 LaTeX 代码，与可视化编辑区实时同步
-  - *连接状态：* 显示与桌面端 Bridge 的通信状态及公式转换状态文字
+  - *连接状态：* 显示与桌面端 Bridge 的识别通信状态
   - *截图识别按钮：* 触发截图 OCR 等待状态，完成后结果自动填入编辑器
   - *插入/更新按钮：* 根据当前操作模式显示对应按钮，将公式插入文档或替换选中公式
   - *Word 专属控件：* 行间/行内模式切换、自动编号、重编号按钮，仅在 Word 侧边栏显示

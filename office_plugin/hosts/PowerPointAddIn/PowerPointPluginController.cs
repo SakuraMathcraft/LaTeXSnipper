@@ -135,7 +135,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             latex = DefaultLatex;
         }
 
-        FormulaMetadata metadata = CreateMetadata(latex, previous: null);
+        FormulaMetadata metadata = CreateMetadata(latex, previous: null, FormulaFontStyle.TeX);
         await ConvertAndInsertAsync(metadata, updateMode: false, hasPosition: false, left: 0, top: 0, scale: 1, cancellationToken);
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
@@ -315,8 +315,12 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     private static FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous, FormulaFontStyle? acceptedFontStyle = null)
     {
-        string normalizedLatex = string.IsNullOrWhiteSpace(latex) ? DefaultLatex : latex.Trim();
+        string normalizedLatex = string.IsNullOrWhiteSpace(latex)
+            ? DefaultLatex
+            : MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim());
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
+        FormulaFontStyle fontStyle = acceptedFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle;
+        normalizedLatex = CanonicalizeFontStyle(normalizedLatex, ref fontStyle);
         return new FormulaMetadata(
             previous?.Identity ?? new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -326,7 +330,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             previous?.RenderEngine ?? RenderEngineKind.Image,
             schemaVersion: previous?.SchemaVersion ?? 1,
             previous?.FontColor ?? settings.FormulaColor,
-            acceptedFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle,
+            fontStyle,
             previous?.FontScale ?? settings.FormulaFontScale);
     }
 
@@ -382,6 +386,13 @@ public sealed partial class PowerPointPluginController : IDisposable
         return string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase)
             ? latex
             : "\\color{" + metadata.FontColor + "}{" + latex + "}";
+    }
+
+    private static string CanonicalizeFontStyle(string latex, ref FormulaFontStyle fontStyle)
+    {
+        string canonical = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
+        fontStyle = FormulaFontStyle.TeX;
+        return canonical;
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)

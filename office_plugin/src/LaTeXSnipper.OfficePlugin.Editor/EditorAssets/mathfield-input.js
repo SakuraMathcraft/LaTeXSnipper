@@ -18,9 +18,29 @@
     "delete-row": "removeRow",
     "delete-column": "removeColumn",
   });
+  const FONT_STYLE_MAP = Object.freeze({
+    RomanUpright: { variant: "normal", variantStyle: "up" },
+    Bold: { variant: "main", variantStyle: "bold" },
+    BoldUpright: { variant: "normal", variantStyle: "bold" },
+    BoldItalic: { variant: "main", variantStyle: "bolditalic" },
+    Italic: { variant: "main", variantStyle: "italic" },
+    SansSerif: { variant: "sans-serif", variantStyle: "up" },
+    SansSerifBold: { variant: "sans-serif", variantStyle: "bold" },
+    SansSerifItalic: { variant: "sans-serif", variantStyle: "italic" },
+    SansSerifBoldItalic: { variant: "sans-serif", variantStyle: "bolditalic" },
+    Typewriter: { variant: "monospace", variantStyle: "up" },
+    Calligraphic: { variant: "calligraphic", variantStyle: "up" },
+    Script: { variant: "script", variantStyle: "up" },
+    Fraktur: { variant: "fraktur", variantStyle: "up" },
+    Blackboard: { variant: "double-struck", variantStyle: "up" },
+  });
 
   function latex(mathfield) {
     return mathfield.getValue("latex-expanded");
+  }
+
+  function normalizeLatex(source) {
+    return String(source || "").replace(/\\bm(?=\s*\{)/g, "\\boldsymbol");
   }
 
   function addRow(mathfield) {
@@ -110,11 +130,7 @@
       return;
     }
 
-    const style = {
-      RomanUpright: { variant: "normal", variantStyle: "up" },
-      Bold: { variant: "normal", variantStyle: "bold" },
-      Italic: { variant: "main", variantStyle: "italic" },
-    }[fontStyle];
+    const style = FONT_STYLE_MAP[fontStyle];
     if (!style) {
       mathfield.onInsertStyle = undefined;
       mathfield.__latexSnipperDefaultFontStyle = undefined;
@@ -128,10 +144,6 @@
       return;
     }
 
-    const selection = mathfield.selection;
-    mathfield.executeCommand("selectAll");
-    mathfield.applyStyle(style);
-    mathfield.selection = selection;
   }
 
   function setDefaultColor(mathfield, fontColor) {
@@ -149,6 +161,7 @@
   window.LaTeXSnipperMathfieldInput = Object.freeze({
     configure,
     insertTemplate,
+    normalizeLatex,
     setDefaultColor,
     setDefaultFontStyle,
   });
