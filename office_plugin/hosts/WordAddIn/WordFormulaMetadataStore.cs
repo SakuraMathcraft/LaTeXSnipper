@@ -124,8 +124,6 @@ internal static class WordFormulaMetadataStore
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
             ["renderEngine"] = metadata.RenderEngine.ToString(),
-            ["fontColor"] = metadata.FontColor,
-            ["fontStyle"] = metadata.FontStyle.ToString(),
             ["fontScale"] = metadata.FontScale,
         };
         if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
@@ -189,8 +187,6 @@ internal static class WordFormulaMetadataStore
             ReadString(dto, "numberText"),
             ReadEnum<RenderEngineKind>(dto, "renderEngine"),
             ReadInt(dto, "schemaVersion"),
-            ReadString(dto, "fontColor"),
-            ReadEnum<FormulaFontStyle>(dto, "fontStyle"),
             ReadRequiredDouble(dto, "fontScale"));
     }
 

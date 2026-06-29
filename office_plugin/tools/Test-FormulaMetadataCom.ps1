@@ -29,8 +29,6 @@ function New-FormulaMetadata {
         [string]$NumberingMode,
         [string]$NumberText,
         [string]$RenderEngine,
-        [string]$FontColor,
-        [string]$FontStyle,
         [double]$FontScale
     )
 
@@ -39,7 +37,6 @@ function New-FormulaMetadata {
     $displayModeType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.FormulaDisplayMode", $true)
     $numberingModeType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.NumberingMode", $true)
     $renderEngineType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.RenderEngineKind", $true)
-    $fontStyleType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.FormulaFontStyle", $true)
 
     $identity = [Activator]::CreateInstance($identityType, @($DocumentId, $EquationId))
     [Activator]::CreateInstance(
@@ -52,8 +49,6 @@ function New-FormulaMetadata {
             $NumberText,
             [Enum]::Parse($renderEngineType, $RenderEngine),
             1,
-            $FontColor,
-            [Enum]::Parse($fontStyleType, $FontStyle),
             $FontScale
         ))
 }
@@ -82,8 +77,6 @@ function Assert-FormulaMetadata {
         $Metadata,
         [string]$EquationId,
         [string]$Latex,
-        [string]$FontColor,
-        [string]$FontStyle,
         [double]$FontScale,
         [string]$RenderEngine
     )
@@ -93,12 +86,6 @@ function Assert-FormulaMetadata {
     }
     if ($Metadata.Latex -ne $Latex) {
         throw "LaTeX mismatch: $($Metadata.Latex) != $Latex"
-    }
-    if ($Metadata.FontColor -ne $FontColor) {
-        throw "Font color mismatch: $($Metadata.FontColor) != $FontColor"
-    }
-    if ($Metadata.FontStyle.ToString() -ne $FontStyle) {
-        throw "Font style mismatch: $($Metadata.FontStyle) != $FontStyle"
     }
     if ([Math]::Abs([double]$Metadata.FontScale - $FontScale) -gt 0.0001) {
         throw "Font scale mismatch: $($Metadata.FontScale) != $FontScale"
@@ -132,38 +119,34 @@ function Test-WordFormulaMetadata {
             -NumberingMode "None" `
             -NumberText "" `
             -RenderEngine "Omml" `
-            -FontColor "#ff0000" `
-            -FontStyle "RomanUpright" `
             -FontScale 1.25
         $contentControl = $document.Range(0, 0).ContentControls.Add(0)
         $contentControl.Range.Text = "e^{iπ}+1=0"
         $contentControl.Tag = Invoke-StaticMethod $metadataStore Save $document $ommlMetadata ([double]0) ([double]0)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore Load $document ([string]$contentControl.Tag)) `
-            "word-omml-inline" "e^{i\pi}+1=0" "#ff0000" "RomanUpright" 1.25 "Omml"
+            "word-omml-inline" "e^{i\pi}+1=0" 1.25 "Omml"
 
         $updatedOmmlMetadata = New-FormulaMetadata `
             -DocumentId "word-doc" `
             -EquationId "word-omml-inline" `
-            -Latex "\mathrm{x+y}" `
+            -Latex "\color{#0055aa}{\boldsymbol{x+y}}" `
             -DisplayMode "Inline" `
             -NumberingMode "None" `
             -NumberText "" `
             -RenderEngine "Omml" `
-            -FontColor "#0055aa" `
-            -FontStyle "Bold" `
             -FontScale 1.5
         $contentControl.Tag = Invoke-StaticMethod $metadataStore Save $document $updatedOmmlMetadata ([double]0) ([double]0)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore Load $document ([string]$contentControl.Tag)) `
-            "word-omml-inline" "\mathrm{x+y}" "#0055aa" "Bold" 1.5 "Omml"
+            "word-omml-inline" "\color{#0055aa}{\boldsymbol{x+y}}" 1.5 "Omml"
 
         $contentControl.Range.Delete() | Out-Null
         Invoke-OfficeUndo $wordApplication
         $restoredControl = $document.ContentControls.Item(1)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore Load $document ([string]$restoredControl.Tag)) `
-            "word-omml-inline" "\mathrm{x+y}" "#0055aa" "Bold" 1.5 "Omml"
+            "word-omml-inline" "\color{#0055aa}{\boldsymbol{x+y}}" 1.5 "Omml"
         Write-Output "Word OMML ContentControl metadata save/update/delete-undo OK"
 
         $oleMetadata = New-FormulaMetadata `
@@ -174,15 +157,13 @@ function Test-WordFormulaMetadata {
             -NumberingMode "None" `
             -NumberText "" `
             -RenderEngine "MathJaxSvg" `
-            -FontColor "#00aa00" `
-            -FontStyle "Italic" `
             -FontScale 1.1
         $oleTag = Invoke-StaticMethod $metadataStore Save $document $oleMetadata ([double]42.5) ([double]18.25)
         $shape = $document.Shapes.AddShape(1, 10, 10, 40, 20)
         $shape.AlternativeText = $oleTag
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore Load $document ([string]$shape.AlternativeText)) `
-            "word-ole-inline" "\color{#00aa00}{x^2}" "#00aa00" "Italic" 1.1 "MathJaxSvg"
+            "word-ole-inline" "\color{#00aa00}{x^2}" 1.1 "MathJaxSvg"
 
         $tryLoadNaturalSize = $metadataStore.GetMethod("TryLoadOleNaturalSize", [Reflection.BindingFlags]"Public,NonPublic,Static")
         $naturalSizeArgs = @($document, [string]$shape.AlternativeText, [double]0, [double]0)
@@ -198,7 +179,7 @@ function Test-WordFormulaMetadata {
         $restoredShape = $document.Shapes.Item(1)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore Load $document ([string]$restoredShape.AlternativeText)) `
-            "word-ole-inline" "\color{#00aa00}{x^2}" "#00aa00" "Italic" 1.1 "MathJaxSvg"
+            "word-ole-inline" "\color{#00aa00}{x^2}" 1.1 "MathJaxSvg"
         Write-Output "Word OLE AlternativeText metadata natural-size/delete-undo OK"
     }
     finally {
@@ -234,13 +215,11 @@ function Test-PowerPointFormulaMetadata {
             -NumberingMode "None" `
             -NumberText "" `
             -RenderEngine "MathJaxSvg" `
-            -FontColor "#336699" `
-            -FontStyle "Bold" `
             -FontScale 1.35
         Invoke-StaticMethod $metadataStore ApplyToShape $shape $metadata ([single]120) ([single]40) | Out-Null
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore LoadFromShape $shape) `
-            "ppt-shape-1" $longLatex "#336699" "Bold" 1.35 "MathJaxSvg"
+            "ppt-shape-1" $longLatex 1.35 "MathJaxSvg"
 
         $updatedMetadata = New-FormulaMetadata `
             -DocumentId "ppt-doc" `
@@ -250,18 +229,16 @@ function Test-PowerPointFormulaMetadata {
             -NumberingMode "None" `
             -NumberText "" `
             -RenderEngine "Image" `
-            -FontColor "#aa5500" `
-            -FontStyle "Italic" `
             -FontScale 1.2
         Invoke-StaticMethod $metadataStore ApplyToShape $shape $updatedMetadata ([single]130) ([single]44) | Out-Null
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore LoadFromShape $shape) `
-            "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+            "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
 
         $duplicate = $shape.Duplicate().Item(1)
         Assert-FormulaMetadata `
             (Invoke-StaticMethod $metadataStore LoadFromShape $duplicate) `
-            "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+            "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
 
         $shape.Select()
         Start-Sleep -Milliseconds 300
@@ -275,7 +252,7 @@ function Test-PowerPointFormulaMetadata {
             try {
                 $candidateMetadata = Invoke-StaticMethod $metadataStore LoadFromShape $slide.Shapes.Item($index)
                 if ($candidateMetadata.Identity.EquationId -eq "ppt-shape-1") {
-                    Assert-FormulaMetadata $candidateMetadata "ppt-shape-1" "\boldsymbol{F=ma}" "#aa5500" "Italic" 1.2 "Image"
+                    Assert-FormulaMetadata $candidateMetadata "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
                     $found = $true
                     break
                 }

@@ -274,38 +274,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic control = contentControl;
         string originalTag = ReadControlTag(control);
-        TryCom(() => control.Range.Font.Bold = IsBoldFontStyle(metadata.FontStyle) ? -1 : 0);
-        TryCom(() => control.Range.Font.Italic = IsItalicFontStyle(metadata.FontStyle) ? -1 : 0);
-        int color = WordPluginSettings.Load().UseSystemFormulaColor
-            ? WdColorAutomatic
-            : ParseWordColor(metadata.FontColor);
-        TryCom(() => control.Range.Font.Color = color);
-        dynamic equations = control.Range.OMaths;
-        int equationCount = Convert.ToInt32(equations.Count);
-        for (int index = 1; index <= equationCount; index++)
-        {
-            dynamic equation = equations.Item(index);
-            TryCom(() => equation.Range.Font.Color = color);
-        }
-
         RestoreManagedEquationControlIdentity(control, originalTag, metadata.Identity.EquationId);
-    }
-
-    private static bool IsBoldFontStyle(FormulaFontStyle fontStyle)
-    {
-        return fontStyle == FormulaFontStyle.Bold
-            || fontStyle == FormulaFontStyle.BoldUpright
-            || fontStyle == FormulaFontStyle.BoldItalic
-            || fontStyle == FormulaFontStyle.SansSerifBold
-            || fontStyle == FormulaFontStyle.SansSerifBoldItalic;
-    }
-
-    private static bool IsItalicFontStyle(FormulaFontStyle fontStyle)
-    {
-        return fontStyle == FormulaFontStyle.Italic
-            || fontStyle == FormulaFontStyle.BoldItalic
-            || fontStyle == FormulaFontStyle.SansSerifItalic
-            || fontStyle == FormulaFontStyle.SansSerifBoldItalic;
     }
 
     private static void RestoreManagedEquationControlIdentity(dynamic control, string originalTag, string equationId)
@@ -320,17 +289,4 @@ public sealed partial class DynamicWordApplicationAdapter
         TryCom(() => control.Title = "LaTeXSnipper Equation");
     }
 
-    private static int ParseWordColor(string color)
-    {
-        string value = (color ?? string.Empty).Trim().TrimStart('#');
-        if (value.Length != 6 || !int.TryParse(value, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
-        {
-            return 0;
-        }
-
-        int red = (rgb >> 16) & 0xff;
-        int green = (rgb >> 8) & 0xff;
-        int blue = rgb & 0xff;
-        return red | (green << 8) | (blue << 16);
-    }
 }

@@ -95,7 +95,7 @@
 
     <section>
       <h2>字体与宏包命令</h2>
-      <p>设置页的默认字体以本地 MathLive 预览和 MathJax 3.2.2 SVG 渲染的实测结果为准。下列字体既可作为新公式默认字体，也可在源码编辑框显式输入。</p>
+      <p>设置页提供常用论文写作字体。下列字体既可作为新公式默认字体，也可在源码编辑框显式输入。</p>
       <table>
         <thead><tr><th>用途</th><th>源码示例</th><th>MathJax 扩展</th><th>插件支持</th></tr></thead>
         <tbody>
@@ -119,7 +119,7 @@
           <tr><td>化学式文本</td><td><code>\ce{H2O}</code>、<code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>源码可用</td></tr>
         </tbody>
       </table>
-      <div class="callout">默认字体选项必须同时满足 MathLive 可预览、MathJax 可渲染、源码可保存为宏包命令。数学字母变体的字符覆盖由 MathJax/MathLive 自身定义；插件不再用 Unicode 转写或剥壳兜底。</div>
+      <div class="callout">默认字体会保存为对应的 LaTeX 字体命令。数学字母类字体适合变量、集合、空间、算子等论文记号；具体字符覆盖取决于对应字体命令本身。</div>
     </section>
 
     <section class="platform-word">
@@ -221,7 +221,7 @@
 
     <section>
       <h2>Fonts and Macro Commands</h2>
-      <p>The default font list is based on local MathLive preview and MathJax 3.2.2 SVG rendering checks. These styles can be used as new-formula defaults and as explicit source commands.</p>
+      <p>The settings page includes common fonts used in academic writing. These styles can be used as new-formula defaults and as explicit source commands.</p>
       <table>
         <thead><tr><th>Use</th><th>Source example</th><th>MathJax extension</th><th>Add-in support</th></tr></thead>
         <tbody>
@@ -245,7 +245,7 @@
           <tr><td>Chemical text</td><td><code>\ce{H2O}</code>, <code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>Source command</td></tr>
         </tbody>
       </table>
-      <div class="callout">Default font options must be previewable by MathLive, renderable by MathJax, and saved as macro-command source. Character coverage for mathematical alphabet variants is defined by MathJax and MathLive; the add-in does not use Unicode rewriting or wrapper stripping as fallback logic.</div>
+      <div class="callout">Default fonts are saved as the corresponding LaTeX font commands. Mathematical alphabet fonts are intended for notation such as variables, sets, spaces, and operators; character coverage depends on the font command itself.</div>
     </section>
 
     <section class="platform-word">

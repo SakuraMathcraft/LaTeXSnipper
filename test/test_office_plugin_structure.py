@@ -133,7 +133,7 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
 
         assert "mathfield-input.js" in editor_html
         assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
-        assert "LaTeXSnipperMathfieldInput.setDefaultFontStyle" in editor_js
+        assert "LaTeXSnipperMathfieldInput.setDefaultFontStyle" not in editor_js
         assert "LaTeXSnipperMathfieldInput.normalizeLatex" in editor_js
         assert "normalizeLatex" not in taskpane_js
         assert "normalizeAlphabetLimitedFontCommands" not in taskpane_js
@@ -147,6 +147,32 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert "stripDefaultWrapper" not in editor_js
         assert "submittedLatex" not in editor_js
         assert "const latex = currentLatex();" in editor_js
+        current_latex = editor_js.split("function currentLatex()", 1)[1].split(
+            "function mathfieldLatex()",
+            1,
+        )[0]
+        assert "return latexSource.value.trim();" in current_latex
+        assert 'getValue("latex-expanded")' not in current_latex
+        sync_source = editor_js.split("function syncSourceNow()", 1)[1].split(
+            "function scheduleSourceSync()",
+            1,
+        )[0]
+        assert "latexSource.value = mathfieldLatex();" in sync_source
+        assert "sourceAuthoritative = true;" in sync_source
+        assert "function cancelSourceSync()" in editor_js
+        set_latex = editor_js.split("function setLatex(latex)", 1)[1].split(
+            "function isMathMlSource",
+            1,
+        )[0]
+        assert "cancelSourceSync();" in set_latex
+        assert "latexSource.value = source;" in set_latex
+        assert "syncSourceNow();" not in set_latex
+        accept_method = editor_js.split("function accept()", 1)[1].split(
+            "function hideVirtualKeyboard()",
+            1,
+        )[0]
+        assert "if (!sourceAuthoritative) {" in accept_method
+        assert "syncSourceNow();" in accept_method
         assert "mathfield.onScrollIntoView = scheduleCaretVisibility" in editor_js
         assert 'querySelector(".ML__caret, .ML__latex-caret")' in editor_js
         assert (
@@ -980,11 +1006,16 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
 
     power_point_root = PLUGIN / "hosts" / "PowerPointAddIn"
     ppt_controller = (power_point_root / "PowerPointPluginController.cs").read_text(encoding="utf-8")
+    ppt_editor_css = (power_point_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
     assert "CreateEditorDraft" in ppt_controller
     insert_formula_method = ppt_controller.split("public async Task InsertFormulaAsync", 1)[1].split("public async Task InsertFormulaFromTaskPaneAsync", 1)[0]
     assert "DefaultLatex" not in insert_formula_method
     assert editor_js == (power_point_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
-    assert editor_css == (power_point_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
+    assert "@media (prefers-color-scheme: dark)" in editor_css
+    assert "color-scheme: light dark" in editor_css
+    assert "--field-bg: #202020" in editor_css
+    assert "@media (prefers-color-scheme: dark)" not in ppt_editor_css
+    assert "color-scheme: light;" in ppt_editor_css
 
     help_html = (host_root / "EditorAssets" / "help.html").read_text(encoding="utf-8")
     assert "LaTeXSnipper Office 插件" in help_html
@@ -1217,7 +1248,8 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Editor submissions are serialized with Office commands" in help_html
         assert "Numbered formulas center the formula and place the number" in help_html
         assert "Fonts and Macro Commands" in help_html
-        assert "The default font list is based on local MathLive preview and MathJax 3.2.2 SVG rendering checks" in help_html
+        assert "common fonts used in academic writing" in help_html
+        assert "Default fonts are saved as the corresponding LaTeX font commands" in help_html
         assert "Default font option; source command" in help_html
         assert "\\mathbb{R},\\mathbb{N}" in help_html
         assert "\\boldsymbol{\\alpha+\\nabla f}" in help_html
@@ -1395,7 +1427,7 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
         assert "<CopyToOutputDirectory>Always</CopyToOutputDirectory>" in vendor_item
 
 
-def test_editor_applies_formula_metadata_color() -> None:
+def test_editor_does_not_load_formula_color_or_font_metadata() -> None:
     editor_form = (
         PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditorForm.cs"
     ).read_text(encoding="utf-8")
@@ -1406,12 +1438,13 @@ def test_editor_applies_formula_metadata_color() -> None:
         / "EditorAssets"
         / "mathfield-input.js"
     ).read_text(encoding="utf-8")
-    assert '["fontColor"] = _currentInitialFormula?.FontColor ?? "#000000"' in editor_form
+    assert '["fontColor"]' not in editor_form
+    assert '["fontStyle"]' not in editor_form
     assert "function setDefaultColor(mathfield, fontColor)" in shared_input
     assert "mathfield.style.color = color" in shared_input
     for host in ("WordAddIn", "PowerPointAddIn"):
         editor = (PLUGIN / "hosts" / host / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
-        assert "setDefaultColor(" in editor
+        assert "setDefaultColor(" not in editor
 
 
 def test_office_native_conversion_paths_use_local_mathjax() -> None:
@@ -1458,7 +1491,7 @@ def test_office_native_conversion_paths_use_local_mathjax() -> None:
     assert "ReplaceNativeWordFormulaWithOleAsync" in word_lifecycle
     assert "RestoreNativeWordFormula(insertionRange, originalOoxml)" in word_lifecycle
     assert "insertionRange.InsertXML(originalOoxml)" in word_lifecycle
-    assert 'StartsWith("<?xml"' in word_controller
+    assert 'StartsWith("<?xml"' not in word_controller
     assert "<\\?xml[\\s\\S]*?\\?>" in mathjax_script
     assert "^<([a-z_][\\w.-]*:)?math" not in mathjax_script
     assert "mathml: trimmed" in mathjax_script
@@ -1529,7 +1562,8 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "entry.SlideIndex" in commands
     assert "Math.Abs(entry.Scale - 1) > 0.01" in commands
     assert "MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle" in commands
-    assert "entry.Metadata.FontStyle != FormulaFontStyle.TeX" in commands
+    assert "entry.Metadata.FontStyle" not in commands
+    assert "entry.Metadata.FontColor" not in commands
     assert "NoFormattingNeededStatus" in commands
     accept_editor_method = controller.split(
         "public async Task AcceptEditorFormulaAsync",
@@ -1549,19 +1583,19 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
         "LatexChunkCountTag",
         "LatexByteLengthTag",
         "RenderEngineTag",
-        "FontColorTag",
-        "FontStyleTag",
         "FontScaleTag",
     ):
         assert tag in metadata
+    assert "FontColorTag" not in metadata
+    assert "FontStyleTag" not in metadata
     assert "LoadFromAlternativeText" not in metadata
     assert "Encoding.UTF8.GetBytes" in metadata
     assert 'valueByte.ToString("X2"' in metadata
     assert "ReadEncodedText(shape)" in metadata
     assert "ReadRequiredEnumTag" in metadata
     assert "ReadEnumTag" not in metadata
-    assert "shape.Tags.Add(FontColorTag, metadata.FontColor)" in metadata
-    assert "shape.Tags.Add(FontStyleTag, metadata.FontStyle.ToString())" in metadata
+    assert "metadata.FontColor" not in metadata
+    assert "metadata.FontStyle" not in metadata
     assert "shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString" in metadata
     assert "FormulaColor" in settings
     assert "FormulaFontStyle" in settings
@@ -1610,8 +1644,8 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
     assert "_optionsProvider.ApplyFormulaMetadata(selected, updateMode: true)" in word_load
     assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in word_load
     assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in powerpoint_load
-    assert '["fontStyle"] = (_currentInitialFormula?.FontStyle' in editor_form
-    assert '["fontColor"] = _currentInitialFormula?.FontColor' in editor_form
+    assert '["fontStyle"]' not in editor_form
+    assert '["fontColor"]' not in editor_form
     assert "mathfield.__latexSnipperDefaultFontStyle = style" in shared_input
     assert "mathfield.applyStyle(style);" in shared_input
 
@@ -1623,7 +1657,8 @@ def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wr
     assert "NeedsFormatting(formula, settings)" in commands
     assert "_wordAdapter.HasCustomFormulaScale(metadata)" in commands
     assert "MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle" in commands
-    assert "metadata.FontStyle != FormulaFontStyle.TeX" in commands
+    assert "metadata.FontStyle" not in commands
+    assert "metadata.FontColor" not in commands
     assert "settings.FormulaFontStyle" in commands
     assert "settings.FormulaFontScale" in commands
     assert "PrepareRenderedFormulaAsync" in commands
@@ -1734,7 +1769,8 @@ def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
     assert "AddEllipseGeometry" in vector_renderer
     assert "ParsePoints" in vector_renderer
     assert "path.AddString(" in vector_renderer
-    assert '"Microsoft YaHei", "SimSun", "Segoe UI"' in vector_renderer
+    assert '"Cambria Math", "Segoe UI Symbol", "Microsoft YaHei", "SimSun", "Segoe UI"' in vector_renderer
+    assert 'element.Attribute("data-variant")?.Value' in vector_renderer
     assert "ResolvePaint" in vector_renderer
     assert "ColorTranslator.FromHtml" in vector_renderer
     assert "new SolidBrush(batch.Color)" in vector_renderer
@@ -1907,8 +1943,8 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "UpdateFormulaReferences" not in operations
     assert "ChapterBoundaryTag" in operations
     assert "SectionBoundaryTag" in operations
-    assert "FontColor" in metadata
-    assert "FontStyle" in metadata
+    assert "FontColor" not in metadata
+    assert "FontStyle" not in metadata
     assert "FontScale" in metadata
     assert "FontWeightPercent" not in metadata
     assert "FormulaFontStyle" in settings
@@ -1961,7 +1997,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load())" in ole_to_omml_update
     assert "ReplaceEquationNumberAtRange(" in ole_to_omml_update
     insert_method = main_controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(
-        "private static string BuildFormattedLatex",
+        "private Task<FormulaMetadata> CreateMetadataFromDraftAsync",
         1,
     )[0]
     assert "RenumberAutomaticFormulasAsync" not in insert_method
@@ -1997,9 +2033,8 @@ def test_word_formula_color_default_tracks_windows_theme() -> None:
     assert "resetToWhite" in settings_js
     adapter = read_word_adapter_sources()
     controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
-    assert "WdColorAutomatic" in adapter
-    assert "WordPluginSettings.Load().UseSystemFormulaColor" in adapter
-    assert "backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor" in controller
+    assert "WordPluginSettings.Load().UseSystemFormulaColor" not in adapter
+    assert "backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor" not in controller
 
 
 def test_installed_asset_resolvers_do_not_trust_vsto_cache_location() -> None:
@@ -2158,7 +2193,7 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
     assert "ReplaceParagraphWithNumberedFormula(" not in insert_method
     assert "ShowContentControlChrome((dynamic)equationControl)" in lifecycle
     insert_command = controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(
-        "private static string BuildFormattedLatex",
+        "private Task<FormulaMetadata> CreateMetadataFromDraftAsync",
         1,
     )[0]
     assert "includeEquationOoxml: false" in insert_command

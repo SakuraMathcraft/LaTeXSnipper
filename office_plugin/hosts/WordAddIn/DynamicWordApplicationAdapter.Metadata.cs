@@ -110,8 +110,6 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontColor,
-            metadata.FontStyle,
             metadata.FontScale);
     }
 

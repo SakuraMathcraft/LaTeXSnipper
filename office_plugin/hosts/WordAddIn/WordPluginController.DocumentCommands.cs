@@ -228,6 +228,7 @@ public sealed partial class WordPluginController
         string latex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
             MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex),
             settings.FormulaFontStyle);
+        latex = ApplyFormulaColor(latex, settings.FormulaColor);
         return new FormulaMetadata(
             metadata.Identity,
             latex,
@@ -236,8 +237,6 @@ public sealed partial class WordPluginController
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            settings.FormulaColor,
-            FormulaFontStyle.TeX,
             settings.FormulaFontScale);
     }
 
@@ -247,11 +246,9 @@ public sealed partial class WordPluginController
         string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
             colorlessLatex,
             settings.FormulaFontStyle);
-        return !string.Equals(metadata.FontColor, settings.FormulaColor, StringComparison.OrdinalIgnoreCase)
-            || metadata.FontStyle != FormulaFontStyle.TeX
-            || !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(colorlessLatex), formattedLatex, StringComparison.Ordinal)
+        formattedLatex = ApplyFormulaColor(formattedLatex, settings.FormulaColor);
+        return !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(metadata.Latex), formattedLatex, StringComparison.Ordinal)
             || Math.Abs(metadata.FontScale - settings.FormulaFontScale) > 0.001
-            || MathLiveLatexStyleNormalizer.HasColorFormatting(metadata.Latex)
             || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 
@@ -265,8 +262,17 @@ public sealed partial class WordPluginController
             string.Empty,
             RenderEngineKind.MathJaxSvg,
             schemaVersion: 1,
-            "#000000",
-            FormulaFontStyle.TeX,
             WordPluginSettings.Load().FormulaFontScale);
+    }
+
+    private static string ApplyFormulaColor(string latex, string fontColor)
+    {
+        if (MathLiveLatexStyleNormalizer.HasColorFormatting(latex)
+            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        {
+            return latex;
+        }
+
+        return "\\color{" + fontColor + "}{" + latex + "}";
     }
 }

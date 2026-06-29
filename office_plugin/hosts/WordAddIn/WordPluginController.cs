@@ -88,7 +88,6 @@ public sealed partial class WordPluginController : IDisposable
             null,
             _optionsProvider.CurrentLatex,
             previous: null,
-            FormulaFontStyle.TeX,
             cancellationToken);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
         await _wordAdapter.ActivateForEditingAsync(cancellationToken);
@@ -197,8 +196,8 @@ public sealed partial class WordPluginController : IDisposable
             : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
         FormulaMetadata metadata = accepted.UpdateMode
-            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, accepted.FontStyle, cancellationToken)
-            : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty), accepted.FontStyle);
+            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, cancellationToken)
+            : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
 
         if (accepted.UpdateMode && accepted.InitialFormula != null)
         {
@@ -406,9 +405,7 @@ public sealed partial class WordPluginController : IDisposable
             ?? (includeEquationOoxml
                 ? GetBackend(metadata.RenderEngine)
                 : settings.InsertionBackend);
-        string renderedLatex = BuildFormattedLatex(
-            metadata,
-            includeColor: backend == FormulaInsertionBackend.Ole || !settings.UseSystemFormulaColor);
+        string renderedLatex = metadata.Latex;
         if (backend == FormulaInsertionBackend.Ole)
         {
             if (reportProgress)
@@ -518,59 +515,15 @@ public sealed partial class WordPluginController : IDisposable
         }
     }
 
-    private static string BuildFormattedLatex(FormulaMetadata metadata, bool includeColor)
-    {
-        if (IsMathMlSource(metadata.Latex))
-        {
-            return metadata.Latex;
-        }
-
-        string latex = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(metadata.Latex, metadata.FontStyle);
-
-        if (includeColor &&
-            !string.Equals(metadata.FontColor, "#000000", StringComparison.OrdinalIgnoreCase))
-        {
-            latex = "\\color{" + metadata.FontColor + "}{" + latex + "}";
-        }
-
-        return latex;
-    }
-
-    private static bool IsMathMlSource(string source)
-    {
-        string trimmed = source.TrimStart();
-        if (trimmed.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase))
-        {
-            int declarationEnd = trimmed.IndexOf("?>", StringComparison.Ordinal);
-            if (declarationEnd >= 0)
-            {
-                trimmed = trimmed.Substring(declarationEnd + 2).TrimStart();
-            }
-        }
-
-        if (trimmed.StartsWith("<math", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        int colon = trimmed.IndexOf(':');
-        return trimmed.StartsWith("<", StringComparison.Ordinal)
-            && colon > 1
-            && trimmed.Substring(colon + 1).StartsWith("math", StringComparison.OrdinalIgnoreCase);
-    }
-
     private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
         FormulaIdentity? identity,
         string latex,
         FormulaMetadata? previous,
-        FormulaFontStyle fontStyle,
         CancellationToken cancellationToken)
     {
         if (previous != null)
         {
             string normalizedLatex = NormalizeFormulaLatex(latex);
-            FormulaFontStyle canonicalFontStyle = fontStyle;
-            normalizedLatex = CanonicalizeFontStyle(normalizedLatex, ref canonicalFontStyle);
             return Task.FromResult(new FormulaMetadata(
                 identity ?? previous.Identity,
                 normalizedLatex,
@@ -579,21 +532,18 @@ public sealed partial class WordPluginController : IDisposable
                 previous.NumberText,
                 previous.RenderEngine,
                 previous.SchemaVersion,
-                previous.FontColor,
-                canonicalFontStyle,
                 previous.FontScale));
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
-        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options, fontStyle));
+        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options));
     }
 
     private static FormulaMetadata CreateMetadataFromOptions(
         FormulaIdentity? identity,
         string latex,
         FormulaMetadata? previous,
-        WordFormulaOptions options,
-        FormulaFontStyle? optionsProviderFontStyle = null)
+        WordFormulaOptions options)
     {
         string normalizedLatex = NormalizeFormulaLatex(latex);
         NumberingMode numberingMode = options.NumberingMode;
@@ -615,8 +565,13 @@ public sealed partial class WordPluginController : IDisposable
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
         WordPluginSettings settings = WordPluginSettings.Load();
-        FormulaFontStyle fontStyle = optionsProviderFontStyle ?? previous?.FontStyle ?? settings.FormulaFontStyle;
-        normalizedLatex = CanonicalizeFontStyle(normalizedLatex, ref fontStyle);
+        if (previous == null)
+        {
+            normalizedLatex = ApplyDefaultSourceFormatting(
+                normalizedLatex,
+                settings.FormulaFontStyle,
+                settings.FormulaColor);
+        }
         FormulaMetadata metadata = new FormulaMetadata(
             identity ?? new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -625,8 +580,6 @@ public sealed partial class WordPluginController : IDisposable
             numberText,
             RenderEngineKind.Omml,
             schemaVersion: previous?.SchemaVersion ?? 1,
-            previous?.FontColor ?? settings.FormulaColor,
-            fontStyle,
             previous?.FontScale ?? settings.FormulaFontScale);
         return metadata;
     }
@@ -646,8 +599,6 @@ public sealed partial class WordPluginController : IDisposable
             options.ManualNumber.Trim(),
             RenderEngineKind.Omml,
             schemaVersion: 1,
-            settings.FormulaColor,
-            settings.FormulaFontStyle,
             settings.FormulaFontScale);
     }
 
@@ -675,11 +626,16 @@ public sealed partial class WordPluginController : IDisposable
             : MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim());
     }
 
-    private static string CanonicalizeFontStyle(string latex, ref FormulaFontStyle fontStyle)
+    internal static string ApplyDefaultSourceFormatting(string latex, FormulaFontStyle fontStyle, string fontColor)
     {
-        string canonical = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
-        fontStyle = FormulaFontStyle.TeX;
-        return canonical;
+        string formatted = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
+        if (MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)
+            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
+        {
+            return formatted;
+        }
+
+        return "\\color{" + fontColor + "}{" + formatted + "}";
     }
 
     private static bool IsDisplay(FormulaMetadata metadata)
@@ -693,8 +649,6 @@ public sealed partial class WordPluginController : IDisposable
             && left.DisplayMode == right.DisplayMode
             && left.NumberingMode == right.NumberingMode
             && string.Equals(left.NumberText.Trim(), right.NumberText.Trim(), StringComparison.Ordinal)
-            && string.Equals(left.FontColor, right.FontColor, StringComparison.OrdinalIgnoreCase)
-            && left.FontStyle == right.FontStyle
             && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
     }
 
@@ -708,8 +662,6 @@ public sealed partial class WordPluginController : IDisposable
             numberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            metadata.FontColor,
-            metadata.FontStyle,
             metadata.FontScale);
     }
 
@@ -723,8 +675,6 @@ public sealed partial class WordPluginController : IDisposable
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontColor,
-            metadata.FontStyle,
             metadata.FontScale);
     }
 

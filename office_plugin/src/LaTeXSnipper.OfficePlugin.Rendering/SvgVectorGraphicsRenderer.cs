@@ -545,7 +545,8 @@ internal static class SvgVectorGraphicsRenderer
         float y = ParseOptionalFloat(element.Attribute("y")?.Value);
         using FontFamily fontFamily = ResolveFontFamily(
             element.Attribute("font-family")?.Value
-            ?? ReadStyleProperty(element.Attribute("style")?.Value, "font-family"));
+            ?? ReadStyleProperty(element.Attribute("style")?.Value, "font-family"),
+            element.Attribute("data-variant")?.Value);
         int emHeight = fontFamily.GetEmHeight(FontStyle.Regular);
         int ascent = fontFamily.GetCellAscent(FontStyle.Regular);
         float top = y - (fontSize * ascent / emHeight);
@@ -561,7 +562,7 @@ internal static class SvgVectorGraphicsRenderer
         AddPaintGeometry(paintBatches, fill, clip, path);
     }
 
-    private static FontFamily ResolveFontFamily(string? requestedFamily)
+    private static FontFamily ResolveFontFamily(string? requestedFamily, string? mathVariant)
     {
         string requested = (requestedFamily ?? string.Empty).Trim().Trim('"', '\'');
         if (!string.IsNullOrWhiteSpace(requested))
@@ -575,7 +576,10 @@ internal static class SvgVectorGraphicsRenderer
             }
         }
 
-        foreach (string candidate in new[] { "Microsoft YaHei", "SimSun", "Segoe UI" })
+        string[] candidates = string.IsNullOrWhiteSpace(mathVariant)
+            ? new[] { "Microsoft YaHei", "SimSun", "Segoe UI" }
+            : new[] { "Cambria Math", "Segoe UI Symbol", "Microsoft YaHei", "SimSun", "Segoe UI" };
+        foreach (string candidate in candidates)
         {
             try
             {

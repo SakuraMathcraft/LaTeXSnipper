@@ -10,7 +10,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdapter
 {
-    private const int WdColorAutomatic = -16777216;
     private const double WordOleBaseFontPoints = 10.5;
     private const int WdCollapseEnd = 0;
     private const int WdCharacter = 1;
