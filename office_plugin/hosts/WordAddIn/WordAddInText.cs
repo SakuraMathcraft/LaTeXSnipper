@@ -77,6 +77,7 @@ public static class WordAddInText
             "OcrLoadedStatus" => "Screenshot OCR result loaded.",
             "AutoNumberedStatus" => "Added a number to the selected equation.",
             "RenumberedStatus" => "Renumbered {count} equations.",
+            "RenumberedWithSkippedStatus" => "Renumbered {count} equations; skipped {skipped} formulas with missing metadata.",
             "NoNumberedStatus" => "No automatically numbered equations found.",
             "AlreadyNumberedStatus" => "Selected equation already has numbering.",
             "AutoNumberDisplayOnlyStatus" => "Add Number only applies to unnumbered display equations.",
@@ -114,9 +115,13 @@ public static class WordAddInText
             "ChapterBoundaryText" => "Chapter separator",
             "SectionBoundaryText" => "Section boundary",
             "ConvertedStatus" => "Converted {count} formulas.",
+            "ConvertedWithSkippedStatus" => "Converted {count} formulas; skipped {skipped} missing formulas.",
             "NoConversionNeededStatus" => "The selected formulas already use the target format.",
             "FormattedStatus" => "Formatted {count} formulas.",
+            "FormattedWithSkippedStatus" => "Formatted {count} formulas; skipped {skipped} missing formulas.",
             "NoFormattingNeededStatus" => "The selected formulas already use the default style.",
+            "BatchConvertingStatus" => "Converting formulas: {processed}/{total}.",
+            "BatchFormattingStatus" => "Formatting formulas: {processed}/{total}.",
             _ => key,
         };
     }
@@ -188,6 +193,7 @@ public static class WordAddInText
             "OcrLoadedStatus" => "截图识别结果已加载。",
             "AutoNumberedStatus" => "已为所选公式添加编号。",
             "RenumberedStatus" => "已重排 {count} 个公式编号。",
+            "RenumberedWithSkippedStatus" => "已重排 {count} 个公式编号，跳过 {skipped} 个缺失元数据的公式。",
             "NoNumberedStatus" => "未找到自动编号公式。",
             "AlreadyNumberedStatus" => "所选公式已有编号。",
             "AutoNumberDisplayOnlyStatus" => "添加编号只适用于未编号的行间公式。",
@@ -225,9 +231,13 @@ public static class WordAddInText
             "ChapterBoundaryText" => "章分隔符",
             "SectionBoundaryText" => "节分隔符",
             "ConvertedStatus" => "已转换 {count} 个公式。",
+            "ConvertedWithSkippedStatus" => "已转换 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
             "NoConversionNeededStatus" => "所选公式已经是目标格式。",
             "FormattedStatus" => "已格式化 {count} 个公式。",
+            "FormattedWithSkippedStatus" => "已格式化 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
             "NoFormattingNeededStatus" => "所选公式已经是默认样式。",
+            "BatchConvertingStatus" => "正在转换公式：{processed}/{total}。",
+            "BatchFormattingStatus" => "正在格式化公式：{processed}/{total}。",
             _ => key,
         };
     }

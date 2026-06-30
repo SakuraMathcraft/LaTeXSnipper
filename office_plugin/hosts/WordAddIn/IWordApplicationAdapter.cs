@@ -34,6 +34,10 @@ public interface IWordApplicationAdapter
 
     Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 
+    bool ContainsFormula(string equationId);
+
+    bool ContainsNativeWordFormula(int start);
+
     Task UpdateFormulaAsync(
         string equationId,
         string ooxml,
@@ -51,7 +55,7 @@ public interface IWordApplicationAdapter
 
     Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
-    Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
+    Task<WordRenumberResult> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 
     Task InsertReferencePlaceholderAsync(CancellationToken cancellationToken);
 

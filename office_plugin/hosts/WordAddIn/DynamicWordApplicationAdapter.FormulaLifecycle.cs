@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -314,24 +315,31 @@ public sealed partial class DynamicWordApplicationAdapter
         WordEquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), WordPluginSettings.Load());
         ApplyNumberedFormulaParagraphLayout(cursor);
         dynamic? numberRange = null;
+        int leftNumberPosition = GetRangeStart(cursor);
         if (placement == WordNumberPlacement.Left)
         {
-            numberRange = InsertEquationNumberAtRange(
-                cursor,
-                metadata,
-                numberState.Prefix,
-                numberState.ResetSequence,
-                numberState.Enclosure);
             InsertTextAtRange(cursor, "\t");
+            cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
         }
         else
         {
             InsertTextAtRange(cursor, "\t");
+            cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
         }
 
         dynamic inlineShape = AddOleInlineShapeAtRange(cursor, metadata, presentation);
         cursor = CreateDocumentRange(GetRangeEnd(inlineShape.Range), GetRangeEnd(inlineShape.Range));
-        if (placement == WordNumberPlacement.Right)
+        if (placement == WordNumberPlacement.Left)
+        {
+            numberRange = InsertEquationNumberAtRange(
+                CreateDocumentRange(leftNumberPosition, leftNumberPosition),
+                metadata,
+                numberState.Prefix,
+                numberState.ResetSequence,
+                numberState.Enclosure,
+                addBookmark: false);
+        }
+        else
         {
             InsertTextAtRange(cursor, "\t");
             numberRange = InsertEquationNumberAtRange(
@@ -339,11 +347,13 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata,
                 numberState.Prefix,
                 numberState.ResetSequence,
-                numberState.Enclosure);
+                numberState.Enclosure,
+                addBookmark: false);
         }
 
         if (numberRange != null)
         {
+            AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);
             ApplyEquationNumberBaseline(numberRange, presentation.HeightPoints);
         }
 
@@ -478,7 +488,8 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata metadata,
         string prefix,
         bool resetSequence,
-        WordNumberEnclosure enclosure)
+        WordNumberEnclosure enclosure,
+        bool addBookmark = true)
     {
         int start = GetRangeStart(range);
         if (metadata.NumberingMode == NumberingMode.Automatic)
@@ -501,26 +512,96 @@ public sealed partial class DynamicWordApplicationAdapter
 
         int end = GetRangeStart(range);
         dynamic numberRange = CreateDocumentRange(start, end);
-        AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);
+        if (addBookmark)
+        {
+            AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);
+        }
+
         return numberRange;
     }
 
-    private dynamic ReplaceEquationNumberAtRange(
-        dynamic numberRange,
+    private bool TryReplaceEquationNumberAtRange(
         FormulaMetadata metadata,
         WordEquationNumberState state,
-        double formulaHeightPoints)
+        double formulaHeightPoints,
+        IReadOnlyDictionary<string, object> sequenceFields)
     {
-        int start = GetRangeStart(numberRange);
-        numberRange.Delete();
-        dynamic inserted = InsertEquationNumberAtRange(
-            CreateDocumentRange(start, start),
-            metadata,
-            state.Prefix,
+        if (metadata.NumberingMode != NumberingMode.Automatic)
+        {
+            return false;
+        }
+
+        if (!sequenceFields.TryGetValue(metadata.Identity.EquationId, out object? sequenceField))
+        {
+            return false;
+        }
+
+        dynamic field = sequenceField;
+        field.Code.Text = WordEquationNumbering.BuildSequenceFieldCode(
             state.ResetSequence,
+            state.Prefix,
             state.Enclosure);
-        ApplyEquationNumberBaseline(inserted, formulaHeightPoints);
-        return inserted;
+        TryCom(() => field.Update());
+        dynamic updated = field.Result.Duplicate;
+        AddOrReplaceEquationBookmark(metadata.Identity.EquationId, updated);
+        ApplyEquationNumberBaseline(updated, formulaHeightPoints);
+        return true;
+    }
+
+    private Dictionary<string, object> BuildEquationSequenceFieldMap(
+        dynamic document,
+        IReadOnlyCollection<NumberedFormulaEntry> formulas)
+    {
+        var rangeToEquationId = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (NumberedFormulaEntry formula in formulas)
+        {
+            if (TryFindEquationNumberRangeById(formula.EquationId, out object? numberRange))
+            {
+                rangeToEquationId[BuildRangeKey(numberRange!)] = formula.EquationId;
+            }
+        }
+
+        var fieldsByEquationId = new Dictionary<string, object>(StringComparer.Ordinal);
+        dynamic fields = document.Fields;
+        int count = Convert.ToInt32(fields.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic field = fields.Item(index);
+            string code = Convert.ToString(field.Code.Text) ?? string.Empty;
+            if (code.IndexOf("SEQ " + WordEquationNumbering.SequenceName, StringComparison.Ordinal) < 0)
+            {
+                continue;
+            }
+
+            string rangeKey = BuildRangeKey(field.Result);
+            if (rangeToEquationId.TryGetValue(rangeKey, out string equationId))
+            {
+                fieldsByEquationId[equationId] = field;
+            }
+        }
+
+        return fieldsByEquationId;
+    }
+
+    private bool TryFindEquationNumberRangeById(string equationId, out object? numberRange)
+    {
+        try
+        {
+            numberRange = FindEquationNumberRangeById(equationId);
+            return true;
+        }
+        catch (InvalidOperationException exc) when (IsMetadataMissingError(exc))
+        {
+            numberRange = null;
+            return false;
+        }
+    }
+
+    private static string BuildRangeKey(dynamic range)
+    {
+        return GetRangeStart(range).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ":"
+            + GetRangeEnd(range).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private double ReadManagedEquationFontSize(object contentControl)

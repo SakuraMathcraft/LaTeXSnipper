@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -8,6 +9,8 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class WordPluginController
 {
+    private const int BatchFormulaOperationSize = 5;
+
     public Task ConvertSelectedToOleAsync(CancellationToken cancellationToken)
     {
         return ConvertSelectedAsync(FormulaInsertionBackend.Ole, cancellationToken);
@@ -55,14 +58,22 @@ public sealed partial class WordPluginController
 
     private async Task ConvertSelectedAsync(FormulaInsertionBackend target, CancellationToken cancellationToken)
     {
-        IReadOnlyList<WordFormulaEntry> formulas = await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
+            .OrderByDescending(item => item.Start)
+            .ToArray();
         RenderEngineKind targetEngine = target == FormulaInsertionBackend.Ole
             ? RenderEngineKind.MathJaxSvg
             : RenderEngineKind.Omml;
         int convertedCount = 0;
-        using (_wordAdapter.BeginUndoRecord())
+        int skippedCount = 0;
+        for (int batchStart = 0; batchStart < formulas.Count; batchStart += BatchFormulaOperationSize)
         {
-            foreach (WordFormulaEntry entry in formulas)
+            WordFormulaEntry[] batch = formulas
+                .Skip(batchStart)
+                .Take(BatchFormulaOperationSize)
+                .ToArray();
+            var preparedBatch = new List<(WordFormulaEntry Entry, PreparedWordFormula Prepared)>();
+            foreach (WordFormulaEntry entry in batch)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (entry.IsNativeWordFormula)
@@ -72,19 +83,20 @@ public sealed partial class WordPluginController
                         continue;
                     }
 
+                    if (!_wordAdapter.ContainsNativeWordFormula(entry.Start))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
                     FormulaMetadata native = CreateMetadataFromNativeWordFormula(entry);
                     PreparedWordFormula nativePrepared = await PrepareRenderedFormulaAsync(
                         native,
                         includeEquationOoxml: false,
                         cancellationToken,
-                        FormulaInsertionBackend.Ole);
-                    await _wordAdapter.ReplaceNativeWordFormulaWithOleAsync(
-                        entry.Start,
-                        nativePrepared.Metadata,
-                        nativePrepared.OlePresentation!,
-                        nativePrepared.Display,
-                        cancellationToken);
-                    convertedCount++;
+                        FormulaInsertionBackend.Ole,
+                        reportProgress: false);
+                    preparedBatch.Add((entry, nativePrepared));
                     continue;
                 }
 
@@ -95,15 +107,58 @@ public sealed partial class WordPluginController
                     continue;
                 }
 
+                if (!_wordAdapter.ContainsFormula(formula.Identity.EquationId))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
                 FormulaMetadata converted = WithRenderEngine(formula, targetEngine);
                 PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
                     converted,
                     includeEquationOoxml: true,
                     cancellationToken,
-                    target);
-                await UpdatePreparedFormulaAsync(prepared, cancellationToken);
-                convertedCount++;
+                    target,
+                    reportProgress: false);
+                preparedBatch.Add((entry, prepared));
             }
+
+            using (_wordAdapter.BeginUndoRecord())
+            {
+                foreach ((WordFormulaEntry entry, PreparedWordFormula prepared) in preparedBatch)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (entry.IsNativeWordFormula)
+                    {
+                        if (!_wordAdapter.ContainsNativeWordFormula(entry.Start))
+                        {
+                            skippedCount++;
+                            continue;
+                        }
+
+                        await _wordAdapter.ReplaceNativeWordFormulaWithOleAsync(
+                            entry.Start,
+                            prepared.Metadata,
+                            prepared.OlePresentation!,
+                            prepared.Display,
+                            cancellationToken);
+                        convertedCount++;
+                        continue;
+                    }
+
+                    string equationId = prepared.Metadata.Identity.EquationId;
+                    if (!_wordAdapter.ContainsFormula(equationId))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    await UpdatePreparedFormulaAsync(prepared, cancellationToken, reportStatus: false);
+                    convertedCount++;
+                }
+            }
+
+            PostBatchProgress("BatchConvertingStatus", Math.Min(batchStart + batch.Length, formulas.Count), formulas.Count);
         }
 
         if (convertedCount == 0)
@@ -112,8 +167,7 @@ public sealed partial class WordPluginController
             return;
         }
 
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ConvertedStatus")
-            .Replace("{count}", convertedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        _statusSink.Post(WordStatusKind.Success, BuildChangedStatus("ConvertedStatus", "ConvertedWithSkippedStatus", convertedCount, skippedCount));
     }
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
@@ -126,11 +180,19 @@ public sealed partial class WordPluginController
         }
 
         WordPluginSettings settings = WordPluginSettings.Load();
-        IReadOnlyList<WordFormulaEntry> formulas = await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
+            .OrderByDescending(item => item.Start)
+            .ToArray();
         int formattedCount = 0;
-        using (_wordAdapter.BeginUndoRecord())
+        int skippedCount = 0;
+        for (int batchStart = 0; batchStart < formulas.Count; batchStart += BatchFormulaOperationSize)
         {
-            foreach (WordFormulaEntry entry in formulas)
+            WordFormulaEntry[] batch = formulas
+                .Skip(batchStart)
+                .Take(BatchFormulaOperationSize)
+                .ToArray();
+            var preparedBatch = new List<PreparedWordFormula>();
+            foreach (WordFormulaEntry entry in batch)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (entry.IsNativeWordFormula)
@@ -145,6 +207,12 @@ public sealed partial class WordPluginController
                     continue;
                 }
 
+                if (!_wordAdapter.ContainsFormula(formula.Identity.EquationId))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
                 FormulaMetadata formatted = WithDefaultStyle(formula, settings);
                 if (formula.RenderEngine == RenderEngineKind.MathJaxSvg)
                 {
@@ -154,12 +222,7 @@ public sealed partial class WordPluginController
                         cancellationToken,
                         FormulaInsertionBackend.Ole,
                         reportProgress: false);
-                    await _wordAdapter.ResetOleFormulaObjectAsync(
-                        formatted.Identity.EquationId,
-                        formatted,
-                        prepared.OlePresentation!,
-                        prepared.Display,
-                        cancellationToken);
+                    preparedBatch.Add(prepared);
                 }
                 else
                 {
@@ -169,19 +232,49 @@ public sealed partial class WordPluginController
                         cancellationToken,
                         FormulaInsertionBackend.WordOmml,
                         reportProgress: false);
-                    await _wordAdapter.UpdateFormulaAsync(
-                        formatted.Identity.EquationId,
-                        prepared.Ooxml!,
-                        prepared.EquationOoxml!,
-                        prepared.EquationContentOoxml!,
-                        formatted,
-                        prepared.Display,
-                        cancellationToken);
+                    preparedBatch.Add(prepared);
                 }
-
-                _currentFormula = formatted;
-                formattedCount++;
             }
+
+            using (_wordAdapter.BeginUndoRecord())
+            {
+                foreach (PreparedWordFormula prepared in preparedBatch)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    FormulaMetadata formatted = prepared.Metadata;
+                    if (!_wordAdapter.ContainsFormula(formatted.Identity.EquationId))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    if (formatted.RenderEngine == RenderEngineKind.MathJaxSvg)
+                    {
+                        await _wordAdapter.ResetOleFormulaObjectAsync(
+                            formatted.Identity.EquationId,
+                            formatted,
+                            prepared.OlePresentation!,
+                            prepared.Display,
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        await _wordAdapter.UpdateFormulaAsync(
+                            formatted.Identity.EquationId,
+                            prepared.Ooxml!,
+                            prepared.EquationOoxml!,
+                            prepared.EquationContentOoxml!,
+                            formatted,
+                            prepared.Display,
+                            cancellationToken);
+                    }
+
+                    _currentFormula = formatted;
+                    formattedCount++;
+                }
+            }
+
+            PostBatchProgress("BatchFormattingStatus", Math.Min(batchStart + batch.Length, formulas.Count), formulas.Count);
         }
 
         if (formattedCount == 0)
@@ -190,8 +283,7 @@ public sealed partial class WordPluginController
             return;
         }
 
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("FormattedStatus")
-            .Replace("{count}", formattedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        _statusSink.Post(WordStatusKind.Success, BuildChangedStatus("FormattedStatus", "FormattedWithSkippedStatus", formattedCount, skippedCount));
     }
 
     private async Task ResetAllNaturalSizesAsync(CancellationToken cancellationToken)
@@ -274,5 +366,21 @@ public sealed partial class WordPluginController
         }
 
         return "\\color{" + fontColor + "}{" + latex + "}";
+    }
+
+    private void PostBatchProgress(string key, int processed, int total)
+    {
+        _statusSink.Post(
+            WordStatusKind.Info,
+            WordAddInText.Get(key)
+                .Replace("{processed}", processed.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Replace("{total}", total.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private static string BuildChangedStatus(string changedKey, string skippedKey, int changed, int skipped)
+    {
+        string message = WordAddInText.Get(skipped > 0 ? skippedKey : changedKey)
+            .Replace("{count}", changed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return message.Replace("{skipped}", skipped.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

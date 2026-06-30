@@ -9,10 +9,11 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    public Task<int> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken)
+    public Task<WordRenumberResult> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         int count = 0;
+        int skipped = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             dynamic document = _wordApplication.ActiveDocument;
@@ -37,13 +38,19 @@ public sealed partial class DynamicWordApplicationAdapter
                     continue;
                 }
 
-                FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
-                if (metadata.NumberingMode == NumberingMode.Automatic)
+                if (!TryLoadAutomaticFormulaMetadata(control, equationId, RenderEngineKind.Omml, out FormulaMetadata? metadata))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                FormulaMetadata loadedMetadata = metadata!;
+                if (loadedMetadata.NumberingMode == NumberingMode.Automatic)
                 {
                     formulas.Add(new NumberedFormulaEntry(
                         equationId,
                         (object)control,
-                        metadata,
+                        loadedMetadata,
                         GetRangeStart(control.Range),
                         RenderEngineKind.Omml));
                 }
@@ -61,13 +68,19 @@ public sealed partial class DynamicWordApplicationAdapter
                     continue;
                 }
 
-                FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
-                if (metadata.NumberingMode == NumberingMode.Automatic)
+                if (!TryLoadAutomaticFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg, out FormulaMetadata? metadata))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                FormulaMetadata loadedMetadata = metadata!;
+                if (loadedMetadata.NumberingMode == NumberingMode.Automatic)
                 {
                     formulas.Add(new NumberedFormulaEntry(
                         equationId,
                         (object)inlineShape,
-                        metadata,
+                        loadedMetadata,
                         GetRangeStart(inlineShape.Range),
                         RenderEngineKind.MathJaxSvg));
                 }
@@ -77,6 +90,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 formulas,
                 boundaries,
                 settings);
+            IReadOnlyDictionary<string, object> sequenceFields = BuildEquationSequenceFieldMap(document, formulas);
             foreach (NumberedFormulaEntry formula in formulas.OrderBy(entry => entry.Start))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -86,26 +100,80 @@ public sealed partial class DynamicWordApplicationAdapter
                 double formulaHeight = formula.RenderEngine == RenderEngineKind.MathJaxSvg
                     ? Convert.ToDouble(((dynamic)formula.FormulaObject).Height)
                     : 0;
-                ReplaceEquationNumberAtRange(
-                    FindEquationNumberRange(formulaRange, formula.Metadata),
+                if (!TryFindEquationNumberRange(formulaRange, formula.Metadata, out object? numberRange))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                if (!TryReplaceEquationNumberAtRange(
                     formula.Metadata,
                     states[formula.EquationId],
-                    formulaHeight);
+                    formulaHeight,
+                    sequenceFields))
+                {
+                    skipped++;
+                    continue;
+                }
+
                 count++;
             }
 
-            document.Fields.Update();
+            UpdateEquationReferenceFields(document);
             foreach (NumberedFormulaEntry formula in formulas.Where(entry => entry.RenderEngine == RenderEngineKind.MathJaxSvg))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 dynamic inlineShape = formula.FormulaObject;
+                if (!TryFindEquationNumberRange(inlineShape.Range, formula.Metadata, out object? numberRange))
+                {
+                    skipped++;
+                    continue;
+                }
+
                 ApplyEquationNumberBaseline(
-                    FindEquationNumberRange(inlineShape.Range, formula.Metadata),
+                    numberRange,
                     Convert.ToDouble(inlineShape.Height));
             }
         });
 
-        return Task.FromResult(count);
+        return Task.FromResult(new WordRenumberResult(count, skipped));
+    }
+
+    private bool TryLoadAutomaticFormulaMetadata(
+        dynamic formulaObject,
+        string equationId,
+        RenderEngineKind renderEngine,
+        out FormulaMetadata? metadata)
+    {
+        try
+        {
+            metadata = LoadFormulaMetadata(formulaObject, equationId, renderEngine);
+            return true;
+        }
+        catch (InvalidOperationException exc) when (IsMetadataMissingError(exc))
+        {
+            metadata = null;
+            return false;
+        }
+    }
+
+    private static bool IsMetadataMissingError(InvalidOperationException exc)
+    {
+        return string.Equals(exc.Message, WordAddInText.Get("SelectedFormulaMetadataMissing"), StringComparison.Ordinal);
+    }
+
+    private bool TryFindEquationNumberRange(dynamic formulaRange, FormulaMetadata metadata, out object? numberRange)
+    {
+        try
+        {
+            numberRange = FindEquationNumberRange(formulaRange, metadata);
+            return true;
+        }
+        catch (InvalidOperationException exc) when (IsMetadataMissingError(exc))
+        {
+            numberRange = null;
+            return false;
+        }
     }
 
     private static IReadOnlyDictionary<string, WordEquationNumberState> BuildEquationNumberStates(
@@ -183,7 +251,39 @@ public sealed partial class DynamicWordApplicationAdapter
         int chapter = 1;
         int section = 1;
         bool resetSequence = true;
-        var timeline = new List<(int Start, WordNumberingBoundary? Boundary, bool IsFormula)>();
+        List<NumberingTimelineEntry> timeline = LoadNumberingTimelineEntriesBeforePosition(position);
+        foreach (NumberingTimelineEntry entry in timeline.OrderBy(item => item.Start))
+        {
+            if (entry.Boundary == WordNumberingBoundary.Chapter)
+            {
+                chapter++;
+                section = 1;
+                resetSequence = true;
+                continue;
+            }
+
+            if (entry.Boundary == WordNumberingBoundary.Section)
+            {
+                section++;
+                resetSequence = true;
+                continue;
+            }
+
+            if (entry.IsAutomaticFormula)
+            {
+                resetSequence = false;
+            }
+        }
+
+        return new WordEquationNumberState(
+            BuildEquationNumberPrefix(settings, chapter, section),
+            resetSequence,
+            settings.NumberEnclosure);
+    }
+
+    private List<NumberingTimelineEntry> LoadNumberingTimelineEntriesBeforePosition(int position)
+    {
+        var timeline = new List<NumberingTimelineEntry>();
         dynamic document = _wordApplication.ActiveDocument;
         dynamic controls = document.ContentControls;
         int controlCount = Convert.ToInt32(controls.Count);
@@ -198,7 +298,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
             if (IsNumberingBoundary(control, out WordNumberingBoundary boundary))
             {
-                timeline.Add((start, boundary, IsFormula: false));
+                timeline.Add(new NumberingTimelineEntry(start, boundary, isAutomaticFormula: false));
                 continue;
             }
 
@@ -211,7 +311,7 @@ public sealed partial class DynamicWordApplicationAdapter
             FormulaMetadata metadata = LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml);
             if (metadata.NumberingMode == NumberingMode.Automatic)
             {
-                timeline.Add((start, null, IsFormula: true));
+                timeline.Add(new NumberingTimelineEntry(start, null, isAutomaticFormula: true));
             }
         }
 
@@ -235,36 +335,25 @@ public sealed partial class DynamicWordApplicationAdapter
             FormulaMetadata metadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
             if (metadata.NumberingMode == NumberingMode.Automatic)
             {
-                timeline.Add((start, null, IsFormula: true));
+                timeline.Add(new NumberingTimelineEntry(start, null, isAutomaticFormula: true));
             }
         }
 
-        foreach ((int _, WordNumberingBoundary? boundary, bool isFormula) in timeline.OrderBy(item => item.Start))
+        return timeline;
+    }
+
+    private static void UpdateEquationReferenceFields(dynamic document)
+    {
+        dynamic fields = document.Fields;
+        int count = Convert.ToInt32(fields.Count);
+        for (int index = 1; index <= count; index++)
         {
-            if (boundary == WordNumberingBoundary.Chapter)
+            dynamic field = fields.Item(index);
+            string code = Convert.ToString(field.Code.Text) ?? string.Empty;
+            if (code.IndexOf("REF " + WordEquationNumbering.BookmarkPrefix, StringComparison.Ordinal) >= 0)
             {
-                chapter++;
-                section = 1;
-                resetSequence = true;
-                continue;
-            }
-
-            if (boundary == WordNumberingBoundary.Section)
-            {
-                section++;
-                resetSequence = true;
-                continue;
-            }
-
-            if (isFormula)
-            {
-                resetSequence = false;
+                TryCom(() => field.Update());
             }
         }
-
-        return new WordEquationNumberState(
-            BuildEquationNumberPrefix(settings, chapter, section),
-            resetSequence,
-            settings.NumberEnclosure);
     }
 }

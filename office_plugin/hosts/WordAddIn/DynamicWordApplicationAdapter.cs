@@ -72,6 +72,22 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public int Start { get; }
     }
 
+    private sealed class NumberingTimelineEntry
+    {
+        public NumberingTimelineEntry(int start, WordNumberingBoundary? boundary, bool isAutomaticFormula)
+        {
+            Start = start;
+            Boundary = boundary;
+            IsAutomaticFormula = isAutomaticFormula;
+        }
+
+        public int Start { get; }
+
+        public WordNumberingBoundary? Boundary { get; }
+
+        public bool IsAutomaticFormula { get; }
+    }
+
     private sealed class ManagedRangeSpan
     {
         public ManagedRangeSpan(int start, int end)

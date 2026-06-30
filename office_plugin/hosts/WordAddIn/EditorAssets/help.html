@@ -140,9 +140,9 @@
       <h3>添加编号与重编号</h3>
       <p>添加编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；Ribbon 可插入章或节边界，后续编号会递归重置。章、节分隔符可以分别隐藏，也可以选中后通过“删除所选”移除。</p>
       <h3>转换、引用与格式化</h3>
-      <p>“转换”将当前选中的单个受管理公式在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落。“引用”先插入占位符，再选择编号公式或其所在段落创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。编号边界可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
+      <p>“转换”会处理当前选区内的受管理公式，在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落；多选时分批执行并在状态窗格显示进度。“引用”先插入占位符，再选择编号公式或其所在段落创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。编号边界可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小，多选时同样分批执行；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
       <h3>带编号公式布局</h3>
-      <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。点击公式或编号都可以加载、更新或删除同一个公式。</p>
+      <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。加载、更新和删除以公式对象或公式所在段落为稳定入口；单独选中编号数字不会反向删除公式。</p>
       <h3>OLE 对象尺寸</h3>
       <p>新公式按光标处正文大小计算自然尺寸。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
@@ -158,7 +158,7 @@
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区，不负责更新已有公式。</p>
       <h3>转换与格式化</h3>
-      <p>“转换”在当前选中的单个受管理公式上切换 OLE 与 PNG，不移动同页其他对象。“格式化所选”恢复默认字体、颜色和自然大小；“格式化全文”只恢复被手动拉伸公式的自然大小。</p>
+      <p>“转换”会处理当前选区内的受管理公式，在 OLE 与 PNG 之间切换，不移动同页其他对象；多选时分批执行并在状态窗格显示进度。“格式化所选”恢复默认字体、颜色和自然大小，多选时同样分批执行；“格式化全文”只恢复被手动拉伸公式的自然大小。</p>
       <h3>OLE 对象尺寸</h3>
       <p>新插入的 OLE 与 PNG 使用相同的初始倍率。更新已有公式时保留用户在幻灯片中手动拉伸出的对象倍率。</p>
       <h3>截图识别</h3>
@@ -273,9 +273,9 @@
       <h3>Add Number &amp; Renumber</h3>
       <p>Add Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
       <h3>Conversion, References &amp; Formatting</h3>
-      <p>Conversion replaces exactly one selected managed formula in place between Word OMML and OLE without touching adjacent text or paragraphs. Insert Reference creates a placeholder; selecting a numbered formula or its paragraph creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
+      <p>Conversion processes managed formulas in the current selection in place between Word OMML and OLE without touching adjacent text or paragraphs; multi-selection runs in batches and reports progress in the status pane. Insert Reference creates a placeholder; selecting a numbered formula or its paragraph creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size and also runs multi-selection in batches; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
       <h3>Numbered Formula Layout</h3>
-      <p>Numbered formulas center the formula and place the number on the left or right according to settings. Clicking either the formula or the number can load, update, or delete the same formula.</p>
+      <p>Numbered formulas center the formula and place the number on the left or right according to settings. Loading, updating, and deleting use the formula object or its paragraph as the stable target; selecting only the number text does not delete the formula.</p>
       <h3>OLE Object Size</h3>
       <p>New formulas derive their natural size from the text at the insertion point. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
       <h3>Screenshot OCR</h3>
@@ -291,7 +291,7 @@
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft and is not an update entry point.</p>
       <h3>Conversion and Formatting</h3>
-      <p>Conversion switches exactly one selected managed formula between OLE and PNG without moving other slide objects. Format Selected restores the default font, color, and natural size; Format All only restores manually resized formulas to natural size.</p>
+      <p>Conversion processes managed formulas in the current selection between OLE and PNG without moving other slide objects; multi-selection runs in batches and reports progress in the status pane. Format Selected restores the default font, color, and natural size and also runs multi-selection in batches; Format All only restores manually resized formulas to natural size.</p>
       <h3>OLE Object Size</h3>
       <p>New OLE and PNG formulas use the same initial scale. Updating an existing formula preserves the object stretch factor manually set on the slide.</p>
       <h3>Screenshot OCR</h3>

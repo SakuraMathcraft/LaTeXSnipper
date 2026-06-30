@@ -177,7 +177,7 @@ public sealed partial class DynamicWordApplicationAdapter
             return;
         }
 
-        List<ManagedRangeSpan> managedSpans = LoadManagedFormulaSpans(paragraphStart, paragraphEnd);
+        List<ManagedRangeSpan> managedSpans = LoadManagedFormulaSpans(paragraphRange, paragraphStart, paragraphEnd);
         managedSpans.Sort((left, right) => left.Start.CompareTo(right.Start));
         int plainStart = paragraphStart;
         foreach (ManagedRangeSpan span in managedSpans)
@@ -198,12 +198,12 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private List<ManagedRangeSpan> LoadManagedFormulaSpans(int paragraphStart, int paragraphEnd)
+    private List<ManagedRangeSpan> LoadManagedFormulaSpans(dynamic paragraphRange, int paragraphStart, int paragraphEnd)
     {
         var spans = new List<ManagedRangeSpan>();
         try
         {
-            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            dynamic controls = paragraphRange.ContentControls;
             int count = Convert.ToInt32(controls.Count);
             for (int i = 1; i <= count; i++)
             {
@@ -222,7 +222,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
-            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            dynamic inlineShapes = paragraphRange.InlineShapes;
             int count = Convert.ToInt32(inlineShapes.Count);
             for (int i = 1; i <= count; i++)
             {
