@@ -763,6 +763,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "overflow-x: auto" in taskpane_css
     assert "width: max-content" in taskpane_css
     assert "min-height: 44px" in taskpane_css
+    assert "@media (prefers-color-scheme: dark)" in taskpane_css
+    assert "--preview-bg: #222222" in taskpane_css
+    assert "background: var(--preview-bg)" in taskpane_css
+    assert "color: var(--input-text)" in taskpane_css
     assert "CreateDefaultLatex" in controller
     assert "CreateEditorDraftFromOptions" in controller
     assert "AutoNumberDisplayOnlyStatus" in controller
@@ -817,6 +821,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "w:vanish" not in omml_builder
     assert "WrapNumberContentControl" not in omml_builder
     assert "BuildEquationNumberRuns" in omml_builder
+    assert "if (metadata.NumberingMode == NumberingMode.Automatic)" in omml_builder
+    assert "return string.Empty;" in omml_builder.split(
+        "private static string BuildEquationNumberRuns",
+        1,
+    )[1].split("private static string NormalizeOmmlForWord", 1)[0]
     assert "<w:fldSimple" not in omml_builder
     assert "WordNumberPlacement" in omml_builder
     assert "<w:tbl" not in omml_builder
@@ -2347,17 +2356,27 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
     assert "addBookmark: false" in left_number_after_ole
     assert "AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);" in numbered_ole
     assert "private dynamic ReplaceEquationNumberAtRange(" not in lifecycle
-    replace_number = lifecycle.split(
-        "private bool TryReplaceEquationNumberAtRange(",
+    prepare_number = lifecycle.split(
+        "private bool TryPrepareEquationNumberField(",
         1,
-    )[1].split("private double ReadManagedEquationFontSize", 1)[0]
-    assert "numberRange.Delete();" not in replace_number
-    assert "sequenceFields.TryGetValue(metadata.Identity.EquationId" in replace_number
-    assert "numberRange.Document.Fields" not in replace_number
-    assert "field.Code.Text = WordEquationNumbering.BuildSequenceFieldCode" in replace_number
-    assert "field.Update()" in replace_number
-    assert "AddOrReplaceEquationBookmark(metadata.Identity.EquationId, updated);" in replace_number
-    assert "return false;" in replace_number
+    )[1].split("private void RefreshLaTeXSnipperSequenceFields", 1)[0]
+    refresh_number = lifecycle.split(
+        "private void RefreshLaTeXSnipperSequenceFields",
+        1,
+    )[1].split("private void UpdatePreparedEquationNumberRange", 1)[0]
+    update_number = lifecycle.split(
+        "private void UpdatePreparedEquationNumberRange",
+        1,
+    )[1].split("private Dictionary<string, object> BuildEquationSequenceFieldMap", 1)[0]
+    assert "numberRange.Delete();" not in prepare_number
+    assert "sequenceFields.TryGetValue(metadata.Identity.EquationId" in prepare_number
+    assert "numberRange.Document.Fields" not in lifecycle
+    assert "field.Code.Text = WordEquationNumbering.BuildSequenceFieldCode" in prepare_number
+    assert "field.Update()" not in prepare_number
+    assert "field.Update()" in refresh_number
+    assert "dynamic updated = field.Result.Duplicate;" in update_number
+    assert "AddOrReplaceEquationBookmark(metadata.Identity.EquationId, updated);" in update_number
+    assert "return false;" in prepare_number
     assert "BuildEquationSequenceFieldMap(document, formulas)" in (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Numbering.cs").read_text(
         encoding="utf-8",
     )
@@ -2367,9 +2386,21 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
     assert "document.Fields.Update()" not in numbering
     assert "UpdateEquationReferenceFields(document)" in numbering
     assert '"REF " + WordEquationNumbering.BookmarkPrefix' in numbering
-    assert "dynamic fields = document.Fields;" in lifecycle
+    assert "var preparedFields = new List<(NumberedFormulaEntry Formula, double FormulaHeight)>();" in numbering
+    assert "preparedFields.Add((formula, formulaHeight));" in numbering
+    assert "RefreshLaTeXSnipperSequenceFields(document);" in numbering
+    assert "refreshedSequenceFields.TryGetValue(formula.EquationId" in numbering
+    assert "UpdatePreparedEquationNumberRange(formula.Metadata, refreshedField, formulaHeight);" in numbering
+    assert "dynamic fields = document.Fields;" in lifecycle.split(
+        "private Dictionary<string, object> BuildEquationSequenceFieldMap",
+        1,
+    )[1].split("private bool TryFindEquationNumberRangeById", 1)[0]
+    assert "new SequenceFieldEntry(" not in lifecycle
     assert "TryFindEquationNumberRangeById(formula.EquationId" in lifecycle
-    assert "rangeToEquationId[BuildRangeKey(numberRange!)] = formula.EquationId;" in lifecycle
+    assert "TryFindSequenceFieldInRange(" not in lifecycle
+    assert "RangesTouchOrOverlap(" in lifecycle
+    assert "leftStart <= rightEnd && rightStart <= leftEnd" in read_word_adapter_sources()
+    assert "BuildRangeKey(" not in lifecycle
     auto_insert = lifecycle.split(
         "private dynamic InsertEquationNumberAtRange(",
         1,
@@ -2392,6 +2423,12 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
     assert "Automatic equation numbering requires a concrete Word number state." not in omml_builder
     assert "BuildAutomaticNumberField" not in omml_builder
     assert "<w:r><w:t>1</w:t></w:r>" not in omml_builder
+    assert "metadata.NumberingMode == NumberingMode.Automatic" in omml_builder
+    automatic_number_branch = omml_builder.split(
+        "if (metadata.NumberingMode == NumberingMode.Automatic)",
+        1,
+    )[1].split("string numberBody", 1)[0]
+    assert "return string.Empty;" in automatic_number_branch
 
 
 def test_word_managed_content_control_chrome_matches_control_role() -> None:
@@ -2490,8 +2527,17 @@ def test_word_renumbering_indexes_formula_objects_once() -> None:
     assert "document.Fields.Update()" not in numbering
     assert "UpdateEquationReferenceFields(document)" in numbering
     assert "TryLoadAutomaticFormulaMetadata(" in numbering
-    assert "skipped++;" in numbering
-    assert "new WordRenumberResult(count, skipped)" in numbering
+    timeline_method = numbering.split("private List<NumberingTimelineEntry> LoadNumberingTimelineEntriesBeforePosition", 1)[1].split(
+        "private static void UpdateEquationReferenceFields",
+        1,
+    )[0]
+    assert "TryLoadAutomaticFormulaMetadata(control, equationId, RenderEngineKind.Omml" in timeline_method
+    assert "TryLoadAutomaticFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg" in timeline_method
+    assert "LoadFormulaMetadata(control, equationId, RenderEngineKind.Omml)" not in timeline_method
+    assert "LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg)" not in timeline_method
+    assert "skippedMetadata++;" in numbering
+    assert "skippedNumbering++;" in numbering
+    assert "new WordRenumberResult(count, skippedMetadata, skippedNumbering)" in numbering
     assert "WordEquationNumbering.BuildSequenceFieldCode" in read_word_adapter_sources()
     assert "document.InlineShapes" in numbering
     assert "LoadFormulaMetadataById(equationId)" not in numbering

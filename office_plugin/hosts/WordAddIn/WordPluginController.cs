@@ -342,12 +342,23 @@ public sealed partial class WordPluginController : IDisposable
             result = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
 
-        string message = result.RenumberedCount == 0
-            ? WordAddInText.Get("NoNumberedStatus")
-            : WordAddInText.Get(result.SkippedCount > 0 ? "RenumberedWithSkippedStatus" : "RenumberedStatus")
-                .Replace("{count}", result.RenumberedCount.ToString(CultureInfo.InvariantCulture))
-                .Replace("{skipped}", result.SkippedCount.ToString(CultureInfo.InvariantCulture));
-        _statusSink.Post(result.RenumberedCount == 0 ? WordStatusKind.Info : WordStatusKind.Success, message);
+        bool foundNoNumberedFormula = result.RenumberedCount == 0 && result.SkippedCount == 0;
+        string message = BuildRenumberStatusMessage(result, foundNoNumberedFormula);
+        _statusSink.Post(foundNoNumberedFormula ? WordStatusKind.Info : WordStatusKind.Success, message);
+    }
+
+    private static string BuildRenumberStatusMessage(WordRenumberResult result, bool foundNoNumberedFormula)
+    {
+        if (foundNoNumberedFormula)
+        {
+            return WordAddInText.Get("NoNumberedStatus");
+        }
+
+        string messageKey = result.SkippedCount > 0 ? "RenumberedWithSkippedStatus" : "RenumberedStatus";
+        return WordAddInText.Get(messageKey)
+            .Replace("{count}", result.RenumberedCount.ToString(CultureInfo.InvariantCulture))
+            .Replace("{metadataSkipped}", result.SkippedMetadataCount.ToString(CultureInfo.InvariantCulture))
+            .Replace("{numberingSkipped}", result.SkippedNumberingCount.ToString(CultureInfo.InvariantCulture));
     }
 
     public Task ShowHelpAsync(CancellationToken cancellationToken)

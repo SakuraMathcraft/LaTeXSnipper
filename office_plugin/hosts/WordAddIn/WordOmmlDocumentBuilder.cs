@@ -148,15 +148,18 @@ public static class WordOmmlDocumentBuilder
 
     private static string BuildEquationNumberRuns(FormulaMetadata metadata)
     {
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            return string.Empty;
+        }
+
         WordPluginSettings settings = WordPluginSettings.Load();
         string bookmarkName = WordEquationNumbering.BuildBookmarkName(metadata.Identity.EquationId);
-        string numberBody = metadata.NumberingMode == NumberingMode.Automatic
-            ? string.Empty
-            : "<w:r><w:t>" +
-                EscapeXml(WordEquationNumbering.GetLeftEnclosure(settings.NumberEnclosure) +
-                    metadata.NumberText +
-                    WordEquationNumbering.GetRightEnclosure(settings.NumberEnclosure)) +
-                "</w:t></w:r>";
+        string numberBody = "<w:r><w:t>" +
+            EscapeXml(WordEquationNumbering.GetLeftEnclosure(settings.NumberEnclosure) +
+                metadata.NumberText +
+                WordEquationNumbering.GetRightEnclosure(settings.NumberEnclosure)) +
+            "</w:t></w:r>";
         return
             "<w:bookmarkStart w:id=\"0\" w:name=\"" + EscapeXml(bookmarkName) + "\"/>" +
             numberBody +
