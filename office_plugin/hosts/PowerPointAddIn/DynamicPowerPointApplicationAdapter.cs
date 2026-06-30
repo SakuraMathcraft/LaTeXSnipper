@@ -243,6 +243,35 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.FromResult<IReadOnlyList<PowerPointFormulaEntry>>(entries);
     }
 
+    public bool ContainsFormula(string equationId)
+    {
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            return false;
+        }
+
+        dynamic presentation = _application.ActivePresentation;
+        int slideCount = Convert.ToInt32(presentation.Slides.Count);
+        for (int slideIndex = 1; slideIndex <= slideCount; slideIndex++)
+        {
+            dynamic shapes = presentation.Slides.Item(slideIndex).Shapes;
+            int shapeCount = Convert.ToInt32(shapes.Count);
+            for (int shapeIndex = 1; shapeIndex <= shapeCount; shapeIndex++)
+            {
+                dynamic shape = shapes.Item(shapeIndex);
+                if (string.Equals(
+                    ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag),
+                    equationId,
+                    StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

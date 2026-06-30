@@ -336,16 +336,18 @@ public sealed partial class WordPluginController : IDisposable
 
     public async Task RenumberAllAsync(CancellationToken cancellationToken)
     {
-        int number;
+        WordRenumberResult result;
         using (_wordAdapter.BeginUndoRecord())
         {
-            number = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
+            result = await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
 
-        string message = number == 0
+        string message = result.RenumberedCount == 0
             ? WordAddInText.Get("NoNumberedStatus")
-            : WordAddInText.Get("RenumberedStatus").Replace("{count}", number.ToString(CultureInfo.InvariantCulture));
-        _statusSink.Post(number == 0 ? WordStatusKind.Info : WordStatusKind.Success, message);
+            : WordAddInText.Get(result.SkippedCount > 0 ? "RenumberedWithSkippedStatus" : "RenumberedStatus")
+                .Replace("{count}", result.RenumberedCount.ToString(CultureInfo.InvariantCulture))
+                .Replace("{skipped}", result.SkippedCount.ToString(CultureInfo.InvariantCulture));
+        _statusSink.Post(result.RenumberedCount == 0 ? WordStatusKind.Info : WordStatusKind.Success, message);
     }
 
     public Task ShowHelpAsync(CancellationToken cancellationToken)
@@ -432,12 +434,15 @@ public sealed partial class WordPluginController : IDisposable
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OmmlInsertedStatus"));
     }
 
-    private async Task UpdatePreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken)
+    private async Task UpdatePreparedFormulaAsync(PreparedWordFormula prepared, CancellationToken cancellationToken, bool reportStatus = true)
     {
         if (prepared.OlePresentation != null)
         {
             await _wordAdapter.UpdateOleFormulaObjectAsync(prepared.Metadata.Identity.EquationId, prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
-            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+            if (reportStatus)
+            {
+                _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+            }
             return;
         }
 
@@ -449,7 +454,10 @@ public sealed partial class WordPluginController : IDisposable
             prepared.Metadata,
             prepared.Display,
             cancellationToken);
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+        if (reportStatus)
+        {
+            _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("UpdatedStatus"));
+        }
     }
 
     private async Task<OlePresentationResult> RenderOlePresentationAsync(

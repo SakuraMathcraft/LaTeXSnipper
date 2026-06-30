@@ -194,7 +194,9 @@ REF LaTeXSnipperEq_{equationId} \h
 3. 同时扫描章/节分隔符 content control。
 4. 按文档位置合并排序，计算每个公式的章/节前缀、`SEQ` 是否重置和外框。
 5. 对每个公式只替换其已有编号范围；不会重新渲染公式主体，也不会改写 LaTeX 源码。
-6. 更新 Word 字段，并对 OLE 编号按公式高度重新应用基线偏移。
+6. 一次性建立 `EquationId -> SEQ Field` 映射，避免每个公式重复扫描 `document.Fields`。
+7. 更新 LaTeXSnipper 引用字段，并对 OLE 编号按公式高度重新应用基线偏移。
+8. 找不到元数据、编号书签或 SEQ 字段的异常公式计入跳过数量，剩余公式继续重编号。
 
 重编号不负责插入新公式、不负责格式化源码、不负责转换渲染引擎。
 
@@ -288,7 +290,7 @@ REF LaTeXSnipperEq_{equationId} \h
 4. 用 Word content control 替换 OLE 对象。
 5. 恢复公式 ID、编号状态、字号和元数据。
 
-转换只处理当前选区内的公式，不扫描全文。
+转换只处理当前选区内的公式，不扫描全文。多选转换入口只收集 `EquationId`、起始位置、渲染类型和必要元数据快照，不跨批持有 `ContentControl`、`InlineShape` 或 shape 这类 live COM object。转换按文档位置倒序分批执行，每批重新按稳定 ID 确认对象仍存在；找不到对象则计入跳过数量，剩余公式继续处理。Word 每批使用短 undo record，避免把大量对象包进一个超长事务。
 
 `OMML 转 OLE` 命令会额外识别当前选区内的 Word 原生 OMML 公式，并按上面的 MathML 源码链路转换为 LaTeXSnipper OLE。该能力只属于显式转换入口。
 
@@ -306,6 +308,10 @@ REF LaTeXSnipperEq_{equationId} \h
 6. 按公式当前渲染引擎重新渲染并替换。
 
 多行环境和 `\displaylines` 会按顶层段落或对齐段落包装，避免把整段环境粗暴包成一个不可控外壳。
+
+多选格式化所选同样只使用稳定快照，不跨批持有 live COM object。涉及对象替换的 Word/PowerPoint 公式按倒序分批处理；每批更新一次状态窗格进度，避免 UI 更新本身成为瓶颈。Word 每批使用短 undo record。
+
+行内基线修正只扫描当前段落内的 content control 和 inline shape，不再为一个所选公式扫描全文公式对象。
 
 ### 格式化全文
 
@@ -340,10 +346,20 @@ PowerPoint 编辑器固定白底黑字，因为 PowerPoint 编辑画布背景板
 | Word 原生 OMML 转 OLE | 高 | 提取 Word 原生 OMML，转 MathML，把 MathML 作为源码保存，再生成 OLE；不参与 LaTeX 格式化 |
 | OLE 转 OMML | 高 | 读取 LaTeX 或 MathML 源码，MathJax 输出 MathML，再由 Word OMML 转换器生成 content control |
 | Word 编号公式 | 高 | 公式对象、tab stop、SEQ 字段、编号范围书签和文档变量必须一起维护 |
+| Word 重编号 | 中 | 一次扫描公式、章/节边界和字段；异常公式跳过，引用字段只更新 LaTeXSnipper REF |
 | Word 引用 | 中 | 占位符、目标公式选择、书签和 REF 字段组合；稳定入口是公式或公式所在段落 |
-| 格式化所选 | 中 | 仅适合 LaTeX 源码公式；会重写顶层字体和颜色宏并重新渲染 |
+| 批量转换所选 | 高 | 稳定快照、倒序分批、每批短 undo；主要耗时仍是 MathJax 渲染和 Office COM 替换 |
+| 格式化所选 | 中 | 仅适合 LaTeX 源码公式；会重写顶层字体和颜色宏并重新渲染；多选时分批处理 |
 | 格式化全文 | 低 | 只恢复自然字号或自然尺寸，不批量改写源码 |
-| PowerPoint OLE/PNG | 中 | shape 元数据、自然尺寸、渲染引擎切换和位置缩放维护 |
+| PowerPoint OLE/PNG | 中 | shape 元数据、自然尺寸、渲染引擎切换和位置缩放维护；多选转换和格式化按批处理 |
+
+## 本次性能优化摘要
+
+- 重编号：`document.Fields` 只扫描一次并建立 `EquationId -> SEQ Field` 映射；引用更新只处理 LaTeXSnipper REF 字段，不调用全文 `document.Fields.Update()`。
+- 重编号容错：元数据、编号书签或 SEQ 字段缺失的异常公式会被跳过并计数，剩余公式继续重编号。
+- 添加编号/插入编号公式：编号状态计算优先按当前位置前的对象构建时间线，减少不必要的元数据读取。
+- 格式化所选行内基线：只扫描当前段落对象，避免大文档中选一个公式也遍历全文。
+- 批量转换和批量格式化所选：只收集稳定快照；不跨批持有 live COM object；按 5 个公式一批处理；转换和涉及替换的格式化按倒序执行；每批更新一次状态窗格；Word 每批使用短 undo record 和短屏幕刷新暂停区间。
 
 ## OLE payload
 

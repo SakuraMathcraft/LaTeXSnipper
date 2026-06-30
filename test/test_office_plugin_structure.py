@@ -697,6 +697,14 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "NormalizeManagedInlineEquationBaseline(metadata, insertedControl)" in adapter
     assert "NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId))" in adapter
     assert "LoadManagedFormulaSpans" in adapter
+    managed_spans = adapter.split("private List<ManagedRangeSpan> LoadManagedFormulaSpans(", 1)[1].split(
+        "private static void AddManagedSpanIfInParagraph",
+        1,
+    )[0]
+    assert "paragraphRange.ContentControls" in managed_spans
+    assert "paragraphRange.InlineShapes" in managed_spans
+    assert "_wordApplication.ActiveDocument.ContentControls" not in managed_spans
+    assert "_wordApplication.ActiveDocument.InlineShapes" not in managed_spans
     assert "ResetPlainTextBaseline" in adapter
     assert "_wordApplication.Selection.Font.Position = 0" in adapter
     assert "_wordApplication.Selection.Font.Superscript = 0" in adapter
@@ -1322,7 +1330,10 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "same local MathJax 3.2.2 extension set" in help_html
         assert "noerrors/noundefined are not enabled" in help_html
         assert "\\require is not enabled by default" in help_html
-        assert "exactly one selected managed formula" in help_html
+        assert "managed formulas in the current selection" in help_html
+        assert "multi-selection runs in batches" in help_html
+        assert "reports progress in the status pane" in help_html
+        assert "selecting only the number text does not delete the formula" in help_html
         assert "Format All only restores manually resized formulas to natural size" in help_html
         assert "selected formulas or the whole document" not in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
@@ -1656,9 +1667,15 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "SingleFormulaRequired" not in convert_method
     assert "entry.Metadata.RenderEngine == target" in convert_method
     assert "continue;" in convert_method
+    assert "BatchFormulaOperationSize = 5" in commands
+    assert "PostBatchProgress(\"BatchConvertingStatus\"" in convert_method
+    assert "_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId)" in convert_method
+    assert "if (await ReplaceEntryAsync(entry, WithRenderEngine(entry.Metadata, target), entry.Scale, cancellationToken))" in convert_method
+    assert "ConvertedWithSkippedStatus" in commands
     assert "EnsureUniqueShapeIdentity(shape)" in adapter
     assert "EnsureUniqueShapeIdentities(shapes)" in adapter
     assert "CountFormulaShapesById" in adapter
+    assert "public bool ContainsFormula(string equationId)" in adapter
     assert "WithNewIdentity(ReadMetadataFromShape(formulaShape))" in adapter
     assert "PowerPointFormulaMetadataStore.ApplyToShape(formulaShape, metadata, naturalWidth, naturalHeight)" in adapter
     assert "LoadAllFormulaEntriesAsync" not in adapter
@@ -1675,6 +1692,20 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "entry.SlideIndex" in commands
     assert "Math.Abs(entry.Scale - 1) > 0.01" in commands
     assert "MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle" in commands
+    format_method = commands.split("private async Task FormatAsync", 1)[1].split(
+        "private async Task ReplaceEntryAsync",
+        1,
+    )[0]
+    assert "PostBatchProgress(\"BatchFormattingStatus\"" in format_method
+    assert "_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId)" in format_method
+    assert "if (await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken))" in format_method
+    assert "FormattedWithSkippedStatus" in commands
+    replace_method = commands.split("private async Task<bool> ReplaceEntryAsync", 1)[1].split(
+        "private void PostChangedCount",
+        1,
+    )[0]
+    assert replace_method.count("_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId)") == 2
+    assert "return false;" in replace_method
     assert "entry.Metadata.FontStyle" not in commands
     assert "entry.Metadata.FontColor" not in commands
     default_formatting = controller.split("private static string ApplyDefaultSourceFormatting", 1)[1].split(
@@ -1976,18 +2007,35 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "SingleFormulaRequired" not in convert_method
     assert "formula.RenderEngine == targetEngine" in convert_method
     assert "continue;" in convert_method
+    assert "BatchFormulaOperationSize = 5" in controller
+    assert "PostBatchProgress(\"BatchConvertingStatus\"" in convert_method
+    assert "_wordAdapter.ContainsFormula(formula.Identity.EquationId)" in convert_method
+    assert "_wordAdapter.ContainsNativeWordFormula(entry.Start)" in convert_method
+    assert "using (_wordAdapter.BeginUndoRecord())" in convert_method
+    assert "UpdatePreparedFormulaAsync(prepared, cancellationToken, reportStatus: false)" in convert_method
+    assert "ConvertedWithSkippedStatus" in controller
     assert "ConvertAllToOleAsync" not in controller
     assert "ConvertAllToOmmlAsync" not in controller
     assert "NoConversionNeededStatus" in controller
     assert "FormatAsync(bool all" in controller
     assert 'WordAddInText.Get("WorkingStatus")' in controller
     assert "reportProgress: false" in controller
+    format_method = controller.split("private async Task FormatAsync", 1)[1].split(
+        "private async Task ResetAllNaturalSizesAsync",
+        1,
+    )[0]
+    assert "PostBatchProgress(\"BatchFormattingStatus\"" in format_method
+    assert "_wordAdapter.ContainsFormula(formula.Identity.EquationId)" in format_method
+    assert "using (_wordAdapter.BeginUndoRecord())" in format_method
+    assert "FormattedWithSkippedStatus" in controller
     assert "MathLiveLatexStyleNormalizer.RemoveColorFormatting" in controller
     assert "MathLiveLatexStyleNormalizer.ApplyRenderFontStyle" in main_controller
     assert "NormalizeFormulaLatex(latex)" in main_controller
     assert "MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim())" in main_controller
     assert "LoadAllFormulaEntriesAsync" not in operations
     assert "LoadSelectedFormulaEntriesAsync" in adapter
+    assert "public bool ContainsFormula(string equationId)" in adapter
+    assert "public bool ContainsNativeWordFormula(int start)" in adapter
     assert ".OrderByDescending(item => item.Start)" in adapter
     assert "AddOleInlineShapesInsideSelection(selectedFormulas)" in adapter
     assert "shapeStart >= selectionStart && shapeStart < selectionEnd" in adapter
@@ -2099,7 +2147,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "WdAlignTabCenter" in adapter
     assert "NumberedFormulaSideColumnPoints" not in adapter
     assert "table.Range.Cells.VerticalAlignment = WdCellAlignVerticalCenter" not in adapter
-    renumber_method = adapter.split("public Task<int> RenumberAutomaticFormulasAsync", 1)[1].split(
+    renumber_method = adapter.split("public Task<WordRenumberResult> RenumberAutomaticFormulasAsync", 1)[1].split(
         "private void ReplaceFormulaContent",
         1,
     )[0]
@@ -2280,6 +2328,48 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
     assert "WordEquationNumbering.GetRightEnclosure(enclosure)" in lifecycle
     assert "BuildSequenceFieldCode(resetSequence, prefix, enclosure)" in lifecycle
     assert "BuildSequenceFieldCode(resetSequence, format" not in lifecycle
+    left_numbered_ole = lifecycle.split(
+        "if (placement == WordNumberPlacement.Left)",
+        1,
+    )[1].split("else", 1)[0]
+    assert "InsertEquationNumberAtRange" not in left_numbered_ole
+    assert 'InsertTextAtRange(cursor, "\\t");' in left_numbered_ole
+    numbered_ole = lifecycle.split(
+        "private dynamic InsertNumberedOleInlineShape(",
+        1,
+    )[1].split("private dynamic AddOleInlineShapeAtRange", 1)[0]
+    assert "int leftNumberPosition = GetRangeStart(cursor);" in numbered_ole
+    left_number_after_ole = numbered_ole.split(
+        "dynamic inlineShape = AddOleInlineShapeAtRange(cursor, metadata, presentation);",
+        1,
+    )[1].split("else", 1)[0]
+    assert "CreateDocumentRange(leftNumberPosition, leftNumberPosition)" in left_number_after_ole
+    assert "addBookmark: false" in left_number_after_ole
+    assert "AddOrReplaceEquationBookmark(metadata.Identity.EquationId, numberRange);" in numbered_ole
+    assert "private dynamic ReplaceEquationNumberAtRange(" not in lifecycle
+    replace_number = lifecycle.split(
+        "private bool TryReplaceEquationNumberAtRange(",
+        1,
+    )[1].split("private double ReadManagedEquationFontSize", 1)[0]
+    assert "numberRange.Delete();" not in replace_number
+    assert "sequenceFields.TryGetValue(metadata.Identity.EquationId" in replace_number
+    assert "numberRange.Document.Fields" not in replace_number
+    assert "field.Code.Text = WordEquationNumbering.BuildSequenceFieldCode" in replace_number
+    assert "field.Update()" in replace_number
+    assert "AddOrReplaceEquationBookmark(metadata.Identity.EquationId, updated);" in replace_number
+    assert "return false;" in replace_number
+    assert "BuildEquationSequenceFieldMap(document, formulas)" in (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Numbering.cs").read_text(
+        encoding="utf-8",
+    )
+    numbering = (PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Numbering.cs").read_text(
+        encoding="utf-8",
+    )
+    assert "document.Fields.Update()" not in numbering
+    assert "UpdateEquationReferenceFields(document)" in numbering
+    assert '"REF " + WordEquationNumbering.BookmarkPrefix' in numbering
+    assert "dynamic fields = document.Fields;" in lifecycle
+    assert "TryFindEquationNumberRangeById(formula.EquationId" in lifecycle
+    assert "rangeToEquationId[BuildRangeKey(numberRange!)] = formula.EquationId;" in lifecycle
     auto_insert = lifecycle.split(
         "private dynamic InsertEquationNumberAtRange(",
         1,
@@ -2397,7 +2487,11 @@ def test_word_renumbering_indexes_formula_objects_once() -> None:
 
     assert "NumberingDocumentEntry" not in operations
     assert "IndexedFormulaObject" not in read_word_adapter_sources()
-    assert "document.Fields.Update()" in numbering
+    assert "document.Fields.Update()" not in numbering
+    assert "UpdateEquationReferenceFields(document)" in numbering
+    assert "TryLoadAutomaticFormulaMetadata(" in numbering
+    assert "skipped++;" in numbering
+    assert "new WordRenumberResult(count, skipped)" in numbering
     assert "WordEquationNumbering.BuildSequenceFieldCode" in read_word_adapter_sources()
     assert "document.InlineShapes" in numbering
     assert "LoadFormulaMetadataById(equationId)" not in numbering

@@ -25,6 +25,8 @@ public interface IPowerPointApplicationAdapter
 
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 
+    bool ContainsFormula(string equationId);
+
     Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken);
 
     Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);

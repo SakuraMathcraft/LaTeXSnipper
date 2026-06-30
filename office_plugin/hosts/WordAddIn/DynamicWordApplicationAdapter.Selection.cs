@@ -35,6 +35,33 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.FromResult(entries);
     }
 
+    public bool ContainsFormula(string equationId)
+    {
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            return false;
+        }
+
+        return TryGetEquationControlById(equationId) != null ||
+            TryFindOleInlineShapeById(equationId) != null;
+    }
+
+    public bool ContainsNativeWordFormula(int start)
+    {
+        dynamic equations = _wordApplication.ActiveDocument.OMaths;
+        int count = Convert.ToInt32(equations.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic equation = equations.Item(index);
+            if (GetRangeStart(equation.Range) == start)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private SelectedWordFormula EnsureUniqueFormulaIdentity(SelectedWordFormula selected)
     {
         string equationId = selected.Metadata.Identity.EquationId;
