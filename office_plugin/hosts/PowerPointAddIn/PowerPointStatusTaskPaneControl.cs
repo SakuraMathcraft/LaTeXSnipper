@@ -14,6 +14,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointStatusSink, IPowerPointFormulaOptionsProvider
 {
     private const string TaskPaneHostName = "latexsnipper-powerpoint.officeplugin.local";
+    private const string SharedEditorHostName = "latexsnipper-editor-shared.officeplugin.local";
 
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private readonly WebView2 _webView;
@@ -135,6 +136,7 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
 
         _initializing = true;
         string assetsRoot = ResolveAssetsRoot();
+        string sharedAssetsRoot = ResolveSharedAssetsRoot();
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",
@@ -149,6 +151,10 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             TaskPaneHostName,
             assetsRoot,
+            CoreWebView2HostResourceAccessKind.Allow);
+        _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            SharedEditorHostName,
+            sharedAssetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -282,5 +288,11 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
     {
         return InstalledAssetResolver.FindAssetRoot("taskpane.html")
             ?? throw new DirectoryNotFoundException("Task pane assets were not found.");
+    }
+
+    private static string ResolveSharedAssetsRoot()
+    {
+        return InstalledAssetResolver.FindSharedAssetRoot("vendor\\mathlive.min.mjs")
+            ?? throw new DirectoryNotFoundException("Shared editor assets were not found.");
     }
 }

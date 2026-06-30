@@ -15,11 +15,29 @@ internal static class MathJaxRenderScriptBuilder
 window.LaTeXSnipperMathJaxStartupReady = false;
 window.MathJax = {
   loader: {
-    load: ['[tex]/bbox', '[tex]/boldsymbol', '[tex]/color', '[tex]/enclose', '[tex]/mhchem', '[tex]/textmacros', '[tex]/unicode', '[tex]/upgreek']
+    load: [
+      '[tex]/action', '[tex]/amscd', '[tex]/bbox', '[tex]/boldsymbol',
+      '[tex]/braket', '[tex]/bussproofs',
+      '[tex]/cancel', '[tex]/cases', '[tex]/centernot', '[tex]/color',
+      '[tex]/colortbl', '[tex]/configmacros', '[tex]/empheq', '[tex]/enclose',
+      '[tex]/extpfeil', '[tex]/gensymb', '[tex]/html', '[tex]/mathtools',
+      '[tex]/mhchem', '[tex]/physics', '[tex]/setoptions', '[tex]/tagformat',
+      '[tex]/textcomp', '[tex]/textmacros', '[tex]/unicode', '[tex]/upgreek',
+      '[tex]/verb'
+    ]
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem', 'textmacros', 'unicode', 'upgreek']
+      '[+]': [
+        'action', 'amscd', 'bbox', 'boldsymbol',
+        'braket', 'bussproofs',
+        'cancel', 'cases', 'centernot', 'color',
+        'colortbl', 'configmacros', 'empheq', 'enclose',
+        'extpfeil', 'gensymb', 'html', 'mathtools',
+        'mhchem', 'physics', 'setoptions', 'tagformat',
+        'textcomp', 'textmacros', 'unicode', 'upgreek',
+        'verb'
+      ]
     }
   },
   startup: {

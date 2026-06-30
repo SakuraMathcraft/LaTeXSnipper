@@ -125,17 +125,32 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     assert "if (!_currentUpdateMode || _restoredDraftForCurrentConfiguration)" in cancel_method
     assert "EditorCancelled?.Invoke(this, EventArgs.Empty);" in cancel_method
 
+    editor_js = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "editor.js"
+    ).read_text(encoding="utf-8")
+
     for host_name in ("WordAddIn", "PowerPointAddIn"):
         assets = PLUGIN / "hosts" / host_name / "EditorAssets"
         editor_html = (assets / "editor.html").read_text(encoding="utf-8")
-        editor_js = (assets / "editor.js").read_text(encoding="utf-8")
         taskpane_js = (assets / "taskpane.js").read_text(encoding="utf-8")
 
         assert "mathfield-input.js" in editor_html
+        assert "https://latexsnipper-editor-shared.officeplugin.local/editor.js" in editor_html
+        assert not (assets / "editor.js").exists()
         assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
+        assert 'new URL("./vendor/fonts", import.meta.url).href' in editor_js
+        assert 'new URL("./vendor/fonts", window.location.href).href' not in editor_js
         assert "LaTeXSnipperMathfieldInput.setDefaultFontStyle" not in editor_js
         assert "LaTeXSnipperMathfieldInput.normalizeLatex" in editor_js
         assert "normalizeLatex" not in taskpane_js
+        assert 'from "https://latexsnipper-editor-shared.officeplugin.local/vendor/mathlive.min.mjs"' in taskpane_js
+        assert 'from "./vendor/mathlive.min.mjs"' not in taskpane_js
+        assert '"https://latexsnipper-editor-shared.officeplugin.local/vendor/fonts"' in taskpane_js
+        assert 'new URL("./vendor/fonts", window.location.href).href' not in taskpane_js
         assert "normalizeAlphabetLimitedFontCommands" not in taskpane_js
         assert "rewriteAlphabetLimitedContent" not in taskpane_js
         assert "translateMathAlphabetCharacter" not in taskpane_js
@@ -240,10 +255,17 @@ def test_office_editor_matrix_templates_are_shared_and_ordered() -> None:
     positions = [symbol_library.index(entry) for entry in ordered_entries]
     assert positions == sorted(positions)
 
+    editor_js = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "editor.js"
+    ).read_text(encoding="utf-8")
+
     for host_name in ("WordAddIn", "PowerPointAddIn"):
         assets = PLUGIN / "hosts" / host_name / "EditorAssets"
         editor_html = (assets / "editor.html").read_text(encoding="utf-8")
-        editor_js = (assets / "editor.js").read_text(encoding="utf-8")
 
         assert "matrix-templates.js" in editor_html
         assert "LaTeXSnipperMatrixTemplates.insert(mathfield, env, rows, cols)" in editor_js
@@ -482,6 +504,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaEditorAcceptedEventArgs.cs").is_file()
     assert (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "FormulaEditorSubmissionResult.cs").is_file()
     assert (host_root / "EditorAssets" / "editor.html").is_file()
+    assert not (host_root / "EditorAssets" / "editor.js").exists()
     assert (host_root / "EditorAssets" / "taskpane.html").is_file()
     assert (host_root / "EditorAssets" / "taskpane.css").is_file()
     assert (host_root / "EditorAssets" / "taskpane.js").is_file()
@@ -565,6 +588,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert 'Guid.NewGuid().ToString("N").Substring(0, 10)' in metadata_store
     assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
+    assert "EnsureUniqueFormulaIdentity(FindSelectedFormula())" in adapter
+    assert ".Select(EnsureUniqueFormulaIdentity)" in adapter
+    assert "CountManagedFormulasById" in adapter
+    assert "WithNewIdentity(selected.Metadata, \"active-document\")" in adapter
+    assert "SaveFormulaMetadata(selected.ContentControl, metadata)" in adapter
     assert "UpdateFormulaAsync" in adapter
     assert "DeleteSelectedFormulaAsync" in adapter
     assert "RenumberAutomaticFormulasAsync" in adapter
@@ -781,7 +809,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "w:vanish" not in omml_builder
     assert "WrapNumberContentControl" not in omml_builder
     assert "BuildEquationNumberRuns" in omml_builder
-    assert "<w:fldSimple" in omml_builder
+    assert "<w:fldSimple" not in omml_builder
     assert "WordNumberPlacement" in omml_builder
     assert "<w:tbl" not in omml_builder
     assert "<w:vAlign w:val=\\\"center\\\"/>" not in omml_builder
@@ -824,9 +852,16 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "ShowDialog" not in (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8")
     assert "MinimizeBox = false" not in shared_editor_form
     editor_html = (host_root / "EditorAssets" / "editor.html").read_text(encoding="utf-8")
-    editor_js = (host_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
+    editor_js = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "editor.js"
+    ).read_text(encoding="utf-8")
     editor_css = (host_root / "EditorAssets" / "editor.css").read_text(encoding="utf-8")
     assert "displayMode" not in editor_html
+    assert "https://latexsnipper-editor-shared.officeplugin.local/editor.js" in editor_html
     assert "display: true" in editor_js
     assert "let submitting = false" in editor_js
     assert "function setSubmitting" in editor_js
@@ -1010,12 +1045,14 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "CreateEditorDraft" in ppt_controller
     insert_formula_method = ppt_controller.split("public async Task InsertFormulaAsync", 1)[1].split("public async Task InsertFormulaFromTaskPaneAsync", 1)[0]
     assert "DefaultLatex" not in insert_formula_method
-    assert editor_js == (power_point_root / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
+    assert not (power_point_root / "EditorAssets" / "editor.js").exists()
     assert "@media (prefers-color-scheme: dark)" in editor_css
     assert "color-scheme: light dark" in editor_css
     assert "--field-bg: #202020" in editor_css
-    assert "@media (prefers-color-scheme: dark)" not in ppt_editor_css
-    assert "color-scheme: light;" in ppt_editor_css
+    assert "@media (prefers-color-scheme: dark)" in ppt_editor_css
+    assert "color-scheme: light dark" in ppt_editor_css
+    assert "--field-bg: #ffffff" in ppt_editor_css
+    assert "--formula-text: #000000" in ppt_editor_css
 
     help_html = (host_root / "EditorAssets" / "help.html").read_text(encoding="utf-8")
     assert "LaTeXSnipper Office 插件" in help_html
@@ -1136,7 +1173,7 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert "Verb\\0" not in setup_text
     assert "\\Insertable" not in setup_text
     assert "OleFormulaRenderer" not in setup_text
-    assert 'Source: "..\\hosts\\WordAddIn\\bin\\{#Config}\\net48\\MathJax-3.2.2\\*"' in setup_text
+    assert 'Source: "..\\release\\InstallerAssets\\MathJax-3.2.2\\*"' in setup_text
     assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
@@ -1195,8 +1232,32 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "checksum mismatch" in office_job
     assert "lfs: true" in office_job
     installer_build_text = (PLUGIN / "installer" / "build.bat").read_text(encoding="utf-8")
+    prepare_assets_text = (PLUGIN / "tools" / "Prepare-InstallerAssets.ps1").read_text(encoding="utf-8")
+    checksum_text = (PLUGIN / "tools" / "Write-InstallerChecksum.ps1").read_text(encoding="utf-8")
     assert "Build-NativeOleHandler.ps1" in installer_build_text
+    assert "Prepare-InstallerAssets.ps1" in installer_build_text
+    assert "Write-InstallerChecksum.ps1" in installer_build_text
+    for host in ("WordAddIn", "PowerPointAddIn"):
+        status_pane = (PLUGIN / "hosts" / host / f"{host.removesuffix('AddIn')}StatusTaskPaneControl.cs").read_text(encoding="utf-8")
+        resolver = (PLUGIN / "hosts" / host / "InstalledAssetResolver.cs").read_text(encoding="utf-8")
+        project_text = (PLUGIN / "hosts" / host / f"LaTeXSnipper.OfficePlugin.{host}.csproj").read_text(encoding="utf-8")
+        assert "latexsnipper-editor-shared.officeplugin.local" in status_pane
+        assert "ResolveSharedAssetsRoot()" in status_pane
+        assert "SetVirtualHostNameToFolderMapping(" in status_pane
+        assert 'FindSharedAssetRoot("vendor\\\\mathlive.min.mjs")' in status_pane
+        assert "FindSharedAssetRoot" in resolver
+        assert 'Path.Combine(parentDirectory, "EditorSharedAssets")' in resolver
+        assert "EditorAssets\\vendor" not in project_text
+        assert "src\\assets\\mathlive\\vendor" not in project_text
+    assert "OutputDir=..\\release" in setup_text
+    assert 'DestDir: "{app}\\EditorSharedAssets"' in setup_text
+    assert 'DestDir: "{app}\\Word\\EditorSharedAssets"' not in setup_text
+    assert 'DestDir: "{app}\\PowerPoint\\EditorSharedAssets"' not in setup_text
+    assert "compute-engine.min.esm.js" in prepare_assets_text
+    assert "compute-engine.LICENSE.txt" in prepare_assets_text
     assert "WindowsPowerShell\\v1.0\\powershell.exe" in installer_build_text
+    assert "Get-FileHash" not in checksum_text
+    assert "[System.Security.Cryptography.SHA256]::Create()" in checksum_text
     assert "call powershell " not in installer_build_text
     for obsolete_release_logic in (
         "vs_BuildTools.exe",
@@ -1253,6 +1314,14 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "Default font option; source command" in help_html
         assert "\\mathbb{R},\\mathbb{N}" in help_html
         assert "\\boldsymbol{\\alpha+\\nabla f}" in help_html
+        assert "\\qty(\\frac{a}{b})" in help_html
+        assert "\\braket{\\psi|\\phi}" in help_html
+        assert "\\begin{cases}x^2" in help_html
+        assert "\\cancel{x}" in help_html
+        assert "\\prescript{a}{b}{X}" in help_html
+        assert "same local MathJax 3.2.2 extension set" in help_html
+        assert "noerrors/noundefined are not enabled" in help_html
+        assert "\\require is not enabled by default" in help_html
         assert "exactly one selected managed formula" in help_html
         assert "Format All only restores manually resized formulas to natural size" in help_html
         assert "selected formulas or the whole document" not in help_html
@@ -1338,8 +1407,41 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
         / "FormulaFontStyle.cs"
     ).read_text(encoding="utf-8")
 
-    for package in ("bbox", "boldsymbol", "color", "enclose", "mhchem", "textmacros", "unicode", "upgreek"):
+    for package in (
+        "action",
+        "amscd",
+        "bbox",
+        "boldsymbol",
+        "braket",
+        "bussproofs",
+        "cancel",
+        "cases",
+        "centernot",
+        "color",
+        "colortbl",
+        "configmacros",
+        "empheq",
+        "enclose",
+        "extpfeil",
+        "gensymb",
+        "html",
+        "mathtools",
+        "mhchem",
+        "physics",
+        "setoptions",
+        "tagformat",
+        "textcomp",
+        "textmacros",
+        "unicode",
+        "upgreek",
+        "verb",
+    ):
         assert f"'[tex]/{package}'" in script_builder
+        assert f"'{package}'" in script_builder
+    assert "'[tex]/noerrors'" not in script_builder
+    assert "'[tex]/noundefined'" not in script_builder
+    assert "'[tex]/colorv2'" not in script_builder
+    assert "'[tex]/require'" not in script_builder
     assert "preprocessTexSource" in script_builder
     assert "normalizeMathLiveLatex" not in script_builder
     assert ".replace(/\\\\bm" not in script_builder
@@ -1380,6 +1482,7 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
     }.items():
         assert f'FormulaFontStyle.{font_style} => "{command}{{" + latex + "}}"' in normalizer
     assert "NormalizeLatex(string latex)" in normalizer
+    assert "HasFontStyleFormatting(string latex)" in normalizer
     assert "Regex.Replace(latex ?? string.Empty" in normalizer
     assert "NormalizeAlphabetLimitedFontCommands" not in normalizer
     assert "AlphabetLimitedFontStyleCommands" not in normalizer
@@ -1421,10 +1524,10 @@ def test_mathjax_supports_mathlive_styles_and_chemistry() -> None:
         project = (
             PLUGIN / "hosts" / host / f"LaTeXSnipper.OfficePlugin.{host}.csproj"
         ).read_text(encoding="utf-8")
-        vendor_item = project.split(
-            '<Content Include="..\\..\\..\\src\\assets\\mathlive\\vendor\\**\\*">', 1
-        )[1].split("</Content>", 1)[0]
-        assert "<CopyToOutputDirectory>Always</CopyToOutputDirectory>" in vendor_item
+        assert "..\\..\\..\\src\\assets\\mathlive\\vendor\\**\\*" not in project
+        assert "EditorAssets\\vendor" not in project
+        assert "..\\..\\src\\LaTeXSnipper.OfficePlugin.Editor\\EditorAssets\\**\\*" in project
+        assert "EditorSharedAssets\\%(RecursiveDir)%(Filename)%(Extension)" in project
 
 
 def test_editor_does_not_load_formula_color_or_font_metadata() -> None:
@@ -1442,9 +1545,14 @@ def test_editor_does_not_load_formula_color_or_font_metadata() -> None:
     assert '["fontStyle"]' not in editor_form
     assert "function setDefaultColor(mathfield, fontColor)" in shared_input
     assert "mathfield.style.color = color" in shared_input
-    for host in ("WordAddIn", "PowerPointAddIn"):
-        editor = (PLUGIN / "hosts" / host / "EditorAssets" / "editor.js").read_text(encoding="utf-8")
-        assert "setDefaultColor(" not in editor
+    editor = (
+        PLUGIN
+        / "src"
+        / "LaTeXSnipper.OfficePlugin.Editor"
+        / "EditorAssets"
+        / "editor.js"
+    ).read_text(encoding="utf-8")
+    assert "setDefaultColor(" not in editor
 
 
 def test_office_native_conversion_paths_use_local_mathjax() -> None:
@@ -1548,6 +1656,11 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "SingleFormulaRequired" not in convert_method
     assert "entry.Metadata.RenderEngine == target" in convert_method
     assert "continue;" in convert_method
+    assert "EnsureUniqueShapeIdentity(shape)" in adapter
+    assert "EnsureUniqueShapeIdentities(shapes)" in adapter
+    assert "CountFormulaShapesById" in adapter
+    assert "WithNewIdentity(ReadMetadataFromShape(formulaShape))" in adapter
+    assert "PowerPointFormulaMetadataStore.ApplyToShape(formulaShape, metadata, naturalWidth, naturalHeight)" in adapter
     assert "LoadAllFormulaEntriesAsync" not in adapter
     assert "ResetCustomFormulaSizesAsync" in adapter
     assert "ResetCustomFormulaSizesAsync" in commands
@@ -1564,6 +1677,14 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle" in commands
     assert "entry.Metadata.FontStyle" not in commands
     assert "entry.Metadata.FontColor" not in commands
+    default_formatting = controller.split("private static string ApplyDefaultSourceFormatting", 1)[1].split(
+        "private static FormulaMetadata WithRenderEngine",
+        1,
+    )[0]
+    assert "MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)" in default_formatting
+    assert "MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)" in default_formatting
+    assert "string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)" in default_formatting
+    assert 'return "\\\\color{" + fontColor + "}{" + formatted + "}";' in default_formatting
     assert "NoFormattingNeededStatus" in commands
     accept_editor_method = controller.split(
         "public async Task AcceptEditorFormulaAsync",
@@ -1652,8 +1773,17 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
 
 def test_word_formatting_skips_default_formulas_and_inline_conversion_removes_wrapper() -> None:
     host = PLUGIN / "hosts" / "WordAddIn"
+    controller = (host / "WordPluginController.cs").read_text(encoding="utf-8")
     commands = (host / "WordPluginController.DocumentCommands.cs").read_text(encoding="utf-8")
     adapter = read_word_adapter_sources()
+    default_formatting = controller.split("internal static string ApplyDefaultSourceFormatting", 1)[1].split(
+        "private static bool IsDisplay",
+        1,
+    )[0]
+    assert "MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)" in default_formatting
+    assert "MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)" in default_formatting
+    assert "string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)" in default_formatting
+    assert 'return "\\\\color{" + fontColor + "}{" + formatted + "}";' in default_formatting
     assert "NeedsFormatting(formula, settings)" in commands
     assert "_wordAdapter.HasCustomFormulaScale(metadata)" in commands
     assert "MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle" in commands
@@ -1979,7 +2109,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         "public async Task RenumberAllAsync",
         1,
     )[0]
-    assert "UpdateRenderedFormulaAndRenumberAsync(numbered" in auto_number
+    assert "UpdateRenderedFormulaAsync(numbered" in auto_number
+    assert "RenumberAutomaticFormulasAsync" not in auto_number
+    assert "UpdateRenderedFormulaAndRenumberAsync" not in main_controller
     assert "PrepareRenderedFormulaAsync" in main_controller
     assert "UpdatePreparedFormulaAsync(prepared" in main_controller
     convert_method = controller.split("private async Task ConvertSelectedAsync", 1)[1].split(
@@ -1994,8 +2126,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     )[0]
     assert "int insertionPoint = GetRangeStart(inlineShape.Range);" in ole_to_omml_update
     assert "ApplyNumberedFormulaParagraphLayout(insertedRange)" in ole_to_omml_update
-    assert "BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load())" in ole_to_omml_update
-    assert "ReplaceEquationNumberAtRange(" in ole_to_omml_update
+    assert "replacementOoxml = ooxml" in ole_to_omml_update
+    assert "InsertManagedEquationNumber(" in ole_to_omml_update
+    assert "ReplaceEquationNumberAtRange(" not in ole_to_omml_update
     insert_method = main_controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(
         "private Task<FormulaMetadata> CreateMetadataFromDraftAsync",
         1,
@@ -2050,6 +2183,22 @@ def test_installed_asset_resolvers_do_not_trust_vsto_cache_location() -> None:
         assert "Registry.LocalMachine.OpenSubKey(subPath)" in resolver
         assert "ContainsHostAssets" in resolver
         assert 'Directory.Exists(Path.Combine(directory!, "EditorAssets"))' in resolver
+
+
+def test_mathlive_editor_assets_are_shared_at_install_root() -> None:
+    resolver = (
+        PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "MathLiveAssetResolver.cs"
+    ).read_text(encoding="utf-8")
+    shared_assets = PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor" / "EditorAssets"
+    editor_js = (shared_assets / "editor.js").read_text(encoding="utf-8")
+
+    assert "FindCopiedAssetRoot(baseDirectory, copiedFolderName, assetFile)" in resolver
+    assert "Directory.GetParent(current)?.FullName" in resolver
+    assert (shared_assets / "symbol-library.js").is_file()
+    assert (shared_assets / "matrix-templates.js").is_file()
+    assert (shared_assets / "mathfield-input.js").is_file()
+    assert (shared_assets / "editor.js").is_file()
+    assert 'import { MathfieldElement } from "./vendor/mathlive.min.mjs";' in editor_js
 
 
 def test_word_insert_status_and_inline_conversion_preserve_semantics() -> None:
@@ -2120,22 +2269,22 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
 
     assert 'SequenceName = "LaTeXSnipperEquation"' in numbering
     assert "public const string SequenceFieldCode" not in numbering
-    assert 'string formatSwitch = string.IsNullOrWhiteSpace(numberPicture)' in numbering
-    assert '? " \\\\* " + BuildNumberFormatSwitch(format)' in numbering
-    assert ': " \\\\# \\"" + numberPicture + "\\""' in numbering
-    assert 'BuildNumberPicture(prefix, enclosure)' in numbering
+    assert '" \\\\# \\"" + numberPicture + "\\""' in numbering
+    assert "BuildNumberPicture(prefix, enclosure)" in numbering
     assert "QuoteNumberPictureLiteral(left) + \"0\" + QuoteNumberPictureLiteral(right)" in numbering
-    assert "EscapeNumberPictureLiteral" not in numbering
+    assert "BuildNumberFormatSwitch" not in numbering
+    assert "WordNumberFormat" not in numbering
     assert "InsertEquationNumberAtRange" in lifecycle
     assert "WordEquationNumbering.BuildSequenceFieldCode" in lifecycle
     assert "WordEquationNumbering.GetLeftEnclosure(enclosure)" in lifecycle
     assert "WordEquationNumbering.GetRightEnclosure(enclosure)" in lifecycle
-    assert "BuildSequenceFieldCode(resetSequence, format, prefix, enclosure)" in lifecycle
-    auto_insert = lifecycle.split("if (metadata.NumberingMode == NumberingMode.Automatic)", 1)[1].split(
-        "else",
+    assert "BuildSequenceFieldCode(resetSequence, prefix, enclosure)" in lifecycle
+    assert "BuildSequenceFieldCode(resetSequence, format" not in lifecycle
+    auto_insert = lifecycle.split(
+        "private dynamic InsertEquationNumberAtRange(",
         1,
-    )[0]
-    assert "InsertTextAtRange(range, WordEquationNumbering.GetLeftEnclosure(enclosure))" not in auto_insert
+    )[1].split("else", 1)[0]
+    assert "InsertTextAtRange(range, WordEquationNumbering.GetLeftEnclosure(enclosure) + prefix)" not in auto_insert
     assert "InsertTextAtRange(range, WordEquationNumbering.GetRightEnclosure(enclosure))" not in auto_insert
     assert "AddOrReplaceEquationBookmark" in lifecycle
     assert "document.Bookmarks.Add(bookmarkName, range)" in lifecycle
@@ -2147,11 +2296,12 @@ def test_word_numbering_uses_seq_fields_and_bookmarks() -> None:
         "private dynamic InsertEquationNumberAtRange",
         1,
     )[1].split("private double ReadManagedEquationFontSize", 1)[0]
-    assert "<w:fldSimple" in omml_builder
+    assert "<w:fldSimple" not in omml_builder
     assert "BuildEquationNumberRuns" in omml_builder
-    assert "settings.NumberFormat" in omml_builder
-    assert "settings.NumberEnclosure" in omml_builder
-    assert "BuildSequenceFieldCode(\n                reset: false,\n                settings.NumberFormat,\n                string.Empty,\n                settings.NumberEnclosure)" in omml_builder
+    assert "WordEquationNumberState? numberState" not in omml_builder
+    assert "Automatic equation numbering requires a concrete Word number state." not in omml_builder
+    assert "BuildAutomaticNumberField" not in omml_builder
+    assert "<w:r><w:t>1</w:t></w:r>" not in omml_builder
 
 
 def test_word_managed_content_control_chrome_matches_control_role() -> None:
@@ -2190,6 +2340,7 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
         1,
     )[0]
     assert "range.InsertXML(ooxml)" in insert_method
+    assert "InsertManagedEquationNumber(" in insert_method
     assert "ReplaceParagraphWithNumberedFormula(" not in insert_method
     assert "ShowContentControlChrome((dynamic)equationControl)" in lifecycle
     insert_command = controller.split("private async Task InsertAndRenumberIfNeededAsync", 1)[1].split(

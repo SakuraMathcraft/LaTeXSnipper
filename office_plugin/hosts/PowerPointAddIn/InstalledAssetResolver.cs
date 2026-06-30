@@ -17,6 +17,32 @@ internal static class InstalledAssetResolver
         return File.Exists(Path.Combine(candidate, assetFile)) ? candidate : null;
     }
 
+    public static string? FindSharedAssetRoot(string assetFile)
+    {
+        string? installDirectory = FindInstallDirectory();
+        if (installDirectory == null)
+        {
+            return null;
+        }
+
+        string? parentDirectory = Directory.GetParent(installDirectory)?.FullName;
+        string[] candidates =
+        {
+            Path.Combine(installDirectory, "EditorSharedAssets"),
+            parentDirectory == null ? string.Empty : Path.Combine(parentDirectory, "EditorSharedAssets"),
+        };
+
+        foreach (string candidate in candidates)
+        {
+            if (candidate.Length > 0 && File.Exists(Path.Combine(candidate, assetFile)))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     private static readonly string[] RegistryPaths =
     {
         @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",

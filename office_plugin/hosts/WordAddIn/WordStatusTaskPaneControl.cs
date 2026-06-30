@@ -14,6 +14,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IWordFormulaOptionsProvider
 {
     private const string TaskPaneHostName = "latexsnipper-word.officeplugin.local";
+    private const string SharedEditorHostName = "latexsnipper-editor-shared.officeplugin.local";
     private const string DefaultLatex = "e^{i\\pi}+1=0";
 
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
@@ -178,6 +179,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
 
         _initializing = true;
         string assetsRoot = ResolveAssetsRoot();
+        string sharedAssetsRoot = ResolveSharedAssetsRoot();
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",
@@ -192,6 +194,10 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             TaskPaneHostName,
             assetsRoot,
+            CoreWebView2HostResourceAccessKind.Allow);
+        _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+            SharedEditorHostName,
+            sharedAssetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
         _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -355,5 +361,11 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
     {
         return InstalledAssetResolver.FindAssetRoot("taskpane.html")
             ?? throw new DirectoryNotFoundException("Task pane assets were not found.");
+    }
+
+    private static string ResolveSharedAssetsRoot()
+    {
+        return InstalledAssetResolver.FindSharedAssetRoot("vendor\\mathlive.min.mjs")
+            ?? throw new DirectoryNotFoundException("Shared editor assets were not found.");
     }
 }

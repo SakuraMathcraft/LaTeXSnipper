@@ -37,6 +37,15 @@ public sealed partial class DynamicWordApplicationAdapter
         insertionRange.InsertXML(ooxml);
         RemoveEmptyParagraphBeforeFollowingContent(metadata.Identity.EquationId);
         NormalizeNumberedFormulaLayout(metadata.Identity.EquationId);
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            object insertedControl = FindFormulaControlById(metadata.Identity.EquationId);
+            InsertManagedEquationNumber(
+                insertedControl,
+                metadata,
+                BuildEquationNumberStateAtPosition(GetRangeStart(((dynamic)insertedControl).Range), WordPluginSettings.Load()));
+        }
+
         SaveFormulaMetadata(metadata);
         NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
     }

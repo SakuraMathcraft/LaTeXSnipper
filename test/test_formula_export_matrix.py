@@ -38,24 +38,27 @@ def local_mathjax_result() -> dict[str, str]:
 const mathjaxPath = process.argv[1];
 const source = process.argv[2];
 const loader = require(mathjaxPath);
+const texPackages = [
+  'action', 'amscd', 'bbox', 'boldsymbol',
+  'braket', 'bussproofs',
+  'cancel', 'cases', 'centernot', 'color',
+  'colortbl', 'configmacros', 'empheq', 'enclose',
+  'extpfeil', 'gensymb', 'html', 'mathtools',
+  'mhchem', 'physics', 'setoptions', 'tagformat',
+  'textcomp', 'textmacros', 'unicode', 'upgreek',
+  'verb'
+];
 loader.init({
   loader: {
     load: [
       'input/tex',
       'output/svg',
-      '[tex]/bbox',
-      '[tex]/boldsymbol',
-      '[tex]/color',
-      '[tex]/enclose',
-      '[tex]/mhchem',
-      '[tex]/textmacros',
-      '[tex]/unicode',
-      '[tex]/upgreek'
+      ...texPackages.map(packageName => `[tex]/${packageName}`)
     ]
   },
   tex: {
     packages: {
-      '[+]': ['bbox', 'boldsymbol', 'color', 'enclose', 'mhchem', 'textmacros', 'unicode', 'upgreek']
+      '[+]': texPackages
     }
   },
   svg: {fontCache: 'none'}
@@ -156,6 +159,81 @@ loader.init({
     assert 'mathvariant="script"' in results[1]["mathml"]
     assert 'mathvariant="fraktur"' in results[2]["mathml"]
     assert 'mathvariant="double-struck"' in results[3]["mathml"]
+
+
+def test_bundled_mathjax_renders_office_and_client_package_boundary() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable for bundled MathJax verification")
+
+    mathjax = (
+        Path(__file__).parents[1]
+        / "src"
+        / "assets"
+        / "MathJax-3.2.2"
+        / "es5"
+        / "node-main.js"
+    )
+    script = r"""
+const mathjaxPath = process.argv[1];
+const loader = require(mathjaxPath);
+const texPackages = [
+  'action', 'amscd', 'bbox', 'boldsymbol',
+  'braket', 'bussproofs',
+  'cancel', 'cases', 'centernot', 'color',
+  'colortbl', 'configmacros', 'empheq', 'enclose',
+  'extpfeil', 'gensymb', 'html', 'mathtools',
+  'mhchem', 'physics', 'setoptions', 'tagformat',
+  'textcomp', 'textmacros', 'unicode', 'upgreek',
+  'verb'
+];
+const samples = [
+  String.raw`\qty(\frac{a}{b})+\dv{f}{x}+\vb{E}`,
+  String.raw`\braket{\psi|\phi}+\ketbra{0}{1}`,
+  String.raw`\cancel{x}+\bcancel{y}+\xcancel{z}`,
+  String.raw`\begin{cases}x^2,&x>0\\0,&x\le0\end{cases}`,
+  String.raw`A\xrightarrow[\beta]{\alpha}B+\ce{H2O}`,
+];
+loader.init({
+  loader: {
+    load: [
+      'input/tex',
+      'output/svg',
+      ...texPackages.map(packageName => `[tex]/${packageName}`)
+    ]
+  },
+  tex: {
+    packages: {
+      '[+]': texPackages
+    }
+  },
+  svg: {fontCache: 'none'}
+}).then(MathJax => {
+  const adaptor = MathJax.startup.adaptor;
+  const results = samples.map(source => {
+    const mathml = MathJax.tex2mml(source, {display: true});
+    const container = MathJax.tex2svg(source, {display: true});
+    const svg = adaptor.outerHTML(adaptor.firstChild(container));
+    return {
+      source,
+      ok: !/data-mjx-error|mjx-merror|Unknown|invalid|�|□/.test(svg + mathml)
+    };
+  });
+  process.stdout.write(JSON.stringify(results));
+}).catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+    completed = subprocess.run(
+        [node, "-e", script, str(mathjax)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    results = json.loads(completed.stdout)
+    assert all(result["ok"] for result in results)
 
 
 def test_all_native_exports_use_real_bundled_mathjax(

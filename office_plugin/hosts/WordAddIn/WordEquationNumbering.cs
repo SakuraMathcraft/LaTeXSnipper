@@ -10,16 +10,15 @@ internal static class WordEquationNumbering
 
     public static string BuildSequenceFieldCode(
         bool reset,
-        WordNumberFormat format,
         string prefix,
         WordNumberEnclosure enclosure)
     {
         string resetSwitch = reset ? " \\r 1" : string.Empty;
         string numberPicture = BuildNumberPicture(prefix, enclosure);
-        string formatSwitch = string.IsNullOrWhiteSpace(numberPicture)
-            ? " \\* " + BuildNumberFormatSwitch(format)
+        string pictureSwitch = string.IsNullOrWhiteSpace(numberPicture)
+            ? string.Empty
             : " \\# \"" + numberPicture + "\"";
-        return " SEQ " + SequenceName + resetSwitch + formatSwitch + " ";
+        return " SEQ " + SequenceName + resetSwitch + pictureSwitch + " ";
     }
 
     public static string GetLeftEnclosure(WordNumberEnclosure enclosure)
@@ -43,18 +42,6 @@ internal static class WordEquationNumbering
             WordNumberEnclosure.Braces => "}",
             WordNumberEnclosure.None => string.Empty,
             _ => ")",
-        };
-    }
-
-    private static string BuildNumberFormatSwitch(WordNumberFormat format)
-    {
-        return format switch
-        {
-            WordNumberFormat.LowerRoman => "roman",
-            WordNumberFormat.UpperRoman => "ROMAN",
-            WordNumberFormat.LowerLetter => "alphabetic",
-            WordNumberFormat.UpperLetter => "ALPHABETIC",
-            _ => "Arabic",
         };
     }
 

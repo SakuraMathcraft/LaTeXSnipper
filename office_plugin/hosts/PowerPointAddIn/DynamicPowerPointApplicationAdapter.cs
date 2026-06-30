@@ -224,6 +224,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         cancellationToken.ThrowIfCancellationRequested();
         dynamic shape = GetSelectedShape();
+        EnsureUniqueShapeIdentity(shape);
         return Task.FromResult(ReadMetadataFromShape(shape));
     }
 
@@ -231,7 +232,9 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         cancellationToken.ThrowIfCancellationRequested();
         var entries = new List<PowerPointFormulaEntry>();
-        foreach (object item in GetSelectedFormulaShapes())
+        IReadOnlyList<object> shapes = GetSelectedFormulaShapes();
+        EnsureUniqueShapeIdentities(shapes);
+        foreach (object item in shapes)
         {
             dynamic shape = item;
             entries.Add(CreateEntry(shape, Convert.ToInt32(shape.Parent.SlideIndex)));
@@ -374,9 +377,75 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return shapes;
     }
 
+    private void EnsureUniqueShapeIdentities(IEnumerable<object> shapes)
+    {
+        foreach (object item in shapes)
+        {
+            EnsureUniqueShapeIdentity(item);
+        }
+    }
+
+    private void EnsureUniqueShapeIdentity(object shape)
+    {
+        dynamic formulaShape = shape;
+        string equationId = ReadTag(formulaShape, PowerPointFormulaMetadataStore.EquationIdTag);
+        if (CountFormulaShapesById(equationId) <= 1)
+        {
+            return;
+        }
+
+        FormulaMetadata metadata = WithNewIdentity(ReadMetadataFromShape(formulaShape));
+        float naturalWidth = ReadRequiredFloatTag(formulaShape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
+        float naturalHeight = ReadRequiredFloatTag(formulaShape, PowerPointFormulaMetadataStore.NaturalHeightPointsTag);
+        PowerPointFormulaMetadataStore.ApplyToShape(formulaShape, metadata, naturalWidth, naturalHeight);
+    }
+
+    private int CountFormulaShapesById(string equationId)
+    {
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            return 0;
+        }
+
+        int count = 0;
+        dynamic presentation = _application.ActivePresentation;
+        int slideCount = Convert.ToInt32(presentation.Slides.Count);
+        for (int slideIndex = 1; slideIndex <= slideCount; slideIndex++)
+        {
+            dynamic shapes = presentation.Slides.Item(slideIndex).Shapes;
+            int shapeCount = Convert.ToInt32(shapes.Count);
+            for (int shapeIndex = 1; shapeIndex <= shapeCount; shapeIndex++)
+            {
+                dynamic shape = shapes.Item(shapeIndex);
+                if (string.Equals(
+                    ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag),
+                    equationId,
+                    StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
     private static FormulaMetadata ReadMetadataFromShape(dynamic shape)
     {
         return PowerPointFormulaMetadataStore.LoadFromShape(shape);
+    }
+
+    private static FormulaMetadata WithNewIdentity(FormulaMetadata metadata)
+    {
+        return new FormulaMetadata(
+            new FormulaIdentity("active-presentation", Guid.NewGuid().ToString("N")),
+            metadata.Latex,
+            metadata.DisplayMode,
+            metadata.NumberingMode,
+            metadata.NumberText,
+            metadata.RenderEngine,
+            metadata.SchemaVersion,
+            metadata.FontScale);
     }
 
     private static PowerPointFormulaEntry CreateEntry(dynamic shape, int slideIndex)

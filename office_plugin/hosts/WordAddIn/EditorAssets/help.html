@@ -117,9 +117,16 @@
           <tr><td>数学文本</td><td><code>\text{if }x&gt;0</code>、<code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>源码可用</td></tr>
           <tr><td>直立希腊</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>源码可用</td></tr>
           <tr><td>化学式文本</td><td><code>\ce{H2O}</code>、<code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>源码可用</td></tr>
+          <tr><td>物理微分和向量</td><td><code>\qty(\frac{a}{b})</code>、<code>\dv{f}{x}</code>、<code>\vb{E}</code></td><td><code>physics</code></td><td>源码可用</td></tr>
+          <tr><td>量子力学括号</td><td><code>\braket{\psi|\phi}</code>、<code>\ketbra{0}{1}</code></td><td><code>braket</code></td><td>源码可用</td></tr>
+          <tr><td>分段函数</td><td><code>\begin{cases}x^2,&amp;x&gt;0\\0,&amp;x\le0\end{cases}</code></td><td><code>cases</code></td><td>源码可用</td></tr>
+          <tr><td>删除线与标记</td><td><code>\cancel{x}</code>、<code>\bcancel{y}</code>、<code>\xcancel{z}</code></td><td><code>cancel</code></td><td>源码可用</td></tr>
+          <tr><td>长箭头</td><td><code>A\xrightarrow[\beta]{\alpha}B</code></td><td><code>extpfeil</code></td><td>源码可用</td></tr>
+          <tr><td>数学工具扩展</td><td><code>\coloneqq</code>、<code>\vcentcolon</code>、<code>\prescript{a}{b}{X}</code></td><td><code>mathtools</code></td><td>源码可用</td></tr>
+          <tr><td>常用符号补充</td><td><code>\degree</code>、<code>\celsius</code>、<code>\textdegree</code></td><td><code>gensymb</code> / <code>textcomp</code></td><td>源码可用</td></tr>
         </tbody>
       </table>
-      <div class="callout">默认字体会保存为对应的 LaTeX 字体命令。数学字母类字体适合变量、集合、空间、算子等论文记号；具体字符覆盖取决于对应字体命令本身。</div>
+      <div class="callout">默认字体会保存为对应的 LaTeX 字体命令。插件和客户端使用同一组本地 MathJax 3.2.2 扩展；不启用会吞掉错误提示的 noerrors/noundefined，也不默认启用 \require。</div>
     </section>
 
     <section class="platform-word">
@@ -243,9 +250,16 @@
           <tr><td>Math text</td><td><code>\text{if }x&gt;0</code>, <code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>Source command</td></tr>
           <tr><td>Upright Greek</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>Source command</td></tr>
           <tr><td>Chemical text</td><td><code>\ce{H2O}</code>, <code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>Source command</td></tr>
+          <tr><td>Physics differentials and vectors</td><td><code>\qty(\frac{a}{b})</code>, <code>\dv{f}{x}</code>, <code>\vb{E}</code></td><td><code>physics</code></td><td>Source command</td></tr>
+          <tr><td>Quantum brackets</td><td><code>\braket{\psi|\phi}</code>, <code>\ketbra{0}{1}</code></td><td><code>braket</code></td><td>Source command</td></tr>
+          <tr><td>Piecewise functions</td><td><code>\begin{cases}x^2,&amp;x&gt;0\\0,&amp;x\le0\end{cases}</code></td><td><code>cases</code></td><td>Source command</td></tr>
+          <tr><td>Cancellation marks</td><td><code>\cancel{x}</code>, <code>\bcancel{y}</code>, <code>\xcancel{z}</code></td><td><code>cancel</code></td><td>Source command</td></tr>
+          <tr><td>Long arrows</td><td><code>A\xrightarrow[\beta]{\alpha}B</code></td><td><code>extpfeil</code></td><td>Source command</td></tr>
+          <tr><td>Math tools</td><td><code>\coloneqq</code>, <code>\vcentcolon</code>, <code>\prescript{a}{b}{X}</code></td><td><code>mathtools</code></td><td>Source command</td></tr>
+          <tr><td>Additional symbols</td><td><code>\degree</code>, <code>\celsius</code>, <code>\textdegree</code></td><td><code>gensymb</code> / <code>textcomp</code></td><td>Source command</td></tr>
         </tbody>
       </table>
-      <div class="callout">Default fonts are saved as the corresponding LaTeX font commands. Mathematical alphabet fonts are intended for notation such as variables, sets, spaces, and operators; character coverage depends on the font command itself.</div>
+      <div class="callout">Default fonts are saved as the corresponding LaTeX font commands. The add-in and desktop client use the same local MathJax 3.2.2 extension set; noerrors/noundefined are not enabled because they hide formula errors, and \require is not enabled by default.</div>
     </section>
 
     <section class="platform-word">

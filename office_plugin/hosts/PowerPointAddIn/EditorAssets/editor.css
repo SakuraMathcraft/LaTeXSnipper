@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f3f5f8;
   --panel: #ffffff;
   --line: #cfd7e3;
@@ -8,6 +8,18 @@
   --accent: #1f6feb;
   --accent-soft: #dceaff;
   --button: #eef2f7;
+  --field-bg: #ffffff;
+  --formula-text: #000000;
+  --source-bg: #fbfcfe;
+  --search-bg: #ffffff;
+  --search-panel: #f0f2f6;
+  --tab-bg: #f7f9fc;
+  --title: #1f3d70;
+  --section: #32445f;
+  --hover-bg: #e9f1ff;
+  --hover-line: #8fb0e6;
+  --button-bg: #ffffff;
+  --button-line: #bcc6d4;
 }
 
 * {
@@ -65,7 +77,8 @@ math-field {
   border: 0;
   outline: none;
   font-size: 30px;
-  background: #fff;
+  color: var(--formula-text);
+  background: var(--field-bg);
 }
 
 #latexSource {
@@ -77,7 +90,7 @@ math-field {
   outline: none;
   font: 14px/1.45 Consolas, "Cascadia Mono", monospace;
   color: var(--text);
-  background: #fbfcfe;
+  background: var(--source-bg);
 }
 
 .library {
@@ -96,7 +109,7 @@ math-field {
   align-items: center;
   padding: 0 4px;
   border-bottom: 1px solid var(--line);
-  background: #f0f2f6;
+  background: var(--search-panel);
 }
 
 .global-search {
@@ -105,7 +118,7 @@ math-field {
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: #fff;
+  background: var(--search-bg);
   color: var(--text);
   font-size: 11px;
   outline: none;
@@ -124,7 +137,7 @@ math-field {
   align-items: stretch;
   padding: 4px 5px;
   border-right: 1px solid var(--line);
-  background: #f7f9fc;
+  background: var(--tab-bg);
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -157,7 +170,7 @@ math-field {
   gap: 6px;
   padding: 0 6px 0 10px;
   border-bottom: 1px solid var(--line);
-  color: #1f3d70;
+  color: var(--title);
   font-size: 14px;
   font-weight: 600;
 }
@@ -171,7 +184,7 @@ math-field {
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: #f7f9fc;
+  background: var(--tab-bg);
   color: var(--text);
   font-size: 11px;
   outline: none;
@@ -179,7 +192,7 @@ math-field {
 
 .symbol-search:focus {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--search-bg);
 }
 
 .symbol-grid {
@@ -200,7 +213,7 @@ math-field {
 .global-group-label {
   grid-column: 1 / -1;
   padding: 6px 2px 2px;
-  color: #1f3d70;
+  color: var(--title);
   font-size: 12px;
   font-weight: 600;
   border-bottom: 1px solid var(--line);
@@ -212,7 +225,7 @@ math-field {
   margin: 8px 0 2px;
   padding: 3px 2px;
   border-bottom: 1px solid var(--line);
-  color: #32445f;
+  color: var(--section);
   font-size: 11px;
   font-weight: 700;
 }
@@ -240,8 +253,8 @@ math-field {
 
 .symbol-grid button:hover,
 .matrix-row button:hover {
-  border-color: #8fb0e6;
-  background: #e9f1ff;
+  border-color: var(--hover-line);
+  background: var(--hover-bg);
 }
 
 .symbol-grid.structures button {
@@ -275,7 +288,7 @@ math-field {
   height: 54px;
   padding: 8px;
   border-top: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
 }
 
 .option {
@@ -298,9 +311,10 @@ math-field {
 .footer button {
   min-width: 86px;
   height: 32px;
-  border: 1px solid #bcc6d4;
+  border: 1px solid var(--button-line);
   border-radius: 4px;
-  background: #fff;
+  background: var(--button-bg);
+  color: var(--text);
   cursor: pointer;
 }
 
@@ -308,4 +322,29 @@ math-field {
   border-color: #145dbf;
   color: #fff;
   background: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11161d;
+    --panel: #1b222b;
+    --line: #384555;
+    --text: #f0f4f8;
+    --muted: #aab6c5;
+    --accent: #58a6ff;
+    --accent-soft: #163657;
+    --button: #26313d;
+    --field-bg: #ffffff;
+    --formula-text: #000000;
+    --source-bg: #151b23;
+    --search-bg: #141a22;
+    --search-panel: #17202a;
+    --tab-bg: #151c25;
+    --title: #d7e7ff;
+    --section: #c8d4e2;
+    --hover-bg: #1e3552;
+    --hover-line: #4d82c8;
+    --button-bg: #202a35;
+    --button-line: #4a596b;
+  }
 }

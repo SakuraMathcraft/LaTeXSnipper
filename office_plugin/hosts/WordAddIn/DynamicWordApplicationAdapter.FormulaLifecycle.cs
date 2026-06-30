@@ -43,11 +43,10 @@ public sealed partial class DynamicWordApplicationAdapter
                 ApplyNumberedFormulaParagraphLayout(formulaRange);
                 if (metadata.NumberingMode == NumberingMode.Automatic)
                 {
-                    ReplaceEquationNumberAtRange(
-                        FindEquationNumberRange(formulaRange, metadata),
+                    InsertManagedEquationNumber(
+                        equationControl,
                         metadata,
-                        BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()),
-                        formulaHeightPoints: 0);
+                        BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()));
                 }
             }
 
@@ -56,6 +55,31 @@ public sealed partial class DynamicWordApplicationAdapter
         });
 
         return Task.CompletedTask;
+    }
+
+    private static void UpdateFieldsInRange(dynamic range)
+    {
+        TryCom(() => range.Fields.Update());
+    }
+
+    private void InsertManagedEquationNumber(
+        object contentControl,
+        FormulaMetadata metadata,
+        WordEquationNumberState state)
+    {
+        dynamic control = contentControl;
+        dynamic paragraphRange = control.Range.Paragraphs.Item(1).Range;
+        WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
+        int position = placement == WordNumberPlacement.Left
+            ? GetRangeStart(paragraphRange)
+            : Math.Max(GetRangeStart(paragraphRange), GetRangeEnd(paragraphRange) - 1);
+        dynamic numberRange = InsertEquationNumberAtRange(
+            CreateDocumentRange(position, position),
+            metadata,
+            state.Prefix,
+            state.ResetSequence,
+            state.Enclosure);
+        UpdateFieldsInRange(numberRange);
     }
 
     public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken)
@@ -287,7 +311,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic cursor = range.Duplicate;
         cursor.Collapse(WdCollapseEnd);
         WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
-        EquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), WordPluginSettings.Load());
+        WordEquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), WordPluginSettings.Load());
         ApplyNumberedFormulaParagraphLayout(cursor);
         dynamic? numberRange = null;
         if (placement == WordNumberPlacement.Left)
@@ -297,7 +321,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata,
                 numberState.Prefix,
                 numberState.ResetSequence,
-                numberState.Format,
                 numberState.Enclosure);
             InsertTextAtRange(cursor, "\t");
         }
@@ -316,7 +339,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata,
                 numberState.Prefix,
                 numberState.ResetSequence,
-                numberState.Format,
                 numberState.Enclosure);
         }
 
@@ -448,7 +470,6 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata,
             string.Empty,
             false,
-            settings.NumberFormat,
             settings.NumberEnclosure);
     }
 
@@ -457,7 +478,6 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata metadata,
         string prefix,
         bool resetSequence,
-        WordNumberFormat format,
         WordNumberEnclosure enclosure)
     {
         int start = GetRangeStart(range);
@@ -466,7 +486,7 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic field = _wordApplication.ActiveDocument.Fields.Add(
                 range,
                 WdFieldEmpty,
-                WordEquationNumbering.BuildSequenceFieldCode(resetSequence, format, prefix, enclosure),
+                WordEquationNumbering.BuildSequenceFieldCode(resetSequence, prefix, enclosure),
                 true);
             TryCom(() => field.Update());
             range = field.Result.Duplicate;
@@ -488,7 +508,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private dynamic ReplaceEquationNumberAtRange(
         dynamic numberRange,
         FormulaMetadata metadata,
-        EquationNumberState state,
+        WordEquationNumberState state,
         double formulaHeightPoints)
     {
         int start = GetRangeStart(numberRange);
@@ -498,7 +518,6 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata,
             state.Prefix,
             state.ResetSequence,
-            state.Format,
             state.Enclosure);
         ApplyEquationNumberBaseline(inserted, formulaHeightPoints);
         return inserted;

@@ -73,7 +73,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
             }
 
-            IReadOnlyDictionary<string, EquationNumberState> states = BuildEquationNumberStates(
+            IReadOnlyDictionary<string, WordEquationNumberState> states = BuildEquationNumberStates(
                 formulas,
                 boundaries,
                 settings);
@@ -108,12 +108,12 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.FromResult(count);
     }
 
-    private static IReadOnlyDictionary<string, EquationNumberState> BuildEquationNumberStates(
+    private static IReadOnlyDictionary<string, WordEquationNumberState> BuildEquationNumberStates(
         IEnumerable<NumberedFormulaEntry> formulas,
         IEnumerable<NumberingBoundaryEntry> boundaries,
         WordPluginSettings settings)
     {
-        var states = new Dictionary<string, EquationNumberState>(StringComparer.Ordinal);
+        var states = new Dictionary<string, WordEquationNumberState>(StringComparer.Ordinal);
         int chapter = 1;
         int section = 1;
         bool resetNextSequence = true;
@@ -150,10 +150,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            states[formula.EquationId] = new EquationNumberState(
+            states[formula.EquationId] = new WordEquationNumberState(
                 BuildEquationNumberPrefix(settings, chapter, section),
                 resetNextSequence,
-                settings.NumberFormat,
                 settings.NumberEnclosure);
             resetNextSequence = false;
         }
@@ -179,7 +178,7 @@ public sealed partial class DynamicWordApplicationAdapter
             : string.Join(settings.NumberSeparator, parts) + settings.NumberSeparator;
     }
 
-    private EquationNumberState BuildEquationNumberStateAtPosition(int position, WordPluginSettings settings)
+    private WordEquationNumberState BuildEquationNumberStateAtPosition(int position, WordPluginSettings settings)
     {
         int chapter = 1;
         int section = 1;
@@ -263,10 +262,9 @@ public sealed partial class DynamicWordApplicationAdapter
             }
         }
 
-        return new EquationNumberState(
+        return new WordEquationNumberState(
             BuildEquationNumberPrefix(settings, chapter, section),
             resetSequence,
-            settings.NumberFormat,
             settings.NumberEnclosure);
     }
 }

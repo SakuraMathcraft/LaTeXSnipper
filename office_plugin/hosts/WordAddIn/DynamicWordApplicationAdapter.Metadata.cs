@@ -113,6 +113,19 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.FontScale);
     }
 
+    private static FormulaMetadata WithNewIdentity(FormulaMetadata metadata, string documentId)
+    {
+        return new FormulaMetadata(
+            new FormulaIdentity(documentId, Guid.NewGuid().ToString("N")),
+            metadata.Latex,
+            metadata.DisplayMode,
+            metadata.NumberingMode,
+            metadata.NumberText,
+            metadata.RenderEngine,
+            metadata.SchemaVersion,
+            metadata.FontScale);
+    }
+
     private static string ReadControlTag(dynamic control)
     {
         try

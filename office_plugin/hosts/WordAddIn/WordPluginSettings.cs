@@ -8,7 +8,6 @@ public sealed class WordPluginSettings
 {
     private const string RegistryPath = @"Software\LaTeXSnipper\OfficePlugin";
     private const string NumberPlacementValue = "NumberPlacement";
-    private const string NumberFormatValue = "NumberFormat";
     private const string NumberEnclosureValue = "NumberEnclosure";
     private const string InsertionBackendValue = "WordInsertionBackend";
     private const string IncludeChapterValue = "NumberIncludeChapter";
@@ -26,7 +25,6 @@ public sealed class WordPluginSettings
     public WordPluginSettings(
         WordNumberPlacement numberPlacement,
         FormulaInsertionBackend insertionBackend,
-        WordNumberFormat numberFormat,
         WordNumberEnclosure numberEnclosure,
         bool includeChapter,
         bool includeSection,
@@ -40,7 +38,6 @@ public sealed class WordPluginSettings
     {
         NumberPlacement = numberPlacement;
         InsertionBackend = insertionBackend;
-        NumberFormat = numberFormat;
         NumberEnclosure = numberEnclosure;
         IncludeChapter = includeChapter;
         IncludeSection = includeSection;
@@ -58,8 +55,6 @@ public sealed class WordPluginSettings
     public WordNumberPlacement NumberPlacement { get; }
 
     public FormulaInsertionBackend InsertionBackend { get; }
-
-    public WordNumberFormat NumberFormat { get; }
 
     public WordNumberEnclosure NumberEnclosure { get; }
 
@@ -92,7 +87,6 @@ public sealed class WordPluginSettings
         return new WordPluginSettings(
             placementRaw == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             backend,
-            ReadEnum(key, NumberFormatValue, WordNumberFormat.Arabic),
             ReadEnum(key, NumberEnclosureValue, WordNumberEnclosure.Parentheses),
             ReadBoolean(key, IncludeChapterValue),
             ReadBoolean(key, IncludeSectionValue),
@@ -111,7 +105,6 @@ public sealed class WordPluginSettings
             ?? throw new InvalidOperationException("Unable to open LaTeXSnipper Office plugin settings.");
         key.SetValue(NumberPlacementValue, NumberPlacement.ToString(), RegistryValueKind.String);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
-        key.SetValue(NumberFormatValue, NumberFormat.ToString(), RegistryValueKind.String);
         key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);
         key.SetValue(IncludeChapterValue, IncludeChapter ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(IncludeSectionValue, IncludeSection ? 1 : 0, RegistryValueKind.DWord);

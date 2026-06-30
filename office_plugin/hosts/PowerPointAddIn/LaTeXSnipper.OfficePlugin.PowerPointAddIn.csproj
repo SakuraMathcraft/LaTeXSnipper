@@ -16,10 +16,6 @@
       <Link>icon.ico</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\..\src\assets\mathlive\vendor\**\*">
-      <Link>EditorAssets\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Content Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets\**\*">
       <Link>EditorSharedAssets\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

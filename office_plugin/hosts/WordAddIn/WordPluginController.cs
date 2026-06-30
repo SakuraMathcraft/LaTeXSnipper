@@ -328,7 +328,7 @@ public sealed partial class WordPluginController : IDisposable
             selected,
             NumberingMode.Automatic,
             string.Empty);
-        await UpdateRenderedFormulaAndRenumberAsync(numbered, cancellationToken);
+        await UpdateRenderedFormulaAsync(numbered, cancellationToken);
         _currentFormula = numbered;
         ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
@@ -375,21 +375,6 @@ public sealed partial class WordPluginController : IDisposable
         using (_wordAdapter.BeginUndoRecord())
         {
             await UpdatePreparedFormulaAsync(prepared, cancellationToken);
-        }
-    }
-
-    private async Task UpdateRenderedFormulaAndRenumberAsync(
-        FormulaMetadata metadata,
-        CancellationToken cancellationToken)
-    {
-        PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
-            metadata,
-            includeEquationOoxml: true,
-            cancellationToken);
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            await UpdatePreparedFormulaAsync(prepared, cancellationToken);
-            await _wordAdapter.RenumberAutomaticFormulasAsync(cancellationToken);
         }
     }
 
@@ -628,7 +613,9 @@ public sealed partial class WordPluginController : IDisposable
 
     internal static string ApplyDefaultSourceFormatting(string latex, FormulaFontStyle fontStyle, string fontColor)
     {
-        string formatted = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
+        string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)
+            ? latex
+            : MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
         if (MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)
             || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
         {

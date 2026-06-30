@@ -25,8 +25,8 @@ internal static class MathLiveAssetResolver
         string assetFile)
     {
         string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string copied = Path.Combine(baseDirectory, copiedFolderName);
-        if (File.Exists(Path.Combine(copied, assetFile)))
+        string? copied = FindCopiedAssetRoot(baseDirectory, copiedFolderName, assetFile);
+        if (copied != null)
         {
             return copied;
         }
@@ -56,8 +56,8 @@ internal static class MathLiveAssetResolver
                     continue;
                 }
 
-                string candidate = Path.Combine(manifestDirectory, copiedFolderName);
-                if (File.Exists(Path.Combine(candidate, assetFile)))
+                string? candidate = FindCopiedAssetRoot(manifestDirectory, copiedFolderName, assetFile);
+                if (candidate != null)
                 {
                     return candidate;
                 }
@@ -65,6 +65,23 @@ internal static class MathLiveAssetResolver
         }
 
         throw new DirectoryNotFoundException("MathLive editor assets were not found.");
+    }
+
+    private static string? FindCopiedAssetRoot(string baseDirectory, string copiedFolderName, string assetFile)
+    {
+        string? current = baseDirectory;
+        for (int i = 0; i < 4 && current != null; i++)
+        {
+            string candidate = Path.Combine(current, copiedFolderName);
+            if (File.Exists(Path.Combine(candidate, assetFile)))
+            {
+                return candidate;
+            }
+
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        return null;
     }
 
     private static string? GetManifestDirectory(RegistryKey root, string subPath)

@@ -49,3 +49,38 @@ def test_export_dependencies_use_bundled_mathjax_instead_of_python_renderers() -
     assert "matplotlib" not in specs
     assert "convert_latex_with_mathjax" in converters
     assert "tex-mml-svg.js" in mathjax
+    for package in (
+        "action",
+        "amscd",
+        "bbox",
+        "boldsymbol",
+        "braket",
+        "bussproofs",
+        "cancel",
+        "cases",
+        "centernot",
+        "color",
+        "colortbl",
+        "configmacros",
+        "empheq",
+        "enclose",
+        "extpfeil",
+        "gensymb",
+        "html",
+        "mathtools",
+        "mhchem",
+        "physics",
+        "setoptions",
+        "tagformat",
+        "textcomp",
+        "textmacros",
+        "unicode",
+        "upgreek",
+        "verb",
+    ):
+        assert f"'[tex]/{package}'" in mathjax
+        assert f"'{package}'" in mathjax
+    assert "'[tex]/noerrors'" not in mathjax
+    assert "'[tex]/noundefined'" not in mathjax
+    assert "'[tex]/colorv2'" not in mathjax
+    assert "'[tex]/require'" not in mathjax

@@ -29,6 +29,7 @@ packaging/debian/usr
 *.exe
 !office_plugin/release/
 !office_plugin/release/OfficePluginSetup-*.exe
+office_plugin/release/InstallerAssets/
 *.dll
 *.zip
 *.tar
