@@ -10,6 +10,14 @@ math-field::part(menu-toggle) {
   --line: #d7dfec;
   --text: #182235;
   --muted: #667085;
+  --label: #24324a;
+  --preview-bg: #ffffff;
+  --preview-line: #c8d3e2;
+  --input-bg: #ffffff;
+  --input-text: #101828;
+  --button-bg: #ffffff;
+  --button-hover-bg: #f7fbff;
+  --button-text: #182235;
   --accent: #2e7be6;
   --accent-hover: #2165c8;
   --info-bg: #eef4ff;
@@ -21,6 +29,34 @@ math-field::part(menu-toggle) {
   --error-bg: #fff1f0;
   --error-line: #ffccc7;
   --error-text: #cf1322;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #111820;
+    --panel: #18222d;
+    --line: #314254;
+    --text: #f3f7fb;
+    --muted: #b3c0ce;
+    --label: #e7edf5;
+    --preview-bg: #222222;
+    --preview-line: #5b6672;
+    --input-bg: #101820;
+    --input-text: #f4f7fb;
+    --button-bg: #1f2a36;
+    --button-hover-bg: #263545;
+    --button-text: #f3f7fb;
+    --info-bg: #162945;
+    --info-line: #2d5d99;
+    --info-text: #9fc7ff;
+    --success-bg: #0f2b1f;
+    --success-line: #287a50;
+    --success-text: #8ee6b5;
+    --error-bg: #3a1618;
+    --error-line: #8f3439;
+    --error-text: #ffaaa8;
+  }
 }
 
 * {
@@ -64,7 +100,7 @@ h1 {
 
 p {
   margin: 3px 0 0;
-  color: #52637f;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -126,7 +162,7 @@ p {
 }
 
 label {
-  color: #24324a;
+  color: var(--label);
   font-size: 12px;
   font-weight: 700;
 }
@@ -137,9 +173,10 @@ label {
   overflow-x: auto;
   overflow-y: auto;
   padding: 10px;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  background: #ffffff;
+  color: var(--input-text);
+  background: var(--preview-bg);
 }
 
 math-field {
@@ -149,6 +186,7 @@ math-field {
   min-height: 44px;
   border: 0;
   outline: none;
+  color: inherit;
   background: transparent;
   font-size: 24px;
   white-space: nowrap;
@@ -162,10 +200,10 @@ math-field::part(content) {
 textarea,
 input[type="text"] {
   width: 100%;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  color: #101828;
-  background: #ffffff;
+  color: var(--input-text);
+  background: var(--input-bg);
   outline: none;
 }
 
@@ -223,16 +261,16 @@ textarea {
 button {
   min-height: 38px;
   padding: 8px 12px;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  color: #182235;
-  background: #ffffff;
+  color: var(--button-text);
+  background: var(--button-bg);
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
   border-color: #9bb8de;
-  background: #f7fbff;
+  background: var(--button-hover-bg);
 }
 
 button.primary {

@@ -16,12 +16,10 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const int WdMove = 0;
     private const int WdAlignParagraphLeft = 0;
     private const int WdAlignParagraphCenter = 1;
-    private const int WdAlignParagraphRight = 2;
     private const int WdAlignTabCenter = 1;
     private const int WdAlignTabRight = 2;
     private const int WdTabLeaderSpaces = 0;
     private const int WdContentControlRichText = 0;
-    private const int WdCollapseStart = 1;
     private const int WdFieldEmpty = -1;
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 

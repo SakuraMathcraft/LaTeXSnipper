@@ -2,13 +2,18 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed class WordRenumberResult
 {
-    public WordRenumberResult(int renumberedCount, int skippedCount)
+    public WordRenumberResult(int renumberedCount, int skippedMetadataCount, int skippedNumberingCount)
     {
         RenumberedCount = renumberedCount;
-        SkippedCount = skippedCount;
+        SkippedMetadataCount = skippedMetadataCount;
+        SkippedNumberingCount = skippedNumberingCount;
     }
 
     public int RenumberedCount { get; }
 
-    public int SkippedCount { get; }
+    public int SkippedMetadataCount { get; }
+
+    public int SkippedNumberingCount { get; }
+
+    public int SkippedCount => SkippedMetadataCount + SkippedNumberingCount;
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -520,18 +521,19 @@ public sealed partial class DynamicWordApplicationAdapter
         return numberRange;
     }
 
-    private bool TryReplaceEquationNumberAtRange(
+    private bool TryPrepareEquationNumberField(
         FormulaMetadata metadata,
         WordEquationNumberState state,
-        double formulaHeightPoints,
-        IReadOnlyDictionary<string, object> sequenceFields)
+        IReadOnlyDictionary<string, object> sequenceFields,
+        out object? sequenceField)
     {
+        sequenceField = null;
         if (metadata.NumberingMode != NumberingMode.Automatic)
         {
             return false;
         }
 
-        if (!sequenceFields.TryGetValue(metadata.Identity.EquationId, out object? sequenceField))
+        if (!sequenceFields.TryGetValue(metadata.Identity.EquationId, out sequenceField))
         {
             return false;
         }
@@ -541,27 +543,51 @@ public sealed partial class DynamicWordApplicationAdapter
             state.ResetSequence,
             state.Prefix,
             state.Enclosure);
-        TryCom(() => field.Update());
+        return true;
+    }
+
+    private void RefreshLaTeXSnipperSequenceFields(dynamic document)
+    {
+        dynamic fields = document.Fields;
+        int count = Convert.ToInt32(fields.Count);
+        for (int index = 1; index <= count; index++)
+        {
+            dynamic field = fields.Item(index);
+            string code = Convert.ToString(field.Code.Text) ?? string.Empty;
+            if (code.IndexOf("SEQ " + WordEquationNumbering.SequenceName, StringComparison.Ordinal) >= 0)
+            {
+                TryCom(() => field.Update());
+            }
+        }
+    }
+
+    private void UpdatePreparedEquationNumberRange(
+        FormulaMetadata metadata,
+        object sequenceField,
+        double formulaHeightPoints)
+    {
+        dynamic field = sequenceField;
         dynamic updated = field.Result.Duplicate;
         AddOrReplaceEquationBookmark(metadata.Identity.EquationId, updated);
         ApplyEquationNumberBaseline(updated, formulaHeightPoints);
-        return true;
     }
 
     private Dictionary<string, object> BuildEquationSequenceFieldMap(
         dynamic document,
         IReadOnlyCollection<NumberedFormulaEntry> formulas)
     {
-        var rangeToEquationId = new Dictionary<string, string>(StringComparer.Ordinal);
+        var numberRanges = new List<(string EquationId, int Start, int End)>();
         foreach (NumberedFormulaEntry formula in formulas)
         {
             if (TryFindEquationNumberRangeById(formula.EquationId, out object? numberRange))
             {
-                rangeToEquationId[BuildRangeKey(numberRange!)] = formula.EquationId;
+                dynamic range = numberRange!;
+                numberRanges.Add((formula.EquationId, GetRangeStart(range), GetRangeEnd(range)));
             }
         }
 
         var fieldsByEquationId = new Dictionary<string, object>(StringComparer.Ordinal);
+        var unmatchedFields = new List<(int Start, int End, object Field)>();
         dynamic fields = document.Fields;
         int count = Convert.ToInt32(fields.Count);
         for (int index = 1; index <= count; index++)
@@ -573,14 +599,43 @@ public sealed partial class DynamicWordApplicationAdapter
                 continue;
             }
 
-            string rangeKey = BuildRangeKey(field.Result);
-            if (rangeToEquationId.TryGetValue(rangeKey, out string equationId))
+            int fieldStart = GetRangeStart(field.Result);
+            int fieldEnd = GetRangeEnd(field.Result);
+            (string EquationId, int Start, int End)? matched = numberRanges
+                .Where(item => !fieldsByEquationId.ContainsKey(item.EquationId))
+                .FirstOrDefault(item => RangesTouchOrOverlap(fieldStart, fieldEnd, item.Start, item.End));
+            if (matched.HasValue && !string.IsNullOrWhiteSpace(matched.Value.EquationId))
             {
-                fieldsByEquationId[equationId] = field;
+                fieldsByEquationId[matched.Value.EquationId] = field;
+                continue;
+            }
+
+            unmatchedFields.Add((fieldStart, fieldEnd, (object)field));
+        }
+
+        if (fieldsByEquationId.Count < numberRanges.Count)
+        {
+            foreach ((string equationId, int _, int _) in numberRanges
+                .Where(item => !fieldsByEquationId.ContainsKey(item.EquationId))
+                .OrderBy(item => item.Start))
+            {
+                (int Start, int End, object Field)? nextField = unmatchedFields
+                    .Where(item => !fieldsByEquationId.ContainsValue(item.Field))
+                    .OrderBy(item => item.Start)
+                    .FirstOrDefault();
+                if (nextField.HasValue)
+                {
+                    fieldsByEquationId[equationId] = nextField.Value.Field;
+                }
             }
         }
 
         return fieldsByEquationId;
+    }
+
+    private static bool RangesTouchOrOverlap(int leftStart, int leftEnd, int rightStart, int rightEnd)
+    {
+        return leftStart <= rightEnd && rightStart <= leftEnd;
     }
 
     private bool TryFindEquationNumberRangeById(string equationId, out object? numberRange)
@@ -595,13 +650,6 @@ public sealed partial class DynamicWordApplicationAdapter
             numberRange = null;
             return false;
         }
-    }
-
-    private static string BuildRangeKey(dynamic range)
-    {
-        return GetRangeStart(range).ToString(System.Globalization.CultureInfo.InvariantCulture)
-            + ":"
-            + GetRangeEnd(range).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private double ReadManagedEquationFontSize(object contentControl)
