@@ -24,7 +24,7 @@ AppPublisherURL={#AppUrl}
 DefaultDirName={commonpf}\LaTeXSnipper\OfficePlugin
 DefaultGroupName=LaTeXSnipper
 DisableProgramGroupPage=yes
-OutputDir=..\dist
+OutputDir=..\release
 OutputBaseFilename=OfficePluginSetup-{#Version}
 Compression=lzma2
 SolidCompression=yes
@@ -109,18 +109,16 @@ Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 
 ; ===== Shared MathJax runtime =====
-Source: "..\hosts\WordAddIn\bin\{#Config}\net48\MathJax-3.2.2\*"; \
+Source: "..\release\InstallerAssets\MathJax-3.2.2\*"; \
   DestDir: "{app}\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
 
-; ===== EditorAssets (shared, installed alongside both hosts) =====
-Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorAssets\*"; \
+; ===== Editor assets =====
+Source: "..\release\InstallerAssets\EditorSharedAssets\*"; \
+  DestDir: "{app}\EditorSharedAssets"; Flags: ignoreversion recursesubdirs
+Source: "..\release\InstallerAssets\Word\EditorAssets\*"; \
   DestDir: "{app}\Word\EditorAssets"; Flags: ignoreversion recursesubdirs
-Source: "..\hosts\WordAddIn\bin\{#Config}\net48\EditorSharedAssets\*"; \
-  DestDir: "{app}\Word\EditorSharedAssets"; Flags: ignoreversion recursesubdirs
-Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorAssets\*"; \
+Source: "..\release\InstallerAssets\PowerPoint\EditorAssets\*"; \
   DestDir: "{app}\PowerPoint\EditorAssets"; Flags: ignoreversion recursesubdirs
-Source: "..\hosts\PowerPointAddIn\bin\{#Config}\net48\EditorSharedAssets\*"; \
-  DestDir: "{app}\PowerPoint\EditorSharedAssets"; Flags: ignoreversion recursesubdirs
 
 ; ===== OLE formula object handler =====
 Source: "..\hosts\OleFormulaObjectNative\bin\x64\{#Config}\LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"; \

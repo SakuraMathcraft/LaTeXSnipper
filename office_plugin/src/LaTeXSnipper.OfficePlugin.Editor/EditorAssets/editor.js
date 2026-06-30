@@ -426,7 +426,7 @@ function applyInit(payload) {
 }
 
 async function bootstrap() {
-  MathfieldElement.fontsDirectory = new URL("./vendor/fonts", window.location.href).href;
+  MathfieldElement.fontsDirectory = new URL("./vendor/fonts", import.meta.url).href;
   mathfield = new MathfieldElement();
   mathfield.smartFence = true;
   mathfield.mathVirtualKeyboardPolicy = "onfocus";

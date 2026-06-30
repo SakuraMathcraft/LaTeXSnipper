@@ -72,22 +72,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public int Start { get; }
     }
 
-    private sealed class EquationNumberState
-    {
-        public EquationNumberState(string prefix, bool resetSequence, WordNumberFormat format, WordNumberEnclosure enclosure)
-        {
-            Prefix = prefix;
-            ResetSequence = resetSequence;
-            Format = format;
-            Enclosure = enclosure;
-        }
-
-        public string Prefix { get; }
-        public bool ResetSequence { get; }
-        public WordNumberFormat Format { get; }
-        public WordNumberEnclosure Enclosure { get; }
-    }
-
     private sealed class ManagedRangeSpan
     {
         public ManagedRangeSpan(int start, int end)

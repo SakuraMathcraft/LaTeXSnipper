@@ -104,7 +104,10 @@ public static class WordOmmlDocumentBuilder
             "</w:p>";
     }
 
-    private static string BuildDisplayBody(string omml, FormulaMetadata metadata, WordNumberPlacement numberPlacement)
+    private static string BuildDisplayBody(
+        string omml,
+        FormulaMetadata metadata,
+        WordNumberPlacement numberPlacement)
     {
         if (metadata.NumberingMode != NumberingMode.None)
         {
@@ -116,7 +119,10 @@ public static class WordOmmlDocumentBuilder
             "</w:p>";
     }
 
-    private static string BuildNumberedDisplayBody(string omml, FormulaMetadata metadata, WordNumberPlacement numberPlacement)
+    private static string BuildNumberedDisplayBody(
+        string omml,
+        FormulaMetadata metadata,
+        WordNumberPlacement numberPlacement)
     {
         string equationControl = WrapEquationContentControl(omml, metadata);
         string number = BuildEquationNumberRuns(metadata);
@@ -145,12 +151,7 @@ public static class WordOmmlDocumentBuilder
         WordPluginSettings settings = WordPluginSettings.Load();
         string bookmarkName = WordEquationNumbering.BuildBookmarkName(metadata.Identity.EquationId);
         string numberBody = metadata.NumberingMode == NumberingMode.Automatic
-            ? "<w:fldSimple w:instr=\"" + EscapeXml(WordEquationNumbering.BuildSequenceFieldCode(
-                reset: false,
-                settings.NumberFormat,
-                string.Empty,
-                settings.NumberEnclosure)) +
-                "\"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
+            ? string.Empty
             : "<w:r><w:t>" +
                 EscapeXml(WordEquationNumbering.GetLeftEnclosure(settings.NumberEnclosure) +
                     metadata.NumberText +

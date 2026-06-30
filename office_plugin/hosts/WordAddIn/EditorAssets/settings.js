@@ -9,12 +9,6 @@ const TEXT = {
     numberRight: "右编号",
     numberLeft: "左编号",
     numberingHint: "此设置只影响新插入的编号公式，以及之后被自动编号的普通公式。",
-    formatLabel: "编号格式",
-    formatArabic: "1",
-    formatLowerRoman: "i",
-    formatUpperRoman: "I",
-    formatLowerLetter: "a",
-    formatUpperLetter: "A",
     enclosureLabel: "外框",
     enclosureNone: "无",
     includeChapter: "包含章编号",
@@ -64,12 +58,6 @@ const TEXT = {
     numberRight: "Number on the right",
     numberLeft: "Number on the left",
     numberingHint: "This setting applies to newly inserted numbered formulas and ordinary formulas numbered later.",
-    formatLabel: "Number format",
-    formatArabic: "1",
-    formatLowerRoman: "i",
-    formatUpperRoman: "I",
-    formatLowerLetter: "a",
-    formatUpperLetter: "A",
     enclosureLabel: "Enclosure",
     enclosureNone: "None",
     includeChapter: "Include chapter number",
@@ -132,7 +120,6 @@ let locale = "zh";
 let platform = "word";
 let numberPlacement = "Right";
 let insertionBackend = "Ole";
-let numberFormat = "Arabic";
 let numberEnclosure = "Parentheses";
 let includeChapter = false;
 let includeSection = false;
@@ -148,7 +135,6 @@ let formulaFontScale = 1;
 const numberingPanel = document.getElementById("numberingPanel");
 const buttons = Array.from(document.querySelectorAll("[data-placement]"));
 const backendButtons = Array.from(document.querySelectorAll("[data-backend]"));
-const numberFormatSelect = document.getElementById("numberFormat");
 const numberEnclosureSelect = document.getElementById("numberEnclosure");
 const includeChapterInput = document.getElementById("includeChapter");
 const includeSectionInput = document.getElementById("includeSection");
@@ -195,7 +181,6 @@ function renderBackend() {
 }
 
 function renderNumberOptions() {
-  numberFormatSelect.value = numberFormat;
   numberEnclosureSelect.value = numberEnclosure;
   includeChapterInput.checked = includeChapter;
   includeSectionInput.checked = includeSection;
@@ -216,7 +201,6 @@ function save() {
     type: "save",
     numberPlacement,
     insertionBackend,
-    numberFormat,
     numberEnclosure,
     includeChapter,
     includeSection,
@@ -253,9 +237,6 @@ function init(payload) {
   platform = payload?.platform || "word";
   numberPlacement = payload?.numberPlacement === "Left" ? "Left" : "Right";
   insertionBackend = payload?.insertionBackend === "WordOmml" ? "WordOmml" : "Ole";
-  numberFormat = ["Arabic", "LowerRoman", "UpperRoman", "LowerLetter", "UpperLetter"].includes(payload?.numberFormat)
-    ? payload.numberFormat
-    : "Arabic";
   numberEnclosure = ["Parentheses", "SquareBrackets", "Braces", "None"].includes(payload?.numberEnclosure)
     ? payload.numberEnclosure
     : "Parentheses";
@@ -298,11 +279,6 @@ backendButtons.forEach((button) => {
   });
 });
 
-numberFormatSelect.addEventListener("change", () => {
-  numberFormat = numberFormatSelect.value;
-  save();
-});
-
 numberEnclosureSelect.addEventListener("change", () => {
   numberEnclosure = numberEnclosureSelect.value;
   save();
@@ -343,7 +319,6 @@ if (window.__latexSnipperSettingsInit) {
     locale: navigator.language,
     numberPlacement,
     insertionBackend,
-    numberFormat,
     numberEnclosure,
     includeChapter,
     includeSection,

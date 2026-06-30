@@ -383,7 +383,9 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     private static string ApplyDefaultSourceFormatting(string latex, FormulaFontStyle fontStyle, string fontColor)
     {
-        string formatted = MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
+        string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)
+            ? latex
+            : MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
         if (MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)
             || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
         {

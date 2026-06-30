@@ -17,6 +17,32 @@ internal static class InstalledAssetResolver
         return null;
     }
 
+    public static string? FindSharedAssetRoot(string assetFile)
+    {
+        string? installDir = FindInstallDirectory();
+        if (installDir == null)
+        {
+            return null;
+        }
+
+        string? parentDirectory = Directory.GetParent(installDir)?.FullName;
+        string[] candidates =
+        {
+            Path.Combine(installDir, "EditorSharedAssets"),
+            parentDirectory == null ? string.Empty : Path.Combine(parentDirectory, "EditorSharedAssets"),
+        };
+
+        foreach (string candidate in candidates)
+        {
+            if (candidate.Length > 0 && File.Exists(Path.Combine(candidate, assetFile)))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     public static string? FindInstallDirectory()
     {
         foreach (string subPath in RegistryPaths)

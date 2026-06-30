@@ -22,7 +22,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Native OMML formula insertion (inline, display, numbered)
 - Load, update, and delete managed formulas
 - Chapter/section-aware automatic numbering, references, boundaries, and Renumber All
-- In-place conversion of one selected managed formula between OLE and OMML
+- In-place conversion between managed OLE and OMML formulas, plus explicit conversion of selected native Word OMML formulas to LaTeXSnipper OLE
 - Selected formula style reset and document-wide natural-size restoration
 - Screenshot OCR via desktop Bridge
 
@@ -68,6 +68,6 @@ The release build requires Visual Studio 2022 with Office/SharePoint and Visual 
 office_plugin\installer\build.bat 2.4.0 Release
 ```
 
-Output: `office_plugin\dist\OfficePluginSetup-2.4.0.exe`
+Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.

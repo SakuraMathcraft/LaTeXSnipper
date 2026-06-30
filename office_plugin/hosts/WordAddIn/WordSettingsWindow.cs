@@ -123,7 +123,6 @@ internal sealed class WordSettingsWindow : Form
             ["type"] = "init",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
             ["numberPlacement"] = settings.NumberPlacement.ToString(),
-            ["numberFormat"] = settings.NumberFormat.ToString(),
             ["numberEnclosure"] = settings.NumberEnclosure.ToString(),
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
             ["includeChapter"] = settings.IncludeChapter,
@@ -174,15 +173,9 @@ internal sealed class WordSettingsWindow : Form
         FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.WordOmml.ToString()
             ? FormulaInsertionBackend.WordOmml
             : FormulaInsertionBackend.Ole;
-        string formatRaw = message.TryGetValue("numberFormat", out object rawFormat)
-            ? Convert.ToString(rawFormat, CultureInfo.InvariantCulture) ?? string.Empty
-            : string.Empty;
         string enclosureRaw = message.TryGetValue("numberEnclosure", out object rawEnclosure)
             ? Convert.ToString(rawEnclosure, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        WordNumberFormat numberFormat = Enum.TryParse(formatRaw, out WordNumberFormat parsedFormat)
-            ? parsedFormat
-            : WordNumberFormat.Arabic;
         WordNumberEnclosure numberEnclosure = Enum.TryParse(enclosureRaw, out WordNumberEnclosure parsedEnclosure)
             ? parsedEnclosure
             : WordNumberEnclosure.Parentheses;
@@ -201,7 +194,6 @@ internal sealed class WordSettingsWindow : Form
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
-            numberFormat,
             numberEnclosure,
             includeChapter,
             includeSection,

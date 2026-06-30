@@ -1,4 +1,4 @@
-import { MathfieldElement } from "./vendor/mathlive.min.mjs";
+import { MathfieldElement } from "https://latexsnipper-editor-shared.officeplugin.local/vendor/mathlive.min.mjs";
 
 const DEFAULT_LATEX = "e^{i\\pi}+1=0";
 
@@ -139,7 +139,7 @@ function flushPending() {
 }
 
 async function bootstrap() {
-  MathfieldElement.fontsDirectory = new URL("./vendor/fonts", window.location.href).href;
+  MathfieldElement.fontsDirectory = "https://latexsnipper-editor-shared.officeplugin.local/vendor/fonts";
   previewField = new MathfieldElement();
   previewField.mathVirtualKeyboardPolicy = "manual";
   previewField.defaultMode = "math";

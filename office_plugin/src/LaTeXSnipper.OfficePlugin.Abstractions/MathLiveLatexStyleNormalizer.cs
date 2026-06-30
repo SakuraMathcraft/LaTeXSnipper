@@ -92,6 +92,20 @@ public static class MathLiveLatexStyleNormalizer
         return false;
     }
 
+    public static bool HasFontStyleFormatting(string latex)
+    {
+        string source = NormalizeLatex(latex);
+        foreach (string command in FontStyleCommands)
+        {
+            if (source.IndexOf(command, StringComparison.Ordinal) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static string RemoveColorFormattingCore(string source)
     {
         var result = new StringBuilder(source.Length);

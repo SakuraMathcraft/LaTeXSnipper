@@ -14,7 +14,7 @@ public sealed partial class DynamicWordApplicationAdapter
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        SelectedWordFormula selected = FindSelectedFormula();
+        SelectedWordFormula selected = EnsureUniqueFormulaIdentity(FindSelectedFormula());
         return Task.FromResult(selected.Metadata);
     }
 
@@ -22,6 +22,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
         IReadOnlyList<WordFormulaEntry> entries = CollectSelectedFormulas()
+            .Select(EnsureUniqueFormulaIdentity)
             .Select(item => new WordFormulaEntry(GetFormulaStart(item), item.Metadata))
             .Concat(CollectSelectedNativeWordFormulaEntries())
             .OrderByDescending(item => item.Start)
@@ -32,6 +33,63 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return Task.FromResult(entries);
+    }
+
+    private SelectedWordFormula EnsureUniqueFormulaIdentity(SelectedWordFormula selected)
+    {
+        string equationId = selected.Metadata.Identity.EquationId;
+        if (CountManagedFormulasById(equationId) <= 1)
+        {
+            return selected;
+        }
+
+        FormulaMetadata metadata = WithNewIdentity(selected.Metadata, "active-document");
+        double fontSizePoints = 0;
+        if (!selected.IsOleInlineShape &&
+            WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
+                _wordApplication.ActiveDocument,
+                equationId,
+                out fontSizePoints))
+        {
+            WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
+                _wordApplication.ActiveDocument,
+                metadata.Identity.EquationId,
+                fontSizePoints);
+        }
+
+        SaveFormulaMetadata(selected.ContentControl, metadata);
+        return new SelectedWordFormula(selected.ContentControl, metadata, selected.IsOleInlineShape);
+    }
+
+    private int CountManagedFormulasById(string equationId)
+    {
+        if (string.IsNullOrWhiteSpace(equationId))
+        {
+            return 0;
+        }
+
+        int count = 0;
+        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        int controlCount = Convert.ToInt32(controls.Count);
+        for (int index = 1; index <= controlCount; index++)
+        {
+            if (string.Equals(GetEquationControlId(controls.Item(index)), equationId, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        int shapeCount = Convert.ToInt32(inlineShapes.Count);
+        for (int index = 1; index <= shapeCount; index++)
+        {
+            if (string.Equals(GetOleInlineShapeEquationId(inlineShapes.Item(index)), equationId, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     public Task UpdateFormulaAsync(
@@ -94,11 +152,10 @@ public sealed partial class DynamicWordApplicationAdapter
                     ApplyNumberedFormulaParagraphLayout(insertedRange);
                     if (metadata.NumberingMode == NumberingMode.Automatic)
                     {
-                        ReplaceEquationNumberAtRange(
-                            FindEquationNumberRange(insertedRange, metadata),
+                        InsertManagedEquationNumber(
+                            insertedControl,
                             metadata,
-                            BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()),
-                            formulaHeightPoints: 0);
+                            BuildEquationNumberStateAtPosition(insertionPoint, WordPluginSettings.Load()));
                     }
                 }
 
