@@ -53,7 +53,7 @@ LaTeXSnipper provides a released Windows plugin for desktop Microsoft Word and P
 - PowerPoint OLE and PNG formula insertion
 - Shared MathLive editor and extensive symbol/formula library
 - Formula loading, update, deletion, automatic numbering, and renumbering
-- Persisted LaTeX source, rendering options, numbering data, and formula identity
+- Persisted complete LaTeX source, rendering options, numbering data, and formula identity
 - Local vector rendering for OLE formulas
 - Screenshot recognition through the local desktop Bridge
 

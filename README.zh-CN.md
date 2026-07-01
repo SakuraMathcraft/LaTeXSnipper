@@ -54,7 +54,7 @@ LaTeXSnipper 提供 Windows 桌面版 Microsoft Word 和 PowerPoint 插件：
 - PowerPoint OLE 和 PNG 公式插入
 - 共享 MathLive 编辑器和完整符号/公式库
 - 公式加载、更新、删除、自动编号和重编号
-- 持久化 LaTeX 源码、渲染选项、编号数据和公式身份信息
+- 持久化完整 LaTeX 源码、渲染选项、编号数据和公式身份信息
 - OLE 公式本地矢量渲染
 - 通过本地桌面 Bridge 调用截图识别
 

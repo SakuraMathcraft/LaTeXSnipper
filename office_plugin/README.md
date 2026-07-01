@@ -2,7 +2,7 @@
 
 Released Windows VSTO add-in for Microsoft Word and PowerPoint. It inserts and maintains LaTeXSnipper OLE formulas and provides native Word OMML and PowerPoint PNG alternatives. Formula editing and rendering are fully local; the desktop Bridge at `127.0.0.1:28765` is used only for screenshot recognition.
 
-OLE formulas use local MathJax layout and EMF vector presentations. Formula source, rendering options, numbering information, and object identity are stored with each managed formula.
+OLE formulas use local MathJax layout and EMF vector presentations. Complete LaTeX source, rendering options, numbering information, and object identity are stored with each managed formula.
 
 ## Supported Office Versions
 
@@ -30,7 +30,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 - OLE and PNG formula insertion
 - Load, update, and delete managed formulas
-- In-place conversion of one selected managed formula between OLE and PNG
+- In-place conversion of selected managed formulas between OLE and PNG
 - Selected formula style reset and presentation-wide natural-size restoration
 - User-resized formulas preserve their scale when updated
 - Screenshot OCR via desktop Bridge

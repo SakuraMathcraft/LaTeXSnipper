@@ -16,7 +16,7 @@ cd office_plugin\installer
 build.bat 2.4.0 Release
 ```
 
-Output: `office_plugin\dist\OfficePluginSetup-2.4.0.exe`
+Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
 
 ## Installation Responsibilities
 
