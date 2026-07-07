@@ -1,0 +1,3 @@
+subset,subset_name,count,ok,fail,empty,norm_exact,norm_exact_rate,compact_exact,compact_exact_rate,bleu4,avg_char_ned,median_char_ned,avg_token_ned,median_token_ned,avg_similarity,median_similarity,similarity_ge_090,similarity_ge_095,similarity_ge_098,latency_p50_ms,latency_p90_ms,latency_p95_ms
+all,all,7644,7644,0,0,0,0.0,898,0.117478,0.546719,0.354732,0.333333,0.323895,0.291667,0.719392,0.758621,0.260204,0.176086,0.127028,116.684,189.447,225.104
+test,human,7644,7644,0,0,0,0.0,898,0.117478,0.546719,0.354732,0.333333,0.323895,0.291667,0.719392,0.758621,0.260204,0.176086,0.127028,116.684,189.447,225.104

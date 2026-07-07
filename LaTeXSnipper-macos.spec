@@ -206,6 +206,8 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
+        "handwriting.pdf_view_fitz",
+        "handwriting.pdf_view_poppler",
     ],
     hookspath=[],
     hooksconfig={},

@@ -1,0 +1,8 @@
+metric,value
+mean_score,0.929
+exp_rate,0.648
+expected_rows,23757
+evaluated_rows,23701
+skipped_rows,56
+completed_shards,238
+total_shards,238

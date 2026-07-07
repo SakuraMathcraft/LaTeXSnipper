@@ -1,0 +1,11 @@
+metric,value
+mean_score,0.75
+exp_rate,0.168
+expected_rows,7644
+evaluated_rows,7644
+skipped_rows,0
+completed_shards,77
+total_shards,77
+median_score,0.8
+p10_score,0.462
+p90_score,1.0

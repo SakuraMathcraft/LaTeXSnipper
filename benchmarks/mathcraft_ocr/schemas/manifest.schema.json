@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MathCraft OCR Benchmark Manifest Item",
+  "type": "object",
+  "required": ["id", "task", "image", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task": {
+      "type": "string",
+      "enum": ["formula", "text", "mixed_page", "mixed_region"]
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["formula", "text", "mixed"]
+    },
+    "image": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_latex": {
+      "type": "string"
+    },
+    "target_text": {
+      "type": "string"
+    },
+    "target_blocks": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "license": {
+      "type": "string"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["easy", "moderate", "complex", "unknown"]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}
+

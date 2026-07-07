@@ -1,0 +1,201 @@
+sample_id,source_id,page_number,ok,empty,latency_ms,text_length,region_count,block_count,text_block_count,formula_block_count,display_formula_count,inline_formula_count,low_score_blocks,quality_flag_count,quality_flags
+openstax_calculus_v1_p0040,calculus_v1,40,True,False,6045.268,967,44,76,44,32,0,32,29,35,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0041,calculus_v1,41,True,False,5188.853,1537,58,77,58,19,0,19,6,17,header low_score page_number top_margin
+openstax_calculus_v1_p0042,calculus_v1,42,True,False,5690.442,3616,109,132,109,23,0,23,7,12,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0043,calculus_v1,43,True,False,4177.442,215,11,15,11,4,0,4,3,8,header low_score top_margin
+openstax_calculus_v1_p0044,calculus_v1,44,True,False,7035.882,2890,51,73,51,22,0,22,1,4,bottom_margin low_score top_margin
+openstax_calculus_v1_p0045,calculus_v1,45,True,False,9038.443,2625,61,110,61,49,6,43,6,17,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0046,calculus_v1,46,True,False,6863.781,1581,36,54,36,18,5,13,0,9,bottom_margin display_formula top_margin
+openstax_calculus_v1_p0047,calculus_v1,47,True,False,6678.523,1448,28,39,28,11,3,8,3,10,display_formula header low_score top_margin
+openstax_calculus_v1_p0048,calculus_v1,48,True,False,8174.805,2728,71,115,71,44,3,41,7,15,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0049,calculus_v1,49,True,False,8496.121,2799,79,138,79,59,0,59,6,10,header low_score page_number top_margin
+openstax_calculus_v1_p0050,calculus_v1,50,True,False,6368.377,2650,57,89,57,32,2,30,5,12,bottom_margin display_formula excessive_repeated_token low_score repeated_token_run top_margin
+openstax_calculus_v1_p0051,calculus_v1,51,True,False,6772.663,1467,39,66,39,27,3,24,2,9,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0052,calculus_v1,52,True,False,4577.941,1585,29,40,29,11,0,11,4,7,bottom_margin low_score top_margin
+openstax_calculus_v1_p0053,calculus_v1,53,True,False,4753.925,1544,40,54,40,14,1,13,4,9,display_formula header low_score top_margin
+openstax_calculus_v1_p0054,calculus_v1,54,True,False,6897.536,2062,37,57,37,20,2,18,1,6,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0055,calculus_v1,55,True,False,6102.237,1645,34,52,34,18,1,17,2,7,display_formula header low_score top_margin
+openstax_calculus_v1_p0056,calculus_v1,56,True,False,6506.677,2062,48,84,48,36,6,30,2,13,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0057,calculus_v1,57,True,False,6928.674,1957,52,93,52,41,0,41,9,13,header low_score page_number top_margin
+openstax_calculus_v1_p0058,calculus_v1,58,True,False,6206.859,2906,46,65,46,19,1,18,0,4,bottom_margin display_formula top_margin
+openstax_calculus_v1_p0059,calculus_v1,59,True,False,6737.322,1475,30,50,30,20,2,18,3,12,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0060,calculus_v1,60,True,False,6813.618,1952,53,71,53,18,1,17,6,10,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0061,calculus_v1,61,True,False,179348.777,2785,49,96,49,47,0,47,15,30,excessive_repeated_token header low_score page_number repeated_token_run top_margin
+openstax_calculus_v1_p0062,calculus_v1,62,True,False,10014.73,2238,82,143,82,61,0,61,20,27,bottom_margin excessive_repeated_token header low_score page_number repeated_token_run top_margin
+openstax_calculus_v1_p0063,calculus_v1,63,True,False,6905.68,1697,50,86,50,36,0,36,4,8,header low_score page_number top_margin
+openstax_calculus_v1_p0064,calculus_v1,64,True,False,6167.657,1342,37,62,37,25,0,25,3,8,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0065,calculus_v1,65,True,False,5950.121,894,31,53,31,22,0,22,1,5,header low_score top_margin
+openstax_calculus_v1_p0066,calculus_v1,66,True,False,6243.438,870,25,40,25,15,0,15,5,10,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0067,calculus_v1,67,True,False,7797.948,2349,85,145,85,60,0,60,12,16,header low_score page_number top_margin
+openstax_calculus_v1_p0068,calculus_v1,68,True,False,8884.135,3873,107,136,107,29,0,29,4,11,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0069,calculus_v1,69,True,False,4998.011,1268,37,44,37,7,0,7,0,4,header top_margin
+openstax_calculus_v1_p0070,calculus_v1,70,True,False,5191.845,1950,37,48,37,11,0,11,2,5,bottom_margin low_score top_margin
+openstax_calculus_v1_p0071,calculus_v1,71,True,False,7057.673,1690,35,64,35,29,0,29,10,14,header low_score top_margin
+openstax_calculus_v1_p0072,calculus_v1,72,True,False,6642.106,1372,38,63,38,25,2,23,1,8,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0073,calculus_v1,73,True,False,6009.245,1248,33,59,33,26,0,26,8,13,header low_score page_number top_margin
+openstax_calculus_v1_p0074,calculus_v1,74,True,False,5774.258,1359,20,36,20,16,3,13,5,11,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0075,calculus_v1,75,True,False,6005.833,1497,29,50,29,21,2,19,9,15,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0076,calculus_v1,76,True,False,7129.57,2264,30,48,30,18,7,11,3,13,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0077,calculus_v1,77,True,False,8136.089,2855,41,70,41,29,10,19,5,19,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0078,calculus_v1,78,True,False,7336.54,2323,47,78,47,31,4,27,0,9,bottom_margin display_formula header page_number top_margin
+openstax_calculus_v1_p0079,calculus_v1,79,True,False,6768.646,1491,66,103,66,37,1,36,25,30,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0080,calculus_v1,80,True,False,6050.95,1522,38,54,38,16,2,14,3,10,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0081,calculus_v1,81,True,False,6225.688,334,7,17,7,10,1,9,6,11,display_formula header low_score top_margin
+openstax_calculus_v1_p0082,calculus_v1,82,True,False,7509.158,2500,61,102,61,41,0,41,6,11,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0083,calculus_v1,83,True,False,6280.104,1725,37,66,37,29,0,29,8,15,header low_score page_number top_margin
+openstax_calculus_v1_p0084,calculus_v1,84,True,False,8144.075,3571,94,135,94,41,1,40,13,23,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0085,calculus_v1,85,True,False,5567.029,710,20,27,20,7,0,7,0,4,header top_margin
+openstax_calculus_v1_p0086,calculus_v1,86,True,False,10814.194,3050,70,116,70,46,1,45,4,10,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0087,calculus_v1,87,True,False,5589.806,1934,49,74,49,25,0,25,9,13,header low_score top_margin
+openstax_calculus_v1_p0088,calculus_v1,88,True,False,5203.945,278,14,19,14,5,0,5,5,10,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0089,calculus_v1,89,True,False,5207.24,263,14,20,14,6,0,6,5,9,header low_score page_number top_margin
+openstax_calculus_v1_p0120,calculus_v1,120,True,False,7264.323,1594,22,35,22,13,5,8,1,11,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0121,calculus_v1,121,True,False,6482.977,1153,41,58,41,17,0,17,6,10,header low_score page_number top_margin
+openstax_calculus_v1_p0122,calculus_v1,122,True,False,6516.3,1261,49,73,49,24,0,24,6,13,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0123,calculus_v1,123,True,False,9430.658,2461,61,102,61,41,1,40,2,8,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0124,calculus_v1,124,True,False,9463.277,4356,109,145,109,36,0,36,12,17,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0125,calculus_v1,125,True,False,8088.695,2923,63,109,63,46,0,46,5,9,header low_score top_margin
+openstax_calculus_v1_p0126,calculus_v1,126,True,False,8077.822,3133,64,108,64,44,0,44,3,10,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0127,calculus_v1,127,True,False,7831.33,2749,65,108,65,43,0,43,9,13,header low_score page_number top_margin
+openstax_calculus_v1_p0128,calculus_v1,128,True,False,8638.139,3212,80,128,80,48,0,48,15,20,bottom_margin header low_score repeated_token_run top_margin
+openstax_calculus_v1_p0129,calculus_v1,129,True,False,7217.91,3371,86,117,86,31,0,31,3,6,header low_score top_margin
+openstax_calculus_v1_p0130,calculus_v1,130,True,False,2934.999,116,3,3,3,0,0,0,0,3,bottom_margin top_margin
+openstax_calculus_v1_p0131,calculus_v1,131,True,False,6151.817,847,17,18,17,1,1,0,0,5,display_formula header top_margin
+openstax_calculus_v1_p0132,calculus_v1,132,True,False,6097.06,3238,53,68,53,15,2,13,3,15,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0133,calculus_v1,133,True,False,6077.4,1361,32,50,32,18,1,17,8,13,display_formula header low_score top_margin
+openstax_calculus_v1_p0134,calculus_v1,134,True,False,6364.807,1808,47,73,47,26,1,25,9,13,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0135,calculus_v1,135,True,False,7230.213,1549,48,69,48,21,0,21,14,18,header low_score page_number top_margin
+openstax_calculus_v1_p0136,calculus_v1,136,True,False,8050.943,3108,61,93,61,32,2,30,3,8,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0137,calculus_v1,137,True,False,6455.395,1696,33,44,33,11,0,11,3,7,header low_score top_margin
+openstax_calculus_v1_p0138,calculus_v1,138,True,False,5370.522,587,16,23,16,7,0,7,3,6,bottom_margin low_score top_margin
+openstax_calculus_v1_p0139,calculus_v1,139,True,False,5064.56,1342,22,28,22,6,1,5,3,8,display_formula header low_score top_margin
+openstax_calculus_v1_p0140,calculus_v1,140,True,False,7037.626,2685,104,162,104,58,0,58,16,21,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0141,calculus_v1,141,True,False,8846.462,3187,100,154,100,54,0,54,18,23,header low_score page_number top_margin
+openstax_calculus_v1_p0142,calculus_v1,142,True,False,5433.9,1587,43,58,43,15,0,15,4,7,bottom_margin low_score top_margin
+openstax_calculus_v1_p0143,calculus_v1,143,True,False,8046.181,2490,44,58,44,14,2,12,2,8,display_formula header low_score top_margin
+openstax_calculus_v1_p0144,calculus_v1,144,True,False,10333.955,3144,60,122,60,62,2,60,13,20,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0145,calculus_v1,145,True,False,6879.454,1828,47,70,47,23,0,23,4,8,header low_score page_number top_margin
+openstax_calculus_v1_p0146,calculus_v1,146,True,False,5953.525,1219,36,56,36,20,0,20,13,18,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0147,calculus_v1,147,True,False,5690.404,881,24,28,24,4,0,4,0,4,header page_number top_margin
+openstax_calculus_v1_p0148,calculus_v1,148,True,False,6151.676,899,27,34,27,7,0,7,3,8,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0149,calculus_v1,149,True,False,7497.341,1576,30,60,30,30,1,29,8,13,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0150,calculus_v1,150,True,False,6796.676,2131,45,70,45,25,2,23,9,23,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0151,calculus_v1,151,True,False,5948.867,2121,45,71,45,26,2,24,9,15,display_formula header low_score top_margin
+openstax_calculus_v1_p0152,calculus_v1,152,True,False,7606.602,1969,64,97,64,33,2,31,8,15,bottom_margin display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0153,calculus_v1,153,True,False,7089.375,2107,26,41,26,15,3,12,3,10,display_formula header low_score top_margin
+openstax_calculus_v1_p0154,calculus_v1,154,True,False,9410.412,3938,92,153,92,61,7,54,13,23,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0155,calculus_v1,155,True,False,6367.039,1571,41,67,41,26,3,23,8,15,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0156,calculus_v1,156,True,False,6462.425,852,25,36,25,11,0,11,4,9,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0157,calculus_v1,157,True,False,7470.641,1712,30,50,30,20,5,15,2,12,display_formula header low_score page_number top_margin
+openstax_calculus_v1_p0158,calculus_v1,158,True,False,7774.576,2853,21,38,21,17,7,10,4,14,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0159,calculus_v1,159,True,False,8081.267,1965,22,37,22,15,0,15,7,11,header low_score page_number top_margin
+openstax_calculus_v1_p0160,calculus_v1,160,True,False,7184.769,1308,32,39,32,7,1,6,3,7,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0161,calculus_v1,161,True,False,6385.043,419,17,19,17,2,0,2,0,4,header top_margin
+openstax_calculus_v1_p0162,calculus_v1,162,True,False,10324.182,2645,71,129,71,58,0,58,27,32,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0163,calculus_v1,163,True,False,49391.39,2006,54,129,54,75,0,75,30,34,header low_score page_number top_margin
+openstax_calculus_v1_p0164,calculus_v1,164,True,False,6568.03,1637,41,76,41,35,0,35,19,25,bottom_margin header low_score page_number top_margin
+openstax_calculus_v1_p0165,calculus_v1,165,True,False,5952.12,1495,50,79,50,29,0,29,9,13,header low_score page_number top_margin
+openstax_calculus_v1_p0166,calculus_v1,166,True,False,7729.003,2941,51,80,51,29,1,28,6,11,bottom_margin display_formula header low_score top_margin
+openstax_calculus_v1_p0167,calculus_v1,167,True,False,5353.523,1164,35,51,35,16,0,16,6,11,header low_score top_margin
+openstax_calculus_v1_p0168,calculus_v1,168,True,False,5222.041,2146,36,44,36,8,1,7,1,5,bottom_margin display_formula low_score top_margin
+openstax_calculus_v1_p0169,calculus_v1,169,True,False,8187.195,3284,35,56,35,21,1,20,1,6,display_formula header low_score page_number top_margin
+openstax_college_algebra_p0060,college_algebra,60,True,False,5700.894,2100,35,53,35,18,4,14,6,16,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0061,college_algebra,61,True,False,7164.844,2390,28,49,28,21,8,13,12,25,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0062,college_algebra,62,True,False,5840.505,2263,37,48,37,11,5,6,2,12,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0063,college_algebra,63,True,False,6425.031,2106,36,50,36,14,4,10,5,13,display_formula header low_score top_margin
+openstax_college_algebra_p0064,college_algebra,64,True,False,10439.218,4375,96,155,96,59,0,59,7,17,bottom_margin header low_score top_margin
+openstax_college_algebra_p0065,college_algebra,65,True,False,5881.4,2343,42,54,42,12,1,11,4,10,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0066,college_algebra,66,True,False,7300.914,2781,58,86,58,28,1,27,4,9,display_formula header low_score top_margin
+openstax_college_algebra_p0067,college_algebra,67,True,False,8166.261,2419,62,102,62,40,0,40,6,14,bottom_margin header low_score top_margin
+openstax_college_algebra_p0068,college_algebra,68,True,False,7613.803,2043,44,75,44,31,6,25,4,14,display_formula header low_score top_margin
+openstax_college_algebra_p0069,college_algebra,69,True,False,6901.492,2283,44,66,44,22,4,18,6,16,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0070,college_algebra,70,True,False,6128.41,2094,47,70,47,23,3,20,3,10,display_formula header low_score top_margin
+openstax_college_algebra_p0071,college_algebra,71,True,False,5499.455,1708,22,29,22,7,1,6,0,5,display_formula header top_margin
+openstax_college_algebra_p0072,college_algebra,72,True,False,7348.597,2618,61,108,61,47,0,47,1,5,header low_score top_margin
+openstax_college_algebra_p0073,college_algebra,73,True,False,6583.079,1740,37,51,37,14,0,14,3,7,header low_score page_number top_margin
+openstax_college_algebra_p0074,college_algebra,74,True,False,5481.429,2182,42,56,42,14,5,9,1,14,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0075,college_algebra,75,True,False,6400.727,2126,30,41,30,11,7,4,2,14,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0076,college_algebra,76,True,False,7736.249,2806,36,53,36,17,8,9,5,26,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0077,college_algebra,77,True,False,6659.31,2145,31,49,31,18,11,7,6,22,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0078,college_algebra,78,True,False,6525.593,2262,31,50,31,19,3,16,3,12,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0079,college_algebra,79,True,False,5197.34,672,11,13,11,2,0,2,0,4,header top_margin
+openstax_college_algebra_p0080,college_algebra,80,True,False,81850.822,6223,42,71,42,29,1,28,0,14,bottom_margin display_formula excessive_repeated_token header repeated_token_run top_margin
+openstax_college_algebra_p0081,college_algebra,81,True,False,10230.907,3023,43,75,43,32,1,31,6,12,display_formula header low_score page_number top_margin
+openstax_college_algebra_p0082,college_algebra,82,True,False,8189.36,3648,51,69,51,18,0,18,1,6,bottom_margin header low_score top_margin
+openstax_college_algebra_p0083,college_algebra,83,True,False,7175.749,2880,48,73,48,25,0,25,2,8,bottom_margin header low_score page_number top_margin
+openstax_college_algebra_p0084,college_algebra,84,True,False,6556.934,3727,52,59,52,7,0,7,5,11,bottom_margin header low_score top_margin
+openstax_college_algebra_p0085,college_algebra,85,True,False,3235.539,2302,32,32,32,0,0,0,0,4,header top_margin
+openstax_college_algebra_p0086,college_algebra,86,True,False,6352.744,2026,42,73,42,31,1,30,4,10,display_formula header low_score top_margin
+openstax_college_algebra_p0087,college_algebra,87,True,False,7103.779,2370,44,81,44,37,0,37,1,5,header low_score page_number top_margin
+openstax_college_algebra_p0088,college_algebra,88,True,False,7149.896,1800,38,66,38,28,1,27,3,8,display_formula header low_score top_margin
+openstax_college_algebra_p0089,college_algebra,89,True,False,4841.469,935,20,22,20,2,0,2,0,3,bottom_margin page_number
+openstax_college_algebra_p0090,college_algebra,90,True,False,5304.748,2202,41,43,41,2,0,2,2,6,header low_score top_margin
+openstax_college_algebra_p0091,college_algebra,91,True,False,5338.352,1711,37,49,37,12,0,12,6,11,bottom_margin header low_score top_margin
+openstax_college_algebra_p0092,college_algebra,92,True,False,6438.25,2399,64,112,64,48,0,48,14,22,bottom_margin header low_score top_margin
+openstax_college_algebra_p0093,college_algebra,93,True,False,13856.466,2862,41,75,41,34,0,34,18,24,excessive_repeated_token header low_score repeated_token_run top_margin
+openstax_college_algebra_p0094,college_algebra,94,True,False,25479.265,4836,44,60,44,16,3,13,10,19,display_formula excessive_repeated_token header low_score repeated_token_run top_margin
+openstax_college_algebra_p0095,college_algebra,95,True,False,9566.505,2202,40,71,40,31,1,30,18,26,bottom_margin display_formula header low_score page_number top_margin
+openstax_college_algebra_p0096,college_algebra,96,True,False,20378.214,3476,38,61,38,23,5,18,4,14,display_formula excessive_repeated_token header low_score top_margin
+openstax_college_algebra_p0097,college_algebra,97,True,False,5540.715,1583,37,46,37,9,1,8,6,11,display_formula header low_score top_margin
+openstax_college_algebra_p0098,college_algebra,98,True,False,10861.995,3078,41,62,41,21,4,17,9,18,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0099,college_algebra,99,True,False,6133.883,1393,22,31,22,9,2,7,2,8,display_formula header low_score top_margin
+openstax_college_algebra_p0100,college_algebra,100,True,False,7544.12,2531,77,121,77,44,1,43,10,15,display_formula header low_score top_margin
+openstax_college_algebra_p0101,college_algebra,101,True,False,6674.621,2814,70,109,70,39,1,38,20,33,bottom_margin display_formula header low_score page_number top_margin
+openstax_college_algebra_p0102,college_algebra,102,True,False,6280.214,2931,79,98,79,19,0,19,10,19,bottom_margin header low_score top_margin
+openstax_college_algebra_p0103,college_algebra,103,True,False,5616.943,2596,42,49,42,7,3,4,0,8,bottom_margin display_formula header top_margin
+openstax_college_algebra_p0104,college_algebra,104,True,False,6670.6,2781,44,66,44,22,5,17,6,17,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0105,college_algebra,105,True,False,7424.066,3699,47,71,47,24,9,15,3,20,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0106,college_algebra,106,True,False,6701.871,2763,41,63,41,22,8,14,3,17,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0107,college_algebra,107,True,False,8541.559,2310,33,55,33,22,6,16,8,21,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0108,college_algebra,108,True,False,7425.13,2730,36,61,36,25,7,18,4,18,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0109,college_algebra,109,True,False,6395.413,2340,51,84,51,33,3,30,12,20,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0180,college_algebra,180,True,False,5715.526,1955,93,107,93,14,2,12,5,18,bottom_margin display_formula header low_score page_number top_margin
+openstax_college_algebra_p0181,college_algebra,181,True,False,6598.915,2608,32,43,32,11,6,5,0,10,display_formula header top_margin
+openstax_college_algebra_p0182,college_algebra,182,True,False,6140.061,1866,56,93,56,37,5,32,5,26,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0183,college_algebra,183,True,False,7574.762,2955,50,83,50,33,7,26,11,27,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0184,college_algebra,184,True,False,5952.453,2755,72,96,72,24,0,24,8,13,bottom_margin header low_score top_margin
+openstax_college_algebra_p0185,college_algebra,185,True,False,6035.205,1410,42,69,42,27,0,27,15,20,bottom_margin header low_score page_number top_margin
+openstax_college_algebra_p0186,college_algebra,186,True,False,5548.962,2544,51,67,51,16,0,16,7,12,bottom_margin header low_score top_margin
+openstax_college_algebra_p0187,college_algebra,187,True,False,5334.285,1834,41,58,41,17,0,17,5,9,header low_score top_margin
+openstax_college_algebra_p0188,college_algebra,188,True,False,4870.553,722,19,23,19,4,0,4,3,7,header low_score top_margin
+openstax_college_algebra_p0189,college_algebra,189,True,False,5012.901,1680,23,25,23,2,0,2,2,7,bottom_margin header low_score top_margin
+openstax_college_algebra_p0190,college_algebra,190,True,False,5784.78,1098,51,84,51,33,0,33,15,19,header low_score top_margin
+openstax_college_algebra_p0191,college_algebra,191,True,False,6084.069,1068,44,75,44,31,0,31,13,16,header low_score top_margin
+openstax_college_algebra_p0192,college_algebra,192,True,False,6867.74,2551,77,130,77,53,0,53,5,16,bottom_margin header low_score top_margin
+openstax_college_algebra_p0193,college_algebra,193,True,False,4754.051,177,16,18,16,2,0,2,2,6,header low_score page_number top_margin
+openstax_college_algebra_p0194,college_algebra,194,True,False,9210.924,1662,70,103,70,33,0,33,18,29,bottom_margin excessive_repeated_token header low_score repeated_token_run top_margin
+openstax_college_algebra_p0195,college_algebra,195,True,False,6772.118,2679,72,115,72,43,1,42,8,13,display_formula header low_score page_number top_margin
+openstax_college_algebra_p0196,college_algebra,196,True,False,5820.996,3152,60,61,60,1,1,0,0,8,bottom_margin display_formula header top_margin
+openstax_college_algebra_p0197,college_algebra,197,True,False,6154.576,2424,50,93,50,43,1,42,16,22,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0198,college_algebra,198,True,False,6020.253,2377,38,55,38,17,2,15,4,10,display_formula header low_score top_margin
+openstax_college_algebra_p0199,college_algebra,199,True,False,6150.76,2425,48,84,48,36,1,35,11,17,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0200,college_algebra,200,True,False,28218.999,4739,39,54,39,15,5,10,5,15,display_formula excessive_repeated_token header low_score top_margin
+openstax_college_algebra_p0201,college_algebra,201,True,False,5023.897,1223,37,43,37,6,0,6,3,7,header low_score top_margin
+openstax_college_algebra_p0202,college_algebra,202,True,False,5530.831,1730,54,64,54,10,0,10,3,9,bottom_margin header low_score top_margin
+openstax_college_algebra_p0203,college_algebra,203,True,False,5508.543,1727,52,77,52,25,0,25,7,12,bottom_margin header low_score page_number top_margin
+openstax_college_algebra_p0204,college_algebra,204,True,False,5851.519,2413,61,88,61,27,0,27,7,11,header low_score top_margin
+openstax_college_algebra_p0205,college_algebra,205,True,False,6465.413,2900,50,75,50,25,3,22,6,15,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0206,college_algebra,206,True,False,10476.419,2821,53,80,53,27,5,22,10,21,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0207,college_algebra,207,True,False,7459.624,1762,36,47,36,11,1,10,6,11,display_formula header low_score top_margin
+openstax_college_algebra_p0208,college_algebra,208,True,False,7641.45,1351,23,33,23,10,1,9,5,10,display_formula header low_score top_margin
+openstax_college_algebra_p0209,college_algebra,209,True,False,7559.756,1974,55,84,55,29,0,29,6,10,header low_score page_number top_margin
+openstax_college_algebra_p0210,college_algebra,210,True,False,6583.766,1360,24,36,24,12,3,9,9,16,display_formula header low_score top_margin
+openstax_college_algebra_p0211,college_algebra,211,True,False,17696.752,3484,40,66,40,26,0,26,7,11,header low_score page_number top_margin
+openstax_college_algebra_p0212,college_algebra,212,True,False,7079.548,3400,55,68,55,13,2,11,2,10,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0213,college_algebra,213,True,False,6843.291,2023,30,43,30,13,2,11,3,10,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0214,college_algebra,214,True,False,6927.075,2265,60,81,60,21,3,18,5,13,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0215,college_algebra,215,True,False,42550.164,3450,30,50,30,20,1,19,5,23,bottom_margin display_formula header low_score page_number repeated_token_run top_margin
+openstax_college_algebra_p0216,college_algebra,216,True,False,6350.175,2626,66,87,66,21,0,21,12,17,bottom_margin header low_score top_margin
+openstax_college_algebra_p0217,college_algebra,217,True,False,6489.138,1958,54,84,54,30,0,30,8,12,header low_score top_margin
+openstax_college_algebra_p0218,college_algebra,218,True,False,6101.148,1707,41,56,41,15,0,15,2,6,header low_score top_margin
+openstax_college_algebra_p0219,college_algebra,219,True,False,6284.49,1086,36,58,36,22,0,22,6,10,header low_score top_margin
+openstax_college_algebra_p0220,college_algebra,220,True,False,6010.845,626,31,50,31,19,0,19,6,11,bottom_margin header low_score top_margin
+openstax_college_algebra_p0221,college_algebra,221,True,False,6448.696,1991,47,70,47,23,0,23,7,12,bottom_margin header low_score top_margin
+openstax_college_algebra_p0222,college_algebra,222,True,False,8191.265,1937,61,99,61,38,0,38,9,13,header low_score top_margin
+openstax_college_algebra_p0223,college_algebra,223,True,False,5891.407,1267,84,87,84,3,0,3,3,8,bottom_margin header low_score page_number top_margin
+openstax_college_algebra_p0224,college_algebra,224,True,False,7684.06,2983,76,114,76,38,0,38,5,14,bottom_margin header low_score top_margin
+openstax_college_algebra_p0225,college_algebra,225,True,False,6690.255,3208,48,64,48,16,3,13,3,10,display_formula header low_score top_margin
+openstax_college_algebra_p0226,college_algebra,226,True,False,8206.046,2935,36,62,36,26,11,15,7,24,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0227,college_algebra,227,True,False,11124.31,3416,55,92,55,37,5,32,6,16,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0228,college_algebra,228,True,False,8624.764,3232,65,106,65,41,4,37,7,21,bottom_margin display_formula header low_score top_margin
+openstax_college_algebra_p0229,college_algebra,229,True,False,7366.413,2208,59,92,59,33,4,29,10,18,display_formula header low_score top_margin
