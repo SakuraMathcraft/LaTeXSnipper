@@ -1,0 +1,4 @@
+subset,count,ok,empty,avg_latency_ms,median_latency_ms,max_latency_ms,avg_blocks,avg_formula_blocks,avg_low_score_blocks
+all,200,200,0,8790.667,6650.708,179348.777,70.39,24.16,6.275
+calculus_v1,100,100,0,9009.947,6752.984,179348.777,72.2,26.04,6.55
+college_algebra,100,100,0,8571.386,6583.422,81850.822,68.58,22.28,6.0

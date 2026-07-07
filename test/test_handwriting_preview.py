@@ -149,6 +149,14 @@ def test_handwriting_window_uses_lightweight_line_number_editor() -> None:
     assert "from .document_preview_window import" not in import_section
 
 
+def test_pyinstaller_specs_keep_document_preview_pdf_views() -> None:
+    for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
+        spec = (ROOT / spec_name).read_text(encoding="utf-8")
+
+        assert '"handwriting.pdf_view_fitz"' in spec
+        assert '"handwriting.pdf_view_poppler"' in spec
+
+
 def test_wrap_tex_document_normalizes_external_article_document() -> None:
     from handwriting.tex_document_utils import wrap_tex_document
 

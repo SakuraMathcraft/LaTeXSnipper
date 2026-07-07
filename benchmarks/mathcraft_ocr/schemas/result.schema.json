@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MathCraft OCR Benchmark Result Item",
+  "type": "object",
+  "required": [
+    "sample_id",
+    "task",
+    "profile",
+    "provider_requested",
+    "engine",
+    "ok",
+    "latency_ms",
+    "errors"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "sample_id": {
+      "type": "string"
+    },
+    "task": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "engine": {
+      "type": "string",
+      "const": "mathcraft_ocr"
+    },
+    "provider_requested": {
+      "type": "string"
+    },
+    "provider_active": {
+      "type": ["string", "null"]
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "latency_ms": {
+      "type": "number"
+    },
+    "text": {
+      "type": "string"
+    },
+    "score": {
+      "type": ["number", "null"]
+    },
+    "regions": {
+      "type": "array"
+    },
+    "blocks": {
+      "type": "array"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
+

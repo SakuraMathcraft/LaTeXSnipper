@@ -1,0 +1,6 @@
+subset,count,prediction_render_ok,target_render_ok,both_render_ok,both_render_rate,avg_pixel_similarity,median_pixel_similarity,avg_global_ssim,median_global_ssim
+all,80,77,80,77,0.9625,0.960772,0.954333,0.598103,0.488601
+spe,20,17,20,17,0.85,0.961828,0.956704,0.60058,0.555977
+cpe,20,20,20,20,1.0,0.988349,1.0,0.871231,1.0
+sce,20,20,20,20,1.0,0.944472,0.940257,0.414206,0.393474
+hwe,20,20,20,20,1.0,0.948599,0.951507,0.506767,0.426895
