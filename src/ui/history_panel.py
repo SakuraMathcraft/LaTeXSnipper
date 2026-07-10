@@ -10,7 +10,6 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
-
 def history_display_entries(history: list[str], reverse: bool) -> list[tuple[int, int, str]]:
     entries = list(enumerate(history))
     if reverse:
@@ -127,7 +126,7 @@ def create_history_row(
             handler(r)
 
         b.clicked.connect(_wrapped)
-        hl.addWidget(b, 0, Qt.AlignmentFlag.AlignTop)
+        hl.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
         return b
 
     add_btn("复制", "复制到剪贴板", on_copy, FluentIcon.COPY)

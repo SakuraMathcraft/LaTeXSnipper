@@ -41,7 +41,6 @@ class SettingsExternalModelMixin:
         config = load_config_from_mapping(cfg or {})
         data = config.to_mapping()
         self._set_combo_value(self.external_provider_combo, data["external_model_provider"])
-        self._set_combo_value(self.external_output_combo, data["external_model_output_mode"])
         self._set_combo_value(self.external_prompt_combo, data["external_model_prompt_template"])
         self._set_combo_value(self.external_preset_combo, data["external_model_preset"])
         self._set_lineedit_value(self.external_base_url_input, data["external_model_base_url"])
@@ -61,7 +60,6 @@ class SettingsExternalModelMixin:
         config.base_url = self.external_base_url_input.text().strip()
         config.model_name = self.external_model_name_input.text().strip()
         config.api_key = self.external_api_key_input.text().strip()
-        config.output_mode = self._get_external_combo_value(self.external_output_combo, "latex")
         config.prompt_template = self._get_external_combo_value(self.external_prompt_combo, "ocr_formula_v1")
         config.custom_prompt = self.external_custom_prompt_input.text().strip()
         config.preset = self._get_external_combo_value(self.external_preset_combo, "")
@@ -97,7 +95,7 @@ class SettingsExternalModelMixin:
         self.external_mineru_endpoint_input.setVisible(is_mineru)
         self.external_mineru_test_endpoint_input.setVisible(is_mineru)
         if is_mineru:
-            self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU 原生接口通常可留空）")
+            self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU Local 通常可留空）")
         else:
             self.external_model_name_input.setPlaceholderText("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
 
@@ -147,7 +145,7 @@ class SettingsExternalModelMixin:
         if preset:
             self.external_hint.setText(str(preset.get("hint") or ""))
         else:
-            self.external_hint.setText("必填项只有协议、Base URL、模型名。若测试提示 model not found / unknown model，通常就是模型名填写不正确。")
+            self.external_hint.setText("按协议填写 Base URL、模型名和 API Key。线上接口通常需要 API Key。")
         self._save_external_model_config()
 
     def _apply_external_preset(self):
@@ -158,7 +156,6 @@ class SettingsExternalModelMixin:
         self._set_combo_value(self.external_provider_combo, str(preset.get("provider") or "ollama"))
         self._set_lineedit_value(self.external_base_url_input, str(preset.get("base_url") or ""))
         self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
-        self._set_combo_value(self.external_output_combo, str(preset.get("output_mode") or "latex"))
         self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
         self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/file_parse"))
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
@@ -273,7 +270,10 @@ class SettingsExternalModelMixin:
         elif provider != "mineru" and not model_name:
             status = "状态：未配置。必填项缺少模型名。"
         else:
-            provider_label = "MinerU" if provider == "mineru" else ("Ollama" if provider == "ollama" else "OpenAI-compatible")
+            provider_label = {
+                "mineru": "MinerU Local",
+                "ollama": "Ollama",
+            }.get(provider, "OpenAI-compatible")
             if tested_sig == current_sig:
                 state_text = "已连接" if tested_ok else "连接失败"
             else:

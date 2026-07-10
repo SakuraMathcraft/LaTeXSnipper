@@ -14,7 +14,8 @@ from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
-from runtime.config_manager import default_user_data_file, normalize_content_type
+from runtime.config_manager import default_user_data_file
+from runtime.content_types import ContentType, normalize_content_type
 from ui.edit_formula_dialog import EditFormulaDialog
 from ui.formula_export_menu import export_formula_to_clipboard, populate_formula_export_menu
 from ui.window_helpers import (
@@ -193,10 +194,7 @@ class FavoritesWindow(QMainWindow):
             else:
                 p.latex_editor.setPlainText(latex)
             
-            # Ensure the parent window has type metadata for this content.
-            content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
-            if hasattr(p, '_formula_types'):
-                p._formula_types[latex] = content_type
+            content_type = self._favorite_types[latex]
             
             # Get the index and name, preferring the favorites name.
             idx = self.list_widget.row(item) + 1
@@ -208,7 +206,7 @@ class FavoritesWindow(QMainWindow):
                 label = f"#{idx} {name}"
             else:
                 label = f"#{idx}"
-            p.render_latex_in_preview(latex, label)
+            p.render_latex_in_preview(latex, content_type, label)
             self._set_status("已加载到编辑器")
 
     # ---------- Menu ----------
@@ -246,26 +244,13 @@ class FavoritesWindow(QMainWindow):
             self._set_status("公式已在历史中")
             return
         
-        # Get the favorite type.
-        content_type = normalize_content_type(self._favorite_types.get(latex, "mathcraft"))
+        content_type = self._favorite_types[latex]
         # Inherit the name; write the history-name mapping first so the new row shows its label immediately.
         name = self._favorite_names.get(latex, "")
         if name and hasattr(p, '_formula_names'):
             p._formula_names[latex] = name
         
-        # Add through add_history_record so the type is handled automatically.
-        if hasattr(p, 'add_history_record'):
-            p.add_history_record(latex, content_type)
-        else:
-            # Fallback path.
-            p.history.insert(0, latex)
-            if hasattr(p, '_formula_types'):
-                p._formula_types[latex] = content_type
-            if hasattr(p, 'save_history'):
-                p.save_history()
-            if hasattr(p, 'rebuild_history_ui'):
-                p.rebuild_history_ui()
-            self._set_status("已添加到历史记录")
+        p.add_history_record(latex, content_type)
 
     def _export_as(self, format_type: str, latex: str):
         """Export the formula to the requested format."""
@@ -334,9 +319,9 @@ class FavoritesWindow(QMainWindow):
         if p and hasattr(p, "_rendered_formulas"):
             updated = False
             new_rendered = []
-            for formula, label in getattr(p, "_rendered_formulas", []):
+            for formula, label, content_type in getattr(p, "_rendered_formulas", []):
                 if formula != latex:
-                    new_rendered.append((formula, label))
+                    new_rendered.append((formula, label, content_type))
                     continue
                 s = (label or "").strip()
                 prefix = ""
@@ -346,7 +331,7 @@ class FavoritesWindow(QMainWindow):
                     new_label = f"{prefix} {new_name}".strip() if prefix else new_name
                 else:
                     new_label = prefix
-                new_rendered.append((formula, new_label))
+                new_rendered.append((formula, new_label, content_type))
                 updated = True
             if updated:
                 p._rendered_formulas = new_rendered
@@ -407,7 +392,7 @@ class FavoritesWindow(QMainWindow):
                 p = self.parent()
                 if p and hasattr(p, "_formula_names"):
                     name = p._formula_names.get(formula, "")
-            content_type = normalize_content_type(self._favorite_types.get(formula, "mathcraft"))
+            content_type = self._favorite_types[formula]
             type_display = type_names.get(content_type, "")
 
             # Build display text.
@@ -522,7 +507,7 @@ class FavoritesWindow(QMainWindow):
         self._set_status("已清空收藏夹")
 
     # ---------- Public API ----------
-    def add_favorite(self, text: str, content_type: str = None, name: str = None):
+    def add_favorite(self, text: str, content_type: ContentType, name: str = None):
         """Add a favorite item."""
         t = (text or "").strip()
         if not t:
@@ -534,20 +519,6 @@ class FavoritesWindow(QMainWindow):
 
         self.favorites.append(t)
 
-        # Store type; when missing, read the current mode from the parent window.
-        if content_type is None:
-            p = self.parent()
-            if p and hasattr(p, "_formula_types") and t in p._formula_types:
-                content_type = p._formula_types.get(t)
-            elif p:
-                try:
-                    content_type = getattr(getattr(p, "model", None), "last_used_model", None)
-                except Exception:
-                    content_type = None
-                if not content_type and hasattr(p, "current_model"):
-                    content_type = p.current_model
-            if not content_type:
-                content_type = "mathcraft"
         self._favorite_types[t] = normalize_content_type(content_type)
 
         # Store name; when missing, read it from the parent window.

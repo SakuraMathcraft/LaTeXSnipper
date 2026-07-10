@@ -1,6 +1,26 @@
+import pytest
+
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import MATHJAX_CDN_URL, MATHJAX_CDN_URL_BACKUP, build_math_html
 from preview.smart_preview import build_smart_preview_html
+from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
+
+
+def test_local_and_external_results_share_rendering_semantics():
+    assert content_type_for_mathcraft("mathcraft") == "mathcraft"
+    assert content_type_for_mathcraft("mathcraft_mixed") == "mathcraft_mixed"
+    assert content_type_for_mathcraft("mathcraft_text") == "mathcraft_text"
+
+    assert content_type_for_external_output("latex") == "mathcraft"
+    assert content_type_for_external_output("markdown") == "mathcraft_mixed"
+    assert content_type_for_external_output("text") == "mathcraft_text"
+
+
+def test_rendering_semantics_reject_missing_or_unknown_metadata():
+    with pytest.raises(ValueError):
+        content_type_for_mathcraft("")
+    with pytest.raises(ValueError):
+        content_type_for_external_output("unknown")
 
 
 def test_mixed_content_escapes_text_and_preserves_formulas():

@@ -177,8 +177,10 @@ class PdfRecognitionControllerMixin:
         self.pdf_predict_thread = QThread()
         if self.current_model == "external_model":
             config = self._get_external_model_config()
-            config.output_mode = fmt_key
-            config.prompt_template = "ocr_document_parse_v1" if doc_mode == "parse" else "ocr_document_page_v1"
+            if doc_mode != "parse":
+                config.prompt_template = (
+                    "ocr_document_page_v1" if fmt_key == "markdown" else "ocr_document_latex_v1"
+                )
             self.pdf_predict_worker = ExternalModelPdfWorker(
                 config,
                 str(path),

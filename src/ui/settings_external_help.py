@@ -49,17 +49,17 @@ class ExternalModelHelpWindow(QDialog):
         self._add_section(
             content_layout,
             "适用范围",
-            "本地接口推荐用于 Ollama、本地 OpenAI-compatible 服务。线上接口也可使用，但需要自行确认鉴权、模型名、额度和服务协议。",
+            "支持 Ollama、OpenAI-compatible 和 MinerU Local。线上接口需要确认鉴权、模型名、额度和服务协议。",
         )
         self._add_section(
             content_layout,
             "字段说明",
-            "协议决定请求格式。Base URL 填服务根地址或服务商提供的 /v1 API 前缀，不要填写 /chat/completions、/api/chat 或 /file_parse 这类具体接口。模型名必须与服务中实际可用名称完全一致。API Key 本地加密保存，本地服务通常留空，线上接口通常必填。",
+            "协议决定请求格式。Base URL 填服务根地址或服务商提供的 /v1 API 前缀，不要填写 /chat/completions、/api/chat 或 /file_parse 这类具体接口。模型名必须与服务中实际可用名称完全一致。API Key 本地加密保存。",
         )
         self._add_section(
             content_layout,
             "提示词边界",
-            "自定义提示词优先级最高。普通图片、截图、手写识别使用设置页的输出偏好和提示词。PDF 外部识别的导出格式和 DPI 在 PDF 入口单独选择。MinerU 原生协议走文档接口，不使用模板或自定义提示词文本。",
+            "提示词模板同时决定请求内容和结果类型。自定义提示词优先级最高，会覆盖普通图片、截图、手写以及 OpenAI-compatible / Ollama PDF 识别的内置模板。PDF 导出格式和 DPI 仍在 PDF 入口选择；MinerU Local 不使用提示词。",
         )
         self._add_section(
             content_layout,
@@ -68,8 +68,8 @@ class ExternalModelHelpWindow(QDialog):
         )
         self._add_section(
             content_layout,
-            "MinerU",
-            "协议选择 MinerU，Base URL 填服务根地址，例如 http://127.0.0.1:8000。解析接口路径和健康检查路径按实际服务填写，常见值为 /file_parse 和 /health。",
+            "MinerU Local",
+            "协议选择 MinerU Local，Base URL 填本地服务根地址，例如 http://127.0.0.1:8000。解析接口路径和健康检查路径按实际服务填写，常见值为 /file_parse 和 /health。",
         )
         self._add_section(
             content_layout,

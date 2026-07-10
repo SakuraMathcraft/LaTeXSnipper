@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton
 
 from preview.math_preview import build_math_html, dialog_theme_tokens, get_mathjax_base_url
-from runtime.config_manager import normalize_content_type
+from runtime.content_types import normalize_content_type
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
@@ -23,7 +23,7 @@ def show_predict_result_dialog(
     ensure_webengine_loaded: Callable[[], bool],
     build_mixed_html: Callable[[str], str],
     show_export_menu_for_source: Callable,
-    accept_latex: Callable[[QDialog, QTextEdit], None],
+    accept_result: Callable[[QDialog, QTextEdit], None],
     set_pin_button_style: Callable[[object, bool], None],
     set_pinned: Callable[[QDialog, object, bool], None],
     move_to_screen: Callable[[QDialog, int | None], None],
@@ -171,7 +171,7 @@ def show_predict_result_dialog(
     )
     confirm_btn = PrimaryPushButton(FluentIcon.ACCEPT, "确定")
     confirm_btn.setFixedHeight(32)
-    confirm_btn.clicked.connect(lambda: accept_latex(dlg, te))
+    confirm_btn.clicked.connect(lambda: accept_result(dlg, te))
     btn_row.addWidget(quick_export_btn)
     btn_row.addWidget(export_btn)
     btn_row.addWidget(confirm_btn)

@@ -170,11 +170,12 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("HTTPSHandler", worker_code)
         self.assertIn("site-packages", worker_code)
 
-    def test_unknown_modes_fall_back_to_formula(self):
+    def test_unknown_modes_are_rejected(self):
         from backend.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
-        self.assertEqual(wrapper._mode_for_model("unknown_mode"), "formula")
+        with self.assertRaises(ValueError):
+            wrapper._mode_for_model("unknown_mode")
 
     def test_model_wrapper_uses_extended_formula_decode_budget(self):
         from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
@@ -309,6 +310,13 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("def _mathcraft_code_roots", source)
         self.assertIn('parent / "_internal"', source)
         self.assertIn("sys._MEIPASS", source)
+
+    def test_environment_terminal_doctor_uses_mathcraft_code_roots(self):
+        source = (SRC / "ui" / "settings_environment_mixin.py").read_text(encoding="utf-8")
+
+        self.assertIn("_mathcraft_code_roots", source)
+        self.assertIn("roots={mathcraft_roots!r}", source)
+        self.assertNotIn("sys.path.insert(0, r'{project_root}')", source)
 
     def test_packaged_windows_initial_deps_dir_uses_bundled_deps(self):
         import runtime.python_runtime_resolver as resolver

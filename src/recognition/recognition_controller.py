@@ -12,6 +12,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import ExternalModelWorker
 from backend.recognition_errors import recognition_failure_user_message
 from bootstrap.deps_bootstrap import custom_warning_dialog
+from runtime.content_types import content_type_for_external_output
 from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
 from workers.recognition_workers import PredictionWorker
 
@@ -272,19 +273,10 @@ class RecognitionControllerMixin:
         self._start_predict_with_pil(img)
 
     def _on_external_predict_ok(self, result):
-        try:
-            output_mode = self._get_external_model_config().normalized_output_mode()
-        except Exception:
-            output_mode = "latex"
-        try:
-            text = result.best_text(output_mode) if result is not None else ""
-        except Exception:
-            text = ""
-        try:
-            self._last_external_model_name = self._get_external_model_display_name(result=result)
-        except Exception:
-            pass
-        self.on_predict_ok(text)
+        output_mode = self.predict_worker.config.resolved_output_mode()
+        text = result.best_text(output_mode)
+        self._last_external_model_name = self._get_external_model_display_name(result=result)
+        self.on_predict_ok(text, content_type_for_external_output(output_mode))
 
     def _on_external_predict_fail(self, msg: str):
         self.on_predict_fail(msg, external_model=True)

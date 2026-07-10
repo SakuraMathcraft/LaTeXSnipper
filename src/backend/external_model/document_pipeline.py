@@ -8,6 +8,15 @@ from .client import ExternalModelClient
 from .schemas import ExternalModelConfig
 from .structured_document import DocumentBlock, StructuredDocument, StructuredPage
 
+PROMPT_CONTENT_TYPES = {
+    "ocr_formula_v1": "formula",
+    "ocr_markdown_v1": "mixed",
+    "ocr_text_v1": "text",
+    "ocr_handwriting_mixed_v1": "mixed",
+    "ocr_document_page_v1": "page",
+    "ocr_document_latex_v1": "page",
+}
+
 
 @dataclass(slots=True)
 class DocumentPageResult:
@@ -27,7 +36,7 @@ class ExternalDocumentPipeline:
         self.config = config
         self.output_format = "markdown" if str(output_format or "").lower().startswith("markdown") else "latex"
         mode = str(document_mode or "document").strip().lower()
-        self.document_mode = mode if mode in ("document", "page", "parse") else "document"
+        self.document_mode = "parse" if mode == "parse" else "document"
         self.last_pages: list[DocumentPageResult] = []
         self.last_structured_document: StructuredDocument | None = None
         self._structured_pages: list[StructuredPage] = []
@@ -36,24 +45,14 @@ class ExternalDocumentPipeline:
 
     def _build_runtime_config(self, prompt_template: str | None = None) -> ExternalModelConfig:
         cfg = ExternalModelConfig(**asdict(self.config))
-        cfg.output_mode = self.output_format
         prompt = str(prompt_template or "").strip()
         if not prompt:
-            prompt = "ocr_document_parse_v1" if self.document_mode == "parse" else "ocr_document_page_v1"
+            prompt = "ocr_document_page_v1" if self.output_format == "markdown" else "ocr_document_latex_v1"
         cfg.prompt_template = prompt
         return cfg
 
     def _infer_content_type(self, prompt_template: str) -> str:
-        key = str(prompt_template or "").strip().lower()
-        if "table" in key:
-            return "table"
-        if "formula" in key or "math" in key:
-            return "formula"
-        if "text" in key:
-            return "text"
-        if self.document_mode == "document":
-            return "page"
-        return "mixed"
+        return PROMPT_CONTENT_TYPES[prompt_template]
 
     def process_page(self, image, page_index: int, prompt_template: str | None = None) -> DocumentPageResult | None:
         runtime_cfg = self._build_runtime_config(prompt_template)
@@ -62,11 +61,11 @@ class ExternalDocumentPipeline:
         return self.process_result(result, int(page_index), runtime_cfg.prompt_template)
 
     def process_result(self, result, page_index: int, prompt_template: str | None = None) -> DocumentPageResult | None:
-        runtime_cfg = self._build_runtime_config(prompt_template)
         if self.document_mode == "parse":
             self._collect_inline_images(result)
             return self._process_page_parse(result, int(page_index))
-        content = result.best_text(runtime_cfg.normalized_output_mode()).strip()
+        runtime_cfg = self._build_runtime_config(prompt_template)
+        content = result.best_text(runtime_cfg.resolved_output_mode()).strip()
         if not content:
             return None
         return DocumentPageResult(

@@ -12,6 +12,7 @@ from core.restart_contract import build_restart_with_wizard_launch
 from runtime.app_paths import app_temp_dir
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
+    _mathcraft_code_roots,
     _normalize_windows_drive_letter,
 )
 
@@ -65,7 +66,14 @@ class SettingsEnvironmentMixin:
         scripts_dir = os.path.join(pyexe_dir, "Scripts")
         base_dir = self._current_install_base_dir()
         venv_dir = str(base_dir or env_root)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
+        mathcraft_roots = _mathcraft_code_roots()
+        mathcraft_doctor_code = (
+            "import sys; "
+            f"roots={mathcraft_roots!r}; "
+            "[sys.path.insert(0, p) for p in reversed(roots) if p not in sys.path]; "
+            "from mathcraft_ocr.cli import main; "
+            "raise SystemExit(main(['doctor','--provider','cpu']))"
+        )
         env_name = {
             "main": "主环境",
         }.get(env_key, "主环境")
@@ -100,11 +108,11 @@ class SettingsEnvironmentMixin:
             "echo   # Step-by-step install (stable order)",
             "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            f"echo   # MathCraft is shipped with LaTeXSnipper source/package; project root: {project_root}",
+            "echo   # MathCraft is shipped with LaTeXSnipper; the doctor command loads the packaged code roots automatically.",
             "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
             "echo.",
             "echo [MathCraft CPU/ONNX Check]",
-            f"echo   python -c \"import sys; sys.path.insert(0, r'{project_root}'); from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))\"",
+            f"echo   python -c \"{mathcraft_doctor_code}\"",
             "echo.",
         ]
         diagnostics_lines = [

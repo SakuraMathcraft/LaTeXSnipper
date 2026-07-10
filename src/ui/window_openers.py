@@ -7,6 +7,7 @@ import threading
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from handwriting import HandwritingWindow
 from handwriting.model_policy import is_internal_handwriting_model, resolve_handwriting_recognition_model
+from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
 from ui.settings_window import SettingsWindow
 
 
@@ -56,23 +57,18 @@ class WindowOpenersMixin:
                 self.workbench_window.show_info("当前无内容", "数学工作台为空，没有可写回的内容")
             return
         self.latex_editor.setPlainText(text)
-        self.render_latex_in_preview(text)
+        self.render_latex_in_preview(text, FORMULA_CONTENT_TYPE)
         self.set_action_status("工作台内容已回填到主编辑器")
         if getattr(self, "workbench_window", None):
             self.workbench_window.show_success("已写回", "数学工作台内容已写回主编辑器")
 
-    def _on_handwriting_insert(self, latex: str):
+    def _on_handwriting_insert(self, latex: str, output_mode: str):
         text = (latex or "").strip()
         if not text:
             return
         self._set_editor_text_silent(text)
-        try:
-            ctype = self._get_preferred_model_for_predict()
-            if not ctype:
-                ctype = getattr(self, "current_model", "mathcraft")
-            self._formula_types[text] = ctype
-        except Exception:
-            pass
+        self._editor_preview_source = text
+        self._editor_preview_content_type = content_type_for_external_output(output_mode)
         self._refresh_preview()
         self.set_action_status("手写识别结果已写入主编辑器")
         try:

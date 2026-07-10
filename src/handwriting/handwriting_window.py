@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QCheckBox, QGraphicsOpacityEffect, QHB
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
+from backend.external_model.prompts import build_math_document_prompt
 from .editor_widgets import HandwritingPlainTextEdit
 from .ink_canvas import InkCanvas
 from .latex_preview import build_handwriting_preview_html, normalize_latex_preview_source
@@ -57,7 +58,7 @@ class _HandwritingDocumentLayoutWorker(QObject):
 
 
 class HandwritingWindow(QWidget):
-    latexInserted = pyqtSignal(str)
+    latexInserted = pyqtSignal(str, str)
     DEFAULT_SIZE = (1160, 700)
     MINIMUM_SIZE = (1160, 700)
 
@@ -653,7 +654,6 @@ class HandwritingWindow(QWidget):
                 return cfg
             return replace(
                 cfg,
-                output_mode="markdown",
                 prompt_template="ocr_handwriting_mixed_v1",
             )
         except Exception:
@@ -753,10 +753,7 @@ class HandwritingWindow(QWidget):
                 self.status_label.setText("外部模型未配置")
                 self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
                 return
-            try:
-                self._last_external_output_mode = external_config.normalized_output_mode()
-            except Exception:
-                self._last_external_output_mode = "latex"
+            self._last_external_output_mode = external_config.resolved_output_mode()
 
         self._recognizing = True
         self._recognize_pending = False
@@ -925,16 +922,13 @@ class HandwritingWindow(QWidget):
 
     def _preview_output_mode(self) -> str:
         if self._get_active_model_key() != "external_model":
-            return "latex"
+            return "markdown"
         if self._last_external_output_mode:
             return self._last_external_output_mode
         cfg = self._get_handwriting_external_model_config()
         if cfg is None:
             return "latex"
-        try:
-            return cfg.normalized_output_mode()
-        except Exception:
-            return "latex"
+        return cfg.resolved_output_mode()
 
     def _clear_all(self) -> None:
         self.canvas.clear_canvas()
@@ -958,7 +952,7 @@ class HandwritingWindow(QWidget):
             self.status_label.setText("没有可插入的内容")
             self._show_warning("当前无内容", "请先识别或手动编辑 LaTeX 后再插入。")
             return
-        self.latexInserted.emit(text)
+        self.latexInserted.emit(text, self._preview_output_mode())
         self.status_label.setText("已插入主窗口，当前内容已保留")
         self._show_info("已插入", "结果已写入主窗口，当前手写窗口内容已保留。")
 
@@ -971,32 +965,6 @@ class HandwritingWindow(QWidget):
         QApplication.clipboard().setText(text)
         self.status_label.setText("已复制 LaTeX")
         self._show_info("已复制", "LaTeX 已复制到剪贴板。")
-
-    def _build_math_document_prompt(self, recognized_text: str) -> str:
-        base = (
-            "You are a mathematical document typesetting assistant. "
-            "Based on the handwritten mathematical content in the image, produce a complete, compilable, "
-            "clearly structured XeLaTeX document source. "
-            "Output must be a complete .tex document: no explanations, no notes, no markdown code blocks. "
-            "Use \\documentclass[UTF8]{ctexart} as the document class. "
-            "By default, only use: amsmath, amssymb, amsthm, mathtools, bm, geometry, graphicx, booktabs, array, multirow. "
-            "Only allow additional use of tikz when the image clearly contains diagrams that cannot be expressed with ordinary formulas. "
-            "Must include a preamble and \\begin{document}...\\end{document}. "
-            "Strictly preserve the original mathematical meaning; do not add proofs, explanations, or examples on your own. "
-            "Preserve ordinary handwritten text, Chinese text, English text, titles, labels, annotations, and short phrases as document text; do not drop them because formulas are present. "
-            "For long or multi-line formulas, choose readable environments such as align, aligned, split, gathered, or multline. "
-            "Never insert arbitrary line breaks inside a TeX command, group, fraction, radical, subscript, or superscript. "
-            "Mark uncertain content with a TeX comment % TODO: ..."
-        )
-        draft = str(recognized_text or "").strip()
-        if not draft:
-            return base
-        return (
-            base
-            + "\n\nBelow is the current recognized draft text. Use it as a reference to correct "
-            "the document structure, but the image remains the final authority:\n"
-            + draft
-        )
 
     def _auto_layout_document(self) -> None:
         if self._closing:
@@ -1038,9 +1006,8 @@ class HandwritingWindow(QWidget):
         self._pending_layout_draft = layout_draft
         runtime_cfg = replace(
             cfg,
-            output_mode="text",
-            prompt_template="math_document_layout_v1",
-            custom_prompt=self._build_math_document_prompt(layout_draft),
+            prompt_template="ocr_document_latex_v1",
+            custom_prompt=build_math_document_prompt(layout_draft),
         )
         self.status_label.setText("自动排版中")
         self._layout_thread = QThread()

@@ -238,7 +238,7 @@ class ExternalModelClient:
         content = (text or "").strip()
         if not content:
             raise ExternalModelResponseError("识别结果为空")
-        output_mode = self.config.normalized_output_mode()
+        output_mode = self.config.resolved_output_mode()
         return ExternalModelResult(
             text=content if output_mode == "text" else content,
             latex=content if output_mode == "latex" else "",
@@ -246,19 +246,7 @@ class ExternalModelClient:
             provider=self.config.normalized_provider(),
             model_name=self.config.normalized_model_name(),
             raw=raw if isinstance(raw, dict) else None,
-            structured_payload=self._extract_structured_payload(raw),
         )
-
-    def _extract_structured_payload(self, raw: dict) -> dict | None:
-        if not isinstance(raw, dict):
-            return None
-        data = raw.get("data")
-        if isinstance(data, dict):
-            if any(key in data for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items")):
-                return data
-        if any(key in raw for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items")):
-            return raw
-        return None
 
     def _extract_openai_content(self, raw: dict) -> str:
         try:

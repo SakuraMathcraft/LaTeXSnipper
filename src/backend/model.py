@@ -63,7 +63,6 @@ os.environ.setdefault("ORT_DISABLE_AZURE", "1")
 
 MODEL_MODES = {
     "mathcraft": "formula",
-    "mathcraft_formula": "formula",
     "mathcraft_text": "text",
     "mathcraft_mixed": "mixed",
 }
@@ -625,14 +624,14 @@ class ModelWrapper(QObject):
         return env
 
     def _normalize_model_name(self, model_name: str | None) -> str:
-        model = str(model_name or "mathcraft").strip().lower()
-        if model in MODEL_MODES:
-            return model
-        return "mathcraft"
+        model = str(model_name or "").strip().lower()
+        if model not in MODEL_MODES:
+            raise ValueError(f"Unsupported MathCraft model mode: {model_name!r}")
+        return model
 
     def _mode_for_model(self, model_name: str | None) -> str:
         model = self._normalize_model_name(model_name)
-        return MODEL_MODES.get(model, "formula")
+        return MODEL_MODES[model]
 
     def set_default_model(self, model_name: str | None) -> None:
         self._default_model = self._normalize_model_name(model_name or "mathcraft")
@@ -945,7 +944,7 @@ class ModelWrapper(QObject):
     def predict(self, pil_img: Image.Image, model_name: str = "mathcraft") -> str:
         result = self.predict_result(pil_img, model_name=model_name)
         text = str(result.get("text", "") or "").strip()
-        mode = str(result.get("mode") or self._mode_for_model(model_name)).strip().lower()
+        mode = str(result["mode"]).strip().lower()
         # Low-confidence handling: show a hint when the score is very low and output is empty or suspicious.
         score = result.get("score")
         if isinstance(score, (int, float)) and float(score) < 0.2:
