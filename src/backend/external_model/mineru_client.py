@@ -143,7 +143,7 @@ class MineruClient:
         except Exception as exc:
             raise ExternalModelResponseError(f"MinerU 图片编码失败: {exc}") from exc
         raw = self._post_file_parse("image.png", image_bytes, "image/png")
-        return self._build_result(raw, self.config.normalized_output_mode())
+        return self._build_result(raw, self.config.resolved_output_mode())
 
     def parse_pdf(self, pdf_path: str, start_page_index: int, end_page_index: int) -> ExternalModelResult:
         path = Path(pdf_path)
@@ -158,7 +158,7 @@ class MineruClient:
             start_page_id=start,
             end_page_id=end,
         )
-        return self._build_result(raw, self.config.normalized_output_mode())
+        return self._build_result(raw, self.config.resolved_output_mode())
 
     def _build_result(self, raw: dict, output_mode: str) -> ExternalModelResult:
         text = self._extract_text(raw)

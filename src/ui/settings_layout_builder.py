@@ -142,7 +142,7 @@ class SettingsLayoutMixin:
         self.external_provider_combo.setFixedHeight(30)
         self.external_provider_combo.addItem("OpenAI-compatible", userData="openai_compatible")
         self.external_provider_combo.addItem("Ollama", userData="ollama")
-        self.external_provider_combo.addItem("MinerU", userData="mineru")
+        self.external_provider_combo.addItem("MinerU Local", userData="mineru")
         protocol_row.addWidget(self.external_provider_combo, 1)
         external_layout.addLayout(protocol_row)
         self.external_base_url_input = QLineEdit()
@@ -159,23 +159,24 @@ class SettingsLayoutMixin:
         self.external_api_key_input.setFixedHeight(32)
         external_layout.addWidget(self.external_api_key_input)
         self.external_mineru_endpoint_input = QLineEdit()
-        self.external_mineru_endpoint_input.setPlaceholderText("MinerU 解析接口路径（例如 /file_parse）")
+        self.external_mineru_endpoint_input.setPlaceholderText("MinerU Local 解析接口路径（例如 /file_parse）")
         self.external_mineru_endpoint_input.setFixedHeight(32)
         external_layout.addWidget(self.external_mineru_endpoint_input)
         self.external_mineru_test_endpoint_input = QLineEdit()
-        self.external_mineru_test_endpoint_input.setPlaceholderText("MinerU 健康检查路径（例如 /health）")
+        self.external_mineru_test_endpoint_input.setPlaceholderText("MinerU Local 健康检查路径（例如 /health）")
         self.external_mineru_test_endpoint_input.setFixedHeight(32)
         external_layout.addWidget(self.external_mineru_test_endpoint_input)
         output_row = QHBoxLayout()
         output_row.setContentsMargins(0, 0, 0, 0)
         output_row.setSpacing(6)
-        output_row.addWidget(QLabel("输出偏好(图片/手写):"))
-        self.external_output_combo = ComboBox()
-        self.external_output_combo.setFixedHeight(30)
-        self.external_output_combo.addItem("LaTeX 优先", userData="latex")
-        self.external_output_combo.addItem("Markdown", userData="markdown")
-        self.external_output_combo.addItem("纯文本", userData="text")
-        output_row.addWidget(self.external_output_combo, 1)
+        output_row.addWidget(QLabel("提示词模板:"))
+        self.external_prompt_combo = ComboBox()
+        self.external_prompt_combo.setFixedHeight(30)
+        self.external_prompt_combo.addItem("公式 OCR", userData="ocr_formula_v1")
+        self.external_prompt_combo.addItem("Markdown OCR", userData="ocr_markdown_v1")
+        self.external_prompt_combo.addItem("纯文本 OCR", userData="ocr_text_v1")
+        self.external_prompt_combo.addItem("手写混合 OCR", userData="ocr_handwriting_mixed_v1")
+        output_row.addWidget(self.external_prompt_combo, 1)
         output_row.addWidget(QLabel("超时(秒):"))
         self.external_timeout_input = QLineEdit()
         self.external_timeout_input.setPlaceholderText("60")
@@ -183,20 +184,10 @@ class SettingsLayoutMixin:
         self.external_timeout_input.setMaximumWidth(90)
         output_row.addWidget(self.external_timeout_input)
         external_layout.addLayout(output_row)
-        prompt_row = QHBoxLayout()
-        prompt_row.setContentsMargins(0, 0, 0, 0)
-        prompt_row.setSpacing(6)
-        prompt_row.addWidget(QLabel("提示词模板(图片/手写):"))
-        self.external_prompt_combo = ComboBox()
-        self.external_prompt_combo.setFixedHeight(30)
-        self.external_prompt_combo.addItem("公式 OCR", userData="ocr_formula_v1")
-        self.external_prompt_combo.addItem("Markdown OCR", userData="ocr_markdown_v1")
-        self.external_prompt_combo.addItem("纯文本 OCR", userData="ocr_text_v1")
-        self.external_prompt_combo.addItem("手写混合 OCR", userData="ocr_handwriting_mixed_v1")
-        prompt_row.addWidget(self.external_prompt_combo, 1)
-        external_layout.addLayout(prompt_row)
         self.external_custom_prompt_input = QLineEdit()
-        self.external_custom_prompt_input.setPlaceholderText("自定义提示词（最高优先级；会覆盖图片/截图/手写模板。PDF 默认走通用文档模板；仅对 OpenAI-compatible/Ollama 生效）")
+        self.external_custom_prompt_input.setPlaceholderText(
+            "自定义提示词（覆盖图片、截图、手写及 OpenAI/Ollama PDF 模板）"
+        )
         self.external_custom_prompt_input.setFixedHeight(32)
         external_layout.addWidget(self.external_custom_prompt_input)
         self.external_status = QLabel("状态：未配置")
@@ -400,7 +391,6 @@ class SettingsLayoutMixin:
         self.external_preset_combo.currentIndexChanged.connect(self._on_external_preset_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_provider_combo.currentIndexChanged.connect(self._on_external_provider_changed)
-        self.external_output_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_prompt_combo.currentIndexChanged.connect(self._on_external_config_changed)
         self.external_base_url_input.textChanged.connect(self._on_external_config_changed)
         self.external_model_name_input.textChanged.connect(self._on_external_config_changed)
@@ -482,11 +472,11 @@ class SettingsLayoutMixin:
         key, _ = self._model_options[index]
         descriptions = {
             "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。",
-            "external_model": "连接本地多模态 OCR / VLM 接口，适合接入 Qwen、GLM-OCR、PaddleOCR-VL 等本地服务。",
+            "external_model": "连接多模态 OCR / VLM 接口，支持本地服务和部分线上服务。",
         }
         desc = descriptions.get(key, "")
         if key == "mathcraft":
             desc += "\n提示：MathCraft 依赖由主环境统一管理，权重位于 MathCraft 标准缓存目录。"
         elif key == "external_model":
-            desc += "\n提示：支持本地和部分线上接口。必填：协议、Base URL、模型名；选填：API Key、提示词。"
+            desc += "\n提示：按协议填写 Base URL、模型名、API Key 和提示词。"
         self.lbl_model_desc.setText(desc)

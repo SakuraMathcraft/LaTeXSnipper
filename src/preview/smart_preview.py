@@ -7,7 +7,7 @@ import re
 from collections.abc import Callable
 
 from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
-from runtime.config_manager import normalize_content_type
+from runtime.content_types import normalize_content_type
 
 
 FormulaRenderer = Callable[[str], str]
@@ -201,7 +201,7 @@ def render_content_block(
     try:
         content = "" if content is None else str(content)
         label = "" if label is None else str(label)
-        content_type = normalize_content_type(str(content_type or "mathcraft"))
+        content_type = normalize_content_type(content_type)
 
         if debug:
             print(f"[DEBUG] 处理预览内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
@@ -210,7 +210,7 @@ def render_content_block(
             "mathcraft": ("公式", ""),
             "mathcraft_text": ("文字", "text"),
             "mathcraft_mixed": ("混合", "mixed"),
-        }.get(content_type, ("内容", ""))
+        }[content_type]
 
         if content_type == "mathcraft":
             rendered_content = formula_renderer(content)

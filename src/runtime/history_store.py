@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from runtime.config_manager import normalize_content_type
+from runtime.content_types import normalize_content_type
 
 
 def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dict[str, str]]:

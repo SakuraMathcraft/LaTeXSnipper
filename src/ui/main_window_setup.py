@@ -16,6 +16,7 @@ from bootstrap.deps_bootstrap import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
 from runtime.config_manager import ConfigManager, default_user_data_file
+from runtime.content_types import FORMULA_CONTENT_TYPE
 from runtime.dependency_bootstrap_controller import ensure_deps, show_dependency_wizard
 from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
@@ -114,7 +115,7 @@ class MainWindowSetupMixin:
             self._report_startup_progress("正在初始化识别运行时...")
 
             self._apply_mathcraft_env()
-            self.model = create_model_wrapper(self.current_model, auto_warmup=False)
+            self.model = create_model_wrapper("mathcraft", auto_warmup=False)
             self.model.status_signal.connect(self.show_status_message)
             print("[INFO] ModelWrapper 初始化完成")
 
@@ -230,6 +231,7 @@ class MainWindowSetupMixin:
 
         self.history_scroll = QScrollArea()
         self.history_scroll.setWidgetResizable(True)
+        self.history_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.history_container = QWidget()
         self.history_layout = QVBoxLayout(self.history_container)
         self.history_layout.setContentsMargins(0, 0, 0, 0)
@@ -322,6 +324,8 @@ class MainWindowSetupMixin:
         self._render_timer = None
         self._pending_latex = ""
         self._rendered_formulas = []
+        self._editor_preview_source = ""
+        self._editor_preview_content_type = FORMULA_CONTENT_TYPE
         self._formula_names = {}
         self._formula_types = {}
         webengine_view_cls = get_webengine_view_class() if ensure_webengine_loaded() else None

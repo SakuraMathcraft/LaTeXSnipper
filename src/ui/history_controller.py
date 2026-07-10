@@ -6,7 +6,7 @@ import pyperclip
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 from qfluentwidgets import Action, InfoBar, InfoBarPosition
 
-from runtime.config_manager import normalize_content_type
+from runtime.content_types import ContentType, normalize_content_type
 from runtime.history_store import load_history_store, save_history_store
 from ui.edit_formula_dialog import EditFormulaDialog
 from ui.formula_export_menu import populate_formula_export_menu
@@ -84,7 +84,7 @@ class HistoryControllerMixin:
 
 
 
-        for i, (formula, label) in enumerate(self._rendered_formulas):
+        for i, (formula, label, content_type) in enumerate(self._rendered_formulas):
             if formula == latex:
                 s = (label or "").strip()
                 prefix = ""
@@ -94,7 +94,7 @@ class HistoryControllerMixin:
                     new_label = f"{prefix} {new_name}".strip() if prefix else new_name
                 else:
                     new_label = prefix
-                self._rendered_formulas[i] = (formula, new_label)
+                self._rendered_formulas[i] = (formula, new_label, content_type)
 
 
         self.rebuild_history_ui()
@@ -145,9 +145,9 @@ class HistoryControllerMixin:
                 print("[WARN] 保存历史失败:", e)
 
 
-        for i, (formula, label) in enumerate(self._rendered_formulas):
+        for i, (formula, label, content_type) in enumerate(self._rendered_formulas):
             if formula == old_latex:
-                self._rendered_formulas[i] = (new_latex, label)
+                self._rendered_formulas[i] = (new_latex, label, content_type)
         self._refresh_preview()
 
         self.set_action_status("已更新")
@@ -215,20 +215,10 @@ class HistoryControllerMixin:
         if not txt:
             self.show_action_status("内容不存在", level="warning")
             return
-        content_type = None
-        try:
-            if hasattr(self, "_formula_types"):
-                content_type = self._formula_types.get(txt)
-        except Exception:
-            content_type = None
-        if not content_type:
-            try:
-                content_type = getattr(getattr(self, "model", None), "last_used_model", None)
-            except Exception:
-                content_type = None
-        if not content_type:
-            content_type = getattr(self, "current_model", "mathcraft")
-        self._ensure_favorites_window().add_favorite(txt, content_type=content_type)
+        self._ensure_favorites_window().add_favorite(
+            txt,
+            content_type=self._formula_types[txt],
+        )
 
     def _do_delete_row(self, row):
         txt = self._safe_row_text(row)
@@ -250,7 +240,7 @@ class HistoryControllerMixin:
                 label = f"#{idx}"
             else:
                 label = ""
-            self.render_latex_in_preview(txt, label)
+            self.render_latex_in_preview(txt, self._formula_types[txt], label)
             self.set_action_status("已加载到编辑器")
 
     def create_history_row(self, t: str, index: int = 0, history_index: int | None = None):
@@ -268,19 +258,22 @@ class HistoryControllerMixin:
             on_context_menu=self._show_history_context_menu,
         )
 
-    def add_history_record(self, text: str, content_type: str = None):
+    def add_history_record(self, text: str, content_type: ContentType):
         t = (text or "").strip()
         if not t:
             return
 
-        if content_type is None:
-            content_type = getattr(self, "current_model", "mathcraft")
         self._formula_types[t] = normalize_content_type(content_type)
-
+        if t in self.history:
+            self.history.remove(t)
         self.history.append(t)
 
         if len(self.history) > MAX_HISTORY:
+            removed = self.history[:-MAX_HISTORY]
             self.history = self.history[-MAX_HISTORY:]
+            for old_text in removed:
+                self._formula_names.pop(old_text, None)
+                self._formula_types.pop(old_text, None)
         self.save_history()
         self.rebuild_history_ui()
         self.set_action_status("已加入历史")
@@ -298,6 +291,8 @@ class HistoryControllerMixin:
         print(f"[INFO] 删除历史请求 text='{text}' history_len={len(self.history)}")
         if text in self.history:
             self.history.remove(text)
+            self._formula_names.pop(text, None)
+            self._formula_types.pop(text, None)
         if widget:
 
             try:
@@ -350,6 +345,8 @@ class HistoryControllerMixin:
         if ret != QMessageBox.StandardButton.Yes:
             return
         self.history.clear()
+        self._formula_names.clear()
+        self._formula_types.clear()
         self.save_history()
         self.rebuild_history_ui()
         self.update_history_ui()

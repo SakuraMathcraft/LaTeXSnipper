@@ -58,7 +58,6 @@ def test_handwriting_external_prompt_preserves_text_and_formula() -> None:
 
     prompt = build_prompt(
         ExternalModelConfig(
-            output_mode="markdown",
             prompt_template="ocr_handwriting_mixed_v1",
         )
     )
@@ -66,7 +65,7 @@ def test_handwriting_external_prompt_preserves_text_and_formula() -> None:
     assert "ordinary words" in prompt
     assert "Chinese text" in prompt
     assert "$$...$$" in prompt
-    assert "Do not treat ordinary text near formulas as noise" in prompt
+    assert "code fences" in prompt
 
 
 def test_handwriting_recognizer_imports_without_numpy() -> None:
@@ -112,7 +111,6 @@ def test_dependency_python_cleans_quoted_paths() -> None:
 def test_handwriting_window_uses_dedicated_external_ocr_defaults() -> None:
     source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
 
-    assert 'output_mode="markdown"' in source
     assert 'prompt_template="ocr_handwriting_mixed_v1"' in source
 
 

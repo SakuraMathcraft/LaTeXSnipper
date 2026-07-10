@@ -16,6 +16,7 @@ from bootstrap.deps_bootstrap import custom_warning_dialog
 from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
+from runtime.content_types import content_type_for_mathcraft, normalize_content_type
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
@@ -349,9 +350,9 @@ class PredictResultControllerMixin:
         if dialog_obj is None or hidden is dialog_obj:
             self._hidden_unpinned_predict_result_dialog_for_capture = None
 
-    def on_predict_ok(self, latex: str):
+    def on_predict_ok(self, content: str, content_type: str | None = None):
         self._recognition_cancel_requested = False
-        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(result=latex):
+        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(result=content):
             self.set_model_status("完成")
             self.set_action_status("Office OCR 完成", auto_clear_ms=3000)
             return
@@ -383,31 +384,21 @@ class PredictResultControllerMixin:
                 print(f"[INFO] 识别完成 model={used}")
         except Exception:
             pass
-        self.show_confirm_dialog(latex)
+        if content_type is None:
+            content_type = content_type_for_mathcraft(self.model.last_used_model)
+        self.show_confirm_dialog(content, normalize_content_type(content_type))
         self._discard_hidden_unpinned_predict_result_dialog()
 
-    def show_confirm_dialog(self, latex_code: str):
+    def show_confirm_dialog(self, recognized_content: str, content_type: str):
         """Show the recognition result confirmation dialog."""
         result_screen_index = self._next_predict_result_screen_index
         self._next_predict_result_screen_index = None
-        code = (latex_code or "").strip()
+        code = (recognized_content or "").strip()
         if not code:
             _exec_close_only_message_box(self, "提示", "结果为空")
             return
 
-
-        current_mode = None
-        try:
-            if getattr(self, "current_model", "") == "external_model":
-                current_mode = "external_model"
-            else:
-                current_mode = getattr(getattr(self, "model", None), "last_used_model", None)
-        except Exception:
-            current_mode = None
-        if not current_mode:
-            current_mode = getattr(self, "current_model", "mathcraft")
-
-
+        current_mode = normalize_content_type(content_type)
         old_dialog = getattr(self, "_predict_result_dialog", None)
         if old_dialog is not None and self._try_refresh_predict_result_dialog(old_dialog, code, current_mode):
             return
@@ -432,7 +423,7 @@ class PredictResultControllerMixin:
             ensure_webengine_loaded=ensure_webengine_loaded,
             build_mixed_html=self._build_mixed_html,
             show_export_menu_for_source=self._show_export_menu_for_source,
-            accept_latex=self.accept_latex,
+            accept_result=self.accept_recognition_result,
             set_pin_button_style=self._set_predict_result_pin_button_style,
             set_pinned=self._set_predict_result_pinned,
             move_to_screen=self._move_predict_result_dialog_to_screen,
@@ -526,7 +517,7 @@ class PredictResultControllerMixin:
         except Exception:
             custom_warning_dialog("错误", content, self)
 
-    def accept_latex(self, dialog, te: QTextEdit):
+    def accept_recognition_result(self, dialog, te: QTextEdit):
         t = te.toPlainText().strip()
         if not t:
             if bool(getattr(dialog, "_predict_result_pinned", False)):
@@ -542,13 +533,7 @@ class PredictResultControllerMixin:
         except Exception as e:
             custom_warning_dialog("错误", f"复制失败: {e}",self)
         try:
-            content_type = None
-            try:
-                content_type = getattr(getattr(self, "model", None), "last_used_model", None)
-            except Exception:
-                content_type = None
-            if not content_type:
-                content_type = getattr(self, "current_model", "mathcraft")
+            content_type = normalize_content_type(dialog._predict_result_mode)
             self.add_history_record(t, content_type=content_type)
         except Exception as e:
             custom_warning_dialog("错误", f"写入历史失败: {e}", self)

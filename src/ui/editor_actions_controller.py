@@ -54,27 +54,6 @@ class EditorActionsControllerMixin:
             except Exception:
                 self.show_action_status("复制失败", level="error")
 
-    def _add_editor_to_fav(self):
-        """Add editor content to favorites."""
-        text = self.latex_editor.toPlainText().strip()
-        if not text:
-            self.show_action_status("编辑器为空", level="warning")
-            return
-        content_type = None
-        try:
-            if hasattr(self, "_formula_types") and text in self._formula_types:
-                content_type = self._formula_types.get(text)
-        except Exception:
-            content_type = None
-        if not content_type:
-            try:
-                content_type = getattr(getattr(self, "model", None), "last_used_model", None)
-            except Exception:
-                content_type = None
-        if not content_type:
-            content_type = getattr(self, "current_model", "mathcraft")
-        self._ensure_favorites_window().add_favorite(text, content_type=content_type)
-
     def _show_export_menu(self):
         """Show the export format menu."""
         self._show_export_menu_for_source(

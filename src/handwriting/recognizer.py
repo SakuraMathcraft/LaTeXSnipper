@@ -83,7 +83,7 @@ class HandwritingRecognitionWorker(QObject):
                     self.failed.emit("外部模型未配置")
                     return
                 result_obj = ExternalModelClient(self.external_config).predict(pil_img)
-                result = result_obj.best_text(self.external_config.normalized_output_mode()).strip()
+                result = result_obj.best_text(self.external_config.resolved_output_mode()).strip()
             else:
                 result = (self.model_wrapper.predict(pil_img, model_name=model_name) or "").strip()
 

@@ -61,7 +61,8 @@ def test_pandoc_file_export_is_deferred_to_worker() -> None:
     assert "class _PandocFileExportWorker(QObject)" in menu
     assert "worker.moveToThread(thread)" in menu
     assert "thread.started.connect(worker.run)" in menu
-    assert "convert_latex_to(self._format_key" in menu
+    assert "data = convert_latex_to(" in menu
+    assert "self._format_key," in menu
 
 
 def _esc(t):

@@ -10,6 +10,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from backend.latex_renderer import get_latex_renderer
 from preview.math_preview import get_mathjax_base_url
 from preview.smart_preview import build_preview_error_html, build_smart_preview_html, render_formula_content_html
+from runtime.content_types import ContentType, FORMULA_CONTENT_TYPE
 
 
 class PreviewLatexRenderWorker(QObject):
@@ -29,6 +30,10 @@ class PreviewLatexRenderWorker(QObject):
 class PreviewControllerMixin:
     def _on_editor_text_changed(self):
         """Handle editor text changes with debounced rendering."""
+        text = self.latex_editor.toPlainText().strip()
+        if text != getattr(self, "_editor_preview_source", ""):
+            self._editor_preview_source = text
+            self._editor_preview_content_type = FORMULA_CONTENT_TYPE
         if self._render_timer:
             self._render_timer.stop()
             self._render_timer.start(300)
@@ -112,7 +117,7 @@ class PreviewControllerMixin:
         except Exception:
             pass
 
-    def render_latex_in_preview(self, latex: str, label: str = None):
+    def render_latex_in_preview(self, latex: str, content_type: ContentType, label: str | None = None):
         """Render a LaTeX formula in the preview area."""
         if not self.preview_view:
             return
@@ -120,17 +125,16 @@ class PreviewControllerMixin:
         if not latex:
             return
 
-        existing_formulas = [f for f, _ in self._rendered_formulas]
+        existing_formulas = [f for f, _, _ in self._rendered_formulas]
         if latex in existing_formulas:
             return
 
-        if hasattr(self, "_formula_types") and latex not in self._formula_types:
-            self._formula_types[latex] = getattr(self, "current_model", "mathcraft")
-
+        self._editor_preview_source = latex
+        self._editor_preview_content_type = content_type
         if label is None:
             label = self._formula_names.get(latex, "")
 
-        self._rendered_formulas.insert(0, (latex, label))
+        self._rendered_formulas.insert(0, (latex, label, content_type))
 
         if len(self._rendered_formulas) > 20:
             self._rendered_formulas = self._rendered_formulas[:20]
@@ -144,14 +148,11 @@ class PreviewControllerMixin:
 
         all_items = []
         editor_text = self.latex_editor.toPlainText().strip()
-        existing_formulas = [f for f, _ in self._rendered_formulas]
+        existing_formulas = [f for f, _, _ in self._rendered_formulas]
         if editor_text and editor_text not in existing_formulas:
-            current_mode = getattr(self, "current_model", "mathcraft")
-            all_items.append((editor_text, "编辑中", current_mode))
+            all_items.append((editor_text, "编辑中", self._editor_preview_content_type))
 
-        for formula, label in self._rendered_formulas:
-            content_type = self._formula_types.get(formula, "mathcraft")
-            all_items.append((formula, label, content_type))
+        all_items.extend(self._rendered_formulas)
 
         try:
             html = self._build_smart_preview_html(all_items)
@@ -197,37 +198,3 @@ class PreviewControllerMixin:
         self._rendered_formulas = []
         self._refresh_preview()
         self.set_action_status("已清空预览")
-
-    def _add_preview_to_history(self):
-        """Add the preview formula to history while preserving its label."""
-        if not self._rendered_formulas:
-            self.show_action_status("预览中没有公式", level="warning")
-            return
-
-        added_count = 0
-        for formula, label in self._rendered_formulas:
-            if formula and formula not in self.history:
-                self.history.insert(0, formula)
-
-                if hasattr(self, "_formula_types"):
-                    if formula not in self._formula_types:
-                        self._formula_types[formula] = getattr(self, "current_model", "mathcraft")
-
-                if label:
-                    name = label.strip()
-                    if name.startswith('#'):
-                        parts = name.split(' ', 1)
-                        if len(parts) > 1:
-                            name = parts[1].strip()
-                        else:
-                            name = ""
-                    if name:
-                        self._formula_names[formula] = name
-                added_count += 1
-
-        if added_count > 0:
-            self.save_history()
-            self.rebuild_history_ui()
-            self.set_action_status(f"已添加 {added_count} 个公式到历史")
-        else:
-            self.show_action_status("公式已在历史中", level="info")

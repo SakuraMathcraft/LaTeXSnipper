@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import os
+import hashlib
 
 from PyQt6 import sip
 from PyQt6.QtCore import QTimer
@@ -92,16 +93,19 @@ class ModelRuntimeControllerMixin:
     def _get_external_model_required_fields_hint(self) -> str:
         cfg = self._get_external_model_config()
         if cfg.normalized_provider() == "mineru":
-            return "请先在设置页填写 Base URL、MinerU 解析接口路径，并点击“测试连接”。"
+            return "请先在设置页填写 Base URL、MinerU Local 解析接口路径，并点击“测试连接”。"
         return "请先在设置页填写 Base URL、模型名，并点击“测试连接”。"
 
     def _get_external_model_status_text(self) -> str:
         config = self._get_external_model_config()
         if self._is_external_model_configured():
             model_name = "" if config.normalized_provider() == "mineru" else config.normalized_model_name()
+            api_key = config.normalized_api_key()
+            api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else ""
             sig = (
                 f"{config.normalized_provider()}|{config.normalized_base_url()}|"
-                f"{model_name}|{config.normalized_mineru_endpoint()}"
+                f"{model_name}|{config.normalized_mineru_endpoint()}|"
+                f"{config.normalized_mineru_test_endpoint()}|{api_key_fingerprint}"
             )
             tested_sig = str(self.cfg.get("external_model_last_test_signature", "") or "")
             tested_ok = bool(self.cfg.get("external_model_last_test_ok", False))

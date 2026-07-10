@@ -23,6 +23,45 @@ def test_external_model_defaults_match_ollama_url() -> None:
     assert config.normalized_base_url() == "http://127.0.0.1:11434"
 
 
+@pytest.mark.parametrize(
+    ("prompt_template", "output_mode"),
+    [
+        ("ocr_formula_v1", "latex"),
+        ("ocr_markdown_v1", "markdown"),
+        ("ocr_text_v1", "text"),
+        ("ocr_handwriting_mixed_v1", "markdown"),
+        ("ocr_document_page_v1", "markdown"),
+        ("ocr_document_latex_v1", "latex"),
+    ],
+)
+def test_prompt_template_is_the_output_contract(prompt_template: str, output_mode: str) -> None:
+    from backend.external_model.schemas import ExternalModelConfig
+
+    config = ExternalModelConfig(prompt_template=prompt_template)
+
+    assert config.resolved_output_mode() == output_mode
+
+
+def test_unknown_prompt_template_is_rejected() -> None:
+    from backend.external_model.schemas import ExternalModelConfig
+
+    with pytest.raises(ValueError):
+        ExternalModelConfig(prompt_template="unknown").resolved_output_mode()
+
+
+def test_custom_prompt_replaces_template_text_without_changing_result_type() -> None:
+    from backend.external_model.prompts import build_prompt
+    from backend.external_model.schemas import ExternalModelConfig
+
+    config = ExternalModelConfig(
+        prompt_template="ocr_markdown_v1",
+        custom_prompt="Return the requested document structure.",
+    )
+
+    assert build_prompt(config) == "Return the requested document structure."
+    assert config.resolved_output_mode() == "markdown"
+
+
 def test_default_external_model_connection_uses_ollama_routes(monkeypatch: pytest.MonkeyPatch) -> None:
     from backend.external_model.client import ExternalModelClient
     from backend.external_model.schemas import load_config_from_mapping
@@ -140,7 +179,7 @@ def test_recommended_presets_only_include_strong_vision_options() -> None:
 
     preset_ids = [key for key, _label in PRESET_ITEMS]
 
-    assert preset_ids == ["glm_ocr", "paddleocr_vl", "qwen_vl", "mineru_native"]
+    assert preset_ids == ["glm_ocr", "paddleocr_vl", "qwen_vl", "mineru_local"]
     assert "ollama_vision" not in preset_ids
 
 
@@ -161,3 +200,32 @@ def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(ExternalModelConnectionError, match="接口路径不存在"):
         MineruClient(config).test_connection()
+
+
+def test_mineru_parse_mode_consumes_native_structure_without_parse_prompt() -> None:
+    from backend.external_model.document_pipeline import ExternalDocumentPipeline
+    from backend.external_model.prompts import PROMPTS
+    from backend.external_model.schemas import ExternalModelConfig, ExternalModelResult
+
+    assert "ocr_document_parse_v1" not in PROMPTS
+    pipeline = ExternalDocumentPipeline(
+        ExternalModelConfig(provider="mineru"),
+        output_format="markdown",
+        document_mode="parse",
+    )
+    result = ExternalModelResult(
+        provider="mineru",
+        structured_payload={
+            "pages": [
+                {
+                    "page": 1,
+                    "blocks": [{"type": "paragraph", "text": "Native MinerU content"}],
+                }
+            ]
+        },
+    )
+
+    page = pipeline.process_result(result, 1)
+
+    assert page is not None
+    assert page.content == "Native MinerU content"

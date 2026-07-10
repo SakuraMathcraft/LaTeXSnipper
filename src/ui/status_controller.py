@@ -17,7 +17,7 @@ class StatusControllerMixin:
         try:
             cfg = self._get_external_model_config()
             if cfg.normalized_provider() == "mineru":
-                return "MinerU"
+                return "MinerU Local"
             model_name = cfg.normalized_model_name()
             if model_name:
                 return model_name

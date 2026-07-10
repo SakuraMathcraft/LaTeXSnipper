@@ -14,10 +14,11 @@ from exporting.formula_export import build_formula_export, get_all_export_format
 
 StatusCallback = Callable[[str, str], None]
 _active_export_threads: list[QThread] = []
+_active_export_tasks: list[QObject] = []
 
 
 class _PandocFileExportWorker(QObject):
-    finished = pyqtSignal(str)
+    finished = pyqtSignal(str, str)
     failed = pyqtSignal(str)
 
     def __init__(self, format_key: str, latex: str, file_path: str, format_name: str):
@@ -30,17 +31,76 @@ class _PandocFileExportWorker(QObject):
     @pyqtSlot()
     def run(self) -> None:
         try:
+            from exporting.document_assets import prepare_pandoc_document, supports_document_assets
             from exporting.pandoc_exporter import convert_latex_to
 
-            data = convert_latex_to(self._format_key, self._latex, as_document=True)
             output_path = Path(self._file_path)
+            prepared = None
+            source = self._latex
+            input_format = None
+            if supports_document_assets(self._format_key):
+                prepared = prepare_pandoc_document(source, output_path)
+                source = prepared.text
+                if prepared.assets or prepared.skipped_svg_count:
+                    input_format = "markdown+tex_math_dollars"
+
+            data = convert_latex_to(
+                self._format_key,
+                source,
+                as_document=True,
+                input_format=input_format,
+            )
             if isinstance(data, bytes):
                 output_path.write_bytes(data)
             else:
                 output_path.write_text(str(data), encoding="utf-8")
-            self.finished.emit(f"已导出 {self._format_name} 到 {self._file_path}")
+            message = f"已导出 {self._format_name} 到 {self._file_path}"
+            level = "success"
+            if prepared is not None and prepared.assets and prepared.asset_dir is not None:
+                message += f"；图像资源 {len(prepared.assets)} 个：{prepared.asset_dir}"
+            if prepared is not None and prepared.skipped_svg_count:
+                message += f"；已跳过 {prepared.skipped_svg_count} 个无效或不完整 SVG"
+                level = "warning"
+            self.finished.emit(message, level)
         except Exception as exc:
             self.failed.emit(f"导出失败: {exc}")
+
+
+class _PandocExportTask(QObject):
+    def __init__(
+        self,
+        thread: QThread,
+        worker: _PandocFileExportWorker,
+        status_callback: StatusCallback | None,
+    ):
+        super().__init__()
+        self._thread = thread
+        self._worker = worker
+        self._status_callback = status_callback
+
+    @pyqtSlot(str, str)
+    def report_finished(self, message: str, level: str) -> None:
+        if self._status_callback is not None:
+            self._status_callback(message, level)
+
+    @pyqtSlot(str)
+    def report_failed(self, message: str) -> None:
+        if self._status_callback is not None:
+            self._status_callback(message, "error")
+
+    @pyqtSlot()
+    def release(self) -> None:
+        try:
+            _active_export_threads.remove(self._thread)
+        except ValueError:
+            pass
+        try:
+            _active_export_tasks.remove(self)
+        except ValueError:
+            pass
+        self._worker = None
+        self._thread.deleteLater()
+        self.deleteLater()
 
 
 def populate_formula_export_menu(menu, export_callback: Callable[[str], None]) -> None:
@@ -125,34 +185,21 @@ def _handle_pandoc_file_export(
     if not file_path:
         return False, "已取消导出"
 
-    thread = QThread(parent)
+    thread = QThread()
     worker = _PandocFileExportWorker(format_key, latex, file_path, format_name)
     worker.moveToThread(thread)
+    task = _PandocExportTask(thread, worker, status_callback)
 
-    def finish(message: str) -> None:
-        if status_callback is not None:
-            status_callback(message, "success")
-
-    def fail(message: str) -> None:
-        if status_callback is not None:
-            status_callback(message, "error")
-
-    def cleanup() -> None:
-        thread.quit()
-        thread.wait()
-        worker.deleteLater()
-        thread.deleteLater()
-        try:
-            _active_export_threads.remove(thread)
-        except ValueError:
-            pass
-
-    worker.finished.connect(finish)
-    worker.failed.connect(fail)
-    worker.finished.connect(cleanup)
-    worker.failed.connect(cleanup)
+    worker.finished.connect(task.report_finished)
+    worker.failed.connect(task.report_failed)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(worker.deleteLater)
+    worker.finished.connect(thread.quit)
+    worker.failed.connect(thread.quit)
+    thread.finished.connect(task.release)
     thread.started.connect(worker.run)
     _active_export_threads.append(thread)
+    _active_export_tasks.append(task)
     thread.start()
     return True, f"正在导出 {format_name}..."
 

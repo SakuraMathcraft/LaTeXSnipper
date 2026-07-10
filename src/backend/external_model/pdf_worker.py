@@ -53,7 +53,7 @@ class ExternalModelPdfWorker(QObject):
                 pipeline = ExternalDocumentPipeline(self.config, self.output_format, "parse", asset_store=asset_store)
                 self.progress.emit(0, total)
                 result = MineruClient(self.config).parse_pdf(self.pdf_path, page_start, page_end)
-                page_result = pipeline.process_result(result, page_start + 1, "ocr_document_parse_v1")
+                page_result = pipeline.process_result(result, page_start + 1)
                 content = pipeline.compose_document([page_result] if page_result else [])
                 self.structured_result = pipeline.build_structured_result()
                 if not content.strip():

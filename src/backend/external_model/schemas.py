@@ -10,12 +10,20 @@ DEFAULT_CONFIG = {
     "external_model_model_name": "",
     "external_model_api_key_enc": "",
     "external_model_timeout_sec": 60,
-    "external_model_output_mode": "latex",
     "external_model_prompt_template": "ocr_formula_v1",
     "external_model_custom_prompt": "",
     "external_model_preset": "",
     "external_model_mineru_endpoint": "/file_parse",
     "external_model_mineru_test_endpoint": "/health",
+}
+
+PROMPT_OUTPUT_MODES = {
+    "ocr_formula_v1": "latex",
+    "ocr_markdown_v1": "markdown",
+    "ocr_text_v1": "text",
+    "ocr_handwriting_mixed_v1": "markdown",
+    "ocr_document_page_v1": "markdown",
+    "ocr_document_latex_v1": "latex",
 }
 
 
@@ -33,7 +41,6 @@ class ExternalModelConfig:
     model_name: str = ""
     api_key: str = ""
     timeout_sec: int = 60
-    output_mode: str = "latex"
     prompt_template: str = "ocr_formula_v1"
     custom_prompt: str = ""
     preset: str = ""
@@ -44,9 +51,14 @@ class ExternalModelConfig:
         value = str(self.provider or "ollama").strip().lower()
         return value if value in ("openai_compatible", "ollama", "mineru") else "ollama"
 
-    def normalized_output_mode(self) -> str:
-        value = str(self.output_mode or "latex").strip().lower()
-        return value if value in ("latex", "markdown", "text") else "latex"
+    def normalized_prompt_template(self) -> str:
+        value = str(self.prompt_template).strip()
+        if value not in PROMPT_OUTPUT_MODES:
+            raise ValueError(f"Unsupported prompt template: {self.prompt_template!r}")
+        return value
+
+    def resolved_output_mode(self) -> str:
+        return PROMPT_OUTPUT_MODES[self.normalized_prompt_template()]
 
     def normalized_timeout(self) -> int:
         try:
@@ -87,8 +99,7 @@ class ExternalModelConfig:
             "external_model_model_name": self.normalized_model_name(),
             "external_model_api_key_enc": encrypt_secret(self.normalized_api_key()),
             "external_model_timeout_sec": self.normalized_timeout(),
-            "external_model_output_mode": self.normalized_output_mode(),
-            "external_model_prompt_template": str(self.prompt_template or "ocr_formula_v1").strip() or "ocr_formula_v1",
+            "external_model_prompt_template": self.normalized_prompt_template(),
             "external_model_custom_prompt": str(self.custom_prompt or "").strip(),
             "external_model_preset": str(self.preset or "").strip(),
             "external_model_mineru_endpoint": self.normalized_mineru_endpoint(),
@@ -153,13 +164,15 @@ class ExternalModelResult:
                     return inner
         return text
 
-    def best_text(self, output_mode: str = "latex") -> str:
-        mode = str(output_mode or "latex").strip().lower()
+    def best_text(self, output_mode: str) -> str:
+        mode = output_mode.strip().lower()
+        if mode == "latex":
+            return self._normalize_latex_text(self.latex or self.markdown or self.text or "")
         if mode == "markdown":
             return self._normalize_common_text(self.markdown or self.text or self.latex or "")
         if mode == "text":
             return self._normalize_common_text(self.text or self.markdown or self.latex or "")
-        return self._normalize_latex_text(self.latex or self.markdown or self.text or "")
+        raise ValueError(f"Unsupported external output mode: {output_mode!r}")
 
 
 def load_config_from_mapping(mapping) -> ExternalModelConfig:
@@ -169,7 +182,6 @@ def load_config_from_mapping(mapping) -> ExternalModelConfig:
         model_name=str(get_config_value(mapping, "external_model_model_name") or ""),
         api_key=decrypt_secret(str(get_config_value(mapping, "external_model_api_key_enc") or "")),
         timeout_sec=int(get_config_value(mapping, "external_model_timeout_sec") or 60),
-        output_mode=str(get_config_value(mapping, "external_model_output_mode") or "latex"),
         prompt_template=str(get_config_value(mapping, "external_model_prompt_template") or "ocr_formula_v1"),
         custom_prompt=str(get_config_value(mapping, "external_model_custom_prompt") or ""),
         preset=str(get_config_value(mapping, "external_model_preset") or ""),

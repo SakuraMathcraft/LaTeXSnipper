@@ -46,10 +46,3 @@ def default_user_data_file(file_name: str) -> Path:
     except Exception:
         pass
     return root / file_name
-
-
-def normalize_content_type(content_type: str | None) -> str:
-    """Limit content types to built-in MathCraft modes."""
-    value = (content_type or "").strip().lower()
-    allowed = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
-    return value if value in allowed else "mathcraft"
