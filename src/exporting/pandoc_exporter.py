@@ -245,6 +245,7 @@ def convert_latex_to(
     *,
     as_document: bool = True,
     extra_args: list[str] | None = None,
+    input_format: str | None = None,
 ) -> str | bytes:
     if not is_available():
         raise PandocNotAvailable(
@@ -261,7 +262,13 @@ def convert_latex_to(
     has_inline_math = "$" in (latex or "")
     is_text_content = has_inline_math and not is_complete_doc and not (latex or "").strip().startswith("\\[")
 
-    if is_text_content:
+    if input_format is not None:
+        src = (latex or "").strip()
+        if target_key == "pandoc_pptx":
+            src = _preprocess_for_pptx(src)
+        input_fmt = input_format
+        is_text_content = input_format.startswith("markdown")
+    elif is_text_content:
         src = latex.strip()
         if target_key == "pandoc_pptx":
             src = _preprocess_for_pptx(src)

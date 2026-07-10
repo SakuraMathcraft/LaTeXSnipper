@@ -256,6 +256,8 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - #text(weight: "bold")[内置格式（无需 Pandoc）：] LaTeX 行内、LaTeX display、LaTeX equation、Markdown 行内、Markdown 块级、MathML、MathML `.mml`、MathML `<m>`、MathML 属性形式、HTML、Word OMML、SVG Code
 - #text(weight: "bold")[Pandoc 扩展格式：] Word `.docx`、ODT `.odt`、PowerPoint `.pptx`、EPUB `.epub`、PDF `.pdf`、HTML 独立页 `.html`、Typst `.typ`、纯文本 `.txt`
 
+导出 Word、ODT、PowerPoint 或 PDF 时，如果识别内容包含完整闭合的 SVG 源码块，程序会验证并按出现顺序保存原始 SVG 和 PNG 图像，将 PNG 嵌入目标文档。图像保存在导出文件旁的 `<文件名>_assets_<内容哈希>` 目录；不同内容不会互相覆盖。无效、不完整或包含危险外部资源的 SVG 会被跳过。资源处理和 Pandoc 转换均在后台执行。
+
 托盘或菜单栏状态菜单还提供 #text(weight: "bold")[截图屏幕模式]：自动模式会按鼠标释放点选择屏幕，也可以固定到某一块显示器。多屏截图位置不对时，优先检查这里。
 
 == 设置页当前业务逻辑
