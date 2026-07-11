@@ -1,108 +1,22 @@
-# LaTeXSnipper
+# LaTeXSnipper ✨
 
 <div align="center">
 
-**Capture, recognize, edit, compute, and export mathematical content from one desktop workspace.**
+> A desktop math workspace for **capture -> recognize -> handwrite -> edit -> compute**
+<img width="1919" height="1020" alt="封面" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
 
-<img width="1919" height="1020" alt="LaTeXSnipper desktop workspace" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
+![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
+![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
+![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
+![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
-[![Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-[![CI](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/ci.yml)
-[![macOS CI](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/macos-ci-artifact.yml/badge.svg?branch=main)](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/macos-ci-artifact.yml)
-[![License](https://img.shields.io/github/license/SakuraMathcraft/LaTeXSnipper?style=flat-square)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/stargazers)
-![Platforms](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-supported-orange?style=flat-square)
+[![GitHub Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
+[![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
 
-[Download](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [User Manual](user_manual/LaTeXSnipper_User_Manual.pdf) · [FAQ](docs/faq.md) · [Benchmarks](benchmarks/mathcraft_ocr/README.md)
-
-English · [简体中文](README.zh-CN.md)
-
-</div>
-
-## Overview
-
-LaTeXSnipper is an offline-first desktop application for mathematical OCR and document workflows. It combines screenshot, image, PDF, and handwriting recognition with a MathLive editor, live rendering, symbolic computation, history, favorites, and document export.
-
-The built-in MathCraft OCR runtime supports three explicit result types:
-
-| Mode | Intended input | Result and rendering |
-|---|---|---|
-| Formula | Isolated formulas and derivations | LaTeX formula |
-| Mixed | Mathematical pages with text and formulas | Markdown with LaTeX math |
-| Text | Plain text regions | Plain text |
-
-External visual models can use the same three result contracts through Ollama or OpenAI-compatible APIs. MinerU Local is supported through its native document parsing API.
-
-## Quick Start
-
-1. Download the package for your platform from [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases).
-2. Start LaTeXSnipper and open the dependency wizard when prompted.
-3. Install the required runtime layers. `BASIC + CORE + MATHCRAFT_CPU` is the stable default; use `MATHCRAFT_GPU` on a supported NVIDIA setup.
-4. Trigger screenshot recognition from the main window or the global shortcut, then edit, copy, save, or export the result.
-
-Windows releases include a minimal Python 3.11 dependency runtime. Linux and macOS create the optional dependency environment from a system Python `>=3.10,<3.13`; Python 3.11 is recommended. Detailed installation and troubleshooting guidance is available in the [user manual](user_manual/LaTeXSnipper_User_Manual.pdf).
-
-## Core Capabilities
-
-| Area | Capabilities |
-|---|---|
-| Recognition | Screenshot, image, PDF page ranges, handwriting, formula/text/mixed modes |
-| Editing | MathLive visual editor, virtual keyboard, live MathJax preview, multiline formulas |
-| Computation | Evaluate, simplify, numeric evaluate, expand, factor, and solve |
-| Knowledge flow | Typed history and favorites with stable rendering metadata |
-| External models | Ollama, OpenAI-compatible visual APIs, and MinerU Local |
-| Export | 20 formats spanning LaTeX, Markdown, MathML, HTML, OMML, SVG, Office documents, EPUB, PDF, Typst, and text |
-| Desktop integration | Global shortcut, system tray/menu bar, clipboard and multi-display capture |
-
-Recognition and computation can remain local. External services are optional and configured explicitly by the user.
-
-## Reproducible Benchmarks
-
-MathCraft OCR includes a source-controlled benchmark suite with manifests, runners, metric scripts, protocol notes, and compact result reports. Large public datasets and prediction dumps remain outside the repository.
-
-| Benchmark | Scale | Reported result | Purpose |
-|---|---:|---|---|
-| UniMER-Test | 23,757 formulas | BLEU-4 `0.7946`; official CDM `0.9288` on 23,701 render-evaluable samples | Printed and handwritten formula OCR |
-| MathWriting test | 7,644 samples | BLEU-4 `0.5467`; official CDM `0.750`; prediction render success `98.63%` | Independent handwriting stress test |
-| OpenStax mixed pages | 200 pages | `0` failures, `0` empty outputs; median latency `6.65 s/page` | Mixed-page completion, structure, and runtime |
-
-All recorded runs used `CUDAExecutionProvider`; latency is hardware-dependent. The datasets serve different evaluation roles, so the rows are not a model-ranking comparison. See the [benchmark protocol and reproduction guide](benchmarks/mathcraft_ocr/README.md), the checked-in [result reports](benchmarks/mathcraft_ocr/results), and the model repository's [published tables and charts](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks).
-
-## Microsoft Office Plugin
-
-The released Windows plugin integrates LaTeXSnipper with desktop Word and PowerPoint:
-
-- Word OLE and native OMML formula insertion
-- PowerPoint OLE and high-DPI PNG insertion
-- Shared MathLive formula editor and symbol library
-- Formula loading, update, deletion, numbering, and renumbering
-- Persistent source, rendering, numbering, and formula identity metadata
-- Screenshot OCR through the local desktop bridge
-
-Download `OfficePluginSetup-<version>.exe` from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases). It supports 32-bit and 64-bit desktop Office 2019, 2021, 2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows. See the [Office plugin documentation](office_plugin/README.md).
-
-## Export Formats
-
-Built-in exports do not require Pandoc:
-
-- LaTeX inline, display, and equation
-- Markdown inline and block math
-- MathML standard, `.mml`, `<m>`, and attribute forms
-- HTML, Word OMML, and SVG source
-
-The optional `PANDOC` layer enables Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML, Typst, and plain text. Complete SVG blocks in document content are validated, rendered, and embedded as image assets for document exports. PDF export additionally requires a usable LaTeX PDF engine.
-
-## Platform Support
-
-| Platform | Packaging | Integration notes |
-|---|---|---|
-| Windows | Per-user Inno installer | Native global shortcut, tray integration, bundled minimal Python runtime |
-| Linux | Debian package | `pynput` shortcut provider; Qt capture with optional Wayland/X11 or portal tools |
-| macOS | `.app.zip` and DMG | Native shortcut provider, Dock/menu integration, Screen Recording permission for capture |
-
-Application state, logs, dependency environments, shared tools, temporary files, and model weights follow platform-specific user-data locations documented in [User Data Storage](docs/user_data_storage.md).
-
-## Star History
+### Star History
 
 <a href="https://repostars.dev/?repos=SakuraMathcraft%2FLaTeXSnipper">
   <picture>
@@ -112,25 +26,110 @@ Application state, logs, dependency environments, shared tools, temporary files,
   </picture>
 </a>
 
+[FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [LINUX DO Community](https://linux.do/)
+
+English · [简体中文](README.zh-CN.md)
+
+</div>
+
+---
+
+## Core Features
+
+| Feature | Description |
+|------|------|
+| 📸 Formula recognition | MathCraft OCR for formulas, text, and mixed content |
+| 📄 PDF recognition | Page-based PDF recognition with Markdown/LaTeX output and DPI control |
+| ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
+| 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
+| ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
+| 🔄 Multi-format export | 20 export formats across LaTeX, Markdown, MathML, HTML, OMML, SVG, Word, ODT, PowerPoint, EPUB, PDF, Typst, and plain text |
+| 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
+| 🌙 Theme support | Light/Dark adaptation across windows and tools |
+| 🔐 Offline-first | Recognition and computation can run locally for privacy |
+
+MathCraft OCR benchmark results: [tables and charts](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [reproduction suite](benchmarks/mathcraft_ocr/README.md)
+
+---
+
+## Microsoft Office Plugin
+
+LaTeXSnipper provides a released Windows plugin for desktop Microsoft Word and PowerPoint:
+
+- Word OLE and native OMML formula insertion
+- PowerPoint OLE and PNG formula insertion
+- Shared MathLive editor and extensive symbol/formula library
+- Formula loading, update, deletion, automatic numbering, and renumbering
+- Persisted complete LaTeX source, rendering options, numbering data, and formula identity
+- Local vector rendering for OLE formulas
+- Screenshot recognition through the local desktop Bridge
+
+Download `OfficePluginSetup-<version>.exe` from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases). The plugin supports 32-bit and 64-bit desktop Office 2019, 2021, 2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+
+See the [Office plugin documentation](office_plugin/README.md) for requirements and release build details.
+
+---
+
+## Export Formats
+
+LaTeXSnipper exposes a shared export menu in the main window and favorites window. The desktop app currently provides 20 export formats.
+
+Built-in formula export formats:
+
+- LaTeX inline, display, and equation
+- Markdown inline and block math
+- MathML standard, `.mml`, `<m>`, and attribute forms
+- HTML, Word OMML, and SVG code
+
+Optional Pandoc export formats are enabled after installing the `PANDOC` layer in the dependency wizard:
+
+- Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`
+- PDF `.pdf` (requires Pandoc plus a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX)
+- Standalone HTML `.html`, Typst `.typ`, and plain text `.txt`
+
+---
+
+## Platform Support
+
+| Platform | Status | Notes |
+|------|------|------|
+| Windows | Primary release target | Native global hotkey, Qt capture, GitHub/Inno packaging. |
+| Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
+| macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
+
+Linux and macOS both create optional runtime dependency environments in the
+user state directory, so they need a usable system Python `>=3.10,<3.13` with
+venv/pip support. Python 3.11 is preferred because it matches the Windows
+bundled runtime. Debian/Ubuntu `.deb` installs declare `python3` and
+`python3-venv`; macOS users should install Homebrew `python@3.11` or an
+official python.org 3.11/3.12 installer when the system does not provide a
+usable supported `python3`.
+
+---
+
 ## Supporters
 
-Thanks to everyone who supports development, testing, documentation, and community maintenance.
+Thanks to everyone who supports LaTeXSnipper development, testing, documentation, and community maintenance.
 
 | Supporter | Contribution |
 |---|---|
-| [strangelion](https://github.com/strangelion) | Contributor |
-| [Galileo927](https://github.com/Galileo927) | Contributor |
+| [strangelion](https://github.com/strangelion) | contributor |
+| [Galileo927](https://github.com/Galileo927) | contributor |
 | [ljygo](https://github.com/ljygo) | Sponsor |
 | [Yokie-D](https://github.com/Yokie-D) | Sponsor |
 
-## Support the Project
+---
 
-LaTeXSnipper is free, open-source, ad-free, and maintained as an independent project. Sponsorship, issue reports, reproducible tests, and documentation contributions help sustain long-term maintenance.
+## Support The Project
 
-| Alipay | WeChat | Community group |
-|---|---|---|
-| <img width="240" alt="Alipay" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="240" alt="WeChat" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="240" alt="LaTeXSnipper community group" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+LaTeXSnipper is a free, open-source, ad-free personal project. If it helps with your writing, OCR, or formula workflow, small sponsorships and community feedback help keep maintenance moving.
+
+| 支付宝 | 微信 | 交流群 |
+|--------|------|--------|
+| <img width="300" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="300" alt="微信收款码" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="300" alt="LaTeXSnipper群聊" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+
+---
 
 ## License
 
-LaTeXSnipper is licensed under the [GNU General Public License v3.0](LICENSE).
+This project is open-sourced under the [GNU General Public License v3](LICENSE).
