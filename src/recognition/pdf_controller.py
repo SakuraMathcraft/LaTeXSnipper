@@ -326,33 +326,18 @@ class PdfRecognitionControllerMixin:
 
     def _on_pdf_predict_ok(self, content: str):
         self._recognition_cancel_requested = False
-        used = None
-        try:
-            if getattr(self, "current_model", "") == "external_model":
-                used = self._get_external_model_display_name(
-                    config=getattr(getattr(self, "pdf_predict_worker", None), "config", None)
-                )
-            else:
-                used = getattr(getattr(self, "model", None), "last_used_model", None)
-        except Exception:
-            used = None
-        if not used:
-            used = getattr(self, "current_model", "mathcraft")
+        if self.current_model == "external_model":
+            used = self._get_external_model_display_name(config=self.pdf_predict_worker.config)
+        else:
+            used = self.pdf_predict_worker.model_name
         self.set_model_status("完成")
         self.set_action_status("PDF 识别完成", auto_clear_ms=3500)
         self._release_pdf_progress()
-        try:
-            if not used:
-                used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
-            if not used:
-                used = getattr(self, "current_model", "mathcraft")
-            elapsed = getattr(getattr(self, "pdf_predict_worker", None), "elapsed", None)
-            if elapsed is not None:
-                print(f"[INFO] PDF 识别完成 model={used} time={elapsed:.2f}s")
-            else:
-                print(f"[INFO] PDF 识别完成 model={used}")
-        except Exception:
-            pass
+        elapsed = self.pdf_predict_worker.elapsed
+        if elapsed is not None:
+            print(f"[INFO] PDF 识别完成 model={used} time={elapsed:.2f}s")
+        else:
+            print(f"[INFO] PDF 识别完成 model={used}")
         fmt_key = self._pdf_output_format or "markdown"
         style_key = self._pdf_doc_style or "document"
         structured_result = getattr(getattr(self, "pdf_predict_worker", None), "structured_result", None)
@@ -374,24 +359,15 @@ class PdfRecognitionControllerMixin:
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
-        try:
-            if getattr(self, "current_model", "") == "external_model":
-                used = self._get_external_model_display_name(
-                    config=getattr(getattr(self, "pdf_predict_worker", None), "config", None)
-                )
-            else:
-                used = getattr(getattr(self, "model", None), "last_used_model", None)
-            if not used:
-                used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
-            if not used:
-                used = getattr(self, "current_model", "mathcraft")
-            elapsed = getattr(getattr(self, "pdf_predict_worker", None), "elapsed", None)
-            if elapsed is not None:
-                print(f"[ERR] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
-            else:
-                print(f"[ERR] PDF 识别失败 model={used} err={msg}")
-        except Exception:
-            pass
+        if self.current_model == "external_model":
+            used = self._get_external_model_display_name(config=self.pdf_predict_worker.config)
+        else:
+            used = self.pdf_predict_worker.model_name
+        elapsed = self.pdf_predict_worker.elapsed
+        if elapsed is not None:
+            print(f"[ERR] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
+        else:
+            print(f"[ERR] PDF 识别失败 model={used} err={msg}")
 
         content = self._recognition_failure_content(msg, worker_attr="pdf_predict_worker")
         if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():

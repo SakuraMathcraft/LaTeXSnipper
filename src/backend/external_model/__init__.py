@@ -3,7 +3,13 @@ from .document_pipeline import ExternalDocumentPipeline
 from .mineru_client import MineruClient
 from .pdf_worker import ExternalModelPdfWorker
 from .presets import PRESET_ITEMS, get_preset
-from .schemas import ExternalModelConfig, ExternalModelResult, get_config_value, load_config_from_mapping
+from .schemas import (
+    ExternalModelConfig,
+    ExternalModelResult,
+    external_config_signature,
+    get_config_value,
+    load_config_from_mapping,
+)
 from .worker import ExternalModelConnectionWorker, ExternalModelWorker
 
 __all__ = [
@@ -16,6 +22,7 @@ __all__ = [
     "ExternalModelResult",
     "ExternalModelWorker",
     "PRESET_ITEMS",
+    "external_config_signature",
     "get_config_value",
     "get_preset",
     "load_config_from_mapping",

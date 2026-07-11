@@ -7,6 +7,7 @@
 # Optional environment:
 #   CODESIGN_IDENTITY      Developer ID Application identity.
 #   NOTARIZE=1             Submit the app for notarization.
+#   SKIP_DMG=1             Build only the zipped app bundle.
 #   APPLE_ID               Apple ID used by notarytool.
 #   APPLE_APP_PASSWORD     App-specific password used by notarytool.
 #   APPLE_TEAM_ID          Apple developer team ID.
@@ -120,7 +121,7 @@ fi
 log_step "6/6" "Packaging app artifacts"
 ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
 
-if command -v create-dmg >/dev/null 2>&1; then
+if [[ "${SKIP_DMG:-0}" != "1" ]] && command -v create-dmg >/dev/null 2>&1; then
     rm -rf "$DMG_STAGING_DIR"
     mkdir -p "$DMG_STAGING_DIR"
     ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"

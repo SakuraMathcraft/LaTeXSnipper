@@ -12,7 +12,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import ExternalModelWorker
 from backend.recognition_errors import recognition_failure_user_message
 from bootstrap.deps_bootstrap import custom_warning_dialog
-from runtime.content_types import content_type_for_external_output
+from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
 from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
 from workers.recognition_workers import PredictionWorker
 
@@ -160,7 +160,9 @@ class RecognitionControllerMixin:
             self._ensure_model_warmup_async(
                 preferred_model=preferred,
                 on_ready=lambda img=img, template=external_prompt_template: self._start_predict_with_pil(img, template),
-                on_fail=lambda msg: self.on_predict_fail(f"模型预热失败: {msg}"),
+                on_fail=lambda msg, model=preferred: self.on_predict_fail(
+                    f"模型预热失败: {msg}", model, None, external_model=False
+                ),
             )
             return
         active_model = self.current_model
@@ -182,8 +184,8 @@ class RecognitionControllerMixin:
                 self.predict_thread = None
 
         self.predict_thread.started.connect(self.predict_worker.run)
-        self.predict_worker.finished.connect(self.on_predict_ok)
-        self.predict_worker.failed.connect(self.on_predict_fail)
+        self.predict_worker.finished.connect(self._on_internal_predict_ok)
+        self.predict_worker.failed.connect(self._on_internal_predict_fail)
         self.predict_worker.finished.connect(self.predict_thread.quit)
         self.predict_worker.failed.connect(self.predict_thread.quit)
         self.predict_thread.finished.connect(_cleanup)
@@ -275,11 +277,34 @@ class RecognitionControllerMixin:
     def _on_external_predict_ok(self, result):
         output_mode = self.predict_worker.config.resolved_output_mode()
         text = result.best_text(output_mode)
-        self._last_external_model_name = self._get_external_model_display_name(result=result)
-        self.on_predict_ok(text, content_type_for_external_output(output_mode))
+        model_name = self._get_external_model_display_name(result=result)
+        self.on_predict_ok(
+            text,
+            content_type_for_external_output(output_mode),
+            model_name,
+            self.predict_worker.elapsed,
+        )
+
+    def _on_internal_predict_ok(self, text: str) -> None:
+        model_name = self.predict_worker.model_name
+        self.on_predict_ok(
+            text,
+            content_type_for_mathcraft(model_name),
+            model_name,
+            self.predict_worker.elapsed,
+        )
 
     def _on_external_predict_fail(self, msg: str):
-        self.on_predict_fail(msg, external_model=True)
+        model_name = self._get_external_model_display_name(config=self.predict_worker.config)
+        self.on_predict_fail(msg, model_name, self.predict_worker.elapsed, external_model=True)
+
+    def _on_internal_predict_fail(self, msg: str) -> None:
+        self.on_predict_fail(
+            msg,
+            self.predict_worker.model_name,
+            self.predict_worker.elapsed,
+            external_model=False,
+        )
 
     def _is_external_recognition_worker(self, worker) -> bool:
         return bool(getattr(worker, "config", None)) and worker.__class__.__name__.startswith("ExternalModel")

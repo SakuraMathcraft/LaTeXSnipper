@@ -19,7 +19,13 @@
 
 ### Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=SakuraMathcraft/LaTeXSnipper&type=Date)](https://star-history.com/#SakuraMathcraft/LaTeXSnipper&Date)
+<a href="https://repostars.dev/?repos=SakuraMathcraft%2FLaTeXSnipper">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=light">
+    <img alt="LaTeXSnipper star history chart" src="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=light">
+  </picture>
+</a>
 
 [FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
 

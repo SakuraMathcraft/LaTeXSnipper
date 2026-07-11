@@ -103,6 +103,24 @@ def test_external_model_api_key_is_saved_encrypted(monkeypatch: pytest.MonkeyPat
     assert load_config_from_mapping({"external_model_api_key": "legacy-token"}).normalized_api_key() == ""
 
 
+def test_external_connection_signature_ignores_unused_mineru_model_name() -> None:
+    from backend.external_model import ExternalModelConfig, external_config_signature
+
+    first = ExternalModelConfig(provider="mineru", model_name="unused-a")
+    second = ExternalModelConfig(provider="mineru", model_name="unused-b")
+
+    assert external_config_signature(first) == external_config_signature(second)
+
+
+def test_external_connection_signature_tracks_openai_model_name() -> None:
+    from backend.external_model import ExternalModelConfig, external_config_signature
+
+    first = ExternalModelConfig(provider="openai_compatible", model_name="vision-a")
+    second = ExternalModelConfig(provider="openai_compatible", model_name="vision-b")
+
+    assert external_config_signature(first) != external_config_signature(second)
+
+
 def test_openai_compatible_400_includes_response_detail() -> None:
     from backend.external_model.client import ExternalModelClient
     from backend.external_model.schemas import ExternalModelConfig
@@ -175,12 +193,28 @@ def test_openai_compatible_accepts_base_url_with_v1_prefix(monkeypatch: pytest.M
 
 
 def test_recommended_presets_only_include_strong_vision_options() -> None:
-    from backend.external_model.presets import PRESET_ITEMS
+    from backend.external_model.presets import PRESETS, PRESET_ITEMS
 
     preset_ids = [key for key, _label in PRESET_ITEMS]
 
     assert preset_ids == ["glm_ocr", "paddleocr_vl", "qwen_vl", "mineru_local"]
     assert "ollama_vision" not in preset_ids
+    assert PRESETS["paddleocr_vl"] == {
+        "label": "PaddleOCR-VL (FastDeploy)",
+        "provider": "openai_compatible",
+        "base_url": "http://127.0.0.1:8185",
+        "model_name": "PaddlePaddle/PaddleOCR-VL",
+        "prompt_template": "ocr_markdown_v1",
+        "hint": "适用于 FastDeploy OpenAI API Server；端口和模型名需与实际启动参数一致。",
+    }
+
+
+def test_selecting_external_model_does_not_warn_before_configuration() -> None:
+    source = (SRC / "ui" / "model_runtime_controller.py").read_text(encoding="utf-8")
+    external_branch = source.split('if m == "external_model":', 1)[1].split("return", 1)[0]
+
+    assert "set_model_status" in external_branch
+    assert "InfoBar.warning" not in external_branch
 
 
 def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,6 +234,22 @@ def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(ExternalModelConnectionError, match="接口路径不存在"):
         MineruClient(config).test_connection()
+
+
+def test_mineru_health_check_message_does_not_claim_parse_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.external_model.mineru_client import MineruClient
+    from backend.external_model.schemas import ExternalModelConfig
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(requests, "get", lambda *_args, **_kwargs: Response())
+
+    ok, message = MineruClient(ExternalModelConfig(provider="mineru")).test_connection()
+
+    assert ok is True
+    assert message == "MinerU 健康检查通过: /health"
 
 
 def test_mineru_parse_mode_consumes_native_structure_without_parse_prompt() -> None:

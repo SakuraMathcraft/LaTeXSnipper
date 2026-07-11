@@ -1,6 +1,8 @@
 let mathfield = null;
 let bridge = null;
 let currentKeyboardHeight = 0;
+const VISIBLE_MATH_SPACE = '\\,';
+const MULTILINE_TEMPLATE = '\\begin{aligned}#@\\\\#?\\end{aligned}';
 
 function setThemeMode(mode) {
   document.body.dataset.theme = mode === 'light' ? 'light' : 'dark';
@@ -93,24 +95,58 @@ function toggleKeyboard() {
   }
 }
 
-function routeArrowKeyToMathfield(event) {
-  if (!mathfield || document.activeElement !== mathfield) return;
-  const commandMap = {
-    ArrowLeft: 'moveToPreviousChar',
-    ArrowRight: 'moveToNextChar',
-    ArrowUp: 'moveUp',
-    ArrowDown: 'moveDown',
-  };
-  const command = commandMap[event.key];
-  if (!command) return;
+function isMathfieldActive() {
+  return !!mathfield && (
+    document.activeElement === mathfield ||
+    mathfield.matches?.(':focus') ||
+    mathfield.matches?.(':focus-within')
+  );
+}
+
+function addMathRow() {
+  const before = currentLatex();
+  mathfield.executeCommand('addRowAfter');
+  if (currentLatex() !== before) return;
+
+  mathfield.executeCommand('selectAll');
+  mathfield.insert(MULTILINE_TEMPLATE, {
+    format: 'latex',
+    insertionMode: 'replaceSelection',
+    selectionMode: 'placeholder',
+  });
+}
+
+function hideVirtualKeyboard() {
   try {
-    const handled = mathfield.executeCommand?.(command);
-    if (handled !== false) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  } catch (_) {
-    // Ignore and keep default behavior for unsupported MathLive builds.
+    mathfield?.executeCommand?.('hideVirtualKeyboard');
+  } finally {
+    syncKeyboardState();
+    syncLayout();
+  }
+}
+
+function handleMathfieldKeydown(event) {
+  if (!isMathfieldActive()) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    hideVirtualKeyboard();
+    return;
+  }
+
+  if (mathfield.mode === 'latex') return;
+
+  if (
+    event.key === 'Enter' &&
+    !event.shiftKey &&
+    !event.isComposing &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    addMathRow();
   }
 }
 
@@ -197,6 +233,7 @@ async function init() {
     mathfield = new MathfieldElement();
     mathfield.tabIndex = 0;
     mathfield.mathVirtualKeyboardPolicy = 'onfocus';
+    mathfield.mathModeSpace = VISIBLE_MATH_SPACE;
     mathfield.smartFence = true;
     mathfield.smartMode = false;
     mathfield.defaultMode = 'math';
@@ -208,7 +245,7 @@ async function init() {
       syncKeyboardState();
       syncLayout();
     });
-    mathfield.addEventListener('keydown', routeArrowKeyToMathfield, true);
+    mathfield.addEventListener('keydown', handleMathfieldKeydown, true);
     mathfield.addEventListener('focusin', () => {
       queueMicrotask(() => {
         syncKeyboardState();

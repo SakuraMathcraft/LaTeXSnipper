@@ -8,12 +8,12 @@ PRESETS = {
         "hint": "适合文档 OCR、表格和公式混合识别；默认按 Ollama 本地服务填写。",
     },
     "paddleocr_vl": {
-        "label": "PaddleOCR-VL",
+        "label": "PaddleOCR-VL (FastDeploy)",
         "provider": "openai_compatible",
-        "base_url": "http://127.0.0.1:8000",
-        "model_name": "paddleocr-vl",
+        "base_url": "http://127.0.0.1:8185",
+        "model_name": "PaddlePaddle/PaddleOCR-VL",
         "prompt_template": "ocr_markdown_v1",
-        "hint": "适合整页 OCR 与结构化输出；请替换成你本地实际加载的模型名。",
+        "hint": "适用于 FastDeploy OpenAI API Server；端口和模型名需与实际启动参数一致。",
     },
     "qwen_vl": {
         "label": "Qwen2.5/Qwen3-VL",

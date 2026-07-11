@@ -28,6 +28,7 @@ def _qt_application():
 
 def test_pandoc_asset_formats_are_explicit() -> None:
     assert supports_document_assets("pandoc_docx")
+    assert supports_document_assets("pandoc_epub")
     assert supports_document_assets("pandoc_odt")
     assert supports_document_assets("pandoc_pptx")
     assert supports_document_assets("pandoc_pdf")
@@ -44,7 +45,11 @@ def test_complete_svg_blocks_are_saved_and_replaced_in_order(tmp_path: Path) -> 
     assert prepared.asset_dir.name.startswith("report_assets_")
     assert len(prepared.assets) == 2
     assert "<svg" not in prepared.text
-    assert prepared.text.index("![Image 1]") < prepared.text.index("![Image 2]")
+    assert prepared.text.count("![](") == 2
+    assert "Image 1" not in prepared.text
+    assert prepared.text.index(prepared.assets[0].png_path.as_posix()) < prepared.text.index(
+        prepared.assets[1].png_path.as_posix()
+    )
     for index, asset in enumerate(prepared.assets, start=1):
         assert asset.index == index
         assert asset.svg_path.read_text(encoding="utf-8").startswith("<svg")
