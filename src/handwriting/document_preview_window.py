@@ -1112,8 +1112,8 @@ class HandwritingDocumentPreviewWindow(QDialog):
         requested = self._desired_pdf_backend()
         if kind == self._pdf_backend_kind and self.pdf_view is not None:
             self._set_pdf_backend_status_text(self._describe_active_pdf_backend(requested, kind))
-            if show_feedback and requested == "poppler":
-                self._show_poppler_backend_info()
+            if show_feedback:
+                self._show_pdf_backend_info(requested, kind)
             return
         self._clear_preview_host()
         self._pdf_backend_kind = kind
@@ -1134,8 +1134,8 @@ class HandwritingDocumentPreviewWindow(QDialog):
                     except Exception:
                         pass
                 self._apply_pdf_grid_to_view()
-                if show_feedback and requested == "poppler":
-                    self._show_poppler_backend_info()
+                if show_feedback:
+                    self._show_pdf_backend_info(requested, kind)
                 return
         self.preview_placeholder = QLabel("当前环境缺少可用的 PDF 预览引擎。", self.preview_host)
         self.preview_placeholder.setWordWrap(True)
@@ -1150,17 +1150,27 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self._pdf_grid_spec = str(self.pdf_grid_combo.currentData() or "1x1")
         self._apply_pdf_grid_to_view()
 
-    def _show_poppler_backend_info(self) -> None:
-        self._poppler_status = self._detect_poppler_backend_light()
-        if self._poppler_status.ready:
-            title = "已切换到 Poppler(高清)"
-            content = "当前 PDF 预览使用 Poppler 渲染。"
-            duration = 1800
+    def _show_pdf_backend_info(self, requested: str, actual: str) -> None:
+        labels = {
+            "poppler": "Poppler(高清)",
+            "fitz": "Fitz(兼容)",
+        }
+        actual_label = labels.get(actual, "无可用后端")
+        if requested == "auto":
+            title = "已切换到自动"
+            content = f"当前自动选择 {actual_label} 渲染 PDF 预览。"
+            level = "info" if actual else "warning"
+        elif requested == actual:
+            title = f"已切换到 {labels[requested]}"
+            content = f"当前 PDF 预览使用 {actual_label} 渲染。"
+            level = "info"
         else:
-            title = "Poppler 未启用"
-            content = "当前环境缺少可用的 Poppler 命令，已回退到 Fitz(兼容)。"
-            duration = 2600
-        InfoBar.info(title=title, content=content, parent=self, position=InfoBarPosition.TOP, duration=duration)
+            requested_label = labels.get(requested, requested)
+            title = f"{requested_label} 未启用"
+            content = f"当前环境无法使用 {requested_label}，已改用 {actual_label}。"
+            level = "warning"
+        show = InfoBar.warning if level == "warning" else InfoBar.info
+        show(title=title, content=content, parent=self, position=InfoBarPosition.TOP, duration=2600 if level == "warning" else 1800)
 
     def showEvent(self, event) -> None:
         self._update_compile_button_state()

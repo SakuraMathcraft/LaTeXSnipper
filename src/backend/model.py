@@ -576,7 +576,6 @@ class ModelWrapper(QObject):
     def __init__(self, default_model: str | None = None, auto_warmup: bool = True):
         super().__init__()
         self.device = "cpu"
-        self.last_used_model = None
         self._default_model = self._normalize_model_name(default_model or "mathcraft")
         self._worker: subprocess.Popen | None = None
         self._worker_lock = threading.Lock()
@@ -895,7 +894,6 @@ class ModelWrapper(QObject):
         try:
             image_rgb = pil_img.convert("RGB")
             if _looks_like_empty_ocr_input(image_rgb):
-                self.last_used_model = model
                 return _empty_recognition_result(model, mode, image_rgb, "empty_image")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 tmp_path = tmp.name
@@ -926,7 +924,6 @@ class ModelWrapper(QObject):
                     },
                     timeout_sec=600.0,
                 )
-            self.last_used_model = model
             result["model"] = model
             result["mode"] = mode
             result["image_size"] = [int(image_rgb.width), int(image_rgb.height)]

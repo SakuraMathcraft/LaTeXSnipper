@@ -16,7 +16,7 @@ from bootstrap.deps_bootstrap import custom_warning_dialog
 from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
-from runtime.content_types import content_type_for_mathcraft, normalize_content_type
+from runtime.content_types import normalize_content_type
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
@@ -350,42 +350,24 @@ class PredictResultControllerMixin:
         if dialog_obj is None or hidden is dialog_obj:
             self._hidden_unpinned_predict_result_dialog_for_capture = None
 
-    def on_predict_ok(self, content: str, content_type: str | None = None):
+    def on_predict_ok(
+        self,
+        content: str,
+        content_type: str,
+        model_name: str,
+        elapsed: float | None,
+    ):
         self._recognition_cancel_requested = False
         if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(result=content):
             self.set_model_status("完成")
             self.set_action_status("Office OCR 完成", auto_clear_ms=3000)
             return
-        used = None
-        try:
-            if getattr(self, "current_model", "") == "external_model":
-                used = self._get_external_model_display_name(
-                    config=getattr(getattr(self, "predict_worker", None), "config", None)
-                )
-                if not used:
-                    used = getattr(self, "_last_external_model_name", None)
-            else:
-                used = getattr(getattr(self, "model", None), "last_used_model", None)
-        except Exception:
-            used = None
-        if not used:
-            used = getattr(self, "current_model", "mathcraft")
         self.set_model_status("完成")
         self.set_action_status("识别完成", auto_clear_ms=3000)
-        try:
-            if not used:
-                used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
-            if not used:
-                used = getattr(self, "current_model", "mathcraft")
-            elapsed = getattr(getattr(self, "predict_worker", None), "elapsed", None)
-            if elapsed is not None:
-                print(f"[INFO] 识别完成 model={used} time={elapsed:.2f}s")
-            else:
-                print(f"[INFO] 识别完成 model={used}")
-        except Exception:
-            pass
-        if content_type is None:
-            content_type = content_type_for_mathcraft(self.model.last_used_model)
+        if elapsed is not None:
+            print(f"[INFO] 识别完成 model={model_name} time={elapsed:.2f}s")
+        else:
+            print(f"[INFO] 识别完成 model={model_name}")
         self.show_confirm_dialog(content, normalize_content_type(content_type))
         self._discard_hidden_unpinned_predict_result_dialog()
 
@@ -451,7 +433,13 @@ class PredictResultControllerMixin:
         except Exception:
             return True
 
-    def on_predict_fail(self, msg: str, external_model: bool | None = None):
+    def on_predict_fail(
+        self,
+        msg: str,
+        model_name: str,
+        elapsed: float | None,
+        external_model: bool,
+    ):
         self._next_predict_result_screen_index = None
         if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(error=msg):
             self.set_model_status("失败")
@@ -466,26 +454,10 @@ class PredictResultControllerMixin:
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
-        try:
-            if getattr(self, "current_model", "") == "external_model":
-                used = self._get_external_model_display_name(
-                    config=getattr(getattr(self, "predict_worker", None), "config", None)
-                )
-                if not used:
-                    used = getattr(self, "_last_external_model_name", None)
-            else:
-                used = getattr(getattr(self, "model", None), "last_used_model", None)
-            if not used:
-                used = getattr(getattr(self, "model_wrapper", None), "last_used_model", None)
-            if not used:
-                used = getattr(self, "current_model", "mathcraft")
-            elapsed = getattr(getattr(self, "predict_worker", None), "elapsed", None)
-            if elapsed is not None:
-                print(f"[ERR] 识别失败 model={used} time={elapsed:.2f}s err={msg}")
-            else:
-                print(f"[ERR] 识别失败 model={used} err={msg}")
-        except Exception:
-            pass
+        if elapsed is not None:
+            print(f"[ERR] 识别失败 model={model_name} time={elapsed:.2f}s err={msg}")
+        else:
+            print(f"[ERR] 识别失败 model={model_name} err={msg}")
         content = self._recognition_failure_content(
             msg,
             worker_attr="predict_worker",

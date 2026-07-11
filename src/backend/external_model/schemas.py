@@ -1,3 +1,4 @@
+import hashlib
 import re
 from dataclasses import dataclass
 
@@ -105,6 +106,19 @@ class ExternalModelConfig:
             "external_model_mineru_endpoint": self.normalized_mineru_endpoint(),
             "external_model_mineru_test_endpoint": self.normalized_mineru_test_endpoint(),
         }
+
+
+def external_config_signature(config: ExternalModelConfig) -> str:
+    """Return the identity of the endpoint whose connection was tested."""
+    provider = config.normalized_provider()
+    model_name = "" if provider == "mineru" else config.normalized_model_name()
+    api_key = config.normalized_api_key()
+    api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else ""
+    return (
+        f"{provider}|{config.normalized_base_url()}|{model_name}|"
+        f"{config.normalized_mineru_endpoint()}|{config.normalized_mineru_test_endpoint()}|"
+        f"{api_key_fingerprint}"
+    )
 
 
 @dataclass(slots=True)

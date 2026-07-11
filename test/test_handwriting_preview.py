@@ -114,6 +114,33 @@ def test_handwriting_window_uses_dedicated_external_ocr_defaults() -> None:
     assert 'prompt_template="ocr_handwriting_mixed_v1"' in source
 
 
+def test_handwriting_prompt_is_internal_not_a_settings_option() -> None:
+    source = (SRC / "ui" / "settings_layout_builder.py").read_text(encoding="utf-8")
+
+    assert 'userData="ocr_formula_v1"' in source
+    assert 'userData="ocr_markdown_v1"' in source
+    assert 'userData="ocr_text_v1"' in source
+    assert 'userData="ocr_handwriting_mixed_v1"' not in source
+
+
+def test_mineru_hides_prompt_controls_that_it_does_not_use() -> None:
+    source = (SRC / "ui" / "settings_external_model_mixin.py").read_text(encoding="utf-8")
+
+    assert "self.external_prompt_label.setVisible(not is_mineru)" in source
+    assert "self.external_prompt_combo.setVisible(not is_mineru)" in source
+    assert "self.external_custom_prompt_input.setVisible(not is_mineru)" in source
+
+
+def test_pdf_preview_backend_switches_share_one_infobar_path() -> None:
+    source = (SRC / "handwriting" / "document_preview_window.py").read_text(encoding="utf-8")
+
+    assert "def _show_pdf_backend_info(self, requested: str, actual: str)" in source
+    assert 'title = "已切换到自动"' in source
+    assert 'title = f"已切换到 {labels[requested]}"' in source
+    assert "self._show_pdf_backend_info(requested, kind)" in source
+    assert "_show_poppler_backend_info" not in source
+
+
 def test_handwriting_internal_recognition_is_fixed_to_mixed_mode() -> None:
     from handwriting.model_policy import resolve_handwriting_recognition_model
 

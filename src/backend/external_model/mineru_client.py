@@ -77,7 +77,7 @@ class MineruClient:
             resp.raise_for_status()
         except requests.RequestException as exc:
             raise ExternalModelConnectionError(self._format_request_error(exc, "MinerU 连通性检查", url)) from exc
-        return True, f"MinerU 连通成功: {endpoint}"
+        return True, f"MinerU 健康检查通过: {endpoint}"
 
     def _file_parse_data(self, backend: str, start_page_id: int = 0, end_page_id: int = 99999) -> dict:
         return {

@@ -1,10 +1,13 @@
-import hashlib
-
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
 
-from backend.external_model import ExternalModelConnectionWorker, get_preset, load_config_from_mapping
+from backend.external_model import (
+    ExternalModelConnectionWorker,
+    external_config_signature,
+    get_preset,
+    load_config_from_mapping,
+)
 from ui.settings_external_help import ExternalModelHelpWindow
 
 
@@ -71,16 +74,6 @@ class SettingsExternalModelMixin:
             config.timeout_sec = 60
         return config
 
-    def _external_config_signature(self, config) -> str:
-        provider = config.normalized_provider()
-        base_url = config.normalized_base_url()
-        model_name = config.normalized_model_name()
-        mineru_endpoint = config.normalized_mineru_endpoint()
-        mineru_test_endpoint = config.normalized_mineru_test_endpoint()
-        api_key = config.normalized_api_key()
-        api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else ""
-        return f"{provider}|{base_url}|{model_name}|{mineru_endpoint}|{mineru_test_endpoint}|{api_key_fingerprint}"
-
     def _is_external_required_fields_ready(self, config) -> bool:
         provider = config.normalized_provider()
         if not config.normalized_base_url():
@@ -94,6 +87,9 @@ class SettingsExternalModelMixin:
         is_mineru = config.normalized_provider() == "mineru"
         self.external_mineru_endpoint_input.setVisible(is_mineru)
         self.external_mineru_test_endpoint_input.setVisible(is_mineru)
+        self.external_prompt_label.setVisible(not is_mineru)
+        self.external_prompt_combo.setVisible(not is_mineru)
+        self.external_custom_prompt_input.setVisible(not is_mineru)
         if is_mineru:
             self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU Local 通常可留空）")
         else:
@@ -126,7 +122,7 @@ class SettingsExternalModelMixin:
             if parent_cfg is not None:
                 for key, value in config.to_mapping().items():
                     parent_cfg.set(key, value)
-                current_sig = self._external_config_signature(config)
+                current_sig = external_config_signature(config)
                 tested_sig = str(parent_cfg.get("external_model_last_test_signature", "") or "")
                 if tested_sig != current_sig:
                     parent_cfg.set("external_model_last_test_ok", False)
@@ -195,12 +191,13 @@ class SettingsExternalModelMixin:
             if cfg is not None:
                 try:
                     cfg.set("external_model_last_test_ok", bool(ok))
-                    cfg.set("external_model_last_test_signature", self._external_config_signature(config))
+                    cfg.set("external_model_last_test_signature", external_config_signature(config))
                     cfg.set("external_model_last_test_message", str(message or ""))
                 except Exception:
                     pass
             self._update_external_model_status(test_message=message if ok else "测试未通过")
-            self._show_info("测试成功", message or "连接成功，本地服务可访问。", "success")
+            title = "健康检查通过" if config.normalized_provider() == "mineru" else "测试成功"
+            self._show_info(title, message or "连接成功，本地服务可访问。", "success")
             self._notify_parent_external_status_changed()
 
         def _on_fail(message: str):
@@ -209,7 +206,7 @@ class SettingsExternalModelMixin:
             if cfg is not None:
                 try:
                     cfg.set("external_model_last_test_ok", False)
-                    cfg.set("external_model_last_test_signature", self._external_config_signature(config))
+                    cfg.set("external_model_last_test_signature", external_config_signature(config))
                     cfg.set("external_model_last_test_message", str(pretty or ""))
                 except Exception:
                     pass
@@ -252,7 +249,7 @@ class SettingsExternalModelMixin:
         base_url = config.normalized_base_url()
         model_name = config.normalized_model_name()
         cfg = getattr(self.parent(), "cfg", None)
-        current_sig = self._external_config_signature(config)
+        current_sig = external_config_signature(config)
         tested_ok = False
         tested_sig = ""
         saved_message = ""

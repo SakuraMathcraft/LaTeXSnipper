@@ -49,3 +49,16 @@ def test_workbench_uses_current_mathlive_keyboard_policy() -> None:
     assert "moveDown" not in app
     assert "换行  (Enter)" in snippets
     assert "换行  (Shift+Enter)" not in snippets
+
+
+def test_document_editor_matches_shared_mathlive_keyboard_behavior() -> None:
+    bridge_panel = (MATHLIVE / "bridge_panel.js").read_text(encoding="utf-8")
+
+    assert "event.key === 'Escape'" in bridge_panel
+    assert "hideVirtualKeyboard();" in bridge_panel
+    assert "mathfield.executeCommand('addRowAfter')" in bridge_panel
+    assert "mathfield.mathModeSpace = VISIBLE_MATH_SPACE;" in bridge_panel
+    assert "event.stopImmediatePropagation();" in bridge_panel
+    assert "routeArrowKeyToMathfield" not in bridge_panel
+    assert "moveToPreviousChar" not in bridge_panel
+    assert "moveToNextChar" not in bridge_panel

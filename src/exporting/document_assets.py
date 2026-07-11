@@ -30,7 +30,13 @@ _FORBIDDEN_TAGS = {
     "video",
 }
 _EXTERNAL_REFERENCE_ATTRIBUTES = {"href", "src"}
-_PANDOC_IMAGE_FORMATS = {"pandoc_docx", "pandoc_odt", "pandoc_pptx", "pandoc_pdf"}
+_PANDOC_IMAGE_FORMATS = {
+    "pandoc_docx",
+    "pandoc_epub",
+    "pandoc_odt",
+    "pandoc_pdf",
+    "pandoc_pptx",
+}
 _MAX_IMAGE_EDGE = 4096
 _MAX_IMAGE_PIXELS = 16_000_000
 _MAX_SVG_BYTES = 5_000_000
@@ -94,7 +100,7 @@ def prepare_pandoc_document(text: str, output_path: str | Path) -> PreparedPando
             continue
         assets.append(asset)
         image_path = asset.png_path.as_posix()
-        rewritten.append(f"\n\n![Image {asset.index}](<{image_path}>)\n\n")
+        rewritten.append(f"\n\n![](<{image_path}>)\n\n")
 
     rewritten.append(source[cursor:])
     if not assets and asset_dir.exists():

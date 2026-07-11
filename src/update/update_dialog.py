@@ -83,7 +83,7 @@ def check_update_dialog(parent=None):
     lay.addWidget(title)
     lbl_current = QLabel(f"当前版本: {__version__}")
     lay.addWidget(lbl_current)
-    lbl_status = QLabel("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
+    lbl_status = QLabel("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通...")
     lay.addWidget(lbl_status)
     bar = QProgressBar()
     bar.setRange(0, 0)
@@ -443,7 +443,7 @@ a{{color:{theme['accent']};}}
         state["aborted"] = False
         state["closing"] = False
         state["info"] = None
-        lbl_status.setText("正在联网获取最新版本信息，请保持与GitHub的连接畅通...")
+        lbl_status.setText("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通...")
         txt.start_new_html("<p style='color:#777;'>正在获取...</p>")
         bar.setRange(0, 0)
         btn_open.setEnabled(False)

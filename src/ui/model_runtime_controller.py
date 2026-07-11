@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import threading
 import os
-import hashlib
 
 from PyQt6 import sip
 from PyQt6.QtCore import QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from backend.external_model import load_config_from_mapping
+from backend.external_model import external_config_signature, load_config_from_mapping
 from backend.model import classify_mathcraft_failure
 from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
@@ -99,14 +98,7 @@ class ModelRuntimeControllerMixin:
     def _get_external_model_status_text(self) -> str:
         config = self._get_external_model_config()
         if self._is_external_model_configured():
-            model_name = "" if config.normalized_provider() == "mineru" else config.normalized_model_name()
-            api_key = config.normalized_api_key()
-            api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else ""
-            sig = (
-                f"{config.normalized_provider()}|{config.normalized_base_url()}|"
-                f"{model_name}|{config.normalized_mineru_endpoint()}|"
-                f"{config.normalized_mineru_test_endpoint()}|{api_key_fingerprint}"
-            )
+            sig = external_config_signature(config)
             tested_sig = str(self.cfg.get("external_model_last_test_signature", "") or "")
             tested_ok = bool(self.cfg.get("external_model_last_test_ok", False))
             if tested_ok and sig == tested_sig:
@@ -337,14 +329,6 @@ class ModelRuntimeControllerMixin:
             self.set_model_status(self._get_external_model_status_text())
             if self.settings_window:
                 self.settings_window.update_model_selection()
-            if not self._is_external_model_configured():
-                InfoBar.warning(
-                    title="外部模型未配置",
-                    content=self._get_external_model_required_fields_hint(),
-                    parent=info_parent,
-                    duration=5000,
-                    position=InfoBarPosition.TOP,
-                )
             return
 
         if self.model:

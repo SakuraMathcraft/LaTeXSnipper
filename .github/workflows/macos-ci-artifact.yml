@@ -1,4 +1,4 @@
-name: macOS CI Artifact
+name: macOS CI
 
 on:
   workflow_dispatch:
@@ -12,9 +12,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: macos-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  full-tests:
-    name: Full tests / macOS
+  test-and-package:
+    name: Test and optionally package / macOS
     runs-on: macos-15
 
     env:
@@ -30,77 +34,66 @@ jobs:
         with:
           lfs: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip setuptools wheel
-          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
-          python -m pip install -e ".[cpu,pandoc]"
-          python -m pip install pytest
-
-      - name: Collect tests
-        run: |
-          python -m pytest --collect-only -q
-
-      - name: Run full tests
-        run: |
-          python -m pytest -q
-
-      - name: Shell syntax check
-        run: |
-          bash -n scripts/package_common.sh
-          bash -n scripts/build_macos.sh
-
-      - name: Diff whitespace check
-        run: |
-          git diff --check
-
-  build-macos-artifact:
-    name: Build downloadable macOS CI artifact
-    runs-on: macos-15
-    needs: full-tests
-
-    env:
-      PYTHONUNBUFFERED: "1"
-      CI: "1"
-      SKIP_CODESIGN: "1"
-      SKIP_NOTARIZE: "1"
-      NOTARIZE: "0"
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          lfs: true
-
       - name: Set up Python 3.11
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+            requirements-build.txt
+            requirements-macos.txt
 
-      - name: Build macOS CI package
+      - name: Install test dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[cpu,pandoc]"
+          python -m pip install pytest
+
+      - name: Run full tests
+        run: python -m pytest -q
+
+      - name: Validate shell scripts
+        run: |
+          bash -n scripts/package_common.sh
+          bash -n scripts/build_macos.sh
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Build unsigned macOS app
+        if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
         run: |
           chmod +x scripts/build_macos.sh
-          CI=1 SKIP_CODESIGN=1 SKIP_NOTARIZE=1 NOTARIZE=0 ./scripts/build_macos.sh
+          NOTARIZE=0 SKIP_DMG=1 ./scripts/build_macos.sh
 
-      - name: Show build outputs
-        if: always()
+      - name: Smoke test app launch
+        if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+        env:
+          QT_QPA_PLATFORM: cocoa
         run: |
-          echo "dist:"
-          find dist -maxdepth 4 -print || true
-          echo "build:"
-          find build -maxdepth 4 -print || true
+          app_path="$(find dist -maxdepth 3 -name 'LaTeXSnipper.app' -type d -print -quit)"
+          test -n "$app_path"
+          executable="$app_path/Contents/MacOS/LaTeXSnipper"
+          test -x "$executable"
+          log_file="$RUNNER_TEMP/latexsnipper-macos-smoke.log"
+          "$executable" >"$log_file" 2>&1 &
+          app_pid=$!
+          sleep 8
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            cat "$log_file"
+            exit 1
+          fi
+          kill "$app_pid"
+          wait "$app_pid" 2>/dev/null || true
 
-      - name: Upload macOS CI artifact
+      - name: Upload unsigned macOS app
+        if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
         uses: actions/upload-artifact@v7
         with:
           name: LaTeXSnipper-macOS-app-ci-unsigned-${{ github.sha }}
-          path: |
-            dist/LaTeXSnipper_*.app.zip
-            dist/LaTeXSnipper*.dmg
+          path: dist/LaTeXSnipper_*.app.zip
           if-no-files-found: error
           retention-days: 7
