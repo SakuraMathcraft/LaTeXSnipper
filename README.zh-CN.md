@@ -1,108 +1,23 @@
-# LaTeXSnipper
+# LaTeXSnipper ✨
 
 <div align="center">
 
-**在一个桌面工作区中完成数学内容的截图、识别、编辑、计算与导出。**
+> 用于 **截图 -> 识别 -> 手写 -> 编辑 -> 计算** 的桌面数学工作台
 
-<img width="1919" height="1020" alt="LaTeXSnipper 桌面工作区" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
+<img width="1919" height="1020" alt="封面" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
 
-[![Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-[![CI](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/ci.yml)
-[![macOS CI](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/macos-ci-artifact.yml/badge.svg?branch=main)](https://github.com/SakuraMathcraft/LaTeXSnipper/actions/workflows/macos-ci-artifact.yml)
-[![License](https://img.shields.io/github/license/SakuraMathcraft/LaTeXSnipper?style=flat-square)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/stargazers)
-![Platforms](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-supported-orange?style=flat-square)
+![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
+![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
+![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
+![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
 
-[下载](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [用户手册](user_manual/LaTeXSnipper_User_Manual.pdf) · [常见问题](docs/faq.md) · [基准测试](benchmarks/mathcraft_ocr/README.md)
+[![GitHub Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
+[![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
 
-[English](readme.md) · 简体中文
-
-</div>
-
-## 项目概览
-
-LaTeXSnipper 是一款本地优先的桌面数学 OCR 与文档工作流应用，将截图、图片、PDF、手写识别与 MathLive 编辑、实时渲染、符号计算、历史记录、收藏夹和文档导出整合在同一界面中。
-
-内置 MathCraft OCR 运行时提供三种边界明确的结果类型：
-
-| 模式 | 适用输入 | 结果与渲染方式 |
-|---|---|---|
-| 公式 | 独立公式与推导过程 | LaTeX 公式 |
-| 混合 | 同时包含文字和公式的数学页面 | 含 LaTeX 数学内容的 Markdown |
-| 纯文本 | 普通文字区域 | 纯文本 |
-
-外部视觉模型可通过 Ollama 或 OpenAI-compatible 接口复用这三种结果契约；MinerU Local 通过原生文档解析接口接入。
-
-## 快速开始
-
-1. 从 [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) 下载对应平台的安装包。
-2. 启动 LaTeXSnipper，并在提示时打开依赖向导。
-3. 安装所需功能层。稳定默认组合为 `BASIC + CORE + MATHCRAFT_CPU`；具备兼容 NVIDIA 环境时可选择 `MATHCRAFT_GPU`。
-4. 从主窗口或全局快捷键发起截图识别，然后编辑、复制、收藏或导出结果。
-
-Windows 安装包包含最小 Python 3.11 依赖运行时。Linux 和 macOS 使用系统 Python `>=3.10,<3.13` 创建可选依赖环境，推荐 Python 3.11。完整安装和故障排查见[用户手册](user_manual/LaTeXSnipper_User_Manual.pdf)。
-
-## 核心能力
-
-| 领域 | 能力 |
-|---|---|
-| 识别 | 截图、图片、PDF 页码范围、手写、公式/纯文本/混合模式 |
-| 编辑 | MathLive 可视化编辑器、虚拟键盘、MathJax 实时预览、多行公式 |
-| 计算 | 计算、化简、数值化、展开、因式分解和求解 |
-| 内容管理 | 带稳定渲染属性的历史记录和收藏夹 |
-| 外部模型 | Ollama、OpenAI-compatible 视觉接口和 MinerU Local |
-| 导出 | 覆盖 LaTeX、Markdown、MathML、HTML、OMML、SVG、Office 文档、EPUB、PDF、Typst 和文本等 20 种格式 |
-| 桌面集成 | 全局快捷键、系统托盘/菜单栏、剪贴板和多显示器截图 |
-
-识别和计算可以完全在本地运行；外部服务为可选能力，由用户显式配置。
-
-## 可复现基准
-
-MathCraft OCR 自带可进入版本控制的基准套件，包括数据清单、运行脚本、指标计算、协议说明和精简结果报告。大型公开数据集和完整预测结果保存在仓库之外。
-
-| 基准 | 规模 | 已报告结果 | 评估用途 |
-|---|---:|---|---|
-| UniMER-Test | 23,757 个公式 | BLEU-4 `0.7946`；23,701 个可渲染样本的官方 CDM `0.9288` | 印刷与手写公式 OCR |
-| MathWriting test | 7,644 个样本 | BLEU-4 `0.5467`；官方 CDM `0.750`；预测渲染成功率 `98.63%` | 独立手写压力测试 |
-| OpenStax 混合页面 | 200 页 | `0` 失败、`0` 空结果；中位耗时 `6.65 秒/页` | 混合页面完成率、结构和运行时间 |
-
-上述记录均使用 `CUDAExecutionProvider`，耗时受硬件影响。三个数据集承担不同评估任务，表格不能视为模型排行榜。完整协议和复现方式见[基准测试文档](benchmarks/mathcraft_ocr/README.md)，精简结果见[结果目录](benchmarks/mathcraft_ocr/results)，发布级表格与对比图见[模型仓库基准页](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks)。
-
-## Microsoft Office 插件
-
-Windows Office 插件将 LaTeXSnipper 集成到桌面版 Word 和 PowerPoint：
-
-- Word OLE 和原生 OMML 公式插入
-- PowerPoint OLE 和高 DPI PNG 插入
-- 共享 MathLive 公式编辑器与符号库
-- 公式加载、更新、删除、编号和重编号
-- 持久化源码、渲染、编号和公式身份元数据
-- 通过本地桌面 Bridge 调用截图 OCR
-
-请从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) 下载 `OfficePluginSetup-<version>.exe`。插件支持 Windows 桌面版 Office 2019、2021、2024、LTSC 2021/2024 和 Microsoft 365 Apps，覆盖 32 位与 64 位 Office。详细要求见 [Office 插件文档](office_plugin/README.md)。
-
-## 导出格式
-
-内置导出无需 Pandoc：
-
-- LaTeX inline、display 和 equation
-- Markdown 行内公式和块公式
-- MathML 标准形式、`.mml`、`<m>` 和属性形式
-- HTML、Word OMML 和 SVG 源码
-
-可选 `PANDOC` 功能层支持 Word `.docx`、ODT `.odt`、PowerPoint `.pptx`、EPUB `.epub`、PDF `.pdf`、独立 HTML、Typst 和纯文本。文档内容中的完整 SVG 块会经过验证、渲染并作为图像资产嵌入文档；PDF 导出还需要可用的 LaTeX PDF 引擎。
-
-## 平台支持
-
-| 平台 | 打包形式 | 集成说明 |
-|---|---|---|
-| Windows | 当前用户 Inno 安装包 | 原生全局快捷键、托盘集成、内置最小 Python 运行时 |
-| Linux | Debian 软件包 | `pynput` 快捷键 provider；Qt 截图并支持可选 Wayland/X11 或 portal 工具 |
-| macOS | `.app.zip` 和 DMG | 原生快捷键 provider、Dock/菜单集成，截图需要屏幕录制权限 |
-
-配置、日志、依赖环境、共享工具、临时文件和模型权重均遵循平台用户数据目录，详见[用户数据存储说明](docs/user_data_storage.md)。
-
-## Star 趋势
+### Star History
 
 <a href="https://repostars.dev/?repos=SakuraMathcraft%2FLaTeXSnipper">
   <picture>
@@ -112,9 +27,86 @@ Windows Office 插件将 LaTeXSnipper 集成到桌面版 Word 和 PowerPoint：
   </picture>
 </a>
 
+[常见问题](docs/faq.md) · [版本发布](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [LINUX DO 社区](https://linux.do/)
+
+[English](readme.md) · 简体中文
+
+</div>
+
+---
+
+## 核心功能
+
+| 功能 | 说明 |
+|---|---|
+| 📸 公式识别 | MathCraft OCR 支持公式、文本和图文混排识别 |
+| 📄 PDF 识别 | 按页识别 PDF，输出 Markdown/LaTeX，并支持 DPI 控制 |
+| ✍️ 手写识别 | 独立手写窗口，支持自动识别和实时预览 |
+| 🧮 数学工作台 | 独立工作区，支持编辑、计算和写回 |
+| ⌨️ 公式编辑 | 集成 `MathLive math-field` 和虚拟数学键盘 |
+| 🔄 多格式导出 | 覆盖 LaTeX、Markdown、MathML、HTML、OMML、SVG、Word、ODT、PowerPoint、EPUB、PDF、Typst、纯文本等 20 种导出格式 |
+| 📐 核心计算 | 支持计算、化简、数值化、展开、因式分解和求解 |
+| 🌙 主题支持 | 主窗口、工具窗口和对话框适配亮色/暗色主题 |
+| 🔐 本地优先 | 识别和计算可在本地运行，适合隐私敏感场景 |
+
+MathCraft OCR 基准结果：[表格与对比图](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [复现套件](benchmarks/mathcraft_ocr/README.md)
+
+---
+
+## Microsoft Office 插件
+
+LaTeXSnipper 提供 Windows 桌面版 Microsoft Word 和 PowerPoint 插件：
+
+- Word OLE 和原生 OMML 公式插入
+- PowerPoint OLE 和 PNG 公式插入
+- 共享 MathLive 编辑器和完整符号/公式库
+- 公式加载、更新、删除、自动编号和重编号
+- 持久化完整 LaTeX 源码、渲染选项、编号数据和公式身份信息
+- OLE 公式本地矢量渲染
+- 通过本地桌面 Bridge 调用截图识别
+
+请从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) 下载 `OfficePluginSetup-<version>.exe`。插件支持 Windows 桌面版 Office 2019、2021、2024、LTSC 2021/2024 和 Microsoft 365 Apps，覆盖 32 位与 64 位 Office。
+
+安装要求和发布构建说明见 [Office 插件文档](office_plugin/README.md)。
+
+---
+
+## 导出格式
+
+LaTeXSnipper 在主窗口和收藏夹窗口中提供共享导出菜单。桌面端当前提供 20 种导出格式。
+
+内置公式导出格式：
+
+- LaTeX inline、display、equation
+- Markdown 行内公式和块公式
+- MathML 标准形式、`.mml`、`<m>` 和属性形式
+- HTML、Word OMML、SVG 代码
+
+安装依赖向导中的 `PANDOC` 层后，可启用可选 Pandoc 导出格式：
+
+- Word `.docx`、ODT `.odt`、PowerPoint `.pptx`、EPUB `.epub`
+- PDF `.pdf`（需要 Pandoc 和 XeLaTeX、LuaLaTeX 或 pdfLaTeX 等 LaTeX PDF 引擎）
+- 独立 HTML `.html`、Typst `.typ`、纯文本 `.txt`
+
+---
+
+## 平台支持
+
+| 平台 | 状态 | 说明 |
+|---|---|---|
+| Windows | 主要发布平台 | 原生全局快捷键、Qt 截图、GitHub/Inno 打包 |
+| Linux | 通过 provider 层支持 | `pynput` 全局快捷键、Qt 优先截图，可选 Wayland/X11 命令行或 portal 回退 |
+| macOS | 通过 provider 层支持 | 原生全局快捷键、Qt 截图和 `screencapture` 回退，截图可能需要屏幕录制权限 |
+
+Linux 和 macOS 会在用户状态目录中创建可选运行时依赖环境，因此需要系统中有可用的 Python `>=3.10,<3.13`，并带有 venv/pip 支持。推荐 Python 3.11，因为它与 Windows 内置运行时一致。Debian/Ubuntu `.deb` 声明 `python3` 和 `python3-venv`；macOS 用户在系统没有可用 `python3` 时，建议安装 Homebrew `python@3.11` 或 python.org 官方 3.11/3.12 安装包。
+
+Windows 默认依赖根是 `<安装目录>\_internal\deps`。Linux 默认依赖根是 `~/.latexsnipper/deps`。macOS 默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。用户切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
+
+---
+
 ## 支持者名单
 
-感谢所有支持开发、测试、文档和社区维护的朋友。
+感谢所有支持 LaTeXSnipper 开发、测试、文档和社区维护的朋友。
 
 | 支持者 | 贡献 |
 |---|---|
@@ -123,14 +115,18 @@ Windows Office 插件将 LaTeXSnipper 集成到桌面版 Word 和 PowerPoint：
 | [ljygo](https://github.com/ljygo) | 赞助者 |
 | [Yokie-D](https://github.com/Yokie-D) | 赞助者 |
 
-## 支持项目
+---
 
-LaTeXSnipper 免费开源、无广告，由个人独立维护。赞助、问题反馈、可复现测试和文档贡献都有助于项目长期维护。
+## 支持本项目
+
+LaTeXSnipper 是免费开源、无广告、无内购的个人项目。如果它帮助了你的论文写作、公式识别或文档处理流程，可以通过赞助、反馈问题或参与测试支持项目继续维护。
 
 | 支付宝 | 微信 | 交流群 |
 |---|---|---|
-| <img width="240" alt="支付宝" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="240" alt="微信" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="240" alt="LaTeXSnipper 交流群" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+| <img width="300" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="300" alt="微信收款码" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="300" alt="LaTeXSnipper群聊" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+
+---
 
 ## 许可证
 
-LaTeXSnipper 使用 [GNU General Public License v3.0](LICENSE) 开源。
+本项目使用 [GNU General Public License v3](LICENSE) 开源。
