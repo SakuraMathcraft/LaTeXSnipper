@@ -5,6 +5,8 @@ namespace LaTeXSnipper.OfficePlugin.Abstractions;
 /// </summary>
 public sealed class FormulaMetadata
 {
+    public const int CurrentSchemaVersion = 2;
+
     public FormulaMetadata(
         FormulaIdentity identity,
         string latex,

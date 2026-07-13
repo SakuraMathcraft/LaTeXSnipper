@@ -209,7 +209,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 return;
             }
 
-            int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+            int documentEnd = GetRangeEnd(CurrentDocument.Content);
             int start = Math.Max(0, GetRangeStart(selectionRange) - 1);
             int end = Math.Min(documentEnd, Math.Max(start + 1, GetRangeEnd(selectionRange) + 1));
             AddSelectedOleInlineShapes(
@@ -262,7 +262,7 @@ public sealed partial class DynamicWordApplicationAdapter
         var seen = new HashSet<string>(
             formulas.Select(item => item.Metadata.Identity.EquationId),
             StringComparer.Ordinal);
-        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        dynamic inlineShapes = CurrentDocument.InlineShapes;
         int count = Convert.ToInt32(inlineShapes.Count);
         for (int i = 1; i <= count; i++)
         {
@@ -310,7 +310,7 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new ArgumentException("Equation ID is required.", nameof(equationId));
         }
 
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        dynamic controls = CurrentDocument.ContentControls;
         int count = Convert.ToInt32(controls.Count);
         for (int i = 1; i <= count; i++)
         {
@@ -333,7 +333,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
-            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            dynamic inlineShapes = CurrentDocument.InlineShapes;
             int count = Convert.ToInt32(inlineShapes.Count);
             for (int i = 1; i <= count; i++)
             {

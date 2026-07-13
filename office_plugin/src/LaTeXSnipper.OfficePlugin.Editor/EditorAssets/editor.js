@@ -24,9 +24,19 @@ let sourceSyncHandle = 0;
 let sourceSyncUsesIdleCallback = false;
 let sourceAuthoritative = true;
 let caretVisibilityFrame = 0;
+let sourcePaneHeight = 118;
+let sourceResizePointerId = null;
+let sourceResizeStartY = 0;
+let sourceResizeStartHeight = 118;
 
+const SOURCE_PANE_MIN_HEIGHT = 118;
+const FORMULA_PANE_MIN_HEIGHT = 160;
+const SOURCE_PANE_KEYBOARD_STEP = 16;
+
+const workspace = document.querySelector(".workspace");
 const host = document.getElementById("mathfieldHost");
 const latexSource = document.getElementById("latexSource");
+const sourceResizeHandle = document.getElementById("sourceResizeHandle");
 const statusText = document.getElementById("statusText");
 const cancelButton = document.getElementById("cancelButton");
 const acceptButton = document.getElementById("acceptButton");
@@ -72,6 +82,82 @@ function setSubmitting(value) {
   submitting = Boolean(value);
   acceptButton.disabled = submitting;
   cancelButton.disabled = submitting;
+}
+
+function maximumSourcePaneHeight() {
+  return Math.max(
+    SOURCE_PANE_MIN_HEIGHT,
+    workspace.clientHeight - sourceResizeHandle.offsetHeight - FORMULA_PANE_MIN_HEIGHT,
+  );
+}
+
+function setSourcePaneHeight(height) {
+  const maximum = maximumSourcePaneHeight();
+  sourcePaneHeight = Math.min(maximum, Math.max(SOURCE_PANE_MIN_HEIGHT, Math.round(height)));
+  workspace.style.setProperty("--source-pane-height", `${sourcePaneHeight}px`);
+  sourceResizeHandle.setAttribute("aria-valuemax", String(maximum));
+  sourceResizeHandle.setAttribute("aria-valuenow", String(sourcePaneHeight));
+}
+
+function finishSourcePaneResize(event) {
+  if (event.pointerId !== sourceResizePointerId) {
+    return;
+  }
+
+  sourceResizePointerId = null;
+  sourceResizeHandle.classList.remove("dragging");
+  if (sourceResizeHandle.hasPointerCapture(event.pointerId)) {
+    sourceResizeHandle.releasePointerCapture(event.pointerId);
+  }
+}
+
+function initializeSourcePaneResize() {
+  setSourcePaneHeight(SOURCE_PANE_MIN_HEIGHT);
+  sourceResizeHandle.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || sourceResizePointerId !== null) {
+      return;
+    }
+
+    event.preventDefault();
+    sourceResizePointerId = event.pointerId;
+    sourceResizeStartY = event.clientY;
+    sourceResizeStartHeight = sourcePaneHeight;
+    sourceResizeHandle.classList.add("dragging");
+    sourceResizeHandle.setPointerCapture(event.pointerId);
+  });
+  sourceResizeHandle.addEventListener("pointermove", event => {
+    if (event.pointerId !== sourceResizePointerId) {
+      return;
+    }
+
+    setSourcePaneHeight(sourceResizeStartHeight + sourceResizeStartY - event.clientY);
+  });
+  sourceResizeHandle.addEventListener("pointerup", finishSourcePaneResize);
+  sourceResizeHandle.addEventListener("pointercancel", finishSourcePaneResize);
+  sourceResizeHandle.addEventListener("lostpointercapture", event => {
+    if (event.pointerId === sourceResizePointerId) {
+      sourceResizePointerId = null;
+      sourceResizeHandle.classList.remove("dragging");
+    }
+  });
+  sourceResizeHandle.addEventListener("keydown", event => {
+    const step = event.shiftKey ? SOURCE_PANE_KEYBOARD_STEP * 3 : SOURCE_PANE_KEYBOARD_STEP;
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSourcePaneHeight(sourcePaneHeight + step);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSourcePaneHeight(sourcePaneHeight - step);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setSourcePaneHeight(SOURCE_PANE_MIN_HEIGHT);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setSourcePaneHeight(maximumSourcePaneHeight());
+    }
+  });
+
+  new ResizeObserver(() => setSourcePaneHeight(sourcePaneHeight)).observe(workspace);
 }
 
 function currentLatex() {
@@ -426,6 +512,7 @@ function applyInit(payload) {
 }
 
 async function bootstrap() {
+  initializeSourcePaneResize();
   MathfieldElement.fontsDirectory = new URL("./vendor/fonts", import.meta.url).href;
   mathfield = new MathfieldElement();
   mathfield.smartFence = true;

@@ -20,6 +20,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
     private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
     private FormulaMetadata? _currentInitialFormula;
     private bool _currentUpdateMode;
+    private long _currentSessionGeneration;
     private bool _initializing;
     private bool _webViewReady;
     private bool _configurationPending;
@@ -125,7 +126,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public event Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? FormulaSubmitting;
 
-    public event EventHandler? EditorCancelled;
+    public event EventHandler<FormulaEditorCancelledEventArgs>? EditorCancelled;
 
     public event EventHandler<string>? EditorError;
 
@@ -142,10 +143,11 @@ internal sealed class MathLiveFormulaEditorForm : Form
         Dispose();
     }
 
-    public void Configure(FormulaMetadata initialFormula, bool updateMode)
+    public void Configure(FormulaMetadata initialFormula, bool updateMode, long sessionGeneration)
     {
         _currentInitialFormula = initialFormula ?? throw new ArgumentNullException(nameof(initialFormula));
         _currentUpdateMode = updateMode;
+        _currentSessionGeneration = sessionGeneration;
         _configurationPending = true;
         _committed = false;
         _restoredDraftForCurrentConfiguration = false;
@@ -306,9 +308,20 @@ internal sealed class MathLiveFormulaEditorForm : Form
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
         FormulaMetadata initialFormula = _currentInitialFormula
             ?? throw new InvalidOperationException("The formula editor has not been configured.");
-        var accepted = new FormulaEditorAcceptedEventArgs(initialFormula, _currentUpdateMode, latex.Trim(), display);
+        long sessionGeneration = _currentSessionGeneration;
+        var accepted = new FormulaEditorAcceptedEventArgs(
+            initialFormula,
+            _currentUpdateMode,
+            latex.Trim(),
+            display,
+            sessionGeneration);
         await SetSubmittingAsync(true).ConfigureAwait(true);
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(accepted).ConfigureAwait(true);
+        if (_currentSessionGeneration != sessionGeneration)
+        {
+            return;
+        }
+
         if (result.Success)
         {
             Commit();
@@ -427,13 +440,13 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private void NotifyEditorCancelled()
     {
-        if (!_currentUpdateMode || _restoredDraftForCurrentConfiguration)
+        if (_currentSessionGeneration <= 0 || _restoredDraftForCurrentConfiguration)
         {
             return;
         }
 
         _restoredDraftForCurrentConfiguration = true;
-        EditorCancelled?.Invoke(this, EventArgs.Empty);
+        EditorCancelled?.Invoke(this, new FormulaEditorCancelledEventArgs(_currentSessionGeneration));
     }
 
     private void Commit()

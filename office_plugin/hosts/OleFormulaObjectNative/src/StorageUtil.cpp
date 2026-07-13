@@ -58,13 +58,18 @@ HRESULT SavePresentationToStorage(IStorage* storage, const FormulaPresentation& 
         return E_POINTER;
     }
 
+    if (!IsSupportedFormulaPayload(presentation.payloadJson))
+    {
+        return STG_E_INVALIDHEADER;
+    }
+
     HRESULT result = WriteClassStg(storage, CLSID_LaTeXSnipperFormula);
     if (FAILED(result))
     {
         return result;
     }
 
-    std::wstring payload = presentation.payloadJson.empty() ? L"{}" : presentation.payloadJson;
+    const std::wstring& payload = presentation.payloadJson;
     result = WriteStream(storage, kPayloadStream, payload.c_str(), static_cast<ULONG>((payload.size() + 1) * sizeof(wchar_t)));
     if (FAILED(result))
     {
@@ -97,6 +102,11 @@ HRESULT LoadPresentationFromStorage(IStorage* storage, FormulaPresentation* pres
     while (!payload.empty() && payload.back() == L'\0')
     {
         payload.pop_back();
+    }
+
+    if (!IsSupportedFormulaPayload(payload))
+    {
+        return STG_E_INVALIDHEADER;
     }
 
     FormulaPresentation loaded = CreatePresentationFromPayloadWithoutRendering(payload);

@@ -18,6 +18,86 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.FromResult(selected.Metadata);
     }
 
+    public Task<WordFormulaEditTarget> LoadSelectedFormulaTargetAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        SelectedWordFormula selected = EnsureUniqueFormulaIdentity(FindSelectedFormula());
+        return Task.FromResult(new WordFormulaEditTarget(
+            CurrentDocument,
+            selected.ContentControl,
+            selected.Metadata,
+            selected.IsOleInlineShape));
+    }
+
+    public bool IsFormulaEditTargetValid(WordFormulaEditTarget target)
+    {
+        if (target == null)
+        {
+            throw new ArgumentNullException(nameof(target));
+        }
+
+        try
+        {
+            dynamic document = target.Document;
+            if (!string.Equals(
+                WordDocumentIdentityStore.GetOrCreate(document),
+                target.Metadata.Identity.DocumentId,
+                StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            dynamic capturedObject = target.FormulaObject;
+            string capturedEquationId = target.IsOle
+                ? GetOleInlineShapeEquationId(capturedObject)
+                : GetEquationControlId(capturedObject);
+            if (!string.Equals(
+                capturedEquationId,
+                target.Metadata.Identity.EquationId,
+                StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            dynamic inlineShapes = document.InlineShapes;
+            int matches = 0;
+            for (int index = 1; index <= Convert.ToInt32(inlineShapes.Count); index++)
+            {
+                dynamic inlineShape = inlineShapes.Item(index);
+                if (string.Equals(
+                    GetOleInlineShapeEquationId(inlineShape),
+                    target.Metadata.Identity.EquationId,
+                    StringComparison.Ordinal))
+                {
+                    matches++;
+                }
+            }
+
+            if (target.IsOle)
+            {
+                return matches == 1;
+            }
+
+            dynamic controls = document.ContentControls;
+            for (int index = 1; index <= Convert.ToInt32(controls.Count); index++)
+            {
+                if (string.Equals(
+                    GetEquationControlId(controls.Item(index)),
+                    target.Metadata.Identity.EquationId,
+                    StringComparison.Ordinal))
+                {
+                    matches++;
+                }
+            }
+
+            return matches == 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -48,7 +128,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     public bool ContainsNativeWordFormula(int start)
     {
-        dynamic equations = _wordApplication.ActiveDocument.OMaths;
+        dynamic equations = CurrentDocument.OMaths;
         int count = Convert.ToInt32(equations.Count);
         for (int index = 1; index <= count; index++)
         {
@@ -64,22 +144,24 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private SelectedWordFormula EnsureUniqueFormulaIdentity(SelectedWordFormula selected)
     {
+        string documentId = WordDocumentIdentityStore.GetOrCreate(CurrentDocument);
         string equationId = selected.Metadata.Identity.EquationId;
-        if (CountManagedFormulasById(equationId) <= 1)
+        if (string.Equals(selected.Metadata.Identity.DocumentId, documentId, StringComparison.Ordinal)
+            && CountManagedFormulasById(equationId) <= 1)
         {
             return selected;
         }
 
-        FormulaMetadata metadata = WithNewIdentity(selected.Metadata, "active-document");
+        FormulaMetadata metadata = WithNewIdentity(selected.Metadata, documentId);
         double fontSizePoints = 0;
         if (!selected.IsOleInlineShape &&
             WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 equationId,
                 out fontSizePoints))
         {
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 metadata.Identity.EquationId,
                 fontSizePoints);
         }
@@ -96,7 +178,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         int count = 0;
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        dynamic controls = CurrentDocument.ContentControls;
         int controlCount = Convert.ToInt32(controls.Count);
         for (int index = 1; index <= controlCount; index++)
         {
@@ -106,7 +188,7 @@ public sealed partial class DynamicWordApplicationAdapter
             }
         }
 
-        dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+        dynamic inlineShapes = CurrentDocument.InlineShapes;
         int shapeCount = Convert.ToInt32(inlineShapes.Count);
         for (int index = 1; index <= shapeCount; index++)
         {
@@ -188,7 +270,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
                 NormalizeManagedInlineEquationBaseline(metadata, insertedControl);
                 WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                    _wordApplication.ActiveDocument,
+                    CurrentDocument,
                     metadata.Identity.EquationId,
                     oleFontSizePoints);
                 SaveFormulaMetadata(metadata);
@@ -210,6 +292,46 @@ public sealed partial class DynamicWordApplicationAdapter
         return Task.CompletedTask;
     }
 
+    public async Task UpdateFormulaAsync(
+        WordFormulaEditTarget target,
+        string ooxml,
+        string equationOoxml,
+        string equationContentOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken)
+    {
+        if (target == null)
+        {
+            throw new ArgumentNullException(nameof(target));
+        }
+
+        if (!IsFormulaEditTargetValid(target)
+            || !string.Equals(
+                target.Metadata.Identity.DocumentId,
+                metadata.Identity.DocumentId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                target.Metadata.Identity.EquationId,
+                metadata.Identity.EquationId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        using (UseDocument(target.Document))
+        {
+            await UpdateFormulaAsync(
+                target.Metadata.Identity.EquationId,
+                ooxml,
+                equationOoxml,
+                equationContentOoxml,
+                metadata,
+                display,
+                cancellationToken).ConfigureAwait(true);
+        }
+    }
+
     private double ReadOleEquivalentFontSize(dynamic inlineShape)
     {
         double fontSize = ReadPointSize(inlineShape.Range.Font.Size);
@@ -223,7 +345,7 @@ public sealed partial class DynamicWordApplicationAdapter
             double currentHeight = Convert.ToDouble(inlineShape.Height, System.Globalization.CultureInfo.InvariantCulture);
             string tag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
             if (WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                    _wordApplication.ActiveDocument,
+                    CurrentDocument,
                     tag,
                     out double naturalWidth,
                     out double naturalHeight) &&
@@ -302,7 +424,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = FindFormulaControlById(equationId);
         dynamic paragraphRange = GetContainingParagraphRange(control);
         int paragraphEnd = GetRangeEnd(paragraphRange);
-        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        int documentEnd = GetRangeEnd(CurrentDocument.Content);
         if (paragraphEnd < documentEnd)
         {
             CreateDocumentRange(paragraphEnd - 1, paragraphEnd).Delete();
@@ -324,7 +446,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         dynamic inlineShape = shape;
         if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-            _wordApplication.ActiveDocument,
+            CurrentDocument,
             Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
             out double naturalWidth,
             out double naturalHeight))

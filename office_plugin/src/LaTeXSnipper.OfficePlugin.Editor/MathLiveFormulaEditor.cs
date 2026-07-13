@@ -20,7 +20,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
 
     public event Func<FormulaEditorAcceptedEventArgs, Task<FormulaEditorSubmissionResult>>? FormulaSubmitting;
 
-    public event EventHandler? EditorCancelled;
+    public event EventHandler<FormulaEditorCancelledEventArgs>? EditorCancelled;
 
     public event EventHandler<string>? EditorError;
 
@@ -31,12 +31,12 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return GetOrCreateForm().WarmUpAsync();
     }
 
-    public Task OpenAsync(FormulaMetadata initialFormula, bool updateMode, CancellationToken cancellationToken)
+    public Task OpenAsync(FormulaMetadata initialFormula, bool updateMode, long sessionGeneration, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
-        form.Configure(initialFormula, updateMode);
+        form.Configure(initialFormula, updateMode, sessionGeneration);
         form.CaptureInputLanguage();
         form.Show();
         if (form.WindowState == FormWindowState.Minimized)
@@ -45,6 +45,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         }
 
         form.Activate();
+        form.BringToFront();
         return Task.CompletedTask;
     }
 
@@ -99,9 +100,9 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         _activeForm = null;
     }
 
-    private void OnEditorCancelled(object? sender, EventArgs e)
+    private void OnEditorCancelled(object? sender, FormulaEditorCancelledEventArgs e)
     {
-        EditorCancelled?.Invoke(this, EventArgs.Empty);
+        EditorCancelled?.Invoke(this, e);
     }
 
     private void OnEditorError(object? sender, string message)

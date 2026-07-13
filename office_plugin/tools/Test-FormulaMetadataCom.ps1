@@ -37,6 +37,7 @@ function New-FormulaMetadata {
     $displayModeType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.FormulaDisplayMode", $true)
     $numberingModeType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.NumberingMode", $true)
     $renderEngineType = $abstractionsAssembly.GetType("LaTeXSnipper.OfficePlugin.Abstractions.RenderEngineKind", $true)
+    $schemaVersion = $metadataType.GetField("CurrentSchemaVersion").GetRawConstantValue()
 
     $identity = [Activator]::CreateInstance($identityType, @($DocumentId, $EquationId))
     [Activator]::CreateInstance(
@@ -48,7 +49,7 @@ function New-FormulaMetadata {
             [Enum]::Parse($numberingModeType, $NumberingMode),
             $NumberText,
             [Enum]::Parse($renderEngineType, $RenderEngine),
-            1,
+            $schemaVersion,
             $FontScale
         ))
 }
@@ -107,12 +108,14 @@ function Test-WordFormulaMetadata {
     $document = $null
     try {
         $metadataStore = $wordAssembly.GetType("LaTeXSnipper.OfficePlugin.WordAddIn.WordFormulaMetadataStore", $true)
+        $identityStore = $wordAssembly.GetType("LaTeXSnipper.OfficePlugin.WordAddIn.WordDocumentIdentityStore", $true)
         $wordApplication = New-Object -ComObject Word.Application
         $wordApplication.Visible = $true
         $document = $wordApplication.Documents.Add()
+        $documentId = Invoke-StaticMethod $identityStore GetOrCreate $document
 
         $ommlMetadata = New-FormulaMetadata `
-            -DocumentId "word-doc" `
+            -DocumentId $documentId `
             -EquationId "word-omml-inline" `
             -Latex "e^{i\pi}+1=0" `
             -DisplayMode "Inline" `
@@ -128,7 +131,7 @@ function Test-WordFormulaMetadata {
             "word-omml-inline" "e^{i\pi}+1=0" 1.25 "Omml"
 
         $updatedOmmlMetadata = New-FormulaMetadata `
-            -DocumentId "word-doc" `
+            -DocumentId $documentId `
             -EquationId "word-omml-inline" `
             -Latex "\color{#0055aa}{\boldsymbol{x+y}}" `
             -DisplayMode "Inline" `
@@ -150,7 +153,7 @@ function Test-WordFormulaMetadata {
         Write-Output "Word OMML ContentControl metadata save/update/delete-undo OK"
 
         $oleMetadata = New-FormulaMetadata `
-            -DocumentId "word-doc" `
+            -DocumentId $documentId `
             -EquationId "word-ole-inline" `
             -Latex "\color{#00aa00}{x^2}" `
             -DisplayMode "Inline" `
@@ -181,6 +184,18 @@ function Test-WordFormulaMetadata {
             (Invoke-StaticMethod $metadataStore Load $document ([string]$restoredShape.AlternativeText)) `
             "word-ole-inline" "\color{#00aa00}{x^2}" 1.1 "MathJaxSvg"
         Write-Output "Word OLE AlternativeText metadata natural-size/delete-undo OK"
+
+        $legacyEquationId = "word-schema1"
+        $legacyRevision = "legacy0001"
+        $legacyTag = "latexsnipper-eq-$legacyEquationId|$legacyRevision"
+        $legacyJson = '{"schemaVersion":1,"documentId":"active-document","equationId":"word-schema1","latex":"x+1","displayMode":"Inline","numberingMode":"None","numberText":"","renderEngine":"Omml","fontScale":1}'
+        $document.Variables.Add("LS.E.$legacyEquationId.$legacyRevision", $legacyJson) | Out-Null
+        $legacyMetadata = Invoke-StaticMethod $metadataStore Load $document $legacyTag
+        Assert-FormulaMetadata $legacyMetadata $legacyEquationId "x+1" 1 "Omml"
+        if ($legacyMetadata.Identity.DocumentId -ne $documentId -or $legacyMetadata.SchemaVersion -ne 2) {
+            throw "Word Schema 1 metadata was not normalized to the current document identity."
+        }
+        Write-Output "Word Schema 1 metadata read compatibility OK"
     }
     finally {
         if ($null -ne $document) {
@@ -199,16 +214,18 @@ function Test-PowerPointFormulaMetadata {
     $presentation = $null
     try {
         $metadataStore = $powerPointAssembly.GetType("LaTeXSnipper.OfficePlugin.PowerPointAddIn.PowerPointFormulaMetadataStore", $true)
+        $identityStore = $powerPointAssembly.GetType("LaTeXSnipper.OfficePlugin.PowerPointAddIn.PowerPointDocumentIdentityStore", $true)
         $powerPointApplication = New-Object -ComObject PowerPoint.Application
         $powerPointApplication.Visible = -1
         $presentation = $powerPointApplication.Presentations.Add()
+        $documentId = Invoke-StaticMethod $identityStore GetOrCreate $presentation
         $slide = $presentation.Slides.Add(1, 12)
         $powerPointApplication.ActiveWindow.View.GotoSlide(1)
 
         $shape = $slide.Shapes.AddShape(1, 50, 50, 120, 40)
         $longLatex = ("\frac{\partial f}{\partial x_i}+" * 80) + "0"
         $metadata = New-FormulaMetadata `
-            -DocumentId "ppt-doc" `
+            -DocumentId $documentId `
             -EquationId "ppt-shape-1" `
             -Latex $longLatex `
             -DisplayMode "Display" `
@@ -218,11 +235,11 @@ function Test-PowerPointFormulaMetadata {
             -FontScale 1.35
         Invoke-StaticMethod $metadataStore ApplyToShape $shape $metadata ([single]120) ([single]40) | Out-Null
         Assert-FormulaMetadata `
-            (Invoke-StaticMethod $metadataStore LoadFromShape $shape) `
+            (Invoke-StaticMethod $metadataStore LoadFromShape $shape $documentId) `
             "ppt-shape-1" $longLatex 1.35 "MathJaxSvg"
 
         $updatedMetadata = New-FormulaMetadata `
-            -DocumentId "ppt-doc" `
+            -DocumentId $documentId `
             -EquationId "ppt-shape-1" `
             -Latex "\boldsymbol{F=ma}" `
             -DisplayMode "Display" `
@@ -232,12 +249,12 @@ function Test-PowerPointFormulaMetadata {
             -FontScale 1.2
         Invoke-StaticMethod $metadataStore ApplyToShape $shape $updatedMetadata ([single]130) ([single]44) | Out-Null
         Assert-FormulaMetadata `
-            (Invoke-StaticMethod $metadataStore LoadFromShape $shape) `
+            (Invoke-StaticMethod $metadataStore LoadFromShape $shape $documentId) `
             "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
 
         $duplicate = $shape.Duplicate().Item(1)
         Assert-FormulaMetadata `
-            (Invoke-StaticMethod $metadataStore LoadFromShape $duplicate) `
+            (Invoke-StaticMethod $metadataStore LoadFromShape $duplicate $documentId) `
             "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
 
         $shape.Select()
@@ -250,7 +267,7 @@ function Test-PowerPointFormulaMetadata {
         $found = $false
         for ($index = 1; $index -le $slide.Shapes.Count; $index++) {
             try {
-                $candidateMetadata = Invoke-StaticMethod $metadataStore LoadFromShape $slide.Shapes.Item($index)
+                $candidateMetadata = Invoke-StaticMethod $metadataStore LoadFromShape $slide.Shapes.Item($index) $documentId
                 if ($candidateMetadata.Identity.EquationId -eq "ppt-shape-1") {
                     Assert-FormulaMetadata $candidateMetadata "ppt-shape-1" "\boldsymbol{F=ma}" 1.2 "Image"
                     $found = $true
@@ -264,6 +281,22 @@ function Test-PowerPointFormulaMetadata {
             throw "PowerPoint UI Delete/Ctrl+Z did not restore formula metadata."
         }
         Write-Output "PowerPoint shape metadata long-latex/update/duplicate/delete-undo OK"
+
+        $legacyShape = $slide.Shapes.AddShape(1, 50, 120, 120, 40)
+        $legacyShape.Tags.Add("LaTeXSnipperEquationId", "ppt-schema1")
+        $legacyShape.Tags.Add("LaTeXSnipperLatexBytes", "3")
+        $legacyShape.Tags.Add("LaTeXSnipperLatexChunks", "1")
+        $legacyShape.Tags.Add("LaTeXSnipperLatex0000", "782B31")
+        $legacyShape.Tags.Add("LaTeXSnipperDisplayMode", "Display")
+        $legacyShape.Tags.Add("LaTeXSnipperSchemaVersion", "1")
+        $legacyShape.Tags.Add("LaTeXSnipperRenderEngine", "Image")
+        $legacyShape.Tags.Add("LaTeXSnipperFontScale", "1")
+        $legacyMetadata = Invoke-StaticMethod $metadataStore LoadFromShape $legacyShape $documentId
+        Assert-FormulaMetadata $legacyMetadata "ppt-schema1" "x+1" 1 "Image"
+        if ($legacyMetadata.Identity.DocumentId -ne $documentId -or $legacyMetadata.SchemaVersion -ne 2) {
+            throw "PowerPoint Schema 1 metadata was not normalized to the current presentation identity."
+        }
+        Write-Output "PowerPoint Schema 1 metadata read compatibility OK"
     }
     finally {
         if ($null -ne $presentation) {
