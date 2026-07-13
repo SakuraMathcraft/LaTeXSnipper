@@ -15,7 +15,7 @@ public interface IPowerPointApplicationAdapter
 
     Task InsertFormulaImageOnSlideAsync(int slideIndex, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float scale, CancellationToken cancellationToken);
 
-    Task UpdateFormulaImageByIdAsync(string equationId, PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
+    Task UpdateFormulaImageAsync(PowerPointFormulaEditTarget target, PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
 
     Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
@@ -23,9 +23,9 @@ public interface IPowerPointApplicationAdapter
 
     Task InsertOleFormulaObjectOnSlideAsync(int slideIndex, FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float shapeScale, CancellationToken cancellationToken);
 
-    Task UpdateOleFormulaObjectByIdAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
+    Task UpdateOleFormulaObjectAsync(PowerPointFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
-    Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
+    Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 

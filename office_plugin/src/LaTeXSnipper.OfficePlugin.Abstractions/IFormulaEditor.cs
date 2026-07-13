@@ -7,6 +7,6 @@ public interface IFormulaEditor : System.IDisposable
 {
     Task WarmUpAsync(CancellationToken cancellationToken);
 
-    Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken);
+    Task OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken);
 
 }

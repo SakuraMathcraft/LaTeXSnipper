@@ -24,6 +24,7 @@ public sealed partial class PowerPointPluginController : IDisposable
     private readonly MathJaxSvgRenderer _mathJaxRenderer;
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
+    private PowerPointFormulaEditTarget? _editorTarget;
     private bool _disposed;
 
     public PowerPointPluginController(
@@ -117,6 +118,7 @@ public sealed partial class PowerPointPluginController : IDisposable
     public async Task InsertFormulaAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        _editorTarget = null;
         FormulaMetadata draft = CreateEditorDraft();
         await _editorSession.OpenForInsertAsync(draft, cancellationToken);
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("EditorReadyStatus"));
@@ -131,7 +133,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
 
         FormulaMetadata metadata = CreateMetadata(latex, previous: null);
-        await ConvertAndInsertAsync(metadata, updateMode: false, cancellationToken);
+        await ConvertAndInsertAsync(metadata, target: null, updateMode: false, cancellationToken: cancellationToken);
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
@@ -143,10 +145,14 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
 
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
+        PowerPointFormulaEditTarget? target = accepted.UpdateMode
+            ? GetEditorTarget(accepted.InitialFormula)
+            : null;
         FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
             _optionsProvider.ResetFormulaDraft();
+            _editorTarget = null;
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("UnchangedStatus"));
             await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
             return;
@@ -154,19 +160,23 @@ public sealed partial class PowerPointPluginController : IDisposable
 
         await ConvertAndInsertAsync(
             metadata,
+            target,
             updateMode: accepted.UpdateMode,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         if (accepted.UpdateMode)
         {
             _optionsProvider.ResetFormulaDraft();
         }
 
+        _editorTarget = null;
+
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     private async Task ConvertAndInsertAsync(
         FormulaMetadata metadata,
+        PowerPointFormulaEditTarget? target,
         bool updateMode,
         CancellationToken cancellationToken)
     {
@@ -178,8 +188,8 @@ public sealed partial class PowerPointPluginController : IDisposable
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
             if (updateMode)
             {
-                await _powerPointAdapter.UpdateOleFormulaObjectByIdAsync(
-                    oleMetadata.Identity.EquationId,
+                await _powerPointAdapter.UpdateOleFormulaObjectAsync(
+                    target!,
                     oleMetadata,
                     presentation,
                     cancellationToken);
@@ -201,8 +211,8 @@ public sealed partial class PowerPointPluginController : IDisposable
 
         if (updateMode)
         {
-            await _powerPointAdapter.UpdateFormulaImageByIdAsync(
-                imageMetadata.Identity.EquationId,
+            await _powerPointAdapter.UpdateFormulaImageAsync(
+                target!,
                 image,
                 imageMetadata,
                 cancellationToken);
@@ -220,10 +230,17 @@ public sealed partial class PowerPointPluginController : IDisposable
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        FormulaMetadata selected = await _powerPointAdapter.LoadSelectedFormulaAsync(cancellationToken);
-        await _editorSession.OpenForEditAsync(selected, cancellationToken);
-        _statusSink.SetCurrentFormula(selected.Latex, updateMode: true);
+        PowerPointFormulaEditTarget target = await _powerPointAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        _editorTarget = target;
+        await _editorSession.OpenForEditAsync(target.Metadata, cancellationToken);
+        _statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true);
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("LoadedStatus"));
+    }
+
+    public void CancelEditorFormula()
+    {
+        _editorTarget = null;
+        _optionsProvider.ResetFormulaDraft();
     }
 
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
@@ -401,6 +418,21 @@ public sealed partial class PowerPointPluginController : IDisposable
         return string.Equals(left.Latex.Trim(), right.Latex.Trim(), StringComparison.Ordinal)
             && left.DisplayMode == right.DisplayMode
             && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
+    }
+
+    private PowerPointFormulaEditTarget GetEditorTarget(FormulaMetadata? initialFormula)
+    {
+        if (_editorTarget == null
+            || initialFormula == null
+            || !string.Equals(
+                _editorTarget.Metadata.Identity.EquationId,
+                initialFormula.Identity.EquationId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        return _editorTarget;
     }
 
     private static bool IsOcrAlreadyWaiting(string message)

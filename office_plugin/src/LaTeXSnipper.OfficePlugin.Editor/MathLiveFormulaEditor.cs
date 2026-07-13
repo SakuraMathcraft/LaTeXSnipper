@@ -31,7 +31,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return GetOrCreateForm().WarmUpAsync();
     }
 
-    public Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken)
+    public Task OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
@@ -46,7 +46,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         }
 
         form.Activate();
-        return Task.FromResult<FormulaMetadata?>(null);
+        return Task.CompletedTask;
     }
 
     private MathLiveFormulaEditorForm GetOrCreateForm()

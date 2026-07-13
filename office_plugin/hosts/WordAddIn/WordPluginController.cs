@@ -83,11 +83,10 @@ public sealed partial class WordPluginController : IDisposable
     public async Task InsertOmmlAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        FormulaMetadata metadata = await CreateMetadataFromDraftAsync(
+        FormulaMetadata metadata = CreateMetadataFromDraft(
             null,
             _optionsProvider.CurrentLatex,
-            previous: null,
-            cancellationToken);
+            previous: null);
         await InsertAndRenumberIfNeededAsync(metadata, cancellationToken);
         await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
@@ -195,7 +194,7 @@ public sealed partial class WordPluginController : IDisposable
             : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
         FormulaMetadata metadata = accepted.UpdateMode
-            ? await CreateMetadataFromDraftAsync(identity, accepted.Latex, previous, cancellationToken)
+            ? CreateMetadataFromDraft(identity, accepted.Latex, previous)
             : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
 
         if (accepted.UpdateMode && accepted.InitialFormula != null)
@@ -248,7 +247,7 @@ public sealed partial class WordPluginController : IDisposable
         try
         {
             string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
-            ProcessOcrResult(responseJson, cancellationToken);
+            ProcessOcrResult(responseJson);
         }
         catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
         {
@@ -257,7 +256,7 @@ public sealed partial class WordPluginController : IDisposable
             try
             {
                 string responseJson = await RunScreenshotOcrWithProgressAsync(cancellationToken);
-                ProcessOcrResult(responseJson, cancellationToken);
+                ProcessOcrResult(responseJson);
             }
             catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
             {
@@ -274,7 +273,7 @@ public sealed partial class WordPluginController : IDisposable
             cancellationToken);
     }
 
-    private void ProcessOcrResult(string responseJson, CancellationToken cancellationToken)
+    private void ProcessOcrResult(string responseJson)
     {
         string latex = BridgeRecognitionParser.ParseScreenshotOcrResponse(responseJson);
         if (string.IsNullOrWhiteSpace(latex))
@@ -282,8 +281,7 @@ public sealed partial class WordPluginController : IDisposable
             return;
         }
 
-        FormulaMetadata recognized = CreateDefaultFormula(latex);
-        _statusSink.SetCurrentFormula(recognized.Latex, updateMode: false);
+        _statusSink.SetCurrentFormula(latex, updateMode: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OcrLoadedStatus"));
     }
 
@@ -506,16 +504,15 @@ public sealed partial class WordPluginController : IDisposable
         }
     }
 
-    private Task<FormulaMetadata> CreateMetadataFromDraftAsync(
+    private FormulaMetadata CreateMetadataFromDraft(
         FormulaIdentity? identity,
         string latex,
-        FormulaMetadata? previous,
-        CancellationToken cancellationToken)
+        FormulaMetadata? previous)
     {
         if (previous != null)
         {
             string normalizedLatex = NormalizeFormulaLatex(latex);
-            return Task.FromResult(new FormulaMetadata(
+            return new FormulaMetadata(
                 identity ?? previous.Identity,
                 normalizedLatex,
                 previous.DisplayMode,
@@ -523,11 +520,11 @@ public sealed partial class WordPluginController : IDisposable
                 previous.NumberText,
                 previous.RenderEngine,
                 previous.SchemaVersion,
-                previous.FontScale));
+                previous.FontScale);
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
-        return Task.FromResult(CreateMetadataFromOptions(identity, latex, previous, options));
+        return CreateMetadataFromOptions(identity, latex, previous, options);
     }
 
     private static FormulaMetadata CreateMetadataFromOptions(
@@ -591,18 +588,6 @@ public sealed partial class WordPluginController : IDisposable
             RenderEngineKind.Omml,
             schemaVersion: 1,
             settings.FormulaFontScale);
-    }
-
-    private static FormulaMetadata CreateDefaultFormula(string latex)
-    {
-        return new FormulaMetadata(
-            new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
-            latex,
-            FormulaDisplayMode.Display,
-            NumberingMode.None,
-            string.Empty,
-            RenderEngineKind.Omml,
-            schemaVersion: 1);
     }
 
     private static string CreateDefaultLatex()

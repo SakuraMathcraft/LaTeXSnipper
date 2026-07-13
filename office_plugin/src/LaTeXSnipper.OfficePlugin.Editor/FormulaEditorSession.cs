@@ -19,7 +19,7 @@ public sealed class FormulaEditorSession : IDisposable
         return _editor.WarmUpAsync(cancellationToken);
     }
 
-    public Task<FormulaMetadata?> OpenForInsertAsync(FormulaMetadata initialDraft, CancellationToken cancellationToken)
+    public Task OpenForInsertAsync(FormulaMetadata initialDraft, CancellationToken cancellationToken)
     {
         if (initialDraft == null)
         {
@@ -29,7 +29,7 @@ public sealed class FormulaEditorSession : IDisposable
         return _editor.OpenAsync(initialDraft, updateMode: false, cancellationToken);
     }
 
-    public Task<FormulaMetadata?> OpenForEditAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    public Task OpenForEditAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
         if (metadata == null)
         {

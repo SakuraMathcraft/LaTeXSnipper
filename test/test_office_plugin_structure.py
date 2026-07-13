@@ -1658,15 +1658,39 @@ def test_ocr_and_powerpoint_editing_are_independent_from_editor_selection() -> N
     assert "OpenForInsertAsync(CancellationToken cancellationToken)" not in (
         editor_root / "FormulaEditorSession.cs"
     ).read_text(encoding="utf-8")
+    assert "Task<FormulaMetadata?>" not in (
+        abstractions / "IFormulaEditor.cs"
+    ).read_text(encoding="utf-8")
+    assert "Task<FormulaMetadata?>" not in (
+        editor_root / "FormulaEditorSession.cs"
+    ).read_text(encoding="utf-8")
+    assert "Task<FormulaMetadata?>" not in (
+        editor_root / "MathLiveFormulaEditor.cs"
+    ).read_text(encoding="utf-8")
     assert "_currentFormula" not in word_controller
-    assert "UpdateFormulaImageByIdAsync" in power_point_controller
-    assert "UpdateOleFormulaObjectByIdAsync" in power_point_controller
+    assert "CreateDefaultFormula" not in word_controller
+    assert "CreateMetadataFromDraftAsync" not in word_controller
+    assert "ProcessOcrResult(string responseJson, CancellationToken" not in word_controller
+    assert "UpdateFormulaImageAsync" in power_point_controller
+    assert "UpdateOleFormulaObjectAsync" in power_point_controller
     assert "DeleteSelectedFormulaAsync" not in power_point_controller
     assert "DeleteSelectedFormulaAsync" not in power_point_adapter
     assert "DeleteSelectedFormulaAsync" not in power_point_adapter_interface
-    assert "FindFormulaShapeById(equationId)" in power_point_adapter
+    assert "FindFormulaShapeById(target.Presentation" in power_point_adapter
     assert "dynamic slide = shape.Parent;" in power_point_adapter
     assert "_loadedShape" not in power_point_controller
+    assert "PowerPointFormulaEditTarget? _editorTarget" in power_point_controller
+    assert "ReadMetadataFromShape(shape), _application.ActivePresentation" in power_point_adapter
+    assert "dynamic replacement = CreatePictureAt" in power_point_adapter
+    assert "dynamic replacement = CreateOleObjectAt" in power_point_adapter
+    assert "CommitReplacement(shape, replacement, oldImagePath)" in power_point_adapter
+    commit_replacement = power_point_adapter.split("private static void CommitReplacement", 1)[1].split(
+        "private static void TryDeleteShape",
+        1,
+    )[0]
+    assert commit_replacement.index("original.Delete();") < commit_replacement.index("CleanupImageFilePath(originalImagePath)")
+    assert "CleanupImageFile(replacement);" in commit_replacement
+    assert "TryDeleteShape(replacement);" in commit_replacement
 
 
 def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
@@ -1767,7 +1791,7 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
         1,
     )[0]
     assert "_statusSink.SetCurrentFormula(" not in accept_editor_method
-    assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in load_selected_method
+    assert "_statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true)" in load_selected_method
     assert "_optionsProvider.ResetFormulaDraft();" in accept_editor_method
     assert "MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim())" in controller
     assert "LoadFromShape" in metadata
@@ -1833,10 +1857,10 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
         1,
     )[1].split("public async Task DeleteSelectedAsync", 1)[0]
     assert "OpenForEditAsync(selected" in word_load
-    assert "OpenForEditAsync(selected" in powerpoint_load
+    assert "OpenForEditAsync(target.Metadata" in powerpoint_load
     assert "_optionsProvider.ApplyFormulaMetadata(selected, updateMode: true)" in word_load
     assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in word_load
-    assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in powerpoint_load
+    assert "_statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true)" in powerpoint_load
     assert '["fontStyle"]' not in editor_form
     assert '["fontColor"]' not in editor_form
     assert "mathfield.__latexSnipperDefaultFontStyle = style" in shared_input
