@@ -65,35 +65,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
     }
 
-    public Task InsertFormulaImageAtPositionAsync(PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float scale, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (image == null)
-        {
-            throw new ArgumentNullException(nameof(image));
-        }
-
-        if (metadata == null)
-        {
-            throw new ArgumentNullException(nameof(metadata));
-        }
-
-        if (scale <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(scale), "Shape scale must be positive.");
-        }
-
-        dynamic slide = GetActiveSlide();
-        return InsertPictureAtAsync(
-            slide,
-            image,
-            metadata,
-            left,
-            top,
-            image.WidthPoints * scale,
-            image.HeightPoints * scale);
-    }
-
     public Task InsertFormulaImageOnSlideAsync(
         int slideIndex,
         PowerPointRenderedImage image,
@@ -158,35 +129,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
         return InsertOleObjectAtAsync(slide, metadata, presentation, insertionPoint.Left, insertionPoint.Top);
-    }
-
-    public Task InsertOleFormulaObjectAtPositionAsync(FormulaMetadata metadata, OlePresentationResult presentation, float left, float top, float shapeScale, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (metadata == null)
-        {
-            throw new ArgumentNullException(nameof(metadata));
-        }
-
-        if (presentation == null)
-        {
-            throw new ArgumentNullException(nameof(presentation));
-        }
-
-        if (shapeScale <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(shapeScale), "Shape scale must be positive.");
-        }
-
-        dynamic slide = GetActiveSlide();
-        return InsertOleObjectAtAsync(
-            slide,
-            metadata,
-            presentation,
-            left,
-            top,
-            (float)presentation.WidthPoints * shapeScale,
-            (float)presentation.HeightPoints * shapeScale);
     }
 
     public Task InsertOleFormulaObjectOnSlideAsync(
