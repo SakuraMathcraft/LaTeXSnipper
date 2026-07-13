@@ -8,12 +8,14 @@ public sealed class FormulaEditorAcceptedEventArgs : EventArgs
         FormulaMetadata initialFormula,
         bool updateMode,
         string latex,
-        bool display)
+        bool display,
+        long sessionGeneration)
     {
         InitialFormula = initialFormula ?? throw new ArgumentNullException(nameof(initialFormula));
         UpdateMode = updateMode;
         Latex = latex ?? string.Empty;
         Display = display;
+        SessionGeneration = sessionGeneration;
     }
 
     public FormulaMetadata InitialFormula { get; }
@@ -23,5 +25,7 @@ public sealed class FormulaEditorAcceptedEventArgs : EventArgs
     public string Latex { get; }
 
     public bool Display { get; }
+
+    public long SessionGeneration { get; }
 
 }

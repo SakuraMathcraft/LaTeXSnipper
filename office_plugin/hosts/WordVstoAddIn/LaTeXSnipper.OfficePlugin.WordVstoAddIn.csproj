@@ -107,8 +107,8 @@
 
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="..\OfficeVstoShared\FormulaDoubleClickWindow.cs">
-      <Link>FormulaDoubleClickWindow.cs</Link>
+    <Compile Include="..\OfficeVstoShared\OleActivationMessageWindow.cs">
+      <Link>OleActivationMessageWindow.cs</Link>
     </Compile>
     <Compile Include="ThisAddIn.cs">
       <SubType>Code</SubType>

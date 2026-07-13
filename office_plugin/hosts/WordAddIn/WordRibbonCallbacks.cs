@@ -60,11 +60,6 @@ public sealed class WordRibbonCallbacks
         FireAndForgetSerial(ct => _controller.LoadSelectedAsync(ct));
     }
 
-    public void OnFormulaDoubleClick()
-    {
-        FireAndForgetSerial(ct => _controller.TryLoadSelectedFromDoubleClickAsync(ct));
-    }
-
     public void OnScreenshotOcr(object control)
     {
         if (Interlocked.CompareExchange(ref _ocrRunning, 1, 0) == 1)

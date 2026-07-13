@@ -343,16 +343,16 @@ public sealed partial class WordPluginController
             || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 
-    private static FormulaMetadata CreateMetadataFromNativeWordFormula(WordFormulaEntry entry)
+    private FormulaMetadata CreateMetadataFromNativeWordFormula(WordFormulaEntry entry)
     {
         return new FormulaMetadata(
-            new FormulaIdentity("active-document", Guid.NewGuid().ToString("N")),
+            new FormulaIdentity(_wordAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             entry.NativeMathMl,
             entry.NativeDisplayMode,
             NumberingMode.None,
             string.Empty,
             RenderEngineKind.MathJaxSvg,
-            schemaVersion: 1,
+            schemaVersion: FormulaMetadata.CurrentSchemaVersion,
             WordPluginSettings.Load().FormulaFontScale);
     }
 

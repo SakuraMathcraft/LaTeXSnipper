@@ -15,7 +15,7 @@ public sealed partial class DynamicWordApplicationAdapter
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             var equationControls = new List<object>();
-            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            dynamic controls = CurrentDocument.ContentControls;
             int controlCount = Convert.ToInt32(controls.Count);
             for (int index = 1; index <= controlCount; index++)
             {
@@ -34,7 +34,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 dynamic control = candidate;
                 string equationId = GetEquationId(control);
                 if (!WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
-                    _wordApplication.ActiveDocument,
+                    CurrentDocument,
                     equationId,
                     out double expectedSize))
                 {
@@ -52,7 +52,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 resetCount++;
             }
 
-            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            dynamic inlineShapes = CurrentDocument.InlineShapes;
             int shapeCount = Convert.ToInt32(inlineShapes.Count);
             for (int index = 1; index <= shapeCount; index++)
             {
@@ -65,7 +65,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                        _wordApplication.ActiveDocument,
+                        CurrentDocument,
                         Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
                         out double naturalWidth,
                         out double naturalHeight))
@@ -101,7 +101,7 @@ public sealed partial class DynamicWordApplicationAdapter
             double fontSize = ScaleFontSize(ReadSurroundingTextFontSize(control), metadata.FontScale);
             ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSize);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 metadata.Identity.EquationId,
                 fontSize);
             ApplyManagedEquationStyleById(metadata);

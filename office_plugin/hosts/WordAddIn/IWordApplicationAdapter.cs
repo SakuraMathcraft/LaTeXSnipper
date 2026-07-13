@@ -8,6 +8,8 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public interface IWordApplicationAdapter
 {
+    string GetCurrentDocumentId();
+
     Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
 
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
@@ -32,6 +34,14 @@ public interface IWordApplicationAdapter
 
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
+    Task<WordFormulaEditTarget> LoadSelectedFormulaTargetAsync(CancellationToken cancellationToken);
+
+    WordFormulaEditTarget? TryCaptureSelectedOleFormulaTarget(object document, int windowHandle);
+
+    bool IsFormulaEditTargetValid(WordFormulaEditTarget target);
+
+    Task UpdateOleFormulaObjectAsync(WordFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 
     bool ContainsFormula(string equationId);
@@ -40,6 +50,15 @@ public interface IWordApplicationAdapter
 
     Task UpdateFormulaAsync(
         string equationId,
+        string ooxml,
+        string equationOoxml,
+        string equationContentOoxml,
+        FormulaMetadata metadata,
+        bool display,
+        CancellationToken cancellationToken);
+
+    Task UpdateFormulaAsync(
+        WordFormulaEditTarget target,
         string ooxml,
         string equationOoxml,
         string equationContentOoxml,

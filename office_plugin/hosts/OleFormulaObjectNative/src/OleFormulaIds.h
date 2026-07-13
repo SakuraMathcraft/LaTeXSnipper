@@ -5,7 +5,6 @@
 inline constexpr wchar_t kFormulaProgId[] = L"LaTeXSnipper.Formula";
 inline constexpr wchar_t kFormulaVersionedProgId[] = L"LaTeXSnipper.Formula.1";
 inline constexpr wchar_t kFormulaFriendlyName[] = L"LaTeXSnipper Formula";
-inline constexpr wchar_t kFormulaDefaultLatex[] = L"e^{i\\pi}+1=0";
 
 // B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F
 inline constexpr GUID CLSID_LaTeXSnipperFormula = {

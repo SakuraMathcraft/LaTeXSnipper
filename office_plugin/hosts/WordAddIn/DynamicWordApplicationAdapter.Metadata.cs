@@ -33,12 +33,12 @@ public sealed partial class DynamicWordApplicationAdapter
         if (metadata.RenderEngine == RenderEngineKind.Omml)
         {
             string tag = WordFormulaMetadataStore.Save(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 metadata);
             shape.Tag = tag;
             TryCom(() => shape.Title = "LaTeXSnipper Equation");
             FormulaMetadata stored = WordFormulaMetadataStore.Load(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 Convert.ToString(shape.Tag) ?? string.Empty);
             if (!string.Equals(
                     stored.Identity.EquationId,
@@ -52,7 +52,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 ReadFormulaObjectTag(shape),
                 out double naturalWidth,
                 out double naturalHeight))
@@ -61,7 +61,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         shape.AlternativeText = WordFormulaMetadataStore.Save(
-            _wordApplication.ActiveDocument,
+            CurrentDocument,
             metadata,
             naturalWidth,
             naturalHeight);
@@ -73,7 +73,7 @@ public sealed partial class DynamicWordApplicationAdapter
         RenderEngineKind actualRenderEngine)
     {
         FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-            _wordApplication.ActiveDocument,
+            CurrentDocument,
             ReadFormulaObjectTag(control));
         if (!string.Equals(metadata.Identity.EquationId, equationId, StringComparison.Ordinal))
         {
@@ -142,7 +142,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
-            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            dynamic controls = CurrentDocument.ContentControls;
             int count = Convert.ToInt32(controls.Count);
             for (int i = 1; i <= count; i++)
             {
@@ -164,11 +164,11 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
-            return _wordApplication.ActiveDocument.Range(start, end);
+            return CurrentDocument.Range(start, end);
         }
         catch
         {
-            return _wordApplication.ActiveDocument.Range(Math.Max(0, start - 1), Math.Max(0, end - 1));
+            return CurrentDocument.Range(Math.Max(0, start - 1), Math.Max(0, end - 1));
         }
     }
 
@@ -176,8 +176,8 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
-            int documentStart = Convert.ToInt32(_wordApplication.ActiveDocument.Content.Start);
-            int documentEnd = Convert.ToInt32(_wordApplication.ActiveDocument.Content.End);
+            int documentStart = Convert.ToInt32(CurrentDocument.Content.Start);
+            int documentEnd = Convert.ToInt32(CurrentDocument.Content.End);
             return Math.Min(Math.Max(position, documentStart), documentEnd);
         }
         catch
@@ -230,7 +230,7 @@ public sealed partial class DynamicWordApplicationAdapter
         int rangeEnd = GetRangeEnd(range);
         try
         {
-            dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+            dynamic controls = CurrentDocument.ContentControls;
             int count = Convert.ToInt32(controls.Count);
             for (int i = 1; i <= count; i++)
             {
@@ -252,7 +252,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
-            dynamic inlineShapes = _wordApplication.ActiveDocument.InlineShapes;
+            dynamic inlineShapes = CurrentDocument.InlineShapes;
             int count = Convert.ToInt32(inlineShapes.Count);
             for (int i = 1; i <= count; i++)
             {
@@ -278,7 +278,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private bool CollapsedRangeIntersectsManagedFormula(dynamic range)
     {
         int position = GetRangeStart(range);
-        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        int documentEnd = GetRangeEnd(CurrentDocument.Content);
         dynamic nearby = CreateDocumentRange(
             Math.Max(0, position - 1),
             Math.Min(documentEnd, position + 1));

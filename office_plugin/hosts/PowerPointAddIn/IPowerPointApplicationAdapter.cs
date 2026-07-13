@@ -7,6 +7,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public interface IPowerPointApplicationAdapter
 {
+    string GetCurrentDocumentId();
+
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
     Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
@@ -22,6 +24,13 @@ public interface IPowerPointApplicationAdapter
     Task UpdateOleFormulaObjectAsync(PowerPointFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
+
+    PowerPointFormulaEditTarget? TryCaptureFormulaEditTarget(
+        object presentation,
+        object window,
+        object selection);
+
+    bool IsFormulaEditTargetValid(PowerPointFormulaEditTarget target);
 
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 

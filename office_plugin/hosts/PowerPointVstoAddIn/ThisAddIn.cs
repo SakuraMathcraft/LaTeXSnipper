@@ -13,7 +13,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private PowerPointPluginController? controller;
         private PowerPointRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
-        private FormulaDoubleClickWindow? formulaDoubleClickWindow;
+        private OleActivationMessageWindow? oleActivationMessageWindow;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -37,9 +37,12 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
-                formulaDoubleClickWindow = new FormulaDoubleClickWindow(
+                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
+                Application.WindowSelectionChange += OnWindowSelectionChange;
+                Application.PresentationClose += OnPresentationClose;
+                oleActivationMessageWindow = new OleActivationMessageWindow(
                     new IntPtr(Application.HWND),
-                    () => ribbonCallbacks?.OnFormulaDoubleClick());
+                    OnOleActivation);
                 InitializeActiveStatusPane();
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
@@ -48,8 +51,11 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowActivate -= OnWindowActivate;
-            formulaDoubleClickWindow?.Dispose();
-            formulaDoubleClickWindow = null;
+            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
+            Application.WindowSelectionChange -= OnWindowSelectionChange;
+            Application.PresentationClose -= OnPresentationClose;
+            oleActivationMessageWindow?.Dispose();
+            oleActivationMessageWindow = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
@@ -58,7 +64,67 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 
         private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)
         {
+            oleActivationMessageWindow?.ReassignHandle(new IntPtr(Application.HWND));
+            controller?.ClearPendingOleTarget();
             statusPaneHost?.EnsurePane(window);
+        }
+
+        private void OnWindowBeforeDoubleClick(PowerPoint.Selection selection, ref bool cancel)
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            PowerPoint.DocumentWindow window = Application.ActiveWindow;
+            PowerPoint.Presentation presentation = Application.ActivePresentation;
+            cancel = controller.HandleWindowBeforeDoubleClick(presentation, window, selection);
+        }
+
+        private void OnPresentationClose(PowerPoint.Presentation presentation)
+        {
+            controller?.ClearPendingOleTarget();
+        }
+
+        private void OnWindowSelectionChange(PowerPoint.Selection selection)
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            try
+            {
+                PowerPoint.DocumentWindow window = Application.ActiveWindow;
+                controller.HandleSelectionChanged(
+                    Application.ActivePresentation,
+                    window,
+                    selection);
+            }
+            catch
+            {
+                controller.ClearPendingOleTarget();
+            }
+        }
+
+        private void OnOleActivation()
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            try
+            {
+                PowerPoint.DocumentWindow window = Application.ActiveWindow;
+                controller.HandleOleActivation(
+                    Application.ActivePresentation,
+                    window,
+                    window.Selection);
+            }
+            catch
+            {
+            }
         }
 
         private void InitializeActiveStatusPane()
@@ -142,6 +208,19 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 }
             }
 
+            public void ShowFormulaPreview(int windowHandle, string latex)
+            {
+                GetPane(windowHandle).Control.SetCurrentFormula(latex, updateMode: true);
+            }
+
+            public void RestoreFormulaDraft(int windowHandle)
+            {
+                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
+                {
+                    entry.Control.ResetFormulaDraft();
+                }
+            }
+
             public void Post(PowerPointStatusKind kind, string message)
             {
                 if (TryGetActivePane(out PaneEntry entry))
@@ -207,6 +286,27 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             {
                 PowerPoint.DocumentWindow window = addIn.Application.ActiveWindow;
                 return GetPane(window);
+            }
+
+            private PaneEntry GetPane(int windowHandle)
+            {
+                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
+                {
+                    return entry;
+                }
+
+                PowerPoint.DocumentWindows windows = addIn.Application.Windows;
+                int count = windows.Count;
+                for (int index = 1; index <= count; index++)
+                {
+                    PowerPoint.DocumentWindow window = windows[index];
+                    if (Convert.ToInt32(window.HWND) == windowHandle)
+                    {
+                        return GetPane(window);
+                    }
+                }
+
+                throw new InvalidOperationException("The PowerPoint window for the formula edit target is no longer open.");
             }
 
             private PaneEntry GetPane(PowerPoint.DocumentWindow window)

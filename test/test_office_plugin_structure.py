@@ -122,8 +122,8 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     )[0]
     assert "WindowState == FormWindowState.Minimized" in resize_method
     assert "NotifyEditorCancelled();" in resize_method
-    assert "if (!_currentUpdateMode || _restoredDraftForCurrentConfiguration)" in cancel_method
-    assert "EditorCancelled?.Invoke(this, EventArgs.Empty);" in cancel_method
+    assert "_currentSessionGeneration <= 0" in cancel_method
+    assert "new FormulaEditorCancelledEventArgs(_currentSessionGeneration)" in cancel_method
 
     editor_js = (
         PLUGIN
@@ -517,7 +517,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN" in factory
     assert "FormulaSubmitting" in factory
     assert "FormulaAccepted" not in factory
-    assert "EditorCancelled += (_, _) => optionsProvider?.ResetFormulaDraft();" in factory
+    assert "controller.CancelEditorFormula(cancelled.SessionGeneration)" in factory
     assert "TryAcceptEditorFormulaAsync" in factory
     assert "ConfigAsync" in bridge_client
     assert "EnsureConfiguredAsync" in bridge_client
@@ -591,7 +591,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "EnsureUniqueFormulaIdentity(FindSelectedFormula())" in adapter
     assert ".Select(EnsureUniqueFormulaIdentity)" in adapter
     assert "CountManagedFormulasById" in adapter
-    assert "WithNewIdentity(selected.Metadata, \"active-document\")" in adapter
+    assert "WithNewIdentity(selected.Metadata, documentId)" in adapter
     assert "SaveFormulaMetadata(selected.ContentControl, metadata)" in adapter
     assert "UpdateFormulaAsync" in adapter
     assert "DeleteSelectedFormulaAsync" in adapter
@@ -796,18 +796,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
         "public async Task AcceptEditorFormulaAsync",
         1,
     )[1].split("public async Task LoadSelectedAsync", 1)[0]
-    load_selected_method = controller.split("public async Task LoadSelectedAsync", 1)[1].split(
-        "public async Task DeleteSelectedAsync",
-        1,
-    )[0]
     assert "_statusSink.SetCurrentFormula(" not in accept_editor_method
-    assert "_optionsProvider.ResetFormulaDraft();" in accept_editor_method
-    assert "_optionsProvider.ApplyFormulaMetadata(selected, updateMode: true)" in load_selected_method
-    assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in load_selected_method
     assert "e^{i\\\\pi}+1=0" in controller
     open_editor_method = controller.split("private async Task OpenEditorForInsertAsync", 1)[1].split("private async Task InsertAndRenumberIfNeededAsync", 1)[0]
     assert "CreateDefaultLatex" not in open_editor_method
-    assert "string.Empty" in controller.split("private static FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static string CreateDefaultLatex", 1)[0]
+    assert "string.Empty" in controller.split("private FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static string CreateDefaultLatex", 1)[0]
     omml_builder = (host_root / "WordOmmlDocumentBuilder.cs").read_text(encoding="utf-8")
     assert "BuildFlatOpcDocument(string omml, FormulaMetadata metadata" in omml_builder
     assert "ExtractEquationOmml" in omml_builder
@@ -1183,7 +1176,7 @@ def test_ole_objects_expose_the_formula_edit_verb() -> None:
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
     presentation_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "Presentation.cpp").read_text(encoding="utf-8")
     payload_text = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "OleFormulaPayloadJson.cs").read_text(encoding="utf-8")
-    double_click_text = (PLUGIN / "hosts" / "OfficeVstoShared" / "FormulaDoubleClickWindow.cs").read_text(encoding="utf-8")
+    activation_window_text = (PLUGIN / "hosts" / "OfficeVstoShared" / "OleActivationMessageWindow.cs").read_text(encoding="utf-8")
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
     word_adapter_text = read_word_adapter_sources()
 
@@ -1191,7 +1184,7 @@ def test_ole_objects_expose_the_formula_edit_verb() -> None:
     assert "\\Insertable" not in setup_text
     assert "OleFormulaRenderer" not in setup_text
     assert 'Source: "..\\release\\InstallerAssets\\MathJax-3.2.2\\*"' in setup_text
-    assert 'ValueData: "672280"' in setup_text
+    assert 'ValueData: "672272"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "OLEMISC_STATIC" not in native_text
@@ -1200,14 +1193,14 @@ def test_ole_objects_expose_the_formula_edit_verb() -> None:
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
     assert "RegisterWindowMessageW(kOleActivationMessage)" in native_text
     assert "PostMessageW(target, message, 0, 0)" in native_text
+    assert "OLEOBJ_S_CANNOT_DOVERB_NOW" in native_text
+    assert "return FALSE;" in native_text
     assert "new (std::nothrow) OleVerbEnumerator()" in native_text
-    assert 'RemoveJsonProperty(&sanitized, L"documentId")' in presentation_text
-    assert 'RemoveJsonProperty(&sanitized, L"equationId")' in presentation_text
+    assert "IsCurrentFormulaPayload" in presentation_text
     assert '["documentId"]' not in payload_text
     assert '["equationId"]' not in payload_text
-    assert "WmImageActivation" in double_click_text
-    assert "oleActivationMessage" in double_click_text
-    assert "DuplicateWindowMilliseconds" in double_click_text
+    assert "activationMessage" in activation_window_text
+    assert "activationRequested();" in activation_window_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text
@@ -1379,12 +1372,12 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
     assert "return GetOrCreateForm().WarmUpAsync();" in editor
     open_method = editor.split("public Task OpenAsync", 1)[1].split("private MathLiveFormulaEditorForm GetOrCreateForm", 1)[0]
     assert "MathLiveFormulaEditorForm form = GetOrCreateForm();" in open_method
-    assert "form.Configure(initialFormula, updateMode);" in open_method
+    assert "form.Configure(initialFormula, updateMode, sessionGeneration);" in open_method
     assert "DisposeForShutdown" in editor
     assert "_activeForm = null;" in editor
     assert "public Task WarmUpAsync()" in editor_form
     assert "_warmUpTask ??= InitializeAsync();" in editor_form
-    assert "public void Configure(FormulaMetadata initialFormula, bool updateMode)" in editor_form
+    assert "public void Configure(FormulaMetadata initialFormula, bool updateMode, long sessionGeneration)" in editor_form
     assert "e.Cancel = true;" not in editor_form
     assert "\n            Hide();" not in editor_form
     assert "Hide();" in editor_form
@@ -1657,7 +1650,7 @@ def test_powerpoint_edit_target_and_replacement_are_explicit() -> None:
     assert "UpdateOleFormulaObjectAsync" in power_point_controller
     assert "FindFormulaShapeById(target.Presentation" in power_point_adapter
     assert "PowerPointFormulaEditTarget? _editorTarget" in power_point_controller
-    assert "ReadMetadataFromShape(shape), _application.ActivePresentation" in power_point_adapter
+    assert "TryCaptureFormulaEditTarget(presentation, window, selection)" in power_point_adapter
     assert "dynamic replacement = CreatePictureAt" in power_point_adapter
     assert "dynamic replacement = CreateOleObjectAt" in power_point_adapter
     assert "CommitReplacement(shape, replacement, oldImagePath)" in power_point_adapter
@@ -1714,11 +1707,11 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId)" in convert_method
     assert "if (await ReplaceEntryAsync(entry, WithRenderEngine(entry.Metadata, target), entry.Scale, cancellationToken))" in convert_method
     assert "ConvertedWithSkippedStatus" in commands
-    assert "EnsureUniqueShapeIdentity(shape)" in adapter
+    assert "EnsureUniqueShapeIdentity(shape, presentation)" in adapter
     assert "EnsureUniqueShapeIdentities(shapes)" in adapter
     assert "CountFormulaShapesById" in adapter
     assert "public bool ContainsFormula(string equationId)" in adapter
-    assert "WithNewIdentity(ReadMetadataFromShape(formulaShape))" in adapter
+    assert "WithNewIdentity(current, documentId)" in adapter
     assert "PowerPointFormulaMetadataStore.ApplyToShape(formulaShape, metadata, naturalWidth, naturalHeight)" in adapter
     assert "LoadAllFormulaEntriesAsync" not in adapter
     assert "ResetCustomFormulaSizesAsync" in adapter
@@ -1768,8 +1761,8 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
         1,
     )[0]
     assert "_statusSink.SetCurrentFormula(" not in accept_editor_method
-    assert "_statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true)" in load_selected_method
-    assert "_optionsProvider.ResetFormulaDraft();" in accept_editor_method
+    assert "SwitchEditorTargetAsync(target, cancellationToken)" in load_selected_method
+    assert "CompleteEditorSession(accepted.SessionGeneration, target)" in accept_editor_method
     assert "MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim())" in controller
     assert "LoadFromShape" in metadata
     assert 'shape.AlternativeText = "LaTeXSnipper formula "' in metadata
@@ -1833,11 +1826,8 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
         "public async Task LoadSelectedAsync",
         1,
     )[1].split("public async Task DeleteSelectedAsync", 1)[0]
-    assert "OpenForEditAsync(selected" in word_load
-    assert "OpenForEditAsync(target.Metadata" in powerpoint_load
-    assert "_optionsProvider.ApplyFormulaMetadata(selected, updateMode: true)" in word_load
-    assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in word_load
-    assert "_statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true)" in powerpoint_load
+    assert "SwitchEditorTargetAsync(target, cancellationToken)" in word_load
+    assert "SwitchEditorTargetAsync(target, cancellationToken)" in powerpoint_load
     assert '["fontStyle"]' not in editor_form
     assert '["fontColor"]' not in editor_form
     assert "mathfield.__latexSnipperDefaultFontStyle = style" in shared_input
@@ -2158,7 +2148,7 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
     assert "FindSelectedEquationIdFromReferenceTarget" in operations
     assert "LoadFormulaMetadataByEquationId" in operations
     assert "DeleteCommandControl" in operations
-    assert "ActiveDocument.ContentControls" in operations
+    assert "CurrentDocument.ContentControls" in operations
     assert "Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync" in adapter
     assert "UpdateFormulaReferences" not in operations
     assert "ChapterBoundaryTag" in operations

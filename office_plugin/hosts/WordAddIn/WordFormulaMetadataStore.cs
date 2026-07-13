@@ -43,6 +43,17 @@ internal static class WordFormulaMetadataStore
         double naturalWidthPoints = 0,
         double naturalHeightPoints = 0)
     {
+        if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        string documentId = WordDocumentIdentityStore.GetOrCreate(document);
+        if (!string.Equals(metadata.Identity.DocumentId, documentId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
         string revision = Guid.NewGuid().ToString("N").Substring(0, 10);
         SaveVariable(
             document,
@@ -177,6 +188,12 @@ internal static class WordFormulaMetadataStore
 
         var serializer = new JavaScriptSerializer();
         var dto = serializer.Deserialize<Dictionary<string, object>>(json);
+        int schemaVersion = ReadInt(dto, "schemaVersion");
+        if (schemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
         string documentId = ReadString(dto, "documentId");
         string equationId = ReadString(dto, "equationId");
         return new FormulaMetadata(
@@ -186,7 +203,7 @@ internal static class WordFormulaMetadataStore
             ReadEnum<NumberingMode>(dto, "numberingMode"),
             ReadString(dto, "numberText"),
             ReadEnum<RenderEngineKind>(dto, "renderEngine"),
-            ReadInt(dto, "schemaVersion"),
+            schemaVersion,
             ReadRequiredDouble(dto, "fontScale"));
     }
 

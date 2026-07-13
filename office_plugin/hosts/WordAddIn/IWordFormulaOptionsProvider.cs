@@ -11,4 +11,8 @@ public interface IWordFormulaOptionsProvider
     void ApplyFormulaMetadata(FormulaMetadata metadata, bool updateMode);
 
     void ResetFormulaDraft();
+
+    void ShowFormulaPreview(int windowHandle, FormulaMetadata metadata);
+
+    void RestoreFormulaDraft(int windowHandle);
 }

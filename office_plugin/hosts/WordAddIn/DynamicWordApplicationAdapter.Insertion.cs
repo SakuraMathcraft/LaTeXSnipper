@@ -57,7 +57,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private bool TryMoveSelectionToFollowingParagraph(dynamic paragraphRange)
     {
         int nextParagraphStart = GetRangeEnd(paragraphRange);
-        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        int documentEnd = GetRangeEnd(CurrentDocument.Content);
         if (nextParagraphStart >= documentEnd)
         {
             return false;
@@ -78,7 +78,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic control = FindFormulaControlById(equationId);
         dynamic formulaParagraph = GetContainingParagraphRange(control);
         int nextParagraphStart = GetRangeEnd(formulaParagraph);
-        int documentEnd = GetRangeEnd(_wordApplication.ActiveDocument.Content);
+        int documentEnd = GetRangeEnd(CurrentDocument.Content);
         if (nextParagraphStart >= documentEnd)
         {
             return;

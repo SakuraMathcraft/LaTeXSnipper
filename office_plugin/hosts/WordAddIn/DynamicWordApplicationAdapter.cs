@@ -132,6 +132,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         }
     }
 
+
     public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
@@ -159,6 +160,11 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     public IDisposable BeginUndoRecord()
     {
         return new UndoRecordScope(this);
+    }
+
+    public string GetCurrentDocumentId()
+    {
+        return WordDocumentIdentityStore.GetOrCreate(CurrentDocument);
     }
 
     public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)

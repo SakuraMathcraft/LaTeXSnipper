@@ -171,11 +171,6 @@ LONG GetNativeOleLockCount()
 FormulaOleObject::FormulaOleObject()
     : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
 {
-    if (presentation_.latex.empty())
-    {
-        presentation_ = CreatePlaceholderPresentation(kFormulaDefaultLatex);
-    }
-
     WriteNativeOleLog(L"FormulaOleObject constructed.");
     InterlockedIncrement(&g_objectCount);
 }
@@ -360,7 +355,12 @@ STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite* activeSi
         return E_FAIL;
     }
 
-    return PostMessageW(target, message, 0, 0) ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    if (!PostMessageW(target, message, 0, 0))
+    {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    return OLEOBJ_S_CANNOT_DOVERB_NOW;
 }
 
 STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
@@ -796,7 +796,7 @@ STDMETHODIMP FormulaOleObject::Run(LPBINDCTX)
 STDMETHODIMP_(BOOL) FormulaOleObject::IsRunning()
 {
     WriteNativeOleLog(L"FormulaOleObject IsRunning.");
-    return TRUE;
+    return FALSE;
 }
 
 STDMETHODIMP FormulaOleObject::LockRunning(BOOL lock, BOOL)

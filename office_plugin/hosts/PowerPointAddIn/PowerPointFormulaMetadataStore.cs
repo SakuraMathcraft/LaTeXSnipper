@@ -8,6 +8,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public static class PowerPointFormulaMetadataStore
 {
     public const string EquationIdTag = "LaTeXSnipperEquationId";
+    public const string DocumentIdTag = "LaTeXSnipperDocumentId";
     public const string LatexChunkCountTag = "LaTeXSnipperLatexChunks";
     public const string LatexByteLengthTag = "LaTeXSnipperLatexBytes";
     public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
@@ -33,6 +34,11 @@ public static class PowerPointFormulaMetadataStore
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw MetadataMissing();
+        }
+
         shape.AlternativeText = "LaTeXSnipper formula " + metadata.Identity.EquationId;
         ApplyMetadataTags(shape, metadata);
         shape.Tags.Add(NaturalWidthPointsTag, naturalWidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -41,6 +47,7 @@ public static class PowerPointFormulaMetadataStore
 
     private static void ApplyMetadataTags(dynamic shape, FormulaMetadata metadata)
     {
+        shape.Tags.Add(DocumentIdTag, metadata.Identity.DocumentId);
         shape.Tags.Add(EquationIdTag, metadata.Identity.EquationId);
         WriteEncodedText(shape, metadata.Latex);
         shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
@@ -51,16 +58,22 @@ public static class PowerPointFormulaMetadataStore
 
     public static FormulaMetadata LoadFromShape(dynamic shape)
     {
+        string documentId = ReadRequiredTag(shape, DocumentIdTag);
         string equationId = ReadRequiredTag(shape, EquationIdTag);
+        int schemaVersion = ReadRequiredIntTag(shape, SchemaVersionTag);
+        if (schemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw MetadataMissing();
+        }
 
         return new FormulaMetadata(
-            new FormulaIdentity("active-presentation", equationId),
+            new FormulaIdentity(documentId, equationId),
             ReadEncodedText(shape),
             ReadRequiredEnumTag<FormulaDisplayMode>(shape, DisplayModeTag),
             NumberingMode.None,
             string.Empty,
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
-            ReadRequiredIntTag(shape, SchemaVersionTag),
+            schemaVersion,
             ReadRequiredDoubleTag(shape, FontScaleTag));
     }
 

@@ -12,7 +12,7 @@ struct FormulaPresentation
     std::vector<BYTE> enhancedMetafile;
 };
 
-FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex);
+bool IsCurrentFormulaPayload(const std::wstring& payloadJson);
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson);
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson);
 HENHMETAFILE CopyEnhMetaFileFromBytes(const std::vector<BYTE>& bytes);

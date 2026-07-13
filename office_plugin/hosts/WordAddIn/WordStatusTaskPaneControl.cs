@@ -120,6 +120,16 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
         });
     }
 
+    public void ShowFormulaPreview(int windowHandle, FormulaMetadata metadata)
+    {
+        ApplyFormulaMetadata(metadata, updateMode: true);
+    }
+
+    public void RestoreFormulaDraft(int windowHandle)
+    {
+        ResetFormulaDraft();
+    }
+
     public void Post(WordStatusKind kind, string message)
     {
         RunOnUi(() =>

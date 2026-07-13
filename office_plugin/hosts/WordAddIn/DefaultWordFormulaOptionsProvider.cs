@@ -20,4 +20,12 @@ internal sealed class DefaultWordFormulaOptionsProvider : IWordFormulaOptionsPro
     public void ResetFormulaDraft()
     {
     }
+
+    public void ShowFormulaPreview(int windowHandle, FormulaMetadata metadata)
+    {
+    }
+
+    public void RestoreFormulaDraft(int windowHandle)
+    {
+    }
 }

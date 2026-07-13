@@ -8,21 +8,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public static class WordOmmlDocumentBuilder
 {
-    public static string BuildFlatOpcDocument(string omml, string equationId, bool display)
-    {
-        return BuildFlatOpcDocument(
-            omml,
-            new FormulaMetadata(
-                new FormulaIdentity("active-document", equationId),
-                string.Empty,
-                display ? FormulaDisplayMode.Display : FormulaDisplayMode.Inline,
-                NumberingMode.None,
-                string.Empty,
-                RenderEngineKind.Omml,
-                schemaVersion: 1),
-            display);
-    }
-
     public static string BuildFlatOpcDocument(string omml, FormulaMetadata metadata, bool display)
     {
         return BuildFlatOpcDocument(omml, metadata, display, WordPluginSettings.Load().NumberPlacement);
