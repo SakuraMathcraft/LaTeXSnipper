@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Office.Core;
 using LaTeXSnipper.OfficePlugin.PowerPointAddIn;
-using LaTeXSnipper.OfficePlugin.VstoShared;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
@@ -13,7 +12,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private PowerPointPluginController? controller;
         private PowerPointRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
-        private OleActivationMessageWindow? oleActivationMessageWindow;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -38,11 +36,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
                 Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
-                Application.WindowSelectionChange += OnWindowSelectionChange;
-                Application.PresentationClose += OnPresentationClose;
-                oleActivationMessageWindow = new OleActivationMessageWindow(
-                    new IntPtr(Application.HWND),
-                    OnOleActivation);
                 InitializeActiveStatusPane();
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
@@ -52,10 +45,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         {
             Application.WindowActivate -= OnWindowActivate;
             Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
-            Application.WindowSelectionChange -= OnWindowSelectionChange;
-            Application.PresentationClose -= OnPresentationClose;
-            oleActivationMessageWindow?.Dispose();
-            oleActivationMessageWindow = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
@@ -64,8 +53,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 
         private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)
         {
-            oleActivationMessageWindow?.ReassignHandle(new IntPtr(Application.HWND));
-            controller?.ClearPendingOleTarget();
             statusPaneHost?.EnsurePane(window);
         }
 
@@ -78,52 +65,9 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 
             PowerPoint.DocumentWindow window = Application.ActiveWindow;
             PowerPoint.Presentation presentation = Application.ActivePresentation;
-            cancel = controller.HandleWindowBeforeDoubleClick(presentation, window, selection);
-        }
-
-        private void OnPresentationClose(PowerPoint.Presentation presentation)
-        {
-            controller?.ClearPendingOleTarget();
-        }
-
-        private void OnWindowSelectionChange(PowerPoint.Selection selection)
-        {
-            if (controller == null)
+            if (controller.HandleWindowBeforeDoubleClick(presentation, window, selection))
             {
-                return;
-            }
-
-            try
-            {
-                PowerPoint.DocumentWindow window = Application.ActiveWindow;
-                controller.HandleSelectionChanged(
-                    Application.ActivePresentation,
-                    window,
-                    selection);
-            }
-            catch
-            {
-                controller.ClearPendingOleTarget();
-            }
-        }
-
-        private void OnOleActivation()
-        {
-            if (controller == null)
-            {
-                return;
-            }
-
-            try
-            {
-                PowerPoint.DocumentWindow window = Application.ActiveWindow;
-                controller.HandleOleActivation(
-                    Application.ActivePresentation,
-                    window,
-                    window.Selection);
-            }
-            catch
-            {
+                cancel = true;
             }
         }
 

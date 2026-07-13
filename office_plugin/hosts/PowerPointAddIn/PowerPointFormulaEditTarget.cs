@@ -8,6 +8,7 @@ public sealed class PowerPointFormulaEditTarget
     internal PowerPointFormulaEditTarget(
         FormulaMetadata metadata,
         object presentation,
+        object window,
         object shape,
         int shapeId,
         int windowHandle,
@@ -15,6 +16,7 @@ public sealed class PowerPointFormulaEditTarget
     {
         Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         Presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
+        Window = window ?? throw new ArgumentNullException(nameof(window));
         Shape = shape ?? throw new ArgumentNullException(nameof(shape));
         ShapeId = shapeId;
         WindowHandle = windowHandle;
@@ -24,6 +26,8 @@ public sealed class PowerPointFormulaEditTarget
     public FormulaMetadata Metadata { get; }
 
     internal object Presentation { get; }
+
+    internal object Window { get; }
 
     internal object Shape { get; }
 

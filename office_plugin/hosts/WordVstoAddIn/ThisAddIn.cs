@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Office.Core;
 using LaTeXSnipper.OfficePlugin.WordAddIn;
-using LaTeXSnipper.OfficePlugin.VstoShared;
 
 namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
 {
@@ -12,7 +11,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private WordPluginController? controller;
         private WordRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
-        private OleActivationMessageWindow? oleActivationMessageWindow;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -36,9 +34,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowSelectionChange += OnWindowSelectionChange;
-                oleActivationMessageWindow = new OleActivationMessageWindow(
-                    new IntPtr(Convert.ToInt32(((dynamic)Application).Hwnd)),
-                    OnOleActivation);
+                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
         }
@@ -46,8 +42,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowSelectionChange -= OnWindowSelectionChange;
-            oleActivationMessageWindow?.Dispose();
-            oleActivationMessageWindow = null;
+            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
@@ -56,12 +51,12 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
 
         private void OnWindowSelectionChange(Microsoft.Office.Interop.Word.Selection selection)
         {
-            oleActivationMessageWindow?.ReassignHandle(
-                new IntPtr(Convert.ToInt32(((dynamic)Application).Hwnd)));
             ribbonCallbacks?.OnSelectionChanged();
         }
 
-        private void OnOleActivation()
+        private void OnWindowBeforeDoubleClick(
+            Microsoft.Office.Interop.Word.Selection selection,
+            ref bool cancel)
         {
             if (controller == null)
             {
@@ -70,10 +65,13 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
 
             try
             {
-                dynamic window = Application.ActiveWindow;
-                controller.HandleOleActivation(
-                    Application.ActiveDocument,
-                    Convert.ToInt32(window.Hwnd));
+                dynamic selected = selection;
+                object document = selected.Document;
+                object window = selected.Application.ActiveWindow;
+                if (controller.HandleWindowBeforeDoubleClick(document, window, selection))
+                {
+                    cancel = true;
+                }
             }
             catch
             {

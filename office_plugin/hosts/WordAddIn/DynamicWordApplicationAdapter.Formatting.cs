@@ -32,10 +32,8 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 dynamic control = candidate;
-                string equationId = GetEquationId(control);
                 if (!WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
-                    CurrentDocument,
-                    equationId,
+                    control,
                     out double expectedSize))
                 {
                     continue;
@@ -65,8 +63,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                        CurrentDocument,
-                        Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
+                        inlineShape,
                         out double naturalWidth,
                         out double naturalHeight))
                 {
@@ -100,10 +97,6 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic control = FindFormulaControlById(metadata.Identity.EquationId);
             double fontSize = ScaleFontSize(ReadSurroundingTextFontSize(control), metadata.FontScale);
             ApplyManagedEquationFontSizeById(metadata.Identity.EquationId, fontSize);
-            WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                CurrentDocument,
-                metadata.Identity.EquationId,
-                fontSize);
             ApplyManagedEquationStyleById(metadata);
             NormalizeManagedInlineEquationBaseline(metadata, control);
             SaveFormulaMetadata(metadata);

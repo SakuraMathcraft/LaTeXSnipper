@@ -190,6 +190,24 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.CompletedTask;
     }
 
+    public Task ActivateFormulaEditTargetAsync(
+        PowerPointFormulaEditTarget target,
+        CancellationToken cancellationToken)
+    {
+        if (target == null)
+        {
+            throw new ArgumentNullException(nameof(target));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        dynamic window = target.Window;
+        TryCom(() => _application.Activate());
+        TryCom(() => window.Activate());
+        TryCom(() => SetForegroundWindow(new IntPtr(target.WindowHandle)));
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_application.HWND))));
+        return Task.CompletedTask;
+    }
+
     public string GetCurrentDocumentId()
     {
         return PowerPointDocumentIdentityStore.GetOrCreate(_application.ActivePresentation);
@@ -309,6 +327,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return new PowerPointFormulaEditTarget(
             metadata,
             presentation,
+            window,
             shape,
             Convert.ToInt32(shape.Id),
             Convert.ToInt32(((dynamic)window).HWND),

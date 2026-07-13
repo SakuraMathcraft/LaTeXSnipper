@@ -127,7 +127,21 @@ public static class WordOmmlDocumentBuilder
             "<w:alias w:val=\"LaTeXSnipper Equation\"/>" +
             "<w:tag w:val=\"" + EscapeXml(WordFormulaMetadataStore.BuildEquationTag(metadata.Identity.EquationId)) + "\"/>" +
             "</w:sdtPr><w:sdtContent>" +
+            BuildMetadataContentControl() +
             ExtractEquationOmml(omml) +
+            "</w:sdtContent></w:sdt>";
+    }
+
+    private static string BuildMetadataContentControl()
+    {
+        return
+            "<w:sdt><w:sdtPr>" +
+            "<w:alias w:val=\"LaTeXSnipper Metadata\"/>" +
+            "<w:tag w:val=\"" + WordFormulaMetadataStore.MetadataControlTag + "\"/>" +
+            "<w:text/>" +
+            "</w:sdtPr><w:sdtContent>" +
+            "<w:r><w:rPr><w:vanish/><w:sz w:val=\"2\"/><w:noProof/></w:rPr>" +
+            "<w:t>pending</w:t></w:r>" +
             "</w:sdtContent></w:sdt>";
     }
 

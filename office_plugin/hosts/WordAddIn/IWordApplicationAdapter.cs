@@ -14,6 +14,8 @@ public interface IWordApplicationAdapter
 
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
+    Task ActivateFormulaEditTargetAsync(WordFormulaEditTarget target, CancellationToken cancellationToken);
+
     IDisposable BeginUndoRecord();
 
     double GetCurrentFontSizePoints();
@@ -36,7 +38,10 @@ public interface IWordApplicationAdapter
 
     Task<WordFormulaEditTarget> LoadSelectedFormulaTargetAsync(CancellationToken cancellationToken);
 
-    WordFormulaEditTarget? TryCaptureSelectedOleFormulaTarget(object document, int windowHandle);
+    WordFormulaEditTarget? TryCaptureOleFormulaEditTarget(
+        object document,
+        object window,
+        object selection);
 
     bool IsFormulaEditTargetValid(WordFormulaEditTarget target);
 

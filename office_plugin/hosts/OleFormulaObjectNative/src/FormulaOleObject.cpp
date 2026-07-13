@@ -14,7 +14,6 @@
 
 namespace
 {
-constexpr wchar_t kOleActivationMessage[] = L"LaTeXSnipper.OfficePlugin.OleFormulaActivate";
 
 class OleVerbEnumerator final : public IEnumOLEVERB
 {
@@ -335,7 +334,7 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
     return QueryInterface(IID_IDataObject, reinterpret_cast<void**>(dataObject));
 }
 
-STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite* activeSite, LONG, HWND parentWindow, LPCRECT)
+STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite* activeSite, LONG, HWND, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
     if (verb != OLEIVERB_PRIMARY && verb != OLEIVERB_OPEN && verb != OLEIVERB_SHOW)
@@ -346,18 +345,6 @@ STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite* activeSi
     if (activeSite != nullptr)
     {
         clientSite_ = activeSite;
-    }
-
-    UINT message = RegisterWindowMessageW(kOleActivationMessage);
-    HWND target = parentWindow == nullptr ? GetForegroundWindow() : GetAncestor(parentWindow, GA_ROOT);
-    if (message == 0 || target == nullptr)
-    {
-        return E_FAIL;
-    }
-
-    if (!PostMessageW(target, message, 0, 0))
-    {
-        return HRESULT_FROM_WIN32(GetLastError());
     }
 
     return OLEOBJ_S_CANNOT_DOVERB_NOW;

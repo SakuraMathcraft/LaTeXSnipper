@@ -30,10 +30,6 @@ public sealed partial class DynamicWordApplicationAdapter
             double naturalFontSize = ScaleFontSize(fontSizePoints, metadata.FontScale);
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
             ShowContentControlChrome((dynamic)equationControl);
-            WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                CurrentDocument,
-                metadata.Identity.EquationId,
-                naturalFontSize);
             ApplyManagedEquationStyle(equationControl, metadata);
             if (metadata.DisplayMode == FormulaDisplayMode.Inline)
             {
@@ -114,7 +110,14 @@ public sealed partial class DynamicWordApplicationAdapter
 
     public Task UpdateOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken)
     {
-        return ReplaceOleFormulaObjectAsync(equationId, metadata, presentation, display, preserveUserScale: true, cancellationToken);
+        return ReplaceOleFormulaObjectAsync(
+            equationId,
+            metadata,
+            presentation,
+            display,
+            preserveUserScale: true,
+            moveSelection: true,
+            cancellationToken);
     }
 
     public async Task UpdateOleFormulaObjectAsync(
@@ -151,13 +154,21 @@ public sealed partial class DynamicWordApplicationAdapter
                 presentation,
                 display,
                 preserveUserScale: true,
+                moveSelection: false,
                 cancellationToken).ConfigureAwait(true);
         }
     }
 
     public Task ResetOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken)
     {
-        return ReplaceOleFormulaObjectAsync(equationId, metadata, presentation, display, preserveUserScale: false, cancellationToken);
+        return ReplaceOleFormulaObjectAsync(
+            equationId,
+            metadata,
+            presentation,
+            display,
+            preserveUserScale: false,
+            moveSelection: true,
+            cancellationToken);
     }
 
     public Task ReplaceNativeWordFormulaWithOleAsync(
@@ -204,6 +215,7 @@ public sealed partial class DynamicWordApplicationAdapter
         OlePresentationResult presentation,
         bool display,
         bool preserveUserScale,
+        bool moveSelection,
         CancellationToken cancellationToken)
     {
         if (metadata == null)
@@ -228,7 +240,10 @@ public sealed partial class DynamicWordApplicationAdapter
                     ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
                     : InsertNumberedOleInlineShape(insertionRange, metadata, presentation);
                 SaveFormulaMetadata(metadata);
-                MoveSelectionAfterInlineShape(converted, metadata.Identity.EquationId, display);
+                if (moveSelection)
+                {
+                    MoveSelectionAfterInlineShape(converted, metadata.Identity.EquationId, display);
+                }
                 return;
             }
 
@@ -263,7 +278,10 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 SaveFormulaMetadata(metadata);
-                MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
+                if (moveSelection)
+                {
+                    MoveSelectionAfterInlineShape(inserted, metadata.Identity.EquationId, display);
+                }
                 return;
             }
 
@@ -281,7 +299,10 @@ public sealed partial class DynamicWordApplicationAdapter
             NormalizeFormulaParagraphAfterOleReplacement(replacement, metadata, presentation, replacementScale, display);
 
             SaveFormulaMetadata(metadata);
-            MoveSelectionAfterInlineShape(replacement, metadata.Identity.EquationId, display);
+            if (moveSelection)
+            {
+                MoveSelectionAfterInlineShape(replacement, metadata.Identity.EquationId, display);
+            }
         });
 
         return Task.CompletedTask;
@@ -693,6 +714,22 @@ public sealed partial class DynamicWordApplicationAdapter
     private double ReadManagedEquationFontSize(object contentControl)
     {
         dynamic control = contentControl;
+        try
+        {
+            dynamic equations = control.Range.OMaths;
+            if (Convert.ToInt32(equations.Count) > 0)
+            {
+                double equationFontSize = ReadPointSize(equations.Item(1).Range.Font.Size);
+                if (equationFontSize > 0)
+                {
+                    return equationFontSize;
+                }
+            }
+        }
+        catch
+        {
+        }
+
         double fontSize = ReadPointSize(control.Range.Font.Size);
         return fontSize > 0 ? fontSize : GetCurrentFontSizePoints();
     }
@@ -813,10 +850,8 @@ public sealed partial class DynamicWordApplicationAdapter
     private (double Width, double Height) GetOleNaturalSize(object inlineShape)
     {
         dynamic shape = inlineShape;
-        string tag = Convert.ToString(shape.AlternativeText) ?? string.Empty;
         if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                CurrentDocument,
-                tag,
+                shape,
                 out double naturalWidth,
                 out double naturalHeight))
         {
@@ -913,18 +948,18 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata metadata)
     {
         (float width, float height) = GetInlineShapeSize((object)inlineShape);
-        string tag = WordFormulaMetadataStore.Save(
-            inlineShape.Range.Document,
+        WordFormulaMetadataStore.SaveOle(
+            inlineShape,
             metadata,
             width,
             height);
-        inlineShape.AlternativeText = tag;
-        string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
-        if (!string.Equals(storedTag, tag, StringComparison.Ordinal))
+        string storedTag = Convert.ToString(inlineShape.Title) ?? string.Empty;
+        if (!string.Equals(
+            WordFormulaMetadataStore.EquationIdFromTag(storedTag),
+            metadata.Identity.EquationId,
+            StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Word did not preserve the OLE formula identifier.");
         }
-
-        TryCom(() => inlineShape.Title = "LaTeXSnipper Equation");
     }
 }

@@ -25,7 +25,6 @@ public sealed partial class PowerPointPluginController : IDisposable
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private PowerPointFormulaEditTarget? _editorTarget;
-    private PowerPointFormulaEditTarget? _pendingOleTarget;
     private long _editorTargetGeneration;
     private bool _disposed;
 
@@ -91,7 +90,10 @@ public sealed partial class PowerPointPluginController : IDisposable
             if (!acceptedCommand)
             {
                 string busyMessage = PowerPointAddInText.Get("WorkingStatus");
-                _statusSink.Post(PowerPointStatusKind.Info, busyMessage);
+                if (IsCurrentEditorSubmission(accepted))
+                {
+                    _statusSink.Post(PowerPointStatusKind.Info, busyMessage);
+                }
                 return FormulaEditorSubmissionResult.Rejected(busyMessage);
             }
 
@@ -100,12 +102,18 @@ public sealed partial class PowerPointPluginController : IDisposable
         catch (OperationCanceledException)
         {
             string message = PowerPointAddInText.Get("CommandTimeoutStatus");
-            _statusSink.Post(PowerPointStatusKind.Error, message);
+            if (IsCurrentEditorSubmission(accepted))
+            {
+                _statusSink.Post(PowerPointStatusKind.Error, message);
+            }
             return FormulaEditorSubmissionResult.Rejected(message);
         }
         catch (Exception exc)
         {
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            if (IsCurrentEditorSubmission(accepted))
+            {
+                _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            }
             return FormulaEditorSubmissionResult.Rejected(exc.Message);
         }
     }
@@ -155,9 +163,12 @@ public sealed partial class PowerPointPluginController : IDisposable
         FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
-            CompleteEditorSession(accepted.SessionGeneration, target);
-            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("UnchangedStatus"));
-            await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
+            if (IsCurrentEditorSubmission(accepted, target))
+            {
+                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("UnchangedStatus"));
+                CompleteEditorSession(accepted.SessionGeneration, target);
+                await _powerPointAdapter.ActivateFormulaEditTargetAsync(target!, cancellationToken);
+            }
             return;
         }
 
@@ -168,7 +179,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             cancellationToken: cancellationToken,
             reportStatus: false);
 
-        if (_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
+        if (IsCurrentEditorSubmission(accepted, target))
         {
             string statusKey = accepted.UpdateMode
                 ? "UpdatedStatus"
@@ -178,11 +189,16 @@ public sealed partial class PowerPointPluginController : IDisposable
             _statusSink.Post(
                 PowerPointStatusKind.Success,
                 PowerPointAddInText.Get(statusKey));
+            CompleteEditorSession(accepted.SessionGeneration, target);
+            if (target == null)
+            {
+                await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
+            }
+            else
+            {
+                await _powerPointAdapter.ActivateFormulaEditTargetAsync(target, cancellationToken);
+            }
         }
-
-        CompleteEditorSession(accepted.SessionGeneration, target);
-
-        await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     private async Task ConvertAndInsertAsync(
@@ -266,88 +282,23 @@ public sealed partial class PowerPointPluginController : IDisposable
         {
             target = _powerPointAdapter.TryCaptureFormulaEditTarget(presentation, window, selection);
         }
-        catch (Exception exc)
-        {
-            _pendingOleTarget = null;
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
-            return false;
-        }
-
-        if (target == null)
-        {
-            _pendingOleTarget = null;
-            return false;
-        }
-
-        if (target.IsOle)
-        {
-            _pendingOleTarget = target;
-            return false;
-        }
-
-        _pendingOleTarget = null;
-        StartSwitchEditorTarget(target);
-        return true;
-    }
-
-    public void HandleOleActivation(object presentation, object window, object selection)
-    {
-        ThrowIfDisposed();
-        PowerPointFormulaEditTarget? target = _pendingOleTarget;
-        _pendingOleTarget = null;
-        if (target == null)
-        {
-            try
-            {
-                target = _powerPointAdapter.TryCaptureFormulaEditTarget(presentation, window, selection);
-            }
-            catch (InvalidOperationException)
-            {
-                return;
-            }
-        }
-
-        if (target == null || !target.IsOle || !_powerPointAdapter.IsFormulaEditTargetValid(target))
-        {
-            return;
-        }
-
-        StartSwitchEditorTarget(target);
-    }
-
-    public void ClearPendingOleTarget()
-    {
-        _pendingOleTarget = null;
-    }
-
-    public void HandleSelectionChanged(object presentation, object window, object selection)
-    {
-        if (_pendingOleTarget == null)
-        {
-            return;
-        }
-
-        try
-        {
-            PowerPointFormulaEditTarget? selected = _powerPointAdapter.TryCaptureFormulaEditTarget(
-                presentation,
-                window,
-                selection);
-            if (selected == null
-                || !selected.IsOle
-                || selected.ShapeId != _pendingOleTarget.ShapeId
-                || !string.Equals(
-                    selected.Metadata.Identity.EquationId,
-                    _pendingOleTarget.Metadata.Identity.EquationId,
-                    StringComparison.Ordinal))
-            {
-                _pendingOleTarget = null;
-            }
-        }
         catch
         {
-            _pendingOleTarget = null;
+            return false;
         }
+
+        if (target == null)
+        {
+            return false;
+        }
+
+        if (!_powerPointAdapter.IsFormulaEditTargetValid(target))
+        {
+            return false;
+        }
+
+        StartSwitchEditorTarget(target);
+        return true;
     }
 
     public void CancelEditorFormula(long sessionGeneration)
@@ -554,6 +505,22 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
 
         return _editorTarget;
+    }
+
+    private bool IsCurrentEditorSubmission(
+        FormulaEditorAcceptedEventArgs accepted,
+        PowerPointFormulaEditTarget? target = null)
+    {
+        if (accepted == null
+            || _editorTargetGeneration != accepted.SessionGeneration
+            || !_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
+        {
+            return false;
+        }
+
+        return accepted.UpdateMode
+            ? target == null || ReferenceEquals(_editorTarget, target)
+            : _editorTarget == null;
     }
 
     private void StartSwitchEditorTarget(PowerPointFormulaEditTarget target)

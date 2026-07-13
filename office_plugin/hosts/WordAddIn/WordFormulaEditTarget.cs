@@ -7,19 +7,25 @@ public sealed class WordFormulaEditTarget
 {
     internal WordFormulaEditTarget(
         object document,
+        object window,
         object formulaObject,
         int windowHandle,
         FormulaMetadata metadata,
-        bool isOle)
+        bool isOle,
+        double fontSizePoints)
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
+        Window = window ?? throw new ArgumentNullException(nameof(window));
         FormulaObject = formulaObject ?? throw new ArgumentNullException(nameof(formulaObject));
         WindowHandle = windowHandle;
         Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         IsOle = isOle;
+        FontSizePoints = fontSizePoints;
     }
 
     internal object Document { get; }
+
+    internal object Window { get; }
 
     internal object FormulaObject { get; }
 
@@ -28,4 +34,6 @@ public sealed class WordFormulaEditTarget
     public FormulaMetadata Metadata { get; }
 
     public bool IsOle { get; }
+
+    public double FontSizePoints { get; }
 }

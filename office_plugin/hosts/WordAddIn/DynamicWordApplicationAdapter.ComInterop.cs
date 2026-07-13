@@ -155,7 +155,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
-            string tag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
+            string tag = Convert.ToString(inlineShape.Title) ?? string.Empty;
             return WordFormulaMetadataStore.EquationIdFromTag(tag);
         }
         catch

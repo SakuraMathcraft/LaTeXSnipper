@@ -7,6 +7,8 @@ namespace LaTeXSnipper.OfficePlugin.Abstractions;
 
 public static class OleFormulaPayloadJson
 {
+    private const int CurrentPayloadSchemaVersion = 2;
+
     public static string Serialize(FormulaMetadata metadata, OlePresentationResult presentation)
     {
         if (metadata == null)
@@ -21,7 +23,7 @@ public static class OleFormulaPayloadJson
 
         var dto = new Dictionary<string, object?>
         {
-            ["schemaVersion"] = FormulaMetadata.CurrentSchemaVersion,
+            ["schemaVersion"] = CurrentPayloadSchemaVersion,
             ["latex"] = metadata.Latex,
             ["displayMode"] = metadata.DisplayMode.ToString(),
             ["numberingMode"] = metadata.NumberingMode.ToString(),

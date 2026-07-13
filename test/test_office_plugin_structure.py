@@ -583,9 +583,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "latexsnipper-eq-" in metadata_store
     assert "latexsnipper-eqn-" not in metadata_store
     assert "latexsnipper-eqm-" not in metadata_store
-    assert "MetadataVariablePrefix" in metadata_store
-    assert "BuildMetadataStorageKey" in metadata_store
-    assert 'Guid.NewGuid().ToString("N").Substring(0, 10)' in metadata_store
+    assert 'MetadataControlTag = "latexsnipper-metadata-v2"' in metadata_store
+    assert 'MetadataPayloadPrefix = "LaTeXSnipper.Metadata.v2:"' in metadata_store
+    assert "document.Variables" not in metadata_store
     assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "EnsureUniqueFormulaIdentity(FindSelectedFormula())" in adapter
@@ -631,11 +631,12 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" not in adapter
-    assert "WordFormulaMetadataStore.Load(" in adapter
+    assert "WordFormulaMetadataStore.LoadOmml(" in adapter
+    assert "WordFormulaMetadataStore.LoadOle(" in adapter
     assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "RestoreManagedEquationControlIdentity" in adapter
-    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load(" in adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.LoadOmml(" in adapter
     assert "LoadFormulaFromNumberControl" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedFormulaLayout" in adapter
@@ -810,7 +811,8 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "BuildEquationTag(metadata.Identity.EquationId)" in omml_builder
     assert "BuildEquationTag(equationId, metadata)" not in omml_builder
     assert "inlineMath" not in omml_builder
-    assert "w:vanish" not in omml_builder
+    assert "BuildMetadataContentControl()" in omml_builder
+    assert "w:vanish" in omml_builder
     assert "WrapNumberContentControl" not in omml_builder
     assert "BuildEquationNumberRuns" in omml_builder
     assert "if (metadata.NumberingMode == NumberingMode.Automatic)" in omml_builder
@@ -1171,12 +1173,13 @@ def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "tools" / "OfficeVstoRegistration.ps1").exists()
 
 
-def test_ole_objects_expose_the_formula_edit_verb() -> None:
+def test_ole_objects_expose_verbs_without_owning_double_click_routing() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
     presentation_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "Presentation.cpp").read_text(encoding="utf-8")
     payload_text = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "OleFormulaPayloadJson.cs").read_text(encoding="utf-8")
-    activation_window_text = (PLUGIN / "hosts" / "OfficeVstoShared" / "OleActivationMessageWindow.cs").read_text(encoding="utf-8")
+    word_vsto_text = (PLUGIN / "hosts" / "WordVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
+    powerpoint_vsto_text = (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
     word_adapter_text = read_word_adapter_sources()
 
@@ -1191,16 +1194,17 @@ def test_ole_objects_expose_the_formula_edit_verb() -> None:
     assert "OLEMISC_NOUIACTIVATE" in native_text
     assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
-    assert "RegisterWindowMessageW(kOleActivationMessage)" in native_text
-    assert "PostMessageW(target, message, 0, 0)" in native_text
+    assert "RegisterWindowMessageW" not in native_text
+    assert "PostMessageW" not in native_text
     assert "OLEOBJ_S_CANNOT_DOVERB_NOW" in native_text
     assert "return FALSE;" in native_text
     assert "new (std::nothrow) OleVerbEnumerator()" in native_text
     assert "IsCurrentFormulaPayload" in presentation_text
     assert '["documentId"]' not in payload_text
     assert '["equationId"]' not in payload_text
-    assert "activationMessage" in activation_window_text
-    assert "activationRequested();" in activation_window_text
+    assert not (PLUGIN / "hosts" / "OfficeVstoShared" / "OleActivationMessageWindow.cs").exists()
+    assert "Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick" in word_vsto_text
+    assert "Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick" in powerpoint_vsto_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text
@@ -1921,9 +1925,9 @@ def test_word_load_selected_is_selection_first() -> None:
     assert "TryFindOleInlineShapeById" not in selected_formula
     assert "FindFormulaControlById" not in selected_formula
     assert "selectionType != 6 && selectionType != 7 && selectionType != 8" in adapter
-    assert "inlineShape.AlternativeText = tag;" in adapter
+    assert "WordFormulaMetadataStore.SaveOle(" in adapter
     assert "Word did not preserve the OLE formula identifier." in adapter
-    assert "WordFormulaMetadataStore.Save(" in adapter
+    assert "Convert.ToString(inlineShape.Title)" in adapter
 
 
 def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
@@ -2078,9 +2082,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         1,
     )[0]
     assert "PrepareRenderedFormulaAsync" not in natural_size_method
-    assert "SaveOmmlNaturalFontSize" in adapter
+    assert "WordFormulaMetadataStore.SaveOmml" in adapter
     assert "TryLoadOmmlNaturalFontSize" in formatting
-    assert "OmmlNaturalFontSizeVariablePrefix" in metadata_store
+    assert 'dto["naturalFontSizePoints"]' in metadata_store
     assert "double oleFontSizePoints = ReadOleEquivalentFontSize(inlineShape)" in adapter
     assert "SaveFormulaMetadata(metadata)" in adapter.split("public Task UpdateFormulaAsync", 1)[1].split(
         "private dynamic RemoveOmmlConversionSource",
@@ -2501,23 +2505,31 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
     assert 'WordAddInText.Get("OmmlInsertingStatus")' in controller
 
 
-def test_word_formula_metadata_does_not_create_hidden_document_controls() -> None:
+def test_word_formula_metadata_is_portable_with_the_formula_object() -> None:
     store = (
         PLUGIN / "hosts" / "WordAddIn" / "WordFormulaMetadataStore.cs"
     ).read_text(encoding="utf-8")
     metadata_adapter = (
         PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Metadata.cs"
     ).read_text(encoding="utf-8")
+    omml_builder = (
+        PLUGIN / "hosts" / "WordAddIn" / "WordOmmlDocumentBuilder.cs"
+    ).read_text(encoding="utf-8")
 
-    assert "WordFormulaMetadataStore.Save(" in metadata_adapter
+    assert "WordFormulaMetadataStore.SaveOmml(" in metadata_adapter
+    assert "WordFormulaMetadataStore.SaveOle(" in metadata_adapter
     assert "SaveFormulaMetadata(equationControl, metadata)" in metadata_adapter
-    assert "string tag = WordFormulaMetadataStore.Save" in metadata_adapter
-    assert "shape.Tag = tag" in metadata_adapter
-    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load" in metadata_adapter
-    assert "shape.AlternativeText = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.LoadOmml" in metadata_adapter
     assert "TryLoadOleNaturalSize(" in metadata_adapter
     assert "ContentControls.Add" not in store
-    assert "MetadataControlTagPrefix" not in store
+    assert "FindMetadataControl(control)" in store
+    assert "TextRetrievalMode.IncludeHiddenText = true" in store
+    assert "metadataControl.Range.Font.Hidden = -1" in store
+    assert "inlineShape.AlternativeText = EncodePayload" in store
+    assert "inlineShape.Title = BuildEquationTag" in store
+    assert "document.Variables" not in store
+    assert "BuildMetadataContentControl()" in omml_builder
+    assert "WordFormulaMetadataStore.MetadataControlTag" in omml_builder
     assert "MaxWordTagLength = 64" in store
     assert "ValidateTagLength" in store
     assert "ReadRequiredDouble" in store
