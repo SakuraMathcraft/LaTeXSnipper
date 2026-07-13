@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://appsforoffice.microsoft.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' wss://localhost:3000; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'"
+    >
+    <meta name="referrer" content="no-referrer">
+    <title>LaTeXSnipper for Word</title>
+    <link rel="icon" href="./assets/icon-32.png" type="image/png">
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script type="module" src="./taskpane.ts"></script>
+  </head>
+  <body>
+    <main class="pane-shell">
+      <header class="app-header">
+        <div class="brand">
+          <img src="./assets/icon-32.png" width="32" height="32" alt="">
+          <div>
+            <h1>LaTeXSnipper</h1>
+            <p>Word for macOS · Development</p>
+          </div>
+        </div>
+        <div class="connection-grid" aria-label="连接状态">
+          <span id="host-status" class="status-pill" data-state="working">正在连接 Word</span>
+          <span id="agent-status" class="status-pill" data-state="working">正在连接后台</span>
+        </div>
+        <button id="retry-office-button" class="text-button host-retry-button" type="button" hidden>
+          重新连接 Word
+        </button>
+      </header>
+
+      <section class="card editor-card" aria-labelledby="editor-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">公式编辑</p>
+            <h2 id="editor-heading">可视化 LaTeX 编辑器</h2>
+          </div>
+          <span id="editor-status" class="subtle-status">正在加载 MathLive</span>
+        </div>
+
+        <div id="math-editor-host" class="math-editor-host" aria-busy="true">
+          <span class="loading-placeholder">正在加载仓库内的 MathLive…</span>
+        </div>
+
+        <details id="source-details" class="source-details">
+          <summary>直接编辑 LaTeX 源码</summary>
+          <label class="visually-hidden" for="latex-source">LaTeX 源码</label>
+          <textarea
+            id="latex-source"
+            rows="4"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            placeholder="例如：\frac{-b \pm \sqrt{b^2-4ac}}{2a}"
+          ></textarea>
+        </details>
+
+        <div class="preview-heading">
+          <span>Word 转换前预览</span>
+          <span id="preview-status" class="subtle-status">等待输入</span>
+        </div>
+        <div
+          id="formula-preview"
+          class="formula-preview"
+          role="img"
+          aria-label="公式预览"
+          aria-live="polite"
+          aria-busy="false"
+        >
+          <span class="preview-placeholder">输入公式后，由本地 MathJax 生成预览。</span>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="format-heading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">Word 格式</p>
+            <h2 id="format-heading">插入模式</h2>
+          </div>
+        </div>
+
+        <fieldset class="segmented-control">
+          <legend class="visually-hidden">选择公式插入模式</legend>
+          <label>
+            <input type="radio" name="formula-mode" value="inline" checked>
+            <span>行内</span>
+          </label>
+          <label>
+            <input type="radio" name="formula-mode" value="display">
+            <span>行间</span>
+          </label>
+          <label>
+            <input type="radio" name="formula-mode" value="numbered">
+            <span>编号</span>
+          </label>
+        </fieldset>
+
+        <div id="number-field" class="number-field" hidden>
+          <label for="manual-number">编号文字</label>
+          <input id="manual-number" type="text" autocomplete="off" placeholder="例如：(1)">
+        </div>
+      </section>
+
+      <section class="card action-card" aria-labelledby="action-heading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">文档操作</p>
+            <h2 id="action-heading">当前公式</h2>
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="insert-button" class="primary-button" type="button" disabled>插入公式</button>
+          <button id="clear-button" class="secondary-button" type="button" disabled>清空</button>
+        </div>
+        <p id="write-note" class="helper-text">
+          插入会在 Word for Mac 原生公式链路完成真机验证后启用；当前不会修改文档。
+        </p>
+        <p id="operation-status" class="operation-status" role="status" data-tone="neutral">
+          当前里程碑启用编辑与预览。
+        </p>
+      </section>
+
+      <section class="card service-card" aria-labelledby="service-heading">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">本机后台</p>
+            <h2 id="service-heading">LaTeXSnipper Agent</h2>
+          </div>
+          <button id="retry-agent-button" class="text-button" type="button">重新检测</button>
+        </div>
+        <p class="helper-text">
+          编辑和预览不依赖后台；截图 OCR、模型和长任务将在 Agent 可用后启用。
+        </p>
+        <button id="ocr-button" class="secondary-button full-width" type="button" disabled>
+          截图 OCR（后续阶段）
+        </button>
+
+        <details class="diagnostics">
+          <summary>开发诊断</summary>
+          <dl>
+            <div><dt>Word</dt><dd id="host-detail">等待 Office.js</dd></div>
+            <div><dt>Agent</dt><dd id="agent-detail">等待健康检查</dd></div>
+            <div><dt>渲染</dt><dd>MathLive 0.110.0 / MathJax 3.2.2</dd></div>
+            <div><dt>API</dt><dd>WordApi 1.3 / Agent v1</dd></div>
+          </dl>
+        </details>
+      </section>
+    </main>
+
+    <noscript>LaTeXSnipper 任务窗格需要启用 JavaScript。</noscript>
+  </body>
+</html>

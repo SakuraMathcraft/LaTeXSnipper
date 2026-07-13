@@ -1,0 +1,7 @@
+.dev/
+coverage/
+.env.local
+.env.*.local
+*.crt
+*.key
+*.pem
