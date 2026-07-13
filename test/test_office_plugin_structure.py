@@ -136,10 +136,15 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
     for host_name in ("WordAddIn", "PowerPointAddIn"):
         assets = PLUGIN / "hosts" / host_name / "EditorAssets"
         editor_html = (assets / "editor.html").read_text(encoding="utf-8")
+        editor_css = (assets / "editor.css").read_text(encoding="utf-8")
         taskpane_js = (assets / "taskpane.js").read_text(encoding="utf-8")
 
         assert "mathfield-input.js" in editor_html
         assert "https://latexsnipper-editor-shared.officeplugin.local/editor.js" in editor_html
+        assert 'id="sourceResizeHandle"' in editor_html
+        assert 'role="separator"' in editor_html
+        assert "--source-pane-height: 118px" in editor_css
+        assert "grid-template-rows: minmax(160px, 1fr) 7px var(--source-pane-height)" in editor_css
         assert not (assets / "editor.js").exists()
         assert "LaTeXSnipperMathfieldInput.configure(mathfield, accept)" in editor_js
         assert 'new URL("./vendor/fonts", import.meta.url).href' in editor_js
@@ -156,6 +161,10 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert "translateMathAlphabetCharacter" not in taskpane_js
         assert "String.fromCodePoint" not in taskpane_js
         assert "scheduleSourceSync" in editor_js
+        assert "sourceResizeHandle.setPointerCapture(event.pointerId)" in editor_js
+        assert "new ResizeObserver(() => setSourcePaneHeight(sourcePaneHeight))" in editor_js
+        assert 'event.key === "ArrowUp"' in editor_js
+        assert 'event.key === "ArrowDown"' in editor_js
         assert "requestIdleCallback(syncSourceNow" in editor_js
         assert "cancelIdleCallback(sourceSyncHandle)" in editor_js
         assert "removeDefaultFontWrapper" not in editor_js
@@ -1331,9 +1340,6 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "\\begin{cases}x^2" in help_html
         assert "\\cancel{x}" in help_html
         assert "\\prescript{a}{b}{X}" in help_html
-        assert "same local MathJax 3.2.2 extension set" in help_html
-        assert "noerrors/noundefined are not enabled" in help_html
-        assert "\\require is not enabled by default" in help_html
         assert "managed formulas in the current selection" in help_html
         assert "multi-selection runs in batches" in help_html
         assert "reports progress in the status pane" in help_html

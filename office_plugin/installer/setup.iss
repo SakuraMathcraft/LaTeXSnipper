@@ -33,13 +33,15 @@ ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\Word\icon.ico
-LicenseFile=LICENSE.txt
+LicenseFile=..\..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Files]
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+
 ; ===== Word VSTO Add-in =====
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.WordVstoAddIn.vsto"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
