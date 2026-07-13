@@ -115,6 +115,31 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             image.HeightPoints * scale);
     }
 
+    public Task UpdateFormulaImageByIdAsync(
+        string equationId,
+        PowerPointRenderedImage image,
+        FormulaMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        dynamic shape = FindFormulaShapeById(equationId);
+        dynamic slide = shape.Parent;
+        float left = Convert.ToSingle(shape.Left, System.Globalization.CultureInfo.InvariantCulture);
+        float top = Convert.ToSingle(shape.Top, System.Globalization.CultureInfo.InvariantCulture);
+        float scale = Convert.ToSingle(shape.Width, System.Globalization.CultureInfo.InvariantCulture)
+            / ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
+        CleanupImageFile(shape);
+        shape.Delete();
+        return InsertPictureAtAsync(
+            slide,
+            image,
+            metadata,
+            left,
+            top,
+            image.WidthPoints * scale,
+            image.HeightPoints * scale);
+    }
+
     public Task InsertOleFormulaObjectAsync(FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -181,6 +206,31 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             top,
             (float)presentation.WidthPoints * shapeScale,
             (float)presentation.HeightPoints * shapeScale);
+    }
+
+    public Task UpdateOleFormulaObjectByIdAsync(
+        string equationId,
+        FormulaMetadata metadata,
+        OlePresentationResult presentation,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        dynamic shape = FindFormulaShapeById(equationId);
+        dynamic slide = shape.Parent;
+        float left = Convert.ToSingle(shape.Left, System.Globalization.CultureInfo.InvariantCulture);
+        float top = Convert.ToSingle(shape.Top, System.Globalization.CultureInfo.InvariantCulture);
+        float scale = Convert.ToSingle(shape.Width, System.Globalization.CultureInfo.InvariantCulture)
+            / ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
+        CleanupImageFile(shape);
+        shape.Delete();
+        return InsertOleObjectAtAsync(
+            slide,
+            metadata,
+            presentation,
+            left,
+            top,
+            (float)presentation.WidthPoints * scale,
+            (float)presentation.HeightPoints * scale);
     }
 
     private static Task InsertPictureAtAsync(dynamic slide, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top)
@@ -309,22 +359,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         }
 
         return Task.FromResult(resetCount);
-    }
-
-    public (float Left, float Top, float ShapeScale) GetSelectedShapeFrame()
-    {
-        dynamic shape = GetSelectedShape();
-        float naturalWidth = ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
-        return ((float)shape.Left, (float)shape.Top, (float)shape.Width / naturalWidth);
-    }
-
-    public Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        dynamic shape = GetSelectedShape();
-        CleanupImageFile(shape);
-        shape.Delete();
-        return Task.CompletedTask;
     }
 
     public Task DeleteFormulaByIdAsync(string equationId, CancellationToken cancellationToken)

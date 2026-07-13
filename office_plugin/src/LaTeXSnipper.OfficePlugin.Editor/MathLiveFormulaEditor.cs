@@ -49,24 +49,6 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return Task.FromResult<FormulaMetadata?>(null);
     }
 
-    public Task<bool> UpdateDraftIfOpenAsync(FormulaMetadata draft, bool updateMode, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_activeForm == null || _activeForm.IsDisposed || !_activeForm.Visible)
-        {
-            return Task.FromResult(false);
-        }
-
-        RecreateForm();
-        MathLiveFormulaEditorForm form = GetOrCreateForm();
-        form.Configure(draft, updateMode);
-        form.CaptureInputLanguage();
-        form.Show();
-        form.Activate();
-        return Task.FromResult(true);
-    }
-
     private MathLiveFormulaEditorForm GetOrCreateForm()
     {
         if (_activeForm != null && !_activeForm.IsDisposed)

@@ -9,5 +9,4 @@ public interface IFormulaEditor : System.IDisposable
 
     Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken);
 
-    Task<bool> UpdateDraftIfOpenAsync(FormulaMetadata draft, bool updateMode, CancellationToken cancellationToken);
 }

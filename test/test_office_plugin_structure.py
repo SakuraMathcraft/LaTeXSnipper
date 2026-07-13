@@ -782,7 +782,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "FontScale = 1.2" not in controller
     assert "_pendingEditorInsertOptions" in controller
     assert "ShowSettingsAsync" in controller
-    assert "UpdateDraftIfOpenAsync" in controller
+    assert "UpdateDraftIfOpenAsync" not in controller
     assert "SemaphoreSlim _commandGate" in controller
     assert "TryRunCommandAsync" in controller
     assert "TryAcceptEditorFormulaAsync" in controller
@@ -1635,6 +1635,38 @@ def test_powerpoint_uses_one_initial_scale_for_ole_and_png() -> None:
     assert "private const double InitialFormulaScale = 2.5;" in controller
     assert controller.count("FontScale = InitialFormulaScale * metadata.FontScale") == 2
     assert "FontScale = 3.0" not in controller
+
+
+def test_ocr_and_powerpoint_editing_are_independent_from_editor_selection() -> None:
+    abstractions = PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions"
+    editor_root = PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Editor"
+    word_controller = (PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs").read_text(encoding="utf-8")
+    power_point_root = PLUGIN / "hosts" / "PowerPointAddIn"
+    power_point_controller = (power_point_root / "PowerPointPluginController.cs").read_text(encoding="utf-8")
+    power_point_adapter = (power_point_root / "DynamicPowerPointApplicationAdapter.cs").read_text(encoding="utf-8")
+    power_point_adapter_interface = (power_point_root / "IPowerPointApplicationAdapter.cs").read_text(encoding="utf-8")
+
+    for source in (
+        (abstractions / "IFormulaEditor.cs").read_text(encoding="utf-8"),
+        (editor_root / "FormulaEditorSession.cs").read_text(encoding="utf-8"),
+        (editor_root / "MathLiveFormulaEditor.cs").read_text(encoding="utf-8"),
+        word_controller,
+        power_point_controller,
+    ):
+        assert "UpdateDraftIfOpenAsync" not in source
+
+    assert "OpenForInsertAsync(CancellationToken cancellationToken)" not in (
+        editor_root / "FormulaEditorSession.cs"
+    ).read_text(encoding="utf-8")
+    assert "_currentFormula" not in word_controller
+    assert "UpdateFormulaImageByIdAsync" in power_point_controller
+    assert "UpdateOleFormulaObjectByIdAsync" in power_point_controller
+    assert "DeleteSelectedFormulaAsync" not in power_point_controller
+    assert "DeleteSelectedFormulaAsync" not in power_point_adapter
+    assert "DeleteSelectedFormulaAsync" not in power_point_adapter_interface
+    assert "FindFormulaShapeById(equationId)" in power_point_adapter
+    assert "dynamic slide = shape.Parent;" in power_point_adapter
+    assert "_loadedShape" not in power_point_controller
 
 
 def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
