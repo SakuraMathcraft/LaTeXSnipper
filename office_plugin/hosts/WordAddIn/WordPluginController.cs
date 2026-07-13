@@ -202,7 +202,7 @@ public sealed partial class WordPluginController : IDisposable
             if (IsSameRenderedFormula(accepted.InitialFormula, metadata))
             {
                 _pendingEditorInsertOptions = null;
-                ResetDraftState(resetOptions: true);
+                _optionsProvider.ResetFormulaDraft();
                 _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("UnchangedStatus"));
                 await _wordAdapter.ActivateForEditingAsync(cancellationToken);
                 return;
@@ -216,7 +216,10 @@ public sealed partial class WordPluginController : IDisposable
         }
 
         _pendingEditorInsertOptions = null;
-        ResetDraftState(resetOptions: accepted.UpdateMode);
+        if (accepted.UpdateMode)
+        {
+            _optionsProvider.ResetFormulaDraft();
+        }
         await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
@@ -315,7 +318,6 @@ public sealed partial class WordPluginController : IDisposable
             NumberingMode.Automatic,
             string.Empty);
         await UpdateRenderedFormulaAsync(numbered, cancellationToken);
-        ResetDraftState(resetOptions: false);
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("AutoNumberedStatus"));
     }
 
@@ -661,14 +663,6 @@ public sealed partial class WordPluginController : IDisposable
         return renderEngine == RenderEngineKind.MathJaxSvg
             ? FormulaInsertionBackend.Ole
             : FormulaInsertionBackend.WordOmml;
-    }
-
-    private void ResetDraftState(bool resetOptions)
-    {
-        if (resetOptions)
-        {
-            _optionsProvider.ResetFormulaDraft();
-        }
     }
 
     public void Dispose()

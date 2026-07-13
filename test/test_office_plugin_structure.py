@@ -791,7 +791,6 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "OpenEditorAsync" not in controller
     assert "OfficePluginHelp.Open" in controller
     assert "RenumberAutomaticFormulasAsync" in controller
-    assert "ResetDraftState" in controller
     assert "ApplyFormulaMetadata(metadata" not in controller
     accept_editor_method = controller.split(
         "public async Task AcceptEditorFormulaAsync",
@@ -802,13 +801,13 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
         1,
     )[0]
     assert "_statusSink.SetCurrentFormula(" not in accept_editor_method
-    assert "ResetDraftState(resetOptions: accepted.UpdateMode)" in accept_editor_method
+    assert "_optionsProvider.ResetFormulaDraft();" in accept_editor_method
     assert "_optionsProvider.ApplyFormulaMetadata(selected, updateMode: true)" in load_selected_method
     assert "_statusSink.SetCurrentFormula(selected.Latex, updateMode: true)" in load_selected_method
     assert "e^{i\\\\pi}+1=0" in controller
     open_editor_method = controller.split("private async Task OpenEditorForInsertAsync", 1)[1].split("private async Task InsertAndRenumberIfNeededAsync", 1)[0]
     assert "CreateDefaultLatex" not in open_editor_method
-    assert "string.Empty" in controller.split("private static FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static FormulaMetadata CreateDefaultFormula", 1)[0]
+    assert "string.Empty" in controller.split("private static FormulaMetadata CreateEditorDraftFromOptions", 1)[1].split("private static string CreateDefaultLatex", 1)[0]
     omml_builder = (host_root / "WordOmmlDocumentBuilder.cs").read_text(encoding="utf-8")
     assert "BuildFlatOpcDocument(string omml, FormulaMetadata metadata" in omml_builder
     assert "ExtractEquationOmml" in omml_builder
