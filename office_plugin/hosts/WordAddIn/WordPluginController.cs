@@ -234,6 +234,17 @@ public sealed partial class WordPluginController : IDisposable
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("LoadedStatus"));
     }
 
+    public async Task TryLoadSelectedFromDoubleClickAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await LoadSelectedAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     public async Task DeleteSelectedAsync(CancellationToken cancellationToken)
     {
         using (_wordAdapter.BeginUndoRecord())

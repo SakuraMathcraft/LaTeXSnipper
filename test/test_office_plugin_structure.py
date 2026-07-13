@@ -1178,9 +1178,12 @@ def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "tools" / "OfficeVstoRegistration.ps1").exists()
 
 
-def test_ole_objects_are_registered_as_static_display_objects() -> None:
+def test_ole_objects_expose_the_formula_edit_verb() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
+    presentation_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "Presentation.cpp").read_text(encoding="utf-8")
+    payload_text = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "OleFormulaPayloadJson.cs").read_text(encoding="utf-8")
+    double_click_text = (PLUGIN / "hosts" / "OfficeVstoShared" / "FormulaDoubleClickWindow.cs").read_text(encoding="utf-8")
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
     word_adapter_text = read_word_adapter_sources()
 
@@ -1191,13 +1194,20 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
-    assert "OLEMISC_STATIC" in native_text
+    assert "OLEMISC_STATIC" not in native_text
     assert "OLEMISC_NOUIACTIVATE" in native_text
     assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
-    assert "STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)" in native_text
-    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return S_OK;" in native_text
-    assert "*enumOleVerb = nullptr;" in native_text
+    assert "RegisterWindowMessageW(kOleActivationMessage)" in native_text
+    assert "PostMessageW(target, message, 0, 0)" in native_text
+    assert "new (std::nothrow) OleVerbEnumerator()" in native_text
+    assert 'RemoveJsonProperty(&sanitized, L"documentId")' in presentation_text
+    assert 'RemoveJsonProperty(&sanitized, L"equationId")' in presentation_text
+    assert '["documentId"]' not in payload_text
+    assert '["equationId"]' not in payload_text
+    assert "WmImageActivation" in double_click_text
+    assert "oleActivationMessage" in double_click_text
+    assert "DuplicateWindowMilliseconds" in double_click_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text

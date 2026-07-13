@@ -8,11 +8,77 @@
 
 #include <atlconv.h>
 #include <comdef.h>
+#include <cstring>
 #include <new>
 #include <vector>
 
 namespace
 {
+constexpr wchar_t kOleActivationMessage[] = L"LaTeXSnipper.OfficePlugin.OleFormulaActivate";
+
+class OleVerbEnumerator final : public IEnumOLEVERB
+{
+public:
+    STDMETHOD(QueryInterface)(REFIID iid, void** object) override
+    {
+        if (object == nullptr) return E_POINTER;
+        *object = nullptr;
+        if (iid != IID_IUnknown && iid != IID_IEnumOLEVERB) return E_NOINTERFACE;
+        *object = static_cast<IEnumOLEVERB*>(this);
+        AddRef();
+        return S_OK;
+    }
+
+    STDMETHOD_(ULONG, AddRef)() override { return static_cast<ULONG>(InterlockedIncrement(&refCount_)); }
+    STDMETHOD_(ULONG, Release)() override
+    {
+        ULONG count = static_cast<ULONG>(InterlockedDecrement(&refCount_));
+        if (count == 0) delete this;
+        return count;
+    }
+
+    STDMETHOD(Next)(ULONG count, LPOLEVERB verbs, ULONG* fetched) override
+    {
+        if (verbs == nullptr || (count != 1 && fetched == nullptr)) return E_POINTER;
+        if (fetched != nullptr) *fetched = 0;
+        if (index_ != 0 || count == 0) return S_FALSE;
+        constexpr wchar_t name[] = L"Edit Formula";
+        verbs[0] = {};
+        verbs[0].lVerb = OLEIVERB_PRIMARY;
+        verbs[0].fuFlags = 0;
+        verbs[0].grfAttribs = OLEVERBATTRIB_ONCONTAINERMENU;
+        verbs[0].lpszVerbName = static_cast<LPOLESTR>(CoTaskMemAlloc(sizeof(name)));
+        if (verbs[0].lpszVerbName == nullptr) return E_OUTOFMEMORY;
+        memcpy(verbs[0].lpszVerbName, name, sizeof(name));
+        index_ = 1;
+        if (fetched != nullptr) *fetched = 1;
+        return count == 1 ? S_OK : S_FALSE;
+    }
+
+    STDMETHOD(Skip)(ULONG count) override
+    {
+        if (count == 0) return S_OK;
+        if (index_ != 0) return S_FALSE;
+        index_ = 1;
+        return count == 1 ? S_OK : S_FALSE;
+    }
+
+    STDMETHOD(Reset)() override { index_ = 0; return S_OK; }
+    STDMETHOD(Clone)(IEnumOLEVERB** enumerator) override
+    {
+        if (enumerator == nullptr) return E_POINTER;
+        OleVerbEnumerator* clone = new (std::nothrow) OleVerbEnumerator();
+        if (clone == nullptr) return E_OUTOFMEMORY;
+        clone->index_ = index_;
+        *enumerator = clone;
+        return S_OK;
+    }
+
+private:
+    volatile LONG refCount_ = 1;
+    ULONG index_ = 0;
+};
+
 volatile LONG g_objectCount = 0;
 volatile LONG g_lockCount = 0;
 
@@ -274,10 +340,27 @@ STDMETHODIMP FormulaOleObject::GetClipboardData(DWORD, IDataObject** dataObject)
     return QueryInterface(IID_IDataObject, reinterpret_cast<void**>(dataObject));
 }
 
-STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)
+STDMETHODIMP FormulaOleObject::DoVerb(LONG verb, LPMSG, IOleClientSite* activeSite, LONG, HWND parentWindow, LPCRECT)
 {
     WriteNativeOleLog(L"FormulaOleObject DoVerb.");
-    return S_OK;
+    if (verb != OLEIVERB_PRIMARY && verb != OLEIVERB_OPEN && verb != OLEIVERB_SHOW)
+    {
+        return OLEOBJ_E_INVALIDVERB;
+    }
+
+    if (activeSite != nullptr)
+    {
+        clientSite_ = activeSite;
+    }
+
+    UINT message = RegisterWindowMessageW(kOleActivationMessage);
+    HWND target = parentWindow == nullptr ? GetForegroundWindow() : GetAncestor(parentWindow, GA_ROOT);
+    if (message == 0 || target == nullptr)
+    {
+        return E_FAIL;
+    }
+
+    return PostMessageW(target, message, 0, 0) ? S_OK : HRESULT_FROM_WIN32(GetLastError());
 }
 
 STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
@@ -287,8 +370,8 @@ STDMETHODIMP FormulaOleObject::EnumVerbs(IEnumOLEVERB** enumOleVerb)
         return E_POINTER;
     }
 
-    *enumOleVerb = nullptr;
-    return OLEOBJ_E_NOVERBS;
+    *enumOleVerb = new (std::nothrow) OleVerbEnumerator();
+    return *enumOleVerb == nullptr ? E_OUTOFMEMORY : S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::Update()
@@ -418,8 +501,7 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_STATIC
-        | OLEMISC_CANTLINKINSIDE
+    *status = OLEMISC_CANTLINKINSIDE
         | OLEMISC_RENDERINGISDEVICEINDEPENDENT
         | OLEMISC_NOUIACTIVATE
         | OLEMISC_IGNOREACTIVATEWHENVISIBLE

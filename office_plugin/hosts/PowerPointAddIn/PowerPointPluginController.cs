@@ -237,6 +237,17 @@ public sealed partial class PowerPointPluginController : IDisposable
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("LoadedStatus"));
     }
 
+    public async Task TryLoadSelectedFromDoubleClickAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await LoadSelectedAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     public void CancelEditorFormula()
     {
         _editorTarget = null;

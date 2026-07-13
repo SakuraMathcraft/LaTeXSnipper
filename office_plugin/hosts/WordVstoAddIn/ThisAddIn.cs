@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Office.Core;
 using LaTeXSnipper.OfficePlugin.WordAddIn;
+using LaTeXSnipper.OfficePlugin.VstoShared;
 
 namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
 {
@@ -11,6 +12,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private WordPluginController? controller;
         private WordRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
+        private FormulaDoubleClickWindow? formulaDoubleClickWindow;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -34,6 +36,9 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowSelectionChange += OnWindowSelectionChange;
+                formulaDoubleClickWindow = new FormulaDoubleClickWindow(
+                    new IntPtr(Convert.ToInt32(((dynamic)Application).ActiveWindow.Hwnd)),
+                    () => ribbonCallbacks?.OnFormulaDoubleClick());
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
         }
@@ -41,6 +46,8 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowSelectionChange -= OnWindowSelectionChange;
+            formulaDoubleClickWindow?.Dispose();
+            formulaDoubleClickWindow = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();

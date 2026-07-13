@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Office.Core;
 using LaTeXSnipper.OfficePlugin.PowerPointAddIn;
+using LaTeXSnipper.OfficePlugin.VstoShared;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
@@ -12,6 +13,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private PowerPointPluginController? controller;
         private PowerPointRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
+        private FormulaDoubleClickWindow? formulaDoubleClickWindow;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -35,6 +37,9 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
+                formulaDoubleClickWindow = new FormulaDoubleClickWindow(
+                    new IntPtr(Application.HWND),
+                    () => ribbonCallbacks?.OnFormulaDoubleClick());
                 InitializeActiveStatusPane();
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
@@ -43,6 +48,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowActivate -= OnWindowActivate;
+            formulaDoubleClickWindow?.Dispose();
+            formulaDoubleClickWindow = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();

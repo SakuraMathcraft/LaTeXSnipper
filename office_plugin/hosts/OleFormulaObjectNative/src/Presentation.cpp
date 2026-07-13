@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cwctype>
 #include <cstdlib>
 #include <shlwapi.h>
 
@@ -160,6 +161,45 @@ double ExtractJsonNumber(const std::wstring& json, const std::wstring& propertyN
     return end == text.c_str() ? 0 : value;
 }
 
+void RemoveJsonProperty(std::wstring* json, const std::wstring& propertyName)
+{
+    const std::wstring marker = L"\"" + propertyName + L"\"";
+    size_t property = json->find(marker);
+    if (property == std::wstring::npos)
+    {
+        return;
+    }
+
+    size_t colon = json->find(L':', property + marker.size());
+    size_t valueStart = colon == std::wstring::npos ? std::wstring::npos : json->find(L'"', colon + 1);
+    size_t valueEnd = valueStart == std::wstring::npos ? std::wstring::npos : json->find(L'"', valueStart + 1);
+    if (valueEnd == std::wstring::npos)
+    {
+        return;
+    }
+
+    size_t next = valueEnd + 1;
+    while (next < json->size() && iswspace((*json)[next])) ++next;
+    if (next < json->size() && (*json)[next] == L',')
+    {
+        json->erase(property, next - property + 1);
+        return;
+    }
+
+    size_t previous = property;
+    while (previous > 0 && iswspace((*json)[previous - 1])) --previous;
+    if (previous > 0 && (*json)[previous - 1] == L',') --previous;
+    json->erase(previous, valueEnd - previous + 1);
+}
+
+std::wstring SanitizePayloadIdentity(const std::wstring& payloadJson)
+{
+    std::wstring sanitized = payloadJson;
+    RemoveJsonProperty(&sanitized, L"documentId");
+    RemoveJsonProperty(&sanitized, L"equationId");
+    return sanitized;
+}
+
 int DecodeBase64Char(wchar_t ch)
 {
     if (ch >= L'A' && ch <= L'Z')
@@ -270,14 +310,15 @@ FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex)
 
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson)
 {
-    std::wstring latex = ExtractJsonString(payloadJson, L"latex");
+    std::wstring sanitizedPayload = SanitizePayloadIdentity(payloadJson);
+    std::wstring latex = ExtractJsonString(sanitizedPayload, L"latex");
     FormulaPresentation presentation{};
     presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
-    presentation.payloadJson = payloadJson;
+    presentation.payloadJson = sanitizedPayload;
     presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
-    ApplyPayloadSize(payloadJson, &presentation);
+    ApplyPayloadSize(sanitizedPayload, &presentation);
 
-    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
+    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(sanitizedPayload, L"presentationPayloadBase64"));
     if (!payloadPresentation.empty())
     {
         presentation.enhancedMetafile = std::move(payloadPresentation);
@@ -285,20 +326,21 @@ FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJso
     }
 
     FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
-    placeholder.payloadJson = payloadJson;
+    placeholder.payloadJson = sanitizedPayload;
     return placeholder;
 }
 
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson)
 {
-    std::wstring latex = ExtractJsonString(payloadJson, L"latex");
+    std::wstring sanitizedPayload = SanitizePayloadIdentity(payloadJson);
+    std::wstring latex = ExtractJsonString(sanitizedPayload, L"latex");
     FormulaPresentation presentation{};
     presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
-    presentation.payloadJson = payloadJson;
+    presentation.payloadJson = sanitizedPayload;
     presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
-    ApplyPayloadSize(payloadJson, &presentation);
+    ApplyPayloadSize(sanitizedPayload, &presentation);
 
-    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
+    std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(sanitizedPayload, L"presentationPayloadBase64"));
     if (!payloadPresentation.empty())
     {
         presentation.enhancedMetafile = std::move(payloadPresentation);
@@ -306,7 +348,7 @@ FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wst
     }
 
     FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
-    placeholder.payloadJson = payloadJson;
+    placeholder.payloadJson = sanitizedPayload;
     return placeholder;
 }
 
