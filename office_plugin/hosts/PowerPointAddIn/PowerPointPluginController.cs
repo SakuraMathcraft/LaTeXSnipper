@@ -292,8 +292,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             return;
         }
 
-        FormulaMetadata recognized = CreateMetadata(latex, previous: null);
-        _statusSink.SetCurrentFormula(recognized.Latex, updateMode: false);
+        _statusSink.SetCurrentFormula(latex, updateMode: false);
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("OcrLoadedStatus"));
     }
 
@@ -420,10 +419,9 @@ public sealed partial class PowerPointPluginController : IDisposable
             && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
     }
 
-    private PowerPointFormulaEditTarget GetEditorTarget(FormulaMetadata? initialFormula)
+    private PowerPointFormulaEditTarget GetEditorTarget(FormulaMetadata initialFormula)
     {
         if (_editorTarget == null
-            || initialFormula == null
             || !string.Equals(
                 _editorTarget.Metadata.Identity.EquationId,
                 initialFormula.Identity.EquationId,

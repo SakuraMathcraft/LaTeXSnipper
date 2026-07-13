@@ -127,13 +127,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 _ = GetPane(window);
             }
 
-            public PowerPointFormulaOptions GetFormulaOptions()
-            {
-                return TryGetActivePane(out PaneEntry entry)
-                    ? entry.Control.GetFormulaOptions()
-                    : new PowerPointFormulaOptions();
-            }
-
             public void ResetFormulaDraft()
             {
                 if (TryGetActivePane(out PaneEntry entry))

@@ -10,11 +10,6 @@ public sealed class DefaultPowerPointFormulaOptionsProvider : IPowerPointFormula
 
     public string CurrentLatex => string.Empty;
 
-    public PowerPointFormulaOptions GetFormulaOptions()
-    {
-        return new PowerPointFormulaOptions();
-    }
-
     public void ResetFormulaDraft()
     {
     }

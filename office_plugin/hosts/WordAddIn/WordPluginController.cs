@@ -189,7 +189,7 @@ public sealed partial class WordPluginController : IDisposable
             throw new ArgumentNullException(nameof(accepted));
         }
 
-        FormulaIdentity identity = accepted.UpdateMode && accepted.InitialFormula != null
+        FormulaIdentity identity = accepted.UpdateMode
             ? accepted.InitialFormula.Identity
             : new FormulaIdentity("active-document", Guid.NewGuid().ToString("N"));
         FormulaMetadata? previous = accepted.UpdateMode ? accepted.InitialFormula : null;
@@ -197,7 +197,7 @@ public sealed partial class WordPluginController : IDisposable
             ? CreateMetadataFromDraft(identity, accepted.Latex, previous)
             : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
 
-        if (accepted.UpdateMode && accepted.InitialFormula != null)
+        if (accepted.UpdateMode)
         {
             if (IsSameRenderedFormula(accepted.InitialFormula, metadata))
             {

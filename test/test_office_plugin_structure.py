@@ -843,12 +843,10 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "_options.Icon" in shared_editor_form
     assert "FormulaSubmitting" in shared_editor
     assert "FormulaAccepted" not in shared_editor
-    assert "RecreateForm()" in shared_editor
     assert "e.Cancel = true" not in shared_editor_form
     assert "\n            Hide();" not in shared_editor_form
     assert "CloseOnCommit" not in shared_editor_form
     assert "CloseOnCommit" not in shared_editor
-    assert "form.DisposeForShutdown()" in shared_editor
     assert "SetSubmittingAsync(true)" in shared_editor_form
     assert "SetSubmittingAsync(false)" in shared_editor_form
     assert "TrySetSubmittingAsync(false)" in shared_editor_form
@@ -1369,10 +1367,14 @@ def test_editor_and_mathjax_are_preheated_and_reused() -> None:
     assert "return _editor.WarmUpAsync(cancellationToken);" in editor_session
     assert "public Task WarmUpAsync(CancellationToken cancellationToken)" in editor
     assert "return GetOrCreateForm().WarmUpAsync();" in editor
+    open_method = editor.split("public Task OpenAsync", 1)[1].split("private MathLiveFormulaEditorForm GetOrCreateForm", 1)[0]
+    assert "MathLiveFormulaEditorForm form = GetOrCreateForm();" in open_method
+    assert "form.Configure(initialFormula, updateMode);" in open_method
     assert "DisposeForShutdown" in editor
     assert "_activeForm = null;" in editor
     assert "public Task WarmUpAsync()" in editor_form
     assert "_warmUpTask ??= InitializeAsync();" in editor_form
+    assert "public void Configure(FormulaMetadata initialFormula, bool updateMode)" in editor_form
     assert "e.Cancel = true;" not in editor_form
     assert "\n            Hide();" not in editor_form
     assert "Hide();" in editor_form
