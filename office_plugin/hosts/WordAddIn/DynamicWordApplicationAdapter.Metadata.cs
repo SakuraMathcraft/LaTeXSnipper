@@ -32,9 +32,14 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic shape = formulaObject;
         if (metadata.RenderEngine == RenderEngineKind.Omml)
         {
-            double naturalFontSize = ReadManagedEquationFontSize(formulaObject);
-            WordFormulaMetadataStore.SaveOmml(shape, metadata, naturalFontSize);
-            FormulaMetadata stored = WordFormulaMetadataStore.LoadOmml(shape);
+            string tag = WordFormulaMetadataStore.Save(
+                CurrentDocument,
+                metadata);
+            shape.Tag = tag;
+            TryCom(() => shape.Title = "LaTeXSnipper Equation");
+            FormulaMetadata stored = WordFormulaMetadataStore.Load(
+                CurrentDocument,
+                Convert.ToString(shape.Tag) ?? string.Empty);
             if (!string.Equals(
                     stored.Identity.EquationId,
                     metadata.Identity.EquationId,
@@ -47,15 +52,16 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                shape,
+                CurrentDocument,
+                ReadFormulaObjectTag(shape),
                 out double naturalWidth,
                 out double naturalHeight))
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
 
-        WordFormulaMetadataStore.SaveOle(
-            shape,
+        shape.AlternativeText = WordFormulaMetadataStore.Save(
+            CurrentDocument,
             metadata,
             naturalWidth,
             naturalHeight);
@@ -66,9 +72,9 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId,
         RenderEngineKind actualRenderEngine)
     {
-        FormulaMetadata metadata = actualRenderEngine == RenderEngineKind.Omml
-            ? WordFormulaMetadataStore.LoadOmml(control)
-            : WordFormulaMetadataStore.LoadOle(control);
+        FormulaMetadata metadata = WordFormulaMetadataStore.Load(
+            CurrentDocument,
+            ReadFormulaObjectTag(control));
         if (!string.Equals(metadata.Identity.EquationId, equationId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
@@ -80,6 +86,18 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return metadata;
+    }
+
+    private static string ReadFormulaObjectTag(dynamic formulaObject)
+    {
+        try
+        {
+            return Convert.ToString(formulaObject.AlternativeText) ?? string.Empty;
+        }
+        catch
+        {
+            return Convert.ToString(formulaObject.Tag) ?? string.Empty;
+        }
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)

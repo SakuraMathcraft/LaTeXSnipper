@@ -58,7 +58,7 @@ HRESULT SavePresentationToStorage(IStorage* storage, const FormulaPresentation& 
         return E_POINTER;
     }
 
-    if (!IsCurrentFormulaPayload(presentation.payloadJson))
+    if (!IsSupportedFormulaPayload(presentation.payloadJson))
     {
         return STG_E_INVALIDHEADER;
     }
@@ -104,7 +104,7 @@ HRESULT LoadPresentationFromStorage(IStorage* storage, FormulaPresentation* pres
         payload.pop_back();
     }
 
-    if (!IsCurrentFormulaPayload(payload))
+    if (!IsSupportedFormulaPayload(payload))
     {
         return STG_E_INVALIDHEADER;
     }

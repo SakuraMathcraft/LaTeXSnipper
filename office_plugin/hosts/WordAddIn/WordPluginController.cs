@@ -128,10 +128,7 @@ public sealed partial class WordPluginController : IDisposable
             if (!acceptedCommand)
             {
                 string busyMessage = WordAddInText.Get("WorkingStatus");
-                if (IsCurrentEditorSubmission(accepted))
-                {
-                    _statusSink.Post(WordStatusKind.Info, busyMessage);
-                }
+                _statusSink.Post(WordStatusKind.Info, busyMessage);
                 return FormulaEditorSubmissionResult.Rejected(busyMessage);
             }
 
@@ -140,18 +137,12 @@ public sealed partial class WordPluginController : IDisposable
         catch (OperationCanceledException)
         {
             string message = WordAddInText.Get("CommandTimeoutStatus");
-            if (IsCurrentEditorSubmission(accepted))
-            {
-                _statusSink.Post(WordStatusKind.Error, message);
-            }
+            _statusSink.Post(WordStatusKind.Error, message);
             return FormulaEditorSubmissionResult.Rejected(message);
         }
         catch (Exception exc)
         {
-            if (IsCurrentEditorSubmission(accepted))
-            {
-                _statusSink.Post(WordStatusKind.Error, exc.Message);
-            }
+            _statusSink.Post(WordStatusKind.Error, exc.Message);
             return FormulaEditorSubmissionResult.Rejected(exc.Message);
         }
     }
@@ -216,12 +207,9 @@ public sealed partial class WordPluginController : IDisposable
             if (IsSameRenderedFormula(accepted.InitialFormula, metadata))
             {
                 _pendingEditorInsertOptions = null;
-                if (IsCurrentEditorSubmission(accepted, target))
-                {
-                    _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("UnchangedStatus"));
-                    CompleteEditorSession(accepted.SessionGeneration, target);
-                    await _wordAdapter.ActivateFormulaEditTargetAsync(target!, cancellationToken);
-                }
+                CompleteEditorSession(accepted.SessionGeneration, target);
+                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("UnchangedStatus"));
+                await _wordAdapter.ActivateForEditingAsync(cancellationToken);
                 return;
             }
 
@@ -233,7 +221,7 @@ public sealed partial class WordPluginController : IDisposable
         }
 
         _pendingEditorInsertOptions = null;
-        if (IsCurrentEditorSubmission(accepted, target))
+        if (_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
         {
             string statusKey = accepted.UpdateMode
                 ? "UpdatedStatus"
@@ -243,16 +231,10 @@ public sealed partial class WordPluginController : IDisposable
             _statusSink.Post(
                 WordStatusKind.Success,
                 WordAddInText.Get(statusKey));
-            CompleteEditorSession(accepted.SessionGeneration, target);
-            if (target == null)
-            {
-                await _wordAdapter.ActivateForEditingAsync(cancellationToken);
-            }
-            else
-            {
-                await _wordAdapter.ActivateFormulaEditTargetAsync(target, cancellationToken);
-            }
         }
+
+        CompleteEditorSession(accepted.SessionGeneration, target);
+        await _wordAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
@@ -260,28 +242,6 @@ public sealed partial class WordPluginController : IDisposable
         ThrowIfDisposed();
         WordFormulaEditTarget target = await _wordAdapter.LoadSelectedFormulaTargetAsync(cancellationToken);
         await SwitchEditorTargetAsync(target, cancellationToken);
-    }
-
-    public bool HandleWindowBeforeDoubleClick(object document, object window, object selection)
-    {
-        ThrowIfDisposed();
-        WordFormulaEditTarget? target;
-        try
-        {
-            target = _wordAdapter.TryCaptureOleFormulaEditTarget(document, window, selection);
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-
-        if (target == null || !_wordAdapter.IsFormulaEditTargetValid(target))
-        {
-            return false;
-        }
-
-        _ = SwitchEditorTargetWithErrorHandlingAsync(target);
-        return true;
     }
 
     public void CancelEditorFormula(long sessionGeneration)
@@ -449,7 +409,6 @@ public sealed partial class WordPluginController : IDisposable
             metadata,
             includeEquationOoxml: true,
             cancellationToken,
-            oleBaseFontPoints: target?.FontSizePoints,
             reportProgress: reportStatus);
         using (_wordAdapter.BeginUndoRecord())
         {
@@ -462,7 +421,6 @@ public sealed partial class WordPluginController : IDisposable
         bool includeEquationOoxml,
         CancellationToken cancellationToken,
         FormulaInsertionBackend? backendOverride = null,
-        double? oleBaseFontPoints = null,
         bool reportProgress = true)
     {
         WordPluginSettings settings = WordPluginSettings.Load();
@@ -479,11 +437,7 @@ public sealed partial class WordPluginController : IDisposable
             }
 
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
-            OlePresentationResult presentation = await RenderOlePresentationAsync(
-                oleMetadata,
-                renderedLatex,
-                oleBaseFontPoints,
-                cancellationToken);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, renderedLatex, cancellationToken);
             return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null, null);
         }
 
@@ -587,12 +541,11 @@ public sealed partial class WordPluginController : IDisposable
     private async Task<OlePresentationResult> RenderOlePresentationAsync(
         FormulaMetadata metadata,
         string renderedLatex,
-        double? baseFontPoints,
         CancellationToken cancellationToken)
     {
         var request = new RenderRequest(renderedLatex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
         {
-            FontScale = GetOleFontScale(baseFontPoints) * metadata.FontScale
+            FontScale = GetOleFontScale() * metadata.FontScale
         };
         RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
@@ -600,16 +553,19 @@ public sealed partial class WordPluginController : IDisposable
             cancellationToken);
     }
 
-    private double GetOleFontScale(double? baseFontPoints)
+    private double GetOleFontScale()
     {
-        double fontSize = baseFontPoints ?? _wordAdapter.GetCurrentFontSizePoints();
+        double fontSize = _wordAdapter.GetCurrentFontSizePoints();
         double scale = fontSize / OleBaseFontPoints;
         return Math.Max(MinimumOleFontScale, Math.Min(MaximumOleFontScale, scale));
     }
 
     private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
     {
-        RestoreCurrentFormulaPreview();
+        if (_editorTarget != null)
+        {
+            _optionsProvider.ResetFormulaDraft();
+        }
         _editorTarget = null;
         _pendingEditorInsertOptions = options;
         FormulaMetadata draft = CreateEditorDraftFromOptions(options);
@@ -636,34 +592,6 @@ public sealed partial class WordPluginController : IDisposable
         return _editorTarget;
     }
 
-    private bool IsCurrentEditorSubmission(
-        FormulaEditorAcceptedEventArgs accepted,
-        WordFormulaEditTarget? target = null)
-    {
-        if (accepted == null
-            || _editorTargetGeneration != accepted.SessionGeneration
-            || !_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
-        {
-            return false;
-        }
-
-        return accepted.UpdateMode
-            ? target == null || ReferenceEquals(_editorTarget, target)
-            : _editorTarget == null;
-    }
-
-    private async Task SwitchEditorTargetWithErrorHandlingAsync(WordFormulaEditTarget target)
-    {
-        try
-        {
-            await SwitchEditorTargetAsync(target, CancellationToken.None).ConfigureAwait(true);
-        }
-        catch (Exception exc)
-        {
-            _statusSink.Post(WordStatusKind.Error, exc.Message);
-        }
-    }
-
     private async Task SwitchEditorTargetAsync(
         WordFormulaEditTarget target,
         CancellationToken cancellationToken)
@@ -678,10 +606,9 @@ public sealed partial class WordPluginController : IDisposable
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        WordFormulaEditTarget? previousTarget = _editorTarget;
-        if (previousTarget != null && previousTarget.WindowHandle != target.WindowHandle)
+        if (_editorTarget != null)
         {
-            _optionsProvider.RestoreFormulaDraft(previousTarget.WindowHandle);
+            _optionsProvider.ResetFormulaDraft();
         }
 
         _editorTarget = target;
@@ -689,7 +616,7 @@ public sealed partial class WordPluginController : IDisposable
         _pendingEditorInsertOptions = null;
         try
         {
-            _optionsProvider.ShowFormulaPreview(target.WindowHandle, target.Metadata);
+            _optionsProvider.ApplyFormulaMetadata(target.Metadata, updateMode: true);
             long generation = await _editorSession.OpenForEditAsync(target.Metadata, cancellationToken).ConfigureAwait(true);
             if (!ReferenceEquals(_editorTarget, target)
                 || !_editorSession.IsCurrent(generation, target.Metadata.Identity))
@@ -706,22 +633,9 @@ public sealed partial class WordPluginController : IDisposable
                 return;
             }
 
-            _optionsProvider.RestoreFormulaDraft(target.WindowHandle);
-            _editorTarget = previousTarget;
+            _optionsProvider.ResetFormulaDraft();
+            _editorTarget = null;
             _editorTargetGeneration = 0;
-            if (previousTarget != null)
-            {
-                _optionsProvider.ShowFormulaPreview(previousTarget.WindowHandle, previousTarget.Metadata);
-                long previousGeneration = await _editorSession.OpenForEditAsync(
-                    previousTarget.Metadata,
-                    CancellationToken.None).ConfigureAwait(true);
-                if (ReferenceEquals(_editorTarget, previousTarget)
-                    && _editorSession.IsCurrent(previousGeneration, previousTarget.Metadata.Identity))
-                {
-                    _editorTargetGeneration = previousGeneration;
-                }
-            }
-
             throw;
         }
 
@@ -737,7 +651,7 @@ public sealed partial class WordPluginController : IDisposable
 
         if (target != null)
         {
-            _optionsProvider.RestoreFormulaDraft(target.WindowHandle);
+            _optionsProvider.ResetFormulaDraft();
         }
 
         if (_editorTargetGeneration == sessionGeneration)
@@ -751,7 +665,7 @@ public sealed partial class WordPluginController : IDisposable
     {
         if (_editorTarget != null)
         {
-            _optionsProvider.RestoreFormulaDraft(_editorTarget.WindowHandle);
+            _optionsProvider.ResetFormulaDraft();
         }
     }
 

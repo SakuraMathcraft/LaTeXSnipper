@@ -11,8 +11,6 @@ public interface IPowerPointApplicationAdapter
 
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
-    Task ActivateFormulaEditTargetAsync(PowerPointFormulaEditTarget target, CancellationToken cancellationToken);
-
     Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
 
     Task InsertFormulaImageOnSlideAsync(int slideIndex, PowerPointRenderedImage image, FormulaMetadata metadata, float left, float top, float scale, CancellationToken cancellationToken);
@@ -26,13 +24,6 @@ public interface IPowerPointApplicationAdapter
     Task UpdateOleFormulaObjectAsync(PowerPointFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
-
-    PowerPointFormulaEditTarget? TryCaptureFormulaEditTarget(
-        object presentation,
-        object window,
-        object selection);
-
-    bool IsFormulaEditTargetValid(PowerPointFormulaEditTarget target);
 
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
 

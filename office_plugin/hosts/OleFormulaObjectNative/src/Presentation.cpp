@@ -162,6 +162,42 @@ std::vector<BYTE> DecodeBase64(const std::wstring& value)
     return bytes;
 }
 
+bool IsValidBase64(const std::wstring& value)
+{
+    if (value.empty() || value.size() % 4 != 0)
+    {
+        return false;
+    }
+
+    size_t padding = 0;
+    if (value.back() == L'=')
+    {
+        padding++;
+    }
+    if (value.size() > 1 && value[value.size() - 2] == L'=')
+    {
+        padding++;
+    }
+
+    for (size_t index = 0; index < value.size() - padding; index++)
+    {
+        if (DecodeBase64Char(value[index]) < 0)
+        {
+            return false;
+        }
+    }
+
+    for (size_t index = value.size() - padding; index < value.size(); index++)
+    {
+        if (value[index] != L'=')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* presentation)
 {
     double widthPoints = ExtractJsonNumber(payloadJson, L"widthPoints");
@@ -174,26 +210,48 @@ void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* pres
 
 }
 
-bool IsCurrentFormulaPayload(const std::wstring& payloadJson)
+static bool HasRequiredFormulaPayloadFields(const std::wstring& payloadJson)
 {
-    return ExtractJsonString(payloadJson, L"schemaVersion") == L"2"
-        && !ExtractJsonString(payloadJson, L"latex").empty()
+    std::wstring presentationPayload = ExtractJsonString(payloadJson, L"presentationPayloadBase64");
+    return !ExtractJsonString(payloadJson, L"latex").empty()
         && !ExtractJsonString(payloadJson, L"displayMode").empty()
         && !ExtractJsonString(payloadJson, L"numberingMode").empty()
         && !ExtractJsonString(payloadJson, L"fontScale").empty()
         && !ExtractJsonString(payloadJson, L"renderEngine").empty()
+        && !ExtractJsonString(payloadJson, L"rendererVersion").empty()
         && ExtractJsonNumber(payloadJson, L"widthPoints") > 0
         && ExtractJsonNumber(payloadJson, L"heightPoints") > 0
         && !ExtractJsonString(payloadJson, L"presentationKind").empty()
         && !ExtractJsonString(payloadJson, L"presentationMimeType").empty()
-        && !ExtractJsonString(payloadJson, L"presentationPayloadBase64").empty()
-        && payloadJson.find(L"\"documentId\"") == std::wstring::npos
-        && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
+        && IsValidBase64(presentationPayload);
+}
+
+bool IsSupportedFormulaPayload(const std::wstring& payloadJson)
+{
+    if (!HasRequiredFormulaPayloadFields(payloadJson))
+    {
+        return false;
+    }
+
+    std::wstring schemaVersion = ExtractJsonString(payloadJson, L"schemaVersion");
+    if (schemaVersion == L"1")
+    {
+        return !ExtractJsonString(payloadJson, L"documentId").empty()
+            && !ExtractJsonString(payloadJson, L"equationId").empty();
+    }
+
+    if (schemaVersion == L"2")
+    {
+        return payloadJson.find(L"\"documentId\"") == std::wstring::npos
+            && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
+    }
+
+    return false;
 }
 
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson)
 {
-    if (!IsCurrentFormulaPayload(payloadJson))
+    if (!IsSupportedFormulaPayload(payloadJson))
     {
         return FormulaPresentation{};
     }
@@ -212,7 +270,7 @@ FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJso
 
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson)
 {
-    if (!IsCurrentFormulaPayload(payloadJson))
+    if (!IsSupportedFormulaPayload(payloadJson))
     {
         return FormulaPresentation{};
     }

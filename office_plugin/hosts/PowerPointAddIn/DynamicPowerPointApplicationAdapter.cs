@@ -190,24 +190,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return Task.CompletedTask;
     }
 
-    public Task ActivateFormulaEditTargetAsync(
-        PowerPointFormulaEditTarget target,
-        CancellationToken cancellationToken)
-    {
-        if (target == null)
-        {
-            throw new ArgumentNullException(nameof(target));
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        dynamic window = target.Window;
-        TryCom(() => _application.Activate());
-        TryCom(() => window.Activate());
-        TryCom(() => SetForegroundWindow(new IntPtr(target.WindowHandle)));
-        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_application.HWND))));
-        return Task.CompletedTask;
-    }
-
     public string GetCurrentDocumentId()
     {
         return PowerPointDocumentIdentityStore.GetOrCreate(_application.ActivePresentation);
@@ -271,120 +253,26 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     public Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        object presentation = _application.ActivePresentation;
-        object window = _application.ActiveWindow;
-        object selection = ((dynamic)window).Selection;
-        PowerPointFormulaEditTarget? target = TryCaptureFormulaEditTarget(presentation, window, selection);
-        return Task.FromResult(target ?? throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired")));
-    }
-
-    public PowerPointFormulaEditTarget? TryCaptureFormulaEditTarget(
-        object presentation,
-        object window,
-        object selection)
-    {
-        if (presentation == null)
-        {
-            throw new ArgumentNullException(nameof(presentation));
-        }
-
-        if (window == null)
-        {
-            throw new ArgumentNullException(nameof(window));
-        }
-
-        if (selection == null)
-        {
-            throw new ArgumentNullException(nameof(selection));
-        }
-
-        dynamic selected = selection;
-        if (Convert.ToInt32(selected.Type) != 2)
-        {
-            return null;
-        }
-
-        dynamic shapeRange = selected.ShapeRange;
-        if (Convert.ToInt32(shapeRange.Count) != 1)
-        {
-            return null;
-        }
-
-        dynamic shape = shapeRange.Item(1);
-        if (string.IsNullOrWhiteSpace(ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag)))
-        {
-            return null;
-        }
-
-        EnsureUniqueShapeIdentity(shape, presentation);
-        FormulaMetadata metadata = ReadMetadataFromShape(shape);
-        bool isOle = IsFormulaOleShape(shape);
-        if (isOle == (metadata.RenderEngine == RenderEngineKind.Image))
-        {
-            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        return new PowerPointFormulaEditTarget(
-            metadata,
-            presentation,
-            window,
-            shape,
-            Convert.ToInt32(shape.Id),
-            Convert.ToInt32(((dynamic)window).HWND),
-            isOle);
-    }
-
-    public bool IsFormulaEditTargetValid(PowerPointFormulaEditTarget target)
-    {
-        if (target == null)
-        {
-            throw new ArgumentNullException(nameof(target));
-        }
-
-        try
-        {
-            if (!string.Equals(
-                PowerPointDocumentIdentityStore.GetOrCreate(target.Presentation),
-                target.Metadata.Identity.DocumentId,
-                StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            dynamic shape = FindFormulaShapeById(target.Presentation, target.Metadata.Identity.EquationId);
-            if (CountFormulaShapesById(target.Presentation, target.Metadata.Identity.EquationId) != 1
-                || Convert.ToInt32(shape.Id) != target.ShapeId)
-            {
-                return false;
-            }
-
-            FormulaMetadata metadata = ReadMetadataFromShape(shape);
-            return IsFormulaOleShape(shape) == target.IsOle
-                && string.Equals(
-                    metadata.Identity.DocumentId,
-                    target.Metadata.Identity.DocumentId,
-                    StringComparison.Ordinal)
-                && string.Equals(
-                    metadata.Identity.EquationId,
-                    target.Metadata.Identity.EquationId,
-                    StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
+        dynamic presentation = _application.ActivePresentation;
+        dynamic shape = GetSelectedShape();
+        EnsureUniqueShapeIdentity(shape);
+        return Task.FromResult(new PowerPointFormulaEditTarget(
+            ReadMetadataFromShape(shape, PowerPointDocumentIdentityStore.GetOrCreate(presentation)),
+            presentation));
     }
 
     public Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var entries = new List<PowerPointFormulaEntry>();
+        dynamic presentation = _application.ActivePresentation;
+        string documentId = PowerPointDocumentIdentityStore.GetOrCreate(presentation);
         IReadOnlyList<object> shapes = GetSelectedFormulaShapes();
         EnsureUniqueShapeIdentities(shapes);
         foreach (object item in shapes)
         {
             dynamic shape = item;
-            entries.Add(CreateEntry(shape, Convert.ToInt32(shape.Parent.SlideIndex)));
+            entries.Add(CreateEntry(shape, Convert.ToInt32(shape.Parent.SlideIndex), documentId));
         }
 
         return Task.FromResult<IReadOnlyList<PowerPointFormulaEntry>>(entries);
@@ -555,7 +443,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         dynamic formulaShape = shape;
         string documentId = PowerPointDocumentIdentityStore.GetOrCreate(presentation);
         string equationId = ReadTag(formulaShape, PowerPointFormulaMetadataStore.EquationIdTag);
-        FormulaMetadata current = ReadMetadataFromShape(formulaShape);
+        FormulaMetadata current = ReadMetadataFromShape(formulaShape, documentId);
         if (string.Equals(current.Identity.DocumentId, documentId, StringComparison.Ordinal)
             && CountFormulaShapesById(presentation, equationId) <= 1)
         {
@@ -603,27 +491,9 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return count;
     }
 
-    private static bool IsFormulaOleShape(dynamic shape)
+    private static FormulaMetadata ReadMetadataFromShape(dynamic shape, string documentId)
     {
-        try
-        {
-            if (Convert.ToInt32(shape.Type) != 7)
-            {
-                return false;
-            }
-
-            string progId = Convert.ToString(shape.OLEFormat.ProgID) ?? string.Empty;
-            return string.Equals(progId, OleFormulaProgId, StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static FormulaMetadata ReadMetadataFromShape(dynamic shape)
-    {
-        return PowerPointFormulaMetadataStore.LoadFromShape(shape);
+        return PowerPointFormulaMetadataStore.LoadFromShape(shape, documentId);
     }
 
     private static FormulaMetadata WithNewIdentity(FormulaMetadata metadata, string documentId)
@@ -639,9 +509,9 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             metadata.FontScale);
     }
 
-    private static PowerPointFormulaEntry CreateEntry(dynamic shape, int slideIndex)
+    private static PowerPointFormulaEntry CreateEntry(dynamic shape, int slideIndex, string documentId)
     {
-        FormulaMetadata metadata = ReadMetadataFromShape(shape);
+        FormulaMetadata metadata = ReadMetadataFromShape(shape, documentId);
         float naturalWidth = ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
         return new PowerPointFormulaEntry(
             metadata,
@@ -692,8 +562,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
-        if (!IsFormulaEditTargetValid(target)
-            || !string.Equals(
+        if (!string.Equals(
                 target.Metadata.Identity.DocumentId,
                 metadata.Identity.DocumentId,
                 StringComparison.Ordinal)

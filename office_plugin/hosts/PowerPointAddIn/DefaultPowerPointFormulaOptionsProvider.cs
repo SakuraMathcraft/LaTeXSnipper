@@ -13,12 +13,4 @@ public sealed class DefaultPowerPointFormulaOptionsProvider : IPowerPointFormula
     public void ResetFormulaDraft()
     {
     }
-
-    public void ShowFormulaPreview(int windowHandle, string latex)
-    {
-    }
-
-    public void RestoreFormulaDraft(int windowHandle)
-    {
-    }
 }

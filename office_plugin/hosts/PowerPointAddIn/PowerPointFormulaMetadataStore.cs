@@ -7,6 +7,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public static class PowerPointFormulaMetadataStore
 {
+    private const int LegacySchemaVersion = 1;
     public const string EquationIdTag = "LaTeXSnipperEquationId";
     public const string DocumentIdTag = "LaTeXSnipperDocumentId";
     public const string LatexChunkCountTag = "LaTeXSnipperLatexChunks";
@@ -56,14 +57,26 @@ public static class PowerPointFormulaMetadataStore
         shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    public static FormulaMetadata LoadFromShape(dynamic shape)
+    public static FormulaMetadata LoadFromShape(dynamic shape, string currentDocumentId)
     {
-        string documentId = ReadRequiredTag(shape, DocumentIdTag);
         string equationId = ReadRequiredTag(shape, EquationIdTag);
         int schemaVersion = ReadRequiredIntTag(shape, SchemaVersionTag);
-        if (schemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        string documentId;
+        switch (schemaVersion)
         {
-            throw MetadataMissing();
+            case LegacySchemaVersion:
+                if (string.IsNullOrWhiteSpace(currentDocumentId))
+                {
+                    throw MetadataMissing();
+                }
+
+                documentId = currentDocumentId;
+                break;
+            case FormulaMetadata.CurrentSchemaVersion:
+                documentId = ReadRequiredTag(shape, DocumentIdTag);
+                break;
+            default:
+                throw MetadataMissing();
         }
 
         return new FormulaMetadata(
@@ -73,7 +86,7 @@ public static class PowerPointFormulaMetadataStore
             NumberingMode.None,
             string.Empty,
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
-            schemaVersion,
+            FormulaMetadata.CurrentSchemaVersion,
             ReadRequiredDoubleTag(shape, FontScaleTag));
     }
 

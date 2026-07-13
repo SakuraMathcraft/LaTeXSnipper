@@ -35,7 +35,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
-                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
                 InitializeActiveStatusPane();
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
@@ -44,7 +43,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowActivate -= OnWindowActivate;
-            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
@@ -54,21 +52,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)
         {
             statusPaneHost?.EnsurePane(window);
-        }
-
-        private void OnWindowBeforeDoubleClick(PowerPoint.Selection selection, ref bool cancel)
-        {
-            if (controller == null)
-            {
-                return;
-            }
-
-            PowerPoint.DocumentWindow window = Application.ActiveWindow;
-            PowerPoint.Presentation presentation = Application.ActivePresentation;
-            if (controller.HandleWindowBeforeDoubleClick(presentation, window, selection))
-            {
-                cancel = true;
-            }
         }
 
         private void InitializeActiveStatusPane()
@@ -152,19 +135,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 }
             }
 
-            public void ShowFormulaPreview(int windowHandle, string latex)
-            {
-                GetPane(windowHandle).Control.SetCurrentFormula(latex, updateMode: true);
-            }
-
-            public void RestoreFormulaDraft(int windowHandle)
-            {
-                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
-                {
-                    entry.Control.ResetFormulaDraft();
-                }
-            }
-
             public void Post(PowerPointStatusKind kind, string message)
             {
                 if (TryGetActivePane(out PaneEntry entry))
@@ -230,27 +200,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             {
                 PowerPoint.DocumentWindow window = addIn.Application.ActiveWindow;
                 return GetPane(window);
-            }
-
-            private PaneEntry GetPane(int windowHandle)
-            {
-                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
-                {
-                    return entry;
-                }
-
-                PowerPoint.DocumentWindows windows = addIn.Application.Windows;
-                int count = windows.Count;
-                for (int index = 1; index <= count; index++)
-                {
-                    PowerPoint.DocumentWindow window = windows[index];
-                    if (Convert.ToInt32(window.HWND) == windowHandle)
-                    {
-                        return GetPane(window);
-                    }
-                }
-
-                throw new InvalidOperationException("The PowerPoint window for the formula edit target is no longer open.");
             }
 
             private PaneEntry GetPane(PowerPoint.DocumentWindow window)

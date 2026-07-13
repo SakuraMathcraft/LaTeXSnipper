@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -25,6 +26,9 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private readonly dynamic _wordApplication;
     private readonly OmmlToMathMlConverter _ommlToMathMlConverter;
     private int _undoRecordDepth;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private sealed class NumberedFormulaEntry
     {
@@ -128,7 +132,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         }
     }
 
-
     public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
@@ -139,6 +142,18 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     {
         double fontSize = ReadPointSize(_wordApplication.Selection.Font.Size);
         return fontSize > 0 ? fontSize : WordOleBaseFontPoints;
+    }
+
+    public Task ActivateForEditingAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        TryCom(() => _wordApplication.Activate());
+        TryCom(() => _wordApplication.ActiveWindow.Activate());
+        TryCom(() => _wordApplication.ActiveWindow.SetFocus());
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd))));
+        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.Hwnd))));
+        ResetSelectionFormulaTextFormatting();
+        return Task.CompletedTask;
     }
 
     public IDisposable BeginUndoRecord()

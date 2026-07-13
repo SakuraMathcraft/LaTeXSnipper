@@ -34,7 +34,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowSelectionChange += OnWindowSelectionChange;
-                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
         }
@@ -42,7 +41,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             Application.WindowSelectionChange -= OnWindowSelectionChange;
-            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
@@ -52,30 +50,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private void OnWindowSelectionChange(Microsoft.Office.Interop.Word.Selection selection)
         {
             ribbonCallbacks?.OnSelectionChanged();
-        }
-
-        private void OnWindowBeforeDoubleClick(
-            Microsoft.Office.Interop.Word.Selection selection,
-            ref bool cancel)
-        {
-            if (controller == null)
-            {
-                return;
-            }
-
-            try
-            {
-                dynamic selected = selection;
-                object document = selected.Document;
-                object window = selected.Application.ActiveWindow;
-                if (controller.HandleWindowBeforeDoubleClick(document, window, selection))
-                {
-                    cancel = true;
-                }
-            }
-            catch
-            {
-            }
         }
 
         private static async System.Threading.Tasks.Task WarmUpControllerAsync(
@@ -143,19 +117,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 GetActivePane().Control.ResetFormulaDraft();
             }
 
-            public void ShowFormulaPreview(int windowHandle, LaTeXSnipper.OfficePlugin.Abstractions.FormulaMetadata metadata)
-            {
-                GetPane(windowHandle).Control.ApplyFormulaMetadata(metadata, updateMode: true);
-            }
-
-            public void RestoreFormulaDraft(int windowHandle)
-            {
-                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
-                {
-                    entry.Control.ResetFormulaDraft();
-                }
-            }
-
             public void Post(WordStatusKind kind, string message)
             {
                 GetActivePane().Control.Post(kind, message);
@@ -195,32 +156,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
             {
                 dynamic window = addIn.Application.ActiveWindow;
                 int key = Convert.ToInt32(window.Hwnd);
-                return GetPane(window, key);
-            }
-
-            private PaneEntry GetPane(int windowHandle)
-            {
-                if (panes.TryGetValue(windowHandle, out PaneEntry entry))
-                {
-                    return entry;
-                }
-
-                dynamic windows = addIn.Application.Windows;
-                int count = Convert.ToInt32(windows.Count);
-                for (int index = 1; index <= count; index++)
-                {
-                    dynamic window = windows.Item(index);
-                    if (Convert.ToInt32(window.Hwnd) == windowHandle)
-                    {
-                        return GetPane(window, windowHandle);
-                    }
-                }
-
-                throw new InvalidOperationException("The Word window for the formula edit target is no longer open.");
-            }
-
-            private PaneEntry GetPane(dynamic window, int key)
-            {
                 if (panes.TryGetValue(key, out PaneEntry entry))
                 {
                     return entry;

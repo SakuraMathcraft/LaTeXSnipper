@@ -583,9 +583,9 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "latexsnipper-eq-" in metadata_store
     assert "latexsnipper-eqn-" not in metadata_store
     assert "latexsnipper-eqm-" not in metadata_store
-    assert 'MetadataControlTag = "latexsnipper-metadata-v2"' in metadata_store
-    assert 'MetadataPayloadPrefix = "LaTeXSnipper.Metadata.v2:"' in metadata_store
-    assert "document.Variables" not in metadata_store
+    assert "MetadataVariablePrefix" in metadata_store
+    assert "BuildMetadataStorageKey" in metadata_store
+    assert 'Guid.NewGuid().ToString("N").Substring(0, 10)' in metadata_store
     assert "TryLoadEmbedded" not in metadata_store
     assert "LoadSelectedFormulaAsync" in adapter
     assert "EnsureUniqueFormulaIdentity(FindSelectedFormula())" in adapter
@@ -631,12 +631,11 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "TypeParagraph" not in adapter
     assert "CreateRangeAfterTable" not in adapter
     assert "CreateRecoveredFormulaMetadata" not in adapter
-    assert "WordFormulaMetadataStore.LoadOmml(" in adapter
-    assert "WordFormulaMetadataStore.LoadOle(" in adapter
+    assert "WordFormulaMetadataStore.Load(" in adapter
     assert "TryLoadFormulaTagMetadata" not in adapter
     assert "WordFormulaMetadataStore.Delete" not in adapter
     assert "RestoreManagedEquationControlIdentity" in adapter
-    assert "FormulaMetadata stored = WordFormulaMetadataStore.LoadOmml(" in adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load(" in adapter
     assert "LoadFormulaFromNumberControl" not in adapter
     assert "GetContainingParagraphRange(control)" in adapter
     assert "NormalizeNumberedFormulaLayout" in adapter
@@ -783,7 +782,6 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "FontScale = 1.2" not in controller
     assert "_pendingEditorInsertOptions" in controller
     assert "ShowSettingsAsync" in controller
-    assert "UpdateDraftIfOpenAsync" not in controller
     assert "SemaphoreSlim _commandGate" in controller
     assert "TryRunCommandAsync" in controller
     assert "TryAcceptEditorFormulaAsync" in controller
@@ -811,8 +809,7 @@ def test_word_addin_host_has_first_workflow_surface() -> None:
     assert "BuildEquationTag(metadata.Identity.EquationId)" in omml_builder
     assert "BuildEquationTag(equationId, metadata)" not in omml_builder
     assert "inlineMath" not in omml_builder
-    assert "BuildMetadataContentControl()" in omml_builder
-    assert "w:vanish" in omml_builder
+    assert "w:vanish" not in omml_builder
     assert "WrapNumberContentControl" not in omml_builder
     assert "BuildEquationNumberRuns" in omml_builder
     assert "if (metadata.NumberingMode == NumberingMode.Automatic)" in omml_builder
@@ -1173,13 +1170,11 @@ def test_office_plugin_keeps_only_current_module_documentation() -> None:
     assert not (PLUGIN / "tools" / "OfficeVstoRegistration.ps1").exists()
 
 
-def test_ole_objects_expose_verbs_without_owning_double_click_routing() -> None:
+def test_ole_objects_are_registered_as_static_display_objects() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
     presentation_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "Presentation.cpp").read_text(encoding="utf-8")
     payload_text = (PLUGIN / "src" / "LaTeXSnipper.OfficePlugin.Abstractions" / "OleFormulaPayloadJson.cs").read_text(encoding="utf-8")
-    word_vsto_text = (PLUGIN / "hosts" / "WordVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
-    powerpoint_vsto_text = (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "ThisAddIn.cs").read_text(encoding="utf-8")
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
     word_adapter_text = read_word_adapter_sources()
 
@@ -1187,24 +1182,20 @@ def test_ole_objects_expose_verbs_without_owning_double_click_routing() -> None:
     assert "\\Insertable" not in setup_text
     assert "OleFormulaRenderer" not in setup_text
     assert 'Source: "..\\release\\InstallerAssets\\MathJax-3.2.2\\*"' in setup_text
-    assert 'ValueData: "672272"' in setup_text
+    assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
     assert "Software\\WOW6432Node\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
-    assert "OLEMISC_STATIC" not in native_text
+    assert "OLEMISC_STATIC" in native_text
     assert "OLEMISC_NOUIACTIVATE" in native_text
     assert "OLEMISC_IGNOREACTIVATEWHENVISIBLE" in native_text
     assert "STDMETHODIMP FormulaOleObject::DoVerb" in native_text
-    assert "RegisterWindowMessageW" not in native_text
-    assert "PostMessageW" not in native_text
-    assert "OLEOBJ_S_CANNOT_DOVERB_NOW" in native_text
-    assert "return FALSE;" in native_text
-    assert "new (std::nothrow) OleVerbEnumerator()" in native_text
-    assert "IsCurrentFormulaPayload" in presentation_text
+    assert "STDMETHODIMP FormulaOleObject::DoVerb(LONG, LPMSG, IOleClientSite*, LONG, HWND, LPCRECT)" in native_text
+    assert "WriteNativeOleLog(L\"FormulaOleObject DoVerb.\");\n    return S_OK;" in native_text
+    assert "*enumOleVerb = nullptr;" in native_text
+    assert "return TRUE;" in native_text
+    assert "IsSupportedFormulaPayload" in presentation_text
     assert '["documentId"]' not in payload_text
     assert '["equationId"]' not in payload_text
-    assert not (PLUGIN / "hosts" / "OfficeVstoShared" / "OleActivationMessageWindow.cs").exists()
-    assert "Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick" in word_vsto_text
-    assert "Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick" in powerpoint_vsto_text
     assert "HKLM:\\Software\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "HKLM:\\Software\\WOW6432Node\\Classes\\CLSID\\$OleFormulaClassId" in force_clean_text
     assert "shapeScale = Math.Max(0.05f, Math.Min(widthScale, heightScale));" in word_adapter_text
@@ -1654,7 +1645,6 @@ def test_powerpoint_edit_target_and_replacement_are_explicit() -> None:
     assert "UpdateOleFormulaObjectAsync" in power_point_controller
     assert "FindFormulaShapeById(target.Presentation" in power_point_adapter
     assert "PowerPointFormulaEditTarget? _editorTarget" in power_point_controller
-    assert "TryCaptureFormulaEditTarget(presentation, window, selection)" in power_point_adapter
     assert "dynamic replacement = CreatePictureAt" in power_point_adapter
     assert "dynamic replacement = CreateOleObjectAt" in power_point_adapter
     assert "CommitReplacement(shape, replacement, oldImagePath)" in power_point_adapter
@@ -1711,7 +1701,6 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId)" in convert_method
     assert "if (await ReplaceEntryAsync(entry, WithRenderEngine(entry.Metadata, target), entry.Scale, cancellationToken))" in convert_method
     assert "ConvertedWithSkippedStatus" in commands
-    assert "EnsureUniqueShapeIdentity(shape, presentation)" in adapter
     assert "EnsureUniqueShapeIdentities(shapes)" in adapter
     assert "CountFormulaShapesById" in adapter
     assert "public bool ContainsFormula(string equationId)" in adapter
@@ -1760,12 +1749,7 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
         "public async Task AcceptEditorFormulaAsync",
         1,
     )[1].split("private async Task ConvertAndInsertAsync", 1)[0]
-    load_selected_method = controller.split("public async Task LoadSelectedAsync", 1)[1].split(
-        "public async Task DeleteSelectedAsync",
-        1,
-    )[0]
     assert "_statusSink.SetCurrentFormula(" not in accept_editor_method
-    assert "SwitchEditorTargetAsync(target, cancellationToken)" in load_selected_method
     assert "CompleteEditorSession(accepted.SessionGeneration, target)" in accept_editor_method
     assert "MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim())" in controller
     assert "LoadFromShape" in metadata
@@ -1801,12 +1785,9 @@ def test_powerpoint_conversion_formatting_and_defaults_are_connected() -> None:
     assert "settings.FormulaFontScale" in commands
 
 
-def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
+def test_word_loads_current_font_and_color_metadata() -> None:
     word_controller = (
         PLUGIN / "hosts" / "WordAddIn" / "WordPluginController.cs"
-    ).read_text(encoding="utf-8")
-    powerpoint_controller = (
-        PLUGIN / "hosts" / "PowerPointAddIn" / "PowerPointPluginController.cs"
     ).read_text(encoding="utf-8")
     editor_form = (
         PLUGIN
@@ -1826,12 +1807,7 @@ def test_word_and_powerpoint_load_current_font_and_color_metadata() -> None:
         "public async Task DeleteSelectedAsync",
         1,
     )[0]
-    powerpoint_load = powerpoint_controller.split(
-        "public async Task LoadSelectedAsync",
-        1,
-    )[1].split("public async Task DeleteSelectedAsync", 1)[0]
     assert "SwitchEditorTargetAsync(target, cancellationToken)" in word_load
-    assert "SwitchEditorTargetAsync(target, cancellationToken)" in powerpoint_load
     assert '["fontStyle"]' not in editor_form
     assert '["fontColor"]' not in editor_form
     assert "mathfield.__latexSnipperDefaultFontStyle = style" in shared_input
@@ -1925,9 +1901,9 @@ def test_word_load_selected_is_selection_first() -> None:
     assert "TryFindOleInlineShapeById" not in selected_formula
     assert "FindFormulaControlById" not in selected_formula
     assert "selectionType != 6 && selectionType != 7 && selectionType != 8" in adapter
-    assert "WordFormulaMetadataStore.SaveOle(" in adapter
+    assert "inlineShape.AlternativeText = tag;" in adapter
     assert "Word did not preserve the OLE formula identifier." in adapter
-    assert "Convert.ToString(inlineShape.Title)" in adapter
+    assert "WordFormulaMetadataStore.Save(" in adapter
 
 
 def test_emf_plus_dual_writer_uses_float_vector_paths() -> None:
@@ -2082,9 +2058,9 @@ def test_word_document_workflow_tabs_are_modular_and_connected() -> None:
         1,
     )[0]
     assert "PrepareRenderedFormulaAsync" not in natural_size_method
-    assert "WordFormulaMetadataStore.SaveOmml" in adapter
+    assert "SaveOmmlNaturalFontSize" in adapter
     assert "TryLoadOmmlNaturalFontSize" in formatting
-    assert 'dto["naturalFontSizePoints"]' in metadata_store
+    assert "OmmlNaturalFontSizeVariablePrefix" in metadata_store
     assert "double oleFontSizePoints = ReadOleEquivalentFontSize(inlineShape)" in adapter
     assert "SaveFormulaMetadata(metadata)" in adapter.split("public Task UpdateFormulaAsync", 1)[1].split(
         "private dynamic RemoveOmmlConversionSource",
@@ -2505,31 +2481,23 @@ def test_word_numbered_omml_insert_is_single_pass_and_uses_configured_backend() 
     assert 'WordAddInText.Get("OmmlInsertingStatus")' in controller
 
 
-def test_word_formula_metadata_is_portable_with_the_formula_object() -> None:
+def test_word_formula_metadata_does_not_create_hidden_document_controls() -> None:
     store = (
         PLUGIN / "hosts" / "WordAddIn" / "WordFormulaMetadataStore.cs"
     ).read_text(encoding="utf-8")
     metadata_adapter = (
         PLUGIN / "hosts" / "WordAddIn" / "DynamicWordApplicationAdapter.Metadata.cs"
     ).read_text(encoding="utf-8")
-    omml_builder = (
-        PLUGIN / "hosts" / "WordAddIn" / "WordOmmlDocumentBuilder.cs"
-    ).read_text(encoding="utf-8")
 
-    assert "WordFormulaMetadataStore.SaveOmml(" in metadata_adapter
-    assert "WordFormulaMetadataStore.SaveOle(" in metadata_adapter
+    assert "WordFormulaMetadataStore.Save(" in metadata_adapter
     assert "SaveFormulaMetadata(equationControl, metadata)" in metadata_adapter
-    assert "FormulaMetadata stored = WordFormulaMetadataStore.LoadOmml" in metadata_adapter
+    assert "string tag = WordFormulaMetadataStore.Save" in metadata_adapter
+    assert "shape.Tag = tag" in metadata_adapter
+    assert "FormulaMetadata stored = WordFormulaMetadataStore.Load" in metadata_adapter
+    assert "shape.AlternativeText = WordFormulaMetadataStore.Save" in metadata_adapter
     assert "TryLoadOleNaturalSize(" in metadata_adapter
     assert "ContentControls.Add" not in store
-    assert "FindMetadataControl(control)" in store
-    assert "TextRetrievalMode.IncludeHiddenText = true" in store
-    assert "metadataControl.Range.Font.Hidden = -1" in store
-    assert "inlineShape.AlternativeText = EncodePayload" in store
-    assert "inlineShape.Title = BuildEquationTag" in store
-    assert "document.Variables" not in store
-    assert "BuildMetadataContentControl()" in omml_builder
-    assert "WordFormulaMetadataStore.MetadataControlTag" in omml_builder
+    assert "MetadataControlTagPrefix" not in store
     assert "MaxWordTagLength = 64" in store
     assert "ValidateTagLength" in store
     assert "ReadRequiredDouble" in store

@@ -12,23 +12,13 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private SelectedWordFormula FindSelectedFormula()
     {
-        return FindSelectedFormula(_wordApplication.Selection);
-    }
-
-    private SelectedWordFormula FindSelectedFormula(object selection)
-    {
-        IReadOnlyList<SelectedWordFormula> formulas = FindSelectedFormulas(selection);
+        IReadOnlyList<SelectedWordFormula> formulas = FindSelectedFormulas();
         return formulas[0];
     }
 
     private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas()
     {
-        return FindSelectedFormulas(_wordApplication.Selection);
-    }
-
-    private IReadOnlyList<SelectedWordFormula> FindSelectedFormulas(object selection)
-    {
-        IReadOnlyList<SelectedWordFormula> formulas = CollectSelectedFormulas(selection);
+        IReadOnlyList<SelectedWordFormula> formulas = CollectSelectedFormulas();
         if (formulas.Count == 0)
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
@@ -39,19 +29,14 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas()
     {
-        return CollectSelectedFormulas(_wordApplication.Selection);
-    }
-
-    private IReadOnlyList<SelectedWordFormula> CollectSelectedFormulas(object selection)
-    {
-        dynamic selected = selection;
-        dynamic range = selected.Range;
+        dynamic selection = _wordApplication.Selection;
+        dynamic range = selection.Range;
         var formulas = new List<SelectedWordFormula>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         AddSelectedFormula(formulas, seen, TryGetParentContentControl(range));
         AddSelectedFormulasFromRange(formulas, seen, range);
         AddSelectedOleInlineShapes(formulas, seen, range);
-        AddSelectedOleInlineShapesFromAnchor(formulas, seen, selected, range);
+        AddSelectedOleInlineShapesFromAnchor(formulas, seen, selection, range);
         return formulas;
     }
 

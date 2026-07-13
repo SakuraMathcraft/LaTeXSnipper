@@ -67,16 +67,6 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
         });
     }
 
-    public void ShowFormulaPreview(int windowHandle, string latex)
-    {
-        SetCurrentFormula(latex, updateMode: true);
-    }
-
-    public void RestoreFormulaDraft(int windowHandle)
-    {
-        ResetFormulaDraft();
-    }
-
     public void Post(PowerPointStatusKind kind, string message)
     {
         RunOnUi(() =>
