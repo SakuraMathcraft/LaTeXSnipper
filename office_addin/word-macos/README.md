@@ -60,7 +60,7 @@ https://localhost:3000/taskpane.html
 office_addin/word-macos/manifest/word-dev.xml
 ```
 
-侧载方法随 Word 版本可能变化，应使用 Microsoft 的 Word for Mac sideload 开发文档。不要上传 manifest、开发 bundle 或证书到公共位置。
+侧载方法随 Word 版本可能变化，应使用 Microsoft 的 Word for Mac sideload 开发文档。`word-dev.xml` 源码只随本开发分支同步；不要把它与 Development bundle、证书或侧载包制成公开下载 artifact。
 
 ## 开发检查
 
