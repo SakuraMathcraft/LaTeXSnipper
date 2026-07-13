@@ -129,8 +129,6 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public event EventHandler<string>? EditorError;
 
-    public FormulaEditorAcceptedEventArgs? AcceptedFormula { get; private set; }
-
     public Task WarmUpAsync()
     {
         _warmUpTask ??= InitializeAsync();
@@ -144,9 +142,9 @@ internal sealed class MathLiveFormulaEditorForm : Form
         Dispose();
     }
 
-    public void Configure(FormulaMetadata? initialFormula, bool updateMode)
+    public void Configure(FormulaMetadata initialFormula, bool updateMode)
     {
-        _currentInitialFormula = initialFormula;
+        _currentInitialFormula = initialFormula ?? throw new ArgumentNullException(nameof(initialFormula));
         _currentUpdateMode = updateMode;
         _configurationPending = true;
         _committed = false;
@@ -245,11 +243,13 @@ internal sealed class MathLiveFormulaEditorForm : Form
         }
 
         _configurationPending = false;
+        FormulaMetadata initialFormula = _currentInitialFormula
+            ?? throw new InvalidOperationException("The formula editor has not been configured.");
         string payload = _serializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "init",
-            ["latex"] = _currentInitialFormula?.Latex ?? string.Empty,
-            ["display"] = _options.ForceDisplayMode || _currentInitialFormula?.DisplayMode != FormulaDisplayMode.Inline,
+            ["latex"] = initialFormula.Latex,
+            ["display"] = _options.ForceDisplayMode || initialFormula.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
             ["locale"] = CultureInfo.CurrentUICulture.Name,
         });
@@ -275,7 +275,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             if (type == "cancel")
             {
                 NotifyEditorCancelled();
-                Commit(DialogResult.Cancel);
+                Commit();
                 return;
             }
 
@@ -304,12 +304,14 @@ internal sealed class MathLiveFormulaEditorForm : Form
         bool display = _options.ForceDisplayMode ||
             !message.TryGetValue("display", out object rawDisplay) ||
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
-        AcceptedFormula = new FormulaEditorAcceptedEventArgs(_currentInitialFormula, _currentUpdateMode, latex.Trim(), display);
+        FormulaMetadata initialFormula = _currentInitialFormula
+            ?? throw new InvalidOperationException("The formula editor has not been configured.");
+        var accepted = new FormulaEditorAcceptedEventArgs(initialFormula, _currentUpdateMode, latex.Trim(), display);
         await SetSubmittingAsync(true).ConfigureAwait(true);
-        FormulaEditorSubmissionResult result = await SubmitFormulaAsync(AcceptedFormula).ConfigureAwait(true);
+        FormulaEditorSubmissionResult result = await SubmitFormulaAsync(accepted).ConfigureAwait(true);
         if (result.Success)
         {
-            Commit(DialogResult.OK);
+            Commit();
             return;
         }
 
@@ -434,10 +436,9 @@ internal sealed class MathLiveFormulaEditorForm : Form
         EditorCancelled?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Commit(DialogResult result)
+    private void Commit()
     {
         _committed = true;
-        DialogResult = result;
         Close();
     }
 

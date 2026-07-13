@@ -269,7 +269,6 @@ public sealed partial class WordPluginController
                             cancellationToken);
                     }
 
-                    _currentFormula = formatted;
                     formattedCount++;
                 }
             }

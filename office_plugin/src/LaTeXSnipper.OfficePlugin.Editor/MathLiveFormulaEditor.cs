@@ -31,11 +31,10 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         return GetOrCreateForm().WarmUpAsync();
     }
 
-    public Task<FormulaMetadata?> OpenAsync(FormulaMetadata? initialFormula, bool updateMode, CancellationToken cancellationToken)
+    public Task OpenAsync(FormulaMetadata initialFormula, bool updateMode, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
-        RecreateForm();
         MathLiveFormulaEditorForm form = GetOrCreateForm();
         form.Configure(initialFormula, updateMode);
         form.CaptureInputLanguage();
@@ -46,25 +45,7 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         }
 
         form.Activate();
-        return Task.FromResult<FormulaMetadata?>(null);
-    }
-
-    public Task<bool> UpdateDraftIfOpenAsync(FormulaMetadata draft, bool updateMode, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_activeForm == null || _activeForm.IsDisposed || !_activeForm.Visible)
-        {
-            return Task.FromResult(false);
-        }
-
-        RecreateForm();
-        MathLiveFormulaEditorForm form = GetOrCreateForm();
-        form.Configure(draft, updateMode);
-        form.CaptureInputLanguage();
-        form.Show();
-        form.Activate();
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 
     private MathLiveFormulaEditorForm GetOrCreateForm()
@@ -80,22 +61,6 @@ public sealed class MathLiveFormulaEditor : IFormulaEditor
         _activeForm.EditorError += OnEditorError;
         _activeForm.FormClosed += OnFormClosed;
         return _activeForm;
-    }
-
-    private void RecreateForm()
-    {
-        if (_activeForm == null || _activeForm.IsDisposed)
-        {
-            return;
-        }
-
-        MathLiveFormulaEditorForm form = _activeForm;
-        form.FormulaSubmitting -= OnFormulaSubmittingAsync;
-        form.EditorCancelled -= OnEditorCancelled;
-        form.EditorError -= OnEditorError;
-        form.FormClosed -= OnFormClosed;
-        _activeForm = null;
-        form.DisposeForShutdown();
     }
 
     public void Dispose()

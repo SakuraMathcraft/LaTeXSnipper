@@ -48,11 +48,6 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
 
     public string CurrentLatex => _currentLatex.Trim();
 
-    public PowerPointFormulaOptions GetFormulaOptions()
-    {
-        return new PowerPointFormulaOptions();
-    }
-
     public void ResetFormulaDraft()
     {
         RunOnUi(() =>
