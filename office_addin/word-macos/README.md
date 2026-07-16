@@ -92,6 +92,8 @@ test/                     自动化测试
 
 共享 MathLive、MathJax 和图标的源文件仍位于仓库原来的 `src/assets/`。开发构建只按白名单取所需文件，不提交第二份 vendor 资源，也不会复制 Compute Engine 或整个 MathJax 目录。
 
+仓库根 `LICENSE` 是项目许可唯一来源，MathLive/MathJax 许可证单独保留。当前 `.dev/` 只用于本机 Development 测试，不是可分发构建；未来若获明确授权制作分发包，必须同时包含项目许可和第三方许可。
+
 ## 交接资料
 
 - [需求基线](./REQUIREMENTS.md)

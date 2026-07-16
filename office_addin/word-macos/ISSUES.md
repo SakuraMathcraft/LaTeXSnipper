@@ -1,6 +1,6 @@
 # 已知问题、风险与未验证项
 
-> 更新时间：2026-07-13
+> 更新时间：2026-07-16
 
 ## 开放风险
 
@@ -13,6 +13,9 @@
 | RISK-005 | P1 | 未验证 | 当前 CSP、动态模块和 Custom Elements 在最低目标 Word WKWebView 版本的实际兼容性。 | M1 Word 侧载与 M6 最低版本矩阵验证。 |
 | RISK-006 | P1 | 未实现 | SMAppService/Login Item 与现有 Python/PyQt/PyInstaller App 的隐藏后台模式尚未设计到代码层。 | M4 独立 Spike，保持正常 Finder 启动不变。 |
 | RISK-007 | P1 | 未验证 | Office.js manifest 无法限制只运行于 Mac；validator 同时列出 Word Web/Windows/iPad。 | 运行时只做能力检测，不按平台硬拒绝；后续文档明确首阶段只验收 Mac。 |
+| RISK-008 | P0 | 已知阻断 | M1 `FormulaMetadata` 仍是 schema v1，且把 `MathJax-3.2.2` 当作 render engine；已落后于最新 Windows schema v2 契约。 | M2 写入前实现读 v1/写 v2、语义化引擎枚举和未知版本拒绝；当前插入按钮继续禁用。 |
+| RISK-009 | P0 | 未实现 | macOS 尚无持久 documentId、跨文档复制/重复 equationId rekey 和 tag/payload 一致性校验。 | M3 由 Custom XML 承担文档身份，并覆盖重开、另存为、复制、重复 ID 和失败回滚。 |
+| RISK-010 | P0 | 未实现 | 编辑会话尚无 generation 与捕获 edit target；未来异步提交可能在切换文档或选区后写错对象。 | M3 复用 Windows 语义：generation + `{documentId,equationId}` + 提交前目标重验，command gate 继续保留。 |
 
 ## 已修复问题
 
@@ -33,10 +36,13 @@
 - Word 原生 inline/display/numbered 插入。
 - Content Control、Custom XML、加载、更新、删除和保存重开。
 - Word Undo/Redo、复制粘贴、另存为和多公式选区。
+- metadata v1 reader/v2 writer、未知 schema 拒绝、语义化 render engine。
+- 持久 documentId、重复 ID rekey、跨文档复制和 tag/payload 一致性。
+- session generation、陈旧 accept/cancel、切换文档/选区后的 edit target 重验。
 - `mhchem`、`physics`、`braket`、`cancel`、复杂颜色、字体和多行完整矩阵。
 - 中文输入法在 Word WKWebView 中的实际组合输入。
 - Agent session、鉴权、OCR job、取消、崩溃恢复和版本不匹配。
 - SMAppService、Dock 隐藏、截图遮罩和 macOS 权限恢复。
-- 原项目在 Agent 代码修改后的回归；本阶段没有修改原项目运行时代码。
+- 原项目在 Agent 代码修改后的回归；macOS 插件工作本身没有修改原项目运行时代码，本次仅原样合并最新 main。
 
 当前没有已知、未修复的 M1 自动化或普通浏览器范围功能 Bug。上述风险不得在 UI 或文档中宣称已经支持。

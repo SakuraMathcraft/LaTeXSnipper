@@ -1,13 +1,17 @@
 # 当前开发状态
 
-> 更新时间：2026-07-13
+> 更新时间：2026-07-16
 > 当前分支：`feature/macos-officejs-addin`
-> 对齐的 origin/main：`ea3cfde215f3d53639ebf1835b6c8ba1de459036`
+> 对齐的 origin/main：`fc4849ee077bb5b6636c4acca4f34b3bb524d31f`
 > 发布状态：仅 Development，本项目未发布
 
 ## 当前阶段
 
 M1“任务窗格与本地渲染基础”已完成代码、自动化和普通浏览器验收。Word for Mac 内的可信 HTTPS 侧载尚未执行，因此 M1 的真机验收仍是未测试状态。
+
+## 最新 main 同步
+
+2026-07-16 已在开发分支合并 `origin/main@fc4849e`。上游变更集中在 Windows `office_plugin/` 及其结构测试，与 `office_addin/word-macos/` 没有路径重叠，合并无冲突；没有切换、提交或推送到 `main`。
 
 ## 本阶段已完成
 
@@ -23,6 +27,7 @@ M1“任务窗格与本地渲染基础”已完成代码、自动化和普通浏
 - Office.js 缺失/超时不会伪装成浏览器模式；错误状态提供 Word 重连入口。
 - 预览、Agent 检测和 Office 初始化均只接受最新一轮异步结果。
 - “插入公式”保持禁用，防止未经 Word 真机验证的 MathML/OMML 写入文档。
+- 当前 schema v1 metadata 仅是未落盘草案；最新 Windows v2 对齐已列为 M2 前置，不会把旧契约写入文档。
 - `.dev/`、证书、local env 和 coverage 均被 Git 忽略。
 
 ## 当前验证摘要
@@ -32,9 +37,10 @@ M1“任务窗格与本地渲染基础”已完成代码、自动化和普通浏
 - TypeScript：通过。
 - Vitest：8 个测试文件、26 项测试通过，详见 `TEST_MATRIX.md`。
 - Development bundle：36 个文件通过固定资产、Compute Engine 排除和远程脚本白名单检查；只生成到 `.dev/taskpane/`，未提交。
+- 合并最新 main 后重新执行 TypeScript、26 项 Vitest 和 Development bundle，结果仍通过。
 - Microsoft 官方 manifest validator：有效。
 - 本机普通浏览器：MathLive、MathJax、`\colorbox → \bbox`、状态降级、编号切换、清空和 320px 布局通过。
-- 原项目 Python 回归：环境阻塞，0 项收集；本机 Python 3.9.6 低于项目要求且缺少 pytest/PyQt，临时 Python 3.11 下载因网络受限失败，不能记为通过或失败。
+- 原项目 Python 回归：环境阻塞，0 项收集；2026-07-16 再次运行 Office 结构测试时系统 Python 报 `No module named pytest`，不能记为通过或失败。
 - Release build/发布：按要求未执行。
 
 ## 下一阶段
@@ -42,11 +48,12 @@ M1“任务窗格与本地渲染基础”已完成代码、自动化和普通浏
 M2“Word 原生公式 P0 Spike”：
 
 1. 行动前再次 fetch 和检查最新 main。
-2. 添加已知正确的 Flat OPC/OMML fixture 和结构快照测试。
-3. 在 Word for Mac 侧载当前 Development manifest。
-4. 验证 `insertOoxml`，再验证 MathML `insertHtml` 后的 `getOoxml()`。
-5. 检查 inline/display、Content Control、Undo/Redo、保存重开。
-6. 根据真机结果决定转换主路径；未通过前不启用插入按钮。
+2. 先修正未落盘 metadata 草案：读 v1、写 v2、语义化 render engine，并加入迁移/拒绝测试。
+3. 添加已知正确的 Flat OPC/OMML fixture 和结构快照测试。
+4. 在 Word for Mac 侧载当前 Development manifest。
+5. 验证 `insertOoxml`，再验证 MathML `insertHtml` 后的 `getOoxml()`。
+6. 检查 inline/display、Content Control、Undo/Redo、保存重开。
+7. 根据真机结果决定转换主路径；未通过前不启用插入按钮。
 
 ## 换设备后的接手步骤
 

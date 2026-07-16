@@ -1,8 +1,8 @@
 # macOS Word 插件项目计划
 
 > 开发分支：`feature/macos-officejs-addin`
-> 当前对齐 main：`ea3cfde215f3d53639ebf1835b6c8ba1de459036`
-> 最后更新：2026-07-13
+> 当前对齐 main：`fc4849ee077bb5b6636c4acca4f34b3bb524d31f`
+> 最后更新：2026-07-16
 
 ## 总目标
 
@@ -41,12 +41,13 @@
 
 状态：下一阶段。
 
-1. 建立已知正确的 inline/display Flat OPC + OMML fixture。
-2. 使用 `Range.insertOoxml` 在 Word for Mac 插入并读取 `getOoxml()` 验证。
-3. 测试 MathJax MathML 经 `insertHtml` 后是否产生 `m:oMath`/`m:oMathPara`。
-4. 验证返回 Range、Content Control 包装、替换、Undo/Redo、保存和重开。
-5. 对转换失败实施显式错误和回滚，不静默降级成图片或纯文本。
-6. 只有主链路通过后才启用任务窗格“插入公式”。
+1. 先把未落盘的 macOS metadata 草案对齐 Windows schema v2：读 v1、写 v2、语义化 render engine，并拒绝未知版本。
+2. 建立已知正确的 inline/display Flat OPC + OMML fixture。
+3. 使用 `Range.insertOoxml` 在 Word for Mac 插入并读取 `getOoxml()` 验证。
+4. 测试 MathJax MathML 经 `insertHtml` 后是否产生 `m:oMath`/`m:oMathPara`。
+5. 验证返回 Range、Content Control 包装、替换、Undo/Redo、保存和重开。
+6. 对转换失败实施显式错误和回滚，不静默降级成图片或纯文本。
+7. 只有主链路通过后才启用任务窗格“插入公式”。
 
 退出条件：至少一条覆盖目标公式矩阵的原生 OMML 路径在 Word for Mac 真机通过；失败路径和平台限制有测试与文档。
 
@@ -55,9 +56,11 @@
 状态：待开始。
 
 - 使用 `latexsnipper-js-eq-` Content Control 短标签。
-- 使用带 namespace 的 Custom XML Part 存完整 metadata。
+- 使用带 namespace 的 Custom XML Part 存完整 metadata 和持久 documentId。
+- 兼容读取 schema v1，只写 schema v2；未知 schema 和 tag/payload 身份不一致时拒绝。
 - 实现插入、定位、加载、更新、删除和 orphan 清理。
-- 处理复制粘贴、另存为、Undo/Redo 和双写失败补偿。
+- 处理复制粘贴、跨文档复制、重复 ID rekey、另存为、Undo/Redo 和双写失败补偿。
+- 编辑会话使用 generation 和捕获的 `{documentId, equationId}`；提交前重验目标，拒绝陈旧回调或错误文档。
 - 保证 Windows 插件不会误识别 macOS 首版公式。
 
 退出条件：保存/关闭/重开后 LaTeX 可恢复，异常时内容与 metadata 不出现静默不一致。

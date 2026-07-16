@@ -1,9 +1,10 @@
 # LaTeXSnipper macOS Office 插件需求基线
 
-> 文档状态：需求基线（后续变更必须记录）  
-> 开发分支：`feature/macos-officejs-addin`  
-> 对齐的 main：`ea3cfde`（2026-07-13 检查）  
-> 最后更新：2026-07-13
+> 文档状态：需求基线（后续变更必须记录）
+> 开发分支：`feature/macos-officejs-addin`
+> 初始设计基线 main：`ea3cfde`（2026-07-13）
+> 最新同步 main：`fc4849ee077bb5b6636c4acca4f34b3bb524d31f`（2026-07-16）
+> 最后更新：2026-07-16
 
 ## 1. 项目目标
 
@@ -200,6 +201,24 @@ latexsnipper-js-eq-
 ```
 
 避免 Windows 插件误识别公式后因找不到 `Document.Variables` 而报错。跨 Windows/macOS 互编辑属于后续兼容阶段。
+
+最新 main 的 Windows metadata 已升级为 schema v2。macOS 在启用任何受管公式写入前必须满足：
+
+- 读取兼容 schema v1，写入只使用 schema v2；未知版本、缺少身份字段或字段不一致时明确失败。
+- `renderEngine` 使用跨端语义值 `Omml`、`Image` 或 `MathJaxSvg`，渲染器版本另存，不能再把 `MathJax-3.2.2` 当作引擎枚举。
+- Custom XML 同时保存持久 `documentId`；Content Control tag 的 `equationId` 必须与 payload 一致。
+- 文档重开保持身份；跨文档复制、另存为或重复 `equationId` 时按当前文档重新分配身份。
+- 当前 M1 中硬编码的 macOS schema v1 仅是尚未落盘的领域草案，不得直接用于 M2/M3 文档写入。
+
+### 6.2 编辑会话与目标身份
+
+最新 Windows 稳定基线使用显式加载编辑，而不是把实验性的双击/OLE 激活视为已交付能力。macOS 编辑生命周期必须复用以下语义：
+
+- 每次打开编辑器分配单调递增的 session generation；过期 accept/cancel 不得完成新会话。
+- 打开时捕获 `{documentId, equationId}` 和原公式目标，提交前重新验证文档、公式身份与唯一性。
+- 用户切换文档、选区或目标已被删除时安全拒绝，不得把结果写到当前活动文档中的同名对象。
+- command gate 与 session generation 同时保留，分别防止重复命令和陈旧异步回调。
+- metadata 校验或双写失败时回滚，不静默修补身份不一致。
 
 ## 7. Office.js 技术基线
 

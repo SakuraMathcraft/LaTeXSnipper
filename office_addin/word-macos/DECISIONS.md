@@ -1,6 +1,6 @@
 # 技术决策记录
 
-> 更新时间：2026-07-13
+> 更新时间：2026-07-16
 
 ## ADR-001：只在独立开发分支工作
 
@@ -67,3 +67,21 @@
 决定：`npm run check` 只运行离线静态检查和单元测试；`npm run manifest:validate` 单独调用 Microsoft 官方服务。
 
 原因：官方校验器在网络不可用时会打印错误但可能仍返回成功退出码，不能把它混入离线 check 后误判。每次 manifest 修改都要单独查看校验文本是否明确显示 `The manifest is valid.`。
+
+## ADR-012：文档持久化前对齐 metadata schema v2
+
+决定：当前 M1 的 schema v1 只作为未落盘草案。M2/M3 在启用写入前实现读取 v1、写入 v2、未知版本拒绝；`renderEngine` 对齐 `Omml | Image | MathJaxSvg`，具体 MathJax 版本单独记录。
+
+原因：最新 Windows main 已将领域契约升级到 v2，并严格校验 documentId、equationId 和 schema。继续把 `MathJax-3.2.2` 当作引擎枚举会制造新的跨端不兼容数据。
+
+## ADR-013：持久文档身份与 generation-scoped edit target
+
+决定：Custom XML 除公式 metadata 外还承担 macOS 文档身份。编辑器打开时捕获 `{documentId, equationId}` 与 session generation，提交前重新验证目标；跨文档复制、重复 ID、切换文档和陈旧回调必须 rekey 或安全拒绝。
+
+原因：最新 Windows 实现证明只依赖当前选区或活动文档会把异步编辑结果写错对象。command gate 防重复命令，generation 与目标重验防陈旧回调，两者职责不同。
+
+## ADR-014：根 LICENSE 是项目许可唯一来源
+
+决定：仓库根 `LICENSE` 是 LaTeXSnipper 项目许可来源，MathLive/MathJax 许可证仍单独保留。当前私有 Development bundle 不作为可分发产品；未来若经明确授权生成可分发包，必须包含根 LICENSE 与第三方许可，不复制已删除的 installer 内旧 LICENSE。
+
+原因：最新 main 已统一 Windows installer 的许可来源。macOS 侧沿用同一来源可避免重复文件漂移，同时不扩大当前“不发布”的授权范围。
