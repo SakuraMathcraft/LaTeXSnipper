@@ -38,7 +38,7 @@ public static class WordAddInFactory
             using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
             return await controller.TryAcceptEditorFormulaAsync(accepted, timeout.Token).ConfigureAwait(true);
         };
-        editor.EditorCancelled += (_, _) => optionsProvider?.ResetFormulaDraft();
+        editor.EditorCancelled += (_, cancelled) => controller.CancelEditorFormula(cancelled.SessionGeneration);
         editor.EditorError += (_, message) => statusSink.Post(WordStatusKind.Error, message);
         return controller;
     }

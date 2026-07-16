@@ -54,8 +54,9 @@ body {
 }
 
 .workspace {
+  --source-pane-height: 118px;
   display: grid;
-  grid-template-rows: 1fr 118px;
+  grid-template-rows: minmax(160px, 1fr) 7px var(--source-pane-height);
   grid-column: 2;
   grid-row: 1;
 }
@@ -64,9 +65,39 @@ body {
   min-width: 0;
   min-height: 0;
   padding: 14px;
-  border-bottom: 1px solid var(--line);
   overflow-x: auto;
   overflow-y: auto;
+}
+
+.source-resize-handle {
+  position: relative;
+  min-height: 7px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.source-resize-handle::after {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 42px;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--muted);
+  content: "";
+  opacity: 0.55;
+  transform: translateX(-50%);
+}
+
+.source-resize-handle:hover,
+.source-resize-handle.dragging,
+.source-resize-handle:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
 }
 
 math-field {

@@ -161,6 +161,11 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         return new UndoRecordScope(this);
     }
 
+    public string GetCurrentDocumentId()
+    {
+        return WordDocumentIdentityStore.GetOrCreate(CurrentDocument);
+    }
+
     public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

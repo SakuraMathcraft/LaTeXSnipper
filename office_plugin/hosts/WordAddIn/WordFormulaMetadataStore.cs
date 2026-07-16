@@ -7,6 +7,7 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 internal static class WordFormulaMetadataStore
 {
+    private const int LegacySchemaVersion = 1;
     public const string EquationTagPrefix = "latexsnipper-eq-";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string MetadataSeparator = "|";
@@ -43,6 +44,17 @@ internal static class WordFormulaMetadataStore
         double naturalWidthPoints = 0,
         double naturalHeightPoints = 0)
     {
+        if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        string documentId = WordDocumentIdentityStore.GetOrCreate(document);
+        if (!string.Equals(metadata.Identity.DocumentId, documentId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
         string revision = Guid.NewGuid().ToString("N").Substring(0, 10);
         SaveVariable(
             document,
@@ -53,7 +65,16 @@ internal static class WordFormulaMetadataStore
 
     public static FormulaMetadata Load(dynamic document, string tag)
     {
-        return Deserialize(LoadPayload(document, tag));
+        string equationId = EquationIdFromTag(tag);
+        FormulaMetadata metadata = Deserialize(
+            LoadPayload(document, tag),
+            WordDocumentIdentityStore.GetOrCreate(document));
+        if (!string.Equals(metadata.Identity.EquationId, equationId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return metadata;
     }
 
     public static bool TryLoadOleNaturalSize(
@@ -168,7 +189,7 @@ internal static class WordFormulaMetadataStore
         return MetadataVariablePrefix + equationId + "." + revision;
     }
 
-    public static FormulaMetadata Deserialize(string json)
+    private static FormulaMetadata Deserialize(string json, string currentDocumentId)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -177,17 +198,55 @@ internal static class WordFormulaMetadataStore
 
         var serializer = new JavaScriptSerializer();
         var dto = serializer.Deserialize<Dictionary<string, object>>(json);
-        string documentId = ReadString(dto, "documentId");
-        string equationId = ReadString(dto, "equationId");
+        int schemaVersion = ReadInt(dto, "schemaVersion");
+        switch (schemaVersion)
+        {
+            case LegacySchemaVersion:
+                return DeserializeLegacy(dto, currentDocumentId);
+            case FormulaMetadata.CurrentSchemaVersion:
+                return DeserializeCurrent(dto);
+            default:
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+    }
+
+    private static FormulaMetadata DeserializeLegacy(
+        Dictionary<string, object> dto,
+        string currentDocumentId)
+    {
+        _ = ReadRequiredNonEmptyString(dto, "documentId");
+        return DeserializeMetadata(dto, currentDocumentId);
+    }
+
+    private static FormulaMetadata DeserializeCurrent(Dictionary<string, object> dto)
+    {
+        return DeserializeMetadata(dto, ReadRequiredNonEmptyString(dto, "documentId"));
+    }
+
+    private static FormulaMetadata DeserializeMetadata(
+        Dictionary<string, object> dto,
+        string documentId)
+    {
         return new FormulaMetadata(
-            new FormulaIdentity(documentId, equationId),
+            new FormulaIdentity(documentId, ReadRequiredNonEmptyString(dto, "equationId")),
             ReadString(dto, "latex"),
             ReadEnum<FormulaDisplayMode>(dto, "displayMode"),
             ReadEnum<NumberingMode>(dto, "numberingMode"),
             ReadString(dto, "numberText"),
             ReadEnum<RenderEngineKind>(dto, "renderEngine"),
-            ReadInt(dto, "schemaVersion"),
+            FormulaMetadata.CurrentSchemaVersion,
             ReadRequiredDouble(dto, "fontScale"));
+    }
+
+    private static string ReadRequiredNonEmptyString(Dictionary<string, object> dto, string key)
+    {
+        string value = ReadString(dto, key);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        }
+
+        return value;
     }
 
     private static string ReadString(Dictionary<string, object> dto, string key)

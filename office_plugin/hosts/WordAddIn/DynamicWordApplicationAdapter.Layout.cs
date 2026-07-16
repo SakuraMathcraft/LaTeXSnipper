@@ -224,7 +224,7 @@ public sealed partial class DynamicWordApplicationAdapter
         try
         {
             int safePosition = ClampDocumentPosition(position);
-            dynamic target = _wordApplication.ActiveDocument.Range(safePosition, safePosition);
+            dynamic target = CurrentDocument.Range(safePosition, safePosition);
             if (RangeTouchesManagedFormula(target))
             {
                 return false;

@@ -1,12 +1,7 @@
 #include "Presentation.h"
 
-#include "OleFormulaIds.h"
-#include "Win32Check.h"
-
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <shlwapi.h>
 
 namespace
 {
@@ -14,7 +9,6 @@ constexpr int kDefaultWidthPoints = 180;
 constexpr int kDefaultHeightPoints = 42;
 constexpr int kPointsPerInch = 72;
 constexpr int kHimetricPerInch = 2540;
-constexpr int kEmfDpi = 144;
 
 int PointsToHimetric(int points)
 {
@@ -24,58 +18,6 @@ int PointsToHimetric(int points)
 int PointsToHimetric(double points)
 {
     return static_cast<int>(std::lround(points * kHimetricPerInch / kPointsPerInch));
-}
-
-int PointsToPixels(int points)
-{
-    return (std::max)(1, MulDiv(points, kEmfDpi, kPointsPerInch));
-}
-
-RECT BuildFrameRect(int widthPixels, int heightPixels)
-{
-    RECT rect{};
-    rect.left = 0;
-    rect.top = 0;
-    rect.right = widthPixels;
-    rect.bottom = heightPixels;
-    return rect;
-}
-
-RECT BuildFrameRectHimetric(int widthPoints, int heightPoints)
-{
-    RECT rect{};
-    rect.left = 0;
-    rect.top = 0;
-    rect.right = PointsToHimetric(widthPoints);
-    rect.bottom = PointsToHimetric(heightPoints);
-    return rect;
-}
-
-void DrawFormulaText(HDC hdc, RECT bounds, const std::wstring& latex)
-{
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(0, 0, 0));
-
-    LOGFONTW logFont{};
-    logFont.lfHeight = -MulDiv(18, GetDeviceCaps(hdc, LOGPIXELSY), kPointsPerInch);
-    logFont.lfWeight = FW_NORMAL;
-    wcscpy_s(logFont.lfFaceName, L"Cambria Math");
-
-    HFONT font = CreateFontIndirectW(&logFont);
-    HFONT oldFont = font == nullptr ? nullptr : static_cast<HFONT>(SelectObject(hdc, font));
-
-    std::wstring text = latex.empty() ? L"e^{i\\pi}+1=0" : latex;
-    DrawTextW(hdc, text.c_str(), static_cast<int>(text.size()), &bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-
-    if (oldFont != nullptr)
-    {
-        SelectObject(hdc, oldFont);
-    }
-
-    if (font != nullptr)
-    {
-        DeleteObject(font);
-    }
 }
 
 std::wstring ExtractJsonString(const std::wstring& json, const std::wstring& propertyName)
@@ -220,6 +162,42 @@ std::vector<BYTE> DecodeBase64(const std::wstring& value)
     return bytes;
 }
 
+bool IsValidBase64(const std::wstring& value)
+{
+    if (value.empty() || value.size() % 4 != 0)
+    {
+        return false;
+    }
+
+    size_t padding = 0;
+    if (value.back() == L'=')
+    {
+        padding++;
+    }
+    if (value.size() > 1 && value[value.size() - 2] == L'=')
+    {
+        padding++;
+    }
+
+    for (size_t index = 0; index < value.size() - padding; index++)
+    {
+        if (DecodeBase64Char(value[index]) < 0)
+        {
+            return false;
+        }
+    }
+
+    for (size_t index = value.size() - padding; index < value.size(); index++)
+    {
+        if (value[index] != L'=')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* presentation)
 {
     double widthPoints = ExtractJsonNumber(payloadJson, L"widthPoints");
@@ -232,82 +210,81 @@ void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* pres
 
 }
 
-FormulaPresentation CreatePlaceholderPresentation(const std::wstring& latex)
+static bool HasRequiredFormulaPayloadFields(const std::wstring& payloadJson)
 {
-    FormulaPresentation presentation{};
-    presentation.latex = latex.empty() ? L"e^{i\\pi}+1=0" : latex;
-    presentation.payloadJson = L"";
-    presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
+    std::wstring presentationPayload = ExtractJsonString(payloadJson, L"presentationPayloadBase64");
+    return !ExtractJsonString(payloadJson, L"latex").empty()
+        && !ExtractJsonString(payloadJson, L"displayMode").empty()
+        && !ExtractJsonString(payloadJson, L"numberingMode").empty()
+        && !ExtractJsonString(payloadJson, L"fontScale").empty()
+        && !ExtractJsonString(payloadJson, L"renderEngine").empty()
+        && !ExtractJsonString(payloadJson, L"rendererVersion").empty()
+        && ExtractJsonNumber(payloadJson, L"widthPoints") > 0
+        && ExtractJsonNumber(payloadJson, L"heightPoints") > 0
+        && !ExtractJsonString(payloadJson, L"presentationKind").empty()
+        && !ExtractJsonString(payloadJson, L"presentationMimeType").empty()
+        && IsValidBase64(presentationPayload);
+}
 
-    HDC screen = GetDC(nullptr);
-    RECT frameHimetric = BuildFrameRectHimetric(kDefaultWidthPoints, kDefaultHeightPoints);
-    HDC metafileDc = CreateEnhMetaFileW(screen, nullptr, &frameHimetric, L"LaTeXSnipper\0Formula\0");
-    ReleaseDC(nullptr, screen);
-    if (metafileDc == nullptr)
+bool IsSupportedFormulaPayload(const std::wstring& payloadJson)
+{
+    if (!HasRequiredFormulaPayloadFields(payloadJson))
     {
-        return presentation;
+        return false;
     }
 
-    RECT bounds = BuildFrameRect(PointsToPixels(kDefaultWidthPoints), PointsToPixels(kDefaultHeightPoints));
-    DrawFormulaText(metafileDc, bounds, presentation.latex);
-
-    HENHMETAFILE metafile = CloseEnhMetaFile(metafileDc);
-    if (metafile == nullptr)
+    std::wstring schemaVersion = ExtractJsonString(payloadJson, L"schemaVersion");
+    if (schemaVersion == L"1")
     {
-        return presentation;
+        return !ExtractJsonString(payloadJson, L"documentId").empty()
+            && !ExtractJsonString(payloadJson, L"equationId").empty();
     }
 
-    UINT byteCount = GetEnhMetaFileBits(metafile, 0, nullptr);
-    if (byteCount > 0)
+    if (schemaVersion == L"2")
     {
-        presentation.enhancedMetafile.resize(byteCount);
-        GetEnhMetaFileBits(metafile, byteCount, presentation.enhancedMetafile.data());
+        return payloadJson.find(L"\"documentId\"") == std::wstring::npos
+            && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
     }
 
-    DeleteEnhMetaFile(metafile);
-    return presentation;
+    return false;
 }
 
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson)
 {
+    if (!IsSupportedFormulaPayload(payloadJson))
+    {
+        return FormulaPresentation{};
+    }
+
     std::wstring latex = ExtractJsonString(payloadJson, L"latex");
     FormulaPresentation presentation{};
-    presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
+    presentation.latex = latex;
     presentation.payloadJson = payloadJson;
     presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
     ApplyPayloadSize(payloadJson, &presentation);
 
     std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
-    if (!payloadPresentation.empty())
-    {
-        presentation.enhancedMetafile = std::move(payloadPresentation);
-        return presentation;
-    }
-
-    FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
-    placeholder.payloadJson = payloadJson;
-    return placeholder;
+    presentation.enhancedMetafile = std::move(payloadPresentation);
+    return presentation;
 }
 
 FormulaPresentation CreatePresentationFromPayloadWithoutRendering(const std::wstring& payloadJson)
 {
+    if (!IsSupportedFormulaPayload(payloadJson))
+    {
+        return FormulaPresentation{};
+    }
+
     std::wstring latex = ExtractJsonString(payloadJson, L"latex");
     FormulaPresentation presentation{};
-    presentation.latex = latex.empty() ? kFormulaDefaultLatex : latex;
+    presentation.latex = latex;
     presentation.payloadJson = payloadJson;
     presentation.himetricSize = {PointsToHimetric(kDefaultWidthPoints), PointsToHimetric(kDefaultHeightPoints)};
     ApplyPayloadSize(payloadJson, &presentation);
 
     std::vector<BYTE> payloadPresentation = DecodeBase64(ExtractJsonString(payloadJson, L"presentationPayloadBase64"));
-    if (!payloadPresentation.empty())
-    {
-        presentation.enhancedMetafile = std::move(payloadPresentation);
-        return presentation;
-    }
-
-    FormulaPresentation placeholder = CreatePlaceholderPresentation(presentation.latex);
-    placeholder.payloadJson = payloadJson;
-    return placeholder;
+    presentation.enhancedMetafile = std::move(payloadPresentation);
+    return presentation;
 }
 
 HENHMETAFILE CopyEnhMetaFileFromBytes(const std::vector<BYTE>& bytes)

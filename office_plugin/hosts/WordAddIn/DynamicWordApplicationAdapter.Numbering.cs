@@ -17,7 +17,7 @@ public sealed partial class DynamicWordApplicationAdapter
         int skippedNumbering = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            dynamic document = _wordApplication.ActiveDocument;
+            dynamic document = CurrentDocument;
             WordPluginSettings settings = WordPluginSettings.Load();
             var formulas = new List<NumberedFormulaEntry>();
             var boundaries = new List<NumberingBoundaryEntry>();
@@ -302,7 +302,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private List<NumberingTimelineEntry> LoadNumberingTimelineEntriesBeforePosition(int position)
     {
         var timeline = new List<NumberingTimelineEntry>();
-        dynamic document = _wordApplication.ActiveDocument;
+        dynamic document = CurrentDocument;
         dynamic controls = document.ContentControls;
         int controlCount = Convert.ToInt32(controls.Count);
         for (int index = 1; index <= controlCount; index++)

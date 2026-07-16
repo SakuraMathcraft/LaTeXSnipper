@@ -105,11 +105,6 @@ LONG GetNativeOleLockCount()
 FormulaOleObject::FormulaOleObject()
     : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
 {
-    if (presentation_.latex.empty())
-    {
-        presentation_ = CreatePlaceholderPresentation(kFormulaDefaultLatex);
-    }
-
     WriteNativeOleLog(L"FormulaOleObject constructed.");
     InterlockedIncrement(&g_objectCount);
 }

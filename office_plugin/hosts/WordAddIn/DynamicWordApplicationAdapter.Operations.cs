@@ -41,7 +41,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic placeholderRange = _pendingReferenceRange;
         placeholderRange.Text = string.Empty;
         placeholderRange.Collapse(1);
-        dynamic referenceField = _wordApplication.ActiveDocument.Fields.Add(
+        dynamic referenceField = CurrentDocument.Fields.Add(
             placeholderRange,
             WdFieldEmpty,
             " REF " + WordEquationNumbering.BuildBookmarkName(equationId) + " \\h ",
@@ -165,7 +165,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         int selectionStart = GetRangeStart(selectionRange);
         int selectionEnd = GetRangeEnd(selectionRange);
-        dynamic documentControls = _wordApplication.ActiveDocument.ContentControls;
+        dynamic documentControls = CurrentDocument.ContentControls;
         int documentControlCount = Convert.ToInt32(documentControls.Count);
         for (int index = 1; index <= documentControlCount; index++)
         {
@@ -223,7 +223,7 @@ public sealed partial class DynamicWordApplicationAdapter
         int selectionEnd = GetRangeEnd(selectionRange);
         var fields = new List<object>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        dynamic documentFields = _wordApplication.ActiveDocument.Fields;
+        dynamic documentFields = CurrentDocument.Fields;
         int fieldCount = Convert.ToInt32(documentFields.Count);
         for (int index = 1; index <= fieldCount; index++)
         {
@@ -303,7 +303,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void ApplyNumberingBoundaryVisibility(WordPluginSettings settings)
     {
-        dynamic controls = _wordApplication.ActiveDocument.ContentControls;
+        dynamic controls = CurrentDocument.ContentControls;
         int count = Convert.ToInt32(controls.Count);
         for (int index = 1; index <= count; index++)
         {

@@ -38,7 +38,7 @@ public static class PowerPointAddInFactory
             using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();
             return await controller.TryAcceptEditorFormulaAsync(accepted, timeout.Token).ConfigureAwait(true);
         };
-        editor.EditorCancelled += (_, _) => controller.CancelEditorFormula();
+        editor.EditorCancelled += (_, cancelled) => controller.CancelEditorFormula(cancelled.SessionGeneration);
         editor.EditorError += (_, message) => statusSink.Post(PowerPointStatusKind.Error, message);
         return controller;
     }

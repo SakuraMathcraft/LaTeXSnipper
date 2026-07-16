@@ -7,7 +7,9 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public static class PowerPointFormulaMetadataStore
 {
+    private const int LegacySchemaVersion = 1;
     public const string EquationIdTag = "LaTeXSnipperEquationId";
+    public const string DocumentIdTag = "LaTeXSnipperDocumentId";
     public const string LatexChunkCountTag = "LaTeXSnipperLatexChunks";
     public const string LatexByteLengthTag = "LaTeXSnipperLatexBytes";
     public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
@@ -33,6 +35,11 @@ public static class PowerPointFormulaMetadataStore
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
+        {
+            throw MetadataMissing();
+        }
+
         shape.AlternativeText = "LaTeXSnipper formula " + metadata.Identity.EquationId;
         ApplyMetadataTags(shape, metadata);
         shape.Tags.Add(NaturalWidthPointsTag, naturalWidthPoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -41,6 +48,7 @@ public static class PowerPointFormulaMetadataStore
 
     private static void ApplyMetadataTags(dynamic shape, FormulaMetadata metadata)
     {
+        shape.Tags.Add(DocumentIdTag, metadata.Identity.DocumentId);
         shape.Tags.Add(EquationIdTag, metadata.Identity.EquationId);
         WriteEncodedText(shape, metadata.Latex);
         shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
@@ -49,18 +57,36 @@ public static class PowerPointFormulaMetadataStore
         shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    public static FormulaMetadata LoadFromShape(dynamic shape)
+    public static FormulaMetadata LoadFromShape(dynamic shape, string currentDocumentId)
     {
         string equationId = ReadRequiredTag(shape, EquationIdTag);
+        int schemaVersion = ReadRequiredIntTag(shape, SchemaVersionTag);
+        string documentId;
+        switch (schemaVersion)
+        {
+            case LegacySchemaVersion:
+                if (string.IsNullOrWhiteSpace(currentDocumentId))
+                {
+                    throw MetadataMissing();
+                }
+
+                documentId = currentDocumentId;
+                break;
+            case FormulaMetadata.CurrentSchemaVersion:
+                documentId = ReadRequiredTag(shape, DocumentIdTag);
+                break;
+            default:
+                throw MetadataMissing();
+        }
 
         return new FormulaMetadata(
-            new FormulaIdentity("active-presentation", equationId),
+            new FormulaIdentity(documentId, equationId),
             ReadEncodedText(shape),
             ReadRequiredEnumTag<FormulaDisplayMode>(shape, DisplayModeTag),
             NumberingMode.None,
             string.Empty,
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
-            ReadRequiredIntTag(shape, SchemaVersionTag),
+            FormulaMetadata.CurrentSchemaVersion,
             ReadRequiredDoubleTag(shape, FontScaleTag));
     }
 

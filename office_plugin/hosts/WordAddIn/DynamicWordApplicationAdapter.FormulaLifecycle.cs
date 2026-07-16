@@ -31,7 +31,7 @@ public sealed partial class DynamicWordApplicationAdapter
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
             ShowContentControlChrome((dynamic)equationControl);
             WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 metadata.Identity.EquationId,
                 naturalFontSize);
             ApplyManagedEquationStyle(equationControl, metadata);
@@ -115,6 +115,44 @@ public sealed partial class DynamicWordApplicationAdapter
     public Task UpdateOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken)
     {
         return ReplaceOleFormulaObjectAsync(equationId, metadata, presentation, display, preserveUserScale: true, cancellationToken);
+    }
+
+    public async Task UpdateOleFormulaObjectAsync(
+        WordFormulaEditTarget target,
+        FormulaMetadata metadata,
+        OlePresentationResult presentation,
+        bool display,
+        CancellationToken cancellationToken)
+    {
+        if (target == null)
+        {
+            throw new ArgumentNullException(nameof(target));
+        }
+
+        if (!target.IsOle
+            || !IsFormulaEditTargetValid(target)
+            || !string.Equals(
+                target.Metadata.Identity.DocumentId,
+                metadata.Identity.DocumentId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                target.Metadata.Identity.EquationId,
+                metadata.Identity.EquationId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+        }
+
+        using (UseDocument(target.Document))
+        {
+            await ReplaceOleFormulaObjectAsync(
+                target.Metadata.Identity.EquationId,
+                metadata,
+                presentation,
+                display,
+                preserveUserScale: true,
+                cancellationToken).ConfigureAwait(true);
+        }
     }
 
     public Task ResetOleFormulaObjectAsync(string equationId, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken)
@@ -251,7 +289,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private dynamic FindNativeWordFormulaByStart(int sourceStart)
     {
-        dynamic equations = _wordApplication.ActiveDocument.OMaths;
+        dynamic equations = CurrentDocument.OMaths;
         int count = Convert.ToInt32(equations.Count);
         for (int index = 1; index <= count; index++)
         {
@@ -364,7 +402,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private dynamic AddOleInlineShapeAtRange(dynamic range, FormulaMetadata metadata, OlePresentationResult presentation)
     {
         OleFormulaPendingPayloadStore.SavePendingPayload(metadata, presentation);
-        dynamic inlineShape = _wordApplication.ActiveDocument.InlineShapes.AddOLEObject(
+        dynamic inlineShape = CurrentDocument.InlineShapes.AddOLEObject(
             OleFormulaProgId,
             Type.Missing,
             false,
@@ -447,7 +485,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private void AddOrReplaceEquationBookmark(string equationId, dynamic range)
     {
         string bookmarkName = WordEquationNumbering.BuildBookmarkName(equationId);
-        dynamic document = _wordApplication.ActiveDocument;
+        dynamic document = CurrentDocument;
         if (Convert.ToBoolean(document.Bookmarks.Exists(bookmarkName)))
         {
             document.Bookmarks.Item(bookmarkName).Delete();
@@ -464,7 +502,7 @@ public sealed partial class DynamicWordApplicationAdapter
     private dynamic FindEquationNumberRangeById(string equationId)
     {
         string bookmarkName = WordEquationNumbering.BuildBookmarkName(equationId);
-        dynamic bookmarks = _wordApplication.ActiveDocument.Bookmarks;
+        dynamic bookmarks = CurrentDocument.Bookmarks;
         if (Convert.ToBoolean(bookmarks.Exists(bookmarkName)))
         {
             return bookmarks.Item(bookmarkName).Range;
@@ -495,7 +533,7 @@ public sealed partial class DynamicWordApplicationAdapter
         int start = GetRangeStart(range);
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
-            dynamic field = _wordApplication.ActiveDocument.Fields.Add(
+            dynamic field = CurrentDocument.Fields.Add(
                 range,
                 WdFieldEmpty,
                 WordEquationNumbering.BuildSequenceFieldCode(resetSequence, prefix, enclosure),
@@ -740,7 +778,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
-            dynamic setup = _wordApplication.ActiveDocument.PageSetup;
+            dynamic setup = CurrentDocument.PageSetup;
             double width = Convert.ToDouble(setup.PageWidth) - Convert.ToDouble(setup.LeftMargin) - Convert.ToDouble(setup.RightMargin);
             return width > 0 ? width : 468;
         }
@@ -777,7 +815,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic shape = inlineShape;
         string tag = Convert.ToString(shape.AlternativeText) ?? string.Empty;
         if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                _wordApplication.ActiveDocument,
+                CurrentDocument,
                 tag,
                 out double naturalWidth,
                 out double naturalHeight))

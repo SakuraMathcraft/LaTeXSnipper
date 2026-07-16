@@ -21,9 +21,7 @@ public static class OleFormulaPayloadJson
 
         var dto = new Dictionary<string, object?>
         {
-            ["schemaVersion"] = OleFormulaPayload.CurrentSchemaVersion,
-            ["documentId"] = metadata.Identity.DocumentId,
-            ["equationId"] = metadata.Identity.EquationId,
+            ["schemaVersion"] = FormulaMetadata.CurrentSchemaVersion,
             ["latex"] = metadata.Latex,
             ["displayMode"] = metadata.DisplayMode.ToString(),
             ["numberingMode"] = metadata.NumberingMode.ToString(),
