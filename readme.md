@@ -16,16 +16,6 @@
 [![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
 [![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
 
-### Star History
-
-<a href="https://repostars.dev/?repos=SakuraMathcraft%2FLaTeXSnipper">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=dark">
-    <source media="(prefers-color-scheme: light)" srcset="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=light">
-    <img alt="LaTeXSnipper star history chart" src="https://repostars.dev/api/embed?repo=SakuraMathcraft%2FLaTeXSnipper&amp;theme=light">
-  </picture>
-</a>
-
 [FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [LINUX DO Community](https://linux.do/)
 
 English · [简体中文](README.zh-CN.md)

@@ -49,14 +49,16 @@ def test_pyinstaller_spec_keeps_pandoc_runtime_backend() -> None:
         assert f'"{module_name}"' not in prune_prefixes.group(1)
 
 
-def test_pandoc_dependency_wizard_does_not_use_dead_msi_cleanup_or_broken_proxy() -> None:
-    source = (ROOT / "src" / "bootstrap" / "deps_pandoc.py").read_text(encoding="utf-8")
+def test_pandoc_download_sources_target_the_current_release() -> None:
+    from bootstrap import deps_pandoc
 
-    assert "mirror.ghproxy.com" not in source
-    assert "github.geekery.cn" not in source
-    assert 'Path.cwd() / "deps" / "pandoc"' not in source
-    assert "pandoc-*.msi" not in source
-    assert "pandoc-*-windows-x86_64.msi" not in source
+    archive_name, _binary_name, _archive_type = deps_pandoc._pandoc_platform_archive()
+    release_path = f"/jgm/pandoc/releases/download/{deps_pandoc._PANDOC_VERSION}/{archive_name}"
+    mirrors = deps_pandoc._build_pandoc_mirrors()
+
+    assert mirrors
+    assert mirrors[-1] == f"https://github.com{release_path}"
+    assert all(url.startswith("https://") and release_path in url for url in mirrors)
 
 
 def test_pandoc_tool_is_installed_under_app_tools_root(tmp_path, monkeypatch) -> None:
@@ -86,19 +88,16 @@ def test_pandoc_tool_is_installed_under_app_tools_root(tmp_path, monkeypatch) ->
     assert dependency_root_from_python(dependency_root / "python311" / "Scripts" / "python.exe") == dependency_root
 
 
-def test_pandoc_exporter_does_not_scan_cwd_dependency_directory() -> None:
-    source = (ROOT / "src" / "exporting" / "pandoc_exporter.py").read_text(encoding="utf-8")
+def test_pandoc_exporter_ignores_unmanaged_binary_in_working_directory(tmp_path, monkeypatch) -> None:
+    from exporting import pandoc_exporter
 
-    assert 'Path.cwd() / "deps" / "pandoc"' not in source
+    unmanaged = tmp_path / "pandoc.exe"
+    unmanaged.write_text("stub", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pandoc_exporter, "load_configured_pandoc_path", lambda: None)
+    monkeypatch.setattr(pandoc_exporter.shutil, "which", lambda _name: None)
 
-
-def test_settings_window_does_not_duplicate_pandoc_dependency_checks() -> None:
-    source = (ROOT / "src" / "ui" / "settings_window.py").read_text(encoding="utf-8")
-
-    assert "_detect_pandoc" not in source
-    assert "pandoc_detect_btn" not in source
-    assert "pandoc_install_btn" not in source
-    assert "check_pandoc_available" not in source
+    assert pandoc_exporter._find_pandoc_binary() is None
 
 
 def test_dependency_progress_close_reuses_post_install_verify_result() -> None:

@@ -199,7 +199,7 @@ def test_text_profile_declares_text_models_only() -> None:
         assert FORMULA_RECOGNIZER_ID not in plan.required_models
 
 
-def test_table_profile_reports_removed_runtime() -> None:
+def test_runtime_rejects_unsupported_table_profile() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
         runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, auto_download=False)
@@ -1421,7 +1421,7 @@ def main() -> None:
         test_warmup_auto_downloads_missing_models_before_handlers,
         test_mixed_profile_declares_real_required_models,
         test_text_profile_declares_text_models_only,
-        test_table_profile_reports_removed_runtime,
+        test_runtime_rejects_unsupported_table_profile,
         test_formula_warmup_succeeds_with_stubbed_onnx_handlers,
         test_successful_warmup_plan_is_cached_per_profile,
         test_failed_warmup_plan_is_not_cached,

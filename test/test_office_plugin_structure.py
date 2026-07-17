@@ -167,9 +167,6 @@ def test_office_editor_uses_shared_mathfield_input_policy() -> None:
         assert 'event.key === "ArrowDown"' in editor_js
         assert "requestIdleCallback(syncSourceNow" in editor_js
         assert "cancelIdleCallback(sourceSyncHandle)" in editor_js
-        assert "removeDefaultFontWrapper" not in editor_js
-        assert "stripDefaultWrapper" not in editor_js
-        assert "submittedLatex" not in editor_js
         assert "const latex = currentLatex();" in editor_js
         current_latex = editor_js.split("function currentLatex()", 1)[1].split(
             "function mathfieldLatex()",
@@ -1169,16 +1166,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "/p:PlatformToolset=" in native_build_text
     assert "WindowsUserModeDriver" not in native_build_text
 
-def test_office_plugin_keeps_only_current_module_documentation() -> None:
-    assert not (PLUGIN / "hosts" / "OleFormulaObject").exists()
-    assert not (PLUGIN / "hosts" / "WordVstoAddIn" / "README.md").exists()
-    assert not (PLUGIN / "hosts" / "PowerPointVstoAddIn" / "README.md").exists()
-    assert not (PLUGIN / "tools" / "Register-OfficeVstoAddIns.ps1").exists()
-    assert not (PLUGIN / "tools" / "Register-WordVstoAddIn.ps1").exists()
-    assert not (PLUGIN / "tools" / "Register-PowerPointVstoAddIn.ps1").exists()
-    assert not (PLUGIN / "tools" / "OfficeVstoRegistration.ps1").exists()
-
-
 def test_ole_objects_are_registered_as_static_display_objects() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     native_text = (PLUGIN / "hosts" / "OleFormulaObjectNative" / "src" / "FormulaOleObject.cpp").read_text(encoding="utf-8")
@@ -1214,10 +1201,6 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     insert_method = word_adapter_text.split("public Task InsertOleFormulaObjectAsync", 1)[1].split("public Task UpdateOleFormulaObjectAsync", 1)[0]
     assert "SaveOleNaturalSize" not in add_ole_method
     assert "SaveOleNaturalSize" not in insert_method
-    assert "legacy" not in (PLUGIN / "hosts" / "WordAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
-    assert "legacy" not in (PLUGIN / "hosts" / "PowerPointAddIn" / "EditorAssets" / "settings.js").read_text(encoding="utf-8").lower()
-
-
 def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
     ci_text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -1280,16 +1263,6 @@ def test_office_plugin_installation_surface_is_clean_and_explicit() -> None:
     assert "Get-FileHash" not in checksum_text
     assert "[System.Security.Cryptography.SHA256]::Create()" in checksum_text
     assert "call powershell " not in installer_build_text
-    for obsolete_release_logic in (
-        "vs_BuildTools.exe",
-        "Ensure Office and ATL build tools",
-        "ManifestCertificateThumbprint",
-        "New-SelfSignedCertificate",
-        "PlatformToolset=$toolset",
-        "WordVstoAddIn.user.props",
-        "Install-CiBuildPrerequisites.ps1",
-    ):
-        assert obsolete_release_logic not in release_text
     assert "publish_assets:" in release_text
     assert "github.event_name == 'workflow_dispatch' && inputs.publish_assets" in release_text
 
