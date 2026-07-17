@@ -45,7 +45,10 @@ def test_missing_configured_pandoc_path_is_ignored(tmp_path, monkeypatch) -> Non
     assert pandoc_runtime.load_configured_pandoc_path() is None
 
 
-def test_pandoc_exporter_does_not_auto_download_pandoc() -> None:
-    source = (SRC / "exporting" / "pandoc_exporter.py").read_text(encoding="utf-8")
+def test_pandoc_exporter_reports_unavailable_without_a_binary(monkeypatch) -> None:
+    from exporting import pandoc_exporter
 
-    assert "download_pandoc" not in source
+    monkeypatch.setattr(pandoc_exporter.importlib.util, "find_spec", lambda _name: object())
+    monkeypatch.setattr(pandoc_exporter, "_find_pandoc_binary", lambda: None)
+
+    assert not pandoc_exporter.check_pandoc_available(force=True)

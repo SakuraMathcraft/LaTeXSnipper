@@ -100,7 +100,7 @@ def test_external_model_api_key_is_saved_encrypted(monkeypatch: pytest.MonkeyPat
     assert data["external_model_api_key_enc"] == "enc:secret-token"
     assert "external_model_api_key" not in data
     assert load_config_from_mapping(data).normalized_api_key() == "secret-token"
-    assert load_config_from_mapping({"external_model_api_key": "legacy-token"}).normalized_api_key() == ""
+    assert load_config_from_mapping({"external_model_api_key": "plaintext-token"}).normalized_api_key() == ""
 
 
 def test_external_connection_signature_ignores_unused_mineru_model_name() -> None:

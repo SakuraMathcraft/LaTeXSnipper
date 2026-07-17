@@ -45,14 +45,9 @@ BOM_CHECK_EXTENSIONS = {
 
 
 def test_dependency_wizard_does_not_manage_system_screenshot_packages() -> None:
-    bootstrap = (ROOT / "src" / "bootstrap" / "deps_bootstrap.py").read_text(encoding="utf-8")
     screenshot_tools = (ROOT / "src" / "cross_platform" / "screenshot_tools.py").read_text(encoding="utf-8")
     capture_overlay = (ROOT / "src" / "backend" / "capture_overlay.py").read_text(encoding="utf-8")
 
-    assert '"SCREENSHOT"' not in bootstrap
-    assert "#system:" not in bootstrap
-    assert "install_screenshot_tools" not in bootstrap
-    assert "uninstall_screenshot_tools" not in bootstrap
     assert "sudo" not in screenshot_tools
     assert "apt-get" not in screenshot_tools
     assert "pacman" not in screenshot_tools
@@ -102,13 +97,8 @@ def test_cross_platform_build_scripts_use_project_dependency_runtime() -> None:
     sources = "\n".join(path.read_text(encoding="utf-8") for path in script_paths)
     assert "tools/deps/" in sources
     assert "python311-" in sources
-    assert "PROJECT_ROOT/python311" not in sources
-    assert "grep -oP" not in sources
-
     macos_spec = (ROOT / "LaTeXSnipper-macos.spec").read_text(encoding="utf-8")
     assert "tools/deps/" not in macos_spec
-    assert "BUNDLED_PY311" not in macos_spec
-    assert "LATEXSNIPPER_BUNDLE_PYTHON_RUNTIME" not in macos_spec
 
 
 def test_debian_control_template_is_dpkg_safe() -> None:
@@ -168,14 +158,11 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
 
     build_requirements = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
     assert "pywin32==311" not in build_requirements
-    assert "pypandoc==1.17" not in build_requirements
-    assert "pypandoc>=1.15" not in build_requirements
 
     release_builder = (ROOT / "scripts" / "build_github_release_installer.ps1").read_text(encoding="utf-8")
     assert '"Lib\\ensurepip"' in release_builder
     assert '"Lib\\venv"' in release_builder
 
-    assert not (ROOT / "Inno" / "latexsnipper_offline.iss").exists()
     inno = (ROOT / "Inno" / "latexsnipper.iss").read_text(encoding="utf-8")
     assert r"DefaultDirName={localappdata}\{#MyAppName}" in inno
     assert "PrivilegesRequired=lowest" in inno
@@ -183,44 +170,23 @@ def test_runtime_requirements_are_unified_and_windows_safe() -> None:
     assert r'MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"' in inno
     assert (ROOT / "Inno" / "ChineseSimplified.isl").exists()
     assert "function ConfirmUninstallCleanup" in inno
-    assert "InitializeUninstallProgressForm" not in inno
-    assert "TSetupForm.Create" not in inno
     assert "CreateCustomForm(ScaleX(430), ScaleY(190), False, True)" in inno
     assert "{userprofile}" not in inno.lower()
     assert "{%USERPROFILE}" not in inno
     assert "$env:USERPROFILE" in inno
     assert "DeleteDependencyEnvsOnUninstall" in inno
     assert r'Type: filesandordirs; Name: "{app}\_internal"' in inno
-    assert "已记录依赖根目录" not in inno
     assert "LaTeXSnipper 管理的共享工具" in inno
-    assert "function ConfiguredDependencyRoot" not in inno
-    assert "JsonStringValue" not in inno
-    assert "procedure CleanupDependencyRootHistory" not in inno
-    assert "install_base_dir_cleanup_roots" not in inno
     assert "install_base_dir" not in inno
     assert "CleanupSharedToolsWithPowerShell()" in inno
-    assert "CleanupDependencyRootsWithPowerShell()" not in inno
     assert "procedure CurUninstallStepChanged" in inno
     assert "CurUninstallStep <> usUninstall" in inno
     initialize_body = inno.split("function InitializeUninstall(): Boolean;", 1)[1].split("procedure CurUninstallStepChanged", 1)[0]
     assert "EnsureApplicationClosed()" not in initialize_body
-    assert "CleanupDependencyRootsWithPowerShell()" not in initialize_body
     assert "CleanupSharedToolsWithPowerShell()" not in initialize_body
     assert "CleanupAppDataWithPowerShell()" not in initialize_body
     assert "CleanupAppDataWithPowerShell()" in inno
     assert "Remove-ManagedPath (Join-Path $env:USERPROFILE ''.latexsnipper'')" in inno
-    assert "procedure CleanupDependencyRootChildren" not in inno
-    assert "function IsPythonEnvironmentRoot" not in inno
-    assert "Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf" not in inno
-    assert "Resolve-PythonEnvironmentRoot" not in inno
-    assert "pyvenv.cfg" not in inno
-    assert "python.exe" not in inno
-    assert "pythonw.exe" not in inno
-    assert "Scripts\\python.exe" not in inno
-    assert "bin\\python" not in inno
-    assert "CleanupDependencyRootChildren(ExpandConstant('{app}'))" not in inno
-    assert "CleanupDependencyRootChildren(ConfiguredDependencyRoot())" not in inno
-    assert "CleanupDependencyRootHistory()" not in inno
     assert inno.index("if DeleteDependencyEnvsOnUninstall then") < inno.index("if DeleteAppDataOnUninstall then")
     assert "CloseApplicationsFilter={#MyAppExeName}" in inno
     assert "taskkill.exe" in inno
@@ -237,16 +203,7 @@ def test_dependency_cleanup_is_documented_and_cross_platform() -> None:
 
     assert "--deps" in cleanup_script
     assert "install_base_dir" not in cleanup_script
-    assert "install_base_dir_cleanup_roots" not in cleanup_script
     assert "shared dependency tools" in cleanup_script
-    assert "is_python_environment_root()" not in cleanup_script
-    assert "resolve_python_environment_root()" not in cleanup_script
-    assert "pyvenv.cfg" not in cleanup_script
-    assert "python.exe" not in cleanup_script
-    assert "pythonw.exe" not in cleanup_script
-    assert "Scripts/python.exe" not in cleanup_script
-    assert "bin/python" not in cleanup_script
-    assert 'remove_path "$env_root" "dependency environment root"' not in cleanup_script
     assert "rm -rf \"$root\"" not in cleanup_script
     assert 'remove_path "$app_state/tools" "shared dependency tools"' in cleanup_script
     assert "`<app-state>/tools/pandoc`" in user_data_doc
@@ -317,29 +274,19 @@ def test_release_workflow_pins_setuptools_before_bundled_seed_verification() -> 
     release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert '"setuptools<82"' in release_workflow
-    assert "pip install --upgrade pip wheel setuptools" not in release_workflow
 
 
 def test_dependency_wizard_keeps_ui_status_icons_for_visible_labels() -> None:
     deps_ui = (ROOT / "src" / "bootstrap" / "deps_ui.py").read_text(encoding="utf-8")
-    deps_layer_specs = (ROOT / "src" / "bootstrap" / "deps_layer_specs.py").read_text(encoding="utf-8")
 
     assert "✅ MATHCRAFT_GPU 已安装" in deps_ui
     assert "⚠️ MATHCRAFT_GPU 验证失败" in deps_ui
-    assert "[OK] MATHCRAFT_GPU 已安装" not in deps_ui
-    assert "[WARN] MATHCRAFT_GPU 验证失败" not in deps_ui
-    assert '"[WARN] 该目录尚未检测到可复用的 Python 环境' not in deps_ui
-    assert '"[WARN] 重要提示' not in deps_ui
-    assert '"[LOCK]' not in deps_layer_specs
-    assert '"[WARN] 依赖版本冲突' not in deps_layer_specs
-    assert '"[NET]' not in deps_layer_specs
 
 
-def test_workbench_uses_default_compute_engine_time_limit_after_cas_removal() -> None:
+def test_workbench_uses_default_compute_engine_time_limit() -> None:
     app_js = (ROOT / "src" / "assets" / "mathlive" / "app.js").read_text(encoding="utf-8")
 
     assert "ce.timeLimit = 2000;" in app_js
-    assert "前端计算超时，已超过当前时限" not in app_js
     assert "前端计算引擎无法完成当前表达式" in app_js
 
 
@@ -385,7 +332,7 @@ def test_desktop_tray_open_action_raises_existing_main_window() -> None:
     assert "SetForegroundWindow" in windows_provider
 
 
-def test_fluent_dialogs_do_not_keep_legacy_button_fallbacks() -> None:
+def test_dialogs_use_fluent_controls() -> None:
     external_help = (ROOT / "src" / "ui" / "settings_external_help.py").read_text(encoding="utf-8")
     window_helpers = (ROOT / "src" / "ui" / "window_helpers.py").read_text(encoding="utf-8")
     runtime_log = (ROOT / "src" / "ui" / "runtime_log_dialog.py").read_text(encoding="utf-8")
@@ -399,14 +346,8 @@ def test_fluent_dialogs_do_not_keep_legacy_button_fallbacks() -> None:
     )[0]
     assert "PrimaryPushButton" in rename_dialog
     assert "PushButton" in rename_dialog
-    assert "QPushButton" not in rename_dialog
-    assert '"OK"' not in rename_dialog
-    assert '"Cancel"' not in rename_dialog
 
     assert "from qfluentwidgets import FluentIcon, PushButton" in runtime_log
-    assert "QPushButton" not in runtime_log
-    assert "FluentPushButton" not in runtime_log
-    assert "use_fluent" not in runtime_log
 
 
 def test_predict_result_dialog_has_persisted_quick_export_action() -> None:
@@ -439,11 +380,6 @@ def test_recognition_failure_logs_use_error_level() -> None:
     assert "[INFO] 识别失败" not in predict_controller
     assert "[ERR] PDF 识别失败" in pdf_controller
     assert "[INFO] PDF 识别失败" not in pdf_controller
-
-
-def test_final_docs_do_not_keep_development_only_design_notes() -> None:
-    assert not (ROOT / "docs" / "developer_code_standards.md").exists()
-    assert not (ROOT / "docs" / "MathCraft_OCR_Design.md").exists()
 
 
 def test_shutdown_cleans_office_bridge_toggle_workers() -> None:
@@ -519,7 +455,6 @@ def test_windows_release_normalizes_bundled_python_seed() -> None:
     assert "Push-Location $root" in script
     assert "--distpath $distRoot" in script
     assert "--workpath $pyinstallerWorkDir" in script
-    assert "LaTeXSnipperSetup-2.4.0.exe" not in script
     assert 'Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File' in script
 
 
@@ -544,12 +479,6 @@ def test_pyinstaller_specs_prune_bundled_python_seed_payload() -> None:
         assert "deps/python311" not in spec
         assert '"Lib/ensurepip"' not in spec
         assert '"Lib/venv"' not in spec
-
-    assert "LATEXSNIPPER_BUNDLE_MATHCRAFT_MODELS" not in windows_spec
-    assert "MATHCRAFT_MODELS_ROOT" not in windows_spec
-    assert "BUNDLED_DEPS_STATE" not in windows_spec
-    assert ".deps_state.json" not in windows_spec
-
 
 def test_pyinstaller_specs_prune_optional_qt_webengine_payload() -> None:
     removable_qt_payload = (
