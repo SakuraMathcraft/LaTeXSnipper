@@ -77,3 +77,7 @@ release_v*.md
 release*.md
 packaging/msix/image/
 
+# IDE / editor config
+.opencode/
+opencode.json
+

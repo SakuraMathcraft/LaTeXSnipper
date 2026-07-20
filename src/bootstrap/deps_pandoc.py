@@ -7,8 +7,13 @@ from bootstrap.deps_context import flags
 from runtime.app_paths import app_tools_dir
 
 
-def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
+def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None, stop_event=None) -> bool:
     """Ensure the pandoc executable is available."""
+    if stop_event and stop_event.is_set():
+        if log_fn:
+            log_fn("[INFO] Pandoc: 下载已取消")
+        return False
+
     if log_fn:
         log_fn("[INFO] Pandoc: 正在检查 pandoc 二进制文件...")
 
@@ -53,11 +58,16 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None) -> bool:
 
 
     _cleanup_pandoc_leftovers(pyexe, log_fn)
+    if stop_event and stop_event.is_set():
+        if log_fn:
+            log_fn("[INFO] Pandoc: 下载已取消")
+        return False
+
     if log_fn:
         log_fn("[INFO] Pandoc: 从镜像下载 pandoc 二进制...")
     if progress_fn:
         progress_fn(85)
-    ok = _download_pandoc_from_mirrors(pyexe, log_fn)
+    ok = _download_pandoc_from_mirrors(pyexe, log_fn, stop_event=stop_event)
     if ok:
         if log_fn:
             log_fn("[INFO] Pandoc: pandoc 二进制文件就绪")
@@ -273,7 +283,7 @@ def _rank_mirrors_by_speed(mirrors: list[str], log_fn=None) -> list[str]:
     return ranked
 
 
-def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool:
+def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None, stop_event=None) -> bool:
     """Download pandoc and extract it into the shared app tools directory."""
     import urllib.request
     import time as _time
@@ -297,6 +307,10 @@ def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool
     mirrors = _rank_mirrors_by_speed(mirrors, log_fn)
 
     for idx, url in enumerate(mirrors, start=1):
+        if stop_event and stop_event.is_set():
+            if log_fn:
+                log_fn("[INFO] Pandoc: 下载已取消")
+            return False
         if log_fn:
             log_fn(f"[INFO] Pandoc: [{idx}/{len(mirrors)}] 尝试: {url[:80]}...")
         try:
@@ -317,6 +331,11 @@ def _download_pandoc_from_mirrors(pyexe: str | None = None, log_fn=None) -> bool
                 chunk = resp.read(chunk_size)
                 if not chunk:
                     break
+                if stop_event and stop_event.is_set():
+                    resp.close()
+                    if log_fn:
+                        log_fn("[INFO] Pandoc: 下载已取消")
+                    return False
                 chunks.append(chunk)
                 downloaded += len(chunk)
 
