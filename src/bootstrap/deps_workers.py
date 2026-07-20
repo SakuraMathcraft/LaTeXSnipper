@@ -279,11 +279,6 @@ class InstallWorker(QThread):
 
             pandoc_ok = True
             if want_pandoc:
-                if self.stop_event.is_set():
-                    self.log_updated.emit("[INFO] Pandoc: 下载已取消")
-                    self._emit_done_safe(False)
-                    return
-
                 base_progress = pip_progress_max if pending else 20
                 self.log_updated.emit("[INFO] Pandoc: 检查 pandoc 二进制文件...")
 
@@ -296,7 +291,6 @@ class InstallWorker(QThread):
                     self.pyexe,
                     self.log_updated.emit,
                     progress_fn=_pandoc_progress,
-                    stop_event=self.stop_event,
                 )
 
             if "CORE" in chosen_layers or any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
