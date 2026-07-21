@@ -102,12 +102,12 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         if (_hostReady.Task.Status == TaskStatus.RanToCompletion)
         {
             Form host = _hostReady.Task.Result;
-            if (!host.IsDisposed)
+            if (!host.IsDisposed && host.IsHandleCreated)
             {
                 host.BeginInvoke(new Action(() =>
                 {
-                    host.Close();
                     _applicationContext?.ExitThread();
+                    host.Dispose();
                 }));
             }
         }
@@ -117,26 +117,20 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
     {
         try
         {
-            var hostForm = new Form
-            {
-                ShowInTaskbar = false,
-                StartPosition = FormStartPosition.Manual,
-                Width = 1,
-                Height = 1,
-                Opacity = 0
-            };
+            var hostForm = new HiddenWebViewHostForm();
             var webView = new WebView2
             {
                 Dock = DockStyle.Fill
             };
             hostForm.Controls.Add(webView);
-            _applicationContext = new ApplicationContext(hostForm);
-            hostForm.Load += (sender, args) =>
-            {
-                hostForm.Hide();
-                _hostReady.TrySetResult(hostForm);
-                _webViewReady.TrySetResult(webView);
-            };
+
+            // WebView2 needs real Win32 handles and an STA message loop, but the
+            // renderer host must never become a user-visible top-level window.
+            _ = hostForm.Handle;
+            _ = webView.Handle;
+            _applicationContext = new ApplicationContext();
+            _hostReady.TrySetResult(hostForm);
+            _webViewReady.TrySetResult(webView);
             Application.Run(_applicationContext);
         }
         catch (Exception ex)
@@ -160,6 +154,11 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         cancellationToken.ThrowIfCancellationRequested();
         Form host = await _hostReady.Task.ConfigureAwait(false);
         WebView2 webView = await _webViewReady.Task.ConfigureAwait(false);
+        if (host.IsDisposed || !host.IsHandleCreated)
+        {
+            throw new InvalidOperationException("MathJax rendering host is unavailable.");
+        }
+
         var completion = new TaskCompletionSource<T>();
         host.BeginInvoke(new Action(async () =>
         {
@@ -178,6 +177,37 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         using (cancellationToken.Register(() => completion.TrySetCanceled()))
         {
             return await completion.Task.ConfigureAwait(false);
+        }
+    }
+
+    private sealed class HiddenWebViewHostForm : Form
+    {
+        private const int WsExToolWindow = 0x00000080;
+        private const int WsExAppWindow = 0x00040000;
+
+        public HiddenWebViewHostForm()
+        {
+            ShowInTaskbar = false;
+            FormBorderStyle = FormBorderStyle.None;
+            ControlBox = false;
+            Width = 1;
+            Height = 1;
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams parameters = base.CreateParams;
+                parameters.ExStyle |= WsExToolWindow;
+                parameters.ExStyle &= ~WsExAppWindow;
+                return parameters;
+            }
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            base.SetVisibleCore(false);
         }
     }
 
