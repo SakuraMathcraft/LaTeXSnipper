@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\hosts\WordAddIn\LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>LaTeXSnipper.OfficePlugin.WordParsingE2E</RootNamespace>
+    <AssemblyName>LaTeXSnipper.OfficePlugin.WordParsingE2E</AssemblyName>
+  </PropertyGroup>
+
+</Project>

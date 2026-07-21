@@ -8,9 +8,10 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
-    public Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken)
+    public Task<WordFormattingResetResult> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        int formulaCount = 0;
         int resetCount = 0;
         ExecuteWithScreenUpdatingSuspended(() =>
         {
@@ -31,6 +32,7 @@ public sealed partial class DynamicWordApplicationAdapter
             foreach (object candidate in equationControls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                formulaCount++;
                 dynamic control = candidate;
                 string equationId = GetEquationId(control);
                 if (!WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
@@ -64,6 +66,8 @@ public sealed partial class DynamicWordApplicationAdapter
                     continue;
                 }
 
+                formulaCount++;
+
                 if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
                         CurrentDocument,
                         Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
@@ -87,7 +91,7 @@ public sealed partial class DynamicWordApplicationAdapter
             }
         });
 
-        return Task.FromResult(resetCount);
+        return Task.FromResult(new WordFormattingResetResult(formulaCount, resetCount));
     }
 
     public System.Threading.Tasks.Task ResetManagedEquationFormattingAsync(

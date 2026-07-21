@@ -22,6 +22,7 @@ public sealed partial class WordPluginController : IDisposable
     private readonly IWordApplicationAdapter _wordAdapter;
     private readonly IWordStatusSink _statusSink;
     private readonly IWordFormulaOptionsProvider _optionsProvider;
+    private readonly Func<WordPluginSettings> _settingsLoader;
     private readonly MathJaxSvgRenderer _mathJaxRenderer;
     private readonly MathMlToOmmlConverter _ommlConverter;
     private readonly OlePresentationPipeline _olePresentationPipeline;
@@ -70,7 +71,8 @@ public sealed partial class WordPluginController : IDisposable
         OlePresentationPipeline olePresentationPipeline,
         IWordStatusSink? statusSink = null,
         IWordFormulaOptionsProvider? optionsProvider = null,
-        MathMlToOmmlConverter? ommlConverter = null)
+        MathMlToOmmlConverter? ommlConverter = null,
+        Func<WordPluginSettings>? settingsLoader = null)
     {
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
         _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
@@ -80,6 +82,7 @@ public sealed partial class WordPluginController : IDisposable
         _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullWordStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultWordFormulaOptionsProvider.Instance;
+        _settingsLoader = settingsLoader ?? WordPluginSettings.Load;
     }
 
     public async Task InsertOmmlAsync(CancellationToken cancellationToken)
@@ -225,7 +228,7 @@ public sealed partial class WordPluginController : IDisposable
         {
             string statusKey = accepted.UpdateMode
                 ? "UpdatedStatus"
-                : WordPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.Ole
+                : _settingsLoader().InsertionBackend == FormulaInsertionBackend.Ole
                     ? "OleInsertedStatus"
                     : "OmmlInsertedStatus";
             _statusSink.Post(
@@ -423,7 +426,7 @@ public sealed partial class WordPluginController : IDisposable
         FormulaInsertionBackend? backendOverride = null,
         bool reportProgress = true)
     {
-        WordPluginSettings settings = WordPluginSettings.Load();
+        WordPluginSettings settings = _settingsLoader();
         FormulaInsertionBackend backend = backendOverride
             ?? (includeEquationOoxml
                 ? GetBackend(metadata.RenderEngine)
@@ -742,7 +745,7 @@ public sealed partial class WordPluginController : IDisposable
         FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
-        WordPluginSettings settings = WordPluginSettings.Load();
+        WordPluginSettings settings = _settingsLoader();
         if (previous == null)
         {
             normalizedLatex = ApplyDefaultSourceFormatting(
@@ -768,7 +771,7 @@ public sealed partial class WordPluginController : IDisposable
         FormulaDisplayMode displayMode = options.Display || numberingMode != NumberingMode.None
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
-        WordPluginSettings settings = WordPluginSettings.Load();
+        WordPluginSettings settings = _settingsLoader();
         return new FormulaMetadata(
             new FormulaIdentity(_wordAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             string.Empty,

@@ -19,6 +19,7 @@ office_plugin/**/*.user.props
 office_plugin/**/*.pfx
 office_plugin/installer/vsto-signing.cer
 office_plugin/installer/devcert.cer
+office_plugin/tests/**/artifacts/
 !LaTeXSnipper-linux.spec
 !LaTeXSnipper-macos.spec
 !LaTeXSnipper.spec

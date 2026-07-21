@@ -61,6 +61,13 @@ public sealed partial class WordPluginController
         IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
             .OrderByDescending(item => item.Start)
             .ToArray();
+        int targetCount = formulas.Count(entry => !entry.IsNativeWordFormula || target == FormulaInsertionBackend.Ole);
+        if (targetCount == 0)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoConversionTargetsStatus"));
+            return;
+        }
+
         RenderEngineKind targetEngine = target == FormulaInsertionBackend.Ole
             ? RenderEngineKind.MathJaxSvg
             : RenderEngineKind.Omml;
@@ -172,17 +179,22 @@ public sealed partial class WordPluginController
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
     {
-        _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("WorkingStatus"));
         if (all)
         {
             await ResetAllNaturalSizesAsync(cancellationToken);
             return;
         }
 
-        WordPluginSettings settings = WordPluginSettings.Load();
+        WordPluginSettings settings = _settingsLoader();
         IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
             .OrderByDescending(item => item.Start)
             .ToArray();
+        if (!formulas.Any(entry => !entry.IsNativeWordFormula))
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingTargetsStatus"));
+            return;
+        }
+
         int formattedCount = 0;
         int skippedCount = 0;
         for (int batchStart = 0; batchStart < formulas.Count; batchStart += BatchFormulaOperationSize)
@@ -287,20 +299,26 @@ public sealed partial class WordPluginController
 
     private async Task ResetAllNaturalSizesAsync(CancellationToken cancellationToken)
     {
-        int formattedCount;
+        WordFormattingResetResult result;
         using (_wordAdapter.BeginUndoRecord())
         {
-            formattedCount = await _wordAdapter.ResetCustomFormulaSizesAsync(cancellationToken);
+            result = await _wordAdapter.ResetCustomFormulaSizesAsync(cancellationToken);
         }
 
-        if (formattedCount == 0)
+        if (result.FormulaCount == 0)
         {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingNeededStatus"));
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingTargetsStatus"));
+            return;
+        }
+
+        if (result.ResetCount == 0)
+        {
+            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingNeededAllStatus"));
             return;
         }
 
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("FormattedStatus")
-            .Replace("{count}", formattedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            .Replace("{count}", result.ResetCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     private async Task InsertBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken)
@@ -353,7 +371,7 @@ public sealed partial class WordPluginController
             string.Empty,
             RenderEngineKind.MathJaxSvg,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            WordPluginSettings.Load().FormulaFontScale);
+            _settingsLoader().FormulaFontScale);
     }
 
     private static string ApplyFormulaColor(string latex, string fontColor)

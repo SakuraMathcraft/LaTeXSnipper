@@ -23,6 +23,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Load, update, and delete managed formulas
 - Chapter/section-aware automatic numbering, references, boundaries, and Renumber All
 - In-place conversion between managed OLE and OMML formulas, plus explicit conversion of selected native Word OMML formulas to LaTeXSnipper OLE
+- Parsing of `$...$`, `\(...\)`, `$$...$$`, and `\[...\]` LaTeX in the selected range or main document body, including table cells
 - Selected formula style reset and document-wide natural-size restoration
 - Screenshot OCR via desktop Bridge
 
@@ -54,8 +55,9 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 | `hosts/WordVstoAddIn` | Thin VSTO shell loaded by Word |
 | `hosts/PowerPointAddIn` | PowerPoint workflows: Ribbon, OLE/PNG insertion, metadata, controller |
 | `hosts/PowerPointVstoAddIn` | Thin VSTO shell loaded by PowerPoint |
+| `tests/LaTeXSnipper.OfficePlugin.WordParsingE2E` | Real-Word OMML/OLE parsing regression test |
 | `installer/` | Inno Setup installer and release build entry point |
-| `tools/` | Release-only VSTO build and installer cleanup support |
+| `tools/` | Build, installer, metadata, and Word parsing test entry points |
 | `hosts/OleFormulaObjectNative/` | Native C++ COM/OLE in-proc handler DLL registered as the Office formula object for 32-bit and 64-bit Office |
 
 Shared libraries target `net48;net9.0`. Office hosts target .NET Framework 4.8. The native OLE handler is built for x64 and Win32 Office.
@@ -71,3 +73,13 @@ office_plugin\installer\build.bat 2.4.0 Release
 Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
+
+## Word Parsing E2E Test
+
+Close every Word window and run:
+
+```powershell
+office_plugin\tools\Test-WordFormulaParsingE2E.ps1
+```
+
+The test exercises both OMML and OLE backends through the production controller. Disposable DOCX/PDF evidence is written to the test project's ignored `artifacts` directory.

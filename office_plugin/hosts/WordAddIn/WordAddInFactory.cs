@@ -16,14 +16,17 @@ public static class WordAddInFactory
     public static WordPluginController CreateController(
         object wordApplication,
         IWordStatusSink? statusSink = null,
-        IWordFormulaOptionsProvider? optionsProvider = null)
+        IWordFormulaOptionsProvider? optionsProvider = null,
+        Func<WordPluginSettings>? settingsLoader = null,
+        string? mathJaxHostName = null)
     {
         statusSink ??= NullWordStatusSink.Instance;
         var editor = new MathLiveFormulaEditor(CreateEditorOptions());
         var editorSession = new FormulaEditorSession(editor);
         var bridgeClient = new BridgeClient(CreateBridgeOptions());
         var wordAdapter = new DynamicWordApplicationAdapter(wordApplication);
-        var oleIntermediateRenderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("WordAddIn"));
+        var oleIntermediateRenderer = new MathJaxSvgRenderer(
+            new WebView2MathJaxJavaScriptRuntime(mathJaxHostName ?? "WordAddIn"));
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new WordPluginController(
             editorSession,
@@ -32,7 +35,8 @@ public static class WordAddInFactory
             oleIntermediateRenderer,
             olePresentationPipeline,
             statusSink,
-            optionsProvider);
+            optionsProvider,
+            settingsLoader: settingsLoader);
         editor.FormulaSubmitting += async accepted =>
         {
             using var timeout = OfficeCommandTimeouts.CreateStandardCommandTokenSource();

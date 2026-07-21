@@ -94,6 +94,8 @@ public sealed class WordRibbonCallbacks
     public void OnInsertSectionBoundary(object control) => FireAndForgetSerial(ct => _controller.InsertSectionBoundaryAsync(ct));
     public void OnFormatSelected(object control) => FireAndForgetSerial(ct => _controller.FormatSelectedAsync(ct));
     public void OnFormatAll(object control) => FireAndForgetSerial(ct => _controller.FormatAllAsync(ct));
+    public void OnParseSelected(object control) => FireAndForgetSerial(ct => _controller.ParseSelectedAsync(ct));
+    public void OnParseAll(object control) => FireAndForgetSerial(ct => _controller.ParseAllAsync(ct));
 
     public void OnSelectionChanged()
     {
