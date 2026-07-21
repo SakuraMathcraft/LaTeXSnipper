@@ -137,6 +137,8 @@
       <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。编辑器提交、加载所选、删除、重编号、OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
       <h3>侧边栏草稿</h3>
       <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
+      <h3>公式解析</h3>
+      <p>“解析所选”和“解析全文”可将正文及表格单元格中完整且非空的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code> 转换为受管理公式。行内公式不编号；行间公式使用当前插入后端和公式设置，有效的 <code>\tag{...}</code> 优先作为自定义编号。已有公式及其他受保护内容会被跳过，转换失败时保留原文并继续处理；解析不会自动执行全文重编号。</p>
       <h3>自动编号与重编号</h3>
       <p>自动编号只对未编号的行间公式生效。可组合章、节、公式三级编号并选择层级分隔符；章、节边界会递归重置后续编号，也可分别隐藏。</p>
       <h3>转换、引用与格式化</h3>
@@ -270,6 +272,8 @@
       <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Editor submit, load selected, delete, renumber, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
       <h3>Side Pane Draft</h3>
       <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
+      <h3>Formula Parsing</h3>
+      <p>Parse Selected and Parse All convert complete, non-empty <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions in body text and table cells into managed formulas. Inline formulas remain unnumbered; display formulas use the current insertion backend and formula settings, with a valid <code>\tag{...}</code> taking priority as a custom number. Existing formulas and other protected content are skipped, while failed conversions keep their source text and processing continues. Parsing does not renumber the whole document automatically.</p>
       <h3>Auto Numbering &amp; Renumber</h3>
       <p>Auto Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator; chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
       <h3>Conversion, References &amp; Formatting</h3>
