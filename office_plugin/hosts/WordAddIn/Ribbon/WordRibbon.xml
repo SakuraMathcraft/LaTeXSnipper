@@ -53,6 +53,10 @@
           <button id="SelectedToOleButton" label="{ToOleButton}" supertip="{ToOleSelectedTip}" size="large" imageMso="ObjectEditDialog" onAction="OnConvertSelectedToOle" />
           <button id="SelectedToOmmlButton" label="{ToOmmlButton}" supertip="{ToOmmlSelectedTip}" size="large" imageMso="ConvertTextToTable" onAction="OnConvertSelectedToOmml" />
         </group>
+        <group id="LaTeXSnipperParsingGroup" label="{ParsingGroup}">
+          <button id="ParseSelectedButton" label="{ParseSelectedButton}" supertip="{ParseSelectedTip}" size="large" imageMso="SelectionToMathConvert" onAction="OnParseSelected" />
+          <button id="ParseAllButton" label="{ParseAllButton}" supertip="{ParseAllTip}" size="large" imageMso="FileDocumentInspect" onAction="OnParseAll" />
+        </group>
         <group id="LaTeXSnipperReferenceGroup" label="{ReferenceGroup}">
           <button id="InsertReferenceButton" label="{InsertReferenceButton}" supertip="{InsertReferenceTip}" size="large" imageMso="CrossReferenceInsert" onAction="OnInsertReference" />
         </group>

@@ -88,6 +88,8 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         public void OnInsertSectionBoundary(IRibbonControl control) => callbacks?.OnInsertSectionBoundary(control);
         public void OnFormatSelected(IRibbonControl control) => callbacks?.OnFormatSelected(control);
         public void OnFormatAll(IRibbonControl control) => callbacks?.OnFormatAll(control);
+        public void OnParseSelected(IRibbonControl control) => callbacks?.OnParseSelected(control);
+        public void OnParseAll(IRibbonControl control) => callbacks?.OnParseAll(control);
 
     }
 }

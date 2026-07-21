@@ -18,6 +18,22 @@ public interface IWordApplicationAdapter
 
     double GetCurrentFontSizePoints();
 
+    Task<IReadOnlyList<WordLatexParseCandidate>> FindLatexParseCandidatesAsync(
+        bool all,
+        CancellationToken cancellationToken);
+
+    Task ReplaceParsedOmmlFormulaAsync(
+        WordLatexParseCandidate candidate,
+        string ooxml,
+        FormulaMetadata metadata,
+        CancellationToken cancellationToken);
+
+    Task ReplaceParsedOleFormulaAsync(
+        WordLatexParseCandidate candidate,
+        FormulaMetadata metadata,
+        OlePresentationResult presentation,
+        CancellationToken cancellationToken);
+
     Task InsertManagedEquationAsync(
         string ooxml,
         FormulaMetadata metadata,
@@ -66,7 +82,7 @@ public interface IWordApplicationAdapter
 
     Task ResetManagedEquationFormattingAsync(FormulaMetadata metadata, CancellationToken cancellationToken);
 
-    Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken);
+    Task<WordFormattingResetResult> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken);
 
     bool HasCustomFormulaScale(FormulaMetadata metadata);
 
