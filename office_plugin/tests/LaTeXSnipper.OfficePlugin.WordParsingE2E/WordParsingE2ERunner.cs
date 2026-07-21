@@ -235,6 +235,9 @@ internal sealed class WordParsingE2ERunner
             text.Contains(@"未闭合 \[\delta S=0"),
             "Unclosed table bracket source changed");
         E2EAssert.True(
+            text.Contains(@"未闭合行间公式：$$a+b"),
+            "Unclosed body display source changed");
+        E2EAssert.True(
             text.Contains(@"$$\mathcal E_i(L)="),
             "Final unclosed display source changed");
         string headerText = Convert.ToString(document.Sections.Item(1).Headers.Item(1).Range.Text)

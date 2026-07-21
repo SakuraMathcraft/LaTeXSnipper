@@ -73,6 +73,12 @@ internal static class LatexDelimiterScanner
                 continue;
             }
 
+            if (ContainsTopLevelOpeningDelimiter(text, contentStart, close))
+            {
+                index += delimiter.Open.Length;
+                continue;
+            }
+
             string latex = text.Substring(contentStart, close - contentStart).Trim();
             int end = close + delimiter.Close.Length;
             if (latex.Length > 0)
@@ -149,6 +155,51 @@ internal static class LatexDelimiterScanner
         }
 
         return -1;
+    }
+
+    private static bool ContainsTopLevelOpeningDelimiter(string text, int start, int end)
+    {
+        int braceDepth = 0;
+        bool inComment = false;
+        for (int index = start; index < end; index++)
+        {
+            char current = text[index];
+            if (inComment)
+            {
+                if (current == '\r' || current == '\n')
+                {
+                    inComment = false;
+                }
+
+                continue;
+            }
+
+            if (current == '%' && !IsEscaped(text, index))
+            {
+                inComment = true;
+                continue;
+            }
+
+            if (current == '{' && !IsEscaped(text, index))
+            {
+                braceDepth++;
+                continue;
+            }
+
+            if (current == '}' && !IsEscaped(text, index))
+            {
+                braceDepth = Math.Max(0, braceDepth - 1);
+                continue;
+            }
+
+            if (braceDepth == 0
+                && TryReadOpeningDelimiter(text, index, out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool Matches(string text, int index, string value)

@@ -10,8 +10,8 @@ internal static class WordParsingFixtureBuilder
     private const int WdLineSpaceMultiple = 5;
     private const int WdPreferredWidthPoints = 3;
 
-    public const int ExpectedCandidateCount = 35;
-    public const int ExpectedManagedFormulaCount = 31;
+    public const int ExpectedCandidateCount = 37;
+    public const int ExpectedManagedFormulaCount = 33;
     public const int ExpectedFailedCandidateCount = 4;
 
     public static void Build(dynamic document, FormulaInsertionBackend backend)
@@ -72,6 +72,9 @@ internal static class WordParsingFixtureBuilder
         AppendParagraph(document, @"后续正常公式：$E=T+V$。");
         AppendParagraph(document, @"未闭合圆括号公式：\(\frac{\partial L}{\partial\dot q}");
         AppendParagraph(document, @"后续正常公式：\(p_i=\frac{\partial L}{\partial\dot q_i}\)。");
+        AppendParagraph(document, @"未闭合行间公式：$$a+b");
+        AppendParagraph(document, @"后续正常行内公式：$x$。");
+        AppendParagraph(document, @"后续正常行间公式：$$c=d$$");
         AppendParagraph(document, @"空 tag：$$E=T+V\tag{}$$");
         AppendParagraph(document, @"重复 tag：$$m\ddot q+kq=0\tag{A}\tag{B}$$");
         AppendParagraph(document, @"未闭合 tag：$$\ddot q+\omega^2q=0\tag{osc$$");
