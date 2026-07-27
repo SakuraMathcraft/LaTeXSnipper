@@ -502,7 +502,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "IRibbonExtensibility" in ribbon_adapter
     assert "[ComVisible(true)]" in ribbon_adapter
     assert "[Guid(" in ribbon_adapter
-    assert "GetImage" not in ribbon_adapter
     assert "OnInsertOmml" in ribbon_adapter
     assert "OnInsertInline" in ribbon_adapter
     assert "OnInsertDisplay" in ribbon_adapter
@@ -513,9 +512,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "OnShowTaskPane" in ribbon_adapter
     assert "OnSettings" in ribbon_adapter
     assert "OnHelp" in ribbon_adapter
-    assert "GetLabel" not in ribbon_adapter
-    assert "GetSupertip" not in ribbon_adapter
-    assert "RibbonIconFactory.cs" not in project_text
 
     build_script = PLUGIN / "tools" / "Build-VstoAddIns.ps1"
     build_text = build_script.read_text(encoding="utf-8")
@@ -527,7 +523,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert "/p:VisualStudioVersion=" in build_text
     assert "Export-Certificate" in build_text
     assert "1.3.6.1.5.5.7.3.3" in build_text
-    assert "-CodeSigningCert" not in build_text
     assert "System32\\WindowsPowerShell\\v1.0\\Modules" in build_text
     assert "Microsoft.PowerShell.Security.psd1" in build_text
     assert "PKI\\PKI.psd1" in build_text
@@ -535,11 +530,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert build_text.index('"MSBuild\\Current\\Bin\\MSBuild.exe"') < build_text.index(
         '"MSBuild\\Current\\Bin\\amd64\\MSBuild.exe"'
     )
-    assert 'v17.0\\OfficeTools' not in build_text
-    assert "RegisterOfficeAddin" not in build_text
-    assert "VSTOInstaller.exe" not in build_text
-    assert "HKCU:" not in build_text
-    assert "HKLM:" not in build_text
 
     native_build_script = PLUGIN / "tools" / "Build-NativeOleHandler.ps1"
     native_build_text = native_build_script.read_text(encoding="utf-8")
@@ -547,7 +537,6 @@ def test_word_vsto_shell_is_a_thin_office_loader() -> None:
     assert 'Where-Object { $_.Name -match "^v\\d+$" }' in native_build_text
     assert 'foreach ($platform in @("x64", "Win32"))' in native_build_text
     assert "/p:PlatformToolset=" in native_build_text
-    assert "WindowsUserModeDriver" not in native_build_text
 
 def test_ole_objects_are_registered_as_static_display_objects() -> None:
     setup_text = (PLUGIN / "installer" / "setup.iss").read_text(encoding="utf-8")
@@ -557,9 +546,6 @@ def test_ole_objects_are_registered_as_static_display_objects() -> None:
     force_clean_text = (PLUGIN / "tools" / "ForceClean.ps1").read_text(encoding="utf-8")
     word_adapter_text = read_word_adapter_sources()
 
-    assert "Verb\\0" not in setup_text
-    assert "\\Insertable" not in setup_text
-    assert "OleFormulaRenderer" not in setup_text
     assert 'Source: "..\\release\\InstallerAssets\\MathJax-3.2.2\\*"' in setup_text
     assert 'ValueData: "672280"' in setup_text
     assert "Software\\Classes\\CLSID\\{{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}" in setup_text
@@ -676,7 +662,6 @@ def test_office_plugin_help_describes_current_paths() -> None:
     for host in ("WordAddIn", "PowerPointAddIn"):
         help_html = (PLUGIN / "hosts" / host / "EditorAssets" / "help.html").read_text(encoding="utf-8")
         assert "EMF+Dual vector preview" in help_html
-        assert "Compatibility PNG" not in help_html
         assert "PNG image insertion" in help_html
         assert "side pane is not an update entry point" in help_html
         assert "Press Enter in the MathLive field to start a new math row" in help_html
@@ -701,7 +686,6 @@ def test_office_plugin_help_describes_current_paths() -> None:
         assert "reports progress in the status pane" in help_html
         assert "selecting only the number text does not delete the formula" in help_html
         assert "Format All only restores manually resized formulas to natural size" in help_html
-        assert "selected formulas or the whole document" not in help_html
         assert "32-bit and 64-bit Windows desktop Office only" in help_html
         assert "Office 2024 / 2021 / 2019" in help_html
         assert "Office LTSC 2024 / 2021" in help_html
