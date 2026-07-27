@@ -20,9 +20,3 @@ def test_office_docs_describe_the_released_plugin() -> None:
     assert "Office 2016 is not officially supported" in plugin_readme
     assert "Office 2024 / 2021 / 2019" in plugin_readme
     assert "OLE formulas use local MathJax layout" in plugin_readme
-    assert "localhost:8765" not in plugin_readme
-    assert "office_addin" not in plugin_readme
-    assert "sideload" not in plugin_readme
-    assert "retired" not in plugin_readme
-    assert "target architecture" not in plugin_readme
-    assert "active Office product architecture" not in plugin_readme

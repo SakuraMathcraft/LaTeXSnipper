@@ -16,9 +16,7 @@ office_plugin/**/bin/
 office_plugin/**/obj/
 office_plugin/**/obj-handler/
 office_plugin/**/*.user.props
-office_plugin/**/*.pfx
 office_plugin/installer/vsto-signing.cer
-office_plugin/installer/devcert.cer
 office_plugin/tests/**/artifacts/
 !LaTeXSnipper-linux.spec
 !LaTeXSnipper-macos.spec
@@ -39,14 +37,12 @@ office_plugin/release/InstallerAssets/
 # Embedded runtime (do not version)
 tools/deps/python311/
 tools/deps/python311-*/
-tools/deps/translation_env/
 tools/deps/pandoc/
 
 # Local runtime components (do not version)
-python311/
+/python311/
 python-*.exe
 crash_log.txt
-src/assets/MathJax-4.1.2/
 
 # Logs
 *.log
@@ -76,9 +72,4 @@ WECHAT_ARTICLE.md
 RELEASE_NOTES*.md
 release_v*.md
 release*.md
-packaging/msix/image/
-
-# IDE / editor config
-.opencode/
-opencode.json
 

@@ -13,9 +13,7 @@
         "**/__pycache__",
         "build",
         "python311",
-        "apps",
-        "tools/deps/python311",
-        "tools/deps/translation_env"
+        "tools/deps/python311"
     ],
     "reportUnusedImport": "warning",
     "reportUnusedVariable": "warning",
