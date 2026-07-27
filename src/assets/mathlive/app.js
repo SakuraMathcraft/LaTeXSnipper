@@ -1,3 +1,5 @@
+import { routeMathfieldNavigationKey } from './mathfield-keyboard.js';
+
 let bridge = null;
 let mathfield = null;
 let resultView = null;
@@ -118,7 +120,7 @@ function applyMultilineLayout(kind = 'displaylines') {
   setStatus(`已应用 ${kind} 多行排版`);
 }
 
-  function insertSnippet(kind = '') {
+function insertSnippet(kind = '') {
   if (!mathfield) return;
   const map = {
     fraction: '\\frac{#?}{#?}',
@@ -130,29 +132,17 @@ function applyMultilineLayout(kind = 'displaylines') {
     product: '\\prod_{n=1}^{\\infty} #?',
     integral: '\\int_{a}^{b} #?\\,dx',
     matrix2: '\\begin{bmatrix}#? & #? \\\\ #? & #?\\end{bmatrix}',
-    newline: ' \\\\ ',
   };
   const template = map[String(kind || '').trim()];
   if (!template) {
     setStatus('当前快捷插入模板不可用');
     return;
   }
-    try {
-      if (kind === 'newline') {
-        const latex = currentLatex();
-        const inMultiline = /\\begin\{(multline|align)\}|^\\displaylines\{/.test(latex);
-        if (!inMultiline) {
-          applyMultilineLayout('displaylines');
-          mathfield.focus();
-          syncOutputs();
-          setStatus('已启用 displaylines 多行环境');
-          return;
-        }
-      }
-      mathfield.insert(template, { format: 'latex' });
-      mathfield.focus();
-      syncOutputs();
-    setStatus(`已插入${kind === 'newline' ? '换行' : '快捷模板'}`);
+  try {
+    mathfield.insert(template, { format: 'latex' });
+    mathfield.focus();
+    syncOutputs();
+    setStatus('已插入快捷模板');
   } catch (err) {
     setStatus(`快捷插入失败：${String(err)}`);
   }
@@ -278,6 +268,8 @@ function hideVirtualKeyboard() {
 
 function handleMathfieldKeydown(event) {
   if (!isMathfieldActive()) return;
+
+  if (routeMathfieldNavigationKey(mathfield, event)) return;
 
   if (event.key === 'Escape') {
     event.preventDefault();

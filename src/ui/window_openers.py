@@ -6,7 +6,7 @@ import threading
 
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from handwriting import HandwritingWindow
-from handwriting.model_policy import is_internal_handwriting_model, resolve_handwriting_recognition_model
+from recognition.model_policy import is_internal_document_model, resolve_document_recognition_model
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
 from ui.settings_window import SettingsWindow
 
@@ -83,7 +83,7 @@ class WindowOpenersMixin:
 
     def open_handwriting_window(self):
         preferred = self._get_preferred_model_for_predict()
-        handwriting_model = resolve_handwriting_recognition_model(preferred)
+        handwriting_model = resolve_document_recognition_model(preferred)
         self._sync_current_model_status_from_preference()
         if not self.model and handwriting_model != "external_model":
             custom_warning_dialog("错误", "模型未初始化", self)
@@ -106,7 +106,7 @@ class WindowOpenersMixin:
         self._warmup_handwriting_model_async(handwriting_model)
 
     def _warmup_handwriting_model_async(self, handwriting_model: str) -> None:
-        if not is_internal_handwriting_model(handwriting_model) or not self.model:
+        if not is_internal_document_model(handwriting_model) or not self.model:
             return
         try:
             if self.model.is_model_ready(handwriting_model):

@@ -10,7 +10,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushButton, isDarkTheme
 
-from editor.latex_snippet_panel import LATEX_SNIPPETS, LaTeXSnippetPanel
+from editor.latex_snippet_panel import LaTeXSnippetPanel
 from editor.workbench_bridge import WorkbenchBridge
 from runtime.app_paths import resource_path
 
@@ -32,7 +32,6 @@ class WorkbenchWindow(QWidget):
         "无穷乘积": r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)",
         "Wallis 乘积": r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}",
     }
-    INSERT_SNIPPETS = {label: key for label, (key, _template) in LATEX_SNIPPETS.items()}
     COMPUTE_ACTIONS = {
         "计算": "evaluate",
         "化简": "simplify",

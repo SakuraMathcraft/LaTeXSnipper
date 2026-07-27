@@ -1,3 +1,5 @@
+import { routeMathfieldNavigationKey } from './mathfield-keyboard.js';
+
 let mathfield = null;
 let bridge = null;
 let currentKeyboardHeight = 0;
@@ -127,6 +129,8 @@ function hideVirtualKeyboard() {
 
 function handleMathfieldKeydown(event) {
   if (!isMathfieldActive()) return;
+
+  if (routeMathfieldNavigationKey(mathfield, event)) return;
 
   if (event.key === 'Escape') {
     event.preventDefault();

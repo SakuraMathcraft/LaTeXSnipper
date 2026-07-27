@@ -141,26 +141,26 @@ def test_pdf_preview_backend_switches_share_one_infobar_path() -> None:
     assert "_show_poppler_backend_info" not in source
 
 
-def test_handwriting_internal_recognition_is_fixed_to_mixed_mode() -> None:
-    from handwriting.model_policy import resolve_handwriting_recognition_model
+def test_document_recognition_model_policy() -> None:
+    from recognition.model_policy import resolve_document_recognition_model
 
-    assert resolve_handwriting_recognition_model("mathcraft") == "mathcraft_mixed"
-    assert resolve_handwriting_recognition_model("mathcraft_text") == "mathcraft_mixed"
-    assert resolve_handwriting_recognition_model("mathcraft_mixed") == "mathcraft_mixed"
-    assert resolve_handwriting_recognition_model("external_model") == "external_model"
+    assert resolve_document_recognition_model("mathcraft") == "mathcraft_mixed"
+    assert resolve_document_recognition_model("mathcraft_text") == "mathcraft_mixed"
+    assert resolve_document_recognition_model("mathcraft_mixed") == "mathcraft_mixed"
+    assert resolve_document_recognition_model("external_model") == "external_model"
 
 
 def test_handwriting_window_uses_shared_model_policy() -> None:
     source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
 
-    assert "resolve_handwriting_recognition_model" in source
+    assert "resolve_document_recognition_model" in source
     assert 'valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}' not in source
 
 
 def test_handwriting_window_opener_warms_mixed_without_using_main_preference() -> None:
     source = (SRC / "ui" / "window_openers.py").read_text(encoding="utf-8")
 
-    assert "resolve_handwriting_recognition_model(preferred)" in source
+    assert "resolve_document_recognition_model(preferred)" in source
     assert "_warmup_handwriting_model_async(handwriting_model)" in source
     assert "_ensure_model_warmup_async(preferred_model=preferred)" not in source
 

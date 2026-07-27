@@ -15,7 +15,6 @@ LATEX_SNIPPETS = {
     "连乘  (prod)": ("product", r"\prod_{n=1}^{\infty} #?"),
     "积分  (int)": ("integral", r"\int_{a}^{b} #?\,dx"),
     "矩阵  (matrix)": ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
-    "换行  (Enter)": ("newline", r" \\ "),
 }
 
 COMPACT_LATEX_SNIPPETS = {
@@ -28,7 +27,6 @@ COMPACT_LATEX_SNIPPETS = {
     "连乘": ("product", r"\prod_{n=1}^{\infty} #?"),
     "积分": ("integral", r"\int_{a}^{b} #?\,dx"),
     "矩阵": ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
-    "换行": ("newline", r" \\ "),
 }
 
 SNIPPET_TEMPLATES = {key: template for key, template in (value for value in LATEX_SNIPPETS.values())}
