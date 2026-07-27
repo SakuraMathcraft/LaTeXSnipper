@@ -12,6 +12,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import ExternalModelPdfWorker
 from bootstrap.deps_bootstrap import custom_warning_dialog
 from preview.math_preview import is_dark_ui
+from recognition.model_policy import EXTERNAL_MODEL, resolve_document_recognition_model
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from ui.pdf_options_dialog import prompt_pdf_output_options
 from ui.pdf_result_window import PdfResultWindow
@@ -47,13 +48,9 @@ def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
 
 
 class PdfRecognitionControllerMixin:
-    def _model_supports_pdf(self, model_name: str) -> bool:
-        m = (model_name or "").lower()
-        return m == "mathcraft_mixed" or m == "external_model"
-
-    def _prompt_pdf_output_options(self):
-        external_cfg = self._get_external_model_config() if self.current_model == "external_model" else None
-        return prompt_pdf_output_options(self, self.current_model, external_cfg)
+    def _prompt_pdf_output_options(self, recognition_model: str):
+        external_cfg = self._get_external_model_config() if recognition_model == EXTERNAL_MODEL else None
+        return prompt_pdf_output_options(self, recognition_model, external_cfg)
 
     def _upload_pdf_recognition(self):
         """Upload a PDF and recognize it as Markdown or LaTeX document output."""
@@ -77,38 +74,12 @@ class PdfRecognitionControllerMixin:
         if self._drop_file_kind(path) != "pdf":
             custom_warning_dialog("提示", "请拖入或选择 PDF 文件。", self)
             return
-        if not self.model and self._get_preferred_model_for_predict() != "external_model":
+        recognition_model = resolve_document_recognition_model(self._get_preferred_model_for_predict())
+        if not self.model and recognition_model != EXTERNAL_MODEL:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
-        preferred = self._get_preferred_model_for_predict()
-        try:
-            if preferred != self.current_model or (self.model and not self.model.is_model_ready(preferred)):
-                self.on_model_changed(preferred)
-        except Exception:
-            if preferred != self.current_model:
-                self.on_model_changed(preferred)
-        if self.current_model == "external_model" and not self._is_external_model_configured():
+        if recognition_model == EXTERNAL_MODEL and not self._is_external_model_configured():
             custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
-            return
-        if self.current_model.startswith("mathcraft") and self.current_model != "mathcraft_mixed":
-            from qfluentwidgets import MessageBox
-            tip = MessageBox(
-                "推荐模式",
-                "PDF 识别会使用 MathCraft 混合识别并进行文档整理。\n是否切换并继续？",
-                self
-            )
-            _apply_app_window_icon(tip)
-            tip.yesButton.setText("切换并继续")
-            tip.cancelButton.setText("取消")
-            if tip.exec():
-                self.on_model_changed("mathcraft_mixed")
-                if not self._model_supports_pdf(self.current_model):
-                    custom_warning_dialog("提示", "当前模型仍不支持 PDF 识别。", self)
-                    return
-            else:
-                return
-        if not self._model_supports_pdf(self.current_model):
-            custom_warning_dialog("提示", "当前模型不支持 PDF 识别。", self)
             return
         try:
             import fitz  # PyMuPDF
@@ -157,7 +128,7 @@ class PdfRecognitionControllerMixin:
         page_indices = list(range(page_start - 1, page_end))
         pages = len(page_indices)
 
-        opts = self._prompt_pdf_output_options()
+        opts = self._prompt_pdf_output_options(recognition_model)
         if not opts:
             return
         fmt_key, dpi, doc_mode = opts
@@ -175,7 +146,7 @@ class PdfRecognitionControllerMixin:
         self.set_model_status("识别中...")
 
         self.pdf_predict_thread = QThread()
-        if self.current_model == "external_model":
+        if recognition_model == EXTERNAL_MODEL:
             config = self._get_external_model_config()
             if doc_mode != "parse":
                 config.prompt_template = (
@@ -190,7 +161,14 @@ class PdfRecognitionControllerMixin:
                 doc_mode,
             )
         else:
-            self.pdf_predict_worker = PdfPredictWorker(self.model, str(path), page_indices, self.current_model, fmt_key, dpi)
+            self.pdf_predict_worker = PdfPredictWorker(
+                self.model,
+                str(path),
+                page_indices,
+                recognition_model,
+                fmt_key,
+                dpi,
+            )
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         progress_text = "正在解析 PDF 文档结构..." if doc_mode == "parse" else "正在识别 PDF..."
@@ -326,7 +304,7 @@ class PdfRecognitionControllerMixin:
 
     def _on_pdf_predict_ok(self, content: str):
         self._recognition_cancel_requested = False
-        if self.current_model == "external_model":
+        if isinstance(self.pdf_predict_worker, ExternalModelPdfWorker):
             used = self._get_external_model_display_name(config=self.pdf_predict_worker.config)
         else:
             used = self.pdf_predict_worker.model_name
@@ -359,7 +337,7 @@ class PdfRecognitionControllerMixin:
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status("失败")
-        if self.current_model == "external_model":
+        if isinstance(self.pdf_predict_worker, ExternalModelPdfWorker):
             used = self._get_external_model_display_name(config=self.pdf_predict_worker.config)
         else:
             used = self.pdf_predict_worker.model_name

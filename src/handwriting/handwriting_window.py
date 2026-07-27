@@ -14,7 +14,7 @@ from backend.external_model.prompts import build_math_document_prompt
 from .editor_widgets import HandwritingPlainTextEdit
 from .ink_canvas import InkCanvas
 from .latex_preview import build_handwriting_preview_html, normalize_latex_preview_source
-from .model_policy import resolve_handwriting_recognition_model
+from recognition.model_policy import resolve_document_recognition_model
 from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
 from preview.math_preview import get_mathjax_base_url
@@ -634,7 +634,7 @@ class HandwritingWindow(QWidget):
                 model_key = str(getattr(self.model, "_default_model") or "").strip().lower()
             except Exception:
                 model_key = ""
-        return resolve_handwriting_recognition_model(model_key)
+        return resolve_document_recognition_model(model_key)
 
     def _get_external_model_config(self):
         owner = self.owner
