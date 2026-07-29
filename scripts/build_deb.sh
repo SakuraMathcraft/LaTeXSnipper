@@ -67,7 +67,7 @@ find "$DEB_LIB_DIR" -type f -name "*.so*" -exec chmod 755 {} \; 2>/dev/null || t
 if [[ -f "$DEB_LIB_DIR/_internal/PyQt6/Qt6/libexec/QtWebEngineProcess" ]]; then
     chmod 755 "$DEB_LIB_DIR/_internal/PyQt6/Qt6/libexec/QtWebEngineProcess"
 fi
-chmod 755 "$PACKAGE_ROOT/DEBIAN/postinst" "$PACKAGE_ROOT/DEBIAN/prerm"
+chmod 755 "$PACKAGE_ROOT/DEBIAN/postinst"
 [[ -f "$PACKAGE_ROOT/DEBIAN/postrm" ]] && chmod 755 "$PACKAGE_ROOT/DEBIAN/postrm"
 find "$PACKAGE_ROOT/usr/share" -type f -exec chmod 644 {} \; 2>/dev/null || true
 
