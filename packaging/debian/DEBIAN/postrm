@@ -9,16 +9,6 @@ case "$1" in
         if command -v gtk-update-icon-cache >/dev/null 2>&1; then
             gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
         fi
-        if command -v update-mime-database >/dev/null 2>&1; then
-            update-mime-database /usr/share/mime || true
-        fi
-
-        if [[ "$1" == "purge" ]]; then
-            rm -rf /usr/lib/latexsnipper
-            rm -f /usr/bin/latexsnipper
-            rm -f /usr/bin/latexsnipper-clean-user-data
-            echo "User data is preserved. Run latexsnipper-clean-user-data before purge, or remove ~/.latexsnipper and ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper manually if needed."
-        fi
         ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
         ;;

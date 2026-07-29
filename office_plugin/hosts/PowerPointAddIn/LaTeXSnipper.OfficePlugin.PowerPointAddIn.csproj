@@ -36,6 +36,10 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="LaTeXSnipper.OfficePlugin.MetadataSafety.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <RootNamespace>LaTeXSnipper.OfficePlugin.PowerPointAddIn</RootNamespace>

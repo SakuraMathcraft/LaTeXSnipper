@@ -10,6 +10,7 @@
     <Project Path="hosts/WordAddIn/LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests.csproj" />
     <Project Path="tests/LaTeXSnipper.OfficePlugin.WordParsingE2E/LaTeXSnipper.OfficePlugin.WordParsingE2E.csproj" />
   </Folder>
 </Solution>

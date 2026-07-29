@@ -1,0 +1,17 @@
+[*.cs]
+# Security diagnostics are build-blocking. Broader performance and design
+# recommendations remain available through Invoke-CodeAnalysis.ps1 -FullAudit.
+dotnet_analyzer_diagnostic.category-Security.severity = warning
+
+# Dead private code should be removed instead of retained as dormant compatibility logic.
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+
+# High-confidence async and exception-flow defects are build-blocking.
+dotnet_diagnostic.CA2012.severity = warning
+dotnet_diagnostic.CA2200.severity = warning
+
+# Redundant assignments and suppressions often hide incomplete cleanups. Keep them
+# visible in the IDE without making existing COM-heavy code fail the build.
+dotnet_diagnostic.IDE0059.severity = suggestion
+dotnet_diagnostic.IDE0079.severity = suggestion

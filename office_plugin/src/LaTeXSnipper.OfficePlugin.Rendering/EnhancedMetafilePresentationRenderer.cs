@@ -8,8 +8,10 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 public sealed class EnhancedMetafilePresentationRenderer : IOlePresentationRenderer
 {
     public const string EmfMimeType = "application/x-emf";
+#if NET48
     private const double HorizontalPaddingPoints = 1.5;
     private const double VerticalPaddingPoints = 0.5;
+#endif
 
     public OlePresentationKind PresentationKind => OlePresentationKind.EnhancedMetafile;
 

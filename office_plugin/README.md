@@ -55,6 +55,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 | `hosts/WordVstoAddIn` | Thin VSTO shell loaded by Word |
 | `hosts/PowerPointAddIn` | PowerPoint workflows: Ribbon, OLE/PNG insertion, metadata, controller |
 | `hosts/PowerPointVstoAddIn` | Thin VSTO shell loaded by PowerPoint |
+| `tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests` | Deterministic metadata storage and identity tests |
 | `tests/LaTeXSnipper.OfficePlugin.WordParsingE2E` | Real-Word OMML/OLE parsing regression test |
 | `installer/` | Inno Setup installer and release build entry point |
 | `tools/` | Build, installer, metadata, and Word parsing test entry points |
@@ -73,6 +74,16 @@ office_plugin\installer\build.bat 2.4.0 Release
 Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
+
+## Metadata Safety Tests
+
+Run:
+
+```powershell
+office_plugin\tools\Test-MetadataSafety.ps1
+```
+
+The deterministic tests validate Schema 1 read compatibility, Schema 2 writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office.
 
 ## Word Parsing E2E Test
 

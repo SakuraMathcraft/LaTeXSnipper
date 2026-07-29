@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\hosts\PowerPointAddIn\LaTeXSnipper.OfficePlugin.PowerPointAddIn.csproj" />
+    <ProjectReference Include="..\..\hosts\WordAddIn\LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.3.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>LaTeXSnipper.OfficePlugin.MetadataSafety.Tests</RootNamespace>
+    <AssemblyName>LaTeXSnipper.OfficePlugin.MetadataSafety.Tests</AssemblyName>
+  </PropertyGroup>
+
+</Project>
