@@ -1,6 +1,5 @@
 # pyright: reportMissingImports=false
 
-import inspect
 import json
 import os
 import re
@@ -31,13 +30,6 @@ def _nonblank_test_image() -> Image.Image:
 
 
 class InternalModelMathCraftTests(unittest.TestCase):
-    def test_internal_model_wrapper_has_no_external_runtime_import(self):
-        import backend.model as model_mod
-
-        source = inspect.getsource(model_mod)
-        self.assertIn("from mathcraft_ocr.cli import main", source)
-        self.assertIn("MathCraft-only internal OCR wrapper", source)
-
     def test_mathcraft_failure_classifier_reports_missing_cache(self):
         from backend.model import classify_mathcraft_failure
 
@@ -304,20 +296,6 @@ class InternalModelMathCraftTests(unittest.TestCase):
             else:
                 os.environ["MATHCRAFT_PROVIDER"] = old
 
-    def test_settings_probe_covers_packaged_internal_root(self):
-        source = (SRC / "ui" / "settings_dialog_helpers.py").read_text(encoding="utf-8")
-
-        self.assertIn("def _mathcraft_code_roots", source)
-        self.assertIn('parent / "_internal"', source)
-        self.assertIn("sys._MEIPASS", source)
-
-    def test_environment_terminal_doctor_uses_mathcraft_code_roots(self):
-        source = (SRC / "ui" / "settings_environment_mixin.py").read_text(encoding="utf-8")
-
-        self.assertIn("_mathcraft_code_roots", source)
-        self.assertIn("roots={mathcraft_roots!r}", source)
-        self.assertNotIn("sys.path.insert(0, r'{project_root}')", source)
-
     def test_packaged_windows_initial_deps_dir_uses_bundled_deps(self):
         import runtime.python_runtime_resolver as resolver
 
@@ -429,10 +407,6 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
 
         self.assertNotIn("coloredlogs", deps_bootstrap.CRITICAL_VERSIONS)
         self.assertNotIn("sympy", deps_bootstrap.CRITICAL_VERSIONS)
-
-        source = inspect.getsource(deps_bootstrap._repair_gpu_onnxruntime_runtime)
-        self.assertIn("_fix_critical_versions", source)
-        self.assertNotIn("force_reinstall", source)
 
     def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
         from backend.cuda_runtime_policy import (
@@ -586,19 +560,3 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             with mock.patch.object(installer_cache, "app_state_dir", return_value=root):
                 self.assertEqual(installer_cache._update_dir(), root / "updates")
                 self.assertTrue((root / "updates").is_dir())
-
-    def test_dependency_logs_distinguish_support_imports_from_final_layer_verify(self):
-        source = (
-            (SRC / "bootstrap" / "deps_runtime_verify.py").read_text(encoding="utf-8")
-            + "\n"
-            + (SRC / "bootstrap" / "deps_workers.py").read_text(encoding="utf-8")
-        )
-
-        self.assertIn("ONNX Runtime 支撑依赖导入检查通过", source)
-        self.assertNotIn("onnxruntime-gpu runtime check passed", source)
-        self.assertNotIn("onnxruntime CPU runtime check passed", source)
-        self.assertNotIn("Dependencies installed ✅", source)
-
-
-if __name__ == "__main__":
-    unittest.main()

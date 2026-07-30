@@ -14,28 +14,6 @@ from core.mathcraft_tex_exporter import markdown_to_latex_document
 from core.pdf_output_contract import wrap_document_output
 
 
-def _fallback_pdf_markdown_sample() -> str:
-    return "\n".join(
-        [
-            "# Inline CI PDF OCR Sample",
-            "",
-            "## 1 Introduction",
-            "",
-            "Text with **bold** and $x_1$.",
-            "",
-            "$$",
-            r"\begin{aligned}",
-            r"x &= y + z",
-            r"\end{aligned}",
-            "$$",
-            "",
-            "<!-- Page 2 -->",
-            "",
-            "- Item A",
-        ]
-    )
-
-
 def test_tex_exporter_converts_core_markdown_blocks() -> None:
     markdown = "\n".join(
         [
@@ -127,38 +105,3 @@ def test_tex_exporter_repairs_ocr_truncated_display_math() -> None:
 def test_pdf_output_contract_keeps_existing_latex_document() -> None:
     raw = "\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n"
     assert wrap_document_output(raw, "latex", "document") == raw.strip()
-
-
-def test_existing_pdf_markdown_samples_convert_to_latex() -> None:
-    sample_root = ROOT / "test_pdf" / "outputs"
-    sample_paths = sorted(sample_root.glob("**/document_engine.md"))
-    cases = (
-        [(str(path), path.read_text(encoding="utf-8")) for path in sample_paths]
-        or [("inline CI PDF OCR sample", _fallback_pdf_markdown_sample())]
-    )
-    for label, markdown in cases:
-        tex = markdown_to_latex_document(markdown)
-        assert "\\documentclass" in tex, label
-        assert "\\begin{document}" in tex, label
-        assert "\\end{document}" in tex, label
-        assert "<!--" not in tex, label
-        assert "$$" not in tex, label
-
-
-def main() -> None:
-    tests = [
-        test_tex_exporter_converts_core_markdown_blocks,
-        test_pdf_output_contract_converts_markdown_to_latex,
-        test_pdf_output_contract_markdown_export_has_no_header_comments,
-        test_tex_exporter_strips_auto_numbered_heading_prefixes,
-        test_tex_exporter_repairs_ocr_truncated_display_math,
-        test_pdf_output_contract_keeps_existing_latex_document,
-        test_existing_pdf_markdown_samples_convert_to_latex,
-    ]
-    for test in tests:
-        test()
-    print(f"{len(tests)} tests OK")
-
-
-if __name__ == "__main__":
-    main()

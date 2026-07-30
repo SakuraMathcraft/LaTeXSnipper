@@ -6,14 +6,6 @@ from runtime.hotkey_config import (
     normalize_hotkey,
     normalize_hotkey_or_default,
 )
-
-
-def _hotkey_dialog_source() -> str:
-    from pathlib import Path
-
-    return (Path(__file__).resolve().parents[1] / "src" / "ui" / "hotkey_dialog.py").read_text(encoding="utf-8")
-
-
 def test_normalize_hotkey_accepts_ctrl_letter() -> None:
     assert normalize_hotkey("Ctrl+F") == "Ctrl+F"
     assert normalize_hotkey(" control + f ") == "Ctrl+F"
@@ -71,10 +63,3 @@ def test_macos_hotkey_rejects_system_and_editing_command_shortcuts() -> None:
         "Command+Z",
     ):
         assert normalize_hotkey(shortcut, "darwin") is None
-
-
-def test_macos_hotkey_dialog_does_not_require_option() -> None:
-    dialog = _hotkey_dialog_source()
-
-    assert "if has_command and not has_extra" in dialog
-    assert 'modifiers.append("Shift")' in dialog

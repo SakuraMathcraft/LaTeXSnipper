@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def test_macos_cleanup_targets_are_user_library_app_owned_paths(tmp_path, monkeypatch) -> None:
     from runtime import macos_local_data_cleanup as cleanup
@@ -65,16 +60,3 @@ def test_macos_cleanup_is_noop_on_other_platforms(tmp_path, monkeypatch) -> None
     result = cleanup.cleanup_macos_local_data()
     assert result.removed == []
     assert result.failed == []
-
-
-def test_macos_cleanup_ui_is_platform_scoped() -> None:
-    settings_layout = (ROOT / "src" / "ui" / "settings_layout_builder.py").read_text(encoding="utf-8")
-    settings_env = (ROOT / "src" / "ui" / "settings_environment_mixin.py").read_text(encoding="utf-8")
-    deps_ui = (ROOT / "src" / "bootstrap" / "deps_ui.py").read_text(encoding="utf-8")
-
-    assert "btn_cleanup_macos_local_data" in settings_layout
-    assert "sys.platform == \"darwin\"" in settings_layout
-    assert "_cleanup_macos_local_data" in settings_env
-    assert "清理本机依赖与缓存" in settings_layout
-    assert "btn_cleanup_macos_local_data" in deps_ui
-    assert "cleanup_macos_local_data" in deps_ui

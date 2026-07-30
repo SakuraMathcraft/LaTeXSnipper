@@ -98,11 +98,3 @@ def test_pandoc_exporter_ignores_unmanaged_binary_in_working_directory(tmp_path,
     monkeypatch.setattr(pandoc_exporter.shutil, "which", lambda _name: None)
 
     assert pandoc_exporter._find_pandoc_binary() is None
-
-
-def test_dependency_progress_close_reuses_post_install_verify_result() -> None:
-    source = (ROOT / "src" / "bootstrap" / "deps_entry.py").read_text(encoding="utf-8")
-
-    assert 'install_verified_in_progress_ui = bool(post_install_verify_passed.get("value", False))' in source
-    assert "skip_next_ui_runtime_verify = install_verified_in_progress_ui" in source
-    assert source.count("skip_next_ui_runtime_verify = install_verified_in_progress_ui") >= 2

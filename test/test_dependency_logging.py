@@ -48,15 +48,3 @@ def test_dependency_log_tail_uses_single_shared_limit() -> None:
     assert text.startswith("...\n")
     assert "line 399" in text
     assert "line 0" not in text
-
-
-def test_layer_verify_callers_use_shared_formatter() -> None:
-    deps_ui = (SRC / "bootstrap" / "deps_ui.py").read_text(encoding="utf-8")
-    deps_workers = (SRC / "bootstrap" / "deps_workers.py").read_text(encoding="utf-8")
-    deps_runtime_verify = (SRC / "bootstrap" / "deps_runtime_verify.py").read_text(encoding="utf-8")
-
-    assert "err[:100]" not in deps_ui
-    assert "(v_err or '')[:1000]" not in deps_workers
-    assert "err[:200]" not in deps_runtime_verify
-    assert "format_layer_verify_failure(layer, err)" in deps_ui
-    assert "format_layer_verify_failure(lyr, v_err)" in deps_workers

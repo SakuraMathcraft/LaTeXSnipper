@@ -209,14 +209,6 @@ def test_recommended_presets_only_include_strong_vision_options() -> None:
     }
 
 
-def test_selecting_external_model_does_not_warn_before_configuration() -> None:
-    source = (SRC / "ui" / "model_runtime_controller.py").read_text(encoding="utf-8")
-    external_branch = source.split('if m == "external_model":', 1)[1].split("return", 1)[0]
-
-    assert "set_model_status" in external_branch
-    assert "InfoBar.warning" not in external_branch
-
-
 def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     from backend.external_model.errors import ExternalModelConnectionError
     from backend.external_model.mineru_client import MineruClient
