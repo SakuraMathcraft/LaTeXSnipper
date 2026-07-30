@@ -2,7 +2,7 @@
 # Build a macOS .app bundle and optional .dmg image.
 #
 # Usage:
-#   ./scripts/build_macos.sh [version]
+#   ./scripts/build_macos.sh
 #
 # Optional environment:
 #   CODESIGN_IDENTITY      Developer ID Application identity.
@@ -31,9 +31,9 @@ case "$ARCH" in
         ;;
 esac
 
-VERSION="$(resolve_project_version "$PROJECT_ROOT" "${1:-}")"
+VERSION="$(resolve_project_version "$PROJECT_ROOT")"
 if [[ -z "${VERSION:-}" ]]; then
-    die "unable to determine version; pass one explicitly: $0 <version>"
+    die "unable to determine version from $PROJECT_ROOT/VERSION"
 fi
 
 echo "LaTeXSnipper macOS package build"

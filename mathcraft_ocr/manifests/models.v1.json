@@ -20,7 +20,7 @@
       "files": [
         {
           "path": "config.json",
-          "sha256": "9f3812441d397c871b9b2a74e8d956b939aec5f4f45745bba9214e968d56449d"
+          "sha256": "cc60b5e3fa221c49086147e82583b3bf62a62917bddf38decfccf7ccfdb1e53b"
         },
         {
           "path": "encoder_model.onnx",

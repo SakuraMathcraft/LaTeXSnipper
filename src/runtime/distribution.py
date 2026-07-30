@@ -1,3 +1,6 @@
 from __future__ import annotations
 
-APP_VERSION = "v2.4.0"
+from .product_version import PRODUCT_VERSION
+
+
+APP_VERSION = f"v{PRODUCT_VERSION}"

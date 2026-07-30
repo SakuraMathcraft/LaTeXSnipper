@@ -1,4 +1,17 @@
 <Project>
+  <PropertyGroup>
+    <LaTeXSnipperVersionFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\VERSION'))</LaTeXSnipperVersionFile>
+    <LaTeXSnipperProductVersion>$([System.IO.File]::ReadAllText('$(LaTeXSnipperVersionFile)').Trim())</LaTeXSnipperProductVersion>
+    <Version>$(LaTeXSnipperProductVersion)</Version>
+    <AssemblyVersion>$(LaTeXSnipperProductVersion).0</AssemblyVersion>
+    <FileVersion>$(LaTeXSnipperProductVersion).0</FileVersion>
+    <InformationalVersion>$(LaTeXSnipperProductVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <LaTeXSnipperVersionMajor>$([System.Version]::Parse('$(LaTeXSnipperProductVersion)').Major)</LaTeXSnipperVersionMajor>
+    <LaTeXSnipperVersionMinor>$([System.Version]::Parse('$(LaTeXSnipperProductVersion)').Minor)</LaTeXSnipperVersionMinor>
+    <LaTeXSnipperVersionPatch>$([System.Version]::Parse('$(LaTeXSnipperProductVersion)').Build)</LaTeXSnipperVersionPatch>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -14,5 +27,9 @@
     <Authors>LaTeXSnipper</Authors>
     <Company>SakuraMathcraft</Company>
     <Product>LaTeXSnipper Office Plugin</Product>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LaTeXSnipper.OfficePlugin.WordVstoAddIn' Or '$(MSBuildProjectName)' == 'LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn'">
+    <ApplicationVersion>$(LaTeXSnipperProductVersion).0</ApplicationVersion>
   </PropertyGroup>
 </Project>

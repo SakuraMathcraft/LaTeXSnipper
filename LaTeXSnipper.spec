@@ -22,8 +22,13 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 # Project roots
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
+sys.path.insert(0, str(SRC))
+from runtime.product_version import PRODUCT_VERSION, write_windows_version_info
+
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
+VERSION_INFO_PATH = ROOT / "build" / "version_info.txt"
+write_windows_version_info(VERSION_INFO_PATH, PRODUCT_VERSION)
 
 # PyQt6 Qt6 resource folders (WebEngine runtime assets)
 PYQT6_DIR = Path(PyQt6.__file__).resolve().parent
@@ -34,6 +39,7 @@ QT6_BIN = QT6_DIR / "bin"
 
 extra_datas = []
 extra_binaries = []
+extra_datas.append((str(ROOT / "VERSION"), "."))
 if QT6_RESOURCES.exists():
     extra_datas.append((str(QT6_RESOURCES), "PyQt6/Qt6/resources"))
 if QT6_LOCALES.exists():
@@ -633,7 +639,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(SRC / "assets" / "icon.ico") if (SRC / "assets" / "icon.ico").exists() else None,
-    version=str(ROOT / "version_info.txt") if (ROOT / "version_info.txt").exists() else None,
+    version=str(VERSION_INFO_PATH),
 )
 
 coll = COLLECT(

@@ -22,6 +22,9 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 # ---------------------------------------------------------------------------
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
+sys.path.insert(0, str(SRC))
+from runtime.product_version import PRODUCT_VERSION
+
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 ICON_ICNS_ENV = os.environ.get("LATEXSNIPPER_ICON_ICNS", "").strip()
 ICON_ICNS = Path(ICON_ICNS_ENV).expanduser() if ICON_ICNS_ENV else SRC / "assets" / "icon.icns"
@@ -33,6 +36,7 @@ print(f"[SPEC] output name: {APP_NAME}")
 
 extra_datas: list[tuple[str, str]] = []
 extra_binaries: list[tuple[str, str]] = []
+extra_datas.append((str(ROOT / "VERSION"), "."))
 
 # ---------------------------------------------------------------------------
 # PyQt6 / Qt6 resources
@@ -316,8 +320,8 @@ app_bundle = BUNDLE(
         "CFBundleName": APP_NAME,
         "CFBundleDisplayName": "LaTeXSnipper",
         "CFBundleIdentifier": "com.mathcraft.latexsnipper",
-        "CFBundleVersion": "2.4.0",
-        "CFBundleShortVersionString": "2.4.0",
+        "CFBundleVersion": PRODUCT_VERSION,
+        "CFBundleShortVersionString": PRODUCT_VERSION,
         "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
         "CFBundleDocumentTypes": [],
         "LSMinimumSystemVersion": "11.0",

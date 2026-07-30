@@ -1,5 +1,5 @@
 // LaTeXSnipper 用户手册
-// 版本: v2.4.0-LTS | 长期支持版
+// 版本: v2.5.0-LTS | 长期支持版
 #set page(
   paper: "a4",
   margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm),
@@ -104,7 +104,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.4.0-LTS | 长期支持版]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v2.5.0-LTS | 长期支持版]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -1345,13 +1345,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-OfficePluginSetup-2.4.0.exe /silent
+OfficePluginSetup-2.5.0.exe /silent
 
 # 完全静默（无界面）
-OfficePluginSetup-2.4.0.exe /verysilent
+OfficePluginSetup-2.5.0.exe /verysilent
 
 # 自定义安装目录
-OfficePluginSetup-2.4.0.exe /dir="D:\Tools\LaTeXSnipper"
+OfficePluginSetup-2.5.0.exe /dir="D:\Tools\LaTeXSnipper"
 ```
 
 #pagebreak()
@@ -2370,7 +2370,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
-当前 `mathcraft-ocr` PyPI 包版本为 `0.2.4`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+当前 `mathcraft-ocr` PyPI 包版本为 `0.2.5`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
 
 #block(
   inset: 12pt,

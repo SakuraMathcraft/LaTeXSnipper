@@ -1,5 +1,5 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v2.4.0-LTS | 长期支持版 -->
+<!-- 版本: v2.5.0-LTS | 长期支持版 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v2.4.0-LTS | 长期支持版*
+*适用于 v2.5.0-LTS | 长期支持版*
 
 ---
 
@@ -1066,13 +1066,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 :: 静默安装（显示进度条）
-OfficePluginSetup-2.4.0.exe /silent
+OfficePluginSetup-2.5.0.exe /silent
 
 :: 完全静默（无界面）
-OfficePluginSetup-2.4.0.exe /verysilent
+OfficePluginSetup-2.5.0.exe /verysilent
 
 :: 自定义安装目录
-OfficePluginSetup-2.4.0.exe /dir="D:\Tools\LaTeXSnipper"
+OfficePluginSetup-2.5.0.exe /dir="D:\Tools\LaTeXSnipper"
 ```
 
 ---
@@ -1890,7 +1890,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 ### 模型集与识别配置
 
-当前 `mathcraft-ocr` PyPI 包版本为 `0.2.4`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
+当前 `mathcraft-ocr` PyPI 包版本为 `0.2.5`。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
 
 - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
 - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）

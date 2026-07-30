@@ -547,6 +547,49 @@ def test_formula_line_splitter_ignores_script_like_annotation_rows() -> None:
     assert split_formula_line_crops(image) == ()
 
 
+def test_formula_line_splitter_keeps_aligned_short_final_row() -> None:
+    image = np.full((190, 500, 3), 255, dtype=np.uint8)
+    image[24:40, 100:440] = 0
+    image[82:98, 100:420] = 0
+    image[152:159, 100:172] = 0
+
+    crops = split_formula_line_crops(image)
+
+    assert len(crops) == 3
+    assert crops[-1].box[0] >= 90
+    assert crops[-1].box[2] <= 182
+
+
+def test_formula_line_splitter_keeps_slightly_offset_short_initial_row() -> None:
+    image = np.full((190, 500, 3), 255, dtype=np.uint8)
+    image[24:40, 86:166] = 0
+    image[82:98, 100:440] = 0
+    image[148:164, 100:420] = 0
+
+    crops = split_formula_line_crops(image)
+
+    assert len(crops) == 3
+    assert crops[0].box[0] < crops[1].box[0]
+    assert crops[0].box[2] < crops[1].box[2]
+
+
+def test_formula_line_splitter_excludes_dark_outer_corners_from_final_row() -> None:
+    image = np.full((190, 500, 3), 255, dtype=np.uint8)
+    image[:12, :12] = 0
+    image[:12, -12:] = 0
+    image[-22:, :22] = 0
+    image[-22:, -22:] = 0
+    image[24:40, 100:440] = 0
+    image[82:98, 100:420] = 0
+    image[154:170, 100:172] = 0
+
+    crops = split_formula_line_crops(image)
+
+    assert len(crops) == 3
+    assert crops[-1].box[0] >= 90
+    assert crops[-1].box[2] <= 182
+
+
 def test_latex_quality_flags_detect_repeated_and_duplicate_relation_artifacts() -> None:
     assert "duplicate_relation" in latex_quality_flags("x = = y")
     assert "repeated_token_run" in latex_quality_flags(
@@ -670,6 +713,55 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
 
         assert calls == [3]
         assert result.text == "part1 part2 part3"
+    finally:
+        MathCraftRuntime.warmup = old_warmup
+        runtime_mod.recognize_formula_image = old_recognize
+        runtime_mod.recognize_formula_images = old_recognize_images
+
+
+def test_recognize_formula_prefers_confident_whole_line_over_uncertain_segments() -> None:
+    manifest = load_manifest()
+    old_warmup = MathCraftRuntime.warmup
+    old_recognize = runtime_mod.recognize_formula_image
+    old_recognize_images = runtime_mod.recognize_formula_images
+    try:
+        def _fake_warmup(self, profile: str = "formula"):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        MathCraftRuntime.warmup = _fake_warmup
+        runtime_mod.recognize_formula_images = (
+            lambda images, model_dir, provider_info, max_new_tokens=256: [
+                ("left", 0.99),
+                ("uncertain", 0.90),
+                ("right", 0.99),
+            ]
+        )
+        runtime_mod.recognize_formula_image = (
+            lambda image, model_dir, provider_info, max_new_tokens=256: (
+                "complete formula",
+                0.99,
+            )
+        )
+
+        image = np.full((38, 360, 3), 255, dtype=np.uint8)
+        image[12:24, 12:92] = 0
+        image[12:24, 146:224] = 0
+        image[12:24, 276:346] = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_formula(image)
+
+        assert result.text == "complete formula"
+        assert result.score == 0.99
     finally:
         MathCraftRuntime.warmup = old_warmup
         runtime_mod.recognize_formula_image = old_recognize

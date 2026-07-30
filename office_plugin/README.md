@@ -68,10 +68,12 @@ Shared libraries target `net48;net9.0`. Office hosts target .NET Framework 4.8. 
 The release build requires Visual Studio 2022 with Office/SharePoint and Visual C++ ATL workloads, .NET 9 SDK, and Inno Setup 6. Run from the repository root:
 
 ```batch
-office_plugin\installer\build.bat 2.4.0 Release
+office_plugin\installer\build.bat Release
 ```
 
-Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
+The build reads the shared product version from the repository `VERSION` file.
+
+Output: `office_plugin\release\OfficePluginSetup-2.5.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 

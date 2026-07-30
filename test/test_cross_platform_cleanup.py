@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 
@@ -84,20 +83,3 @@ def test_text_sources_do_not_use_utf8_bom() -> None:
                 offenders.append(path.relative_to(ROOT).as_posix())
 
     assert offenders == []
-
-
-def test_windows_version_resource_matches_release_version() -> None:
-    version_info = (ROOT / "version_info.txt").read_text(encoding="utf-8")
-    file_version = re.search(r"StringStruct\('FileVersion', '([^']+)'\)", version_info)
-    product_version = re.search(r"StringStruct\('ProductVersion', '([^']+)'\)", version_info)
-    filevers = re.search(r"filevers=\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)", version_info)
-    prodvers = re.search(r"prodvers=\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)", version_info)
-
-    assert file_version is not None
-    assert product_version is not None
-    assert filevers is not None
-    assert prodvers is not None
-    expected = tuple(int(part) for part in file_version.group(1).split(".")) + (0,)
-    assert product_version.group(1) == file_version.group(1)
-    assert tuple(int(part) for part in filevers.groups()) == expected
-    assert tuple(int(part) for part in prodvers.groups()) == expected

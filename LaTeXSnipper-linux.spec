@@ -28,6 +28,7 @@ print(f"[SPEC] output name: {APP_NAME}")
 
 extra_datas: list[tuple[str, str]] = []
 extra_binaries: list[tuple[str, str]] = []
+extra_datas.append((str(ROOT / "VERSION"), "."))
 
 # ---------------------------------------------------------------------------
 # PyQt6 / Qt6 resources
