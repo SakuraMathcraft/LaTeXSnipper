@@ -12,6 +12,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from exporting.formula_format_helpers import normalize_latex_for_export
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
 logger = logging.getLogger(__name__)
@@ -144,11 +145,7 @@ def _hidden_subprocess_kwargs() -> dict:
 
 
 def _wrap_formula_in_document(latex: str) -> str:
-    text = (latex or "").strip()
-    if text.startswith("$$") and text.endswith("$$"):
-        text = text[2:-2].strip()
-    elif text.startswith("$") and text.endswith("$") and "$" not in text[1:-1]:
-        text = text[1:-1].strip()
+    text = normalize_latex_for_export(latex)
 
     has_inline_math = "$" in text and not text.startswith("\\[")
 

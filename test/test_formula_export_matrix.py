@@ -11,6 +11,7 @@ import pytest
 from exporting import formula_converters
 from exporting.formula_converters import _find_mml2omml_xsl
 from exporting.formula_export import build_formula_export, export_format_label, get_all_export_format_specs, is_export_format_available
+from exporting.formula_format_helpers import normalize_latex_for_export
 from exporting.pandoc_exporter import check_pandoc_available
 
 
@@ -101,6 +102,33 @@ def test_export_format_lookup_supports_quick_export_preference() -> None:
     assert export_format_label("latex") == "LaTeX (行内 $...$)"
     assert not is_export_format_available("")
     assert not is_export_format_available("_pandoc_header")
+
+
+def test_export_normalization_preserves_latex_source() -> None:
+    source = r"\text{a    b}:=\alpha^{2}+x_{i}\frac{1}{2}"
+    converters = {
+        "mathml_converter": lambda value: value,
+        "omml_converter": lambda value: value,
+        "svg_converter": lambda value: value,
+    }
+
+    assert normalize_latex_for_export(source) == source
+    assert build_formula_export("latex", source, **converters)[0] == f"${source}$"
+    assert build_formula_export("latex_display", source, **converters)[0] == f"\\[\n{source}\n\\]"
+    assert build_formula_export("latex_equation", source, **converters)[0] == (
+        f"\\begin{{equation}}\n{source}\n\\end{{equation}}"
+    )
+    assert build_formula_export("markdown_inline", source, **converters)[0] == f"${source}$"
+    assert build_formula_export("markdown_block", source, **converters)[0] == f"$$\n{source}\n$$"
+
+
+def test_export_normalization_only_removes_unambiguous_outer_delimiter() -> None:
+    source = r"\text{cost \$5} + x^{2}"
+
+    assert normalize_latex_for_export(f"  $${source}$$  ") == source
+    assert normalize_latex_for_export(f"${source}$") == source
+    assert normalize_latex_for_export("  $  x^{2}  $  ") == "  x^{2}  "
+    assert normalize_latex_for_export("$a$ and $b$") == "$a$ and $b$"
 
 
 def test_bundled_mathjax_renders_default_formula_font_wrappers() -> None:

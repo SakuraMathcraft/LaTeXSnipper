@@ -136,6 +136,21 @@ def test_plain_text_is_not_wrapped_as_display_math() -> None:
     assert "$ T h e o r e m" not in result
 
 
+def test_formula_document_wrapper_preserves_multiple_math_blocks() -> None:
+    source = "$$a$$ $$b$$"
+
+    wrapped = pandoc_exporter._wrap_formula_in_document(source)
+
+    assert source in wrapped
+
+
+def test_formula_document_wrapper_safely_rewraps_single_math_block() -> None:
+    wrapped = pandoc_exporter._wrap_formula_in_document("$$x^{2}$$")
+
+    assert "\\[x^{2}\\]" in wrapped
+    assert "$$x^{2}$$" not in wrapped
+
+
 def test_real_world_mixed_problem_exports_are_structured() -> None:
     if not pandoc_exporter.check_pandoc_available(force=True):
         pytest.skip("Pandoc backend is not installed")

@@ -271,3 +271,42 @@ def test_mineru_parse_mode_consumes_native_structure_without_parse_prompt() -> N
 
     assert page is not None
     assert page.content == "Native MinerU content"
+
+
+def test_external_model_result_preserves_markdown_structure() -> None:
+    from backend.external_model.schemas import ExternalModelResult
+
+    source = (
+        "- parent\n"
+        "    - child\n"
+        "\n"
+        "\n"
+        "    indented code\n"
+        "hard break  \n"
+        "next"
+    )
+
+    result = ExternalModelResult(markdown=source)
+
+    assert result.best_text("markdown") == source
+
+
+def test_external_model_result_only_removes_protocol_wrappers() -> None:
+    from backend.external_model.schemas import ExternalModelResult
+
+    source = "    preserved indentation\nline with trailing spaces  "
+    wrapped = f"<|vision_start|>```markdown\n{source}\n```<|vision_end|>"
+
+    result = ExternalModelResult(markdown=wrapped)
+
+    assert result.best_text("markdown") == source
+
+
+def test_external_model_result_does_not_unwrap_multiple_latex_blocks() -> None:
+    from backend.external_model.schemas import ExternalModelResult
+
+    source = "$$a$$ $$b$$"
+
+    result = ExternalModelResult(latex=source)
+
+    assert result.best_text("latex") == source

@@ -133,17 +133,17 @@ class ExternalModelResult:
     structured_payload: dict | None = None
 
     def _strip_outer_code_fence(self, value: str) -> str:
-        text = str(value or "").strip()
+        text = str(value or "").strip("\n")
         if not text.startswith("```"):
             return text
         match = re.fullmatch(r"```[ \t]*([A-Za-z0-9_+-]*)[ \t]*\n?(.*?)\n?```", text, flags=re.DOTALL)
         if not match:
             return text
-        inner = (match.group(2) or "").strip()
+        inner = (match.group(2) or "").strip("\n")
         return inner or text
 
     def _normalize_common_text(self, value: str) -> str:
-        text = (value or "").replace("\r\n", "\n")
+        text = (value or "").replace("\r\n", "\n").replace("\r", "\n")
         if not text:
             return ""
 
@@ -151,20 +151,10 @@ class ExternalModelResult:
         text = re.sub(r"<\|(?:begin|end)_of_image\|>", "", text)
         text = re.sub(r"<\|(?:vision_start|vision_end|image_pad|img_pad)\|>", "", text)
         text = re.sub(r"</?image>", "", text, flags=re.IGNORECASE)
-        text = self._strip_outer_code_fence(text)
-
-        lines: list[str] = []
-        for raw_line in text.split("\n"):
-            line = raw_line.strip()
-            if not line:
-                if lines and lines[-1] != "":
-                    lines.append("")
-                continue
-            lines.append(raw_line.strip())
-        return "\n".join(lines).strip()
+        return self._strip_outer_code_fence(text)
 
     def _normalize_latex_text(self, value: str) -> str:
-        text = self._normalize_common_text(value)
+        text = self._normalize_common_text(value).strip()
         if not text:
             return ""
 
@@ -174,7 +164,8 @@ class ExternalModelResult:
         for left, right in pairs:
             if text.startswith(left) and text.endswith(right):
                 inner = text[len(left): len(text) - len(right)].strip()
-                if inner:
+                has_nested_delimiter = left in inner or right in inner
+                if inner and not has_nested_delimiter:
                     return inner
         return text
 
