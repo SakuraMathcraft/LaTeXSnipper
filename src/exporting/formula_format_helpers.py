@@ -10,24 +10,33 @@ _MATHML_INF = "\u221E"
 
 def _strip_math_delimiters(latex: str) -> str:
     t = (latex or "").strip()
-    if len(t) >= 4 and t.startswith("$$") and t.endswith("$$"):
-        return t[2:-2].strip()
-    if len(t) >= 2 and t.startswith("$") and t.endswith("$"):
-        return t[1:-1].strip()
-    return t
+    delimiter = "$$" if t.startswith("$$") else "$" if t.startswith("$") else ""
+    if not delimiter or not t.endswith(delimiter) or len(t) < 2 * len(delimiter):
+        return t
+
+    inner = t[len(delimiter) : -len(delimiter)]
+    if _contains_unescaped_dollar(inner):
+        return t
+    return inner
+
+
+def _contains_unescaped_dollar(value: str) -> bool:
+    for index, char in enumerate(value):
+        if char != "$":
+            continue
+        backslashes = 0
+        cursor = index - 1
+        while cursor >= 0 and value[cursor] == "\\":
+            backslashes += 1
+            cursor -= 1
+        if backslashes % 2 == 0:
+            return True
+    return False
 
 
 def normalize_latex_for_export(latex: str) -> str:
-    """Normalize LaTeX for export by simplifying scripts and spacing common commands."""
-    t = _strip_math_delimiters(latex)
-    if not t:
-        return ""
-    t = re.sub(r"\^\{([A-Za-z0-9])\}", r"^\1", t)
-    t = re.sub(r"_\{([A-Za-z0-9])\}", r"_\1", t)
-    t = t.replace(":=", " := ")
-    t = re.sub(r"(?<=\S)(\\(?:sum))", r" \1", t)
-    t = re.sub(r"(?<=\S)(\\(?:frac|dfrac|tfrac))", r" \1", t)
-    return re.sub(r"[ \t]+", " ", t).strip()
+    """Remove one unambiguous outer math delimiter without rewriting LaTeX."""
+    return _strip_math_delimiters(latex)
 
 
 def latex_inline(latex: str) -> str:
