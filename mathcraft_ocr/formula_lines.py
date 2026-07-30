@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 import re
 
@@ -113,6 +114,7 @@ def _ink_mask(rgb: np.ndarray) -> np.ndarray:
     background = float(np.percentile(gray, 95))
     threshold = min(245.0, max(80.0, background - 28.0))
     mask = gray < threshold
+    mask = _remove_dark_outer_frame(mask)
 
     height, width = mask.shape
     border = max(1, min(height, width) // 80)
@@ -122,6 +124,50 @@ def _ink_mask(rgb: np.ndarray) -> np.ndarray:
         mask[:, :border] = False
         mask[:, -border:] = False
     return mask
+
+
+def _remove_dark_outer_frame(mask: np.ndarray) -> np.ndarray:
+    height, width = mask.shape
+    corner_size = max(4, min(height, width) // 30)
+    corners = (
+        mask[:corner_size, :corner_size],
+        mask[:corner_size, -corner_size:],
+        mask[-corner_size:, :corner_size],
+        mask[-corner_size:, -corner_size:],
+    )
+    dark_corners = sum(float(corner.mean()) >= 0.25 for corner in corners)
+    if dark_corners < 3:
+        return mask
+
+    connected = np.zeros_like(mask, dtype=bool)
+    pending: deque[tuple[int, int]] = deque()
+    for y_start, x_start in (
+        (0, 0),
+        (0, width - corner_size),
+        (height - corner_size, 0),
+        (height - corner_size, width - corner_size),
+    ):
+        points = np.argwhere(mask[y_start : y_start + corner_size, x_start : x_start + corner_size])
+        for y_offset, x_offset in points:
+            y = y_start + int(y_offset)
+            x = x_start + int(x_offset)
+            if connected[y, x]:
+                continue
+            connected[y, x] = True
+            pending.append((y, x))
+
+    while pending:
+        y, x = pending.popleft()
+        for next_y in range(max(0, y - 1), min(height, y + 2)):
+            for next_x in range(max(0, x - 1), min(width, x + 2)):
+                if connected[next_y, next_x] or not mask[next_y, next_x]:
+                    continue
+                connected[next_y, next_x] = True
+                pending.append((next_y, next_x))
+
+    if int(connected.sum()) < max(32, int(round(mask.size * 0.0005))):
+        return mask
+    return mask & ~connected
 
 
 def _row_bands(row_has_ink: np.ndarray) -> list[tuple[int, int]]:
@@ -169,16 +215,14 @@ def _band_looks_like_formula_row(
         return False
 
     active_columns = int(np.count_nonzero(band.any(axis=0)))
-    if active_columns < max(28, int(round(image_width * 0.13))):
+    if active_columns < max(12, int(round(image_width * 0.015))):
         return False
 
     points = np.argwhere(band)
     if points.size == 0:
         return False
     x_span = int(points[:, 1].max() - points[:, 1].min() + 1)
-    if x_span >= int(round(image_width * 0.55)):
-        return active_columns >= max(28, int(round(image_width * 0.08)))
-    return x_span >= int(round(image_width * 0.22))
+    return x_span >= 24
 
 
 def _filter_annotation_bands(
@@ -189,10 +233,44 @@ def _filter_annotation_bands(
 ) -> list[tuple[int, int]]:
     if len(bands) < 2:
         return bands
-    stats = [(_band_active_columns(mask, top, bottom), top, bottom) for top, bottom in bands]
-    max_active = max(active for active, _top, _bottom in stats)
+    stats = []
+    for top, bottom in bands:
+        points = np.argwhere(mask[top : bottom + 1, :])
+        if points.size == 0:
+            continue
+        stats.append(
+            (
+                _band_active_columns(mask, top, bottom),
+                int(points[:, 1].min()),
+                bottom - top + 1,
+                top,
+                bottom,
+            )
+        )
+    if len(stats) < 2:
+        return [(top, bottom) for _active, _left, _height, top, bottom in stats]
+
+    max_active = max(active for active, _left, _height, _top, _bottom in stats)
     min_active = max(int(round(image_width * 0.13)), int(round(max_active * 0.35)))
-    return [(top, bottom) for active, top, bottom in stats if active >= min_active]
+    strong = [stat for stat in stats if stat[0] >= min_active]
+    if not strong:
+        return []
+
+    strong_heights = sorted(height for _active, _left, height, _top, _bottom in strong)
+    median_height = strong_heights[len(strong_heights) // 2]
+    aligned_tolerance = max(10, int(round(image_width * 0.03)))
+    minimum_context_height = max(5, int(round(median_height * 0.40)))
+    strong_lefts = [left for _active, left, _height, _top, _bottom in strong]
+
+    kept: list[tuple[int, int]] = []
+    for active, left, height, top, bottom in stats:
+        if active >= min_active:
+            kept.append((top, bottom))
+            continue
+        left_aligned = any(abs(left - strong_left) <= aligned_tolerance for strong_left in strong_lefts)
+        if height >= minimum_context_height and left_aligned:
+            kept.append((top, bottom))
+    return kept
 
 
 def _looks_like_compact_fraction_split(
@@ -226,7 +304,15 @@ def _looks_like_compact_fraction_split(
         first_width <= image_width * 0.86 and first_inset >= image_width * 0.06
     )
     second_is_wider = second_width >= first_width * 1.15 and second_inset <= image_width * 0.08
-    return first_is_centered_fragment and second_is_wider
+    centers_are_close = abs(
+        (first_left + first_right) - (second_left + second_right)
+    ) <= image_width * 0.12
+    widths_are_comparable = (
+        second_width >= first_width * 0.90
+        and second_inset >= image_width * 0.04
+        and centers_are_close
+    )
+    return first_is_centered_fragment and (second_is_wider or widths_are_comparable)
 
 
 def _band_bounds(mask: np.ndarray, top: int, bottom: int) -> tuple[int, int, int, int] | None:

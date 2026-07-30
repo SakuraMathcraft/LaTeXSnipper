@@ -1,8 +1,19 @@
 #include <windows.h>
 
+#if !defined(LATEXSNIPPER_VERSION_MAJOR) || !defined(LATEXSNIPPER_VERSION_MINOR) || !defined(LATEXSNIPPER_VERSION_PATCH)
+#error LaTeXSnipper product version macros are required
+#endif
+
+#define LATEXSNIPPER_STRINGIZE_VALUE(value) #value
+#define LATEXSNIPPER_STRINGIZE(value) LATEXSNIPPER_STRINGIZE_VALUE(value)
+#define LATEXSNIPPER_VERSION_TEXT \
+    LATEXSNIPPER_STRINGIZE(LATEXSNIPPER_VERSION_MAJOR) "." \
+    LATEXSNIPPER_STRINGIZE(LATEXSNIPPER_VERSION_MINOR) "." \
+    LATEXSNIPPER_STRINGIZE(LATEXSNIPPER_VERSION_PATCH) ".0"
+
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,4,0,0
- PRODUCTVERSION 2,4,0,0
+ FILEVERSION LATEXSNIPPER_VERSION_MAJOR,LATEXSNIPPER_VERSION_MINOR,LATEXSNIPPER_VERSION_PATCH,0
+ PRODUCTVERSION LATEXSNIPPER_VERSION_MAJOR,LATEXSNIPPER_VERSION_MINOR,LATEXSNIPPER_VERSION_PATCH,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -19,11 +30,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "SakuraMathcraft"
             VALUE "FileDescription", "LaTeXSnipper OLE Formula Object Handler"
-            VALUE "FileVersion", "2.4.0.0"
+            VALUE "FileVersion", LATEXSNIPPER_VERSION_TEXT
             VALUE "InternalName", "LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler"
             VALUE "OriginalFilename", "LaTeXSnipper.OfficePlugin.OleFormulaObject.Handler.dll"
             VALUE "ProductName", "LaTeXSnipper Office Plugin"
-            VALUE "ProductVersion", "2.4.0.0"
+            VALUE "ProductVersion", LATEXSNIPPER_VERSION_TEXT
         END
     END
     BLOCK "VarFileInfo"

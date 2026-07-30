@@ -56,6 +56,9 @@
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>LATEXSNIPPER_VERSION_MAJOR=$(LaTeXSnipperVersionMajor);LATEXSNIPPER_VERSION_MINOR=$(LaTeXSnipperVersionMinor);LATEXSNIPPER_VERSION_PATCH=$(LaTeXSnipperVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>ole32.lib;oleaut32.lib;uuid.lib;gdi32.lib;advapi32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>

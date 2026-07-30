@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LaTeXSnipper.OfficePlugin.WordVstoAddIn' Or '$(MSBuildProjectName)' == 'LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn'">
+    <LaTeXSnipperGenerateLegacyVersionInfo>true</LaTeXSnipperGenerateLegacyVersionInfo>
+    <LaTeXSnipperVersionInfoFile>$(IntermediateOutputPath)ProductVersionInfo.g.cs</LaTeXSnipperVersionInfoFile>
+  </PropertyGroup>
+
+  <Target
+    Name="GenerateLaTeXSnipperProductVersionInfo"
+    BeforeTargets="CoreCompile"
+    Condition="'$(LaTeXSnipperGenerateLegacyVersionInfo)' == 'true'">
+    <ItemGroup>
+      <LaTeXSnipperVersionInfoLine Include="using System.Reflection%3B" />
+      <LaTeXSnipperVersionInfoLine Include="[assembly: AssemblyVersion(&quot;$(AssemblyVersion)&quot;)]" />
+      <LaTeXSnipperVersionInfoLine Include="[assembly: AssemblyFileVersion(&quot;$(FileVersion)&quot;)]" />
+    </ItemGroup>
+    <WriteLinesToFile
+      File="$(LaTeXSnipperVersionInfoFile)"
+      Lines="@(LaTeXSnipperVersionInfoLine)"
+      Overwrite="true"
+      Encoding="UTF-8" />
+    <ItemGroup>
+      <Compile Include="$(LaTeXSnipperVersionInfoFile)" />
+    </ItemGroup>
+  </Target>
+</Project>

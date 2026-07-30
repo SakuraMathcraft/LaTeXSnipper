@@ -2,16 +2,24 @@
 setlocal
 
 :: LaTeXSnipper Office Plugin Installer Builder
-:: Usage: build.bat [version] [config]
+:: Usage: build.bat [config]
 ::   config:  Debug or Release (defaults to Release)
 
-set VERSION=%1
-if "%VERSION%"=="" set VERSION=2.4.0
+set SCRIPT_DIR=%~dp0
+set VERSION_FILE=%SCRIPT_DIR%..\..\VERSION
+if not exist "%VERSION_FILE%" (
+  echo ERROR: Product version file not found: %VERSION_FILE%
+  exit /b 1
+)
+set /p VERSION=<"%VERSION_FILE%"
+if "%VERSION%"=="" (
+  echo ERROR: Product version file is empty: %VERSION_FILE%
+  exit /b 1
+)
 
-set CONFIG=%2
+set CONFIG=%1
 if "%CONFIG%"=="" set CONFIG=Release
 
-set SCRIPT_DIR=%~dp0
 set PLUGIN_ROOT=%SCRIPT_DIR%..
 set DIST_DIR=%PLUGIN_ROOT%\release
 set WINDOWS_POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
@@ -79,7 +87,7 @@ if not defined ISCC (
   exit /b 1
 )
 
-"%ISCC%" /DVersion=%VERSION% /DConfig=%CONFIG% "%SCRIPT_DIR%setup.iss"
+"%ISCC%" /DConfig=%CONFIG% "%SCRIPT_DIR%setup.iss"
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Installer build failed.
   exit /b 1

@@ -8,8 +8,7 @@ on:
     inputs:
       release_tag:
         description: "Existing GitHub Release tag to upload assets to"
-        required: true
-        default: "v2.4.0-LTS"
+        required: false
         type: string
       publish_assets:
         description: "Upload artifacts to the GitHub Release"
@@ -206,12 +205,22 @@ jobs:
         id: installer
         shell: bash
         env:
-          RELEASE_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
-          if [[ "$RELEASE_SOURCE" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+          product_version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            release_source="${RELEASE_TAG_INPUT:-v${product_version}-LTS}"
+          else
+            release_source="${{ github.ref_name }}"
+          fi
+          if [[ "$release_source" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
             version="${BASH_REMATCH[1]}"
           else
-            echo "Release source does not contain a semantic version: $RELEASE_SOURCE" >&2
+            echo "Release source does not contain a semantic version: $release_source" >&2
+            exit 1
+          fi
+          if [[ "$version" != "$product_version" ]]; then
+            echo "Release version $version does not match VERSION $product_version." >&2
             exit 1
           fi
           installer="office_plugin/release/OfficePluginSetup-${version}.exe"
@@ -394,6 +403,9 @@ jobs:
       - build-office-plugin-installer
       - build-user-manual
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Download build artifacts
         uses: actions/download-artifact@v7
         with:
@@ -448,14 +460,21 @@ jobs:
       - name: Resolve release tag
         id: release
         shell: bash
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
+          product_version="$(tr -d '[:space:]' < VERSION)"
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag="${{ inputs.release_tag }}"
+            tag="${RELEASE_TAG_INPUT:-v${product_version}-LTS}"
           else
             tag="${{ github.ref_name }}"
           fi
           if [[ -z "$tag" ]]; then
             echo "Release tag is empty." >&2
+            exit 1
+          fi
+          if [[ ! "$tag" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]] || [[ "${BASH_REMATCH[1]}" != "$product_version" ]]; then
+            echo "Release tag $tag does not match VERSION $product_version." >&2
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

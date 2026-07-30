@@ -13,10 +13,12 @@ Produces the released Word and PowerPoint plugin installer with Inno Setup 6.
 
 ```batch
 cd office_plugin\installer
-build.bat 2.4.0 Release
+build.bat Release
 ```
 
-Output: `office_plugin\release\OfficePluginSetup-2.4.0.exe`
+The build reads the shared product version from the repository `VERSION` file.
+
+Output: `office_plugin\release\OfficePluginSetup-2.5.0.exe`
 
 ## Installation Responsibilities
 
@@ -33,4 +35,4 @@ Registration uses explicit Office add-in keys and VSTO trust entries. Cleanup is
 
 ## Version convention
 
-The installer version follows the main LaTeXSnipper client version (`2.4.0`).
+The installer and all plugin binaries read the main LaTeXSnipper version from `VERSION`.

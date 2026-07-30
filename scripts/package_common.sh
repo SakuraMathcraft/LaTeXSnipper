@@ -12,35 +12,18 @@ log_step() {
 
 resolve_project_version() {
     local project_root="$1"
-    local explicit_version="${2:-}"
-
-    if [[ -n "$explicit_version" ]]; then
-        echo "$explicit_version"
-        return
-    fi
 
     python3 - "$project_root" <<'PY'
 import pathlib
 import re
 import sys
-import tomllib
 
 root = pathlib.Path(sys.argv[1])
-version_info = root / "version_info.txt"
-if version_info.exists():
-    match = re.search(
-        r"filevers\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)",
-        version_info.read_text(encoding="utf-8", errors="ignore"),
-    )
-    if match:
-        print(".".join(match.groups()))
-        raise SystemExit
-
-pyproject = root / "pyproject.toml"
-if pyproject.exists():
-    version = tomllib.loads(pyproject.read_text(encoding="utf-8")).get("project", {}).get("version", "")
-    if version:
-        print(version)
+version_file = root / "VERSION"
+version = version_file.read_text(encoding="utf-8").strip()
+if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", version):
+    raise SystemExit(f"invalid product version in {version_file}: {version!r}")
+print(version)
 PY
 }
 

@@ -1,5 +1,7 @@
 #define MyAppName "LaTeXSnipper"
-#define MyAppVersion "2.4.0"
+#define VersionFileHandle FileOpen(AddBackslash(SourcePath) + "..\VERSION")
+#define MyAppVersion Trim(FileRead(VersionFileHandle))
+#expr FileClose(VersionFileHandle)
 #define MyAppPublisher "MathCraft"
 #define MyAppURL "https://github.com/SakuraMathcraft/LaTeXSnipper"
 #define MyAppExeName "LaTeXSnipper.exe"

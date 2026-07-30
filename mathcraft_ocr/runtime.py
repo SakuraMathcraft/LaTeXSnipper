@@ -81,6 +81,8 @@ ONNX_WARMUP_HANDLERS = {
 }
 
 FORMULA_MAX_NEW_TOKENS = 512
+_LOW_SEGMENT_CONFIDENCE = 0.95
+_WHOLE_LINE_CONFIDENCE_MARGIN = 0.02
 
 
 class MathCraftRuntime:
@@ -482,7 +484,7 @@ class MathCraftRuntime:
                 count = len(line_group.crops)
                 grouped_results.append(flat_results[offset : offset + count])
                 offset += count
-            grouped_results = _repair_severe_segmented_lines(
+            grouped_results = _repair_uncertain_segmented_lines(
                 rgb,
                 line_groups,
                 grouped_results,
@@ -621,7 +623,7 @@ def _merge_formula_group_results(results: list[list[tuple[str, float]]]) -> tupl
     return text, score
 
 
-def _repair_severe_segmented_lines(
+def _repair_uncertain_segmented_lines(
     rgb,
     line_groups,
     grouped_results: list[list[tuple[str, float]]],
@@ -635,7 +637,10 @@ def _repair_severe_segmented_lines(
         if len(line_group.crops) <= 1:
             continue
         line_text = compose_formula_line([text for text, _score in line_results])
-        if not has_severe_latex_quality_issue(line_text):
+        has_low_confidence = any(
+            score < _LOW_SEGMENT_CONFIDENCE for _text, score in line_results
+        )
+        if not has_low_confidence and not has_severe_latex_quality_issue(line_text):
             continue
         fallback_text, fallback_score = recognize_formula_image(
             _crop_formula_line_group(rgb, line_group),
@@ -644,7 +649,18 @@ def _repair_severe_segmented_lines(
             max_new_tokens=max_new_tokens,
         )
         line_score = _mean_score(line_results)
-        if _prefer_formula_fallback(line_text, line_score, fallback_text, fallback_score):
+        fallback_is_cleaner = _prefer_formula_fallback(
+            line_text,
+            line_score,
+            fallback_text,
+            fallback_score,
+        )
+        fallback_is_more_confident = (
+            has_low_confidence
+            and not has_severe_latex_quality_issue(fallback_text)
+            and fallback_score > line_score + _WHOLE_LINE_CONFIDENCE_MARGIN
+        )
+        if fallback_is_cleaner or fallback_is_more_confident:
             repaired[index] = [(fallback_text, fallback_score)]
     return repaired
 

@@ -2,7 +2,7 @@
 # Build a Debian/Ubuntu .deb package.
 #
 # Usage:
-#   ./scripts/build_deb.sh [version]
+#   ./scripts/build_deb.sh
 
 set -euo pipefail
 
@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/package_common.sh"
 
-VERSION="$(resolve_project_version "$PROJECT_ROOT" "${1:-}")"
+VERSION="$(resolve_project_version "$PROJECT_ROOT")"
 if [[ -z "${VERSION:-}" ]]; then
-    die "unable to determine version; pass one explicitly: $0 <version>"
+    die "unable to determine version from $PROJECT_ROOT/VERSION"
 fi
 
 echo "LaTeXSnipper Linux package build"
