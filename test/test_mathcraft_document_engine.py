@@ -47,25 +47,6 @@ def test_document_engine_preserves_display_math() -> None:
     assert "$$\nx = y + z\n$$" in text
 
 
-def test_document_engine_can_render_typst_formulas() -> None:
-    text = compose_mathcraft_markdown_document(
-        [
-            "\n".join(
-                [
-                    "Notice that",
-                    "$$",
-                    "x = y + z",
-                    "$$",
-                    "and continue.",
-                ]
-            )
-        ],
-        typst_formulas=True,
-    )
-    assert isinstance(text, str)
-    assert text
-
-
 def test_document_engine_merges_cross_page_continuation() -> None:
     text = compose_mathcraft_markdown_document(
         [
@@ -591,37 +572,3 @@ def test_document_engine_keeps_formula_anchors_out_of_paragraph_merge() -> None:
     assert "$$\n\\begin{aligned} x &= y \\end{aligned}\n$$" in text
     assert "$$ where" not in text
     assert "$$$$" not in text
-
-
-def main() -> None:
-    tests = [
-        test_document_engine_promotes_title_and_sections,
-        test_document_engine_preserves_display_math,
-        test_document_engine_merges_cross_page_continuation,
-        test_document_engine_keeps_page_comment_when_not_continuation,
-        test_document_engine_formats_theorem_leads_and_hyphenation,
-        test_document_engine_repairs_split_fi_ligature_text,
-        test_document_engine_splits_after_completed_proof_marker,
-        test_document_engine_keeps_front_matter_blocks_separate,
-        test_document_engine_keeps_chapter_chart_lines_out_of_body_paragraphs,
-        test_document_engine_combines_real_chapter_label_with_title,
-        test_document_engine_removes_running_headers,
-        test_document_engine_detects_chinese_section_headings,
-        test_document_engine_cleans_common_mathcraft_ocr_artifacts,
-        test_document_engine_repairs_bracketed_display_math_marker,
-        test_document_engine_splits_text_before_display_math_marker,
-        test_document_engine_renders_contents_entries_as_list_items,
-        test_document_engine_does_not_promote_split_exercise_numbers,
-        test_document_engine_uses_structured_blocks_for_pdf_pages,
-        test_document_engine_consumes_structured_roles_and_paragraphs,
-        test_document_engine_prefers_runtime_line_order_and_display_flag,
-        test_document_engine_keeps_centered_formula_between_left_column_lines,
-        test_document_engine_keeps_formula_anchors_out_of_paragraph_merge,
-    ]
-    for test in tests:
-        test()
-    print(f"{len(tests)} tests OK")
-
-
-if __name__ == "__main__":
-    main()

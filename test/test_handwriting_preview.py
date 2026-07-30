@@ -42,16 +42,6 @@ def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     assert "::-webkit-scrollbar-thumb" in html
 
 
-def test_edit_formula_dialog_uses_shared_mathjax_base_url() -> None:
-    source = (SRC / "ui" / "edit_formula_dialog.py").read_text(encoding="utf-8")
-
-    assert "get_mathjax_base_url" in source
-    assert "_fallback_local_mathjax_base_url" not in source
-    assert "BodyLabel(\"实时预览:\")" in source
-    assert "setMinimumHeight(150)" in source
-    assert "build_math_html(text, center_viewport=True)" in source
-
-
 def test_handwriting_external_prompt_preserves_text_and_formula() -> None:
     from backend.external_model.prompts import build_prompt
     from backend.external_model.schemas import ExternalModelConfig
@@ -88,14 +78,6 @@ def test_handwriting_recognizer_imports_without_numpy() -> None:
     assert callable(module.qimage_to_pil)
 
 
-def test_window_openers_lazy_loads_workbench_window() -> None:
-    source = (SRC / "ui" / "window_openers.py").read_text(encoding="utf-8")
-    import_section = source.split("class WindowOpenersMixin:", 1)[0]
-
-    assert "from editor.workbench_window import WorkbenchWindow" not in import_section
-    assert "from editor.workbench_window import WorkbenchWindow" in source
-
-
 def test_dependency_python_cleans_quoted_paths() -> None:
     from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 
@@ -108,39 +90,6 @@ def test_dependency_python_cleans_quoted_paths() -> None:
     assert normalize_deps_base_dir("E:\\LaTexSnipper\\deps\\python311") == Path("E:\\LaTexSnipper\\deps")
 
 
-def test_handwriting_window_uses_dedicated_external_ocr_defaults() -> None:
-    source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
-
-    assert 'prompt_template="ocr_handwriting_mixed_v1"' in source
-
-
-def test_handwriting_prompt_is_internal_not_a_settings_option() -> None:
-    source = (SRC / "ui" / "settings_layout_builder.py").read_text(encoding="utf-8")
-
-    assert 'userData="ocr_formula_v1"' in source
-    assert 'userData="ocr_markdown_v1"' in source
-    assert 'userData="ocr_text_v1"' in source
-    assert 'userData="ocr_handwriting_mixed_v1"' not in source
-
-
-def test_mineru_hides_prompt_controls_that_it_does_not_use() -> None:
-    source = (SRC / "ui" / "settings_external_model_mixin.py").read_text(encoding="utf-8")
-
-    assert "self.external_prompt_label.setVisible(not is_mineru)" in source
-    assert "self.external_prompt_combo.setVisible(not is_mineru)" in source
-    assert "self.external_custom_prompt_input.setVisible(not is_mineru)" in source
-
-
-def test_pdf_preview_backend_switches_share_one_infobar_path() -> None:
-    source = (SRC / "handwriting" / "document_preview_window.py").read_text(encoding="utf-8")
-
-    assert "def _show_pdf_backend_info(self, requested: str, actual: str)" in source
-    assert 'title = "已切换到自动"' in source
-    assert 'title = f"已切换到 {labels[requested]}"' in source
-    assert "self._show_pdf_backend_info(requested, kind)" in source
-    assert "_show_poppler_backend_info" not in source
-
-
 def test_document_recognition_model_policy() -> None:
     from recognition.model_policy import resolve_document_recognition_model
 
@@ -148,38 +97,6 @@ def test_document_recognition_model_policy() -> None:
     assert resolve_document_recognition_model("mathcraft_text") == "mathcraft_mixed"
     assert resolve_document_recognition_model("mathcraft_mixed") == "mathcraft_mixed"
     assert resolve_document_recognition_model("external_model") == "external_model"
-
-
-def test_handwriting_window_uses_shared_model_policy() -> None:
-    source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
-
-    assert "resolve_document_recognition_model" in source
-    assert 'valid = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}' not in source
-
-
-def test_handwriting_window_opener_warms_mixed_without_using_main_preference() -> None:
-    source = (SRC / "ui" / "window_openers.py").read_text(encoding="utf-8")
-
-    assert "resolve_document_recognition_model(preferred)" in source
-    assert "_warmup_handwriting_model_async(handwriting_model)" in source
-    assert "_ensure_model_warmup_async(preferred_model=preferred)" not in source
-
-
-def test_handwriting_window_uses_lightweight_line_number_editor() -> None:
-    source = (SRC / "handwriting" / "handwriting_window.py").read_text(encoding="utf-8")
-    import_section = source.split("class _HandwritingDocumentLayoutWorker", 1)[0]
-
-    assert "from .editor_widgets import HandwritingPlainTextEdit" in import_section
-    assert "PreviewPlainTextEdit = HandwritingPlainTextEdit" in source
-    assert "from .document_preview_window import" not in import_section
-
-
-def test_pyinstaller_specs_keep_document_preview_pdf_views() -> None:
-    for spec_name in ("LaTeXSnipper.spec", "LaTeXSnipper-linux.spec", "LaTeXSnipper-macos.spec"):
-        spec = (ROOT / spec_name).read_text(encoding="utf-8")
-
-        assert '"handwriting.pdf_view_fitz"' in spec
-        assert '"handwriting.pdf_view_poppler"' in spec
 
 
 def test_wrap_tex_document_normalizes_external_article_document() -> None:

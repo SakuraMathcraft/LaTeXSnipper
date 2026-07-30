@@ -106,7 +106,3 @@ class CaptureOverlayMappingTests(unittest.TestCase):
         self.assertIsNotNone(rect)
         self.assertEqual((rect.x(), rect.y()), (0, 0))
         self.assertEqual(ScreenCaptureOverlay._selection_size(overlay), (120, 80))
-
-
-if __name__ == "__main__":
-    unittest.main()
