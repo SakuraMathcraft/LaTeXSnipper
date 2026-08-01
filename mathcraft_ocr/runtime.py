@@ -24,7 +24,13 @@ from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
 from .error_patterns import looks_like_cuda_runtime_error
 from .errors import ModelCacheError
-from .formula_lines import compose_aligned_formula, compose_formula_line, split_formula_line_groups
+from .formula_lines import (
+    FormulaLineGroup,
+    compose_aligned_formula,
+    compose_formula_line,
+    formula_boxes_ink_coverage,
+    split_formula_line_groups,
+)
 from .hardware import choose_rec_batch_num, detect_hardware_info
 from .image import load_image_rgb, rgb_to_bgr
 from .latex_quality import (
@@ -83,6 +89,7 @@ ONNX_WARMUP_HANDLERS = {
 FORMULA_MAX_NEW_TOKENS = 512
 _LOW_SEGMENT_CONFIDENCE = 0.95
 _WHOLE_LINE_CONFIDENCE_MARGIN = 0.02
+_FORMULA_DOMINANT_MIN_INK_COVERAGE = 0.95
 
 
 class MathCraftRuntime:
@@ -347,6 +354,30 @@ class MathCraftRuntime:
         )
         height, width = rgb.shape[:2]
         formula_block_boxes = tuple(item.box for item in formula_boxes)
+        if _is_formula_dominant_image(rgb, formula_boxes):
+            formula_text, formula_score = self._recognize_formula_rgb(
+                rgb,
+                plan.provider_info,
+                max_new_tokens=max_formula_new_tokens,
+            )
+            formula_block = MathCraftBlock(
+                kind="formula",
+                box=_full_image_box(rgb),
+                text=formula_text,
+                score=formula_score,
+                source="formula_rec",
+                confidence_flags=latex_quality_flags(formula_text),
+            )
+            ordered_blocks = annotate_blocks(
+                [formula_block],
+                image_size=(int(width), int(height)),
+            )
+            return MixedRecognitionResult(
+                text=merge_blocks_text(ordered_blocks),
+                regions=(),
+                blocks=ordered_blocks,
+                provider=plan.provider_info.active_provider,
+            )
         masked_bgr = rgb_to_bgr(
             mask_boxes(rgb, formula_block_boxes, margin=_formula_mask_margin(width, height))
         )
@@ -395,10 +426,12 @@ class MathCraftRuntime:
                     )
                 )
         formula_jobs: list[tuple[int, int, object]] = []
+        formula_line_groups: list[tuple[FormulaLineGroup, ...]] = []
         grouped_formula_results: list[list[list[tuple[str, float]]]] = []
         for index, formula_box in enumerate(formula_boxes):
             crop = get_rotate_crop_image(rgb, box_to_points(formula_box.box))
             line_groups = split_formula_line_groups(crop)
+            formula_line_groups.append(line_groups)
             if line_groups:
                 grouped_formula_results.append([[] for _line_group in line_groups])
                 for line_index, line_group in enumerate(line_groups):
@@ -418,10 +451,17 @@ class MathCraftRuntime:
         for (index, line_index, _image), result in zip(formula_jobs, formula_job_results):
             grouped_formula_results[index][line_index].append(result)
 
-        for formula_box, formula_results in zip(formula_boxes, grouped_formula_results):
+        for formula_box, line_groups, formula_results in zip(
+            formula_boxes,
+            formula_line_groups,
+            grouped_formula_results,
+        ):
             if not formula_results:
                 continue
-            formula_text, formula_score = _merge_formula_group_results(formula_results)
+            if line_groups:
+                formula_text, formula_score = _merge_formula_group_results(formula_results)
+            else:
+                formula_text, formula_score = formula_results[0][0]
             blocks.append(
                 MathCraftBlock(
                     kind=formula_box.label,
@@ -613,6 +653,16 @@ class MathCraftRuntime:
 def _full_image_box(image) -> Box4P:
     height, width = image.shape[:2]
     return ((0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height)))
+
+
+def _is_formula_dominant_image(rgb, formula_boxes) -> bool:
+    if not formula_boxes or any(item.label != "isolated" for item in formula_boxes):
+        return False
+    coverage = formula_boxes_ink_coverage(
+        rgb,
+        tuple(item.box for item in formula_boxes),
+    )
+    return coverage >= _FORMULA_DOMINANT_MIN_INK_COVERAGE
 
 
 def _merge_formula_group_results(results: list[list[tuple[str, float]]]) -> tuple[str, float]:

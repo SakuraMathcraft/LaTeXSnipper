@@ -73,7 +73,7 @@ office_plugin\installer\build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\OfficePluginSetup-2.5.0.exe`
+Output: `office_plugin\release\OfficePluginSetup-2.6.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 

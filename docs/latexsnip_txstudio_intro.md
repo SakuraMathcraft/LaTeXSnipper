@@ -8,7 +8,7 @@
 
 LaTeXSnipper 是一款开源的桌面数学工作台，以 **「截图 → 识别 → 手写 → 编辑 → 计算」** 为主线工作流。它同时提供了 **Windows Office VSTO 插件**，在 Word 和 PowerPoint 中实现 LaTeX 公式插入、自动编号、交叉引用等完整功能。
 ![alt text](客户端.png)
-项目采用 GPLv3 协议，支持 **Windows / Linux / macOS** 三平台。截至 v2.5.0 版本，GitHub 已获 1k+ Star，社区活跃。
+项目采用 GPLv3 协议，支持 **Windows / Linux / macOS** 三平台。截至 v2.6.0 版本，GitHub 已获 1k+ Star，社区活跃。
 
 ---
 

@@ -18,7 +18,7 @@ build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\OfficePluginSetup-2.5.0.exe`
+Output: `office_plugin\release\OfficePluginSetup-2.6.0.exe`
 
 ## Installation Responsibilities
 

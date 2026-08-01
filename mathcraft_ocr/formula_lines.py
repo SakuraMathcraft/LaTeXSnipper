@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 import re
 
@@ -28,6 +29,29 @@ _INVISIBLE_LEFT_RIGHT_RE = re.compile(r"\\(?:left|right)(?![A-Za-z])\s*\.")
 _LEFT_RIGHT_PREFIX_RE = re.compile(r"\\(?:left|right)(?![A-Za-z])\s*")
 _ROW_BREAK_RE = re.compile(r"(?<!\\)(?:\\\\)+")
 _WIDE_LINE_ASPECT_RATIO = 7.0
+
+
+def formula_boxes_ink_coverage(
+    image_rgb: np.ndarray,
+    boxes: Sequence[tuple[tuple[float, float], ...]],
+) -> float:
+    mask = _ink_mask(_as_rgb_array(image_rgb))
+    ink_count = int(mask.sum())
+    if ink_count == 0 or not boxes:
+        return 0.0
+
+    height, width = mask.shape
+    covered = np.zeros_like(mask, dtype=bool)
+    for box in boxes:
+        xs = [point[0] for point in box]
+        ys = [point[1] for point in box]
+        left = max(0, int(np.floor(min(xs))))
+        top = max(0, int(np.floor(min(ys))))
+        right = min(width, int(np.ceil(max(xs))))
+        bottom = min(height, int(np.ceil(max(ys))))
+        if right > left and bottom > top:
+            covered[top:bottom, left:right] = True
+    return float(np.count_nonzero(mask & covered) / ink_count)
 
 
 def split_formula_line_crops(image_rgb: np.ndarray) -> tuple[FormulaLineCrop, ...]:
