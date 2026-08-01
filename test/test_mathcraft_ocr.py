@@ -12,18 +12,18 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
 import mathcraft_ocr.runtime as runtime_mod
+import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
 import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
 from mathcraft_ocr.errors import ModelCacheError
 from mathcraft_ocr.adapters.formula_detector import FormulaBox
 from mathcraft_ocr.formula_lines import (
     compose_aligned_formula,
     compose_formula_line,
+    formula_boxes_ink_coverage,
     split_formula_line_crops,
     split_formula_line_groups,
 )
@@ -90,6 +90,19 @@ def _synthetic_matrix_like_wide_line_image() -> np.ndarray:
     return image
 
 
+def _ready_warmup_plan(runtime: MathCraftRuntime, profile: str, model_ids):
+    report = runtime.get_runtime_info()
+    return runtime_mod.WarmupPlan(
+        profile=profile,
+        required_models=tuple(model_ids),
+        missing_models=(),
+        unsupported_models=(),
+        component_statuses=(),
+        provider_info=report.provider_info,
+        ready=True,
+    )
+
+
 def test_manifest_loads_expected_models() -> None:
     manifest = load_manifest()
     expected = {
@@ -125,8 +138,8 @@ def test_formula_warmup_plan_reports_missing_models() -> None:
         )
         plan = runtime.warmup("formula")
         assert plan.profile == "formula"
-        assert FORMULA_DETECTOR_ID in plan.missing_models
-        assert FORMULA_RECOGNIZER_ID in plan.missing_models
+        assert plan.missing_models == (FORMULA_RECOGNIZER_ID,)
+        assert plan.required_models == (FORMULA_RECOGNIZER_ID,)
         assert plan.ready is False
         assert plan.unsupported_models == ()
 
@@ -154,7 +167,6 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
     try:
         runtime_mod.download_model_archive = _fake_download
         runtime_mod.ONNX_WARMUP_HANDLERS = {
-            FORMULA_DETECTOR_ID: lambda model_dir, provider_info: warmed.append(Path(model_dir).name),
             FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: warmed.append(Path(model_dir).name),
             TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
             TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
@@ -163,11 +175,11 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
             runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
             plan = runtime.warmup("formula")
             assert plan.ready is True
-            assert downloaded == [(FORMULA_DETECTOR_ID, None), (FORMULA_RECOGNIZER_ID, None)]
-            assert warmed == [FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID]
-            assert len(plan.cache_events) == 4
-            assert FORMULA_RECOGNIZER_ID in plan.cache_events[2]
-            assert "missing:" in plan.cache_events[2]
+            assert downloaded == [(FORMULA_RECOGNIZER_ID, None)]
+            assert warmed == [FORMULA_RECOGNIZER_ID]
+            assert len(plan.cache_events) == 2
+            assert FORMULA_RECOGNIZER_ID in plan.cache_events[0]
+            assert "missing:" in plan.cache_events[0]
     finally:
         runtime_mod.download_model_archive = old_download
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
@@ -216,8 +228,8 @@ def test_formula_warmup_succeeds_with_stubbed_onnx_handlers() -> None:
     old_handlers = dict(runtime_mod.ONNX_WARMUP_HANDLERS)
     calls = []
     runtime_mod.ONNX_WARMUP_HANDLERS = {
-        FORMULA_DETECTOR_ID: lambda model_dir, provider_info: calls.append(
-            ("mfd", Path(model_dir).name)
+        FORMULA_DETECTOR_ID: lambda model_dir, provider_info: (_ for _ in ()).throw(
+            AssertionError("formula warmup must not load the formula detector")
         ),
         FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: calls.append(
             ("mfr", Path(model_dir).name)
@@ -228,15 +240,13 @@ def test_formula_warmup_succeeds_with_stubbed_onnx_handlers() -> None:
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _touch(root / FORMULA_DETECTOR_ID / "mathcraft-mfd.onnx")
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
             runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
             plan = runtime.warmup("formula")
             assert plan.ready is True
             assert plan.missing_models == ()
             assert plan.unsupported_models == ()
-            assert ("mfd", FORMULA_DETECTOR_ID) in calls
-            assert ("mfr", FORMULA_RECOGNIZER_ID) in calls
+            assert calls == [("mfr", FORMULA_RECOGNIZER_ID)]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
 
@@ -246,8 +256,8 @@ def test_successful_warmup_plan_is_cached_per_profile() -> None:
     old_handlers = dict(runtime_mod.ONNX_WARMUP_HANDLERS)
     calls = []
     runtime_mod.ONNX_WARMUP_HANDLERS = {
-        FORMULA_DETECTOR_ID: lambda model_dir, provider_info: calls.append(
-            ("mfd", Path(model_dir).name)
+        FORMULA_DETECTOR_ID: lambda model_dir, provider_info: (_ for _ in ()).throw(
+            AssertionError("formula warmup must not load the formula detector")
         ),
         FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: calls.append(
             ("mfr", Path(model_dir).name)
@@ -258,17 +268,13 @@ def test_successful_warmup_plan_is_cached_per_profile() -> None:
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _touch_model(root, manifest, FORMULA_DETECTOR_ID)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
             runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
             first = runtime.warmup("formula")
             second = runtime.warmup("formula")
             assert first.ready is True
             assert second is first
-            assert calls == [
-                ("mfd", FORMULA_DETECTOR_ID),
-                ("mfr", FORMULA_RECOGNIZER_ID),
-            ]
+            assert calls == [("mfr", FORMULA_RECOGNIZER_ID)]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
 
@@ -282,26 +288,22 @@ def test_failed_warmup_plan_is_not_cached() -> None:
         calls.append(Path(model_dir).name)
         raise RuntimeError("warmup failed")
 
-    def _ok(model_dir, provider_info):
-        return None
-
     runtime_mod.ONNX_WARMUP_HANDLERS = {
-        FORMULA_DETECTOR_ID: _fail,
-        FORMULA_RECOGNIZER_ID: _ok,
+        FORMULA_DETECTOR_ID: old_handlers[FORMULA_DETECTOR_ID],
+        FORMULA_RECOGNIZER_ID: _fail,
         TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
         TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
     }
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _touch_model(root, manifest, FORMULA_DETECTOR_ID)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
             runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
             first = runtime.warmup("formula")
             second = runtime.warmup("formula")
             assert first.ready is False
             assert second.ready is False
-            assert calls == [FORMULA_DETECTOR_ID, FORMULA_DETECTOR_ID]
+            assert calls == [FORMULA_RECOGNIZER_ID, FORMULA_RECOGNIZER_ID]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
 
@@ -320,16 +322,13 @@ def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
     def _fail_with_cuda_runtime_error(model_dir, provider_info):
         raise RuntimeError(cuda_detail)
 
-    def _ok(model_dir, provider_info):
-        return None
-
     def _download(*args, **kwargs):
         download_calls.append((args, kwargs))
         raise AssertionError("CUDA runtime errors must not repair model cache")
 
     runtime_mod.ONNX_WARMUP_HANDLERS = {
-        FORMULA_DETECTOR_ID: _fail_with_cuda_runtime_error,
-        FORMULA_RECOGNIZER_ID: _ok,
+        FORMULA_DETECTOR_ID: old_handlers[FORMULA_DETECTOR_ID],
+        FORMULA_RECOGNIZER_ID: _fail_with_cuda_runtime_error,
         TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
         TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
     }
@@ -337,7 +336,6 @@ def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _touch_model(root, manifest, FORMULA_DETECTOR_ID)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
             runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
             plan = runtime.warmup("formula")
@@ -595,6 +593,70 @@ def test_latex_quality_flags_detect_repeated_and_duplicate_relation_artifacts() 
     assert "repeated_token_run" in latex_quality_flags(
         r"x " + " ".join([r"\qquad"] * 30)
     )
+
+
+def test_formula_decoder_stops_only_sustained_short_token_loops() -> None:
+    prefix = list(range(40))
+    repeated_quad_tokens = [64, 446] * 16
+
+    assert (
+        formula_recognizer_mod._repeated_token_suffix_start(
+            prefix + repeated_quad_tokens
+        )
+        == len(prefix) + 2
+    )
+    assert (
+        formula_recognizer_mod._repeated_token_suffix_start(
+            list(range(64))
+        )
+        is None
+    )
+    assert (
+        formula_recognizer_mod._repeated_token_suffix_start(
+            prefix + [64, 446] * 8
+        )
+        is None
+    )
+
+
+def test_formula_decoder_removes_finished_rows_from_active_batch() -> None:
+    class _Input:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class _Decoder:
+        def __init__(self) -> None:
+            self.batch_sizes: list[int] = []
+
+        def get_inputs(self):
+            return (_Input("input_ids"), _Input("encoder_hidden_states"))
+
+        def run(self, _outputs, inputs):
+            input_ids = inputs["input_ids"]
+            hidden_states = inputs["encoder_hidden_states"]
+            self.batch_sizes.append(int(input_ids.shape[0]))
+            logits = np.full((input_ids.shape[0], input_ids.shape[1], 10), -20.0)
+            for row, original_row in enumerate(hidden_states[:, 0, 0].astype(int)):
+                finish_after = 2 if original_row == 0 else 4
+                next_token = 9 if input_ids.shape[1] >= finish_after else original_row + 2
+                logits[row, -1, next_token] = 20.0
+            return (logits,)
+
+    decoder = _Decoder()
+    hidden_states = np.zeros((2, 1, 384), dtype=np.float32)
+    hidden_states[:, 0, 0] = (0, 1)
+
+    token_ids, _scores, stopped = formula_recognizer_mod._generate_formula_tokens(
+        decoder,
+        hidden_states,
+        decoder_start_id=1,
+        eos_id=9,
+        max_new_tokens=10,
+    )
+
+    assert token_ids == [[2], [3, 3, 3]]
+    assert stopped.tolist() == [False, False]
+    assert decoder.batch_sizes == [2, 2, 1, 1]
 
 
 def test_recognize_formula_uses_formula_adapter() -> None:
@@ -936,6 +998,152 @@ def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
         runtime_mod.get_rotate_crop_image = old_crop
 
 
+def test_recognize_mixed_preserves_unsplit_formula_structure() -> None:
+    manifest = load_manifest()
+    old_warmup_selected = MathCraftRuntime._warmup_selected_models
+    old_detect = runtime_mod.detect_text_boxes
+    old_detect_formula = runtime_mod.detect_formula_boxes
+    old_recognize_lines = runtime_mod.recognize_pp_text_lines
+    old_recognize_formulas = runtime_mod.recognize_formula_images
+    old_crop = runtime_mod.get_rotate_crop_image
+    try:
+        def _fake_warmup_selected(self, profile: str, model_ids):
+            report = self.get_runtime_info()
+            return runtime_mod.WarmupPlan(
+                profile=profile,
+                required_models=tuple(model_ids),
+                missing_models=(),
+                unsupported_models=(),
+                component_statuses=(),
+                provider_info=report.provider_info,
+                ready=True,
+            )
+
+        formula_image = np.full((48, 180, 3), 255, dtype=np.uint8)
+        formula_image[12:36, 18:162] = 0
+        formula_text = (
+            r"\left\{\begin{array}{ll}"
+            r"x & \mathrm{if}\ x \leq 1 \\ "
+            r"y & \mathrm{if}\ x > 1"
+            r"\end{array}\right."
+        )
+
+        MathCraftRuntime._warmup_selected_models = _fake_warmup_selected
+        runtime_mod.detect_text_boxes = (
+            lambda image, model_dir, provider_info: (np.zeros((0, 4, 2), dtype=np.float32), ())
+        )
+        runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: (
+            FormulaBox(
+                box=((0.0, 0.0), (180.0, 0.0), (180.0, 48.0), (0.0, 48.0)),
+                score=0.95,
+                label="formula",
+            ),
+        )
+        runtime_mod.get_rotate_crop_image = lambda image, box: formula_image
+        runtime_mod.recognize_pp_text_lines = lambda crops, model_dir, provider_info, **kwargs: []
+        runtime_mod.recognize_formula_images = (
+            lambda images, model_dir, provider_info, **kwargs: [(formula_text, 0.99)]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            result = runtime.recognize_mixed(np.zeros((58, 200, 3), dtype=np.uint8))
+
+        assert len(result.blocks) == 1
+        assert result.blocks[0].text == formula_text
+        assert result.blocks[0].score == 0.95
+        assert result.blocks[0].text in result.text
+    finally:
+        MathCraftRuntime._warmup_selected_models = old_warmup_selected
+        runtime_mod.detect_text_boxes = old_detect
+        runtime_mod.detect_formula_boxes = old_detect_formula
+        runtime_mod.recognize_pp_text_lines = old_recognize_lines
+        runtime_mod.recognize_formula_images = old_recognize_formulas
+        runtime_mod.get_rotate_crop_image = old_crop
+
+
+def test_formula_boxes_ink_coverage_ignores_dark_outer_frame() -> None:
+    image = np.full((100, 200, 3), 255, dtype=np.uint8)
+    image[:4, :] = 0
+    image[-4:, :] = 0
+    image[:, :4] = 0
+    image[:, -4:] = 0
+    image[40:60, 70:130] = 0
+
+    coverage = formula_boxes_ink_coverage(
+        image,
+        (((60.0, 30.0), (140.0, 30.0), (140.0, 70.0), (60.0, 70.0)),),
+    )
+
+    assert coverage == 1.0
+
+
+def test_recognize_mixed_routes_formula_dominant_image_to_formula_core(monkeypatch) -> None:
+    manifest = load_manifest()
+    image = np.full((80, 180, 3), 255, dtype=np.uint8)
+    image[24:56, 30:150] = 0
+    formula_text = r"\begin{aligned}x &= 1 \\ y &= 2\end{aligned}"
+
+    monkeypatch.setattr(MathCraftRuntime, "_warmup_selected_models", _ready_warmup_plan)
+    monkeypatch.setattr(
+        runtime_mod,
+        "detect_formula_boxes",
+        lambda image, model_dir, provider_info: (
+            FormulaBox(
+                box=((20.0, 14.0), (160.0, 14.0), (160.0, 66.0), (20.0, 66.0)),
+                score=0.96,
+                label="isolated",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_mod,
+        "detect_text_boxes",
+        lambda image, model_dir, provider_info: (_ for _ in ()).throw(
+            AssertionError("formula-dominant images must skip the text pipeline")
+        ),
+    )
+    monkeypatch.setattr(
+        MathCraftRuntime,
+        "_recognize_formula_rgb",
+        lambda self, rgb, provider_info, **kwargs: (formula_text, 0.99),
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+        result = runtime.recognize_mixed(image)
+
+    assert formula_text in result.text
+    assert result.regions == ()
+    assert len(result.blocks) == 1
+    assert result.blocks[0].text == formula_text
+    assert result.blocks[0].box == (
+        (0.0, 0.0),
+        (180.0, 0.0),
+        (180.0, 80.0),
+        (0.0, 80.0),
+    )
+
+
+def test_formula_dominant_image_rejects_mixed_content() -> None:
+    image = np.full((80, 200, 3), 255, dtype=np.uint8)
+    image[20:60, 20:100] = 0
+    image[30:50, 140:190] = 0
+    isolated = FormulaBox(
+        box=((10.0, 10.0), (110.0, 10.0), (110.0, 70.0), (10.0, 70.0)),
+        score=0.95,
+        label="isolated",
+    )
+    embedding = FormulaBox(
+        box=((130.0, 20.0), (195.0, 20.0), (195.0, 60.0), (130.0, 60.0)),
+        score=0.94,
+        label="embedding",
+    )
+
+    assert runtime_mod._is_formula_dominant_image(image, (isolated,)) is False
+    assert runtime_mod._is_formula_dominant_image(image, (isolated, embedding)) is False
+
+
 def test_recognize_text_skips_formula_pipeline() -> None:
     manifest = load_manifest()
     old_warmup_selected = MathCraftRuntime._warmup_selected_models
@@ -1164,6 +1372,44 @@ def test_layout_keeps_two_columns_separate_when_formulas_overlap_vertically() ->
     assert all(block.is_display for block in ordered)
 
 
+def test_layout_keeps_narrow_gutter_text_columns_separate() -> None:
+    blocks = (
+        MathCraftBlock(
+            kind="text",
+            box=((80.0, 100.0), (495.0, 100.0), (495.0, 130.0), (80.0, 130.0)),
+            text="left one",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((505.0, 100.0), (920.0, 100.0), (920.0, 130.0), (505.0, 130.0)),
+            text="right one",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((80.0, 150.0), (495.0, 150.0), (495.0, 180.0), (80.0, 180.0)),
+            text="left two",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((505.0, 150.0), (920.0, 150.0), (920.0, 180.0), (505.0, 180.0)),
+            text="right two",
+            score=0.9,
+        ),
+    )
+    ordered = annotate_blocks(blocks, image_size=(1000, 1200), page_index=1)
+    assert [block.text for block in ordered] == [
+        "left one",
+        "left two",
+        "right one",
+        "right two",
+    ]
+    assert [block.column for block in ordered] == [0, 0, 1, 1]
+    assert len({block.line_id for block in ordered}) == 4
+
+
 def test_layout_keeps_single_column_inline_formula_line_across_midline() -> None:
     blocks = (
         MathCraftBlock(
@@ -1189,6 +1435,109 @@ def test_layout_keeps_single_column_inline_formula_line_across_midline() -> None
     assert len({block.line_id for block in ordered}) == 1
     assert all(block.column == 0 for block in ordered)
     assert merge_blocks_text(ordered) == "Let $x \\in X$ be compact."
+
+
+def test_layout_rejects_two_columns_when_inline_math_fragments_multiple_lines() -> None:
+    blocks = (
+        MathCraftBlock(
+            kind="text",
+            box=((80.0, 100.0), (430.0, 100.0), (430.0, 130.0), (80.0, 130.0)),
+            text="Let the compact set",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="embedding",
+            box=((430.0, 100.0), (570.0, 100.0), (570.0, 130.0), (430.0, 130.0)),
+            text="X \\subseteq \\mathbb{R}^n",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((570.0, 100.0), (920.0, 100.0), (920.0, 130.0), (570.0, 130.0)),
+            text="have this property.",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((80.0, 150.0), (470.0, 150.0), (470.0, 180.0), (80.0, 180.0)),
+            text="For every element",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="embedding",
+            box=((470.0, 150.0), (530.0, 150.0), (530.0, 180.0), (470.0, 180.0)),
+            text="x",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((530.0, 150.0), (900.0, 150.0), (900.0, 180.0), (530.0, 180.0)),
+            text="the conclusion follows.",
+            score=0.9,
+        ),
+    )
+    ordered = annotate_blocks(blocks, image_size=(1000, 1200), page_index=1)
+    assert [block.text for block in ordered] == [
+        "Let the compact set",
+        "X \\subseteq \\mathbb{R}^n",
+        "have this property.",
+        "For every element",
+        "x",
+        "the conclusion follows.",
+    ]
+    assert all(block.column == 0 for block in ordered)
+    assert len({block.line_id for block in ordered}) == 2
+
+
+def test_layout_does_not_treat_toc_page_numbers_as_second_column() -> None:
+    blocks = (
+        MathCraftBlock(
+            kind="text",
+            box=((100.0, 100.0), (430.0, 100.0), (430.0, 125.0), (100.0, 125.0)),
+            text="1 Introduction",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((900.0, 100.0), (930.0, 100.0), (930.0, 125.0), (900.0, 125.0)),
+            text="1",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((100.0, 150.0), (460.0, 150.0), (460.0, 175.0), (100.0, 175.0)),
+            text="2 Definitions",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((900.0, 150.0), (930.0, 150.0), (930.0, 175.0), (900.0, 175.0)),
+            text="8",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((100.0, 200.0), (450.0, 200.0), (450.0, 225.0), (100.0, 225.0)),
+            text="3 Examples",
+            score=0.9,
+        ),
+        MathCraftBlock(
+            kind="text",
+            box=((890.0, 200.0), (930.0, 200.0), (930.0, 225.0), (890.0, 225.0)),
+            text="13",
+            score=0.9,
+        ),
+    )
+    ordered = annotate_blocks(blocks, image_size=(1000, 1200), page_index=1)
+    assert [block.text for block in ordered] == [
+        "1 Introduction",
+        "1",
+        "2 Definitions",
+        "8",
+        "3 Examples",
+        "13",
+    ]
+    assert all(block.column == 0 for block in ordered)
 
 
 def test_layout_marks_formula_adjacent_short_text_as_anchor_or_label() -> None:

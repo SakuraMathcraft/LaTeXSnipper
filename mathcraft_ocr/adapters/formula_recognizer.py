@@ -126,44 +126,100 @@ def recognize_formula_images(
 
     tokenizer = processor.tokenizer
     decoder_start_id, eos_id = _load_generation_ids(root, tokenizer)
-    batch_size = len(pil_images)
-    input_ids = np.full((batch_size, 1), decoder_start_id, dtype=np.int64)
+    token_ids, token_scores, stopped_for_repetition = _generate_formula_tokens(
+        decoder_session,
+        encoder_hidden_states,
+        decoder_start_id=decoder_start_id,
+        eos_id=eos_id,
+        max_new_tokens=max_new_tokens,
+    )
+
+    results: list[tuple[str, float]] = []
+    for row, (ids, scores) in enumerate(zip(token_ids, token_scores)):
+        text = tokenizer.decode(ids, skip_special_tokens=True).strip()
+        score = float(sum(scores) / len(scores)) if scores else 0.0
+        if stopped_for_repetition[row]:
+            score = min(score, 0.5)
+        results.append((text, score))
+    return results
+
+
+def _generate_formula_tokens(
+    decoder_session,
+    encoder_hidden_states: np.ndarray,
+    *,
+    decoder_start_id: int,
+    eos_id: int | None,
+    max_new_tokens: int,
+) -> tuple[list[list[int]], list[list[float]], np.ndarray]:
+    batch_size = int(encoder_hidden_states.shape[0])
+    active_indices = np.arange(batch_size, dtype=np.int64)
+    active_input_ids = np.full((batch_size, 1), decoder_start_id, dtype=np.int64)
+    active_hidden_states = encoder_hidden_states
     token_ids: list[list[int]] = [[] for _ in range(batch_size)]
     token_scores: list[list[float]] = [[] for _ in range(batch_size)]
-    finished = np.zeros((batch_size,), dtype=bool)
-    pad_after_finish_id = eos_id if eos_id is not None else decoder_start_id
+    stopped_for_repetition = np.zeros((batch_size,), dtype=bool)
+    decoder_inputs = decoder_session.get_inputs()
+    input_ids_name = decoder_inputs[0].name
+    hidden_states_name = decoder_inputs[1].name
 
     for _ in range(max_new_tokens):
-        decoder_inputs = {
-            decoder_session.get_inputs()[0].name: input_ids,
-            decoder_session.get_inputs()[1].name: encoder_hidden_states,
+        inputs = {
+            input_ids_name: active_input_ids,
+            hidden_states_name: active_hidden_states,
         }
-        logits = decoder_session.run(None, decoder_inputs)[0]
+        logits = decoder_session.run(None, inputs)[0]
         step_logits = logits[:, -1, :]
         step_probs = _softmax(step_logits)
         next_tokens = np.argmax(step_probs, axis=1).astype(np.int64)
-        next_column = next_tokens.copy()
-        for row, next_token in enumerate(next_tokens.tolist()):
-            if finished[row]:
-                next_column[row] = pad_after_finish_id
-                continue
-            next_prob = float(step_probs[row, next_token])
+        keep_active_rows: list[int] = []
+        for active_row, next_token in enumerate(next_tokens.tolist()):
+            result_row = int(active_indices[active_row])
             if eos_id is not None and next_token == eos_id:
-                finished[row] = True
-                next_column[row] = pad_after_finish_id
                 continue
-            token_ids[row].append(int(next_token))
-            token_scores[row].append(next_prob)
-        if bool(np.all(finished)):
+            token_ids[result_row].append(int(next_token))
+            token_scores[result_row].append(float(step_probs[active_row, next_token]))
+            repeated_suffix_start = _repeated_token_suffix_start(token_ids[result_row])
+            if repeated_suffix_start is not None:
+                del token_ids[result_row][repeated_suffix_start:]
+                del token_scores[result_row][repeated_suffix_start:]
+                stopped_for_repetition[result_row] = True
+                continue
+            keep_active_rows.append(active_row)
+        if not keep_active_rows:
             break
-        input_ids = np.concatenate(
-            [input_ids, next_column.reshape(batch_size, 1)],
+        active_input_ids = np.concatenate(
+            [
+                active_input_ids[keep_active_rows],
+                next_tokens[keep_active_rows].reshape(len(keep_active_rows), 1),
+            ],
             axis=1,
         )
+        active_hidden_states = active_hidden_states[keep_active_rows]
+        active_indices = active_indices[keep_active_rows]
 
-    results: list[tuple[str, float]] = []
-    for ids, scores in zip(token_ids, token_scores):
-        text = tokenizer.decode(ids, skip_special_tokens=True).strip()
-        score = float(sum(scores) / len(scores)) if scores else 0.0
-        results.append((text, score))
-    return results
+    return token_ids, token_scores, stopped_for_repetition
+
+
+def _repeated_token_suffix_start(
+    token_ids: list[int],
+    *,
+    min_generated_tokens: int = 64,
+    min_repeated_tokens: int = 32,
+    max_period: int = 4,
+    min_repetitions: int = 8,
+) -> int | None:
+    token_count = len(token_ids)
+    if token_count < min_generated_tokens:
+        return None
+    for period in range(1, max_period + 1):
+        pattern = token_ids[-period:]
+        start = token_count - period
+        repetitions = 1
+        while start >= period and token_ids[start - period : start] == pattern:
+            start -= period
+            repetitions += 1
+        if repetitions < min_repetitions or repetitions * period < min_repeated_tokens:
+            continue
+        return start + period
+    return None

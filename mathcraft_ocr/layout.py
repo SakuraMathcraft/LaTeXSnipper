@@ -495,9 +495,12 @@ def _is_two_column_layout(
             elif center > page_width * 0.54:
                 display_right += 1
         return display_left >= 1 and display_right >= 1
+    if _has_repeated_midline_continuations(blocks, page_width=page_width):
+        return False
     wide_count = 0
     left_count = 0
     right_count = 0
+    right_candidates: list[MathCraftBlock] = []
     for block in candidates:
         x1, _y1, x2, _y2 = box_to_xyxy(block.box)
         width = x2 - x1
@@ -508,6 +511,14 @@ def _is_two_column_layout(
             left_count += 1
         elif center > page_width * 0.54:
             right_count += 1
+            right_candidates.append(block)
+    if len(right_candidates) >= 3:
+        numeric_right_count = sum(
+            bool(_PAGE_NUMBER_RE.fullmatch(block.text.strip()))
+            for block in right_candidates
+        )
+        if numeric_right_count / len(right_candidates) >= 0.65:
+            return False
     if wide_count >= max(2, int(len(candidates) * 0.22)):
         return False
     has_center_display = any(
@@ -520,6 +531,60 @@ def _is_two_column_layout(
             return True
         return left_count >= 2 and right_count >= 2 and wide_count == 0
     return left_count >= 3 and right_count >= 3
+
+
+def _has_repeated_midline_continuations(
+    blocks: tuple[MathCraftBlock, ...] | list[MathCraftBlock],
+    *,
+    page_width: float,
+) -> bool:
+    content_blocks = tuple(
+        block
+        for block in blocks
+        if block.role not in _CONTENT_NOISE_ROLES and block.text.strip()
+    )
+    lines = group_blocks_into_lines(
+        content_blocks,
+        image_size=None,
+        two_column_layout=False,
+    )
+    page_height = max(
+        (
+            float(block.image_size[1])
+            for block in content_blocks
+            if block.image_size and block.image_size[1] > 0
+        ),
+        default=0.0,
+    )
+    continuation_count = 0
+    for line in lines:
+        if len(line) < 2:
+            continue
+        ordered = sorted(line, key=lambda block: box_to_xyxy(block.box)[0])
+        line_y2 = max(box_to_xyxy(block.box)[3] for block in ordered)
+        if page_height > 0 and line_y2 <= page_height * 0.1:
+            continue
+        line_x1 = box_to_xyxy(ordered[0].box)[0]
+        line_x2 = box_to_xyxy(ordered[-1].box)[2]
+        if line_x1 > page_width * 0.45 or line_x2 < page_width * 0.55:
+            continue
+        spans_midline = any(
+            _crosses_page_midline(*_box_x1_x2(block.box), page_width)
+            for block in ordered
+        )
+        midline_gaps = []
+        for previous, current in zip(ordered, ordered[1:]):
+            previous_x2 = box_to_xyxy(previous.box)[2]
+            current_x1 = box_to_xyxy(current.box)[0]
+            if previous_x2 <= page_width * 0.55 and current_x1 >= page_width * 0.45:
+                midline_gaps.append(max(0.0, current_x1 - previous_x2))
+        if spans_midline or (
+            midline_gaps and max(midline_gaps) <= page_width * 0.003
+        ):
+            continuation_count += 1
+            if continuation_count >= 2:
+                return True
+    return False
 
 
 def _block_sort_key(
@@ -568,12 +633,6 @@ def _same_layout_region(
         return y_overlap_ratio(line_box, second.box) >= 0.45 and gap <= float(size[0]) * 0.08
     if _is_display_formula_like(first) or _is_display_formula_like(second):
         return False
-    size = first.image_size or second.image_size
-    if size and size[0] > 0:
-        lx1, _ly1, lx2, _ly2 = box_to_xyxy(line_box)
-        sx1, _sy1, sx2, _sy2 = box_to_xyxy(second.box)
-        gap = max(0.0, max(lx1, sx1) - min(lx2, sx2))
-        return y_overlap_ratio(line_box, second.box) >= 0.75 and gap <= float(size[0]) * 0.015
     return False
 
 
