@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+from importlib import metadata
 import os
 import subprocess
 import sys
@@ -27,11 +28,6 @@ STABLE_GUI_VERSION_PINS = {
 
 
 def _gui_dep_version_mismatches() -> list[str]:
-    try:
-        import importlib.metadata as metadata
-    except Exception:
-        return []
-
     mismatches: list[str] = []
     for dist_name, expected in STABLE_GUI_VERSION_PINS.items():
         try:

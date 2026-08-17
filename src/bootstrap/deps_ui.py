@@ -3,6 +3,10 @@ import os
 import sys
 from pathlib import Path
 
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication
+
 from runtime.app_paths import resource_path
 from bootstrap.deps_context import STATE_FILE
 from bootstrap.deps_layer_specs import (
@@ -15,24 +19,16 @@ from bootstrap.deps_layer_specs import (
 )
 from bootstrap.deps_python_runtime import (
     find_existing_python as _find_existing_python,
-    normalize_deps_base_dir as _normalize_deps_base_dir,
 )
-from bootstrap.deps_qt_compat import QIcon
 from bootstrap.deps_runtime_verify import _verify_layer_runtime, format_layer_verify_failure
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
 from bootstrap.deps_workers import UninstallLayerWorker
 from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
+from runtime.dependency_python import normalize_deps_base_dir as _normalize_deps_base_dir
 
 
 def activate_dependency_dialog(dlg) -> None:
     """Make the dependency wizard a visible foreground window before exec()."""
-    try:
-        from PyQt6.QtCore import QTimer, Qt
-        from PyQt6.QtWidgets import QApplication
-    except Exception as e:
-        print(f"[WARN] dependency wizard activation unavailable: {e}")
-        return
-
     try:
         dlg.setWindowFlag(Qt.WindowType.Window, True)
         dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
@@ -736,7 +732,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
                 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
-                os.environ["LATEXSNIPPER_DEPS_DIR"] = normalized
                 if active_pyexe and Path(active_pyexe).exists():
                     os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
                 print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")

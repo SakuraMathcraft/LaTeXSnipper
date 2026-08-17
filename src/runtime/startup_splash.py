@@ -8,6 +8,7 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
+from bootstrap.deps_context import was_last_ensure_deps_force_enter
 from runtime.app_paths import resource_path
 
 _STARTUP_SPLASH = None
@@ -190,15 +191,8 @@ def hide_startup_splash_for_modal():
         pass
 
 
-def deps_force_entered(db_module=None) -> bool:
-    try:
-        db = db_module
-        if db is None:
-            import bootstrap.deps_bootstrap as db
-        checker = getattr(db, "was_last_ensure_deps_force_enter", None)
-        return bool(checker()) if callable(checker) else False
-    except Exception:
-        return False
+def deps_force_entered() -> bool:
+    return was_last_ensure_deps_force_enter()
 
 
 def mark_startup_force_entered():

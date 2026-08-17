@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt
@@ -11,13 +12,12 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 
-from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
 from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
 from runtime.config_manager import default_user_data_file
 from runtime.content_types import ContentType, normalize_content_type
 from ui.edit_formula_dialog import EditFormulaDialog
-from ui.formula_export_menu import export_formula_to_clipboard, populate_formula_export_menu
+from ui.formula_export_menu import populate_formula_export_menu
 from ui.window_helpers import (
     apply_close_only_window_flags as _apply_close_only_window_flags,
     exec_close_only_message_box,
@@ -28,9 +28,17 @@ DEFAULT_FAVORITES_NAME = "favorites.json"
 
 class FavoritesWindow(QMainWindow):
     """Favorites window with list-only functionality."""
-    def __init__(self, cfg, parent=None, select_export_directory=None):
+    def __init__(
+        self,
+        cfg,
+        *,
+        export_formula: Callable[[str, str, QWidget], None],
+        parent=None,
+        select_export_directory=None,
+    ):
         super().__init__(parent)
         self.cfg = cfg
+        self._export_formula = export_formula
         self._select_export_directory = select_export_directory or self._select_export_directory_fallback
         self._theme_is_dark_cached = None
         self.setWindowFlag(Qt.WindowType.Window, True)
@@ -223,7 +231,10 @@ class FavoritesWindow(QMainWindow):
         menu.addAction(Action("复制", triggered=lambda: self._copy_item(latex)))
 
         export_menu = RoundMenu("导出为...", parent=menu)
-        populate_formula_export_menu(export_menu, lambda format_type: self._export_as(format_type, latex))
+        populate_formula_export_menu(
+            export_menu,
+            lambda format_type: self._export_formula(format_type, latex, self),
+        )
         menu.addMenu(export_menu)
 
         menu.addSeparator()
@@ -251,23 +262,6 @@ class FavoritesWindow(QMainWindow):
             p._formula_names[latex] = name
         
         p.add_history_record(latex, content_type)
-
-    def _export_as(self, format_type: str, latex: str):
-        """Export the formula to the requested format."""
-        try:
-            _ok, message = export_formula_to_clipboard(
-                format_type,
-                latex,
-                mathml_converter=latex_to_mathml,
-                omml_converter=latex_to_omml,
-                svg_converter=latex_to_svg_code,
-                parent=self,
-                status_callback=self._set_status,
-            )
-        except Exception as e:
-            self._set_status(f"导出失败: {e}")
-            return
-        self._set_status(message)
 
     def _copy_item(self, latex: str):
         """Copy the formula to the clipboard."""
@@ -450,7 +444,6 @@ class FavoritesWindow(QMainWindow):
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
-                    # New format: favorites list, names, and types.
                     fav_list = data.get("favorites", [])
                     self.favorites = [str(x) for x in fav_list]
                     # Load names.

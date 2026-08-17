@@ -120,7 +120,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("missing get_available_providers", str(ctx.exception))
 
     def test_cleanup_removes_orphan_onnxruntime_namespace(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap import deps_runtime_verify
 
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -131,8 +131,8 @@ class InternalModelMathCraftTests(unittest.TestCase):
             pyexe.parent.mkdir(parents=True, exist_ok=True)
             pyexe.write_text("", encoding="utf-8")
 
-            with mock.patch("bootstrap.deps_bootstrap._current_installed", return_value={}):
-                removed = deps_bootstrap._cleanup_orphan_onnxruntime_namespace(pyexe)
+            with mock.patch("bootstrap.deps_runtime_verify._current_installed", return_value={}):
+                removed = deps_runtime_verify._cleanup_orphan_onnxruntime_namespace(pyexe)
 
             self.assertEqual(removed, 1)
             self.assertFalse(orphan.exists())
@@ -351,13 +351,13 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             self.assertNotIn(dep, dep_names)
 
     def test_dependency_layers_are_mathcraft_onnx_only(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap.deps_layer_specs import LAYER_MAP
 
-        self.assertIn("MATHCRAFT_CPU", deps_bootstrap.LAYER_MAP)
-        self.assertIn("MATHCRAFT_GPU", deps_bootstrap.LAYER_MAP)
+        self.assertIn("MATHCRAFT_CPU", LAYER_MAP)
+        self.assertIn("MATHCRAFT_GPU", LAYER_MAP)
 
         all_specs = "\n".join(
-            spec for specs in deps_bootstrap.LAYER_MAP.values() for spec in specs
+            spec for specs in LAYER_MAP.values() for spec in specs
         ).lower()
         self.assertIn("onnxruntime", all_specs)
         self.assertIn("numpy", all_specs)
@@ -367,15 +367,15 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("sentencepiece", all_specs)
 
     def test_layer_verify_code_uses_single_core_path(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap.deps_runtime_verify import LAYER_VERIFY_CODE
 
-        verify_code = "\n".join(str(v) for v in deps_bootstrap.LAYER_VERIFY_CODE.values()).lower()
+        verify_code = "\n".join(str(v) for v in LAYER_VERIFY_CODE.values()).lower()
         self.assertIn("cudaexecutionprovider", verify_code)
 
     def test_mathcraft_backend_selection_is_mutually_exclusive(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap.deps_layer_specs import _normalize_chosen_layers
 
-        chosen = deps_bootstrap._normalize_chosen_layers(
+        chosen = _normalize_chosen_layers(
             ["BASIC", "MATHCRAFT_CPU", "MATHCRAFT_GPU"]
         )
         self.assertEqual(chosen, ["BASIC", "MATHCRAFT_GPU"])
@@ -400,13 +400,13 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("--force-reinstall", protobuf_args)
 
     def test_critical_repair_covers_onnxruntime_dependency_chain(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap.deps_runtime_verify import CRITICAL_VERSIONS
 
         for pkg in ("numpy", "flatbuffers", "packaging", "protobuf"):
-            self.assertIn(pkg, deps_bootstrap.CRITICAL_VERSIONS)
+            self.assertIn(pkg, CRITICAL_VERSIONS)
 
-        self.assertNotIn("coloredlogs", deps_bootstrap.CRITICAL_VERSIONS)
-        self.assertNotIn("sympy", deps_bootstrap.CRITICAL_VERSIONS)
+        self.assertNotIn("coloredlogs", CRITICAL_VERSIONS)
+        self.assertNotIn("sympy", CRITICAL_VERSIONS)
 
     def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
         from backend.cuda_runtime_policy import (
@@ -513,7 +513,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertIn("CUDA/cuDNN SO 检查", report.format_for_log())
 
     def test_pip_interrupted_leftovers_are_cleaned_from_target_site(self):
-        import bootstrap.deps_bootstrap as deps_bootstrap
+        from bootstrap import deps_runtime_verify
 
         with tempfile.TemporaryDirectory() as d:
             site = Path(d) / "site-packages"
@@ -525,14 +525,14 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             leftover_dist.mkdir()
             normal_dir.mkdir()
 
-            original = deps_bootstrap._site_packages_root
-            deps_bootstrap._site_packages_root = lambda _pyexe: site
+            original = deps_runtime_verify._site_packages_root
+            deps_runtime_verify._site_packages_root = lambda _pyexe: site
             try:
-                removed = deps_bootstrap._cleanup_pip_interrupted_leftovers(
+                removed = deps_runtime_verify._cleanup_pip_interrupted_leftovers(
                     Path(d) / "python.exe"
                 )
             finally:
-                deps_bootstrap._site_packages_root = original
+                deps_runtime_verify._site_packages_root = original
 
             self.assertEqual(removed, 2)
             self.assertFalse(leftover_dir.exists())

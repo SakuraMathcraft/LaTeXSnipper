@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from bootstrap.deps_bootstrap import custom_warning_dialog
+from bootstrap.deps_ui import custom_warning_dialog
 from handwriting import HandwritingWindow
 from recognition.model_policy import is_internal_document_model, resolve_document_recognition_model
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output

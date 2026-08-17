@@ -108,7 +108,7 @@ class FileDropMixin:
             )
         except Exception:
             try:
-                from bootstrap.deps_bootstrap import custom_warning_dialog
+                from bootstrap.deps_ui import custom_warning_dialog
 
                 custom_warning_dialog("提示", content, self)
             except Exception:

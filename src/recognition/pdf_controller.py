@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication, QDialog, QInputDialog, QProgressDialog
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.external_model import ExternalModelPdfWorker
-from bootstrap.deps_bootstrap import custom_warning_dialog
+from bootstrap.deps_ui import custom_warning_dialog
 from preview.math_preview import is_dark_ui
 from recognition.model_policy import EXTERNAL_MODEL, resolve_document_recognition_model
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default

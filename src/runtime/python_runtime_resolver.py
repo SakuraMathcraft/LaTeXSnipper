@@ -9,8 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bootstrap.deps_python_runtime import find_system_python3, supported_system_python_range_label
 from runtime.app_paths import app_config_path, app_state_dir, get_app_root, is_packaged_mode
-from runtime.dependency_python import clean_path_value
+from runtime.dependency_python import clean_path_value, normalize_deps_base_dir as _normalize_install_base_dir
 from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
 from ui.window_helpers import (
     apply_app_window_icon as _apply_app_window_icon,
@@ -41,7 +42,7 @@ def _developer_deps_dir() -> Path:
 
 
 def _initial_deps_dir() -> Path:
-    env_value = clean_path_value(os.environ.get("LATEXSNIPPER_DEPS_DIR"))
+    env_value = clean_path_value(os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR"))
     if env_value:
         return Path(env_value)
     if _is_packaged_mode() and os.name == "nt":
@@ -169,41 +170,6 @@ def _find_install_base_python(base_dir: Path) -> Path | None:
         except Exception:
             continue
     return None
-
-
-def _normalize_install_base_dir(selected_dir: Path) -> Path:
-    """
-    Normalize the dependency base directory.
-
-    The chosen path should be the base directory that contains a nested
-    `python311`, not the leaf `python311` directory itself. If the user or a
-    previous partial initialization points at an empty leaf like `.../python311`,
-    fold it back to the parent to avoid `python311/python311`.
-    """
-    path = Path(selected_dir)
-    try:
-        name = path.name.lower()
-    except Exception:
-        return path
-
-    looks_like_python_leaf = (
-        name in {"venv", ".venv", "python_full"}
-        or name.startswith("python")
-    )
-    if not looks_like_python_leaf:
-        return path
-
-    existing_py = _find_install_base_python(path)
-    if existing_py is not None:
-        return path
-
-    parent = path.parent
-    try:
-        if parent and str(parent) != str(path):
-            return parent
-    except Exception:
-        pass
-    return path
 
 
 def _current_dev_install_base_dir() -> Path | None:
@@ -718,14 +684,9 @@ def _find_full_python(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         return None
 
-    try:
-        from bootstrap.deps_python_runtime import find_system_python3
-
-        system_python = find_system_python3()
-        if system_python is not None and _has_dependency_runtime_modules(str(system_python)):
-            return str(system_python)
-    except Exception:
-        pass
+    system_python = find_system_python3()
+    if system_python is not None and _has_dependency_runtime_modules(str(system_python)):
+        return str(system_python)
     return None
 
 
@@ -750,11 +711,6 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         return py
 
 
-    try:
-        from bootstrap.deps_python_runtime import supported_system_python_range_label
-
-        version_hint = supported_system_python_range_label()
-    except Exception:
-        version_hint = ">=3.10,<3.13"
+    version_hint = supported_system_python_range_label()
     print(f"[ERR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
     return None

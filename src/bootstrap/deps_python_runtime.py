@@ -66,7 +66,6 @@ def _linux_site_packages(pyexe: Path) -> Path | None:
             continue
     return None
 
-
 def site_packages_root(pyexe: Path):
     """Return the best matching site-packages directory for a python executable."""
     pyexe = Path(pyexe)
@@ -106,10 +105,7 @@ def inject_private_python_paths(pyexe: Path) -> None:
     site_packages = site_packages_root(Path(pyexe)) if pyexe and Path(pyexe).exists() else None
     new_site = str(site_packages) if site_packages else ""
     new_site_key = _path_key(new_site)
-    old_site_keys = {
-        _path_key(_active_site_packages),
-        _path_key(os.environ.get("LATEX_SNIPPER_SITE")),
-    }
+    old_site_keys = {_path_key(_active_site_packages)}
     old_site_keys.discard("")
 
     bad_markers = [
@@ -353,31 +349,3 @@ def find_existing_python(base_dir: Path) -> Path | None:
         except Exception:
             continue
     return None
-
-
-def normalize_deps_base_dir(selected_dir: Path) -> Path:
-    """Normalize user-selected dependency base directories."""
-    path = Path(selected_dir)
-    raw_text = str(selected_dir).rstrip("\\/")
-    normalized_text = raw_text.replace("\\", "/")
-    name = normalized_text.rsplit("/", 1)[-1].lower()
-
-    looks_like_python_leaf = name in {"venv", ".venv", "python_full"} or name.startswith("python")
-    if not looks_like_python_leaf:
-        return path
-
-    existing_py = find_existing_python(path)
-    if existing_py is not None:
-        return path
-
-    if raw_text and normalized_text != name:
-        parent_text = raw_text[: max(raw_text.rfind("\\"), raw_text.rfind("/"))]
-        parent = Path(parent_text)
-    else:
-        parent = path.parent
-    try:
-        if parent and str(parent) != str(path):
-            return parent
-    except Exception:
-        pass
-    return path

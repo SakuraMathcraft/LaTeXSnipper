@@ -7,6 +7,8 @@ import threading
 import time
 from pathlib import Path
 
+import psutil
+
 from bootstrap.deps_context import (
     CONFIG_FILE,
     PIP_INSTALL_SUPPRESS_ARGS,
@@ -15,7 +17,6 @@ from bootstrap.deps_context import (
     _hidden_subprocess_kwargs,
     flags,
     pip_ready_event,
-    psutil,
     set_last_ensure_deps_force_enter,
 )
 from bootstrap.deps_layer_specs import (
@@ -31,12 +32,11 @@ from bootstrap.deps_python_runtime import (
     find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
     is_usable_python as _is_usable_python,
-    normalize_deps_base_dir as _normalize_deps_base_dir,
     site_packages_root as _site_packages_root,
     supported_system_python_range_label as _supported_system_python_range_label,
 )
 from bootstrap.deps_pip_runner import _terminate_process
-from bootstrap.deps_qt_compat import QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
 from bootstrap.deps_runtime_verify import _verify_installed_layers
 from bootstrap.deps_state import save_json as _save_json
 from bootstrap.deps_ui import (
@@ -48,6 +48,7 @@ from bootstrap.deps_ui import (
     custom_warning_dialog,
 )
 from bootstrap.deps_workers import InstallWorker, LayerVerifyWorker
+from runtime.dependency_python import normalize_deps_base_dir as _normalize_deps_base_dir
 
 
 def _ensure_pip(main_python: Path) -> bool:
@@ -546,17 +547,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         print(f"[WARN] 预初始化 pip 失败: {e}")
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
-        sp_local = _site_packages_root(active_pyexe)
-
         if active_pyexe is not None:
             _inject_private_python_paths(active_pyexe)
-        os.environ["LATEX_SNIPPER_SITE"] = str(sp_local or "")
         if active_pyexe is not None and active_pyexe.exists():
             os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
         else:
             os.environ.pop("LATEXSNIPPER_PYEXE", None)
         os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(deps_path)
-        os.environ["LATEXSNIPPER_DEPS_DIR"] = str(deps_path)
 
     _apply_runtime_context(pyexe)
 
@@ -904,7 +901,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     }
 
                 def _sample_network_speed():
-                    if psutil is None or not net_speed_state.get("busy", False):
+                    if not net_speed_state.get("busy", False):
                         return
                     try:
                         counters = psutil.net_io_counters()

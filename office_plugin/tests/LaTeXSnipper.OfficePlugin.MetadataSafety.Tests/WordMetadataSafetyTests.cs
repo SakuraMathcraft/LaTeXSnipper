@@ -45,40 +45,17 @@ public sealed class WordMetadataSafetyTests
     }
 
     [TestMethod]
-    public void SaveRejectsSchema1AndForeignDocumentIdentity()
+    public void SaveRejectsUnsupportedSchemaAndForeignDocumentIdentity()
     {
         var document = new FakeWordDocument();
         string documentId = WordDocumentIdentityStore.GetOrCreate(document);
-        FormulaMetadata legacy = CreateMetadata(documentId, "legacy-write", "x", schemaVersion: 1);
+        FormulaMetadata unsupported = CreateMetadata(documentId, "unsupported-write", "x", schemaVersion: 99);
         FormulaMetadata foreign = CreateMetadata("foreign-document", "foreign-write", "x");
 
         Assert.ThrowsExactly<InvalidOperationException>(
-            () => WordFormulaMetadataStore.Save(document, legacy));
+            () => WordFormulaMetadataStore.Save(document, unsupported));
         Assert.ThrowsExactly<InvalidOperationException>(
             () => WordFormulaMetadataStore.Save(document, foreign));
-    }
-
-    [TestMethod]
-    public void Schema1ReadCompatibilityNormalizesToCurrentDocumentWithoutRewritingPayload()
-    {
-        var document = new FakeWordDocument();
-        string documentId = WordDocumentIdentityStore.GetOrCreate(document);
-        const string equationId = "word-schema1";
-        const string revision = "legacy0001";
-        const string json =
-            "{\"schemaVersion\":1,\"documentId\":\"old-document\",\"equationId\":\"word-schema1\"," +
-            "\"latex\":\"x+1\",\"displayMode\":\"Inline\",\"numberingMode\":\"None\"," +
-            "\"numberText\":\"\",\"renderEngine\":\"Omml\",\"fontScale\":1}";
-        document.Variables.Add("LS.E." + equationId + "." + revision, json);
-
-        FormulaMetadata metadata = WordFormulaMetadataStore.Load(
-            document,
-            "latexsnipper-eq-" + equationId + "|" + revision);
-
-        Assert.AreEqual(documentId, metadata.Identity.DocumentId);
-        Assert.AreEqual(equationId, metadata.Identity.EquationId);
-        Assert.AreEqual(FormulaMetadata.CurrentSchemaVersion, metadata.SchemaVersion);
-        Assert.AreEqual(json, document.Variables.Item("LS.E." + equationId + "." + revision).Value);
     }
 
     [TestMethod]

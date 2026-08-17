@@ -6,7 +6,7 @@ from PyQt6.QtCore import QEvent, QTimer, Qt
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.platform import ScreenshotConfig
-from bootstrap.deps_bootstrap import custom_warning_dialog
+from bootstrap.deps_ui import custom_warning_dialog
 
 
 class CaptureControllerMixin:

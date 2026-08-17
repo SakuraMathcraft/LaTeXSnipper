@@ -5,7 +5,8 @@ import sys
 import time
 from pathlib import Path
 
-from runtime.dependency_python import clean_path_value
+from bootstrap.deps_python_runtime import find_existing_python, site_packages_root
+from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
     _hidden_subprocess_kwargs,
@@ -72,13 +73,7 @@ class SettingsMathCraftMixin:
 
     def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
         try:
-            env_root = self._python_env_root(pyexe)
-            try:
-                from bootstrap.deps_python_runtime import site_packages_root
-
-                site = site_packages_root(Path(pyexe))
-            except Exception:
-                site = env_root / "Lib" / "site-packages"
+            site = site_packages_root(Path(pyexe))
             if not site or not site.exists():
                 return {}
             names = {d.name.lower() for d in site.iterdir()}
@@ -386,37 +381,6 @@ class SettingsMathCraftMixin:
             return self.parent().cfg
         return None
 
-    @staticmethod
-    def _normalize_install_base_dir(selected_dir: Path) -> Path:
-        path = Path(selected_dir).expanduser()
-        try:
-            path = path.resolve()
-        except Exception:
-            path = path.absolute()
-        if not path.exists() or not path.is_dir():
-            return path
-        leaf = path.name.lower()
-        if not (leaf.startswith("python") or leaf in {"venv", ".venv", "scripts", "python_full"}):
-            return path
-        existing_py = SettingsMathCraftMixin._find_install_base_python(path)
-        if existing_py is not None:
-            return path
-        return path.parent if path.parent != path else path
-
-    @staticmethod
-    def _find_install_base_python(base_dir: Path) -> Path | None:
-        try:
-            from bootstrap.deps_python_runtime import find_existing_python
-
-            return find_existing_python(Path(base_dir))
-        except Exception:
-            return None
-
-    @staticmethod
-    def _python_env_root(pyexe: str | Path) -> Path:
-        p = Path(pyexe)
-        return p.parent.parent if p.parent.name.lower() in {"scripts", "bin"} else p.parent
-
     def _current_install_base_dir(self) -> Path | None:
         cfg = self._settings_cfg()
         raw = ""
@@ -431,7 +395,7 @@ class SettingsMathCraftMixin:
         if not raw:
             return None
         try:
-            return self._normalize_install_base_dir(Path(raw))
+            return normalize_deps_base_dir(Path(raw))
         except Exception:
             return None
 
@@ -442,7 +406,7 @@ class SettingsMathCraftMixin:
 
         base_dir = self._current_install_base_dir()
         if base_dir is not None:
-            candidate = self._find_install_base_python(base_dir)
+            candidate = find_existing_python(base_dir)
             if candidate is not None:
                 return str(candidate)
             return ""

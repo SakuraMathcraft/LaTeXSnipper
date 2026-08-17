@@ -8,11 +8,6 @@ from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
 
-try:
-    import psutil
-except Exception:
-    psutil = None
-
 os.environ["PYTHONUTF8"] = "1"
 
 _LAST_ENSURE_DEPS_FORCE_ENTER = False

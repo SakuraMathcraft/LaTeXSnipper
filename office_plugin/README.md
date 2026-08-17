@@ -85,7 +85,7 @@ Run:
 office_plugin\tools\Test-MetadataSafety.ps1
 ```
 
-The deterministic tests validate Schema 1 read compatibility, Schema 2 writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office.
+The deterministic tests validate current-schema writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office.
 
 ## Word Parsing E2E Test
 

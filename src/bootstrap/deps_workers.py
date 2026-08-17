@@ -7,6 +7,8 @@ import time
 import traceback
 from pathlib import Path
 
+from PyQt6.QtCore import QThread, pyqtSignal
+
 from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_spec
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
@@ -18,7 +20,6 @@ from bootstrap.deps_layer_specs import (
 )
 from bootstrap.deps_pandoc import _cleanup_pandoc_leftovers, _ensure_pandoc_binary, _pandoc_data_dir
 from bootstrap.deps_pip_runner import _terminate_process
-from bootstrap.deps_qt_compat import QThread, pyqtSignal
 from bootstrap.deps_runtime_verify import (
     _cleanup_orphan_onnxruntime_namespace,
     _cleanup_pip_interrupted_leftovers,

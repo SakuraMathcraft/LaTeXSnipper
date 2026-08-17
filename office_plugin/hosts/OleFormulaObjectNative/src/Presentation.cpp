@@ -233,20 +233,9 @@ bool IsSupportedFormulaPayload(const std::wstring& payloadJson)
         return false;
     }
 
-    std::wstring schemaVersion = ExtractJsonString(payloadJson, L"schemaVersion");
-    if (schemaVersion == L"1")
-    {
-        return !ExtractJsonString(payloadJson, L"documentId").empty()
-            && !ExtractJsonString(payloadJson, L"equationId").empty();
-    }
-
-    if (schemaVersion == L"2")
-    {
-        return payloadJson.find(L"\"documentId\"") == std::wstring::npos
-            && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
-    }
-
-    return false;
+    return ExtractJsonString(payloadJson, L"schemaVersion") == L"2"
+        && payloadJson.find(L"\"documentId\"") == std::wstring::npos
+        && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
 }
 
 FormulaPresentation CreatePresentationFromPayload(const std::wstring& payloadJson)

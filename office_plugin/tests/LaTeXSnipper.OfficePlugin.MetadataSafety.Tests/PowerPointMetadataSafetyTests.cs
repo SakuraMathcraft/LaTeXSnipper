@@ -17,7 +17,7 @@ public sealed class PowerPointMetadataSafetyTests
 
         PowerPointFormulaMetadataStore.ApplyToShape(shape, expected, 120, 40);
         FormulaMetadata actual =
-            PowerPointFormulaMetadataStore.LoadFromShape(shape, "presentation");
+            PowerPointFormulaMetadataStore.LoadFromShape(shape);
 
         MetadataAssert.AreEqual(expected, actual);
         Assert.AreEqual("120", shape.Tags[PowerPointFormulaMetadataStore.NaturalWidthPointsTag]);
@@ -28,37 +28,13 @@ public sealed class PowerPointMetadataSafetyTests
     }
 
     [TestMethod]
-    public void ApplyRejectsSchema1()
+    public void ApplyRejectsUnsupportedSchema()
     {
         var shape = new FakePowerPointShape();
-        FormulaMetadata legacy = CreateMetadata("presentation", "legacy-write", "x", schemaVersion: 1);
+        FormulaMetadata unsupported = CreateMetadata("presentation", "unsupported-write", "x", schemaVersion: 99);
 
         Assert.ThrowsExactly<InvalidOperationException>(
-            () => PowerPointFormulaMetadataStore.ApplyToShape(shape, legacy, 100, 30));
-    }
-
-    [TestMethod]
-    public void Schema1ReadCompatibilityUsesCurrentPresentationWithoutRewritingTags()
-    {
-        var shape = new FakePowerPointShape();
-        shape.Tags.Add(PowerPointFormulaMetadataStore.EquationIdTag, "ppt-schema1");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.LatexByteLengthTag, "3");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.LatexChunkCountTag, "1");
-        shape.Tags.Add("LaTeXSnipperLatex0000", "782B31");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.DisplayModeTag, "Display");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.SchemaVersionTag, "1");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.RenderEngineTag, "Image");
-        shape.Tags.Add(PowerPointFormulaMetadataStore.FontScaleTag, "1");
-
-        FormulaMetadata metadata =
-            PowerPointFormulaMetadataStore.LoadFromShape(shape, "current-presentation");
-
-        Assert.AreEqual("current-presentation", metadata.Identity.DocumentId);
-        Assert.AreEqual("ppt-schema1", metadata.Identity.EquationId);
-        Assert.AreEqual("x+1", metadata.Latex);
-        Assert.AreEqual(FormulaMetadata.CurrentSchemaVersion, metadata.SchemaVersion);
-        Assert.AreEqual("1", shape.Tags[PowerPointFormulaMetadataStore.SchemaVersionTag]);
-        Assert.AreEqual(string.Empty, shape.Tags[PowerPointFormulaMetadataStore.DocumentIdTag]);
+            () => PowerPointFormulaMetadataStore.ApplyToShape(shape, unsupported, 100, 30));
     }
 
     [TestMethod]
@@ -69,7 +45,7 @@ public sealed class PowerPointMetadataSafetyTests
         PowerPointFormulaMetadataStore.ApplyToShape(shape, expected, 100, 30);
 
         FormulaMetadata copied =
-            PowerPointFormulaMetadataStore.LoadFromShape(shape, "target-presentation");
+            PowerPointFormulaMetadataStore.LoadFromShape(shape);
 
         Assert.AreEqual("source-presentation", copied.Identity.DocumentId);
         Assert.AreNotEqual("target-presentation", copied.Identity.DocumentId);
@@ -92,11 +68,11 @@ public sealed class PowerPointMetadataSafetyTests
         missingDocument.Tags.Remove(PowerPointFormulaMetadataStore.DocumentIdTag);
 
         Assert.ThrowsExactly<InvalidOperationException>(
-            () => PowerPointFormulaMetadataStore.LoadFromShape(missingChunk, "presentation"));
+            () => PowerPointFormulaMetadataStore.LoadFromShape(missingChunk));
         Assert.ThrowsExactly<InvalidOperationException>(
-            () => PowerPointFormulaMetadataStore.LoadFromShape(unknownSchema, "presentation"));
+            () => PowerPointFormulaMetadataStore.LoadFromShape(unknownSchema));
         Assert.ThrowsExactly<InvalidOperationException>(
-            () => PowerPointFormulaMetadataStore.LoadFromShape(missingDocument, "presentation"));
+            () => PowerPointFormulaMetadataStore.LoadFromShape(missingDocument));
     }
 
     [TestMethod]

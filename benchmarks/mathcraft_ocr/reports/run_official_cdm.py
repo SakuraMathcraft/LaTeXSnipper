@@ -211,17 +211,7 @@ def completed_state(metrics_path: Path, expected_rows: int) -> str:
         if int(marker.get("expected_rows", -1)) == expected_rows:
             return "complete"
         return "partial"
-
-    if not metrics_path.exists():
-        return "missing"
-    try:
-        metrics = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError:
-        return "partial"
-    details = metrics.get("details", {})
-    if isinstance(details, dict) and len(details) == expected_rows:
-        return "complete"
-    return "partial"
+    return "partial" if metrics_path.exists() else "missing"
 
 
 def read_metrics(metrics_path: Path) -> dict[str, Any]:

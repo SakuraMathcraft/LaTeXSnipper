@@ -15,47 +15,10 @@ import threading
 from typing import Any
 
 from PIL import Image
+from PyQt6.QtCore import QObject, pyqtSignal
+from mathcraft_ocr.error_patterns import looks_like_cuda_runtime_error, looks_like_onnxruntime_install_error
 from runtime.app_paths import app_config_path
 from runtime.dependency_python import clean_path_value, find_dependency_python, python_env_root
-
-try:
-    from PyQt6.QtCore import QObject, pyqtSignal
-except Exception:
-
-    class _Signal:
-        def __init__(self):
-            self._handlers = []
-
-        def connect(self, fn):
-            if callable(fn) and fn not in self._handlers:
-                self._handlers.append(fn)
-
-        def emit(self, *args, **kwargs):
-            for fn in list(self._handlers):
-                try:
-                    fn(*args, **kwargs)
-                except Exception:
-                    pass
-
-    class _SignalDescriptor:
-        def __set_name__(self, _owner, name):
-            self._name = f"__sig_{name}"
-
-        def __get__(self, instance, _owner):
-            if instance is None:
-                return self
-            sig = instance.__dict__.get(self._name)
-            if sig is None:
-                sig = _Signal()
-                instance.__dict__[self._name] = sig
-            return sig
-
-    def pyqtSignal(*_args, **_kwargs):
-        return _SignalDescriptor()
-
-    class QObject:
-        def __init__(self, *args, **kwargs):
-            super().__init__()
 
 
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
@@ -322,10 +285,9 @@ def _empty_recognition_result(model: str, mode: str, image: Image.Image, reason:
 
 def _configured_install_base_python() -> Path | None:
     raw_values: list[str] = []
-    for key in ("LATEXSNIPPER_DEPS_DIR", "LATEXSNIPPER_INSTALL_BASE_DIR"):
-        raw = clean_path_value(os.environ.get(key, ""))
-        if raw:
-            raw_values.append(raw)
+    raw = clean_path_value(os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", ""))
+    if raw:
+        raw_values.append(raw)
     try:
         cfg = app_config_path()
         if cfg.exists():
@@ -383,12 +345,12 @@ def _infer_provider_preference_from_deps_state(pyexe: str) -> str:
         candidates.append(py_path.parent / ".deps_state.json")
     except Exception:
         pass
-    for raw in (os.environ.get("LATEXSNIPPER_DEPS_DIR", ""),):
-        if raw:
-            try:
-                candidates.append(Path(raw).resolve() / ".deps_state.json")
-            except Exception:
-                pass
+    raw = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "")
+    if raw:
+        try:
+            candidates.append(Path(raw).resolve() / ".deps_state.json")
+        except Exception:
+            pass
 
     for state_path in candidates:
         try:
@@ -423,28 +385,6 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "user_message": user_message,
             "log_message": log_message,
         }
-
-    def _looks_like_cuda_runtime_error() -> bool:
-        try:
-            from mathcraft_ocr.error_patterns import looks_like_cuda_runtime_error
-        except Exception:
-            return False
-        return looks_like_cuda_runtime_error(raw)
-
-    def _looks_like_onnxruntime_install_error() -> bool:
-        try:
-            from mathcraft_ocr.error_patterns import looks_like_onnxruntime_install_error
-        except Exception:
-            markers = (
-                "failed to import onnxruntime",
-                "failed to query onnx providers",
-                "onnxruntime missing get_available_providers",
-                "missing get_available_providers",
-                "module 'onnxruntime' has no attribute 'get_available_providers'",
-                "onnxruntime dependency is incomplete",
-            )
-            return any(marker in lower for marker in markers)
-        return looks_like_onnxruntime_install_error(raw)
 
     def _cuda_runtime_diagnostics() -> tuple[str, str]:
         try:
@@ -481,7 +421,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
-    if _looks_like_onnxruntime_install_error():
+    if looks_like_onnxruntime_install_error(raw):
         runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖向导重装当前 MathCraft 后端。"
         if sys.platform == "win32":
             runtime_hint = (
@@ -531,7 +471,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。",
             f"RapidOCR 解码越界，通常是 PP-OCR 识别模型与字典文件不匹配: {raw[:300]}",
         )
-    if _looks_like_cuda_runtime_error():
+    if looks_like_cuda_runtime_error(raw):
         user_hint, log_hint = _cuda_runtime_diagnostics()
         user_message = "CUDA 环境异常，GPU 推理不可用。"
         if user_hint:

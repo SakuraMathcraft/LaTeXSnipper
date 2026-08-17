@@ -8,11 +8,12 @@ import os
 import sys
 
 import pyperclip
+from PyQt6 import sip
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
-from bootstrap.deps_bootstrap import custom_warning_dialog
+from bootstrap.deps_ui import custom_warning_dialog
 from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
@@ -21,14 +22,6 @@ from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
 from ui.window_helpers import exec_close_only_message_box as _exec_close_only_message_box
-
-try:
-    from PyQt6 import sip
-except Exception:
-    try:
-        import sip  # pyright: ignore[reportMissingImports]
-    except Exception:
-        sip = None
 
 RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS = 10.0
 
@@ -50,7 +43,7 @@ class PredictResultControllerMixin:
         if dlg is None:
             return False
         try:
-            if sip is not None and sip.isdeleted(dlg):
+            if sip.isdeleted(dlg):
                 return False
         except Exception:
             pass
