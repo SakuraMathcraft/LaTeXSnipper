@@ -32,7 +32,8 @@ class EditorActionsControllerMixin:
             print("[INFO] 延迟初始化收藏窗口")
             self.favorites_window = FavoritesWindow(
                 self.cfg,
-                self,
+                export_formula=self._export_as,
+                parent=self,
                 select_export_directory=_select_existing_directory_with_icon,
             )
         return self.favorites_window

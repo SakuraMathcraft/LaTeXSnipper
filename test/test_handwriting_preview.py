@@ -87,7 +87,7 @@ def test_dependency_python_cleans_quoted_paths() -> None:
     assert clean_path_value("'E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe'") == (
         "E:\\LaTexSnipper\\tools\\deps\\python311\\python.exe"
     )
-    assert normalize_deps_base_dir("E:\\LaTexSnipper\\deps\\python311") == Path("E:\\LaTexSnipper\\deps")
+    assert normalize_deps_base_dir("E:\\LaTexSnipper\\deps\\python311") == Path("E:\\LaTexSnipper\\deps\\python311")
 
 
 def test_document_recognition_model_policy() -> None:

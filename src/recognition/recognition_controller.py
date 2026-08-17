@@ -11,7 +11,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.external_model import ExternalModelWorker
 from backend.recognition_errors import recognition_failure_user_message
-from bootstrap.deps_bootstrap import custom_warning_dialog
+from bootstrap.deps_ui import custom_warning_dialog
 from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
 from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
 from workers.recognition_workers import PredictionWorker

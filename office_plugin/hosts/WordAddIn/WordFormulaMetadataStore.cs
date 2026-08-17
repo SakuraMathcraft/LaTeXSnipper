@@ -7,7 +7,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 internal static class WordFormulaMetadataStore
 {
-    private const int LegacySchemaVersion = 1;
     public const string EquationTagPrefix = "latexsnipper-eq-";
     private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string MetadataSeparator = "|";
@@ -66,9 +65,7 @@ internal static class WordFormulaMetadataStore
     public static FormulaMetadata Load(dynamic document, string tag)
     {
         string equationId = EquationIdFromTag(tag);
-        FormulaMetadata metadata = Deserialize(
-            LoadPayload(document, tag),
-            WordDocumentIdentityStore.GetOrCreate(document));
+        FormulaMetadata metadata = Deserialize(LoadPayload(document, tag));
         if (!string.Equals(metadata.Identity.EquationId, equationId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
@@ -189,7 +186,7 @@ internal static class WordFormulaMetadataStore
         return MetadataVariablePrefix + equationId + "." + revision;
     }
 
-    private static FormulaMetadata Deserialize(string json, string currentDocumentId)
+    private static FormulaMetadata Deserialize(string json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -199,27 +196,10 @@ internal static class WordFormulaMetadataStore
         var serializer = new JavaScriptSerializer();
         var dto = serializer.Deserialize<Dictionary<string, object>>(json);
         int schemaVersion = ReadInt(dto, "schemaVersion");
-        switch (schemaVersion)
+        if (schemaVersion != FormulaMetadata.CurrentSchemaVersion)
         {
-            case LegacySchemaVersion:
-                return DeserializeLegacy(dto, currentDocumentId);
-            case FormulaMetadata.CurrentSchemaVersion:
-                return DeserializeCurrent(dto);
-            default:
-                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
         }
-    }
-
-    private static FormulaMetadata DeserializeLegacy(
-        Dictionary<string, object> dto,
-        string currentDocumentId)
-    {
-        _ = ReadRequiredNonEmptyString(dto, "documentId");
-        return DeserializeMetadata(dto, currentDocumentId);
-    }
-
-    private static FormulaMetadata DeserializeCurrent(Dictionary<string, object> dto)
-    {
         return DeserializeMetadata(dto, ReadRequiredNonEmptyString(dto, "documentId"));
     }
 

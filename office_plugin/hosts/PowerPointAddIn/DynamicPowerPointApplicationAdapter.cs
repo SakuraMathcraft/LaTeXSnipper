@@ -493,7 +493,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
 
     private static FormulaMetadata ReadMetadataFromShape(dynamic shape, string documentId)
     {
-        return PowerPointFormulaMetadataStore.LoadFromShape(shape, documentId);
+        return PowerPointFormulaMetadataStore.LoadFromShape(shape);
     }
 
     private static FormulaMetadata WithNewIdentity(FormulaMetadata metadata, string documentId)

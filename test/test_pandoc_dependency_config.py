@@ -78,7 +78,6 @@ def test_pandoc_tool_is_installed_under_app_tools_root(tmp_path, monkeypatch) ->
     scripts_python.write_text("", encoding="utf-8")
 
     monkeypatch.setenv("LATEXSNIPPER_INSTALL_BASE_DIR", str(dependency_root))
-    monkeypatch.delenv("LATEXSNIPPER_DEPS_DIR", raising=False)
     monkeypatch.setattr(app_paths, "_APP_STATE_DIR_CACHE", app_state)
 
     expected = app_state / "tools" / "pandoc"

@@ -12,7 +12,7 @@ from qfluentwidgets import FluentIcon, MessageBox, PushButton
 
 from backend.model_factory import create_model_wrapper
 from backend.platform import PlatformCapabilityRegistry
-from bootstrap.deps_bootstrap import clear_deps_state
+from bootstrap.deps_entry import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
 from runtime.config_manager import ConfigManager, default_user_data_file

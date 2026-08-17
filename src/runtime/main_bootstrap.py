@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import importlib
 import json
 import os
 import subprocess
@@ -168,7 +167,6 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py
     os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
-    os.environ["LATEXSNIPPER_DEPS_DIR"] = str(base_dir)
     os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
@@ -193,7 +191,6 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py
     os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
-    os.environ["LATEXSNIPPER_DEPS_DIR"] = str(base_dir)
     os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
@@ -218,9 +215,10 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         return
 
     ensure_startup_splash("检查已安装功能层...")
-    deps_bootstrap = importlib.import_module("bootstrap.deps_bootstrap")
+    from bootstrap.deps_entry import ensure_deps
+
     try:
-        ok = deps_bootstrap.ensure_deps(
+        ok = ensure_deps(
             prompt_ui=True,
             always_show_ui=False,
             require_layers=("BASIC", "CORE"),
@@ -230,7 +228,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         )
         if ok:
             os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
-            if deps_force_entered(deps_bootstrap):
+            if deps_force_entered():
                 mark_startup_force_entered()
     except Exception as e:
         print(f"[WARN] deps wizard failed: {e}")

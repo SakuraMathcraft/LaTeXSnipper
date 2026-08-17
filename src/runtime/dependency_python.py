@@ -38,31 +38,21 @@ def dependency_root_from_python(pyexe: str | Path) -> Path:
     return root
 
 
-def normalize_deps_base_dir(path: str | Path | None) -> Path | None:
+def normalize_deps_base_dir(path: str | Path) -> Path:
     raw = normalize_path(path)
     if raw is None:
-        return None
-    try:
-        from bootstrap.deps_python_runtime import normalize_deps_base_dir as normalize_base
-
-        return normalize_base(raw)
-    except Exception:
-        name = raw.name.lower()
-        if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
-            return raw.parent if raw.parent != raw else raw
-        return raw
+        raise ValueError("dependency root must not be empty")
+    return raw
 
 
 def find_dependency_python(base_dir: str | Path | None) -> Path | None:
-    base = normalize_deps_base_dir(base_dir)
-    if base is None:
+    raw = normalize_path(base_dir)
+    if raw is None:
         return None
-    try:
-        from bootstrap.deps_python_runtime import find_existing_python
+    base = normalize_deps_base_dir(raw)
+    from bootstrap.deps_python_runtime import find_existing_python
 
-        return find_existing_python(base)
-    except Exception:
-        return None
+    return find_existing_python(base)
 
 
 def _existing_file(path: str | Path | None) -> str:
@@ -94,7 +84,6 @@ def resolve_dependency_python(
     bases.extend(configured_base_dirs)
     bases.extend((
         os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR"),
-        os.environ.get("LATEXSNIPPER_DEPS_DIR"),
         _project_root() / "tools" / "deps",
     ))
     for base in bases:

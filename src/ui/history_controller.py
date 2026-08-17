@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pyperclip
+from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 from qfluentwidgets import Action, InfoBar, InfoBarPosition
 
@@ -21,14 +22,6 @@ from ui.window_helpers import (
     exec_close_only_message_box as _exec_close_only_message_box,
     show_formula_rename_dialog as _show_formula_rename_dialog,
 )
-
-try:
-    from PyQt6 import sip
-except Exception:
-    try:
-        import sip  # pyright: ignore[reportMissingImports]
-    except Exception:
-        sip = None
 
 MAX_HISTORY = 200
 
@@ -182,9 +175,8 @@ class HistoryControllerMixin:
             return False
         if getattr(row, "_deleted", False):
             return False
-        if sip and hasattr(sip, "isdeleted"):
-            if sip.isdeleted(row):
-                return False
+        if sip.isdeleted(row):
+            return False
 
         if row.parent() is None:
             return False

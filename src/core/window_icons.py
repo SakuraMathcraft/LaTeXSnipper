@@ -4,6 +4,10 @@ import ctypes
 import os
 from pathlib import Path
 
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication
+
 
 _NATIVE_ICON_HANDLES: list[int] = []
 
@@ -15,18 +19,12 @@ def apply_app_window_icon(win, icon_path: str | os.PathLike[str] | None) -> None
     path = Path(icon_path)
     if not path.exists():
         return
-    try:
-        from PyQt6.QtGui import QIcon
-        from PyQt6.QtWidgets import QApplication
-
-        icon = QIcon(str(path))
-        app = QApplication.instance()
-        if app is not None:
-            app.setWindowIcon(icon)
-        if win is not None:
-            win.setWindowIcon(icon)
-    except Exception:
-        pass
+    icon = QIcon(str(path))
+    app = QApplication.instance()
+    if app is not None:
+        app.setWindowIcon(icon)
+    if win is not None:
+        win.setWindowIcon(icon)
 
 
 def schedule_native_dialog_icon(title: str, icon_path: str | os.PathLike[str] | None, attempts: int = 40):
@@ -36,11 +34,6 @@ def schedule_native_dialog_icon(title: str, icon_path: str | os.PathLike[str] | 
     path = Path(icon_path)
     if not path.exists():
         return None
-    try:
-        from PyQt6.QtCore import QTimer
-    except Exception:
-        return None
-
     state = {"remaining": max(1, int(attempts))}
     timer = QTimer()
     timer.setInterval(50)

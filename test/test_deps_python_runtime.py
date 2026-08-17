@@ -95,7 +95,6 @@ def test_inject_private_python_paths_replaces_previous_site(monkeypatch, tmp_pat
     pyexe = new_root / ("python.exe" if deps_python_runtime.os.name == "nt" else "python3")
     pyexe.write_text("", encoding="utf-8")
 
-    monkeypatch.setenv("LATEX_SNIPPER_SITE", str(old_site))
     monkeypatch.setattr(deps_python_runtime, "_active_site_packages", str(old_site))
     monkeypatch.setattr(deps_python_runtime, "_active_dll_directory_handle", None)
     monkeypatch.setattr(deps_python_runtime.sys, "path", [str(old_site), "project-root"])

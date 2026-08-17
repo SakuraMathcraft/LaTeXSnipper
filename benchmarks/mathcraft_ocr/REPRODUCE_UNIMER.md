@@ -130,9 +130,8 @@ official CDM clone is evaluated with the system Python above because the
 isolated `tools\deps` runtime does not expose the official CDM source tree on
 `sys.path`.
 
-The runner is resumable. A shard is skipped when it has a local completion
-marker from a successful official CDM process, or when legacy metrics contain
-one detail row for every CDM input row in that shard. It writes:
+The runner is resumable. A shard is skipped only when it has a local completion
+marker from a successful official CDM process. It writes:
 
 ```text
 E:\MathCraftBenchData\runs\cdm_official_unimer_full\metrics_res.json
