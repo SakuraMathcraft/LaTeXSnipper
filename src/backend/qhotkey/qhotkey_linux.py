@@ -41,8 +41,9 @@ class LinuxHotkey(QObject):
             from pynput import keyboard as _pynput_keyboard  # type: ignore[reportMissingModuleSource]
             self._pynput_keyboard = _pynput_keyboard
             self._pynput_available = True
-        except ImportError:
+        except ImportError as e:
             self._pynput_keyboard = None
+            print(f"[WARN] pynput 导入失败，已禁用全局快捷键: {e}")
 
     def setShortcut(self, seq: QKeySequence) -> None:
         self._seq_obj = seq

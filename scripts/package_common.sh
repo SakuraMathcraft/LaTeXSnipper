@@ -116,6 +116,15 @@ install_python_requirements() {
     fi
 }
 
+clear_debian_package_outputs() {
+    local deb_path="$1"
+    local checksum_path="$2"
+
+    [[ -n "$deb_path" ]] || die "Debian package output path must not be empty"
+    [[ -n "$checksum_path" ]] || die "Debian checksum output path must not be empty"
+    rm -f -- "$deb_path" "$checksum_path"
+}
+
 copy_debian_template() {
     local template_dir="$1"
     local package_root="$2"
