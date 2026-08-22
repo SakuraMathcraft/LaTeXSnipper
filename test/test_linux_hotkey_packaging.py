@@ -12,13 +12,15 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT / "scripts"
 VERIFIER = ROOT / "scripts" / "verify_linux_hotkey_archive.py"
 PACKAGE_COMMON = ROOT / "scripts" / "package_common.sh"
 BASH = shutil.which("bash")
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+if str(SCRIPTS_DIR) in sys.path:
+    sys.path.remove(str(SCRIPTS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR))
 
-from scripts import linux_hotkey_packaging
+import linux_hotkey_packaging
 
 
 PYNPUT_MODULES = (
@@ -166,7 +168,10 @@ class LinuxHotkeyArchiveVerifierTests(unittest.TestCase):
 
 
 class DebianPackageArtifactCleanupTests(unittest.TestCase):
-    @unittest.skipUnless(BASH, "bash is required for Debian packaging tests")
+    @unittest.skipUnless(
+        sys.platform.startswith("linux") and BASH,
+        "Linux and bash are required for Debian packaging tests",
+    )
     def test_removes_only_requested_stale_package_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_directory = Path(temporary_directory)

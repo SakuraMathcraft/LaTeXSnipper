@@ -6,10 +6,12 @@ import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+if str(SCRIPTS_DIR) in sys.path:
+    sys.path.remove(str(SCRIPTS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR))
 
-from scripts.linux_hotkey_packaging import REQUIRED_LINUX_HOTKEY_MODULES
+from linux_hotkey_packaging import REQUIRED_LINUX_HOTKEY_MODULES
 
 
 def main() -> int:
