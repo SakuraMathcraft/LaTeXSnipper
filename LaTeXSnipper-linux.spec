@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 import PyQt6
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 # Workaround for deep import graph
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
@@ -23,8 +23,16 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.linux_hotkey_packaging import collect_linux_hotkey_modules
 
 print(f"[SPEC] output name: {APP_NAME}")
+
+
+LINUX_HOTKEY_HIDDENIMPORTS = collect_linux_hotkey_modules(collect_submodules)
+print(f"[SPEC] include Linux hotkey modules: {len(LINUX_HOTKEY_HIDDENIMPORTS)}")
 
 extra_datas: list[tuple[str, str]] = []
 extra_binaries: list[tuple[str, str]] = []
@@ -148,9 +156,7 @@ a = Analysis(
         "subprocess",
 
         # Linux-specific optional imports
-        "pynput",
-        "pynput.keyboard",
-        "pynput.mouse",
+        *LINUX_HOTKEY_HIDDENIMPORTS,
         "dbus",
         "gi",
         "gi.repository",

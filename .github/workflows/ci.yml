@@ -88,3 +88,21 @@ jobs:
 
       - name: Run Office Bridge tests
         run: python -m pytest test/test_office_bridge.py -q
+
+  linux-hotkey-packaging:
+    name: Linux Hotkey Packaging
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install test runner
+        run: python -m pip install pytest
+
+      - name: Run Linux hotkey packaging tests
+        run: python -m pytest test/test_linux_hotkey_packaging.py -q

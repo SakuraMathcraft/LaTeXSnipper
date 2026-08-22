@@ -29,6 +29,7 @@ log_step "0/5" "Checking build tools"
 command -v dpkg-deb >/dev/null 2>&1 || die "dpkg-deb is required; install dpkg-dev on the build host"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 [[ -f "$SPEC_FILE" ]] || die "missing spec file: $SPEC_FILE"
+clear_debian_package_outputs "$DEB_PATH" "$DEB_OUTPUT_DIR/SHA256SUMS-linux.txt"
 
 log_step "1/5" "Preparing isolated Python runtime"
 BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
@@ -47,6 +48,15 @@ cd "$PROJECT_ROOT"
     "$SPEC_FILE"
 
 [[ -d "$DIST_DIR" ]] || die "PyInstaller output was not created: $DIST_DIR"
+
+PYINSTALLER_BIN="$DIST_DIR/LaTeXSnipper"
+PYINSTALLER_ARCHIVE_VIEWER="$(dirname "$BUILD_PYTHON")/pyi-archive_viewer"
+HOTKEY_ARCHIVE_VERIFIER="$PROJECT_ROOT/scripts/verify_linux_hotkey_archive.py"
+[[ -f "$PYINSTALLER_BIN" ]] || die "PyInstaller executable was not created: $PYINSTALLER_BIN"
+[[ -x "$PYINSTALLER_ARCHIVE_VIEWER" ]] || die "PyInstaller archive viewer was not found: $PYINSTALLER_ARCHIVE_VIEWER"
+[[ -f "$HOTKEY_ARCHIVE_VERIFIER" ]] || die "missing archive verifier: $HOTKEY_ARCHIVE_VERIFIER"
+"$PYINSTALLER_ARCHIVE_VIEWER" -r -b "$PYINSTALLER_BIN" \
+    | "$BUILD_PYTHON" "$HOTKEY_ARCHIVE_VERIFIER"
 
 log_step "3/5" "Preparing Debian package tree"
 copy_debian_template "$PACKAGING_TEMPLATE" "$PACKAGE_ROOT"
