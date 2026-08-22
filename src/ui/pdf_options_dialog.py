@@ -40,7 +40,11 @@ def _pick_item(parent, title: str, label: str, items: list[str], current: int = 
     return dlg.textValue()
 
 
-def prompt_pdf_output_options(parent, current_model: str, external_config=None):
+def prompt_pdf_output_options(
+    parent,
+    current_model: str,
+    external_config=None,
+) -> tuple[str, int | None, str] | None:
     """Prompt for PDF recognition output format and DPI."""
     doc_mode = "document"
     external_provider = external_config.normalized_provider() if external_config is not None else ""
@@ -49,13 +53,13 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
         doc_mode = "parse"
 
     if doc_mode == "parse":
-        fmt_key = "markdown"
-    else:
-        fmt_items = ["Markdown", "LaTeX"]
-        fmt = _pick_item(parent, "导出格式", "请选择导出格式：", fmt_items, 0)
-        if not fmt:
-            return None
-        fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
+        return "markdown", None, doc_mode
+
+    fmt_items = ["Markdown", "LaTeX"]
+    fmt = _pick_item(parent, "导出格式", "请选择导出格式：", fmt_items, 0)
+    if not fmt:
+        return None
+    fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
 
     dlg = QDialog(parent)
     dlg.setWindowTitle("PDF 渲染分辨率")
@@ -94,7 +98,11 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
     slider.setValue(default_dpi)
     layout.addWidget(slider)
 
-    tip = QLabel("建议根据文档清晰度动态调整：清晰文档可用较低 DPI，普通文档建议 140-170 DPI，模糊文档可适当提高；过高 DPI 可能降低识别稳定性。")
+    tip = QLabel(
+        "清晰文字型 PDF 建议 140-170 DPI，扫描件可尝试 200-300 DPI。"
+        "提高 DPI 仅在原页面细节不足时有帮助；过高会增加内存和处理时间，"
+        "使用外部模型时还可能触发缩放、输入限制或超时。"
+    )
     tip.setWordWrap(True)
     tip.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; font-size: 11px;")
     layout.addWidget(tip)
@@ -105,7 +113,7 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
         elif 140 <= value <= 170:
             zone = "推荐"
         elif value > 220:
-            zone = "高 DPI：模糊文档"
+            zone = "高 DPI：扫描件"
         else:
             zone = "可选"
         dpi_label.setText(f"当前 DPI：{value}（{zone}）")
@@ -118,7 +126,7 @@ def prompt_pdf_output_options(parent, current_model: str, external_config=None):
     buttons.rejected.connect(dlg.reject)
     layout.addWidget(buttons)
 
-    dlg.setFixedSize(420, 180)
+    dlg.setFixedSize(460, 210)
     if dlg.exec() != int(QDialog.DialogCode.Accepted):
         return None
     dpi = int(slider.value())

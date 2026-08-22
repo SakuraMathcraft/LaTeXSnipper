@@ -22,11 +22,13 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 # ---------------------------------------------------------------------------
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
+SCRIPTS = ROOT / "scripts"
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+if str(SCRIPTS) in sys.path:
+    sys.path.remove(str(SCRIPTS))
+sys.path.insert(0, str(SCRIPTS))
 
-from scripts.linux_hotkey_packaging import collect_linux_hotkey_modules
+from linux_hotkey_packaging import collect_linux_hotkey_modules
 
 print(f"[SPEC] output name: {APP_NAME}")
 

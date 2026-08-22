@@ -173,7 +173,7 @@ The dependency wizard manages the optional `PANDOC` layer. Manually downloaded o
 
 ## How does PDF recognition work?
 
-Use the main window's PDF recognition button and choose the page count, output format, and render DPI. Built-in MathCraft PDF recognition uses mixed mode because PDF pages need both text and formula recovery. External providers must be configured first; MinerU native mode uses document parsing and returns Markdown.
+Use the main window's PDF recognition button and choose the page count, output format, and render DPI. Built-in MathCraft PDF recognition uses mixed mode because PDF pages need both text and formula recovery. External providers must be configured first. MinerU native mode sends the original PDF for document parsing, returns Markdown, and does not ask for render DPI.
 
 The PDF result window lets you edit, copy, and save the recognized document. Markdown saves also copy structured image assets when the provider returns them.
 
@@ -183,7 +183,7 @@ LaTeXSnipper supports the built-in MathCraft OCR path and external providers suc
 
 The Base URL is the service root or the provider's `/v1` API prefix, not a concrete endpoint. The app appends protocol routes itself: Ollama uses `/api/tags` and `/api/chat`, OpenAI-compatible services use `/models` and `/chat/completions` under the resolved `/v1` prefix, and MinerU Local uses the configured health and parse paths.
 
-The prompt template determines both the request instructions and result type for normal image, screenshot, and handwriting recognition. A custom prompt replaces the built-in template for those paths and for OpenAI-compatible or Ollama PDF recognition. PDF output format and DPI are still selected at the PDF entry point; MinerU Local does not use prompts.
+The prompt template determines both the request instructions and result type for normal image, screenshot, and handwriting recognition. A custom prompt replaces the built-in template for those paths and for OpenAI-compatible or Ollama PDF recognition. Built-in MathCraft and OpenAI-compatible or Ollama PDF recognition select output format and render DPI at the PDF entry point. MinerU Local parses the original PDF and does not use prompts or render DPI.
 
 ## Why does Ollama fail when I use `/v1`?
 

@@ -267,7 +267,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - #text(weight: "bold")[内置模型：] 使用 MathCraft OCR。本地识别类型可选 #text(weight: "bold")[公式]、#text(weight: "bold")[混合（文字+公式）]、#text(weight: "bold")[纯文字]。
 - #text(weight: "bold")[外部模型：] 连接 OpenAI-compatible、Ollama 或 MinerU Local 服务。推荐预设包括 GLM-OCR、PaddleOCR-VL（FastDeploy）、Qwen2.5/Qwen3-VL 和 MinerU Local。
 
-外部模型的 #text(weight: "bold")[提示词模板] 决定普通图片和截图识别的请求内容与结果类型，可选公式、Markdown 或纯文本。手写识别固定使用混合文档类型，PDF 入口会单独询问导出格式和 DPI。填写 #text(weight: "bold")[自定义提示词] 后，自定义提示词优先级最高，会覆盖图片、截图、手写以及 OpenAI-compatible / Ollama PDF 识别的默认提示词；MinerU Local 不使用提示词。
+外部模型的 #text(weight: "bold")[提示词模板] 决定普通图片和截图识别的请求内容与结果类型，可选公式、Markdown 或纯文本。手写识别固定使用混合文档类型；内置模型及 OpenAI-compatible / Ollama 的 PDF 入口会单独询问导出格式和 DPI。填写 #text(weight: "bold")[自定义提示词] 后，自定义提示词优先级最高，会覆盖图片、截图、手写以及 OpenAI-compatible / Ollama PDF 识别的默认提示词；MinerU Local 直接解析原 PDF，不使用提示词或渲染 DPI。
 
 普通图片和截图的确认窗口、历史记录及主窗口预览会按结果类型渲染：LaTeX 使用公式预览，Markdown 使用混合预览，纯文本使用文本预览。本地 MathCraft 的公式、混合和纯文字结果遵循相同映射。
 
@@ -281,7 +281,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - 当前为 #text(weight: "bold")[外部模型] 时，必须先在设置中完成外部模型配置并通过连接测试。
 - MinerU Local 会走文档解析模式，输出固定为 Markdown；其他模型会先询问输出 Markdown 还是 LaTeX。
 - 程序会询问识别页码或连续范围，例如 `5`、`3-7`；默认先填入 `1-5`，避免大 PDF 一次性耗时过长。
-- 程序会询问 PDF 渲染 DPI，范围为 90-300。外部模型默认 150 DPI，内置模型默认 200 DPI。
+- 内置模型及 OpenAI-compatible / Ollama 会询问 PDF 渲染 DPI，范围为 90-300；OpenAI-compatible / Ollama 默认 150 DPI，内置模型默认 200 DPI。MinerU Local 直接解析原 PDF，不显示 DPI 选择。
 - 识别结果会打开独立的 PDF 结果窗口，可编辑、复制或保存。Markdown 文档保存时，如果结构化结果包含图片资源，程序会尽量把相关 assets 一起复制到保存目录。
 
 // ═══════════════════════════════════════════
@@ -759,7 +759,7 @@ LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使�
 #v(0.35em)
 
 *原因：*
-- DPI 设得太低（< 100）或太高（> 200）
+- DPI 过低会丢失小字和细线细节；过高会增加内存和处理时间，使用外部模型时还可能触发缩放、输入限制或超时
 - 扫描件与文字型 PDF 处理方式不同
 - 提示词模板不匹配（用了公式模板去识别文档）
 
@@ -769,7 +769,7 @@ LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使�
 - 文字型 PDF：尝试 140-170 DPI
 - 扫描件：尝试 200-300 DPI
 - 外部模型普通图片识别：确认设置中的提示词模板与任务匹配；手写识别固定使用混合文档类型
-- PDF 识别：在 PDF 入口单独选择 Markdown/LaTeX 与 DPI；MinerU 文档解析固定输出 Markdown
+- PDF 识别：内置模型及 OpenAI-compatible / Ollama 在 PDF 入口单独选择 Markdown/LaTeX 与 DPI；MinerU 文档解析直接使用原 PDF 并固定输出 Markdown
 
 == 切换了输出模式但结果没变
 
