@@ -161,6 +161,8 @@ class PdfRecognitionControllerMixin:
                 doc_mode,
             )
         else:
+            if dpi is None:
+                raise RuntimeError("内置 PDF 识别缺少渲染 DPI")
             self.pdf_predict_worker = PdfPredictWorker(
                 self.model,
                 str(path),

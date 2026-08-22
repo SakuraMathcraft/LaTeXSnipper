@@ -19,7 +19,7 @@ class ExternalModelPdfWorker(QObject):
         pdf_path: str,
         page_indices: list[int],
         output_format: str,
-        dpi: int = 200,
+        dpi: int | None = 200,
         document_mode: str = "document",
     ):
         super().__init__()
@@ -27,7 +27,7 @@ class ExternalModelPdfWorker(QObject):
         self.pdf_path = pdf_path
         self.page_indices = [int(index) for index in page_indices if int(index) >= 0]
         self.output_format = output_format
-        self.dpi = dpi
+        self.dpi = int(dpi) if dpi is not None else None
         self.document_mode = str(document_mode or "document").strip().lower() or "document"
         self._cancelled = False
         self.elapsed = None
@@ -72,6 +72,11 @@ class ExternalModelPdfWorker(QObject):
                 self.failed.emit(str(e))
                 return
 
+        if self.dpi is None:
+            _set_elapsed()
+            self.failed.emit("PDF 渲染 DPI 未设置")
+            return
+
         try:
             import fitz  # PyMuPDF
         except Exception as e:
@@ -114,7 +119,8 @@ class ExternalModelPdfWorker(QObject):
                     self.failed.emit("已取消")
                     return
                 page = doc.load_page(page_index)
-                pix = page.get_pixmap(dpi=int(max(self.dpi, 72)), alpha=False)
+                render_dpi = max(self.dpi, 72)
+                pix = page.get_pixmap(dpi=render_dpi, alpha=False)
                 image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                 page_result = pipeline.process_page(image, page_index + 1, self.config.prompt_template)
                 if page_result:

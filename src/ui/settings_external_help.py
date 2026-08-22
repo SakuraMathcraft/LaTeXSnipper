@@ -59,7 +59,7 @@ class ExternalModelHelpWindow(QDialog):
         self._add_section(
             content_layout,
             "提示词边界",
-            "提示词模板决定普通图片和截图识别的请求内容与结果类型。手写识别固定使用混合文档类型，PDF 导出格式和 DPI 在 PDF 入口选择。自定义提示词优先级最高，会覆盖这些入口的内置提示词；MinerU Local 不使用提示词。",
+            "提示词模板决定普通图片和截图识别的请求内容与结果类型。手写识别固定使用混合文档类型；内置模型及 OpenAI-compatible / Ollama 的 PDF 导出格式和 DPI 在 PDF 入口选择。自定义提示词优先级最高，会覆盖这些入口的内置提示词；MinerU Local 直接解析原 PDF，不使用提示词或渲染 DPI。",
         )
         self._add_section(
             content_layout,
