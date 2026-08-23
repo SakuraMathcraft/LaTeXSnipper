@@ -300,7 +300,7 @@ class SettingsLayoutMixin:
         terminal_layout.addWidget(self.terminal_env_button, 1)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
-        self.btn_terminal.setToolTip("打开所选环境的终端，可手动安装/修复依赖")
+        self.btn_terminal.setToolTip("打开主环境终端，可手动安装/修复依赖")
         terminal_layout.addWidget(self.btn_terminal, 1)
         lay.addWidget(terminal_row)
         # Dependency management wizard and cache directory.
