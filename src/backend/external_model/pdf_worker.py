@@ -1,7 +1,9 @@
 import time
+from typing import Any
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from backend.recognition_errors import recognition_error_code_user_message
 from .asset_store import PdfAssetStore
 from .document_pipeline import ExternalDocumentPipeline
 from .mineru_client import MineruClient
@@ -21,6 +23,7 @@ class ExternalModelPdfWorker(QObject):
         output_format: str,
         dpi: int | None = 200,
         document_mode: str = "document",
+        coordinator: Any | None = None,
     ):
         super().__init__()
         self.config = config
@@ -32,16 +35,31 @@ class ExternalModelPdfWorker(QObject):
         self._cancelled = False
         self.elapsed = None
         self.structured_result = None
+        self.coordinator = coordinator
 
     def cancel(self):
         self._cancelled = True
 
     def run(self):
+        if self.coordinator is not None:
+            try:
+                self.coordinator.run_external_operation(self._run_uncoordinated)
+            except Exception:
+                self.failed.emit(recognition_error_code_user_message("upstream_error", "external_model"))
+            return
+        self._run_uncoordinated()
+
+    def _run_uncoordinated(self):
         t0 = time.perf_counter()
         asset_store = None
 
         def _set_elapsed():
             self.elapsed = time.perf_counter() - t0
+
+        if self._cancelled:
+            _set_elapsed()
+            self.failed.emit("已取消")
+            return
 
         if self.config.normalized_provider() == "mineru":
             try:
@@ -53,6 +71,11 @@ class ExternalModelPdfWorker(QObject):
                 pipeline = ExternalDocumentPipeline(self.config, self.output_format, "parse", asset_store=asset_store)
                 self.progress.emit(0, total)
                 result = MineruClient(self.config).parse_pdf(self.pdf_path, page_start, page_end)
+                if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                    asset_store.cleanup()
+                    _set_elapsed()
+                    self.failed.emit("已取消")
+                    return
                 page_result = pipeline.process_result(result, page_start + 1)
                 content = pipeline.compose_document([page_result] if page_result else [])
                 self.structured_result = pipeline.build_structured_result()
@@ -86,6 +109,8 @@ class ExternalModelPdfWorker(QObject):
 
         try:
             from PIL import Image
+
+            from recognition.image_input import validated_rgb_image
         except Exception as e:
             _set_elapsed()
             self.failed.emit(f"缺少 Pillow 依赖: {e}")
@@ -121,7 +146,7 @@ class ExternalModelPdfWorker(QObject):
                 page = doc.load_page(page_index)
                 render_dpi = max(self.dpi, 72)
                 pix = page.get_pixmap(dpi=render_dpi, alpha=False)
-                image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                image = validated_rgb_image(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
                 page_result = pipeline.process_page(image, page_index + 1, self.config.prompt_template)
                 if page_result:
                     results.append(page_result)

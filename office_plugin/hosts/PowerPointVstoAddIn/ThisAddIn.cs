@@ -80,7 +80,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             }
             catch (Exception exc)
             {
-                statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+                statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(exc));
             }
         }
 

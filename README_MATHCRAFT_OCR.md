@@ -169,4 +169,4 @@ python -m build --no-isolation --outdir .\release_assets\mathcraft-ocr-package\d
 
 ## License
 
-MIT. See `LICENSE`.
+GPL-3.0-only. See `LICENSE`.

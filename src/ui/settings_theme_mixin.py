@@ -102,8 +102,8 @@ class SettingsThemeMixin:
             )
         if hasattr(self, "runtime_log_button") and self.runtime_log_button is not None:
             self._style_startup_button(self.runtime_log_button, t["text"], t["muted"])
-        if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
-            self._style_startup_button(self.office_bridge_button, t["text"], t["muted"])
+        if hasattr(self, "automation_api_button") and self.automation_api_button is not None:
+            self._style_startup_button(self.automation_api_button, t["text"], t["muted"])
 
     def event(self, e):
         result = super().event(e)

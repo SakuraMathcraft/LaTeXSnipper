@@ -8,6 +8,7 @@ from backend.external_model import (
     load_config_from_mapping,
 )
 from ui.settings_external_help import ExternalModelHelpWindow
+from ui.window_helpers import show_normal_window
 
 
 class SettingsExternalModelMixin:
@@ -196,6 +197,4 @@ class SettingsExternalModelMixin:
         if self._external_help_window is None:
             self._external_help_window = ExternalModelHelpWindow(self)
             self._external_help_window.destroyed.connect(lambda: setattr(self, "_external_help_window", None))
-        self._external_help_window.show()
-        self._external_help_window.raise_()
-        self._external_help_window.activateWindow()
+        show_normal_window(self._external_help_window)

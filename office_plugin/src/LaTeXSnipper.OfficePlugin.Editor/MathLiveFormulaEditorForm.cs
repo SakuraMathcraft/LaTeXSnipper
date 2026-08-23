@@ -246,7 +246,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
         _configurationPending = false;
         FormulaMetadata initialFormula = _currentInitialFormula
-            ?? throw new InvalidOperationException("The formula editor has not been configured.");
+            ?? throw new InvalidOperationException("公式编辑器尚未配置完成。");
         string payload = _serializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "init",
@@ -307,7 +307,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
             !message.TryGetValue("display", out object rawDisplay) ||
             Convert.ToBoolean(rawDisplay, CultureInfo.InvariantCulture);
         FormulaMetadata initialFormula = _currentInitialFormula
-            ?? throw new InvalidOperationException("The formula editor has not been configured.");
+            ?? throw new InvalidOperationException("公式编辑器尚未配置完成。");
         long sessionGeneration = _currentSessionGeneration;
         var accepted = new FormulaEditorAcceptedEventArgs(
             initialFormula,

@@ -73,7 +73,7 @@
           <tr><td>Office 版本</td><td><ul><li>Microsoft 365 应用（当前通道或月度企业通道）</li><li>Office 2024 / 2021 / 2019 零售版或批量许可版</li><li>Office LTSC 2024 / 2021</li></ul></td></tr>
           <tr><td>运行时</td><td>.NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）</td></tr>
           <tr><td>Office 体系</td><td>仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office</td></tr>
-          <tr><td>LaTeXSnipper 桌面端</td><td>需在本机运行并开启 Office 插件功能，插件通过 <code>127.0.0.1:28765</code> 与本机 Bridge 通信</td></tr>
+          <tr><td>LaTeXSnipper 桌面端</td><td>需在本机运行并开启自动化接口；插件通过受身份验证的本机 Automation API 连接桌面端</td></tr>
         </tbody>
       </table>
     </section>
@@ -175,7 +175,7 @@
           <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
           <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。</td></tr>
           <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。</td></tr>
-          <tr><td>连接方式</td><td>公式在插件内本地渲染；截图识别通过本机 Bridge（<code>127.0.0.1:28765</code>）连接桌面端。</td></tr>
+          <tr><td>连接方式</td><td>公式在插件内本地渲染；截图识别通过受身份验证的本机 Automation API 连接桌面端。</td></tr>
           <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
         </tbody>
       </table>

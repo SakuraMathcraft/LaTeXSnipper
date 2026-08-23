@@ -68,7 +68,7 @@ internal static class WordEquationNumbering
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
+            throw new ArgumentException("公式标识不能为空。", nameof(equationId));
         }
 
         return BookmarkPrefix + equationId;

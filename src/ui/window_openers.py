@@ -9,6 +9,7 @@ from handwriting import HandwritingWindow
 from recognition.model_policy import is_internal_document_model, resolve_document_recognition_model
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
 from ui.settings_window import SettingsWindow
+from ui.window_helpers import show_normal_window
 
 
 class WindowOpenersMixin:
@@ -19,27 +20,22 @@ class WindowOpenersMixin:
                     self.settings_window.apply_theme_styles(force=True)
             except Exception:
                 pass
-            self.settings_window.raise_()
-            self.settings_window.activateWindow()
+            show_normal_window(self.settings_window)
             return
         if not self.settings_window:
             self.settings_window = SettingsWindow(self)
             self.settings_window.model_changed.connect(self.on_model_changed)
             self.settings_window.destroyed.connect(lambda: setattr(self, "settings_window", None))
-        self.settings_window.show()
+        show_normal_window(self.settings_window)
         try:
             if hasattr(self.settings_window, "apply_theme_styles"):
                 self.settings_window.apply_theme_styles(force=True)
         except Exception:
             pass
-        self.settings_window.raise_()
-        self.settings_window.activateWindow()
 
     def open_favorites(self):
         fav = self.favorites_window
-        fav.show()
-        fav.raise_()
-        fav.activateWindow()
+        show_normal_window(fav)
 
     def _on_workbench_insert(self, latex: str):
         text = (latex or "").strip()
@@ -92,17 +88,14 @@ class WindowOpenersMixin:
             custom_warning_dialog("提示", "外部模型未配置，请先完成必要配置。", self)
             self.open_settings()
             return
-        if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
-            self.handwriting_window.raise_()
-            self.handwriting_window.activateWindow()
+        if getattr(self, "handwriting_window", None):
+            show_normal_window(self.handwriting_window)
             self._warmup_handwriting_model_async(handwriting_model)
             return
         self.handwriting_window = HandwritingWindow(self.model, owner=self, parent=None)
         self.handwriting_window.latexInserted.connect(self._on_handwriting_insert)
         self.handwriting_window.destroyed.connect(lambda: setattr(self, "handwriting_window", None))
-        self.handwriting_window.show()
-        self.handwriting_window.raise_()
-        self.handwriting_window.activateWindow()
+        show_normal_window(self.handwriting_window)
         self._warmup_handwriting_model_async(handwriting_model)
 
     def _warmup_handwriting_model_async(self, handwriting_model: str) -> None:
@@ -127,21 +120,16 @@ class WindowOpenersMixin:
         threading.Thread(target=worker, daemon=True).start()
 
     def open_workbench(self):
-        if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
-            self.workbench_window.raise_()
-            self.workbench_window.activateWindow()
-        else:
+        if not getattr(self, "workbench_window", None):
             from editor.workbench_window import WorkbenchWindow
 
             self.workbench_window = WorkbenchWindow(self, on_insert_latex=self._on_workbench_insert)
             self.workbench_window.destroyed.connect(lambda: setattr(self, "workbench_window", None))
             self.workbench_window.apply_theme_styles(force=True)
-            self.workbench_window.show()
         current = self.latex_editor.toPlainText().strip()
         if current:
             self.workbench_window.set_latex(current)
-        self.workbench_window.raise_()
-        self.workbench_window.activateWindow()
+        show_normal_window(self.workbench_window)
 
     def show_window(self):
         self.system_provider.activate_window(self)

@@ -26,7 +26,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
     {
         if (string.IsNullOrWhiteSpace(hostName))
         {
-            throw new ArgumentException("Host name is required.", nameof(hostName));
+            throw new ArgumentException("主机名称不能为空。", nameof(hostName));
         }
 
         _hostName = hostName;
@@ -85,7 +85,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
     {
         if (!_initialized)
         {
-            throw new InvalidOperationException("MathJax JavaScript runtime has not been initialized.");
+            throw new InvalidOperationException("MathJax 运行环境尚未初始化。");
         }
 
         return RunOnUiThreadAsync(webView => webView.CoreWebView2.ExecuteScriptAsync(script), cancellationToken);
@@ -156,7 +156,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         WebView2 webView = await _webViewReady.Task.ConfigureAwait(false);
         if (host.IsDisposed || !host.IsHandleCreated)
         {
-            throw new InvalidOperationException("MathJax rendering host is unavailable.");
+            throw new InvalidOperationException("MathJax 渲染环境当前不可用。");
         }
 
         var completion = new TaskCompletionSource<T>();
@@ -265,7 +265,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             await Task.Delay(50, cancellationToken).ConfigureAwait(true);
         }
 
-        throw new TimeoutException("MathJax startup timed out.");
+        throw new TimeoutException("MathJax 启动超时。");
     }
 }
 #endif

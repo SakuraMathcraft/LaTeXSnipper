@@ -22,7 +22,7 @@ public sealed class MathMlToOmmlConverter
     {
         if (string.IsNullOrWhiteSpace(mathMl))
         {
-            throw new ArgumentException("MathML is required.", nameof(mathMl));
+            throw new ArgumentException("MathML 内容不能为空。", nameof(mathMl));
         }
 
         using var input = XmlReader.Create(new StringReader(mathMl), SecureReaderSettings());
@@ -35,7 +35,7 @@ public sealed class MathMlToOmmlConverter
         string omml = output.ToString();
         if (string.IsNullOrWhiteSpace(omml))
         {
-            throw new InvalidOperationException("Office MathML transform returned empty OMML.");
+            throw new InvalidOperationException("Office MathML 转换未返回 OMML 内容。");
         }
 
         return omml;

@@ -21,6 +21,7 @@ from ui.formula_export_menu import populate_formula_export_menu
 from ui.window_helpers import (
     apply_close_only_window_flags as _apply_close_only_window_flags,
     exec_close_only_message_box,
+    show_normal_window,
     show_formula_rename_dialog,
 )
 
@@ -524,7 +525,5 @@ class FavoritesWindow(QMainWindow):
 
         self.refresh_list()
         self.save_favorites()
-        self.show()
-        self.raise_()
-        self.activateWindow()
+        show_normal_window(self)
         self._set_status("已加入收藏")

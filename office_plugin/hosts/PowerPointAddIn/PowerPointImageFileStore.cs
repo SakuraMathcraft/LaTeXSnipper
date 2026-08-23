@@ -21,7 +21,7 @@ public sealed class PowerPointImageFileStore
     {
         if (png == null || png.Length == 0)
         {
-            throw new ArgumentException("PNG data is required.", nameof(png));
+            throw new ArgumentException("PNG 图像数据不能为空。", nameof(png));
         }
 
         Directory.CreateDirectory(_directory);

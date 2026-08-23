@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image
 from PyQt6.QtGui import QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from recognition.image_preprocess import qimage_to_rgb_pil
+from recognition.image_input import image_from_qimage
+from integration.automation.contracts import SUPPORTED_IMAGE_FORMATS
 
 
 class FileDropMixin:
@@ -30,7 +30,7 @@ class FileDropMixin:
             if image.isNull():
                 return False
             self._next_predict_result_screen_index = None
-            self._start_predict_with_pil(qimage_to_rgb_pil(image))
+            self._start_predict_with_pil(image_from_qimage(image))
             return True
 
         if mime.hasUrls():
@@ -52,16 +52,7 @@ class FileDropMixin:
 
     def _get_supported_image_patterns(self):
         """Return image file dialog filter patterns."""
-        try:
-            exts = sorted({ext.lower().lstrip(".") for ext in Image.registered_extensions().keys()})
-            common = {"png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff", "webp"}
-            exts = [e for e in exts if e in common] or exts
-            patterns = [f"*.{e}" for e in exts if e]
-            if patterns:
-                return patterns
-        except Exception:
-            pass
-        return ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.tif", "*.tiff", "*.webp"]
+        return [f"*.{extension}" for extension in SUPPORTED_IMAGE_FORMATS]
 
     def _get_supported_image_extensions(self):
         """Return readable image extensions for prompts."""
@@ -90,9 +81,7 @@ class FileDropMixin:
         suffix = str(path.suffix or "").lower()
         if suffix == ".pdf":
             return "pdf"
-        if suffix in self._get_supported_image_suffixes():
-            return "image"
-        return None
+        return "image"
 
     def _drag_contains_local_file(self, event) -> bool:
         return bool(self._local_drop_paths(event))

@@ -1,9 +1,26 @@
+using System;
 using System.Globalization;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public static class WordAddInText
 {
+    public static string GetExceptionMessage(Exception exception)
+    {
+        string message = exception?.Message?.Trim() ?? string.Empty;
+        foreach (char value in message)
+        {
+            if (value >= '\u3400' && value <= '\u9fff')
+            {
+                return message;
+            }
+        }
+
+        return exception is TimeoutException
+            ? "操作超时，请稍后重试。"
+            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+    }
+
     public static string Get(string key)
     {
         bool zh = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh";
@@ -40,7 +57,7 @@ public static class WordAddInText
             "InsertInlineTip" => "Insert an inline Word equation.",
             "InsertDisplayTip" => "Insert a centered display equation.",
             "InsertNumberedTip" => "Insert a numbered display equation using the status pane setting.",
-            "ScreenshotOcrTip" => "Wait for the next capture; click again to cancel.",
+            "ScreenshotOcrTip" => "Wait for the next LaTeXSnipper recognition result; click again to cancel.",
             "AutoNumberTip" => "Add an automatic number to the selected display formula.",
             "RenumberTip" => "Renumber all automatically numbered formulas in document order.",
             "HelpTip" => "Show Office plugin help.",
@@ -89,8 +106,8 @@ public static class WordAddInText
             "SettingsNumberRight" => "Number on the right",
             "SettingsNumberLeft" => "Number on the left",
             "TaskPaneShownStatus" => "Status pane shown.",
-            "ConnectedBridgeStatus" => "Connected to LaTeXSnipper.",
-            "BridgeOcrAlreadyWaiting" => "Screenshot OCR is busy. Wait a moment and try again.",
+            "ConnectedAutomationStatus" => "Connected to LaTeXSnipper Automation API.",
+            "AutomationOcrAlreadyWaiting" => "Screenshot OCR is busy. Wait a moment and try again.",
             "ConversionGroup" => "Conversion",
             "ReferenceGroup" => "Cross Reference",
             "BoundaryGroup" => "Numbering Boundaries",
@@ -169,7 +186,7 @@ public static class WordAddInText
             "InsertInlineTip" => "插入行内公式。",
             "InsertDisplayTip" => "插入行间公式。",
             "InsertNumberedTip" => "按状态窗格编号设置插入带编号公式。",
-            "ScreenshotOcrTip" => "等待下一次截图；再次点击可取消。",
+            "ScreenshotOcrTip" => "等待 LaTeXSnipper 的下一次识别结果；再次点击可取消。",
             "AutoNumberTip" => "为选中的行间公式添加自动编号。",
             "RenumberTip" => "重排所有自动编号的公式。",
             "HelpTip" => "显示插件帮助。",
@@ -218,8 +235,8 @@ public static class WordAddInText
             "SettingsNumberRight" => "编号在右侧",
             "SettingsNumberLeft" => "编号在左侧",
             "TaskPaneShownStatus" => "状态窗格已显示。",
-            "ConnectedBridgeStatus" => "已连接到 LaTeXSnipper。",
-            "BridgeOcrAlreadyWaiting" => "截图识别正忙，请稍后再试。",
+            "ConnectedAutomationStatus" => "已连接到 LaTeXSnipper Automation API。",
+            "AutomationOcrAlreadyWaiting" => "截图识别正忙，请稍后再试。",
             "ConversionGroup" => "转换",
             "ReferenceGroup" => "交叉引用",
             "BoundaryGroup" => "编号边界",

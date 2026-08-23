@@ -16,7 +16,11 @@ from typing import Any
 
 from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
-from mathcraft_ocr.error_patterns import looks_like_cuda_runtime_error, looks_like_onnxruntime_install_error
+from mathcraft_ocr.error_patterns import (
+    looks_like_cuda_runtime_error,
+    looks_like_gpu_provider_error,
+    looks_like_onnxruntime_install_error,
+)
 from runtime.app_paths import app_config_path
 from runtime.dependency_python import clean_path_value, find_dependency_python, python_env_root
 
@@ -485,6 +489,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "CUDA 环境异常",
             user_message,
             log_message,
+        )
+    if looks_like_gpu_provider_error(raw):
+        return _pack(
+            "GPU_PROVIDER_UNAVAILABLE",
+            "GPU 推理不可用",
+            "当前 GPU 推理后端不可用，请检查依赖层和显卡运行环境。",
+            f"请求的 GPU execution provider 未能启用，且未回退到 CPU: {raw[:300]}",
         )
     if "unsupported worker action" in lower or "unsupported warmup profile" in lower:
         return _pack(

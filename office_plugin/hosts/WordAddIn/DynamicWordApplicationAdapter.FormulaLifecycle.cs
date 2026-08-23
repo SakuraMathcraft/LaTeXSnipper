@@ -768,7 +768,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         if (equationControl == null)
         {
-            throw new InvalidOperationException("Word did not preserve the inserted formula control.");
+            throw new InvalidOperationException("Word 未能保留刚插入的公式控件，请重试。");
         }
 
         return equationControl;
@@ -804,7 +804,7 @@ public sealed partial class DynamicWordApplicationAdapter
         float height = (float)shape.Height;
         if (width <= 0 || height <= 0)
         {
-            throw new InvalidOperationException("OLE formula object size is invalid.");
+            throw new InvalidOperationException("OLE 公式对象尺寸无效。");
         }
 
         return (width, height);
@@ -854,7 +854,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (width <= 0 || height <= 0)
         {
-            throw new InvalidOperationException("OLE formula object size is invalid.");
+            throw new InvalidOperationException("OLE 公式对象尺寸无效。");
         }
 
         TryCom(() => inlineShape.LockAspectRatio = true);
@@ -922,7 +922,7 @@ public sealed partial class DynamicWordApplicationAdapter
         string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
         if (!string.Equals(storedTag, tag, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Word did not preserve the OLE formula identifier.");
+            throw new InvalidOperationException("Word 未能保留 OLE 公式标识，请重试。");
         }
 
         TryCom(() => inlineShape.Title = "LaTeXSnipper Equation");

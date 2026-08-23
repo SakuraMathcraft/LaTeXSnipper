@@ -1,6 +1,6 @@
 # LaTeXSnipper Office Plugin
 
-Released Windows VSTO add-in for Microsoft Word and PowerPoint. It inserts and maintains LaTeXSnipper OLE formulas and provides native Word OMML and PowerPoint PNG alternatives. Formula editing and rendering are fully local; the desktop Bridge at `127.0.0.1:28765` is used only for screenshot recognition.
+Released Windows VSTO add-in for Microsoft Word and PowerPoint. It inserts and maintains LaTeXSnipper OLE formulas and provides native Word OMML and PowerPoint PNG alternatives. Formula editing and rendering are fully local; screenshot recognition uses the desktop Automation API as an ordinary authenticated client.
 
 OLE formulas use local MathJax layout and EMF vector presentations. Complete LaTeX source, rendering options, numbering information, and object identity are stored with each managed formula.
 
@@ -25,7 +25,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - In-place conversion between managed OLE and OMML formulas, plus explicit conversion of selected native Word OMML formulas to LaTeXSnipper OLE
 - Parsing of `$...$`, `\(...\)`, `$$...$$`, and `\[...\]` LaTeX in the selected range or main document body, including table cells
 - Selected formula style reset and document-wide natural-size restoration
-- Screenshot OCR via desktop Bridge
+- Screenshot OCR via Automation API
 
 ### PowerPoint
 
@@ -34,7 +34,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - In-place conversion of selected managed formulas between OLE and PNG
 - Selected formula style reset and presentation-wide natural-size restoration
 - User-resized formulas preserve their scale when updated
-- Screenshot OCR via desktop Bridge
+- Screenshot OCR via Automation API
 
 ### Shared
 
@@ -47,8 +47,8 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 | Path | Role |
 |---|---|
-| `src/LaTeXSnipper.OfficePlugin.Abstractions` | Stable contracts shared by hosts, renderer, editor, Bridge |
-| `src/LaTeXSnipper.OfficePlugin.Bridge` | Screenshot-recognition HTTP boundary to the desktop client |
+| `src/LaTeXSnipper.OfficePlugin.Abstractions` | Stable contracts shared by hosts, renderer, editor, and automation client |
+| `src/LaTeXSnipper.OfficePlugin.Automation` | Authenticated Automation API client and local connection-file discovery |
 | `src/LaTeXSnipper.OfficePlugin.Rendering` | Engine-neutral render pipeline for MathJax intermediate rendering, OLE presentation generation, and PNG rendering |
 | `src/LaTeXSnipper.OfficePlugin.Editor` | Formula editor session boundary |
 | `hosts/WordAddIn` | Word workflows: Ribbon, OLE/OMML insertion, numbering, metadata, controller |
@@ -73,7 +73,7 @@ office_plugin\installer\build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\OfficePluginSetup-2.6.0.exe`
+Output: `office_plugin\release\OfficePluginSetup-3.0.0.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 

@@ -17,7 +17,7 @@ internal static class WordFormulaMetadataStore
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
+            throw new ArgumentException("公式标识不能为空。", nameof(equationId));
         }
 
         return ValidateTagLength(
@@ -285,7 +285,7 @@ internal static class WordFormulaMetadataStore
     {
         if (tag.Length > MaxWordTagLength)
         {
-            throw new InvalidOperationException("Word formula tag exceeds the 64-character limit.");
+            throw new InvalidOperationException("Word 公式标记超过 64 个字符的限制。");
         }
 
         return tag;

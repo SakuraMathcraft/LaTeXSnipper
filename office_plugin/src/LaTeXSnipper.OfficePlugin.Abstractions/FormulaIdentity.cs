@@ -11,12 +11,12 @@ public sealed class FormulaIdentity
     {
         if (string.IsNullOrWhiteSpace(documentId))
         {
-            throw new ArgumentException("Document ID is required.", nameof(documentId));
+            throw new ArgumentException("文档标识不能为空。", nameof(documentId));
         }
 
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
+            throw new ArgumentException("公式标识不能为空。", nameof(equationId));
         }
 
         DocumentId = documentId;

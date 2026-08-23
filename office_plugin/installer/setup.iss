@@ -52,7 +52,7 @@ Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.WordAddI
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Abstractions.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
-Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Bridge.dll"; \
+Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Automation.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Editor.dll"; \
   DestDir: "{app}\Word"; Flags: ignoreversion
@@ -78,7 +78,7 @@ Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Po
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Abstractions.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
-Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Bridge.dll"; \
+Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Automation.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 Source: "..\hosts\PowerPointVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.Editor.dll"; \
   DestDir: "{app}\PowerPoint"; Flags: ignoreversion

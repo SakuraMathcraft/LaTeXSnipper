@@ -33,13 +33,21 @@ def create_session(model_path: str | Path, provider_info: ProviderInfo):
         raise RuntimeError(
             f"requested ONNX GPU provider {active}, but session providers are {actual}"
         )
+    disable_fallback = getattr(session, "disable_fallback", None)
+    if not callable(disable_fallback):
+        raise RuntimeError("ONNX Runtime session cannot disable provider fallback")
+    disable_fallback()
     return session
 
 
 @lru_cache(maxsize=16)
 def _create_session_cached(model_path: str, providers: tuple[str, ...]):
     ort = _ort()
-    return ort.InferenceSession(model_path, providers=list(providers))
+    return ort.InferenceSession(
+        model_path,
+        providers=list(providers),
+        enable_fallback=False,
+    )
 
 
 def clear_session_cache() -> None:

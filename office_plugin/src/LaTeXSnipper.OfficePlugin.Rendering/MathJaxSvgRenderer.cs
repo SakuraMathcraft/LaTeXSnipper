@@ -41,7 +41,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
 
         if (request.Engine != RenderEngineKind.MathJaxSvg)
         {
-            throw new ArgumentException("MathJaxSvgRenderer can only render MathJaxSvg requests.", nameof(request));
+            throw new ArgumentException("当前渲染器只能处理 MathJax SVG 请求。", nameof(request));
         }
 
         using CancellationTokenSource timeout = CreateTimeoutTokenSource(request);
@@ -80,7 +80,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
         ThrowIfDisposed();
         if (string.IsNullOrWhiteSpace(latex))
         {
-            throw new ArgumentException("LaTeX is required.", nameof(latex));
+            throw new ArgumentException("LaTeX 内容不能为空。", nameof(latex));
         }
 
         using var timeout = new CancellationTokenSource(OfficeCommandTimeouts.Render);

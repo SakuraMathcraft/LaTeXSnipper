@@ -22,7 +22,7 @@ internal static class SvgEnhancedMetafileWriter
     {
         if (intermediateRender.MimeType != MathJaxSvgRenderer.SvgMimeType)
         {
-            throw new ArgumentException("Enhanced Metafile presentation requires MathJax SVG intermediate render.", nameof(intermediateRender));
+            throw new ArgumentException("生成增强型图元文件需要 MathJax SVG 中间渲染结果。", nameof(intermediateRender));
         }
 
         int horizontalPaddingPixels = PointsToPixels(HorizontalPaddingPoints);
@@ -36,7 +36,7 @@ internal static class SvgEnhancedMetafileWriter
         IntPtr screen = GetDC(IntPtr.Zero);
         if (screen == IntPtr.Zero)
         {
-            throw new InvalidOperationException("Cannot acquire a screen device context for EMF rendering.");
+            throw new InvalidOperationException("无法获取用于 EMF 渲染的屏幕设备环境。");
         }
 
         try

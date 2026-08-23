@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
-using LaTeXSnipper.OfficePlugin.Bridge;
+using LaTeXSnipper.OfficePlugin.Automation;
 using LaTeXSnipper.OfficePlugin.Editor;
 using LaTeXSnipper.OfficePlugin.Rendering;
 
@@ -18,7 +18,7 @@ public sealed partial class WordPluginController : IDisposable
     private const double MaximumOleFontScale = 5;
 
     private readonly FormulaEditorSession _editorSession;
-    private readonly BridgeClient _bridgeClient;
+    private readonly AutomationApiClient _automationClient;
     private readonly IWordApplicationAdapter _wordAdapter;
     private readonly IWordStatusSink _statusSink;
     private readonly IWordFormulaOptionsProvider _optionsProvider;
@@ -65,7 +65,7 @@ public sealed partial class WordPluginController : IDisposable
 
     public WordPluginController(
         FormulaEditorSession editorSession,
-        BridgeClient bridgeClient,
+        AutomationApiClient automationClient,
         IWordApplicationAdapter wordAdapter,
         MathJaxSvgRenderer mathJaxRenderer,
         OlePresentationPipeline olePresentationPipeline,
@@ -75,7 +75,7 @@ public sealed partial class WordPluginController : IDisposable
         Func<WordPluginSettings>? settingsLoader = null)
     {
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
-        _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
+        _automationClient = automationClient ?? throw new ArgumentNullException(nameof(automationClient));
         _wordAdapter = wordAdapter ?? throw new ArgumentNullException(nameof(wordAdapter));
         _mathJaxRenderer = mathJaxRenderer ?? throw new ArgumentNullException(nameof(mathJaxRenderer));
         _ommlConverter = ommlConverter ?? new MathMlToOmmlConverter();
@@ -145,8 +145,9 @@ public sealed partial class WordPluginController : IDisposable
         }
         catch (Exception exc)
         {
-            _statusSink.Post(WordStatusKind.Error, exc.Message);
-            return FormulaEditorSubmissionResult.Rejected(exc.Message);
+            string message = WordAddInText.GetExceptionMessage(exc);
+            _statusSink.Post(WordStatusKind.Error, message);
+            return FormulaEditorSubmissionResult.Rejected(message);
         }
     }
 
@@ -183,8 +184,8 @@ public sealed partial class WordPluginController : IDisposable
 
     public async Task TestConnectionAsync(CancellationToken cancellationToken)
     {
-        await _bridgeClient.ConfigureAsync(cancellationToken);
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ConnectedBridgeStatus"));
+        await _automationClient.ConfigureAsync(cancellationToken);
+        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("ConnectedAutomationStatus"));
     }
 
     public async Task AcceptEditorFormulaAsync(FormulaEditorAcceptedEventArgs accepted, CancellationToken cancellationToken)
@@ -282,7 +283,7 @@ public sealed partial class WordPluginController : IDisposable
         }
         catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
         {
-            await _bridgeClient.CancelScreenshotOcrAsync(CancellationToken.None);
+            await _automationClient.CancelScreenshotOcrAsync(CancellationToken.None);
             await Task.Delay(300, CancellationToken.None);
             try
             {
@@ -291,22 +292,22 @@ public sealed partial class WordPluginController : IDisposable
             }
             catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
             {
-                _statusSink.Post(WordStatusKind.Error, WordAddInText.Get("BridgeOcrAlreadyWaiting"));
+                _statusSink.Post(WordStatusKind.Error, WordAddInText.Get("AutomationOcrAlreadyWaiting"));
             }
         }
     }
 
     private Task<string> RunScreenshotOcrWithProgressAsync(CancellationToken cancellationToken)
     {
-        return BridgeRecognitionProgress.RunScreenshotOcrAsync(
-            _bridgeClient,
+        return AutomationRecognitionProgress.RunScreenshotOcrAsync(
+            _automationClient,
             () => _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OcrRecognizingStatus")),
             cancellationToken);
     }
 
     private void ProcessOcrResult(string responseJson)
     {
-        string latex = BridgeRecognitionParser.ParseScreenshotOcrResponse(responseJson);
+        string latex = AutomationRecognitionParser.ParseScreenshotOcrResponse(responseJson);
         if (string.IsNullOrWhiteSpace(latex))
         {
             return;
@@ -323,7 +324,7 @@ public sealed partial class WordPluginController : IDisposable
 
     public Task CancelScreenshotOcrAsync(CancellationToken cancellationToken)
     {
-        return _bridgeClient.CancelScreenshotOcrAsync(cancellationToken);
+        return _automationClient.CancelScreenshotOcrAsync(cancellationToken);
     }
 
     public async Task AutoNumberSelectedAsync(CancellationToken cancellationToken)
@@ -865,7 +866,7 @@ public sealed partial class WordPluginController : IDisposable
 
         _disposed = true;
         _editorSession.Dispose();
-        _bridgeClient.Dispose();
+        _automationClient.Dispose();
         _mathJaxRenderer.Dispose();
 
         _commandGate.Dispose();

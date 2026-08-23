@@ -272,18 +272,18 @@ class SettingsLayoutMixin:
         self.runtime_log_button.setChecked(self._to_bool(runtime_log_pref))
         self.runtime_log_button.setToolTip("启动后显示运行日志窗口")
         startup_layout.addWidget(self.runtime_log_button, 1)
-        self.office_bridge_button = PushButton(FluentIcon.APPLICATION, "Office 插件")
-        self.office_bridge_button.setFixedHeight(36)
-        self.office_bridge_button.setCheckable(True)
-        office_bridge_pref = False
+        self.automation_api_button = PushButton(FluentIcon.APPLICATION, "自动化接口")
+        self.automation_api_button.setFixedHeight(36)
+        self.automation_api_button.setCheckable(True)
+        automation_api_pref = False
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
-                office_bridge_pref = self.parent().cfg.get("office_bridge_enabled", False)
+                automation_api_pref = self.parent().cfg.get("automation_api_enabled", False)
         except Exception:
-            office_bridge_pref = False
-        self.office_bridge_button.setChecked(self._to_bool(office_bridge_pref))
-        self.office_bridge_button.setToolTip("启用 Office 插件功能")
-        startup_layout.addWidget(self.office_bridge_button, 1)
+            automation_api_pref = False
+        self.automation_api_button.setChecked(self._to_bool(automation_api_pref))
+        self.automation_api_button.setToolTip("允许 Office 插件、本机自动化工具及已授权远程设备调用 LaTeXSnipper")
+        startup_layout.addWidget(self.automation_api_button, 1)
         lay.addWidget(startup_row)
         self._sync_startup_action_buttons()
         # Separator.
@@ -294,9 +294,9 @@ class SettingsLayoutMixin:
         terminal_layout = QHBoxLayout(terminal_row)
         terminal_layout.setContentsMargins(0, 0, 0, 0)
         terminal_layout.setSpacing(6)
-        self.terminal_env_button = PushButton(FluentIcon.APPLICATION, "主环境")
+        self.terminal_env_button = PushButton(FluentIcon.GLOBE, "访问范围")
         self.terminal_env_button.setFixedHeight(36)
-        self.terminal_env_button.setToolTip("当前唯一可管理的依赖环境")
+        self.terminal_env_button.setToolTip("配置 Automation API 的本机或远程访问范围")
         terminal_layout.addWidget(self.terminal_env_button, 1)
         self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, "打开环境终端")
         self.btn_terminal.setFixedHeight(36)
@@ -338,12 +338,13 @@ class SettingsLayoutMixin:
         self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
+        self.terminal_env_button.clicked.connect(self._open_automation_access_dialog)
         self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
         if self.btn_cleanup_macos_local_data is not None:
             self.btn_cleanup_macos_local_data.clicked.connect(self._cleanup_macos_local_data)
         self.runtime_log_button.clicked.connect(self._on_runtime_log_button_clicked)
-        self.office_bridge_button.clicked.connect(self._on_office_bridge_button_clicked)
+        self.automation_api_button.clicked.connect(self._on_automation_api_button_clicked)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # Render-engine related signals.
         self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
@@ -388,9 +389,9 @@ class SettingsLayoutMixin:
         if hasattr(self, "runtime_log_button") and self.runtime_log_button is not None:
             enabled = bool(self.runtime_log_button.isChecked())
             self.runtime_log_button.setText("运行日志: 开" if enabled else "运行日志: 关")
-        if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
-            enabled = bool(self.office_bridge_button.isChecked())
-            self.office_bridge_button.setText("Office 插件: 开" if enabled else "Office 插件: 关")
+        if hasattr(self, "automation_api_button") and self.automation_api_button is not None:
+            enabled = bool(self.automation_api_button.isChecked())
+            self.automation_api_button.setText("自动化接口: 开" if enabled else "自动化接口: 关")
 
     def _on_runtime_log_button_clicked(self, _checked: bool):
         enabled = bool(self.runtime_log_button.isChecked())
@@ -407,28 +408,36 @@ class SettingsLayoutMixin:
             pass
         self._show_info("设置已保存", "运行日志显示偏好已更新", "success")
 
-    def _on_office_bridge_button_clicked(self, _checked: bool):
-        enabled = bool(self.office_bridge_button.isChecked())
-        self.office_bridge_button.setEnabled(False)
+    def _on_automation_api_button_clicked(self, _checked: bool):
+        enabled = bool(self.automation_api_button.isChecked())
+        self.automation_api_button.setEnabled(False)
         self._sync_startup_action_buttons()
 
         def _done(ok: bool, message: str):
-            self.office_bridge_button.setEnabled(True)
+            self.automation_api_button.setEnabled(True)
             if not ok:
-                self.office_bridge_button.setChecked(False)
+                self.automation_api_button.setChecked(False)
                 self._sync_startup_action_buttons()
-                self._show_info("Office 插件", f"启用失败: {message}", "error")
+                self._show_info("自动化接口", f"启用失败: {message}", "error")
                 return
             self._sync_startup_action_buttons()
-            self._show_info("Office 插件", message or "设置已更新", "success")
+            self._show_info("自动化接口", message or "设置已更新", "success")
 
         try:
-            if self.parent() and hasattr(self.parent(), "set_office_bridge_enabled_async"):
-                self.parent().set_office_bridge_enabled_async(enabled, _done)
+            if self.parent() and hasattr(self.parent(), "set_automation_api_enabled_async"):
+                self.parent().set_automation_api_enabled_async(enabled, _done)
                 return
-            raise RuntimeError("Office bridge controller unavailable")
+            raise RuntimeError("Automation API controller unavailable")
         except Exception as exc:
             _done(False, str(exc))
+
+    def _open_automation_access_dialog(self):
+        from ui.automation_access_dialog import AutomationAccessDialog
+
+        parent = self.parent()
+        if parent is None:
+            return
+        AutomationAccessDialog(parent, self).exec()
 
     def _update_model_desc(self):
         # Update model description.

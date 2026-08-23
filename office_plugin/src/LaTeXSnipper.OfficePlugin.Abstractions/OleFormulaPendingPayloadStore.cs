@@ -17,7 +17,7 @@ public static class OleFormulaPendingPayloadStore
         }
 
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(KeyPath)
-            ?? throw new InvalidOperationException("Cannot open OLE formula payload registry key.");
+            ?? throw new InvalidOperationException("无法打开 OLE 公式数据注册表项。");
         key.SetValue(PendingPayloadValue, OleFormulaPayloadJson.Serialize(metadata, presentation), RegistryValueKind.String);
     }
 }

@@ -10,7 +10,10 @@ from typing import Any
 from PIL import Image
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from backend.recognition_errors import recognition_error_code_user_message
+from recognition.image_input import validated_rgb_image
 from recognition.image_preprocess import optimize_mathcraft_input_image
+from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
 
 
 def _empty_recognition_message(result: dict[str, Any] | None = None) -> str:
@@ -26,16 +29,23 @@ class PredictionWorker(QObject):
     finished = pyqtSignal(str)
     failed = pyqtSignal(str)
 
-    def __init__(self, model_wrapper: Any, image: Image.Image, model_name: str):
+    def __init__(self, model_wrapper: Any, image: Image.Image, model_name: str, coordinator: RecognitionJobCoordinator | None = None):
         super().__init__()
         self.model_wrapper = model_wrapper
         self.image = image
         self.model_name = model_name
+        self.coordinator = coordinator
+        self._job_id: str | None = None
         self.elapsed = None
         self._cancelled = False
 
     def cancel(self):
         self._cancelled = True
+        if self.coordinator is not None and self._job_id:
+            try:
+                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+            except Exception:
+                pass
 
     def run(self):
         t0 = time.perf_counter()
@@ -44,16 +54,43 @@ class PredictionWorker(QObject):
                 self.elapsed = time.perf_counter() - t0
                 self.failed.emit("已取消")
                 return
-            image = optimize_mathcraft_input_image(self.image)
+            if self.coordinator is not None:
+                mode = {"mathcraft": "formula", "mathcraft_text": "text", "mathcraft_mixed": "mixed"}.get(
+                    self.model_name, "formula"
+                )
+                job = self.coordinator.submit(
+                    [RecognitionItemInput(image=self.image)],
+                    principal_id="desktop-ui",
+                    source=JobSource.UI,
+                    mode=mode,
+                    timeout_seconds=300,
+                )
+                self._job_id = job["id"]
+                job = self.coordinator.wait(job["id"], principal_id="desktop-ui", timeout=None)
+                self.elapsed = time.perf_counter() - t0
+                if job["state"] == "canceled":
+                    self.failed.emit("已取消")
+                    return
+                item = job["items"][0]
+                if item["state"] != "completed":
+                    error = item.get("error") or {}
+                    self.failed.emit(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+                    return
+                self.finished.emit(str(item["text"]).strip())
+                return
             if hasattr(self.model_wrapper, "predict_result"):
-                result_obj = self.model_wrapper.predict_result(image, model_name=self.model_name)
+                result_obj = self.model_wrapper.predict_result(
+                    optimize_mathcraft_input_image(self.image), model_name=self.model_name
+                )
                 result = str(result_obj.get("text", "") or "").strip()
                 if result_obj.get("empty_reason") or not result:
                     self.elapsed = time.perf_counter() - t0
                     self.failed.emit(_empty_recognition_message(result_obj))
                     return
             else:
-                result = self.model_wrapper.predict(image, model_name=self.model_name)
+                result = self.model_wrapper.predict(
+                    optimize_mathcraft_input_image(self.image), model_name=self.model_name
+                )
             self.elapsed = time.perf_counter() - t0
             if self._cancel_requested():
                 self.failed.emit("已取消")
@@ -86,6 +123,7 @@ class PdfPredictWorker(QObject):
         model_name: str,
         output_format: str,
         dpi: int = 200,
+        coordinator: RecognitionJobCoordinator | None = None,
     ):
         super().__init__()
         self.model_wrapper = model_wrapper
@@ -94,11 +132,18 @@ class PdfPredictWorker(QObject):
         self.model_name = model_name
         self.output_format = output_format
         self.dpi = dpi
+        self.coordinator = coordinator
         self._cancelled = False
+        self._job_id: str | None = None
         self.elapsed = None
 
     def cancel(self):
         self._cancelled = True
+        if self.coordinator is not None and self._job_id:
+            try:
+                self.coordinator.cancel(self._job_id, principal_id="desktop-pdf")
+            except Exception:
+                pass
 
     def run(self):
         t0 = time.perf_counter()
@@ -222,6 +267,26 @@ class PdfPredictWorker(QObject):
                 pass
 
     def _predict_page(self, img: Image.Image) -> dict:
+        if self.coordinator is not None:
+            mode = {"mathcraft": "formula", "mathcraft_text": "text", "mathcraft_mixed": "mixed"}.get(
+                self.model_name, "mixed"
+            )
+            job = self.coordinator.submit(
+                [RecognitionItemInput(image=validated_rgb_image(img))],
+                principal_id="desktop-pdf",
+                source=JobSource.PDF,
+                mode=mode,
+                timeout_seconds=600,
+                input_type="pdf_page",
+            )
+            self._job_id = job["id"]
+            snapshot = self.coordinator.wait(job["id"], principal_id="desktop-pdf", timeout=None)
+            self._job_id = None
+            item = snapshot["items"][0]
+            if item["state"] != "completed":
+                error = item.get("error") or {}
+                raise RuntimeError(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+            return {"text": item["text"], "mode": mode}
         if hasattr(self.model_wrapper, "predict_result"):
             return self.model_wrapper.predict_result(img, model_name=self.model_name)
         return {"text": self.model_wrapper.predict(img, model_name=self.model_name)}

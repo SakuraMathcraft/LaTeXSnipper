@@ -181,7 +181,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (string.IsNullOrWhiteSpace(ooxml))
         {
-            throw new ArgumentException("OOXML is required.", nameof(ooxml));
+            throw new ArgumentException("OOXML 内容不能为空。", nameof(ooxml));
         }
 
         if (metadata == null)
@@ -194,7 +194,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (string.IsNullOrWhiteSpace(ooxml))
         {
-            throw new ArgumentException("Equation content OOXML is required.", nameof(ooxml));
+            throw new ArgumentException("公式 OOXML 内容不能为空。", nameof(ooxml));
         }
     }
 }

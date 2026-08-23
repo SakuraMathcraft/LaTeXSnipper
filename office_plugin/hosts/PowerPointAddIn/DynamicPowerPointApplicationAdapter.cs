@@ -671,7 +671,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         }
         catch (Exception exc)
         {
-            throw new InvalidOperationException("Open a PowerPoint slide before inserting a formula.", exc);
+            throw new InvalidOperationException("请先打开一个 PowerPoint 幻灯片，再插入公式。", exc);
         }
     }
 

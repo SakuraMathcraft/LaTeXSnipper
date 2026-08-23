@@ -88,7 +88,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (string.IsNullOrWhiteSpace(ooxml))
         {
-            throw new ArgumentException("OMML OOXML is required.", nameof(ooxml));
+            throw new ArgumentException("OMML OOXML 内容不能为空。", nameof(ooxml));
         }
 
         ValidateParsedFormulaInput(candidate, metadata);
@@ -195,7 +195,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         if (RangeIsUnsafe(range, candidate.Start, candidate.End))
         {
-            throw new InvalidOperationException("The formula source range is no longer safe to replace.");
+            throw new InvalidOperationException("公式源文本已经发生变化，无法安全替换。");
         }
 
         return range;
@@ -630,7 +630,7 @@ public sealed partial class DynamicWordApplicationAdapter
 
         if (candidate.DisplayMode != metadata.DisplayMode)
         {
-            throw new ArgumentException("Parsed formula display mode does not match its metadata.", nameof(metadata));
+            throw new ArgumentException("解析后的公式显示模式与元数据不一致。", nameof(metadata));
         }
     }
 

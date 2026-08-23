@@ -17,6 +17,7 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 | Data | Path under app state | Owner |
 |---|---|---|
 | Main settings | `LaTeXSnipper_config.json` | `runtime.config_manager`, dependency bootstrap, theme, Pandoc runtime |
+| Automation API discovery | `automation-api.json` | Ephemeral local address and per-session token; created only while the API runs and removed on shutdown |
 | Recognition history | `history.json` | Main window history; no user-facing path selector |
 | Favorites | `favorites.json`; user-facing export writes a copy to a chosen folder without changing the app data path | Favorites window |
 | LaTeX settings | `latex_settings.json` | LaTeX renderer settings |
@@ -73,6 +74,7 @@ can explicitly override the model root.
 | External PDF image assets | `<app-temp>/pdf-assets/latest` | Cleaned by the PDF worker after processing |
 | Screenshot CLI capture files | System temp files with `latexsnipper_cap_` / `latexsnipper_bg_` prefixes | Deleted immediately after use |
 | MathCraft worker input image | System temp PNG | Deleted after each request |
+| Automation API jobs | Memory only | Images released after execution; completed results expire by TTL/retention cap and all state is released on exit |
 | Settings environment terminal scripts | System temp launcher files/directories | Short-lived helper launchers; currently best-effort OS temp cleanup |
 
 ## Directory Creation Summary

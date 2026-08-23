@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
-using LaTeXSnipper.OfficePlugin.Bridge;
+using LaTeXSnipper.OfficePlugin.Automation;
 using LaTeXSnipper.OfficePlugin.Editor;
 using LaTeXSnipper.OfficePlugin.Rendering;
 
@@ -16,7 +16,7 @@ public sealed partial class PowerPointPluginController : IDisposable
     private const double ImageVerticalPaddingPoints = 0.5;
 
     private readonly FormulaEditorSession _editorSession;
-    private readonly BridgeClient _bridgeClient;
+    private readonly AutomationApiClient _automationClient;
     private readonly IPowerPointApplicationAdapter _powerPointAdapter;
     private readonly IPowerPointStatusSink _statusSink;
     private readonly IPowerPointFormulaOptionsProvider _optionsProvider;
@@ -30,7 +30,7 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     public PowerPointPluginController(
         FormulaEditorSession editorSession,
-        BridgeClient bridgeClient,
+        AutomationApiClient automationClient,
         IPowerPointApplicationAdapter powerPointAdapter,
         MathJaxSvgRenderer mathJaxRenderer,
         OlePresentationPipeline olePresentationPipeline,
@@ -39,7 +39,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         PowerPointImageFileStore? imageFileStore = null)
     {
         _editorSession = editorSession ?? throw new ArgumentNullException(nameof(editorSession));
-        _bridgeClient = bridgeClient ?? throw new ArgumentNullException(nameof(bridgeClient));
+        _automationClient = automationClient ?? throw new ArgumentNullException(nameof(automationClient));
         _powerPointAdapter = powerPointAdapter ?? throw new ArgumentNullException(nameof(powerPointAdapter));
         _mathJaxRenderer = mathJaxRenderer ?? throw new ArgumentNullException(nameof(mathJaxRenderer));
         _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
@@ -51,8 +51,8 @@ public sealed partial class PowerPointPluginController : IDisposable
     public async Task TestConnectionAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        await _bridgeClient.ConfigureAsync(cancellationToken);
-        _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("ConnectedBridgeStatus"));
+        await _automationClient.ConfigureAsync(cancellationToken);
+        _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("ConnectedAutomationStatus"));
     }
 
     public async Task<bool> TryRunCommandAsync(Func<CancellationToken, Task> command, CancellationToken cancellationToken)
@@ -104,8 +104,9 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
         catch (Exception exc)
         {
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
-            return FormulaEditorSubmissionResult.Rejected(exc.Message);
+            string message = PowerPointAddInText.GetExceptionMessage(exc);
+            _statusSink.Post(PowerPointStatusKind.Error, message);
+            return FormulaEditorSubmissionResult.Rejected(message);
         }
     }
 
@@ -323,7 +324,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
         catch (InvalidOperationException exc) when (IsOcrAlreadyWaiting(exc.Message))
         {
-            await _bridgeClient.CancelScreenshotOcrAsync(CancellationToken.None);
+            await _automationClient.CancelScreenshotOcrAsync(CancellationToken.None);
             await Task.Delay(300, CancellationToken.None);
             try
             {
@@ -332,22 +333,22 @@ public sealed partial class PowerPointPluginController : IDisposable
             }
             catch (InvalidOperationException retryExc) when (IsOcrAlreadyWaiting(retryExc.Message))
             {
-                _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("BridgeOcrAlreadyWaiting"));
+                _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.Get("AutomationOcrAlreadyWaiting"));
             }
         }
     }
 
     private Task<string> RunScreenshotOcrWithProgressAsync(CancellationToken cancellationToken)
     {
-        return BridgeRecognitionProgress.RunScreenshotOcrAsync(
-            _bridgeClient,
+        return AutomationRecognitionProgress.RunScreenshotOcrAsync(
+            _automationClient,
             () => _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OcrRecognizingStatus")),
             cancellationToken);
     }
 
     private void ProcessOcrResult(string responseJson)
     {
-        string latex = PowerPointBridgeRecognitionParser.ParseScreenshotOcrResponse(responseJson);
+        string latex = PowerPointAutomationRecognitionParser.ParseScreenshotOcrResponse(responseJson);
         if (string.IsNullOrWhiteSpace(latex))
         {
             return;
@@ -359,7 +360,7 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     public Task CancelScreenshotOcrAsync(CancellationToken cancellationToken)
     {
-        return _bridgeClient.CancelScreenshotOcrAsync(cancellationToken);
+        return _automationClient.CancelScreenshotOcrAsync(cancellationToken);
     }
 
     public Task ShowHelpAsync(CancellationToken cancellationToken)
@@ -528,7 +529,7 @@ public sealed partial class PowerPointPluginController : IDisposable
 
         _disposed = true;
         _editorSession.Dispose();
-        _bridgeClient.Dispose();
+        _automationClient.Dispose();
         _mathJaxRenderer.Dispose();
 
         _commandGate.Dispose();

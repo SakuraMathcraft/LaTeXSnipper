@@ -14,7 +14,7 @@ public static class WordRibbonXml
         using Stream? stream = typeof(WordRibbonXml).Assembly.GetManifestResourceStream("LaTeXSnipper.OfficePlugin.WordAddIn.Ribbon.WordRibbon.xml");
         if (stream == null)
         {
-            throw new InvalidOperationException("Word Ribbon XML resource is missing.");
+            throw new InvalidOperationException("Word 功能区资源缺失，请重新安装插件。");
         }
 
         using var reader = new StreamReader(stream);
