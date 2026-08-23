@@ -116,7 +116,7 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         _pandoc_path_cache = str(pandoc_path)
 
     _available_cache = True
-    logger.info("Pandoc available: %s", _pandoc_version_cache)
+    logger.debug("Pandoc 可用: %s", _pandoc_version_cache)
     return True
 
 
@@ -327,10 +327,7 @@ def convert_latex_to(
         except Exception as exc:
             data = _read_valid_file_output(tmp_path, target_key)
             if target_key == "pandoc_pdf" and data is not None:
-                logger.warning(
-                    "Pandoc reported a PDF conversion error after producing a valid PDF: %s",
-                    exc,
-                )
+                logger.warning("Pandoc 报告转换错误，但已生成有效 PDF: %s", exc)
                 return data
             raise PandocConversionError(
                 f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"

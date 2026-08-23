@@ -13,8 +13,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from preview.math_preview import configure_math_preview_runtime
-from runtime.app_paths import resource_path
-from runtime.dependency_bootstrap_controller import load_startup_modules
+from runtime.app_paths import app_state_dir, resource_path
 from runtime.native_runtime_preload import (
     configure_native_runtime_environment,
     preload_onnxruntime_before_qt,
@@ -85,7 +84,7 @@ def _show_already_running_message(app: QApplication) -> None:
             msg.setWindowIcon(icon)
         msg.exec()
     except Exception:
-        print("[WARN] already running; exiting")
+        print("[INFO] 检测到已有实例，本次启动已取消")
 
 
 def _ensure_single_instance(app: QApplication) -> None:
@@ -94,6 +93,17 @@ def _ensure_single_instance(app: QApplication) -> None:
         return
     _show_already_running_message(app)
     raise SystemExit(0)
+
+
+def _initialize_latex_settings() -> None:
+    try:
+        from backend.latex_renderer import init_latex_settings
+
+        config_dir = app_state_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        init_latex_settings(config_dir)
+    except Exception as exc:
+        print(f"[WARN] LaTeX 设置初始化失败: {exc}")
 
 
 def _ensure_src_path() -> None:
@@ -115,36 +125,36 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
         return
 
     if os.environ.get("LATEXSNIPPER_FORCE_PRIVATE_PY") != "1":
-        print("[INFO] 使用内置运行时启动，依赖目录由子进程使用。")
+        print("[DEBUG] 使用内置运行时启动，依赖目录由子进程使用")
         return
 
     if os.environ.get("LATEXSNIPPER_INNER_PY") == "1":
-        print("[INFO] 已在依赖目录 Python 中运行。")
+        print("[DEBUG] 已在依赖目录 Python 中运行")
         return
 
-    print(f"[INFO] 切换到依赖目录 Python: {py_exe}")
+    print(f"[DEBUG] 切换到依赖目录 Python: {py_exe}")
     env = os.environ.copy()
     env["LATEXSNIPPER_INNER_PY"] = "1"
 
-    raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_CONSOLE", "") or "").strip().lower()
+    raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_RUNTIME_LOG", "") or "").strip().lower()
     if raw_pref in ("1", "true", "yes", "on", "0", "false", "no", "off"):
-        show_console = raw_pref in ("1", "true", "yes", "on")
+        show_runtime_log = raw_pref in ("1", "true", "yes", "on")
     else:
-        show_console = False
+        show_runtime_log = False
         try:
             cfg_path = _config_path()
             if cfg_path.exists():
                 cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-                raw = cfg_data.get("show_startup_console", False) if isinstance(cfg_data, dict) else False
+                raw = cfg_data.get("show_runtime_log", False) if isinstance(cfg_data, dict) else False
                 if isinstance(raw, bool):
-                    show_console = raw
+                    show_runtime_log = raw
                 elif isinstance(raw, (int, float)):
-                    show_console = bool(raw)
+                    show_runtime_log = bool(raw)
                 elif isinstance(raw, str):
-                    show_console = raw.strip().lower() in ("1", "true", "yes", "on")
+                    show_runtime_log = raw.strip().lower() in ("1", "true", "yes", "on")
         except Exception:
             pass
-    env["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if show_console else "0"
+    env["LATEXSNIPPER_SHOW_RUNTIME_LOG"] = "1" if show_runtime_log else "0"
 
     run_py = py_exe
     pyw = py_exe.parent / "pythonw.exe"
@@ -159,7 +169,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     base_dir = Path(install_base_dir)
     _clean_bad_env()
 
-    ensure_startup_splash("检查 Python 运行时...")
+    ensure_startup_splash("准备运行环境...")
     target_py = ensure_full_python_or_prompt(base_dir)
     if not target_py:
         print("[ERR] 未找到可用的完整 Python 3.11。")
@@ -176,7 +186,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
         if not _same_exe(sys.executable, target_py):
             _relaunch_with(target_py)
     elif _in_ide():
-        print("[INFO] IDE 中运行，保持当前解释器，但使用私有依赖路径")
+        print("[DEBUG] IDE 中运行，保持当前解释器并使用私有依赖路径")
 
     return base_dir, target_py
 
@@ -196,7 +206,7 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
     os.environ.pop("PYTHONPATH", None)
     os.environ.pop("MATHCRAFT_HOME", None)
 
-    print("[INFO] 依赖向导模式：等待用户选择安装后再准备 Python 环境。")
+    print("[DEBUG] 依赖向导模式：等待用户选择后准备 Python 环境")
     return base_dir, target_py
 
 
@@ -204,17 +214,16 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
     if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") == "1":
         return
 
-    ensure_startup_splash("挂载私有依赖环境...")
     _sanitize_sys_path(target_py, base_dir)
     if _is_packaged_mode():
         _append_private_site_packages(target_py)
 
     open_wizard_env = os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1"
     if open_wizard_env:
-        print("[INFO] 依赖向导模式：跳过启动预检查，由向导统一验证。")
+        print("[DEBUG] 依赖向导模式：由向导统一验证依赖")
         return
 
-    ensure_startup_splash("检查已安装功能层...")
+    ensure_startup_splash("检查依赖...")
     from bootstrap.deps_entry import ensure_deps
 
     try:
@@ -231,7 +240,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
             if deps_force_entered():
                 mark_startup_force_entered()
     except Exception as e:
-        print(f"[WARN] deps wizard failed: {e}")
+        print(f"[WARN] 依赖向导启动失败: {e}")
 
 
 def bootstrap_application() -> BootstrapContext:
@@ -243,23 +252,19 @@ def bootstrap_application() -> BootstrapContext:
     preload_onnxruntime_before_qt()
     app = _ensure_qt_application()
     _ensure_single_instance(app)
+    _initialize_latex_settings()
 
-    ensure_startup_splash("配置 MathJax 与 WebEngine...")
+    ensure_startup_splash("准备运行环境...")
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    print(f"[INFO] 应用根目录: {APP_DIR}")
-    print(f"[INFO] 打包模式: {_is_packaged_mode()}")
+    print(f"[DEBUG] 应用根目录: {APP_DIR}")
+    print(f"[DEBUG] 打包模式: {_is_packaged_mode()}")
 
     deps_dir = _initial_deps_dir()
     deps_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] 依赖目录: {deps_dir}")
+    print(f"[DEBUG] 依赖目录: {deps_dir}")
 
-    ensure_startup_splash("加载依赖向导模块...")
-    ensure_startup_splash("加载设置模块...")
-    load_startup_modules()
-
-    ensure_startup_splash("定位依赖目录...")
     install_base_dir = resolve_install_base_dir()
     open_wizard_env = os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1"
     if _is_packaged_mode() and open_wizard_env:
@@ -275,7 +280,7 @@ def bootstrap_application() -> BootstrapContext:
 
     for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
-            print(f"[INFO] 清除环境变量 {var}")
+            print(f"[DEBUG] 清除环境变量 {var}")
             os.environ.pop(var)
 
     _BOOTSTRAP_CONTEXT = BootstrapContext(

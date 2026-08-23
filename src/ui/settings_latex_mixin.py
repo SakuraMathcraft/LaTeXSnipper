@@ -315,7 +315,7 @@ class SettingsLatexMixin:
                 )
         except Exception as e:
             print(f"[WARN] 显示通知失败: {e}")
-            print(f"[INFO] {title}: {message}")
+            print(f"[DEBUG] {title}: {message}")
 
     def _save_render_mode(self, engine: str):
         """Save the render-engine selection."""
@@ -323,7 +323,6 @@ class SettingsLatexMixin:
             from backend.latex_renderer import _latex_settings
             if _latex_settings:
                 _latex_settings.set_render_mode(engine)
-                print(f"[INFO] 已切换渲染引擎: {engine}")
                 # Show success through a floating InfoBar instead of MessageBox.
                 mode_names = {
                     "auto": "自动检测（推荐）",

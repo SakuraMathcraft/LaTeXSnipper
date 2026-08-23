@@ -26,6 +26,7 @@ from bootstrap.deps_layer_specs import (
     _gpu_available,
     _normalize_chosen_layers,
     _sanitize_state_layers,
+    layer_display_name,
 )
 from bootstrap.deps_python_runtime import (
     find_existing_python as _find_existing_python,
@@ -65,7 +66,7 @@ def _ensure_pip(main_python: Path) -> bool:
             or (os.name != "nt" and (name.startswith("python") or "python" in name))
         )
         if not is_python_exe:
-            print(f"[WARN] pip bootstrap skipped for non-python executable: {main_python}")
+            print(f"[DEBUG] 当前可执行文件不是 Python，跳过 pip 初始化: {main_python}")
             return False
     except Exception:
         pass
@@ -144,7 +145,7 @@ def _ensure_pip(main_python: Path) -> bool:
             creationflags=flags,
         )
         if res.returncode != 0:
-            print(f"[WARN] pip toolchain upgrade failed: {res.stdout[-1000:]}")
+            print(f"[WARN] pip 工具链升级失败: {res.stdout[-1000:]}")
             return False
         return True
 
@@ -172,44 +173,6 @@ def _ensure_pip(main_python: Path) -> bool:
     if ok:
         pip_ready_event.set()
     return ok
-
-
-def clear_deps_state():
-    """Clear the dependency state file."""
-    import json
-    import os
-    from pathlib import Path
-
-    try:
-
-        home_config = _load_config_path()
-        print(f"[INFO] 清理状态文件：{home_config}")
-
-        if not home_config.exists():
-            print("[WARN] 配置文件不存在，无需清理。")
-            return
-
-        with open(home_config, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        deps_dir = cfg.get("install_base_dir")
-
-        if not deps_dir or not os.path.exists(deps_dir):
-            print(f"[ERR] 无法找到依赖目录：{deps_dir}")
-            return
-
-
-        state_path = Path(deps_dir) / ".deps_state.json"
-        if state_path.exists():
-            state_path.unlink()
-            print(f"[INFO] 已删除状态文件：{state_path}")
-
-
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump({"installed_layers": []}, f, ensure_ascii=False, indent=2)
-        print(f"[INFO] 已重新生成空状态文件：{state_path}")
-
-    except Exception as e:
-        print(f"[ERR] 清除依赖状态文件失败: {e}")
 
 
 def _load_config_path():
@@ -281,23 +244,14 @@ def _dependency_python_path(py_root: Path) -> Path:
 
 
 def _install_failure_dialog_copy() -> tuple[str, str]:
-    if sys.platform == "darwin":
-        return (
-            "依赖安装未完成",
-            "部分依赖没有安装成功。\n\n"
-            "请查看安装日志后重试。若日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，"
-            "请使用 Python 3.11 或 3.12 重新初始化依赖环境。",
-        )
     return (
-        "Install Incomplete",
-        "Some dependencies failed to install. Please check logs and retry.",
+        "依赖安装未完成",
+        "部分依赖安装失败，请查看日志后重试。",
     )
 
 
 def _install_failure_log_line() -> str:
-    if sys.platform == "darwin":
-        return "\n[ERR] 依赖安装未完成，请查看日志后重试"
-    return "\n[ERR] Install has failures, check logs ❌"
+    return "\n[ERR] 依赖安装未完成，请查看日志后重试"
 
 
 def _setup_python_venv_from_system(
@@ -345,7 +299,7 @@ def _setup_python_venv_from_system(
             time.sleep(0.2)
         output = proc.stdout.read() if proc.stdout else ""
         if ret == 0:
-            log_fn(f"[OK] venv 创建成功: {target_dir}")
+            log_fn(f"[INFO] Python 依赖环境创建成功: {target_dir}")
             return True
         log_fn(f"[WARN] venv 创建失败: {output[-500:]}")
         return False
@@ -422,7 +376,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         try:
             before_show_ui()
         except Exception as e:
-            print(f"[WARN] before_show_ui callback failed: {e}")
+            print(f"[DEBUG] 显示依赖向导前的回调失败: {e}")
 
     def _notify_after_force_enter():
         if not callable(after_force_enter):
@@ -434,7 +388,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             except Exception:
                 pass
         except Exception as e:
-            print(f"[WARN] after_force_enter callback failed: {e}")
+            print(f"[DEBUG] 跳过依赖后的回调失败: {e}")
 
     current_pyexe = Path(sys.executable)
     current_site = _site_packages_root(current_pyexe)
@@ -474,7 +428,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             custom_warning_dialog("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         except Exception:
             print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
-        print("[WARN] 用户选择跳过依赖安装并进入主程序")
+        print("[DEBUG] 用户确认跳过依赖安装")
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
@@ -487,10 +441,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
         if existing_pyexe and existing_pyexe.exists():
-            print(f"[INFO] 使用依赖目录 Python: {pyexe}")
+            print(f"[DEBUG] 使用依赖目录 Python: {pyexe}")
             use_bundled_python = False
         else:
-            print(f"[INFO] 依赖目录尚未初始化 Python: {pyexe}")
+            print(f"[DEBUG] 依赖目录尚未初始化 Python: {pyexe}")
             use_bundled_python = True
     else:
 
@@ -516,28 +470,28 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         current_site_in_deps = _path_is_under(current_site, deps_dir_resolved)
 
         if current_site_in_deps:
-            print(f"[INFO] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
+            print(f"[DEBUG] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
             pyexe = current_pyexe
             use_bundled_python = False
         else:
             if existing_pyexe and existing_pyexe.exists():
                 use_bundled_python = False
                 pyexe = existing_pyexe
-                print(f"[INFO] {mode_str}：使用依赖目录 Python: {pyexe}")
+                print(f"[DEBUG] {mode_str}：使用依赖目录 Python: {pyexe}")
             else:
                 use_bundled_python = True
-                print(f"[INFO] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
+                print(f"[DEBUG] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
 
         if use_bundled_python and not _is_usable_python(pyexe):
-            print("[INFO] 目标依赖目录未检测到可复用 Python，等待用户在依赖向导中确认初始化。")
+            print("[DEBUG] 目标依赖目录未检测到可复用 Python")
 
 
     pip_ready_event.clear()
     try:
         if from_settings and always_show_ui:
-            print("[INFO] 依赖向导：等待用户选择安装后再初始化 pip。")
+            print("[DEBUG] 等待依赖向导确认后初始化 pip")
         elif use_bundled_python and not _is_usable_python(pyexe):
-            print("[INFO] 依赖目录 Python 尚未初始化，跳过 pip 预检查。")
+            print("[DEBUG] 依赖目录 Python 尚未初始化，跳过 pip 预检查")
         else:
             _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
@@ -600,8 +554,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             return _deps_ready(installed["layers"])
 
         if reason:
-            print(f"[INFO] 触发已安装层复验: {reason}")
-        print("[INFO] 从设置入口复验已安装功能层...")
+            print(f"[DEBUG] 触发已安装依赖复验: {reason}")
+        print("[DEBUG] 正在验证已安装依赖")
         verified = _verify_installed_layers(
             str(pyexe),
             claimed,
@@ -689,10 +643,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             if chosen.get("force_enter", False):
                 set_last_ensure_deps_force_enter(True)
                 _notify_after_force_enter()
-                print("[INFO] 用户选择跳过依赖安装并进入主程序")
+                print("[DEBUG] 用户选择跳过依赖安装")
                 return True
             if chosen.get("action") == "enter":
-                print("[INFO] 用户选择直接进入主程序。")
+                print("[DEBUG] 用户选择直接进入主程序")
                 return True
             if chosen["layers"]:
                 failed_claims = {
@@ -706,10 +660,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
                         print("[WARN] 复验后关键层不完整，返回向导。")
                         continue
-                    print("[INFO] 所选层已存在，跳过下载。")
+                    print("[DEBUG] 所选依赖已存在，跳过下载")
                     return True
 
-            print(f"[INFO] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
+            print(f"[DEBUG] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
             py_root = deps_path / "python311"
             need_install = bool(chosen_layers)
 
@@ -745,13 +699,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if r != QMessageBox.StandardButton.Yes:
-                        print("[INFO] 用户取消 MATHCRAFT_GPU 安装，返回依赖向导。")
+                        print("[DEBUG] 用户取消 GPU 推理后端安装")
                         always_show_ui = True
                         continue
 
                 if "CORE" in chosen_layers and not any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
                     chosen_layers = list(chosen_layers) + ["MATHCRAFT_CPU"]
-                    print("[INFO] CORE 未指定 MathCraft 后端，已自动补充 MATHCRAFT_CPU")
+                    print("[DEBUG] 未指定推理后端，自动使用 CPU 推理后端")
 
                 if (not init_python_required) and (not pip_ready_event.is_set()):
                     try:
@@ -1014,7 +968,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         if hasattr(dlg, "refresh_ui"):
                             dlg.refresh_ui()
                     except Exception as e:
-                        print(f"[WARN] refresh ui failed: {e}")
+                        print(f"[DEBUG] 刷新依赖向导失败: {e}")
 
                 def on_install_done(success: bool):
                     if completion_state["install_done_handled"]:
@@ -1041,8 +995,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _finalize_done_ui()
                         return
 
-                    _append_log("\n[INFO] 正在后台验证已安装功能层...")
-                    _set_info_text("依赖下载完成，正在后台验证功能层...")
+                    _append_log("\n[INFO] 正在验证所选依赖...")
+                    _set_info_text("依赖下载完成，正在验证...")
 
                     verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
                     verify_worker_holder["obj"] = verify_worker
@@ -1060,11 +1014,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             return
                         post_install_verify_passed["value"] = not bool(fail_layers)
                         if fail_layers:
-                            _append_log(f"\n[WARN] Layers installed but verify failed: {', '.join(fail_layers)}")
+                            failed_labels = "、".join(layer_display_name(layer) for layer in fail_layers)
+                            _append_log(f"\n[WARN] 以下依赖验证失败：{failed_labels}")
                             _exec_close_only_message_box(
                                 dlg,
                                 "部分验证失败",
-                                f"以下功能层安装但无法正常工作:\n{', '.join(fail_layers)}\n\n请查看日志提示。",
+                                f"以下依赖无法正常工作：\n{failed_labels}\n\n请查看日志。",
                                 icon=QMessageBox.Icon.Warning,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -1072,7 +1027,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _exec_close_only_message_box(
                                 dlg,
                                 "安装完成",
-                                "所有依赖已安装并验证通过！点击完成返回依赖向导。",
+                                "所选依赖已安装并验证通过。",
                                 icon=QMessageBox.Icon.Information,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -1105,7 +1060,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _finalize_done_ui()
                         return
                     _apply_runtime_context(Path(pyexe))
-                    _append_log("[OK] Python 依赖环境初始化完成，开始安装依赖包。")
+                    _append_log("[INFO] Python 依赖环境初始化完成，开始安装依赖包。")
                     worker.start()
 
 

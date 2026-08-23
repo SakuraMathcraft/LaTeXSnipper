@@ -170,12 +170,12 @@ def run_logged_pip_command(
         proc.communicate(timeout=timeout)
         return proc.returncode == 0, "\n".join(output_lines)
     except subprocess.TimeoutExpired:
-        log_q.put("[WARN] pip recovery command timed out")
+        log_q.put("[WARN] pip 修复命令执行超时")
         if proc is not None:
             _terminate_process(proc)
         return False, "\n".join(output_lines)
     except Exception as exc:
-        log_q.put(f"[WARN] pip recovery command failed: {exc}")
+        log_q.put(f"[WARN] pip 修复命令执行失败: {exc}")
         return False, "\n".join(output_lines)
     finally:
         _set_proc(proc_setter, None)
@@ -204,7 +204,7 @@ def maybe_recover_antlr_wheel_failure(
         return False
 
     suppress = list(_suppress_args if suppress_args is None else suppress_args)
-    log_q.put("[WARN] antlr4-python3-runtime build failed; repairing pip/setuptools/wheel...")
+    log_q.put("[WARN] antlr4-python3-runtime 构建失败，正在修复 pip/setuptools/wheel...")
 
     ok_tools, _ = run_logged_pip_command(
         pyexe,
@@ -219,7 +219,7 @@ def maybe_recover_antlr_wheel_failure(
         subprocess_lock=subprocess_lock,
     )
     if not ok_tools:
-        log_q.put("[WARN] pip/setuptools/wheel repair failed; antlr recovery cannot continue.")
+        log_q.put("[WARN] pip/setuptools/wheel 修复失败，无法继续修复 antlr4-python3-runtime")
         return False
 
     ok_antlr, _ = run_logged_pip_command(
@@ -235,10 +235,10 @@ def maybe_recover_antlr_wheel_failure(
         subprocess_lock=subprocess_lock,
     )
     if not ok_antlr:
-        log_q.put("[WARN] Preinstalling antlr4-python3-runtime==4.9.3 failed.")
+        log_q.put("[WARN] 预安装 antlr4-python3-runtime==4.9.3 失败")
         return False
 
-    log_q.put("[OK] antlr4-python3-runtime recovery completed; retrying current package.")
+    log_q.put("[INFO] antlr4-python3-runtime 修复完成，正在重试当前依赖")
     return True
 
 
@@ -290,7 +290,7 @@ class PipInstallRunner:
     def _wait_if_paused(self) -> bool:
         if self.pause_event is None or self.pause_event.is_set():
             return True
-        self.log_q.put("[INFO] Paused; waiting to resume...")
+        self.log_q.put("[INFO] 安装已暂停")
         while not self.pause_event.is_set():
             if self.stop_event.is_set():
                 self.log_q.put("[INFO] 用户取消操作。")
@@ -301,10 +301,10 @@ class PipInstallRunner:
     def _diagnose_failure(self, output: str, returncode: int) -> str:
         if callable(self.diagnose_install_failure):
             return self.diagnose_install_failure(output, returncode)
-        return f"Unknown error (code={returncode}); see pip log above."
+        return f"pip 返回错误码 {returncode}，请查看上方日志"
 
     def _build_manual_command(self, pyexe, pkg, name, ort_gpu_policy) -> str:
-        manual_cmd = f'"{pyexe}" -m pip install "{pkg}" --upgrade --user'
+        manual_cmd = f'"{pyexe}" -m pip install "{pkg}" --upgrade'
         if name in {"onnxruntime", "onnxruntime-gpu"}:
             manual_cmd += " --no-deps"
         if ort_gpu_policy is not None and ort_gpu_policy.pre:
@@ -317,7 +317,7 @@ class PipInstallRunner:
         args = [str(pyexe), "-m", "pip", "install", pkg, "--upgrade", *self.suppress_args]
         if retry == 0 and ort_gpu_policy is not None:
             self.log_q.put(
-                "[INFO] onnxruntime-gpu policy: "
+                "[INFO] onnxruntime-gpu 安装策略: "
                 f"CUDA {ort_gpu_policy.cuda.version_text} -> {ort_gpu_policy.requirement} "
                 f"({ort_gpu_policy.source_label})"
             )
@@ -370,10 +370,10 @@ class PipInstallRunner:
 
         if not Path(pyexe).exists():
             pyexe = Path(sys.executable)
-            self.log_q.put(f"[WARN] Python path does not exist; switched to {pyexe}")
+            self.log_q.put(f"[WARN] 依赖环境 Python 不存在，改用当前 Python: {pyexe}")
 
         if self.pip_ready_event is not None and not self.pip_ready_event.wait(timeout=60):
-            self.log_q.put(f"[ERR] pip is not ready; skipping {pkg}")
+            self.log_q.put(f"[ERR] pip 尚未就绪，无法安装 {pkg}")
             return False
 
         name = self._root_name(pkg)
@@ -388,7 +388,7 @@ class PipInstallRunner:
         env = _pip_env(pyexe)
         while retry <= max_retries:
             if self.stop_event.is_set():
-                self.log_q.put("[INFO] Stop signal received; aborting install.")
+                self.log_q.put("[INFO] 安装已取消")
                 return False
             if not self._wait_if_paused():
                 return False
@@ -424,7 +424,6 @@ class PipInstallRunner:
                 proc.communicate(timeout=1200)
 
                 if proc.returncode == 0:
-                    self.log_q.put(f"[OK] {pkg} installed successfully")
                     return True
 
                 if self.stop_event.is_set():
@@ -433,19 +432,19 @@ class PipInstallRunner:
 
                 full_output = "\n".join(output_lines[-50:])
                 failure_reason = self._diagnose_failure(full_output, proc.returncode)
-                self.log_q.put(f"[WARN] {pkg} install failed (returncode={proc.returncode})")
+                self.log_q.put(f"[WARN] {pkg} 安装失败（错误码 {proc.returncode}）")
                 self.log_q.put(f"[DEBUG] 可能原因: {failure_reason}")
 
                 if not antlr_recovery_applied:
                     antlr_recovery_applied = self._recover_antlr_if_needed(pyexe, pkg, full_output)
                     if antlr_recovery_applied:
-                        self.log_q.put("[INFO] antlr/wheel recovery applied; retrying current package...")
+                        self.log_q.put("[INFO] antlr/wheel 修复完成，正在重试当前依赖")
                         time.sleep(1)
                         continue
 
                 retry += 1
                 if retry <= max_retries:
-                    self.log_q.put(f"[INFO] Retry {retry}...")
+                    self.log_q.put(f"[INFO] 第 {retry} 次重试...")
                 else:
                     self.log_manual_install_hint(pyexe, pkg, name, ort_gpu_policy, failure_reason)
                     return False
@@ -457,13 +456,13 @@ class PipInstallRunner:
                         time.sleep(0.1)
                 time.sleep(3)
             except subprocess.TimeoutExpired:
-                self.log_q.put(f"[ERR] {pkg} install timed out; retrying...")
+                self.log_q.put(f"[ERR] {pkg} 安装超时，准备重试")
                 if proc is not None:
                     _terminate_process(proc)
                 retry += 1
             except Exception as exc:
                 tb = traceback.format_exc()
-                self.log_q.put(f"[ERR] {pkg} install raised: {exc}\n{tb}")
+                self.log_q.put(f"[ERR] {pkg} 安装异常: {exc}\n{tb}")
                 return False
             finally:
                 self._set_proc(None)
@@ -482,22 +481,12 @@ class PipInstallRunner:
                 **kwargs,
             )
         except Exception:
-            self.log_q.put(f"[ERR] pip is unavailable; skipping {pkg}")
+            self.log_q.put(f"[ERR] pip 不可用，无法安装 {pkg}")
             return False
         return False
 
     def log_manual_install_hint(self, pyexe, pkg, name, ort_gpu_policy, failure_reason: str) -> None:
-        self.log_q.put(f"[ERR] {pkg} install failed")
-        self.log_q.put(f"[ERR] Failure reason: {failure_reason}")
-        self.log_q.put("")
-        self.log_q.put("=" * 60)
-        self.log_q.put("Manual install hint:")
-        self.log_q.put("")
-        self.log_q.put(f"  {self._build_manual_command(pyexe, pkg, name, ort_gpu_policy)}")
-        self.log_q.put("")
-        self.log_q.put("If permission errors occur:")
-        self.log_q.put("  1. Close the app and run the terminal as administrator")
-        self.log_q.put("  2. Or install to the user site with --user")
-        self.log_q.put("  3. Or open the environment terminal from settings and run the command above")
-        self.log_q.put("=" * 60)
-        self.log_q.put("")
+        self.log_q.put(f"[ERR] {pkg} 安装失败：{failure_reason}")
+        self.log_q.put("[INFO] 手动重试命令：")
+        self.log_q.put(self._build_manual_command(pyexe, pkg, name, ort_gpu_policy))
+        self.log_q.put("[INFO] 仍失败时，请检查网络、磁盘空间和当前 Python 版本。")

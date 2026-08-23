@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import math
 import time
 from dataclasses import replace
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QRectF, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QGuiApplication, QIcon, QMouseEvent, QWheelEvent
-from PyQt6.QtWidgets import QApplication, QCheckBox, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEvent, QObject, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtGui import QGuiApplication, QIcon, QWheelEvent
+from PyQt6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QScrollArea, QSplitter, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
@@ -78,7 +77,6 @@ class HandwritingWindow(QWidget):
         self._pending_layout_draft = ""
         self._theme_is_dark_cached = None
         self._ui_ready = False
-        self._soft_focus_target = None
         self._pending_zoom_anchor = None
         self._active_zoom_anchor = None
         self._last_busy_notice_ts = 0.0
@@ -138,10 +136,6 @@ class HandwritingWindow(QWidget):
         for btn in (self.write_btn, self.erase_btn, self.select_btn):
             self._tool_button_base_styles[btn] = btn.styleSheet()
         toolbar.addStretch(1)
-        self.auto_focus_checkbox = QCheckBox("自动聚焦")
-        self.auto_focus_checkbox.setChecked(False)
-        toolbar.addWidget(self.auto_focus_checkbox)
-        root.addLayout(toolbar)
 
         self.splitter = QSplitter()
         self.splitter.setObjectName("handwritingSplitter")
@@ -151,14 +145,14 @@ class HandwritingWindow(QWidget):
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 10, 0)
         left_layout.setSpacing(6)
+        left_layout.addLayout(toolbar)
         self.canvas_title = QLabel("手写画布")
         self.canvas_title.setObjectName("handwritingSectionTitle")
-        self.canvas_hint = QLabel("支持鼠标与触控笔。可先右键拖动画布定位，写完后自动回到内容重心。")
+        self.canvas_hint = QLabel("支持鼠标与触控笔，可按住鼠标右键拖动画布。")
         self.canvas_hint.setObjectName("handwritingHint")
         left_layout.addWidget(self.canvas_title)
         left_layout.addWidget(self.canvas_hint)
         self.canvas = InkCanvas(self)
-        self.canvas.set_auto_focus_enabled(False)
         self.canvas.installEventFilter(self)
         self.canvas_scroll = QScrollArea(self)
         self.canvas_scroll.setObjectName("handwritingCanvasScroll")
@@ -245,13 +239,6 @@ class HandwritingWindow(QWidget):
 
         self.recognize_timer = QTimer(self)
         self.recognize_timer.setSingleShot(True)
-        self.focus_timer = QTimer(self)
-        self.focus_timer.setSingleShot(True)
-        self.focus_timer.setInterval(1100)
-        self._h_scroll_anim = QPropertyAnimation(self.canvas_scroll.horizontalScrollBar(), b"value", self)
-        self._v_scroll_anim = QPropertyAnimation(self.canvas_scroll.verticalScrollBar(), b"value", self)
-        for anim in (self._h_scroll_anim, self._v_scroll_anim):
-            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._set_active_tool(HandwritingTool.WRITE)
         self._refresh_recognition_context()
         self._refresh_preview_from_text("")
@@ -259,44 +246,7 @@ class HandwritingWindow(QWidget):
         self.resize(*self.DEFAULT_SIZE)
         self._ui_ready = True
         self.apply_theme_styles(force=True)
-        self._apply_auto_focus_state(False)
         self._update_layout_button_state()
-        QTimer.singleShot(0, self._sync_canvas_extent_to_viewport)
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        if self._ui_ready:
-            QTimer.singleShot(0, self._sync_canvas_extent_to_viewport)
-
-    def _sync_canvas_extent_to_viewport(self) -> None:
-        viewport = self.canvas_scroll.viewport()
-        frame_w = self.canvas_scroll.frameWidth() * 2
-        zoom = max(0.01, self.canvas.zoom_factor())
-        min_w = max(520, math.ceil((viewport.width() - frame_w - 2) / zoom))
-        min_h = max(520, math.ceil((viewport.height() - frame_w - 2) / zoom))
-        self.canvas.ensure_minimum_extent(min_w, min_h)
-        self._update_canvas_viewport_rect()
-        self._apply_pending_zoom_anchor()
-        self._update_canvas_viewport_rect()
-
-    def _update_canvas_viewport_rect(self) -> None:
-        viewport = self.canvas_scroll.viewport()
-        zoom = max(0.01, self.canvas.zoom_factor())
-        top_left = self.canvas.mapFrom(viewport, QPoint(0, 0))
-        bottom_right = self.canvas.mapFrom(viewport, QPoint(max(0, viewport.width() - 1), max(0, viewport.height() - 1)))
-        left_px = max(0, min(top_left.x(), self.canvas.width()))
-        top_px = max(0, min(top_left.y(), self.canvas.height()))
-        right_px = max(0, min(bottom_right.x() + 1, self.canvas.width()))
-        bottom_px = max(0, min(bottom_right.y() + 1, self.canvas.height()))
-        width_px = max(0, right_px - left_px)
-        height_px = max(0, bottom_px - top_px)
-        rect = QRectF(
-            left_px / zoom,
-            top_px / zoom,
-            width_px / zoom,
-            height_px / zoom,
-        )
-        self.canvas.set_viewport_scene_rect(rect)
 
     def _wire_events(self) -> None:
         self.write_btn.clicked.connect(lambda: self._set_active_tool(HandwritingTool.WRITE))
@@ -308,20 +258,11 @@ class HandwritingWindow(QWidget):
         self.copy_btn.clicked.connect(self._copy_result)
         self.layout_btn.clicked.connect(self._auto_layout_document)
         self.insert_btn.clicked.connect(self._insert_result)
-        self.auto_focus_checkbox.toggled.connect(self._apply_auto_focus_state)
         self.canvas.contentChanged.connect(self._on_canvas_changed)
         self.canvas.strokeFinished.connect(self._on_stroke_finished)
-        self.canvas.viewportFollowRequested.connect(self._reposition_viewport_to_point)
-        self.canvas.contentFocusRequested.connect(self._schedule_soft_focus)
         self.canvas.panRequested.connect(self._pan_canvas_view)
-        self.canvas.canvasShifted.connect(self._on_canvas_shifted)
-        self.canvas.zoomChanged.connect(lambda _z: QTimer.singleShot(0, self._sync_canvas_extent_to_viewport))
-        self.canvas_scroll.horizontalScrollBar().valueChanged.connect(lambda _v: self._update_canvas_viewport_rect())
-        self.canvas_scroll.verticalScrollBar().valueChanged.connect(lambda _v: self._update_canvas_viewport_rect())
-        self.splitter.splitterMoved.connect(lambda *_args: QTimer.singleShot(0, self._sync_canvas_extent_to_viewport))
         self.result_editor.textChanged.connect(self._on_result_editor_changed)
         self.recognize_timer.timeout.connect(self._run_recognition)
-        self.focus_timer.timeout.connect(self._apply_soft_focus)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -357,17 +298,6 @@ class HandwritingWindow(QWidget):
         if (
             self._ui_ready
             and obj in (self.canvas, self.canvas_scroll.viewport())
-            and event.type() == QEvent.Type.MouseButtonPress
-            and isinstance(event, QMouseEvent)
-            and event.button() == Qt.MouseButton.LeftButton
-        ):
-            self.focus_timer.stop()
-            self._soft_focus_target = None
-            self._h_scroll_anim.stop()
-            self._v_scroll_anim.stop()
-        if (
-            self._ui_ready
-            and obj in (self.canvas, self.canvas_scroll.viewport())
             and event.type() == QEvent.Type.Wheel
             and isinstance(event, QWheelEvent)
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
@@ -375,12 +305,6 @@ class HandwritingWindow(QWidget):
             self._zoom_canvas_at_pointer(obj, event)
             event.accept()
             return True
-        if (
-            self._ui_ready
-            and obj is self.canvas_scroll.viewport()
-            and event.type() == QEvent.Type.Resize
-        ):
-            QTimer.singleShot(0, self._sync_canvas_extent_to_viewport)
         return super().eventFilter(obj, event)
 
     def _zoom_canvas_at_pointer(self, source, event: QWheelEvent) -> bool:
@@ -407,7 +331,7 @@ class HandwritingWindow(QWidget):
         if abs(new_zoom - old_zoom) < 1e-6:
             return False
         self._pending_zoom_anchor = (scene_x, scene_y, viewport_pos.x(), viewport_pos.y(), new_zoom)
-        QTimer.singleShot(0, self._sync_canvas_extent_to_viewport)
+        QTimer.singleShot(0, self._apply_pending_zoom_anchor)
         return True
 
     def _apply_pending_zoom_anchor(self) -> None:
@@ -425,7 +349,6 @@ class HandwritingWindow(QWidget):
         target_y = int(round(scene_y * zoom - viewport_y))
         hbar.setValue(max(hbar.minimum(), min(target_x, hbar.maximum())))
         vbar.setValue(max(vbar.minimum(), min(target_y, vbar.maximum())))
-        self._update_canvas_viewport_rect()
         QTimer.singleShot(0, self._stabilize_zoom_anchor)
 
     def _stabilize_zoom_anchor(self) -> None:
@@ -446,7 +369,6 @@ class HandwritingWindow(QWidget):
             return
         hbar.setValue(max(hbar.minimum(), min(hbar.value() - dx, hbar.maximum())))
         vbar.setValue(max(vbar.minimum(), min(vbar.value() - dy, vbar.maximum())))
-        self._update_canvas_viewport_rect()
 
     def apply_theme_styles(self, force: bool = False) -> None:
         if not self._ui_ready:
@@ -462,7 +384,6 @@ class HandwritingWindow(QWidget):
             subtext = "#a9b4c3"
             editor_bg = "#151a22"
             editor_border = "rgba(110, 130, 156, 0.45)"
-            cb_text = "#c8d1dc"
             card_bg = "#151b23"
             subpanel_bg = "#121821"
             divider = "rgba(91, 111, 138, 0.24)"
@@ -472,7 +393,6 @@ class HandwritingWindow(QWidget):
             subtext = "#6b7787"
             editor_bg = "#ffffff"
             editor_border = "rgba(148, 163, 184, 0.55)"
-            cb_text = "#334155"
             card_bg = "#ffffff"
             subpanel_bg = "#ffffff"
             divider = "rgba(148, 163, 184, 0.22)"
@@ -484,7 +404,6 @@ class HandwritingWindow(QWidget):
             QLabel#handwritingSectionTitle {{ color: {text}; font-size: 14px; font-weight: 600; }}
             QLabel#handwritingHint {{ color: {subtext}; font-size: 12px; }}
             QLabel#handwritingStatus {{ color: {subtext}; font-size: 12px; padding-top: 4px; }}
-            QCheckBox {{ color: {cb_text}; spacing: 8px; }}
             QPlainTextEdit {{
                 background: {editor_bg};
                 color: {text};
@@ -523,14 +442,6 @@ class HandwritingWindow(QWidget):
         )
         self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
         self._apply_tool_button_styles()
-
-    def _on_canvas_shifted(self, dx: int, dy: int) -> None:
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
-        if dx:
-            hbar.setValue(max(hbar.minimum(), min(hbar.value() + dx, hbar.maximum())))
-        if dy:
-            vbar.setValue(max(vbar.minimum(), min(vbar.value() + dy, vbar.maximum())))
 
     def _apply_tool_button_styles(self) -> None:
         dark = bool(self._theme_is_dark_cached)
@@ -580,26 +491,12 @@ class HandwritingWindow(QWidget):
                 """
             btn.setStyleSheet(base_style + "\n" + extra)
 
-    def _apply_auto_focus_state(self, enabled: bool) -> None:
-        enabled = bool(enabled)
-        self.canvas.set_auto_focus_enabled(enabled)
-        self.focus_timer.stop()
-        if not enabled:
-            self._soft_focus_target = None
-        if enabled:
-            self.canvas_hint.setText("支持鼠标与触控笔。可先右键拖动画布定位，写完后自动回到内容重心。")
-        else:
-            self.canvas_hint.setText("支持鼠标与触控笔。可按住鼠标右键拖动画布，停笔后保持当前位置。")
-        self._set_active_tool(self.canvas.current_tool)
-
     def _set_active_tool(self, tool: HandwritingTool) -> None:
         self.canvas.set_tool(tool)
-        auto_focus = self.auto_focus_checkbox.isChecked() if hasattr(self, "auto_focus_checkbox") else False
         labels = {
             HandwritingTool.WRITE: (
                 "书写中",
-                "直接书写，停笔后自动识别；可先右键拖动画布"
-                + ("，识别后自动回到内容重心" if auto_focus else "，并保持当前位置"),
+                "直接书写，停笔后自动识别",
             ),
             HandwritingTool.ERASE: ("橡皮模式", "像素级局部擦除命中的笔迹片段，保留其余部分"),
             HandwritingTool.SELECT_CORRECT: ("圈选修正", "自由圈选后只擦除圈内笔段，便于局部重写"),
@@ -735,7 +632,7 @@ class HandwritingWindow(QWidget):
             if not self._is_external_model_ready():
                 self.status_label.setText("外部模型未配置")
                 owner = self.owner
-                hint = "请先在设置中完成外部模型配置并测试连接。"
+                hint = "请先在设置中完成外部模型配置。"
                 if owner is not None and hasattr(owner, "_get_external_model_required_fields_hint"):
                     try:
                         hint = str(owner._get_external_model_required_fields_hint() or hint)
@@ -751,7 +648,7 @@ class HandwritingWindow(QWidget):
             external_config = self._get_handwriting_external_model_config()
             if external_config is None:
                 self.status_label.setText("外部模型未配置")
-                self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+                self._show_warning("外部模型未配置", "请先完成必要配置。")
                 return
             self._last_external_output_mode = external_config.resolved_output_mode()
 
@@ -812,84 +709,11 @@ class HandwritingWindow(QWidget):
     def _on_result_editor_changed(self) -> None:
         self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
 
-    def _reposition_viewport_to_point(self, point, hard: bool) -> None:
-        viewport = self.canvas_scroll.viewport()
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
-        left = hbar.value()
-        top = vbar.value()
-        right = left + viewport.width()
-        bottom = top + viewport.height()
-        margin_x = max(96, viewport.width() // 7)
-        margin_y = max(88, viewport.height() // 7)
-        target_x = left
-        target_y = top
-        px = point.x()
-        py = point.y()
-        if px > right - margin_x:
-            target_x = int(px - viewport.width() * 0.62)
-        elif px < left + margin_x:
-            target_x = int(px - viewport.width() * 0.38)
-        if py > bottom - margin_y:
-            target_y = int(py - viewport.height() * 0.62)
-        elif py < top + margin_y:
-            target_y = int(py - viewport.height() * 0.38)
-        if target_x == left and target_y == top and not hard:
-            return
-        if hard:
-            self._h_scroll_anim.stop()
-            self._v_scroll_anim.stop()
-            hbar.setValue(max(hbar.minimum(), min(target_x, hbar.maximum())))
-            vbar.setValue(max(vbar.minimum(), min(target_y, vbar.maximum())))
-            return
-        self._animate_scroll(target_x, target_y, duration=240)
-
-    def _schedule_soft_focus(self, point) -> None:
-        if not self.auto_focus_checkbox.isChecked():
-            return
-        self._soft_focus_target = point
-        delay = self.focus_timer.interval()
-        if self.recognize_timer.isActive():
-            delay = max(delay, self.recognize_timer.remainingTime() + 320)
-        self.focus_timer.start(delay)
-
-    def _apply_soft_focus(self) -> None:
-        if not self.auto_focus_checkbox.isChecked() or self._soft_focus_target is None:
-            return
-        point = self._soft_focus_target
-        self._soft_focus_target = None
-        viewport = self.canvas_scroll.viewport()
-        target_x = int(point.x() - viewport.width() * 0.5)
-        target_y = int(point.y() - viewport.height() * 0.46)
-        self._animate_scroll(target_x, target_y, duration=280)
-
     def _pan_canvas_view(self, dx: int, dy: int) -> None:
-        self.focus_timer.stop()
-        self._soft_focus_target = None
-        self._h_scroll_anim.stop()
-        self._v_scroll_anim.stop()
         hbar = self.canvas_scroll.horizontalScrollBar()
         vbar = self.canvas_scroll.verticalScrollBar()
         hbar.setValue(max(hbar.minimum(), min(hbar.value() + dx, hbar.maximum())))
         vbar.setValue(max(vbar.minimum(), min(vbar.value() + dy, vbar.maximum())))
-
-    def _animate_scroll(self, target_x: int, target_y: int, duration: int) -> None:
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
-        target_x = max(hbar.minimum(), min(target_x, hbar.maximum()))
-        target_y = max(vbar.minimum(), min(target_y, vbar.maximum()))
-        if abs(target_x - hbar.value()) > 1:
-            self._h_scroll_anim.stop()
-            self._h_scroll_anim.setDuration(duration)
-            self._h_scroll_anim.setStartValue(hbar.value())
-            self._h_scroll_anim.setEndValue(target_x)
-            self._h_scroll_anim.start()
-        if abs(target_y - vbar.value()) > 1:
-            self._v_scroll_anim.stop()
-            self._v_scroll_anim.setDuration(duration)
-            self._v_scroll_anim.setStartValue(vbar.value())
-            self._v_scroll_anim.setEndValue(target_y)
-            self._v_scroll_anim.start()
 
     def _refresh_preview_from_text(self, latex: str) -> None:
         preview_text = self._normalize_preview_source_text(latex)
@@ -972,7 +796,7 @@ class HandwritingWindow(QWidget):
         active_model = self._get_active_model_key()
         if active_model == "external_model" and not self._is_external_model_ready():
             self.status_label.setText("外部模型未配置")
-            self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+            self._show_warning("外部模型未配置", "请先完成必要配置。")
             return
         if self._recognizing:
             self.status_label.setText("等待识别完成后排版")
@@ -1000,7 +824,7 @@ class HandwritingWindow(QWidget):
         cfg = self._get_external_model_config()
         if cfg is None:
             self.status_label.setText("外部模型未配置")
-            self._show_warning("外部模型未配置", "请先完成外部模型配置并测试连接。")
+            self._show_warning("外部模型未配置", "请先完成必要配置。")
             return
         layout_draft = self.result_editor.toPlainText().strip()
         self._pending_layout_draft = layout_draft
@@ -1105,9 +929,6 @@ class HandwritingWindow(QWidget):
     def closeEvent(self, event) -> None:
         self._closing = True
         self.recognize_timer.stop()
-        self.focus_timer.stop()
-        self._h_scroll_anim.stop()
-        self._v_scroll_anim.stop()
         layout_thread = self._layout_thread
         if layout_thread is not None:
             try:

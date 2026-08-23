@@ -16,7 +16,7 @@ from bootstrap.deps_context import (
 )
 from bootstrap.deps_pip_runner import PipInstallRunner
 from bootstrap.deps_python_runtime import site_packages_root as _site_packages_root
-from bootstrap.deps_layer_specs import _diagnose_install_failure, _version_satisfies_spec
+from bootstrap.deps_layer_specs import _diagnose_install_failure, _version_satisfies_spec, layer_display_name
 from runtime.app_paths import app_config_path
 
 
@@ -65,7 +65,7 @@ def tail_dependency_log_text(text: object, limit: int = VERIFY_LOG_DETAIL_LIMIT)
 
 def format_layer_verify_failure(layer: str, err: object, *, limit: int = VERIFY_LOG_DETAIL_LIMIT) -> str:
     detail = tail_dependency_log_text(err, limit=limit) or "验证失败，但没有可用错误输出。"
-    return f"  [ERR] {layer} 验证失败:\n{detail}"
+    return f"[ERR] {layer_display_name(layer)}验证失败:\n{detail}"
 
 
 RUNTIME_IMPORT_CHECKS = {
@@ -252,7 +252,7 @@ def _force_repair_broken_runtime_imports(
                     log_fn(f"  [WARN] 强制修复 {pkg} 失败: {raw[:400]}")
                 return False, raw[:400] or err
             if log_fn:
-                log_fn(f"  [OK] 已强制修复 {pkg}")
+                log_fn(f"[INFO] 已强制修复 {pkg}")
         except subprocess.TimeoutExpired:
             return False, f"{pkg} force repair timeout"
         except Exception as e:
@@ -294,7 +294,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
             )
             if log_fn:
                 if result.returncode == 0:
-                    log_fn(f"  [OK] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
+                    log_fn(f"[INFO] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
                 else:
                     err = (result.stderr or result.stdout or "").strip().replace("\r", "")
                     log_fn(f"  [WARN] 修复 {pkg} 失败: {err[:240]}")
@@ -306,7 +306,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
                 log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
 
     if log_fn:
-        log_fn("[OK] 关键依赖版本检查完成")
+        log_fn("[INFO] 关键依赖版本检查完成")
 
     ok, err = _verify_runtime_support_imports(pyexe)
     if not ok:
@@ -317,7 +317,7 @@ def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) ->
         )
     if log_fn:
         if ok:
-            log_fn("[OK] ONNX Runtime 支撑依赖导入检查通过")
+            log_fn("[INFO] ONNX Runtime 支撑依赖导入检查通过")
         else:
             log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
     return ok
@@ -572,7 +572,7 @@ def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> l
         if ok:
             verified.append(layer)
             if log_fn:
-                log_fn(f"[OK] {layer} 层验证通过")
+                log_fn(f"[INFO] {layer_display_name(layer)}验证通过")
         else:
             if log_fn:
                 log_fn(format_layer_verify_failure(layer, err))
@@ -672,7 +672,7 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
                 log_fn=log_fn,
             )
         if log_fn:
-            log_fn(f"[OK] 已卸载冲突的 {pkg_key}")
+            log_fn(f"[INFO] 已卸载冲突的 {pkg_key}")
         return True
     except Exception as e:
         if log_fn:

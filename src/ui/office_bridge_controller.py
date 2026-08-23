@@ -260,7 +260,7 @@ class OfficeBridgeControllerMixin:
         def _done(ok: bool, message: str, server: object) -> None:
             if ok:
                 self._office_bridge_server = server
-                print(f"[INFO] Office bridge started: {server.base_url}")
+                print(f"[INFO] Office 插件服务已启动: {server.base_url}")
             else:
                 try:
                     self.cfg.set(OFFICE_BRIDGE_ENABLED_KEY, False)
@@ -288,7 +288,7 @@ class OfficeBridgeControllerMixin:
 
         def _done(ok: bool, message: str, _server: object) -> None:
             if ok:
-                print("[INFO] Office bridge stopped")
+                print("[INFO] Office 插件服务已停止")
             if callback:
                 callback(ok, message)
 
@@ -305,14 +305,14 @@ class OfficeBridgeControllerMixin:
         )
         server.start()
         self._office_bridge_server = server
-        print(f"[INFO] Office bridge started: {server.base_url}")
+        print(f"[INFO] Office 插件服务已启动: {server.base_url}")
 
     def _stop_office_bridge(self) -> None:
         server = getattr(self, "_office_bridge_server", None)
         self._office_bridge_server = None
         if server:
             server.stop()
-            print("[INFO] Office bridge stopped")
+            print("[INFO] Office 插件服务已停止")
 
     def request_office_screenshot_ocr(self, *, timeout: float = 120.0) -> str:
         if getattr(self, "_office_ocr_request", None) is not None:

@@ -6,9 +6,10 @@ import time
 from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import pyqtSignal, Qt, QRect, QPoint, QTimer
+from PyQt6.QtCore import pyqtSignal, Qt, QRect, QRectF, QPoint, QTimer
 from PyQt6.QtGui import (
     QPainter,
+    QPainterPath,
     QColor,
     QPen,
     QGuiApplication,
@@ -29,15 +30,24 @@ from cross_platform.screenshot_tools import (
 
 _CROSSHAIR_ARM = 9
 _CROSSHAIR_OUTER_WIDTH = 3
-_MAGNIFIER_SOURCE_WIDTH = 28
+_MAGNIFIER_SOURCE_WIDTH = 18
 _MAGNIFIER_SOURCE_HEIGHT = 18
 _MAGNIFIER_ZOOM = 7
 _MAGNIFIER_PREVIEW_WIDTH = _MAGNIFIER_SOURCE_WIDTH * _MAGNIFIER_ZOOM
 _MAGNIFIER_PREVIEW_HEIGHT = _MAGNIFIER_SOURCE_HEIGHT * _MAGNIFIER_ZOOM
-_MAGNIFIER_PANEL_HEIGHT = 78
+_MAGNIFIER_PANEL_HEIGHT = 76
 _MAGNIFIER_MARGIN = 14
+_MAGNIFIER_RADIUS = 9
 _COPY_NOTICE_SECONDS = 1.2
-_MAGNIFIER_GUIDE_WIDTH = 2
+
+
+def _capture_window_flags() -> Qt.WindowType:
+    """Keep the capture surface out of task switchers as a transient tool."""
+    return (
+        Qt.WindowType.Tool
+        | Qt.WindowType.FramelessWindowHint
+        | Qt.WindowType.WindowStaysOnTopHint
+    )
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,28 @@ class _MagnifierSample:
 
 def _rect_to_tuple(rect: QRect) -> tuple[int, int, int, int]:
     return (int(rect.x()), int(rect.y()), int(rect.width()), int(rect.height()))
+
+
+def _place_popup_near_pointer(
+    pointer: QPoint,
+    bounds: QRect,
+    width: int,
+    height: int,
+    margin: int,
+) -> QRect:
+    """Place a popup below-right of the pointer, flipping only at screen edges."""
+    x = int(pointer.x()) + margin
+    y = int(pointer.y()) + margin
+    if x + width - 1 > bounds.right():
+        x = int(pointer.x()) - margin - width
+    if y + height - 1 > bounds.bottom():
+        y = int(pointer.y()) - margin - height
+
+    max_x = bounds.right() - width + 1
+    max_y = bounds.bottom() - height + 1
+    x = bounds.left() if max_x < bounds.left() else max(bounds.left(), min(x, max_x))
+    y = bounds.top() if max_y < bounds.top() else max(bounds.top(), min(y, max_y))
+    return QRect(x, y, width, height)
 
 
 def choose_screen_index(
@@ -169,7 +201,7 @@ class ScreenCaptureOverlay(QWidget):
         self.preferred_screen_index = preferred_screen_index
         self.screenshot_tool = (screenshot_tool or "").strip() or None
         if self.screenshot_tool:
-            print(f"[INFO] 用户指定截图工具: {self.screenshot_tool}")
+            print(f"[DEBUG] 用户指定截图工具: {self.screenshot_tool}")
         self.color_display_mode = "rgb"
         self._cursor_override_active = False
         self._finished = False
@@ -180,10 +212,17 @@ class ScreenCaptureOverlay(QWidget):
         self._copy_notice_timer.timeout.connect(self.update)
         self._clear_blank_override_cursors()
         self._screen_snapshots = self._capture_screen_snapshots()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self._use_snapshot_background = is_wayland() and any(
+            not snapshot.image.isNull() and not is_image_effectively_black(snapshot.image)
+            for snapshot in self._screen_snapshots
+        )
+        self.setWindowFlags(_capture_window_flags())
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        self.setWindowTitle("Screen Capture Overlay")
+        self.setWindowTitle("LaTeXSnipper 截图识别")
+        app = QGuiApplication.instance()
+        if app is not None:
+            self.setWindowIcon(app.windowIcon())
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         # Cover all screens (virtual desktop union)
@@ -236,7 +275,7 @@ class ScreenCaptureOverlay(QWidget):
                 print("[DEBUG] Wayland overlay 背景截图成功")
                 return snapshots
             print("[WARN] Wayland overlay 背景截图失败")
-            print("[INFO] 建议安装 grim、gnome-screenshot 或 flameshot 以在 Wayland 上正常显示截图遮罩。")
+            print("[WARN] 请安装 grim、gnome-screenshot 或 flameshot 以支持 Wayland 截图")
 
         for i, screen in enumerate(QGuiApplication.screens()):
             try:
@@ -428,15 +467,17 @@ class ScreenCaptureOverlay(QWidget):
         )
         sample = QImage(_MAGNIFIER_SOURCE_WIDTH, _MAGNIFIER_SOURCE_HEIGHT, QImage.Format.Format_RGB32)
         sample.fill(QColor(255, 255, 255))
-        for target_y in range(_MAGNIFIER_SOURCE_HEIGHT):
-            source_y = source_rect.top() + target_y
-            if not (0 <= source_y < image.height()):
-                continue
-            for target_x in range(_MAGNIFIER_SOURCE_WIDTH):
-                source_x = source_rect.left() + target_x
-                if not (0 <= source_x < image.width()):
-                    continue
-                sample.setPixelColor(target_x, target_y, image.pixelColor(source_x, source_y))
+        clipped_source = source_rect.intersected(image.rect())
+        if not clipped_source.isEmpty():
+            target_rect = QRect(
+                clipped_source.left() - source_rect.left(),
+                clipped_source.top() - source_rect.top(),
+                clipped_source.width(),
+                clipped_source.height(),
+            )
+            sample_painter = QPainter(sample)
+            sample_painter.drawImage(target_rect, image, clipped_source)
+            sample_painter.end()
 
         preview = sample.scaled(
             _MAGNIFIER_PREVIEW_WIDTH,
@@ -464,63 +505,18 @@ class ScreenCaptureOverlay(QWidget):
             int(geo.height()),
         )
 
-    def _rect_contains_rect(self, bounds: QRect, rect: QRect) -> bool:
-        return (
-            rect.left() >= bounds.left()
-            and rect.top() >= bounds.top()
-            and rect.right() <= bounds.right()
-            and rect.bottom() <= bounds.bottom()
-        )
-
     def _magnifier_popup_rect(self) -> QRect | None:
         if self.current_pos is None:
             return None
         width = _MAGNIFIER_PREVIEW_WIDTH
         height = _MAGNIFIER_PREVIEW_HEIGHT + _MAGNIFIER_PANEL_HEIGHT
-        bounds = self._popup_screen_bounds()
-        cx = int(self.current_pos.x())
-        cy = int(self.current_pos.y())
-
-        h_order = ("right", "left") if bounds.right() - cx >= cx - bounds.left() else ("left", "right")
-        v_order = ("bottom", "top") if bounds.bottom() - cy >= cy - bounds.top() else ("top", "bottom")
-        order = (
-            (h_order[0], v_order[0]),
-            (h_order[0], v_order[1]),
-            (h_order[1], v_order[0]),
-            (h_order[1], v_order[1]),
+        return _place_popup_near_pointer(
+            self.current_pos,
+            self._popup_screen_bounds(),
+            width,
+            height,
+            _MAGNIFIER_MARGIN,
         )
-
-        candidates = []
-        for horizontal, vertical in order:
-            x = cx + _MAGNIFIER_MARGIN if horizontal == "right" else cx - _MAGNIFIER_MARGIN - width
-            y = cy + _MAGNIFIER_MARGIN if vertical == "bottom" else cy - _MAGNIFIER_MARGIN - height
-            candidates.append(QRect(x, y, width, height))
-
-        selection = self._selection_rect()
-        avoid_rect = None
-        if selection is not None and (selection.width() > 1 or selection.height() > 1):
-            avoid_rect = selection.adjusted(-6, -6, 6, 6)
-
-        contained = [rect for rect in candidates if self._rect_contains_rect(bounds, rect)]
-        if avoid_rect is not None:
-            for rect in contained:
-                if not rect.intersects(avoid_rect):
-                    return rect
-        if contained:
-            return contained[0]
-
-        fallback = QRect(candidates[0])
-        max_x = bounds.right() - width + 1
-        max_y = bounds.bottom() - height + 1
-        if max_x >= bounds.left():
-            fallback.moveLeft(max(bounds.left(), min(fallback.left(), max_x)))
-        else:
-            fallback.moveLeft(bounds.left())
-        if max_y >= bounds.top():
-            fallback.moveTop(max(bounds.top(), min(fallback.top(), max_y)))
-        else:
-            fallback.moveTop(bounds.top())
-        return fallback
 
     def _draw_shadowed_text(
         self,
@@ -552,6 +548,40 @@ class ScreenCaptureOverlay(QWidget):
         painter.drawLine(cx - _CROSSHAIR_ARM, cy, cx + _CROSSHAIR_ARM, cy)
         painter.drawLine(cx, cy - _CROSSHAIR_ARM, cx, cy + _CROSSHAIR_ARM)
 
+    def _cursor_visual_region(self) -> QRegion:
+        region = QRegion()
+        if self.current_pos is not None:
+            padding = _CROSSHAIR_ARM + _CROSSHAIR_OUTER_WIDTH + 2
+            region += QRegion(
+                QRect(
+                    self.current_pos.x() - padding,
+                    self.current_pos.y() - padding,
+                    padding * 2 + 1,
+                    padding * 2 + 1,
+                )
+            )
+        popup_rect = self._magnifier_popup_rect()
+        if popup_rect is not None:
+            region += QRegion(popup_rect.adjusted(-2, -2, 2, 2))
+        return region
+
+    def _selection_edge_region(self, rect: QRect | None) -> QRegion:
+        if rect is None:
+            return QRegion()
+        outer = QRegion(rect.adjusted(-4, -4, 4, 4))
+        inner_rect = rect.adjusted(4, 4, -4, -4)
+        if not inner_rect.isEmpty():
+            outer = outer.subtracted(QRegion(inner_rect))
+
+        label_width = min(340, max(1, self.width() - 4))
+        label_height = 28
+        label_x = max(2, min(rect.left() - 2, self.width() - label_width - 2))
+        label_y = rect.top() - label_height - 5
+        if label_y < 2:
+            label_y = rect.top() + 2
+        outer += QRegion(QRect(label_x, label_y, label_width, label_height))
+        return outer
+
     def _draw_magnifier(self, painter: QPainter) -> None:
         sample = self._build_magnifier_sample()
         popup_rect = self._magnifier_popup_rect()
@@ -574,6 +604,11 @@ class ScreenCaptureOverlay(QWidget):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
 
+        outer_path = QPainterPath()
+        outer_path.addRoundedRect(QRectF(popup_rect), _MAGNIFIER_RADIUS, _MAGNIFIER_RADIUS)
+        painter.setClipPath(outer_path)
+        painter.fillPath(outer_path, QColor(24, 24, 24, 244))
+
         painter.save()
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.drawImage(preview_rect, sample.preview)
@@ -593,19 +628,15 @@ class ScreenCaptureOverlay(QWidget):
         center_y = pixel_rect.top() + pixel_rect.height() // 2
         painter.save()
         painter.setClipRect(preview_rect.adjusted(1, 1, -1, -1))
-        guide_pen = QPen(QColor(122, 190, 255, 190), _MAGNIFIER_GUIDE_WIDTH)
+        guide_pen = QPen(QColor(0, 174, 255, 225), 1)
+        guide_pen.setCosmetic(True)
         guide_pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         painter.setPen(guide_pen)
         painter.drawLine(preview_rect.left() + 1, center_y, preview_rect.right() - 1, center_y)
         painter.drawLine(center_x, preview_rect.top() + 1, center_x, preview_rect.bottom() - 1)
         painter.restore()
-        painter.setPen(QPen(QColor(0, 0, 0, 210), 1))
-        painter.drawRect(pixel_rect.adjusted(0, 0, -1, -1))
-        painter.setPen(QPen(QColor(35, 35, 35, 180), 1))
-        painter.drawRect(preview_rect.adjusted(0, 0, -1, -1))
-
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(28, 28, 28, 168))
+        painter.setBrush(QColor(28, 28, 28, 244))
         painter.drawRect(panel_rect)
 
         font = QFont("Segoe UI", 9)
@@ -651,22 +682,25 @@ class ScreenCaptureOverlay(QWidget):
         )
         self._draw_shadowed_text(
             painter,
-            QRect(panel_rect.left() + 8, panel_rect.top() + 61, panel_rect.width() - 16, 16),
+            QRect(panel_rect.left() + 8, panel_rect.top() + 59, panel_rect.width() - 16, 16),
             Qt.AlignmentFlag.AlignCenter,
-            "按 Shift 切换 RGB/HEX",
+            "Shift 切换格式",
             QColor(255, 255, 255, 232),
         )
+        painter.setClipping(False)
+        border_pen = QPen(QColor(92, 92, 92, 190), 1)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        border_rect = QRectF(popup_rect).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.drawRoundedRect(border_rect, _MAGNIFIER_RADIUS, _MAGNIFIER_RADIUS)
         painter.restore()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        _has_valid_snapshots = self._screen_snapshots and any(
-            not snap.image.isNull() and not is_image_effectively_black(snap.image)
-            for snap in self._screen_snapshots
-        )
-        if is_wayland() and _has_valid_snapshots:
+        if self._use_snapshot_background:
             # Use the pre-captured screenshot as the visible desktop background.
             for snap in self._screen_snapshots:
                 if not snap.image.isNull():
@@ -756,12 +790,26 @@ class ScreenCaptureOverlay(QWidget):
         self.update()
 
     def mouseMoveEvent(self, event):
+        previous_visual_region = self._cursor_visual_region()
+        previous_selection = self._selection_rect()
         self.current_pos = event.position().toPoint()
         self.current_global_pos = event.globalPosition().toPoint()
         if self.start_pos is not None:
             self.end_pos = self.current_pos
             self.end_global_pos = self.current_global_pos
-        self.update()
+            current_selection = self._selection_rect()
+            dirty_region = previous_visual_region.united(self._cursor_visual_region())
+            if previous_selection is not None and current_selection is not None:
+                dirty_region += QRegion(previous_selection).xored(QRegion(current_selection))
+            elif previous_selection is not None:
+                dirty_region += QRegion(previous_selection)
+            elif current_selection is not None:
+                dirty_region += QRegion(current_selection)
+            dirty_region += self._selection_edge_region(previous_selection)
+            dirty_region += self._selection_edge_region(current_selection)
+            self.update(dirty_region)
+            return
+        self.update(previous_visual_region.united(self._cursor_visual_region()))
 
     def mouseReleaseEvent(self, event):
         self.current_pos = event.position().toPoint()
@@ -828,7 +876,7 @@ class ScreenCaptureOverlay(QWidget):
         actual = self._screen_label(actual_idx, screens)
         return (
             f"当前截图模式固定为{target}，但你框选的是{actual}。"
-            f"请在托盘菜单选择“截图屏幕模式 > {actual}”，"
+            f"请在托盘菜单选择“识别屏幕 > {actual}”，"
             "或切换为“自动”后再截图。"
         )
 

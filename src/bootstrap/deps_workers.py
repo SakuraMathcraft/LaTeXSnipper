@@ -2,7 +2,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 import time
 import traceback
 from pathlib import Path
@@ -17,6 +16,7 @@ from bootstrap.deps_layer_specs import (
     _normalize_chosen_layers,
     _reorder_mathcraft_install_specs,
     _version_satisfies_spec,
+    layer_display_name,
 )
 from bootstrap.deps_pandoc import _cleanup_pandoc_leftovers, _ensure_pandoc_binary, _pandoc_data_dir
 from bootstrap.deps_pip_runner import _terminate_process
@@ -38,54 +38,10 @@ from bootstrap.deps_state import load_json as _load_json, save_json as _save_jso
 
 
 def _install_failure_guidance(failed_pkgs: list[str], fail_count: int, total: int) -> list[str]:
-    if sys.platform == "darwin":
-        lines = [
-            f"[WARN] 部分依赖安装失败，共 {fail_count}/{total} 个",
-            "",
-            "失败的依赖包:",
-        ]
-        lines.extend(f"  - {pkg}" for pkg in failed_pkgs)
-        lines.extend([
-            "",
-            "可能原因:",
-            "  1. 当前依赖环境使用了不兼容的 Python 版本。",
-            "  2. 网络或 PyPI 镜像连接不稳定。",
-            "  3. 依赖目录写入失败或磁盘空间不足。",
-            "",
-            "建议操作:",
-            "  1. 优先使用 Python 3.11 或 3.12 初始化依赖环境。",
-            "  2. 返回依赖向导，换用清华镜像或重新点击下载。",
-            "  3. 如果日志中出现 Python 3.14、cpython-314 或 wheel 构建失败，请更换兼容 Python 后重试。",
-        ])
-        return lines
-
-    lines = [
-        f"[WARN] 部分安装失败，共 {fail_count}/{total} 个 ❌",
-        "",
-        "=" * 70,
-        "📋 失败包汇总 - 可在终端中手动安装:",
-        "",
+    return [
+        f"[ERR] {fail_count}/{total} 个依赖安装失败：{', '.join(failed_pkgs)}",
+        "[INFO] 请检查上方 pip 错误；可更换下载源后重试。",
     ]
-    lines.extend(f'  pip install "{pkg}" --upgrade --user' for pkg in failed_pkgs)
-    lines.extend([
-        "",
-        "=" * 70,
-        "",
-        "🔍 常见失败原因及解决方案:",
-        "",
-        "  1. 🔒 程序占用文件：关闭本程序后再手动安装",
-        "  2. 🔐 权限不足：以管理员身份运行终端",
-        "  3. 🌐 网络问题：尝试使用镜像源或 VPN",
-        "  4. ⚠️ 依赖冲突：查看上方诊断信息",
-        "",
-        "💡 推荐操作:",
-        "  1. 关闭本程序",
-        "  2. 打开环境终端",
-        "  3. 执行上述 pip install 命令",
-        "  4. 重新启动程序",
-        "=" * 70,
-    ])
-    return lines
 
 
 class InstallWorker(QThread):
@@ -266,9 +222,8 @@ class InstallWorker(QThread):
                     percent = int(done_count / total * pip_progress_max)
                     self.progress_updated.emit(percent)
                     if ok:
-                        self.log_updated.emit(f"[OK] {pkg} 安装成功")
+                        self.log_updated.emit(f"[INFO] {pkg} 安装成功")
                     else:
-                        self.log_updated.emit(f"[ERR] {pkg} 安装失败")
                         fail_count += 1
                         failed_pkgs.append(pkg)
 
@@ -327,7 +282,7 @@ class InstallWorker(QThread):
             all_ok = (fail_count == 0) and runtime_ort_ok and pandoc_ok
 
             if all_ok:
-                self.log_updated.emit("[OK] 依赖安装阶段完成")
+                self.log_updated.emit("[INFO] 依赖安装完成")
             elif fail_count == 0 and not runtime_ort_ok:
                 self.log_updated.emit("[WARN] 包安装已完成，但 ONNX Runtime 验证失败")
                 if runtime_ort_err:
@@ -367,7 +322,7 @@ class LayerVerifyWorker(QThread):
             v_ok, v_err = _verify_layer_runtime(self.pyexe, lyr, timeout=60)
             if v_ok:
                 verify_ok_layers.append(lyr)
-                self.log_updated.emit(f"  [OK] {lyr} 验证通过")
+                self.log_updated.emit(f"[INFO] {layer_display_name(lyr)}验证通过")
             else:
                 verify_fail_layers.append(lyr)
                 self.log_updated.emit(format_layer_verify_failure(lyr, v_err))
@@ -409,7 +364,8 @@ class UninstallLayerWorker(QThread):
     def run(self):
         ok = True
         total = max(len(self.pkg_names), 1)
-        self.log_updated.emit(f"[INFO] 开始卸载层 {self.layer_name} ...")
+        layer_label = layer_display_name(self.layer_name)
+        self.log_updated.emit(f"[INFO] 开始卸载{layer_label}...")
         self.progress_updated.emit(5)
         for idx, pkg_name in enumerate(self.pkg_names, start=1):
             self.log_updated.emit(f"[INFO] 命令: {self.pyexe} -m pip uninstall -y {pkg_name}")
@@ -428,7 +384,7 @@ class UninstallLayerWorker(QThread):
                     for line in output.splitlines():
                         self.log_updated.emit(line.rstrip())
                 if result.returncode == 0:
-                    self.log_updated.emit(f"[OK] {pkg_name} 卸载完成")
+                    self.log_updated.emit(f"[INFO] {pkg_name} 卸载完成")
                 else:
                     ok = False
                     self.log_updated.emit(f"[WARN] {pkg_name} 卸载返回码={result.returncode}")
@@ -450,7 +406,7 @@ class UninstallLayerWorker(QThread):
                 try:
                     import shutil as _shutil
                     _shutil.rmtree(pandoc_dir, ignore_errors=True)
-                    self.log_updated.emit(f"[OK] Pandoc: 已删除目录: {pandoc_dir}")
+                    self.log_updated.emit(f"[INFO] Pandoc: 已删除目录: {pandoc_dir}")
                 except Exception as e:
                     self.log_updated.emit(f"[WARN] Pandoc: 删除目录失败: {e}")
 
@@ -458,11 +414,11 @@ class UninstallLayerWorker(QThread):
             current_path = os.environ.get("PATH", "")
             if pandoc_dir_str in current_path:
                 os.environ["PATH"] = current_path.replace(pandoc_dir_str + os.pathsep, "").replace(os.pathsep + pandoc_dir_str, "").replace(pandoc_dir_str, "")
-                self.log_updated.emit("[OK] Pandoc: 已从 PATH 中移除共享工具目录下的 pandoc")
+                self.log_updated.emit("[INFO] Pandoc: 已从 PATH 中移除共享工具目录下的 pandoc")
             try:
                 from runtime.pandoc_runtime import clear_configured_pandoc_path
                 clear_configured_pandoc_path()
-                self.log_updated.emit("[OK] Pandoc: 已清理持久化路径配置")
+                self.log_updated.emit("[INFO] Pandoc: 已清理持久化路径配置")
             except Exception:
                 pass
 
@@ -480,7 +436,7 @@ class UninstallLayerWorker(QThread):
                 payload["failed_layers"] = failed
             with open(self.state_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, ensure_ascii=False, indent=2)
-            self.log_updated.emit(f"[OK] 状态文件已更新，移除层 {self.layer_name}")
+            self.log_updated.emit(f"[INFO] 已从依赖状态中移除{layer_label}")
         except Exception as e:
             ok = False
             self.log_updated.emit(f"[ERR] 状态文件更新失败: {e}")

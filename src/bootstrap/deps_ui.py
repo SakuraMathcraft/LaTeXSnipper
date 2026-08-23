@@ -12,10 +12,9 @@ from bootstrap.deps_context import STATE_FILE
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
     MATHCRAFT_RUNTIME_LAYERS,
-    _cuda_toolkit_available,
-    _gpu_available,
     _normalize_chosen_layers,
     _sanitize_state_layers,
+    layer_display_name,
 )
 from bootstrap.deps_python_runtime import (
     find_existing_python as _find_existing_python,
@@ -33,7 +32,7 @@ def activate_dependency_dialog(dlg) -> None:
         dlg.setWindowFlag(Qt.WindowType.Window, True)
         dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     except Exception as e:
-        print(f"[WARN] dependency wizard window flag failed: {e}")
+        print(f"[DEBUG] 设置依赖向导窗口属性失败: {e}")
 
     def _raise_dialog() -> None:
         try:
@@ -48,7 +47,7 @@ def activate_dependency_dialog(dlg) -> None:
         except RuntimeError:
             pass
         except Exception as e:
-            print(f"[WARN] dependency wizard foreground failed: {e}")
+            print(f"[DEBUG] 激活依赖向导窗口失败: {e}")
 
     _raise_dialog()
     QTimer.singleShot(0, _raise_dialog)
@@ -72,40 +71,6 @@ def _visible_layer_names() -> list[str]:
     if sys.platform == "darwin":
         layers = [layer for layer in layers if layer != "MATHCRAFT_GPU"]
     return layers
-
-
-def _layer_description_text() -> str:
-    if sys.platform == "darwin":
-        return (
-            "📦 层级说明：\n"
-            "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
-            "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
-            "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
-            "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
-            "• 识别功能实际运行需要 BASIC + CORE + MATHCRAFT_CPU。\n"
-            "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU。\n"
-            "\n"
-            "⚠️ 重要提示：\n"
-            "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-            "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
-            "• 若你只使用外部模型，可点击“跳过安装并进入”通过设置页面进行配置。"
-        )
-    return (
-        "📦 层级说明：\n"
-        "• BASIC：基础运行层，包含网络、图像处理和通用工具依赖。\n"
-        "• CORE：识别功能层，包含 MathCraft ONNX OCR 及文档导出 / PDF 相关依赖。\n"
-        "• MATHCRAFT_CPU：ONNX Runtime CPU 后端，默认推荐，稳定性更高。\n"
-        "• MATHCRAFT_GPU：ONNX Runtime GPU 后端，需要本机 NVIDIA 驱动 / CUDA DLL 可用。\n"
-        "• PANDOC：可选 Pandoc 导出后端，支持 docx/odt/epub/pptx 等文档格式转换。\n"
-        "• 识别功能实际运行需要 BASIC + CORE + 一个 MathCraft 后端。\n"
-        "• 默认推荐 BASIC + CORE + MATHCRAFT_CPU；如需 GPU 推理请手动勾选 MATHCRAFT_GPU。\n"
-        "\n"
-        "⚠️ 重要提示：\n"
-        "• MATHCRAFT_CPU 和 MATHCRAFT_GPU 互斥；切换时会自动清理冲突的 onnxruntime 组件。\n"
-        "• 已安装层会在进入向导时重新验证；验证失败的层会标记为“需要修复”。\n"
-        "• 本向导只管理内置 MathCraft 依赖链，不管理外部模型服务本身。\n"
-        "• 若你只使用外部模型，可点击“跳过安装并进入”，通过设置页面进行配置。"
-    )
 
 
 def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, state_path,
@@ -155,7 +120,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(disabled_color))
         cb.setPalette(pal)
         cb.setStyleSheet(
-            f"QCheckBox {{ color: {text_color}; spacing: 3px; padding-left: 3px; }}"
+            f"QCheckBox {{ color: {text_color}; font-size: 13px; spacing: 3px; padding-left: 3px; }}"
             f"QCheckBox:disabled {{ color: {disabled_color}; }}"
         )
         cb.style().unpolish(cb)
@@ -167,7 +132,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         fill = "#3a4350" if _is_dark_ui() else "#d8dee6"
         border = "#556170" if _is_dark_ui() else "#c0c7d0"
         cb.setStyleSheet(
-            f"QCheckBox {{ color: {theme['muted']}; spacing: 3px; padding-left: 3px; }}"
+            f"QCheckBox {{ color: {theme['muted']}; font-size: 13px; spacing: 3px; padding-left: 3px; }}"
             "QCheckBox:disabled { color: " + theme["muted"] + "; }"
             "QCheckBox::indicator {"
             " width: 14px;"
@@ -274,12 +239,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         failed_layers = []
         if claimed_layers and pyexe and os.path.exists(pyexe):
             verified_in_ui = True
-            print("[INFO] 正在验证已安装的功能层...")
+            print("[DEBUG] 正在验证已安装依赖")
             for layer in claimed_layers:
                 ok, err = _verify_layer_runtime(pyexe, layer, timeout=30)
                 if ok:
                     verified_layers.append(layer)
-                    print(f"  [INFO] {layer} 验证通过")
+                    print(f"[DEBUG] {layer_display_name(layer)}验证通过")
                 else:
                     failed_layers.append((layer, err))
                     print(format_layer_verify_failure(layer, err))
@@ -292,7 +257,8 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     payload["failed_layers"] = [layer for layer, _ in failed_layers]
                 _save_json(state_file, payload)
                 if failed_layers:
-                    print(f"[WARN] 已更新状态文件，移除验证失败的层: {[layer for layer, _ in failed_layers]}")
+                    labels = "、".join(layer_display_name(layer) for layer, _ in failed_layers)
+                    print(f"[WARN] 已从依赖状态中移除验证失败项：{labels}")
             except Exception as e:
                 print(f"[WARN] 更新状态文件失败: {e}")
         else:
@@ -302,70 +268,48 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     py_ready = bool(pyexe and os.path.exists(str(pyexe)))
 
 
-    missing_layers = []
-    if "BASIC" not in installed_layers["layers"]:
-        missing_layers.append("BASIC")
-    if "CORE" not in installed_layers["layers"]:
-        missing_layers.append("CORE")
-    if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
-        missing_layers.append("MATHCRAFT_CPU")
-
-    def _build_status_text(current_deps_dir: str, current_py_ready: bool,
-                           current_installed_layers: list[str], current_failed_layers: list[str]) -> tuple[str, str]:
+    def _build_status_text(current_py_ready: bool,
+                           current_failed_layers: list[str]) -> tuple[str, str]:
         visible_layers = set(_visible_layer_names())
-        display_installed_layers = [layer for layer in current_installed_layers if layer in visible_layers]
         display_failed_layers = [layer for layer in current_failed_layers if layer in visible_layers]
         if not current_py_ready:
             return (
-                f"当前依赖环境： {current_deps_dir}\n"
-                "⚠️ 该目录尚未检测到可复用的 Python 环境。\n"
-                "如需在此目录安装依赖，请先点击【下载】并按提示初始化。",
+                "未检测到依赖环境，请点击“下载”进行初始化。",
                 theme["hint"],
             )
         if display_failed_layers:
             return (
-                f"当前依赖环境： {current_deps_dir}\n"
-                f"⚠️ 以下功能层安装但无法使用: {', '.join(display_failed_layers)}\n"
-                f"可用功能层： {', '.join(display_installed_layers) if display_installed_layers else '(无)'}",
+                "以下依赖需要修复："
+                + "、".join(layer_display_name(layer) for layer in display_failed_layers),
                 theme["warn"],
             )
-        if display_installed_layers:
-            if any(required_layer not in current_installed_layers for required_layer in ("BASIC", "CORE")) or not any(layer in current_installed_layers for layer in _runtime_layer_names()):
-                return (
-                    f"检测到当前环境 {current_deps_dir} 的功能层不完整\n"
-                    f"已完整安装的功能层：{', '.join(display_installed_layers)}",
-                    theme["muted"],
-                )
-            return (
-                f"当前依赖环境： {current_deps_dir}\n"
-                f"已完整安装的功能层：{', '.join(display_installed_layers)}",
-                theme["ok"],
-            )
-        return (
-            f"当前依赖环境： {current_deps_dir}\n已安装层：(无)",
-            theme["warn"],
-        )
+        return "", theme["muted"]
 
     status_text, status_color = _build_status_text(
-        deps_dir,
         py_ready,
-        installed_layers["layers"],
         failed_layer_names,
     )
 
     env_info = QLabel(status_text)
-    env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
+    env_info.setStyleSheet(f"color:{status_color};font-size:13px;margin-bottom:4px;")
+    env_info.setVisible(bool(status_text))
     lay.addWidget(env_info)
-    lay.addWidget(QLabel("选择需要安装的功能层:"))
+
+    def _set_environment_notice(current_py_ready: bool, current_failed_layers: list[str]) -> None:
+        text, color = _build_status_text(current_py_ready, current_failed_layers)
+        env_info.setText(text)
+        env_info.setStyleSheet(f"color:{color};font-size:13px;margin-bottom:4px;")
+        env_info.setVisible(bool(text))
+
+    layer_heading = QLabel("选择需要安装的功能层:")
+    layer_heading.setStyleSheet("font-size:13px;")
+    lay.addWidget(layer_heading)
 
 
     failed_layer_names = list(dict.fromkeys(failed_layer_names))
 
     checks = {}
     delete_buttons = {}
-
-    def _layer_display_name(layer: str) -> str:
-        return layer
 
     def _effective_default_select() -> set[str]:
         defaults = {"BASIC", "CORE"}
@@ -385,31 +329,32 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         if layer in failed_layer_names:
             cb.setChecked(True)
             cb.setEnabled(True)
-            cb.setText(f"{_layer_display_name(layer)}（需要修复）")
+            cb.setText(f"{layer_display_name(layer)}（需要修复）")
             _style_layer_checkbox(cb, warn_text=True)
             del_btn.setVisible(True)
             del_btn.setEnabled(True)
         elif layer in installed_layers["layers"]:
             cb.setChecked(False)
             cb.setEnabled(False)
-            cb.setText(f"{_layer_display_name(layer)}（已安装）")
+            cb.setText(f"{layer_display_name(layer)}（已安装）")
             _style_installed_layer_label(cb)
             del_btn.setVisible(True)
             del_btn.setEnabled(True)
         else:
             cb.setEnabled(True)
             cb.setChecked(layer in effective_defaults)
-            cb.setText(_layer_display_name(layer))
+            cb.setText(layer_display_name(layer))
             _style_layer_checkbox(cb)
             del_btn.setVisible(False)
             del_btn.setEnabled(False)
 
     def make_del_func(layer_name):
         def _del():
+            layer_label = layer_display_name(layer_name)
             reply = _exec_close_only_message_box(
                 dlg,
                 "删除确认",
-                f"确定要删除层 [{layer_name}] 及其所有依赖包吗？\n\n确认后将打开卸载进度窗口，并在当前程序内执行卸载。",
+                f"确定要删除“{layer_label}”及其所有依赖包吗？\n\n确认后将打开卸载进度窗口。",
                 icon=QMessageBox.Icon.Warning,
                 buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 default_button=QMessageBox.StandardButton.No,
@@ -423,7 +368,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         pkg_names.append(pkg_name)
                 pdlg, info2, logw2, btn_cancel2, btn_pause2, progress2 = _progress_dialog()
                 pdlg.setWindowTitle("卸载进度")
-                info2.setText(f"正在卸载层 {layer_name}，请不要关闭此窗口...")
+                info2.setText(f"正在卸载{layer_label}，请不要关闭此窗口...")
                 btn_pause2.hide()
                 btn_cancel2.setText("关闭")
                 btn_cancel2.setEnabled(False)
@@ -441,7 +386,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         pass
                     btn_cancel2.clicked.connect(lambda: pdlg.accept())
                     if success:
-                        info2.setText(f"层 {removed_layer} 已卸载完成。点击完成返回依赖向导。")
+                        info2.setText(f"{layer_display_name(removed_layer)}已卸载。")
                         try:
                             if removed_layer in installed_layers["layers"]:
                                 installed_layers["layers"].remove(removed_layer)
@@ -452,7 +397,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                         except Exception:
                             pass
                     else:
-                        info2.setText(f"层 {removed_layer} 卸载过程中存在问题，请查看日志。")
+                        info2.setText(f"{layer_display_name(removed_layer)}卸载失败，请查看日志。")
                     progress2.setValue(100)
 
                 worker.done.connect(_on_done)
@@ -489,45 +434,15 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     if "MATHCRAFT_GPU" in checks:
         checks["MATHCRAFT_GPU"].stateChanged.connect(on_mathcraft_gpu_changed)
 
-
-    gpu_info_label = QLabel()
-
-    def _refresh_gpu_info_label() -> None:
-        if sys.platform == "darwin":
-            return
-        current_installed_layers = {
-            str(layer) for layer in (installed_layers.get("layers", []) or [])
-        }
-        current_failed_layers = {str(layer) for layer in (failed_layer_names or [])}
-        if "MATHCRAFT_GPU" in current_installed_layers:
-            text = "✅ MATHCRAFT_GPU 已安装，GPU 加速可用"
-            color = theme["ok"]
-        elif "MATHCRAFT_GPU" in current_failed_layers:
-            text = "⚠️ MATHCRAFT_GPU 验证失败，请使用 MATHCRAFT_CPU 后端"
-            color = theme["warn"]
-        elif _gpu_available() and _cuda_toolkit_available():
-            text = "✅ 检测到 NVIDIA GPU 和 CUDA Toolkit；可尝试 MATHCRAFT_GPU"
-            color = theme["ok"]
-        elif _gpu_available():
-            text = "⚠️ 未检测到 nvcc/CUDA Toolkit，建议使用 MATHCRAFT_CPU 后端"
-            color = theme["hint"]
-        else:
-            text = "⚠️ 未检测到 NVIDIA GPU，建议使用默认 MATHCRAFT_CPU 后端"
-            color = theme["hint"]
-        gpu_info_label.setText(text)
-        gpu_info_label.setStyleSheet(f"color:{color};font-size:12px;margin:4px 0;")
-
-    if sys.platform != "darwin":
-        _refresh_gpu_info_label()
-        lay.addWidget(gpu_info_label)
-
     path_row = QHBoxLayout()
     path_edit = QLineEdit(deps_dir)
     path_edit.setReadOnly(True)
-    btn_path = PushButton(FluentIcon.FOLDER, "更改依赖安装/加载路径")
-    btn_path.setFixedHeight(36)
-    btn_path.setToolTip("更改后会立即刷新当前依赖环境状态")
-    path_row.addWidget(QLabel("依赖安装/加载路径:"))
+    btn_path = PushButton(FluentIcon.FOLDER, "更改路径")
+    btn_path.setFixedHeight(32)
+    btn_path.setToolTip("更改后重新检测依赖")
+    path_label = QLabel("依赖安装/加载路径:")
+    path_label.setStyleSheet("font-size:13px;")
+    path_row.addWidget(path_label)
     path_row.addWidget(path_edit, 1)
     path_row.addWidget(btn_path)
     lay.addLayout(path_row)
@@ -548,7 +463,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     mirror_row = QHBoxLayout()
     mirror_row.setContentsMargins(0, 0, 0, 0)
     mirror_row.setSpacing(6)
-    mirror_row.addWidget(QLabel("下载源:"))
+    mirror_label = QLabel("下载源:")
+    mirror_label.setStyleSheet("font-size:13px;")
+    mirror_row.addWidget(mirror_label)
     mirror_box = ComboBox()
     mirror_box.addItem("官方 PyPI", userData="off")
     mirror_box.addItem("清华镜像", userData="tuna")
@@ -615,26 +532,22 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     btn_row = QHBoxLayout()
 
     btn_download = PushButton(FluentIcon.DOWNLOAD, "下载")
-    btn_download.setFixedHeight(36)
+    btn_download.setFixedHeight(32)
     btn_enter = PushButton(FluentIcon.PLAY, "进入")
-    btn_enter.setFixedHeight(36)
+    btn_enter.setFixedHeight(32)
     btn_enter.setDefault(True)
     btn_cancel = PushButton(FluentIcon.CLOSE, "退出程序")
-    btn_cancel.setFixedHeight(36)
+    btn_cancel.setFixedHeight(32)
     btn_row.addWidget(btn_download)
     btn_row.addWidget(btn_enter)
     btn_row.addWidget(btn_cancel)
     lay.addLayout(btn_row)
 
 
-    warn = QLabel("缺少关键依赖层，部分功能将不可用！")
-    warn.setStyleSheet(f"color:{theme['warn']};")
+    warn = QLabel("内置识别依赖未完整安装")
+    warn.setStyleSheet(f"color:{theme['warn']};font-size:13px;")
     lay.addWidget(warn)
 
-
-    desc = QLabel(_layer_description_text())
-    desc.setStyleSheet(f"color:{theme['muted']};font-size:11px;line-height:1.35;")
-    lay.addWidget(desc)
 
     chosen = {
         "layers": None,
@@ -704,18 +617,10 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 except Exception:
                     pass
             py_ready_local = bool(active_pyexe and Path(active_pyexe).exists())
-            status_text, status_color = _build_status_text(
-                normalized,
-                py_ready_local,
-                installed_layers["layers"],
-                failed_layer_names,
-            )
-            env_info.setText(status_text)
-            env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
+            _set_environment_notice(py_ready_local, failed_layer_names)
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
-            _refresh_gpu_info_label()
 
             update_ui()
 
@@ -734,7 +639,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
                 if active_pyexe and Path(active_pyexe).exists():
                     os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
-                print(f"[INFO] 依赖路径已保存并刷新状态: {normalized}")
+                print(f"[DEBUG] 依赖路径已保存: {normalized}")
             except Exception as e:
                 print(f"[ERR] 保存配置失败: {e}")
 
@@ -821,7 +726,7 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             return
 
         if sel:
-            print(f"[INFO] 已选择安装层: {', '.join(sel)}")
+            print(f"[DEBUG] 已选择依赖: {', '.join(sel)}")
         required = {"BASIC", "CORE"}
         missing = [required_layer for required_layer in required if required_layer not in installed_layers["layers"]]
         if not any(layer in installed_layers["layers"] for layer in _runtime_layer_names()):
@@ -904,21 +809,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             effective_default_select = _effective_default_select()
             for layer, cb in checks.items():
                 _sync_layer_checkbox(layer, cb, delete_buttons[layer], effective_default_select)
-            _refresh_gpu_info_label()
 
             current_dir = _current_deps_dir()
             py_ready_local = bool(_find_existing_python(Path(current_dir)))
-            status_text, status_color = _build_status_text(
-                current_dir,
-                py_ready_local,
-                installed_layers["layers"],
-                failed_layer_names,
-            )
-            env_info.setText(status_text)
-            env_info.setStyleSheet(f"color:{status_color};font-size:12px;margin-bottom:4px;")
-            print("[INFO] 依赖状态刷新成功")
+            _set_environment_notice(py_ready_local, failed_layer_names)
         except Exception as e:
-            print(f"[WARN] UI 刷新失败: {e}")
+            print(f"[WARN] 刷新依赖向导失败: {e}")
 
 
     dlg.refresh_ui = refresh_ui

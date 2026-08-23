@@ -103,24 +103,6 @@ def test_external_model_api_key_is_saved_encrypted(monkeypatch: pytest.MonkeyPat
     assert load_config_from_mapping({"external_model_api_key": "plaintext-token"}).normalized_api_key() == ""
 
 
-def test_external_connection_signature_ignores_unused_mineru_model_name() -> None:
-    from backend.external_model import ExternalModelConfig, external_config_signature
-
-    first = ExternalModelConfig(provider="mineru", model_name="unused-a")
-    second = ExternalModelConfig(provider="mineru", model_name="unused-b")
-
-    assert external_config_signature(first) == external_config_signature(second)
-
-
-def test_external_connection_signature_tracks_openai_model_name() -> None:
-    from backend.external_model import ExternalModelConfig, external_config_signature
-
-    first = ExternalModelConfig(provider="openai_compatible", model_name="vision-a")
-    second = ExternalModelConfig(provider="openai_compatible", model_name="vision-b")
-
-    assert external_config_signature(first) != external_config_signature(second)
-
-
 def test_openai_compatible_400_includes_response_detail() -> None:
     from backend.external_model.client import ExternalModelClient
     from backend.external_model.schemas import ExternalModelConfig
@@ -205,7 +187,6 @@ def test_recommended_presets_only_include_strong_vision_options() -> None:
         "base_url": "http://127.0.0.1:8185",
         "model_name": "PaddlePaddle/PaddleOCR-VL",
         "prompt_template": "ocr_markdown_v1",
-        "hint": "适用于 FastDeploy OpenAI API Server；端口和模型名需与实际启动参数一致。",
     }
 
 

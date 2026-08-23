@@ -4,7 +4,6 @@ from qfluentwidgets import ComboBox
 
 from backend.external_model import (
     ExternalModelConnectionWorker,
-    external_config_signature,
     get_preset,
     load_config_from_mapping,
 )
@@ -55,7 +54,6 @@ class SettingsExternalModelMixin:
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, data["external_model_mineru_test_endpoint"])
         self._on_external_preset_changed()
         self._update_external_provider_visibility()
-        self._update_external_model_status()
 
     def _collect_external_model_config(self):
         config = load_config_from_mapping({})
@@ -73,14 +71,6 @@ class SettingsExternalModelMixin:
         except Exception:
             config.timeout_sec = 60
         return config
-
-    def _is_external_required_fields_ready(self, config) -> bool:
-        provider = config.normalized_provider()
-        if not config.normalized_base_url():
-            return False
-        if provider == "mineru":
-            return bool(config.normalized_mineru_endpoint())
-        return bool(config.normalized_model_name())
 
     def _update_external_provider_visibility(self):
         config = self._collect_external_model_config()
@@ -122,26 +112,15 @@ class SettingsExternalModelMixin:
             if parent_cfg is not None:
                 for key, value in config.to_mapping().items():
                     parent_cfg.set(key, value)
-                current_sig = external_config_signature(config)
-                tested_sig = str(parent_cfg.get("external_model_last_test_signature", "") or "")
-                if tested_sig != current_sig:
-                    parent_cfg.set("external_model_last_test_ok", False)
-                    parent_cfg.set("external_model_last_test_message", "")
         except Exception:
             pass
         self._update_external_provider_visibility()
-        self._update_external_model_status()
         self._notify_parent_external_status_changed()
 
     def _on_external_config_changed(self, *_args):
         self._save_external_model_config()
 
     def _on_external_preset_changed(self, *_args):
-        preset = get_preset(self._get_external_combo_value(self.external_preset_combo, ""))
-        if preset:
-            self.external_hint.setText(str(preset.get("hint") or ""))
-        else:
-            self.external_hint.setText("按协议填写 Base URL、模型名和 API Key。线上接口通常需要 API Key。")
         self._save_external_model_config()
 
     def _apply_external_preset(self):
@@ -155,7 +134,6 @@ class SettingsExternalModelMixin:
         self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
         self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/file_parse"))
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
-        self.external_hint.setText(str(preset.get("hint") or ""))
         self._save_external_model_config()
         self._show_info("预设已应用", "已填入推荐配置，请按你的本地服务实际情况检查模型名。", "success")
 
@@ -167,7 +145,6 @@ class SettingsExternalModelMixin:
         self._save_external_model_config()
         self.external_test_btn.setEnabled(False)
         self.external_test_btn.setText("测试中...")
-        self._update_external_model_status(test_message="正在后台测试连接，请稍候...")
 
         self._external_test_thread = QThread(self)
         self._external_test_worker = ExternalModelConnectionWorker(config)
@@ -186,33 +163,13 @@ class SettingsExternalModelMixin:
                 self._external_test_thread.deleteLater()
                 self._external_test_thread = None
 
-        def _on_ok(ok: bool, message: str):
-            cfg = getattr(self.parent(), "cfg", None)
-            if cfg is not None:
-                try:
-                    cfg.set("external_model_last_test_ok", bool(ok))
-                    cfg.set("external_model_last_test_signature", external_config_signature(config))
-                    cfg.set("external_model_last_test_message", str(message or ""))
-                except Exception:
-                    pass
-            self._update_external_model_status(test_message=message if ok else "测试未通过")
+        def _on_ok(_ok: bool, message: str):
             title = "健康检查通过" if config.normalized_provider() == "mineru" else "测试成功"
             self._show_info(title, message or "连接成功，本地服务可访问。", "success")
-            self._notify_parent_external_status_changed()
 
         def _on_fail(message: str):
             pretty = self._format_external_test_error(message)
-            cfg = getattr(self.parent(), "cfg", None)
-            if cfg is not None:
-                try:
-                    cfg.set("external_model_last_test_ok", False)
-                    cfg.set("external_model_last_test_signature", external_config_signature(config))
-                    cfg.set("external_model_last_test_message", str(pretty or ""))
-                except Exception:
-                    pass
-            self._update_external_model_status(test_message=pretty)
             self._show_info("测试失败", pretty, "error")
-            self._notify_parent_external_status_changed()
 
         self._external_test_thread.started.connect(self._external_test_worker.run)
         self._external_test_worker.finished.connect(_on_ok)
@@ -242,48 +199,3 @@ class SettingsExternalModelMixin:
         self._external_help_window.show()
         self._external_help_window.raise_()
         self._external_help_window.activateWindow()
-
-    def _update_external_model_status(self, test_message: str = ""):
-        config = self._collect_external_model_config()
-        provider = config.normalized_provider()
-        base_url = config.normalized_base_url()
-        model_name = config.normalized_model_name()
-        cfg = getattr(self.parent(), "cfg", None)
-        current_sig = external_config_signature(config)
-        tested_ok = False
-        tested_sig = ""
-        saved_message = ""
-        if cfg is not None:
-            try:
-                tested_ok = bool(cfg.get("external_model_last_test_ok", False))
-                tested_sig = str(cfg.get("external_model_last_test_signature", "") or "")
-                saved_message = str(cfg.get("external_model_last_test_message", "") or "")
-            except Exception:
-                tested_ok = False
-                tested_sig = ""
-                saved_message = ""
-        if not base_url:
-            status = "状态：未配置。必填项缺少 Base URL。"
-        elif provider != "mineru" and not model_name:
-            status = "状态：未配置。必填项缺少模型名。"
-        else:
-            provider_label = {
-                "mineru": "MinerU Local",
-                "ollama": "Ollama",
-            }.get(provider, "OpenAI-compatible")
-            if tested_sig == current_sig:
-                state_text = "已连接" if tested_ok else "连接失败"
-            else:
-                state_text = "已配置，尚未测试连接"
-            if provider == "mineru":
-                status = (
-                    f"状态：{state_text}。协议 {provider_label}，路径 {config.normalized_mineru_endpoint()}，"
-                    "原生解析"
-                )
-            else:
-                status = f"状态：{state_text}。协议 {provider_label}，模型 {model_name}"
-        if test_message:
-            status = f"{status}\n最近一次测试：{test_message}"
-        elif saved_message and tested_sig == current_sig:
-            status = f"{status}\n最近一次测试：{saved_message}"
-        self.external_status.setText(status)

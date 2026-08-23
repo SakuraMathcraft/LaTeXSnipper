@@ -46,7 +46,6 @@ def test_cross_platform_packaging_docs_do_not_reference_missing_scripts() -> Non
 
     referenced_paths = (
         "scripts/build_deb.sh",
-        "scripts/build_deb_offline.sh",
         "scripts/build_macos.sh",
         "LaTeXSnipper-linux.spec",
         "LaTeXSnipper-linux-offline.spec",

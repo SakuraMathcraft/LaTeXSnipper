@@ -258,7 +258,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 导出 Word、ODT、PowerPoint、EPUB 或 PDF 时，如果识别内容包含完整闭合的 SVG 源码块，程序会验证并按出现顺序保存原始 SVG 和 PNG 图像，将 PNG 嵌入目标文档，不额外添加图片标题或占位文字。图像保存在导出文件旁的 `<文件名>_assets_<内容哈希>` 目录；不同内容不会互相覆盖。无效、不完整或包含危险外部资源的 SVG 会被跳过。资源处理和 Pandoc 转换均在后台执行。
 
-托盘或菜单栏状态菜单还提供 #text(weight: "bold")[截图屏幕模式]：自动模式会按鼠标释放点选择屏幕，也可以固定到某一块显示器。多屏截图位置不对时，优先检查这里。
+托盘或菜单栏状态菜单还提供 #text(weight: "bold")[识别屏幕]：默认按鼠标释放位置自动选择，也可以固定到某一块显示器。多屏截图位置不对时，优先检查这里。
 
 == 设置页当前业务逻辑
 
@@ -271,7 +271,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 普通图片和截图的确认窗口、历史记录及主窗口预览会按结果类型渲染：LaTeX 使用公式预览，Markdown 使用混合预览，纯文本使用文本预览。本地 MathCraft 的公式、混合和纯文字结果遵循相同映射。
 
-设置页还包含外观主题、公式渲染引擎、LaTeX 路径验证、更新检查、启动时显示日志窗口、依赖管理向导、打开 MathCraft 缓存目录等入口。MathCraft 依赖统一由主依赖环境管理，设置页不再提供单独的模型下载按钮。
+设置页还包含外观主题、公式渲染引擎、LaTeX 路径验证、更新检查、启动时显示运行日志、依赖管理向导、打开 MathCraft 缓存目录等入口。MathCraft 依赖统一由主依赖环境管理，设置页不再提供单独的模型下载按钮。
 
 == PDF 识别流程
 
@@ -2490,7 +2490,7 @@ Linux/macOS 当前终端：export MATHCRAFT_FORCE_ORT_CPU=1
   - `HTTP_PROXY` / `HTTPS_PROXY` — 设置代理服务器地址（用于模型下载）
   - `LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` — Linux 下强制启用 Qt/WebEngine 软件渲染兜底
   - `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS` — Linux 下禁用图形兜底，尝试原生 Qt/GPU 路径
-  - `LATEXSNIPPER_SHOW_CONSOLE` — Windows 打包版调试时显示或隐藏运行日志窗口
+  - `LATEXSNIPPER_SHOW_RUNTIME_LOG` — 启动后显示或隐藏运行日志窗口
 ]
 
 #block(breakable: false)[

@@ -94,16 +94,14 @@ class SettingsThemeMixin:
         t = self._theme_tokens()
         if hasattr(self, "lbl_model_desc") and self.lbl_model_desc is not None:
             self.lbl_model_desc.setStyleSheet(f"color: {t['muted']}; font-size: 11px; padding: 4px;")
-        if hasattr(self, "mathcraft_env_hint") and self.mathcraft_env_hint is not None:
-            self.mathcraft_env_hint.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 2px;")
         if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
             self.lbl_latex_desc.setStyleSheet(f"color: {t['muted']}; font-size: 10px; padding: 4px;")
         if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
             self.lbl_compute_mode.setStyleSheet(
                 f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"
             )
-        if hasattr(self, "startup_console_button") and self.startup_console_button is not None:
-            self._style_startup_button(self.startup_console_button, t["text"], t["muted"])
+        if hasattr(self, "runtime_log_button") and self.runtime_log_button is not None:
+            self._style_startup_button(self.runtime_log_button, t["text"], t["muted"])
         if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
             self._style_startup_button(self.office_bridge_button, t["text"], t["muted"])
 

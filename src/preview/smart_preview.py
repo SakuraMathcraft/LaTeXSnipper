@@ -30,7 +30,7 @@ def build_preview_error_html(error: Exception | str) -> str:
 </body></html>'''
 
 
-def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer, *, debug: bool = False) -> str:
+def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> str:
     """Build the main history/editor preview HTML for mixed content types."""
     try:
         tokens = preview_theme_tokens()
@@ -38,7 +38,7 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer, *, 
             return build_math_html("", center_viewport=True)
 
         body_content = "\n".join(
-            render_content_block(content, label, content_type, formula_renderer, debug=debug)
+            render_content_block(content, label, content_type, formula_renderer)
             for content, label, content_type in items
         )
 
@@ -195,16 +195,11 @@ def render_content_block(
     label: str,
     content_type: str,
     formula_renderer: FormulaRenderer,
-    *,
-    debug: bool = False,
 ) -> str:
     try:
         content = "" if content is None else str(content)
         label = "" if label is None else str(label)
         content_type = normalize_content_type(content_type)
-
-        if debug:
-            print(f"[DEBUG] 处理预览内容块: type={content_type}, label_len={len(label)}, content_len={len(content)}")
 
         type_name, type_class = {
             "mathcraft": ("公式", ""),
@@ -228,8 +223,6 @@ def render_content_block(
     </div>
     <div class="block-content">{rendered_content}</div>
 </div>'''
-        if debug:
-            print(f"[DEBUG] 预览内容块渲染成功，输出长度: {len(result)}")
         return result
     except Exception as exc:
         print(f"[WARN] 预览内容块渲染失败: {exc}")

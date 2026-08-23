@@ -11,10 +11,8 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication
-
-from runtime.app_paths import app_config_path, app_log_dir, app_state_dir
-from runtime.startup_splash import ensure_startup_splash, startup_status_message
+from runtime.app_paths import app_config_path, app_log_dir
+from runtime.log_record import PERSISTENT_LOG_LEVEL, parse_print_log_record
 
 APP_LOG_FILE: Path | None = None
 
@@ -22,13 +20,13 @@ _ORIGINAL_PRINT = None
 _PRINT_BRIDGE_INSTALLED = False
 _RUNTIME_SESSION_HANDLER = None
 _APP_LOGGING_INITIALIZED = False
-_LSN_DEBUG_CONSOLE_READY = False
-_LSN_RUNTIME_LOG_DIALOG = None
-_LSN_RUNTIME_LOG_PATH = None
-_LSN_RUNTIME_LOG_FH_OUT = None
-_LSN_RUNTIME_LOG_FH_ERR = None
-_LSN_RUNTIME_LOG_RESET_DONE = False
-_LSN_RUNTIME_LOG_CLEANUP_HOOKED = False
+_RUNTIME_LOG_WINDOW_READY = False
+_RUNTIME_LOG_DIALOG = None
+_RUNTIME_LOG_PATH = None
+_RUNTIME_LOG_FH_OUT = None
+_RUNTIME_LOG_FH_ERR = None
+_RUNTIME_LOG_RESET_DONE = False
+_RUNTIME_LOG_CLEANUP_HOOKED = False
 
 
 def _configure_utf8_stdio() -> None:
@@ -155,7 +153,6 @@ def init_app_logging() -> Path:
     """Initialize application logging and route output to the runtime log."""
     global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
     _configure_utf8_stdio()
-    ensure_startup_splash(startup_status_message("初始化日志..."))
     log_dir = Path(app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "app.log"
@@ -197,12 +194,14 @@ def init_app_logging() -> Path:
                     pass
         if fh is not None:
             fh.setFormatter(fmt)
+            fh.setLevel(PERSISTENT_LOG_LEVEL)
             root.addHandler(fh)
             file_handler = fh
     else:
         for h in root.handlers:
             if isinstance(h, RotatingFileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path)):
                 file_handler = h
+                file_handler.setLevel(PERSISTENT_LOG_LEVEL)
                 active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
     if not has_stream:
@@ -222,16 +221,6 @@ def init_app_logging() -> Path:
         if not any(h is file_handler for h in bridge_logger.handlers):
             bridge_logger.addHandler(file_handler)
 
-        def _bridge_log_method(message: str):
-            text = message.lstrip()
-            if text.startswith("[DEBUG]"):
-                return bridge_logger.debug
-            if text.startswith("[WARN]"):
-                return bridge_logger.warning
-            if text.startswith("[ERR]"):
-                return bridge_logger.error
-            return bridge_logger.info
-
         def _print_bridge(*args, **kwargs):
             _ORIGINAL_PRINT(*args, **kwargs)
             try:
@@ -241,7 +230,9 @@ def init_app_logging() -> Path:
                 sep = kwargs.get("sep", " ")
                 msg = sep.join(str(a) for a in args).rstrip("\r\n")
                 if msg:
-                    _bridge_log_method(msg)(msg)
+                    level, clean_message = parse_print_log_record(msg)
+                    if clean_message:
+                        bridge_logger.log(level, clean_message)
             except Exception:
                 pass
 
@@ -250,36 +241,25 @@ def init_app_logging() -> Path:
 
     APP_LOG_FILE = active_log_path
     if not getattr(root, "_latexsnipper_session_logged", False):
-        logging.info("session start: pid=%s exe=%s log=%s", os.getpid(), sys.executable, active_log_path)
+        logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
         setattr(root, "_latexsnipper_session_logged", True)
-
-    ensure_startup_splash(startup_status_message("初始化 LaTeX 设置..."))
-    try:
-        from backend.latex_renderer import init_latex_settings
-
-        config_dir = app_state_dir()
-        config_dir.mkdir(parents=True, exist_ok=True)
-        init_latex_settings(config_dir)
-        print("[INFO] LaTeX 设置初始化完成")
-    except Exception as e:
-        print(f"[WARN] LaTeX 设置初始化失败: {e}")
 
     _APP_LOGGING_INITIALIZED = True
     return active_log_path
 
 
 def runtime_log_path() -> Path:
-    global _LSN_RUNTIME_LOG_PATH
-    if _LSN_RUNTIME_LOG_PATH is not None:
-        return _LSN_RUNTIME_LOG_PATH
-    p = app_log_dir() / "runtime-console.log"
+    global _RUNTIME_LOG_PATH
+    if _RUNTIME_LOG_PATH is not None:
+        return _RUNTIME_LOG_PATH
+    p = app_log_dir() / "runtime-session.log"
     p.parent.mkdir(parents=True, exist_ok=True)
-    _LSN_RUNTIME_LOG_PATH = p
-    return p
+    _RUNTIME_LOG_PATH = p
+    return _RUNTIME_LOG_PATH
 
 
 def cleanup_runtime_log_session():
-    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_DIALOG, _LSN_DEBUG_CONSOLE_READY, _RUNTIME_SESSION_HANDLER
+    global _RUNTIME_LOG_FH_OUT, _RUNTIME_LOG_FH_ERR, _RUNTIME_LOG_DIALOG, _RUNTIME_LOG_WINDOW_READY, _RUNTIME_SESSION_HANDLER
     try:
         if isinstance(sys.stdout, TeeWriter):
             sys.stdout = sys.__stdout__
@@ -288,14 +268,14 @@ def cleanup_runtime_log_session():
     except Exception:
         pass
     try:
-        if _LSN_RUNTIME_LOG_DIALOG is not None:
+        if _RUNTIME_LOG_DIALOG is not None:
             try:
-                _LSN_RUNTIME_LOG_DIALOG.hide()
+                _RUNTIME_LOG_DIALOG.hide()
             except Exception:
                 pass
     except Exception:
         pass
-    for fh_name in ("_LSN_RUNTIME_LOG_FH_OUT", "_LSN_RUNTIME_LOG_FH_ERR"):
+    for fh_name in ("_RUNTIME_LOG_FH_OUT", "_RUNTIME_LOG_FH_ERR"):
         fh = globals().get(fh_name)
         if fh is not None:
             try:
@@ -331,38 +311,40 @@ def cleanup_runtime_log_session():
             p.unlink()
     except Exception:
         pass
-    _LSN_DEBUG_CONSOLE_READY = False
+    _RUNTIME_LOG_WINDOW_READY = False
 
 
 def ensure_runtime_log_cleanup_hook():
-    global _LSN_RUNTIME_LOG_CLEANUP_HOOKED
-    if _LSN_RUNTIME_LOG_CLEANUP_HOOKED:
+    global _RUNTIME_LOG_CLEANUP_HOOKED
+    if _RUNTIME_LOG_CLEANUP_HOOKED:
         return
     try:
+        from PyQt6.QtWidgets import QApplication
+
         app = QApplication.instance()
         if app is None:
             return
         app.aboutToQuit.connect(cleanup_runtime_log_session)
-        _LSN_RUNTIME_LOG_CLEANUP_HOOKED = True
+        _RUNTIME_LOG_CLEANUP_HOOKED = True
     except Exception:
         pass
 
 
 def hook_runtime_log_streams(tee: bool = True):
-    global _LSN_RUNTIME_LOG_FH_OUT, _LSN_RUNTIME_LOG_FH_ERR, _LSN_RUNTIME_LOG_RESET_DONE
-    if _LSN_RUNTIME_LOG_FH_OUT is not None and _LSN_RUNTIME_LOG_FH_ERR is not None:
+    global _RUNTIME_LOG_FH_OUT, _RUNTIME_LOG_FH_ERR, _RUNTIME_LOG_RESET_DONE
+    if _RUNTIME_LOG_FH_OUT is not None and _RUNTIME_LOG_FH_ERR is not None:
         return
 
     log_path = runtime_log_path()
-    if not _LSN_RUNTIME_LOG_RESET_DONE:
+    if not _RUNTIME_LOG_RESET_DONE:
         try:
             log_path.write_text("", encoding="utf-8")
         except Exception:
             pass
-        _LSN_RUNTIME_LOG_RESET_DONE = True
+        _RUNTIME_LOG_RESET_DONE = True
 
-    _LSN_RUNTIME_LOG_FH_OUT = open(log_path, "a", encoding="utf-8", buffering=1)
-    _LSN_RUNTIME_LOG_FH_ERR = open(log_path, "a", encoding="utf-8", buffering=1)
+    _RUNTIME_LOG_FH_OUT = open(log_path, "a", encoding="utf-8", buffering=1)
+    _RUNTIME_LOG_FH_ERR = open(log_path, "a", encoding="utf-8", buffering=1)
     ensure_runtime_log_cleanup_hook()
 
     base_out = sys.stdout if sys.stdout and not getattr(sys.stdout, "closed", False) else sys.__stdout__
@@ -373,28 +355,30 @@ def hook_runtime_log_streams(tee: bool = True):
         base_err = base_err._original_a or sys.__stderr__
 
     if tee and base_out:
-        sys.stdout = TeeWriter(base_out, _LSN_RUNTIME_LOG_FH_OUT)
+        sys.stdout = TeeWriter(base_out, _RUNTIME_LOG_FH_OUT)
     else:
-        sys.stdout = _LSN_RUNTIME_LOG_FH_OUT
+        sys.stdout = _RUNTIME_LOG_FH_OUT
 
     if tee and base_err:
-        sys.stderr = TeeWriter(base_err, _LSN_RUNTIME_LOG_FH_ERR)
+        sys.stderr = TeeWriter(base_err, _RUNTIME_LOG_FH_ERR)
     else:
-        sys.stderr = _LSN_RUNTIME_LOG_FH_ERR
+        sys.stderr = _RUNTIME_LOG_FH_ERR
 
 
 def show_runtime_log_window(parent=None):
-    global _LSN_RUNTIME_LOG_DIALOG
+    global _RUNTIME_LOG_DIALOG
+    from PyQt6.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication(sys.argv)
     log_path = runtime_log_path()
-    if _LSN_RUNTIME_LOG_DIALOG is None:
+    if _RUNTIME_LOG_DIALOG is None:
         from ui.runtime_log_dialog import RuntimeLogDialog
 
-        _LSN_RUNTIME_LOG_DIALOG = RuntimeLogDialog(log_path, parent=parent)
+        _RUNTIME_LOG_DIALOG = RuntimeLogDialog(log_path, parent=parent)
     try:
-        _LSN_RUNTIME_LOG_DIALOG.show()
-        _LSN_RUNTIME_LOG_DIALOG.raise_()
-        _LSN_RUNTIME_LOG_DIALOG.activateWindow()
+        _RUNTIME_LOG_DIALOG.show()
+        _RUNTIME_LOG_DIALOG.raise_()
+        _RUNTIME_LOG_DIALOG.activateWindow()
     except Exception:
         pass
     try:
@@ -405,20 +389,20 @@ def show_runtime_log_window(parent=None):
 
 def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
     try:
-        if _LSN_RUNTIME_LOG_DIALOG is not None and hasattr(_LSN_RUNTIME_LOG_DIALOG, "_apply_theme_styles"):
-            _LSN_RUNTIME_LOG_DIALOG._apply_theme_styles(force=force)
+        if _RUNTIME_LOG_DIALOG is not None and hasattr(_RUNTIME_LOG_DIALOG, "_apply_theme_styles"):
+            _RUNTIME_LOG_DIALOG._apply_theme_styles(force=force)
     except Exception:
         pass
 
 
-def open_debug_console(force: bool = False, tee: bool = True):
-    """Open the scrollable and copyable GUI log window."""
-    global _LSN_DEBUG_CONSOLE_READY
+def apply_runtime_log_window_preference(force: bool = False, tee: bool = True):
+    """Apply the preference for the scrollable GUI runtime-log window."""
+    global _RUNTIME_LOG_WINDOW_READY
 
     if getattr(sys, "frozen", False):
         tee = False
 
-    def _read_startup_console_pref(default: bool = False) -> bool:
+    def _read_runtime_log_window_pref(default: bool = False) -> bool:
         try:
             cfg = app_config_path()
             if not cfg.exists():
@@ -426,7 +410,7 @@ def open_debug_console(force: bool = False, tee: bool = True):
             data = json.loads(cfg.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 return default
-            raw = data.get("show_startup_console", default)
+            raw = data.get("show_runtime_log", default)
             if isinstance(raw, bool):
                 return raw
             if isinstance(raw, (int, float)):
@@ -437,30 +421,30 @@ def open_debug_console(force: bool = False, tee: bool = True):
             pass
         return default
 
-    env_pref = os.environ.get("LATEXSNIPPER_SHOW_CONSOLE")
+    env_pref = os.environ.get("LATEXSNIPPER_SHOW_RUNTIME_LOG")
     if env_pref is not None:
         want = env_pref.strip().lower() in ("1", "true", "yes", "on")
     else:
-        want = _read_startup_console_pref(default=False)
+        want = _read_runtime_log_window_pref(default=False)
     want = bool(force or want)
-    os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if want else "0"
+    os.environ["LATEXSNIPPER_SHOW_RUNTIME_LOG"] = "1" if want else "0"
 
     if not want:
         try:
-            if _LSN_RUNTIME_LOG_DIALOG is not None:
-                _LSN_RUNTIME_LOG_DIALOG.hide()
+            if _RUNTIME_LOG_DIALOG is not None:
+                _RUNTIME_LOG_DIALOG.hide()
         except Exception:
             pass
         return
 
     try:
-        if _LSN_DEBUG_CONSOLE_READY:
+        if _RUNTIME_LOG_WINDOW_READY:
             show_runtime_log_window()
             return
         hook_runtime_log_streams(tee=tee)
         show_runtime_log_window()
-        _LSN_DEBUG_CONSOLE_READY = True
-        print("[INFO] GUI 日志窗口已打开")
+        _RUNTIME_LOG_WINDOW_READY = True
+        print("[DEBUG] 运行日志窗口已打开")
     except Exception:
         try:
             if sys.__stdout__ and not getattr(sys.__stdout__, "closed", False):

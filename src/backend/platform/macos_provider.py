@@ -119,7 +119,7 @@ class MacOSScreenshotProvider:
             fn.restype = ctypes.c_bool
             return bool(fn())
         except Exception as exc:
-            print(f"[WARN] macOS screen capture preflight unavailable: {exc}")
+            print(f"[WARN] macOS 屏幕录制权限预检不可用: {exc}")
             return None
 
     def _request_screen_capture_access(self) -> bool | None:
@@ -130,7 +130,7 @@ class MacOSScreenshotProvider:
             fn.restype = ctypes.c_bool
             return bool(fn())
         except Exception as exc:
-            print(f"[WARN] macOS screen capture request unavailable: {exc}")
+            print(f"[WARN] macOS 屏幕录制权限请求不可用: {exc}")
             return None
 
     def request_permission(self) -> PermissionResult:
@@ -171,7 +171,7 @@ class MacOSScreenshotProvider:
         try:
             subprocess.Popen(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
         except Exception as exc:
-            print(f"[WARN] macOS privacy settings open failed: {exc}")
+            print(f"[WARN] 打开 macOS 隐私设置失败: {exc}")
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
         overlay = ScreenCaptureOverlay(
@@ -315,7 +315,7 @@ class MacOSSystemProvider:
                 if image_paste_handler():
                     return
             except Exception as exc:
-                print(f"[WARN] macOS image paste handler failed: {exc}")
+                print(f"[WARN] macOS 图片粘贴处理失败: {exc}")
         self._trigger_focused_widget_method("paste")
 
     def _trigger_focused_widget_method(self, method_name: str) -> None:
@@ -344,4 +344,4 @@ class MacOSSystemProvider:
         try:
             subprocess.Popen(["osascript", "-e", script])
         except Exception as exc:
-            print(f"[WARN] macOS hide others failed: {exc}")
+            print(f"[DEBUG] macOS 隐藏其他应用失败: {exc}")

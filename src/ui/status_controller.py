@@ -36,14 +36,14 @@ class StatusControllerMixin:
             self.set_model_status(self._get_external_model_status_text())
             return
         if not getattr(self, "model", None):
-            self.set_model_status(f"待识别时加载 ({preferred})")
+            self.set_model_status("待识别时加载")
             return
         if self.model.is_model_ready(preferred):
             self.set_model_status("已加载")
         elif preferred.startswith("mathcraft") and getattr(self.model, "_import_failed", False):
-            self.set_model_status(f"加载失败 ({preferred})")
+            self.set_model_status("加载失败")
         else:
-            self.set_model_status(f"待识别时加载 ({preferred})")
+            self.set_model_status("待识别时加载")
 
     def refresh_status_label(self):
         model_display = self._get_status_model_display_name()
