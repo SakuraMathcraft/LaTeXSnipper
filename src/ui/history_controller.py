@@ -207,7 +207,7 @@ class HistoryControllerMixin:
         if not txt:
             self.show_action_status("内容不存在", level="warning")
             return
-        self._ensure_favorites_window().add_favorite(
+        self.favorites_window.add_favorite(
             txt,
             content_type=self._formula_types[txt],
         )
@@ -269,7 +269,6 @@ class HistoryControllerMixin:
         self.save_history()
         self.rebuild_history_ui()
         self.set_action_status("已加入历史")
-        print(f"[INFO] 已加入历史 total={len(self.history)} type={content_type} last='{t[:60]}'")
 
     def load_history(self):
         try:
@@ -280,7 +279,6 @@ class HistoryControllerMixin:
         self.rebuild_history_ui()
 
     def delete_history_item(self, widget, text):
-        print(f"[INFO] 删除历史请求 text='{text}' history_len={len(self.history)}")
         if text in self.history:
             self.history.remove(text)
             self._formula_names.pop(text, None)

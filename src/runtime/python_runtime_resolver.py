@@ -292,7 +292,7 @@ def _save_install_base_dir(p: Path) -> None:
             cfg = json.loads(c.read_text("utf-8") or "{}")
         cfg["install_base_dir"] = str(p)
         c.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"[INFO] 配置已保存: {p}")
+        print(f"[DEBUG] 依赖目录配置已保存: {p}")
     except Exception as e:
         print(f"[WARN] 保存配置失败: {e}")
 
@@ -312,7 +312,7 @@ def resolve_install_base_dir() -> Path:
     if not p and _is_packaged_mode() and os.name != "nt":
         p = _default_packaged_user_deps_dir()
         p.mkdir(parents=True, exist_ok=True)
-        print(f"[INFO] Packaged Linux/macOS dependency directory: {p}")
+        print(f"[DEBUG] Linux/macOS 打包依赖目录: {p}")
         _save_install_base_dir(p)
 
     if not p and os.name == "nt":
@@ -322,17 +322,17 @@ def resolve_install_base_dir() -> Path:
                 bundled.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            print(f"[INFO] 首次启动：自动使用内置依赖目录: {bundled}")
+            print(f"[DEBUG] 首次启动使用内置依赖目录: {bundled}")
             _save_install_base_dir(bundled)
             p = bundled
 
 
     if not p:
-        print("[INFO] 首次启动，请选择依赖安装目录...")
+        print("[DEBUG] 首次启动选择依赖安装目录")
         try:
             p = _select_install_base_dir()
         except RuntimeError:
-            print("[ERR] 用户取消了目录选择，退出。")
+            print("[INFO] 用户取消选择依赖目录，本次启动已取消")
             time.sleep(2)
             sys.exit(7)
     p = _normalize_install_base_dir(p)
@@ -341,11 +341,11 @@ def resolve_install_base_dir() -> Path:
 
 
     if py_exe is not None and py_exe.exists():
-        print(f"[INFO] 已复用目录内 Python: {py_exe}")
+        print(f"[DEBUG] 已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
         return p
 
-    print(f"[INFO] 选定目录未检测到可复用 Python，将由依赖向导按需初始化: {p / 'python311'}")
+    print(f"[DEBUG] 选定目录未检测到可复用 Python: {p / 'python311'}")
     _save_install_base_dir(p)
     return p
 
@@ -597,13 +597,13 @@ def _relaunch_with(pyexe: str):
     elif sys.platform.startswith("linux"):
         env.setdefault("QT_QPA_PLATFORM", "xcb")
     argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
-    print(f"[INFO] 使用私有解释器重启(子进程): {pyexe}")
+    print(f"[DEBUG] 使用私有解释器重启: {pyexe}")
     try:
         proc = subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
     except Exception as e:
         print(f"[ERR] 启动子进程失败: {e}")
         sys.exit(6)
-    print(f"[INFO] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
+    print(f"[DEBUG] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
 
 
@@ -680,7 +680,7 @@ def _find_full_python(base_dir: Path) -> str | None:
                 return str(candidate)
         except Exception:
             pass
-        print(f"[WARN] Ignoring Python without dependency runtime support: {candidate}")
+        print(f"[DEBUG] 忽略不支持依赖运行时的 Python: {candidate}")
     if getattr(sys, "frozen", False):
         return None
 
@@ -698,19 +698,19 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
-                print(f"[INFO] 使用依赖目录 Python: {py}")
+                print(f"[DEBUG] 使用依赖目录 Python: {py}")
             else:
-                print(f"[INFO] 使用外部私有 Python: {py}")
+                print(f"[DEBUG] 使用外部私有 Python: {py}")
             return py
-        print("[INFO] 依赖目录未检测到可用 Python，先使用内置运行时启动依赖向导。")
+        print("[DEBUG] 依赖目录未检测到可用 Python，使用内置运行时启动依赖向导")
         return sys.executable
 
     py = _find_full_python(base_dir)
     if py:
-        print(f"[INFO] 使用依赖目录 Python: {py}")
+        print(f"[DEBUG] 使用依赖目录 Python: {py}")
         return py
 
 
     version_hint = supported_system_python_range_label()
-    print(f"[ERR] No supported system Python was found ({version_hint}); cannot create the dependency venv.")
+    print(f"[ERR] 未找到受支持的系统 Python（{version_hint}），无法创建依赖环境")
     return None

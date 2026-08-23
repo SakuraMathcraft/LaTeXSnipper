@@ -13,11 +13,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from PyQt6.QtCore import QPoint, QRect  # noqa: E402
+from PyQt6.QtCore import QPoint, QRect, Qt  # noqa: E402
 from PyQt6.QtGui import QColor, QGuiApplication, QImage  # noqa: E402
 
 from backend.capture_overlay import (  # noqa: E402
     _ScreenSnapshot,
+    _capture_window_flags,
+    _place_popup_near_pointer,
     choose_screen_index,
     crop_screen_snapshot,
     map_global_rect_to_screen_capture,
@@ -39,6 +41,13 @@ class CaptureOverlayMappingTests(unittest.TestCase):
         self.assertEqual(choose_screen_index((3000, 900), screens), 1)
         self.assertEqual(choose_screen_index((1919, 500), screens), 0)
         self.assertEqual(choose_screen_index((1920, 500), screens), 1)
+
+    def test_capture_overlay_uses_tool_window_semantics(self):
+        flags = _capture_window_flags()
+
+        self.assertTrue(flags & Qt.WindowType.Tool)
+        self.assertTrue(flags & Qt.WindowType.FramelessWindowHint)
+        self.assertTrue(flags & Qt.WindowType.WindowStaysOnTopHint)
 
     def test_choose_screen_index_handles_extended_screen_left(self):
         screens = [
@@ -106,3 +115,27 @@ class CaptureOverlayMappingTests(unittest.TestCase):
         self.assertIsNotNone(rect)
         self.assertEqual((rect.x(), rect.y()), (0, 0))
         self.assertEqual(ScreenCaptureOverlay._selection_size(overlay), (120, 80))
+
+    def test_magnifier_position_does_not_flip_at_screen_center(self):
+        bounds = QRect(0, 0, 1920, 1080)
+
+        left_of_center = _place_popup_near_pointer(QPoint(959, 400), bounds, 126, 202, 14)
+        right_of_center = _place_popup_near_pointer(QPoint(961, 400), bounds, 126, 202, 14)
+
+        self.assertGreater(left_of_center.left(), 959)
+        self.assertGreater(right_of_center.left(), 961)
+        self.assertGreater(left_of_center.top(), 400)
+        self.assertGreater(right_of_center.top(), 400)
+
+    def test_magnifier_position_flips_only_to_stay_inside_screen(self):
+        bounds = QRect(-1280, 0, 1280, 1024)
+        pointer = QPoint(-20, 1000)
+
+        popup = _place_popup_near_pointer(pointer, bounds, 126, 202, 14)
+
+        self.assertLess(popup.left(), pointer.x())
+        self.assertLess(popup.top(), pointer.y())
+        self.assertGreaterEqual(popup.left(), bounds.left())
+        self.assertLessEqual(popup.right(), bounds.right())
+        self.assertGreaterEqual(popup.top(), bounds.top())
+        self.assertLessEqual(popup.bottom(), bounds.bottom())

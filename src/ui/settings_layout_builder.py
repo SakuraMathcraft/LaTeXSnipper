@@ -1,6 +1,6 @@
 import sys
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, PrimaryPushButton, PushButton
 
@@ -36,9 +36,9 @@ class SettingsLayoutMixin:
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle("设置")
         # Use a wider default size to avoid truncating InfoBar text.
-        self.resize(550, 675)
-        self.setMinimumWidth(550)
-        self.setMinimumHeight(675)
+        self.resize(500, 600)
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(600)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
@@ -53,14 +53,13 @@ class SettingsLayoutMixin:
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
-        self._mathcraft_pkg_ready = False
         # Cache slow probe results to avoid blocking the UI on repeated clicks.
         self._probe_cache_ttl_sec = 45.0
         self._compute_mode_probe_py = ""
         self._compute_mode_probe_ts = 0.0
         self._compute_mode_probe_info = None
         self._compute_mode_probe_running = False
-        self._device_name_cache = {"gpu": "", "cpu": "", "ts": 0.0}
+        self._device_name_cache = {"provider": "", "gpu": "", "cpu": "", "ts": 0.0}
         self._theme_mode_values = ["light", "dark", "auto"]
         # Model selection area.
         lay.addWidget(QLabel("选择识别模型:"))
@@ -80,29 +79,7 @@ class SettingsLayoutMixin:
         self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         self.lbl_model_desc.setWordWrap(True)
         lay.addWidget(self.lbl_model_desc)
-        # MathCraft environment selection.
-        self.mathcraft_env_widget = QWidget()
-        mathcraft_env_layout = QHBoxLayout(self.mathcraft_env_widget)
-        mathcraft_env_layout.setContentsMargins(0, 0, 0, 0)
-        mathcraft_env_layout.setSpacing(6)
-        mathcraft_env_layout.addWidget(QLabel("MathCraft 运行环境:"))
-        self.mathcraft_pyexe_input = QLineEdit()
-        self.mathcraft_pyexe_input.setPlaceholderText(
-            "使用主依赖环境 Python" if sys.platform == "darwin" else "使用主依赖环境 python.exe"
-        )
-        self.mathcraft_pyexe_input.setFixedHeight(30)
-        self.mathcraft_pyexe_input.setReadOnly(True)
-        mathcraft_env_layout.addWidget(self.mathcraft_pyexe_input)
-        lay.addWidget(self.mathcraft_env_widget)
-        self.mathcraft_env_hint = QLabel("提示：MathCraft 统一使用主依赖环境。")
-        self.mathcraft_env_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        self.mathcraft_env_hint.setWordWrap(True)
-        lay.addWidget(self.mathcraft_env_hint)
-        # Installation and downloads are handled by the dependency wizard.
-        self.mathcraft_dl_widget = None
-        self.mathcraft_download_btn = None
-        self.mathcraft_open_btn = None
-        # MathCraft recognition type; shown only when the built-in model is available.
+        # MathCraft recognition type.
         self.mathcraft_mode_widget = QWidget()
         mathcraft_mode_layout = QHBoxLayout(self.mathcraft_mode_widget)
         mathcraft_mode_layout.setContentsMargins(0, 0, 0, 0)
@@ -190,14 +167,6 @@ class SettingsLayoutMixin:
         )
         self.external_custom_prompt_input.setFixedHeight(32)
         external_layout.addWidget(self.external_custom_prompt_input)
-        self.external_status = QLabel("状态：未配置")
-        self.external_status.setWordWrap(True)
-        self.external_status.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        external_layout.addWidget(self.external_status)
-        self.external_hint = QLabel("建议先应用一个推荐预设，再把模型名替换成你本地部署或线上服务里实际可用的名称。")
-        self.external_hint.setWordWrap(True)
-        self.external_hint.setStyleSheet("color: #666; font-size: 10px; padding: 2px;")
-        external_layout.addWidget(self.external_hint)
         external_btn_row = QHBoxLayout()
         external_btn_row.setContentsMargins(0, 0, 0, 0)
         external_btn_row.setSpacing(6)
@@ -291,18 +260,18 @@ class SettingsLayoutMixin:
         startup_layout = QHBoxLayout(startup_row)
         startup_layout.setContentsMargins(0, 0, 0, 0)
         startup_layout.setSpacing(6)
-        self.startup_console_button = PushButton(FluentIcon.DOCUMENT, "日志窗口")
-        self.startup_console_button.setFixedHeight(36)
-        self.startup_console_button.setCheckable(True)
-        startup_console_pref = False
+        self.runtime_log_button = PushButton(FluentIcon.DOCUMENT, "运行日志")
+        self.runtime_log_button.setFixedHeight(36)
+        self.runtime_log_button.setCheckable(True)
+        runtime_log_pref = False
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
-                startup_console_pref = self.parent().cfg.get("show_startup_console", False)
+                runtime_log_pref = self.parent().cfg.get("show_runtime_log", False)
         except Exception:
-            startup_console_pref = False
-        self.startup_console_button.setChecked(self._to_bool(startup_console_pref))
-        self.startup_console_button.setToolTip("开启后将显示日志窗口")
-        startup_layout.addWidget(self.startup_console_button, 1)
+            runtime_log_pref = False
+        self.runtime_log_button.setChecked(self._to_bool(runtime_log_pref))
+        self.runtime_log_button.setToolTip("启动后显示运行日志窗口")
+        startup_layout.addWidget(self.runtime_log_button, 1)
         self.office_bridge_button = PushButton(FluentIcon.APPLICATION, "Office 插件")
         self.office_bridge_button.setFixedHeight(36)
         self.office_bridge_button.setCheckable(True)
@@ -366,7 +335,6 @@ class SettingsLayoutMixin:
         # Connect signals.
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
-        self.mathcraft_pkg_probe_done.connect(self._set_mathcraft_pkg_ready)
         self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
         self.btn_terminal.clicked.connect(lambda: self._open_terminal())
@@ -374,7 +342,7 @@ class SettingsLayoutMixin:
         self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
         if self.btn_cleanup_macos_local_data is not None:
             self.btn_cleanup_macos_local_data.clicked.connect(self._cleanup_macos_local_data)
-        self.startup_console_button.clicked.connect(self._on_startup_console_button_clicked)
+        self.runtime_log_button.clicked.connect(self._on_runtime_log_button_clicked)
         self.office_bridge_button.clicked.connect(self._on_office_bridge_button_clicked)
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         # Render-engine related signals.
@@ -405,8 +373,6 @@ class SettingsLayoutMixin:
         self._init_theme_mode_combo()
         self._init_render_engine()
         self._load_latex_settings()
-        # Warm probe caches in the background to reduce first-click stalls for terminal/GPU install actions.
-        QTimer.singleShot(120, self._warm_probe_cache_async)
         self.apply_theme_styles(force=True)
 
     def _to_bool(self, value) -> bool:
@@ -419,27 +385,27 @@ class SettingsLayoutMixin:
         return False
 
     def _sync_startup_action_buttons(self):
-        if hasattr(self, "startup_console_button") and self.startup_console_button is not None:
-            enabled = bool(self.startup_console_button.isChecked())
-            self.startup_console_button.setText("日志窗口: 开" if enabled else "日志窗口: 关")
+        if hasattr(self, "runtime_log_button") and self.runtime_log_button is not None:
+            enabled = bool(self.runtime_log_button.isChecked())
+            self.runtime_log_button.setText("运行日志: 开" if enabled else "运行日志: 关")
         if hasattr(self, "office_bridge_button") and self.office_bridge_button is not None:
             enabled = bool(self.office_bridge_button.isChecked())
             self.office_bridge_button.setText("Office 插件: 开" if enabled else "Office 插件: 关")
 
-    def _on_startup_console_button_clicked(self, _checked: bool):
-        enabled = bool(self.startup_console_button.isChecked())
+    def _on_runtime_log_button_clicked(self, _checked: bool):
+        enabled = bool(self.runtime_log_button.isChecked())
         self._sync_startup_action_buttons()
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("show_startup_console", enabled)
+                self.parent().cfg.set("show_runtime_log", enabled)
         except Exception:
             pass
         try:
-            if self.parent() and hasattr(self.parent(), "apply_startup_console_preference"):
-                self.parent().apply_startup_console_preference(enabled)
+            if self.parent() and hasattr(self.parent(), "apply_runtime_log_window_preference"):
+                self.parent().apply_runtime_log_window_preference(enabled)
         except Exception:
             pass
-        self._show_info("设置已保存", "日志窗口显示偏好已更新", "success")
+        self._show_info("设置已保存", "运行日志显示偏好已更新", "success")
 
     def _on_office_bridge_button_clicked(self, _checked: bool):
         enabled = bool(self.office_bridge_button.isChecked())
@@ -474,9 +440,4 @@ class SettingsLayoutMixin:
             "mathcraft": "内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。",
             "external_model": "连接多模态 OCR / VLM 接口，支持本地服务和部分线上服务。",
         }
-        desc = descriptions.get(key, "")
-        if key == "mathcraft":
-            desc += "\n提示：MathCraft 依赖由主环境统一管理，权重位于 MathCraft 标准缓存目录。"
-        elif key == "external_model":
-            desc += "\n提示：按协议填写 Base URL、模型名、API Key 和提示词。"
-        self.lbl_model_desc.setText(desc)
+        self.lbl_model_desc.setText(descriptions.get(key, ""))

@@ -109,16 +109,5 @@ class MainWindow(
             except Exception:
                 pass
 
-    def _safe_call(self, name, fn):
-        print(f"[DEBUG] 进入槽函数: {name}")
-        try:
-            fn()
-            print(f"[DEBUG] 槽函数完成: {name}")
-        except Exception as e:
-            print(f"[ERR] 槽函数异常 {name}: {e}")
-
-    def _defer(self, fn):
-        QTimer.singleShot(0, fn)
-
     def _qpixmap_to_pil(self, pixmap):
         return qpixmap_to_rgb_pil(pixmap)

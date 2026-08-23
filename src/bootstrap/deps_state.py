@@ -72,7 +72,7 @@ def sanitize_state_layers(
         save_json(state_path, payload)
         dropped = sorted(set(raw_installed + raw_failed) - set(installed + failed))
         if dropped:
-            print(f"[INFO] 已忽略并移除废弃/未知层: {', '.join(dropped)}")
+            print(f"[DEBUG] 已忽略并移除废弃或未知依赖: {', '.join(dropped)}")
 
     return payload
 

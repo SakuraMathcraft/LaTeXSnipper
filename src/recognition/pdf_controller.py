@@ -79,7 +79,7 @@ class PdfRecognitionControllerMixin:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         if recognition_model == EXTERNAL_MODEL and not self._is_external_model_configured():
-            custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
+            custom_warning_dialog("提示", "外部模型未配置，请先完成必要配置。", self)
             return
         try:
             import fitz  # PyMuPDF
@@ -299,7 +299,6 @@ class PdfRecognitionControllerMixin:
                 is_dark_ui=is_dark_ui,
             )
         self._pdf_result_window.set_content(text, fmt_key, structured_result=structured_result)
-        print(f"[INFO] PDF 结果窗口打开 length={len(text or '')}")
         self._pdf_result_window.show()
         self._pdf_result_window.raise_()
         self._pdf_result_window.activateWindow()
@@ -333,7 +332,7 @@ class PdfRecognitionControllerMixin:
         self._release_pdf_progress()
         if msg == "已取消" or self._is_user_cancelled_recognition_error(msg):
             try:
-                print(f"[INFO] PDF 识别已中断: {msg}")
+                print(f"[DEBUG] PDF 识别已中断: {msg}")
             except Exception:
                 pass
             self._show_recognition_cancelled_infobar()

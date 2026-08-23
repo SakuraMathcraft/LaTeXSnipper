@@ -137,25 +137,22 @@ class RecognitionControllerMixin:
 
     def _start_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.is_recognition_busy(source="main"):
-            self._restore_hidden_unpinned_predict_result_dialog()
             self._show_recognition_busy_info()
             return
         if self.current_model == "external_model" or self._get_preferred_model_for_predict() == "external_model":
             self._start_external_predict_with_pil(img, external_prompt_template=external_prompt_template)
             return
         if not self.model:
-            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         if self.predict_thread and self.predict_thread.isRunning():
-            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         preferred = self._get_preferred_model_for_predict()
         if preferred != self.current_model:
             self.current_model = preferred
         if self.model and not self.model.is_model_ready(preferred):
-            self.set_model_status(f"预热中 ({preferred})")
+            self.set_model_status("预热中")
             self.show_action_status("模型预热中，完成后将自动开始识别", level="info", auto_clear_ms=2200)
             self._ensure_model_warmup_async(
                 preferred_model=preferred,
@@ -193,7 +190,6 @@ class RecognitionControllerMixin:
 
     def _start_external_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
         if self.predict_thread and self.predict_thread.isRunning():
-            self._restore_hidden_unpinned_predict_result_dialog()
             custom_warning_dialog("错误", "前一识别线程尚未结束", self)
             return
         config = self._get_external_model_config()
@@ -201,7 +197,6 @@ class RecognitionControllerMixin:
         if one_shot_template:
             config.prompt_template = one_shot_template
         if not self._is_external_model_configured():
-            self._restore_hidden_unpinned_predict_result_dialog()
             self.set_model_status("外部模型未配置")
             self.show_action_status("请先在设置中配置外部模型", level="warning", auto_clear_ms=3000)
             self.open_settings()

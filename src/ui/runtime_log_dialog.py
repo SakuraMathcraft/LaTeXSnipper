@@ -1,4 +1,4 @@
-"""GUI runtime log window."""
+"""Runtime log window."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from runtime.app_paths import resource_path
 
 
 class RuntimeLogDialog(QDialog):
-    """GUI runtime log window without using a system console."""
+    """Display the current session log in a Qt window."""
 
     def __init__(self, log_file: Path, parent=None):
         super().__init__(parent)

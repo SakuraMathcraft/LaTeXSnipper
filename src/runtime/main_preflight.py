@@ -12,7 +12,6 @@ from runtime.native_runtime_preload import (
     configure_native_runtime_environment,
     preload_onnxruntime_before_qt,
 )
-from runtime.startup_gui_deps import early_ensure_pyqt6_and_pywin32
 
 _CRASH_FH = None
 
@@ -26,7 +25,6 @@ def pre_bootstrap_runtime() -> None:
     configure_native_runtime_environment()
 
     apply_linux_graphics_fallbacks()
-    early_ensure_pyqt6_and_pywin32()
     preload_onnxruntime_before_qt()
 
     log_dir = app_log_dir()

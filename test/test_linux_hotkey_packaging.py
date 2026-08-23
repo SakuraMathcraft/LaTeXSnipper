@@ -20,7 +20,7 @@ if str(SCRIPTS_DIR) in sys.path:
     sys.path.remove(str(SCRIPTS_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import linux_hotkey_packaging
+import linux_hotkey_packaging  # noqa: E402
 
 
 PYNPUT_MODULES = (

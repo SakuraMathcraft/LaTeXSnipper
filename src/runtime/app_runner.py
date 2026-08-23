@@ -8,7 +8,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
 from runtime.dependency_bootstrap_controller import ensure_deps
-from runtime.runtime_logging import open_debug_console
+from runtime.runtime_logging import apply_runtime_log_window_preference
 from runtime.startup_splash import (
     FORCE_ENTER_STARTUP_MESSAGE,
     finish_startup_splash,
@@ -33,27 +33,25 @@ def _apply_startup_theme() -> None:
 
 
 def _create_window(main_window_cls, splash):
-    update_startup_splash(splash, "初始化运行环境...")
-    update_startup_splash(splash, "加载主窗口...")
+    update_startup_splash(splash, "加载界面组件...")
     win = main_window_cls(startup_progress=lambda m: update_startup_splash(splash, m))
-    print("[INFO] MainWindow 创建完成，准备显示窗口")
-    update_startup_splash(splash, "主窗口已加载，正在显示...")
+    update_startup_splash(splash, "显示主窗口...")
     win.show()
     win.start_post_show_tasks()
-    QTimer.singleShot(0, lambda: open_debug_console(force=False, tee=True))
+    QTimer.singleShot(0, lambda: apply_runtime_log_window_preference(force=False, tee=True))
     finish_startup_splash(splash, win)
-    print("[INFO] win.show() 完成，进入事件循环")
+    print("[INFO] 应用界面已就绪")
     return win
 
 
 def _run_packaged(app, main_window_cls) -> int:
-    splash = take_startup_splash(app, startup_status_message("初始化界面..."))
+    splash = take_startup_splash(app, startup_status_message("加载界面组件..."))
     open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
 
     _apply_startup_theme()
 
     if open_wizard_on_start:
-        update_startup_splash(splash, startup_status_message("检查依赖中..."))
+        update_startup_splash(splash, startup_status_message("检查依赖..."))
         ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
         if not ok:
             return 1
@@ -66,9 +64,9 @@ def _run_packaged(app, main_window_cls) -> int:
 
 
 def _run_development(app, main_window_cls) -> int:
-    splash = take_startup_splash(app, startup_status_message("初始化界面..."))
+    splash = take_startup_splash(app, startup_status_message("加载界面组件..."))
     open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
-    deps_check_message = startup_status_message("检查依赖中...")
+    deps_check_message = startup_status_message("检查依赖...")
     update_startup_splash(splash, deps_check_message)
     deps_ready_cached = os.environ.get("LATEXSNIPPER_DEPS_OK") == "1"
     needs_interactive_deps_ui = bool(open_wizard_on_start or (not deps_ready_cached))

@@ -49,41 +49,26 @@ def test_macos_dependency_wizard_hides_nvidia_cuda_gpu_option(monkeypatch) -> No
     assert "MATHCRAFT_CPU" in deps_ui._visible_layer_names()
 
 
-def test_macos_dependency_wizard_does_not_show_gpu_explainer_copy(monkeypatch) -> None:
-    from bootstrap import deps_ui
-
-    monkeypatch.setattr(deps_ui.sys, "platform", "darwin")
-
-    text = deps_ui._layer_description_text()
-    assert "MATHCRAFT_GPU" not in text
-    assert "NVIDIA" not in text
-    assert "CUDA" not in text
-
-
-def test_macos_dependency_failure_guidance_avoids_windows_terminal_copy(monkeypatch) -> None:
+def test_dependency_failure_guidance_is_concise_and_platform_neutral() -> None:
     from bootstrap import deps_workers
-
-    monkeypatch.setattr(deps_workers.sys, "platform", "darwin")
 
     text = "\n".join(deps_workers._install_failure_guidance(["lxml~=4.9.3"], 1, 2))
 
     assert "CMD" not in text
     assert "管理员" not in text
     assert "pip install" not in text
-    assert "Python 3.11" in text
+    assert "lxml~=4.9.3" in text
     assert "重试" in text
 
 
-def test_macos_dependency_failure_dialog_is_localized(monkeypatch) -> None:
+def test_dependency_failure_dialog_is_localized() -> None:
     from bootstrap import deps_entry
-
-    monkeypatch.setattr(deps_entry.sys, "platform", "darwin")
 
     title, message = deps_entry._install_failure_dialog_copy()
 
     assert title == "依赖安装未完成"
     assert "Some dependencies failed" not in message
-    assert "Python 3.11" in message
+    assert "查看日志" in message
 
 
 def test_macos_dependency_failure_log_line_is_localized(monkeypatch) -> None:

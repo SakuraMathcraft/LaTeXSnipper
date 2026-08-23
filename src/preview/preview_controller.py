@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
@@ -190,7 +189,6 @@ class PreviewControllerMixin:
         return build_smart_preview_html(
             items,
             self._render_formula_preview_content,
-            debug=not getattr(sys, "frozen", False),
         )
 
     def _clear_preview(self):

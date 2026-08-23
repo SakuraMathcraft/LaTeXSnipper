@@ -8,20 +8,19 @@ import sys
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
-from qfluentwidgets import FluentIcon, MessageBox, PushButton
+from qfluentwidgets import FluentIcon, PushButton
 
 from backend.model_factory import create_model_wrapper
 from backend.platform import PlatformCapabilityRegistry
-from bootstrap.deps_entry import clear_deps_state
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
 from runtime.config_manager import ConfigManager, default_user_data_file
 from runtime.content_types import FORMULA_CONTENT_TYPE
-from runtime.dependency_bootstrap_controller import ensure_deps, show_dependency_wizard
 from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
-from ui.theme_controller import apply_theme_mode, normalize_theme_mode, read_theme_mode_from_config
-from ui.window_helpers import apply_app_window_icon as _apply_app_window_icon
+from ui.favorites_window import FavoritesWindow
+from ui.theme_controller import normalize_theme_mode
+from ui.window_helpers import select_existing_directory_with_icon as _select_existing_directory_with_icon
 
 DEFAULT_HISTORY_NAME = "history.json"
 PLATFORM_DISABLE_GLOBAL_HOTKEY = False
@@ -31,7 +30,6 @@ class MainWindowSetupMixin:
     def __init__(self, startup_progress=None):
         super().__init__()
         self._startup_progress = startup_progress
-        self._report_startup_progress("读取配置与启动参数...")
         self._pending_model_warmup_result = None
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
         self._post_show_tasks_started = False
@@ -51,7 +49,7 @@ class MainWindowSetupMixin:
         self.setAcceptDrops(True)
         self.overlay = None
         self._capture_start_pending = False
-        self._capture_waiting_for_hidden_result_window = False
+        self._capture_waiting_for_window_minimize = False
         self._last_capture_screen_index = None
         self._next_predict_result_screen_index = None
         self.predict_thread = None
@@ -65,8 +63,6 @@ class MainWindowSetupMixin:
         self._pdf_structured_result = None
         self._pdf_result_window = None
         self._predict_result_dialog = None
-        self._restore_predict_result_dialog_after_capture = None
-        self._hidden_unpinned_predict_result_dialog_for_capture = None
         self._mathcraft_env_state = None
         self._last_recognition_failure_toast_ts = 0.0
         self.settings_window = None
@@ -110,83 +106,28 @@ class MainWindowSetupMixin:
         self.setWindowIcon(self.icon)
 
 
-        self._report_startup_progress("正在加载主窗口组件...")
-        try:
-            self._report_startup_progress("正在初始化识别运行时...")
-
-            self._apply_mathcraft_env()
-            self.model = create_model_wrapper("mathcraft", auto_warmup=False)
-            self.model.status_signal.connect(self.show_status_message)
-            print("[INFO] ModelWrapper 初始化完成")
+        self._report_startup_progress("初始化识别与预览...")
+        self._apply_mathcraft_env()
+        self.model = create_model_wrapper("mathcraft", auto_warmup=False)
+        self.model.status_signal.connect(self.show_status_message)
+        self.model_status = "未加载"
+        self._sync_current_model_status_from_preference()
 
 
-            self.model_status = "未加载"
-            self._sync_current_model_status_from_preference()
-            self._report_startup_progress("识别运行时已就绪，稍后后台预热")
-
-        except Exception as e:
-            app = QApplication.instance() or QApplication([])
-            from PyQt6.QtWidgets import QMessageBox as QMsgBox
-            apply_theme_mode(read_theme_mode_from_config())
-            from PyQt6.QtGui import QFont
-            font = QFont("Microsoft YaHei UI", 9)
-            font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
-            app.setFont(font)
-            if isinstance(e, ModuleNotFoundError):
-
-                clear_deps_state()
-                QMsgBox.warning(
-                    None, "依赖缺失",
-                    "检测到依赖缺失，已重置状态文件。\n请重新选择安装目录并修复依赖。"
-                )
-
-                try:
-
-                    result = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
-                    if result == "_force_wizard":
-                        print("[INFO] 检测到损坏环境，进入依赖修复向导。")
-                        show_dependency_wizard(always_show_ui=True)
-                    elif not result:
-                        print("[WARN] 用户取消了依赖修复，程序退出。")
-                        sys.exit(0)
-                except Exception as ee:
-                    print(f"[ERR] ensure_deps 失败: {ee}")
-                    show_dependency_wizard(always_show_ui=True)
-                    return
-
-            else:
-
-                msg = MessageBox(
-                    "错误",
-                    f"模型初始化失败：{e}\n程序将进入依赖修复界面。",
-                    self
-                )
-                _apply_app_window_icon(msg)
-                msg.exec()
-                try:
-                    ok = ensure_deps(always_show_ui=True, require_layers=("BASIC", "CORE"))
-                    if not ok:
-                        sys.exit(1)
-                except Exception as ee:
-                    print(f"[ERR] ensure_deps 异常: {ee}")
-                    show_dependency_wizard(always_show_ui=True)
-                    return
-
-
-        print("[INFO] 开始初始化历史记录")
-        self._report_startup_progress("正在初始化历史记录...")
         self.history_file = str(default_user_data_file(DEFAULT_HISTORY_NAME))
         self.history = []
 
 
-        print("[INFO] 开始初始化状态栏")
-        self._report_startup_progress("正在初始化状态栏...")
         self.status_label = QLabel()
         self.refresh_status_label()
 
 
-        self.favorites_window = None
-        self._report_startup_progress("初始化平台能力与快捷键...")
+        self.favorites_window = FavoritesWindow(
+            self.cfg,
+            export_formula=self._export_as,
+            parent=self,
+            select_export_directory=_select_existing_directory_with_icon,
+        )
         self.platform_registry = PlatformCapabilityRegistry(
             parent=self,
             disable_global_hotkey=PLATFORM_DISABLE_GLOBAL_HOTKEY,
@@ -200,7 +141,6 @@ class MainWindowSetupMixin:
         seq = normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform)
         self._pending_hotkey_seq = seq
 
-        self._report_startup_progress("构建主窗口界面...")
 
 
         left_panel = QWidget()
@@ -319,7 +259,6 @@ class MainWindowSetupMixin:
         right_layout.addLayout(preview_header)
 
 
-        self._report_startup_progress("初始化公式预览引擎...")
         self.preview_view = None
         self._render_timer = None
         self._pending_latex = ""
@@ -349,9 +288,9 @@ class MainWindowSetupMixin:
 
             try:
                 pg = self.preview_view.page()
-                pg.loadStarted.connect(lambda: None)
-                pg.loadFinished.connect(lambda ok: print(f"[DEBUG] WebEngine loadFinished ok={ok}"))
-                pg.renderProcessTerminated.connect(lambda status, code: print(f"[WARN] WebEngine renderProcessTerminated status={status} code={code}"))
+                pg.renderProcessTerminated.connect(
+                    lambda status, code: print(f"[WARN] WebEngine 渲染进程终止 status={status} code={code}")
+                )
             except Exception:
                 pass
 
@@ -406,7 +345,6 @@ class MainWindowSetupMixin:
         self.setCentralWidget(container)
 
 
-        self._report_startup_progress("初始化系统托盘与历史记录...")
         self.tray_icon = self.system_provider.create_tray(self.icon, self)
         self.connect_tray_activation()
         self.update_tray_tooltip()

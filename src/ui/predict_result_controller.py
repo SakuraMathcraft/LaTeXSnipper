@@ -32,12 +32,6 @@ class PredictResultControllerMixin:
         current = getattr(self, "_predict_result_dialog", None)
         if dialog_obj is None or current is dialog_obj:
             self._predict_result_dialog = None
-        hidden = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
-        if dialog_obj is None or hidden is dialog_obj:
-            self._hidden_unpinned_predict_result_dialog_for_capture = None
-        restoring = getattr(self, "_restore_predict_result_dialog_after_capture", None)
-        if dialog_obj is None or restoring is dialog_obj:
-            self._restore_predict_result_dialog_after_capture = None
 
     def _is_predict_result_dialog_alive(self, dlg) -> bool:
         if dlg is None:
@@ -201,6 +195,18 @@ class PredictResultControllerMixin:
         except Exception:
             return False
 
+    def _set_predict_result_transient_owner(self, dlg: QDialog, pinned: bool) -> None:
+        """Detach a pinned result from the main window's minimize lifecycle."""
+        try:
+            dlg.winId()
+            handle = dlg.windowHandle()
+            if handle is None:
+                return
+            owner_handle = None if pinned else self.windowHandle()
+            handle.setTransientParent(owner_handle)
+        except Exception:
+            pass
+
     def _set_predict_result_pinned(self, dlg: QDialog, pin_btn, pinned: bool):
         dlg._predict_result_pinned = bool(pinned)
         try:
@@ -229,7 +235,8 @@ class PredictResultControllerMixin:
 
         if not self._set_predict_result_native_topmost(dlg, pinned):
             dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, pinned)
-            dlg.show()
+        self._set_predict_result_transient_owner(dlg, pinned)
+        dlg.show()
         self._set_predict_result_native_caption_buttons(dlg, pinned)
 
         self._set_predict_result_pin_button_style(pin_btn, pinned)
@@ -258,91 +265,6 @@ class PredictResultControllerMixin:
         except Exception:
             return False
 
-    def _hide_unpinned_predict_result_dialog_for_capture(self, dlg: QDialog) -> None:
-        """Hide an unpinned result dialog before the clean desktop snapshot is taken."""
-        try:
-            if os.name == "nt":
-                hwnd = int(dlg.winId())
-                if hwnd:
-                    ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-            dlg.hide()
-            dlg.setVisible(False)
-        except Exception:
-            try:
-                dlg.hide()
-            except Exception:
-                pass
-
-    def _flush_desktop_after_capture_window_hide(self) -> None:
-        """Let Qt and DWM publish hidden result windows before ScreenCaptureOverlay grabs pixels."""
-        try:
-            app = QApplication.instance()
-            if app is not None:
-                app.processEvents()
-        except Exception:
-            pass
-        if os.name == "nt":
-            try:
-                ctypes.windll.dwmapi.DwmFlush()
-            except Exception:
-                pass
-        try:
-            app = QApplication.instance()
-            if app is not None:
-                app.processEvents()
-        except Exception:
-            pass
-
-    def _prepare_predict_result_dialog_for_capture(self):
-        dlg = getattr(self, "_predict_result_dialog", None)
-        self._restore_predict_result_dialog_after_capture = None
-        self._hidden_unpinned_predict_result_dialog_for_capture = None
-        if not self._is_predict_result_dialog_alive(dlg):
-            return
-        try:
-            if bool(getattr(dlg, "_predict_result_pinned", False)) and dlg.isVisible():
-                self._restore_predict_result_dialog_after_capture = dlg
-            elif dlg.isVisible():
-                self._hidden_unpinned_predict_result_dialog_for_capture = dlg
-                self._hide_unpinned_predict_result_dialog_for_capture(dlg)
-        except Exception:
-            self._restore_predict_result_dialog_after_capture = None
-            self._hidden_unpinned_predict_result_dialog_for_capture = None
-
-    def _restore_predict_result_dialog_visibility(self):
-        dlg = getattr(self, "_restore_predict_result_dialog_after_capture", None)
-        self._restore_predict_result_dialog_after_capture = None
-        if not self._is_predict_result_dialog_alive(dlg):
-            return
-        try:
-            dlg.show()
-            if bool(getattr(dlg, "_predict_result_pinned", False)):
-                self._set_predict_result_native_topmost(dlg, True)
-                self._set_predict_result_native_caption_buttons(dlg, True)
-            dlg.raise_()
-            dlg.activateWindow()
-        except Exception:
-            pass
-
-    def _restore_hidden_unpinned_predict_result_dialog(self):
-        dlg = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
-        self._hidden_unpinned_predict_result_dialog_for_capture = None
-        if not self._is_predict_result_dialog_alive(dlg):
-            return
-        try:
-            if bool(getattr(dlg, "_predict_result_pinned", False)):
-                return
-            dlg.show()
-            dlg.raise_()
-            dlg.activateWindow()
-        except Exception:
-            pass
-
-    def _discard_hidden_unpinned_predict_result_dialog(self, dialog_obj=None):
-        hidden = getattr(self, "_hidden_unpinned_predict_result_dialog_for_capture", None)
-        if dialog_obj is None or hidden is dialog_obj:
-            self._hidden_unpinned_predict_result_dialog_for_capture = None
-
     def on_predict_ok(
         self,
         content: str,
@@ -362,7 +284,6 @@ class PredictResultControllerMixin:
         else:
             print(f"[INFO] 识别完成 model={model_name}")
         self.show_confirm_dialog(content, normalize_content_type(content_type))
-        self._discard_hidden_unpinned_predict_result_dialog()
 
     def show_confirm_dialog(self, recognized_content: str, content_type: str):
         """Show the recognition result confirmation dialog."""
@@ -438,10 +359,9 @@ class PredictResultControllerMixin:
             self.set_model_status("失败")
             self.show_action_status("Office OCR 失败", level="error", auto_clear_ms=4500)
             return
-        self._restore_hidden_unpinned_predict_result_dialog()
         if self._is_user_cancelled_recognition_error(msg):
             try:
-                print(f"[INFO] 识别已中断: {msg}")
+                print(f"[DEBUG] 识别已中断: {msg}")
             except Exception:
                 pass
             self._show_recognition_cancelled_infobar()

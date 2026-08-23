@@ -16,10 +16,8 @@ class HotkeyControllerMixin:
     def register_hotkey(self, seq: str):
         if not getattr(self, "hotkey_provider", None):
             return
-        print(f"[DEBUG] 注册全局快捷键: {seq}")
         try:
             self.hotkey_provider.register(seq)
-            print(f"[DEBUG] 全局快捷键注册状态: {self.hotkey_provider.is_registered()}")
         except Exception as e:
             print(f"[WARN] 全局快捷键注册失败: {e}")
 
@@ -53,7 +51,6 @@ class HotkeyControllerMixin:
         return False
 
     def on_hotkey_triggered(self):
-        print("[DEBUG] 全局快捷键触发")
         if self._has_blocking_window():
             try:
                 InfoBar.info(
@@ -66,7 +63,7 @@ class HotkeyControllerMixin:
             except Exception:
                 pass
             return
-        self.start_capture()
+        self.start_capture(preserve_pinned_result=True)
 
     def set_shortcut(self):
         if self.shortcut_window and self.shortcut_window.isVisible():

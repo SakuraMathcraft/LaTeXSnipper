@@ -49,6 +49,19 @@ LAYER_MAP = {
 MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
 
 
+LAYER_DISPLAY_NAMES = {
+    "BASIC": "基础依赖",
+    "CORE": "核心功能",
+    "MATHCRAFT_CPU": "CPU 推理后端",
+    "MATHCRAFT_GPU": "GPU 推理后端",
+    "PANDOC": "Pandoc 文档导出",
+}
+
+
+def layer_display_name(layer: str) -> str:
+    return LAYER_DISPLAY_NAMES.get(str(layer), str(layer))
+
+
 def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
     return _sanitize_state_layers_impl(
         state_path,
@@ -175,7 +188,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     output_lower = output.lower()
 
     if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
-        return "🧩 antlr4-python3-runtime 构建环境缺少 wheel - 可先补齐 pip/setuptools/wheel 并关闭 build isolation"
+        return "antlr4-python3-runtime 构建环境缺少 wheel，可先修复 pip/setuptools/wheel"
 
 
     if any(x in output_lower for x in [
@@ -187,7 +200,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "winerror 32",
         "errno 13",
     ]):
-        return "🔒 文件被占用或权限不足 - 请关闭程序后重试，或以管理员身份运行"
+        return "依赖文件被占用或依赖目录不可写"
 
 
     if any(x in output_lower for x in [
@@ -198,7 +211,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "resolutionimpossible",
         "package requires",
     ]):
-        return "⚠️ 依赖版本冲突 - 某些包的版本要求互相矛盾"
+        return "依赖版本冲突"
 
 
     if any(x in output_lower for x in [
@@ -212,7 +225,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "readtimeouterror",
         "connectionerror",
     ]):
-        return "🌐 网络连接失败 - 请检查网络或尝试使用镜像源"
+        return "网络连接失败，请检查网络或更换下载源"
 
 
     if any(x in output_lower for x in [
@@ -221,7 +234,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "not enough space",
         "oserror: [errno 28]",
     ]):
-        return "💾 磁盘空间不足 - 请清理磁盘后重试"
+        return "磁盘空间不足"
 
 
     if any(x in output_lower for x in [
@@ -232,7 +245,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "vcvarsall.bat",
         "cl.exe",
     ]):
-        return "🔧 编译失败 - 可能缺少 Visual C++ Build Tools"
+        return "本地编译失败，可能缺少所需的编译工具链"
 
 
     if any(x in output_lower for x in [
@@ -240,7 +253,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "python_requires",
         "not supported",
     ]):
-        return "🐍 Python 版本不兼容 - 该包不支持当前 Python 版本"
+        return "当前 Python 版本不受该依赖支持"
 
 
     if any(x in output_lower for x in [
@@ -248,7 +261,7 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "attributeerror",
         "modulenotfounderror: no module named 'pip'",
     ]):
-        return "📦 pip 损坏或版本过低 - 请先升级 pip"
+        return "pip 不可用或版本过低"
 
 
     if any(x in output_lower for x in [
@@ -257,12 +270,12 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
         "nvidia",
         "gpu",
     ]) and "error" in output_lower:
-        return "🎮 CUDA/GPU 相关错误 - 请检查 CUDA 版本是否匹配"
+        return "CUDA/GPU 运行时不兼容"
 
 
     if returncode == 1:
-        return f"❓ 一般错误 (code={returncode}) - 请查看上方日志获取详情"
+        return f"pip 返回错误码 {returncode}，请查看上方日志"
     elif returncode == 2:
-        return f"❓ 命令行语法错误 (code={returncode})"
+        return f"pip 命令参数错误（错误码 {returncode}）"
     else:
-        return f"❓ 未知错误 (code={returncode}) - 请查看上方日志获取详情"
+        return f"pip 返回错误码 {returncode}，请查看上方日志"

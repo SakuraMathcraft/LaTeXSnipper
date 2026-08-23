@@ -36,7 +36,7 @@ class WindowOpenersMixin:
         self.settings_window.activateWindow()
 
     def open_favorites(self):
-        fav = self._ensure_favorites_window()
+        fav = self.favorites_window
         fav.show()
         fav.raise_()
         fav.activateWindow()
@@ -89,7 +89,7 @@ class WindowOpenersMixin:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         if handwriting_model == "external_model" and not self._is_external_model_configured():
-            custom_warning_dialog("提示", "外部模型未配置，请先完成配置并测试连接。", self)
+            custom_warning_dialog("提示", "外部模型未配置，请先完成必要配置。", self)
             self.open_settings()
             return
         if getattr(self, "handwriting_window", None) and self.handwriting_window.isVisible():
@@ -120,7 +120,7 @@ class WindowOpenersMixin:
                 self.model._lazy_load_mathcraft(handwriting_model)
             except Exception as exc:
                 try:
-                    print(f"[WARN] Handwriting MathCraft warmup failed: {exc}", flush=True)
+                    print(f"[WARN] 手写识别 MathCraft 预热失败: {exc}", flush=True)
                 except Exception:
                     pass
 

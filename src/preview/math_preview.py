@@ -336,7 +336,7 @@ def get_mathjax_base_url() -> QUrl:
         mode = _current_render_mode()
         if mode == "mathjax_cdn":
             if "cdn" not in _MATHJAX_LOGGED_KEYS:
-                print("[INFO] 使用 CDN MathJax")
+                print("[DEBUG] 使用 CDN MathJax")
                 _MATHJAX_LOGGED_KEYS.add("cdn")
             return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
 
@@ -360,12 +360,12 @@ def get_mathjax_base_url() -> QUrl:
             local_key = f"local:{source_desc}:{url_str}"
             if local_key not in _MATHJAX_LOGGED_KEYS:
                 label = "使用本地资源" if source_desc == "本地资源" else f"使用本地资源({source_desc})"
-                print(f"[INFO] MathJax {label}: {url_str}")
+                print(f"[DEBUG] MathJax {label}: {url_str}")
                 _MATHJAX_LOGGED_KEYS.add(local_key)
 
         return url
     except Exception as exc:
-        print(f"[ERR] get_mathjax_base_url 异常: {exc}")
+        print(f"[ERR] 获取 MathJax 地址失败: {exc}")
         import traceback
 
         traceback.print_exc()
@@ -411,7 +411,7 @@ def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False
             html = html.replace(key, value)
         return html
     except Exception as exc:
-        print(f"[ERR] build_math_html 出错: {exc}")
+        print(f"[ERR] 构建公式预览页面失败: {exc}")
         import traceback
 
         traceback.print_exc()

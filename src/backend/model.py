@@ -333,7 +333,7 @@ def get_deps_python() -> str:
     if configured_py is not None:
         return str(configured_py)
     if getattr(sys, "frozen", False):
-        print("[WARN] packaged mode: deps python not configured, fallback to current runtime")
+        print("[WARN] 打包模式未配置依赖解释器，改用当前运行时")
     return sys.executable
 
 
@@ -531,8 +531,8 @@ class ModelWrapper(QObject):
         self._worker_stderr_tail: deque[str] = deque(maxlen=80)
         self._cache_events_seen: set[str] = set()
 
-        self._emit(f"[INFO] MathCraft OCR 后端偏好: {self._provider}")
-        self._emit(f"[INFO] MathCraft OCR 依赖解释器: {get_deps_python()}")
+        self._emit(f"[DEBUG] MathCraft OCR 后端偏好: {self._provider}")
+        self._emit(f"[DEBUG] MathCraft OCR 依赖解释器: {get_deps_python()}")
         if auto_warmup:
             self._lazy_load_mathcraft()
 
@@ -609,7 +609,11 @@ class ModelWrapper(QObject):
         if not event or event in self._cache_events_seen:
             return
         self._cache_events_seen.add(event)
-        self._emit(f"[INFO] MathCraft model cache: {event}")
+        print(f"[DEBUG] MathCraft model cache: {event}")
+        try:
+            self.status_signal.emit(f"[INFO] MathCraft model cache: {event}")
+        except Exception:
+            pass
 
     def _start_worker_stderr_pump(self, proc: subprocess.Popen) -> None:
         stderr = proc.stderr
@@ -800,8 +804,9 @@ class ModelWrapper(QObject):
             return True
         except Exception as exc:
             info = self._set_error(str(exc))
-            self._emit(f"[WARN] MathCraft OCR warmup failed [{info['code']}]: {exc}")
-            self._emit(f"[DEBUG] MathCraft OCR warmup detail: {info['log_message']}")
+            self._emit(f"[WARN] MathCraft OCR 预热失败 code={info['code']}")
+            self._emit(f"[DEBUG] MathCraft OCR 预热异常: {exc}")
+            self._emit(f"[DEBUG] MathCraft OCR 预热诊断: {info['log_message']}")
             return False
 
     def is_ready(self) -> bool:

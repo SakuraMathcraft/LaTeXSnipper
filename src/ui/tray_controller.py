@@ -34,7 +34,7 @@ class TrayControllerMixin:
             idx = self._get_capture_display_index()
             disp = f"屏幕{idx + 1}" if idx is not None else "指定屏幕"
         else:
-            disp = "自动屏幕"
+            disp = "自动选择屏幕"
         if getattr(self, "tray_icon", None):
             self.system_provider.set_tray_tooltip(self.tray_icon, f"LaTeXSnipper - 截图识别快捷键: {hk} | {disp}")
 
@@ -62,17 +62,17 @@ class TrayControllerMixin:
         self.update_tray_tooltip()
         self.update_tray_menu()
         if m == "auto":
-            self.set_action_status("截图屏幕模式: 自动")
+            self.set_action_status("识别屏幕：自动选择")
         else:
             idx = self._get_capture_display_index() or 0
-            self.set_action_status(f"截图屏幕模式: 屏幕 {idx + 1}")
+            self.set_action_status(f"识别屏幕：屏幕 {idx + 1}")
 
     def _build_capture_display_submenu(self, tray_menu):
-        submenu = tray_menu.addMenu("截图屏幕模式")
+        submenu = tray_menu.addMenu("识别屏幕")
         mode = self._get_capture_display_mode()
         idx = self._get_capture_display_index() or 0
 
-        act_auto = submenu.addAction("自动")
+        act_auto = submenu.addAction("自动选择")
         act_auto.setCheckable(True)
         act_auto.setChecked(mode == "auto")
         act_auto.triggered.connect(lambda _=False: self._set_capture_display_mode("auto"))

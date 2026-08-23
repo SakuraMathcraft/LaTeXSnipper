@@ -6,7 +6,6 @@ from .presets import PRESET_ITEMS, get_preset
 from .schemas import (
     ExternalModelConfig,
     ExternalModelResult,
-    external_config_signature,
     get_config_value,
     load_config_from_mapping,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "ExternalModelResult",
     "ExternalModelWorker",
     "PRESET_ITEMS",
-    "external_config_signature",
     "get_config_value",
     "get_preset",
     "load_config_from_mapping",

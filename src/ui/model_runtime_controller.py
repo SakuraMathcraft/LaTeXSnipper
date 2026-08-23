@@ -9,7 +9,7 @@ from PyQt6 import sip
 from PyQt6.QtCore import QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from backend.external_model import external_config_signature, load_config_from_mapping
+from backend.external_model import load_config_from_mapping
 from backend.model import classify_mathcraft_failure
 from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
@@ -44,7 +44,7 @@ class ModelRuntimeControllerMixin:
                     self.cfg.set(key, default)
                     changed = True
             if changed:
-                print("[INFO] 已校正当前模型配置。")
+                print("[DEBUG] 已校正当前模型配置")
         except Exception as e:
             print(f"[WARN] 模型配置校验失败: {e}")
 
@@ -92,18 +92,12 @@ class ModelRuntimeControllerMixin:
     def _get_external_model_required_fields_hint(self) -> str:
         cfg = self._get_external_model_config()
         if cfg.normalized_provider() == "mineru":
-            return "请先在设置页填写 Base URL、MinerU Local 解析接口路径，并点击“测试连接”。"
-        return "请先在设置页填写 Base URL、模型名，并点击“测试连接”。"
+            return "请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。"
+        return "请先在设置页填写 Base URL 和模型名。"
 
     def _get_external_model_status_text(self) -> str:
-        config = self._get_external_model_config()
         if self._is_external_model_configured():
-            sig = external_config_signature(config)
-            tested_sig = str(self.cfg.get("external_model_last_test_signature", "") or "")
-            tested_ok = bool(self.cfg.get("external_model_last_test_ok", False))
-            if tested_ok and sig == tested_sig:
-                return "已连接"
-            return "外部模型待连接"
+            return "外部模型已配置"
         return "外部模型未配置"
 
     def _warmup_desired_model(self):
@@ -114,9 +108,7 @@ class ModelRuntimeControllerMixin:
             return
         if preferred == "external_model":
             self.set_model_status(self._get_external_model_status_text())
-            self._report_startup_progress("外部模型模式已启用，跳过 MathCraft 预热")
             return
-        self._report_startup_progress("正在后台预热 MathCraft OCR...")
         self._ensure_model_warmup_async(
             preferred_model=preferred,
             announce_success=True,
@@ -146,8 +138,7 @@ class ModelRuntimeControllerMixin:
             self._model_warmup_callbacks.append((on_ready, on_fail))
 
         if self._model_warmup_in_progress:
-            self.set_model_status(f"预热中 ({preferred})")
-            self._report_startup_progress("正在预热 MathCraft OCR...")
+            self.set_model_status("预热中")
             return
 
         self._model_warmup_in_progress = True
@@ -162,8 +153,7 @@ class ModelRuntimeControllerMixin:
                 self.model.set_default_model(preferred)
         except Exception:
             pass
-        self.set_model_status(f"预热中 ({preferred})")
-        self._report_startup_progress("正在预热 MathCraft OCR...")
+        self.set_model_status("预热中")
         if self._should_show_mathcraft_warmup_started_infobar(preferred):
             self._show_mathcraft_warmup_started_infobar()
 
@@ -192,7 +182,6 @@ class ModelRuntimeControllerMixin:
                 self._pending_model_warmup_result = {
                     "ok": ok,
                     "err": err,
-                    "preferred": preferred,
                     "announce_success": bool(announce_success),
                     "success_message": str(success_message or ""),
                     "on_ready": on_ready,
@@ -200,7 +189,7 @@ class ModelRuntimeControllerMixin:
                 }
                 self._model_warmup_result_signal.emit()
             except RuntimeError as e:
-                print(f"[WARN] Skip model warmup callback during shutdown: {e}")
+                print(f"[DEBUG] 退出期间忽略模型预热回调: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -214,7 +203,6 @@ class ModelRuntimeControllerMixin:
 
         ok = bool(data.get("ok"))
         err = str(data.get("err", "") or "")
-        preferred = str(data.get("preferred", self.current_model) or self.current_model)
         announce_success = bool(data.get("announce_success"))
         success_message = str(data.get("success_message", "") or "")
         direct_on_ready = data.get("on_ready")
@@ -225,7 +213,6 @@ class ModelRuntimeControllerMixin:
         self._model_warmup_callbacks.clear()
 
         if ok:
-            self._report_startup_progress("MathCraft OCR 预热完成")
             self.set_model_status("已加载")
             if not bool(self.cfg.get("mathcraft_warmup_notice_done", False)):
                 self.cfg.set("mathcraft_warmup_notice_done", True)
@@ -252,8 +239,7 @@ class ModelRuntimeControllerMixin:
                     pass
             return
 
-        self._report_startup_progress("模型预热未完成，首次识别时重试")
-        self.set_model_status(f"未就绪 ({preferred})")
+        self.set_model_status("未就绪")
         fail_info = classify_mathcraft_failure(err)
         if announce_success:
             InfoBar.warning(
@@ -295,7 +281,7 @@ class ModelRuntimeControllerMixin:
                 if self.model and self.model.is_model_ready(m):
                     self.set_model_status("已加载")
                 else:
-                    self.set_model_status(f"待识别时加载 ({m})")
+                    self.set_model_status("待识别时加载")
                 return
 
         mode_names = {
@@ -335,9 +321,9 @@ class ModelRuntimeControllerMixin:
             if self.model.is_model_ready(m):
                 self.set_model_status("已加载")
             else:
-                self.set_model_status(f"预热中 ({m})")
+                self.set_model_status("预热中")
         else:
-            self.set_model_status(f"预热中 ({m})")
+            self.set_model_status("预热中")
 
         if self.settings_window:
             self.settings_window.update_model_selection()
@@ -346,7 +332,7 @@ class ModelRuntimeControllerMixin:
             if self.model and self.model.is_model_ready(m):
                 self.set_model_status("已加载")
             else:
-                self.set_model_status(f"待识别时加载 ({m})")
+                self.set_model_status("待识别时加载")
             return
 
     def _mathcraft_profile_for_model(self, model_name: str | None) -> str:

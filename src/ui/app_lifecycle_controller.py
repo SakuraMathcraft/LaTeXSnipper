@@ -9,7 +9,7 @@ from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from backend.platform import ApplicationMenuHandlers
-from runtime.runtime_logging import cleanup_runtime_log_session, open_debug_console
+from runtime.runtime_logging import apply_runtime_log_window_preference, cleanup_runtime_log_session
 from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
 
 
@@ -78,7 +78,7 @@ class AppLifecycleMixin:
         try:
             return bool(self._handle_clipboard_image_paste())
         except Exception as exc:
-            print(f"[WARN] macOS image paste handling failed: {exc}")
+            print(f"[WARN] macOS 图片粘贴处理失败: {exc}")
             return False
 
     def _show_about_dialog(self):
@@ -108,13 +108,13 @@ class AppLifecycleMixin:
         except Exception:
             pass
 
-    def apply_startup_console_preference(self, enabled: bool):
-        """Apply the startup log-window preference."""
+    def apply_runtime_log_window_preference(self, enabled: bool):
+        """Apply the runtime-log window preference."""
         try:
-            os.environ["LATEXSNIPPER_SHOW_CONSOLE"] = "1" if enabled else "0"
-            open_debug_console(force=False, tee=True)
+            os.environ["LATEXSNIPPER_SHOW_RUNTIME_LOG"] = "1" if enabled else "0"
+            apply_runtime_log_window_preference(force=False, tee=True)
         except Exception as e:
-            print(f"[WARN] apply_startup_console_preference failed: {e}")
+            print(f"[WARN] 应用运行日志窗口设置失败: {e}")
 
     def prepare_restart(self):
         """Called by settings restart flow: close heavy resources and release app lock early."""
@@ -146,7 +146,6 @@ class AppLifecycleMixin:
 
         try:
             self.save_history()
-            print("[INFO] 历史记录已保存")
         except Exception as e:
             print(f"[WARN] 保存历史失败: {e}")
 
@@ -154,14 +153,12 @@ class AppLifecycleMixin:
         try:
             if hasattr(self, 'favorites_window') and self.favorites_window:
                 self.favorites_window.save_favorites()
-                print("[INFO] 收藏夹已保存")
         except Exception as e:
             print(f"[WARN] 保存收藏夹失败: {e}")
 
 
         try:
             self.cfg.save()
-            print("[INFO] 配置已保存")
         except Exception as e:
             print(f"[WARN] 保存配置失败: {e}")
 
@@ -267,6 +264,7 @@ class AppLifecycleMixin:
                 pass
         self._preview_render_thread = None
         self._preview_render_worker = None
+        print("[INFO] LaTeXSnipper 已退出")
         try:
             cleanup_runtime_log_session()
         except Exception:

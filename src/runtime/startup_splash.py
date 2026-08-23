@@ -108,7 +108,7 @@ def create_startup_splash(app):
         app.processEvents()
         return splash
     except Exception as e:
-        print(f"[WARN] startup splash init failed: {e}")
+        print(f"[WARN] 启动画面初始化失败: {e}")
         return None
 
 
@@ -214,4 +214,4 @@ def startup_status_message(default: str) -> str:
 def startup_deps_resume_message() -> str:
     if os.environ.pop("LATEXSNIPPER_FORCE_ENTERED", "0") == "1":
         return FORCE_ENTER_STARTUP_MESSAGE
-    return "依赖检查完成，继续启动..."
+    return "加载界面组件..."

@@ -476,7 +476,7 @@ class LaTeXRenderer:
             self.latex_cmd = self._detect_latex()
 
         if self.latex_cmd and not Path(self.latex_cmd).exists():
-            print(f"[WARN] LaTeX path does not exist: {self.latex_cmd}")
+            print(f"[WARN] LaTeX 路径不存在: {self.latex_cmd}")
             self.latex_cmd = None
 
     def _detect_latex(self) -> Optional[str]:
@@ -516,8 +516,6 @@ class LaTeXRenderer:
 
                 tex_content = self._create_tex_file(latex_code)
                 tex_file.write_text(tex_content, encoding="utf-8")
-                print(f"[DEBUG] LaTeX 编译: {latex_code[:50]}")
-
                 compile_result = subprocess.run(
                     [
                         self.latex_cmd,
@@ -532,7 +530,8 @@ class LaTeXRenderer:
                     **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
-                    print(f"[ERR] LaTeX compile failed:\n{compile_result.stdout}")
+                    print("[ERR] LaTeX 编译失败")
+                    print(f"[DEBUG] LaTeX 编译输出:\n{compile_result.stdout}")
                     return None
 
                 try:
@@ -547,12 +546,12 @@ class LaTeXRenderer:
                         print(f"[DEBUG] LaTeX 已渲染 SVG: {len(svg_content)} bytes")
                         return self._enlarge_svg(svg_content, scale=1.6)
                 except FileNotFoundError:
-                    print("[WARN] pdftocairo was not found; cannot convert PDF to SVG")
+                    print("[WARN] 未找到 pdftocairo，无法将 PDF 转换为 SVG")
                     return None
         except subprocess.TimeoutExpired:
-            print("[ERR] LaTeX compile timed out")
+            print("[ERR] LaTeX 编译超时")
         except Exception as e:
-            print(f"[ERR] LaTeX render failed: {e}")
+            print(f"[ERR] LaTeX 渲染失败: {e}")
         return None
 
     def _enlarge_svg(self, svg_content: str, scale: float = 2.0) -> str:
@@ -615,7 +614,7 @@ class LaTeXSettings:
                         for key, default in defaults.items()
                     }
             except Exception as e:
-                print(f"[WARN] Failed to load LaTeX settings: {e}")
+                print(f"[WARN] 加载 LaTeX 设置失败: {e}")
 
         return defaults
 
@@ -636,7 +635,7 @@ class LaTeXSettings:
             self.config_file.write_text(payload, encoding="utf-8")
             print(f"[DEBUG] LaTeX 设置已保存: {self.config_file}")
         except Exception as e:
-            print(f"[ERR] Failed to save LaTeX settings: {e}")
+            print(f"[ERR] 保存 LaTeX 设置失败: {e}")
 
     def set_latex_path(self, path: str):
         """Set the LaTeX executable path."""
@@ -654,7 +653,7 @@ class LaTeXSettings:
         valid_modes = ["auto", "mathjax_local", "mathjax_cdn", "latex_pdflatex", "latex_xelatex"]
 
         if mode not in valid_modes:
-            print(f"[WARN] Invalid render mode: {mode}")
+            print(f"[WARN] 无效的公式渲染模式: {mode}")
             return
 
         if self.settings.get("render_mode") == mode:

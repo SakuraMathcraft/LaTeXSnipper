@@ -5,110 +5,31 @@ import sys
 import time
 from pathlib import Path
 
-from bootstrap.deps_python_runtime import find_existing_python, site_packages_root
+from bootstrap.deps_python_runtime import find_existing_python
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
     _hidden_subprocess_kwargs,
     _mathcraft_code_roots,
-    _normalize_windows_drive_letter,
 )
 
 
 class SettingsMathCraftMixin:
-
-    def _warm_probe_cache_async(self):
-        def worker():
-            # MathCraft v1 uses ONNX Runtime providers; keep this probe lightweight.
-            try:
-                self._schedule_compute_mode_probe(force=True)
-            except Exception:
-                pass
-        import threading
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _probe_module_installed(self, pyexe: str, module: str) -> bool:
-        import subprocess
-        if not pyexe or not os.path.exists(pyexe):
-            return False
-        roots = _mathcraft_code_roots()
-        code = (
-            "import importlib.util, sys; "
-            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]; "
-            f"sys.exit(0 if importlib.util.find_spec({module!r}) else 1)"
-        )
-        try:
-            try:
-                res = subprocess.run(
-                    [pyexe, "-c", code],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    **_hidden_subprocess_kwargs(),
-                )
-            except subprocess.TimeoutExpired:
-                return False
-            return res.returncode == 0
-        except Exception:
-            return False
-
-    def _schedule_mathcraft_pkg_probe(self):
-        pyexe = self.mathcraft_pyexe_input.text().strip()
-        if not pyexe or not os.path.exists(pyexe):
-            self._mathcraft_pkg_ready = False
-            self._update_mathcraft_visibility()
-            return
-        def worker():
-            ok = self._probe_module_installed(pyexe, "mathcraft_ocr")
-            try:
-                self.mathcraft_pkg_probe_done.emit(bool(ok))
-            except Exception:
-                pass
-        import threading
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _set_mathcraft_pkg_ready(self, ready: bool):
-        self._mathcraft_pkg_ready = bool(ready)
-        self._update_mathcraft_visibility()
-
-    def _infer_compute_mode_from_env(self, pyexe: str) -> dict:
-        try:
-            site = site_packages_root(Path(pyexe))
-            if not site or not site.exists():
-                return {}
-            names = {d.name.lower() for d in site.iterdir()}
-            has_ort = any(name.startswith("onnxruntime-") for name in names) or (site / "onnxruntime").exists()
-            if not has_ort:
-                return {}
-            has_gpu_runtime = any(name.startswith("onnxruntime_gpu-") or name.startswith("onnxruntime-gpu-") for name in names)
-            info = {
-                "present": True,
-                "providers": [],
-                "gpu_name": "",
-                "cpu_name": "",
-                "gpu_available": False,
-            }
-            if has_gpu_runtime:
-                info["providers"] = ["CUDAExecutionProvider"]
-                info["gpu_available"] = True
-            else:
-                info["providers"] = ["CPUExecutionProvider"]
-            return info
-        except Exception:
-            return {}
-
     def _probe_compute_mode_info(self, pyexe: str) -> dict:
         if not pyexe or not os.path.exists(pyexe):
             return {"present": False, "error": "Python executable not found"}
+        roots = _mathcraft_code_roots()
+        preference = self._current_mathcraft_provider_preference()
         code = (
-            "import json\n"
-            "out={'present': False, 'providers': [], 'gpu_available': False, 'gpu_name': '', 'cpu_name': ''}\n"
+            "import json, sys\n"
+            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]\n"
+            "out={'present': False, 'active_provider': '', 'device': '', 'gpu_name': '', 'cpu_name': ''}\n"
             "try:\n"
-            " import onnxruntime as ort\n"
-            " providers = list(ort.get_available_providers() or [])\n"
+            " from mathcraft_ocr.providers import detect_providers\n"
+            f" info = detect_providers({preference!r})\n"
             " out['present'] = True\n"
-            " out['providers'] = providers\n"
-            " out['gpu_available'] = any(p in providers for p in ('CUDAExecutionProvider', 'TensorrtExecutionProvider', 'DmlExecutionProvider'))\n"
+            " out['active_provider'] = info.active_provider or ''\n"
+            " out['device'] = info.device\n"
             "except Exception as e:\n"
             " out['error'] = f'{e.__class__.__name__}: {e}'\n"
             "print(json.dumps(out, ensure_ascii=False))\n"
@@ -126,7 +47,9 @@ class SettingsMathCraftMixin:
                 try:
                     info = json.loads(raw.splitlines()[-1])
                     if isinstance(info, dict):
-                        gpu_name, cpu_name = self._probe_local_device_names()
+                        gpu_name, cpu_name = self._probe_local_device_names(
+                            str(info.get("active_provider") or "")
+                        )
                         if gpu_name and not info.get("gpu_name"):
                             info["gpu_name"] = gpu_name
                         if cpu_name and not info.get("cpu_name"):
@@ -134,27 +57,21 @@ class SettingsMathCraftMixin:
                         return info
                 except Exception:
                     pass
-            env_info = self._infer_compute_mode_from_env(pyexe)
-            if env_info:
-                gpu_name, cpu_name = self._probe_local_device_names()
-                if gpu_name and not env_info.get("gpu_name"):
-                    env_info["gpu_name"] = gpu_name
-                if cpu_name and not env_info.get("cpu_name"):
-                    env_info["cpu_name"] = cpu_name
-                return env_info
             return {"present": False, "error": (res.stderr or raw or "probe failed").strip()}
         except Exception as e:
-            env_info = self._infer_compute_mode_from_env(pyexe)
-            if env_info:
-                gpu_name, cpu_name = self._probe_local_device_names()
-                if gpu_name and not env_info.get("gpu_name"):
-                    env_info["gpu_name"] = gpu_name
-                if cpu_name and not env_info.get("cpu_name"):
-                    env_info["cpu_name"] = cpu_name
-                return env_info
             return {"present": False, "error": str(e)}
 
-    def _probe_local_device_names(self) -> tuple[str, str]:
+    def _current_mathcraft_provider_preference(self) -> str:
+        try:
+            model = getattr(self.parent(), "model", None)
+            preference = str(getattr(model, "_provider", "") or "").strip().lower()
+            if preference in {"auto", "cpu", "gpu"}:
+                return preference
+        except Exception:
+            pass
+        return "auto"
+
+    def _probe_local_device_names(self, active_provider: str = "") -> tuple[str, str]:
         if sys.platform == "darwin":
             self._device_name_cache = {"gpu": "", "cpu": "", "ts": time.monotonic()}
             return "", ""
@@ -162,7 +79,10 @@ class SettingsMathCraftMixin:
         now = time.monotonic()
         cached = getattr(self, "_device_name_cache", {}) or {}
         ttl = 300.0
-        if (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl:
+        if (
+            str(cached.get("provider", "") or "") == active_provider
+            and (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl
+        ):
             return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
 
         def _first_line(args: list[str], *, timeout: float = 5.0) -> str:
@@ -194,11 +114,13 @@ class SettingsMathCraftMixin:
                     timeout=5,
                 )
 
-            gpu = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-            if not gpu:
-                gpu = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Select-Object -First 1 -ExpandProperty Name)")
-            if not gpu:
+            gpu = ""
+            if active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}:
                 gpu = _nvidia_gpu_name()
+            if active_provider == "DmlExecutionProvider" and not gpu:
+                gpu = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Sort-Object AdapterRAM -Descending | Select-Object -First 1 -ExpandProperty Name)")
+            if active_provider == "DmlExecutionProvider" and not gpu:
+                gpu = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Sort-Object AdapterRAM -Descending | Select-Object -First 1 -ExpandProperty Name)")
 
             cpu = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
             if not cpu:
@@ -273,7 +195,11 @@ class SettingsMathCraftMixin:
             return ""
 
         def _linux_device_names() -> tuple[str, str]:
-            return _linux_gpu_name(), _linux_cpu_name()
+            gpu = _linux_gpu_name() if active_provider in {
+                "CUDAExecutionProvider",
+                "TensorrtExecutionProvider",
+            } else ""
+            return gpu, _linux_cpu_name()
 
         if os.name == "nt":
             gpu_name, cpu_name = _windows_device_names()
@@ -284,20 +210,16 @@ class SettingsMathCraftMixin:
         else:
             gpu_name, cpu_name = _nvidia_gpu_name(), ""
 
-        self._device_name_cache = {"gpu": gpu_name, "cpu": cpu_name, "ts": now}
+        self._device_name_cache = {
+            "provider": active_provider,
+            "gpu": gpu_name,
+            "cpu": cpu_name,
+            "ts": now,
+        }
         return gpu_name, cpu_name
 
-    def _refresh_env_status(self, env_key: str):
-        if env_key != "mathcraft":
-            return
-        self._schedule_compute_mode_probe(force=True)
-        self._schedule_mathcraft_pkg_probe()
-
     def _current_mathcraft_pyexe(self) -> str:
-        try:
-            return self.mathcraft_pyexe_input.text().strip()
-        except Exception:
-            return ""
+        return self._resolve_dynamic_main_pyexe()
 
     def _init_model_combo(self):
         # Initialize the model combo-box selection.
@@ -316,8 +238,6 @@ class SettingsMathCraftMixin:
             if key == current_key:
                 self.model_combo.setCurrentIndex(i)
                 break
-        self._init_mathcraft_pyexe()
-        self._schedule_mathcraft_pkg_probe()
         self._init_mathcraft_mode()
         self._init_external_model_config()
         self._update_mathcraft_visibility()
@@ -331,21 +251,11 @@ class SettingsMathCraftMixin:
         key, _ = self._model_options[index]
         if key == "external_model":
             self.select_model("external_model")
-        elif self._is_mathcraft_ready():
+        else:
             mode_key = self._get_mathcraft_mode_key()
             self.select_model(self._mathcraft_mode_to_model(mode_key))
-        else:
-            # Trigger loading or hints while keeping the UI selection on mathcraft.
-            self.select_model("mathcraft")
         self._update_model_desc()
         self._update_mathcraft_visibility()
-
-    def _init_mathcraft_pyexe(self):
-        pyexe = self._resolve_dynamic_main_pyexe()
-        self.mathcraft_pyexe_input.setText(_normalize_windows_drive_letter(pyexe))
-        cfg = self._settings_cfg()
-        if cfg:
-            cfg.set("mathcraft_pyexe", pyexe)
 
     def _init_mathcraft_mode(self):
         mode = "formula"
@@ -426,12 +336,6 @@ class SettingsMathCraftMixin:
             return key == "external_model"
         return False
 
-    def _is_mathcraft_ready(self) -> bool:
-        # only mark ready after MathCraft package is available
-        if getattr(self, "_mathcraft_pkg_ready", False):
-            return True
-        return False
-
     def _on_mathcraft_mode_changed(self, index: int):
         if index < 0:
             return
@@ -440,8 +344,7 @@ class SettingsMathCraftMixin:
             self.parent().cfg.set("mathcraft_mode", mode_key)
         if not self._is_mathcraft_selected():
             return
-        if self._is_mathcraft_ready():
-            self.select_model(self._mathcraft_mode_to_model(mode_key))
+        self.select_model(self._mathcraft_mode_to_model(mode_key))
 
     def _update_mathcraft_visibility(self):
         key = None
@@ -450,26 +353,10 @@ class SettingsMathCraftMixin:
             key, _ = self._model_options[idx]
         visible = (key == "mathcraft")
         external_visible = (key == "external_model")
-        ready = self._is_mathcraft_ready()
-        pyexe = self.mathcraft_pyexe_input.text().strip()
-        pyexe_exists = bool(pyexe and Path(pyexe).exists())
         try:
-            self.mathcraft_env_widget.setVisible(visible)
-            self.mathcraft_env_hint.setVisible(visible)
-            if self.mathcraft_dl_widget is not None:
-                self.mathcraft_dl_widget.setVisible(visible)
-            # Keep recognition type visible so users can preselect it.
             self.mathcraft_mode_widget.setVisible(visible)
             self.external_model_widget.setVisible(external_visible)
-            if visible:
-                if not pyexe_exists:
-                    self.mathcraft_env_hint.setText("⚠️ 主依赖环境未就绪，请先运行依赖向导。")
-                elif not ready:
-                    self.mathcraft_env_hint.setText("⚠️ MathCraft 未部署：请检查程序文件或依赖环境。")
-                else:
-                    self.mathcraft_env_hint.setText("💡 MathCraft 已就绪，可选择识别类型。")
-            if external_visible:
-                self._update_external_model_status()
+            self.lbl_compute_mode.setVisible(visible)
         except Exception:
             pass
 
@@ -483,22 +370,6 @@ class SettingsMathCraftMixin:
         self._compute_mode_state = state
         self.apply_theme_styles(force=True)
 
-    def _set_compute_mode_detecting(self, info: dict, pyexe: str) -> None:
-        if not pyexe or not os.path.exists(pyexe):
-            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
-            return
-        providers = [str(p or "").strip() for p in (info.get("providers") or [])]
-        gpu_available = any(
-            p in ("CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider")
-            for p in providers
-        )
-        if gpu_available:
-            self._set_compute_mode_text("🟢 GPU 模式（检测中...）", "gpu")
-        elif info.get("present"):
-            self._set_compute_mode_text("🟡 CPU 模式（检测中...）", "cpu")
-        else:
-            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
-
     def _apply_compute_mode_from_info(self, info: dict, pyexe: str) -> bool:
         if not pyexe or not os.path.exists(pyexe):
             self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
@@ -508,16 +379,12 @@ class SettingsMathCraftMixin:
         if not info.get("present"):
             self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
             return True
-        providers = [str(p or "").strip() for p in (info.get("providers") or [])]
-        gpu_available = any(
-            p in ("CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider")
-            for p in providers
-        )
+        gpu_active = str(info.get("device") or "").strip().lower() == "gpu"
         gpu_name = str(info.get("gpu_name") or "").strip()
         cpu_name = str(info.get("cpu_name") or "").strip()
-        if gpu_available:
+        if gpu_active:
             if gpu_name:
-                self._set_compute_mode_text(f"🟢 GPU 可用: {gpu_name}", "gpu")
+                self._set_compute_mode_text(f"🟢 GPU 模式: {gpu_name}", "gpu")
             else:
                 self._set_compute_mode_text("🟢 GPU 模式", "gpu")
             return True
@@ -549,22 +416,10 @@ class SettingsMathCraftMixin:
             self._apply_compute_mode_from_info(cached_info, pyexe)
             return
 
-        inferred = self._infer_compute_mode_from_env(pyexe)
-        if self._apply_compute_mode_from_info(inferred, pyexe):
-            if isinstance(inferred, dict) and inferred.get("present"):
-                self._compute_mode_probe_py = pyexe
-                self._compute_mode_probe_ts = now
-                self._compute_mode_probe_info = dict(inferred)
-        else:
-            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
-
         if self._compute_mode_probe_running and not force:
             return
 
-        if isinstance(inferred, dict) and inferred.get("present"):
-            self._set_compute_mode_detecting(inferred, pyexe)
-        else:
-            self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+        self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
 
         self._compute_mode_probe_running = True
 
