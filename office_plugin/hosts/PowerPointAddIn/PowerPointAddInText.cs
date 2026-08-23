@@ -1,9 +1,26 @@
+using System;
 using System.Globalization;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public static class PowerPointAddInText
 {
+    public static string GetExceptionMessage(Exception exception)
+    {
+        string message = exception?.Message?.Trim() ?? string.Empty;
+        foreach (char value in message)
+        {
+            if (value >= '\u3400' && value <= '\u9fff')
+            {
+                return message;
+            }
+        }
+
+        return exception is TimeoutException
+            ? "操作超时，请稍后重试。"
+            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+    }
+
     public static string Get(string key)
     {
         return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh"
@@ -34,7 +51,7 @@ public static class PowerPointAddInText
             "SettingsButton" => "Settings",
             "HelpButton" => "Help",
             "InsertFormulaTip" => "Open the formula editor.",
-            "ScreenshotOcrTip" => "Wait for the next capture; click again to cancel.",
+            "ScreenshotOcrTip" => "Wait for the next LaTeXSnipper recognition result; click again to cancel.",
             "LoadSelectedTip" => "Load the selected formula into the editor.",
             "DeleteSelectedTip" => "Delete the selected managed formulas.",
             "ToOleTip" => "Convert the selected PNG formulas to OLE.",
@@ -82,8 +99,8 @@ public static class PowerPointAddInText
             "SettingsStatus" => "Settings opened.",
             "SettingsTitle" => "LaTeXSnipper PowerPoint Plugin Settings",
             "TaskPaneShownStatus" => "Status pane shown.",
-            "ConnectedBridgeStatus" => "Connected to LaTeXSnipper.",
-            "BridgeOcrAlreadyWaiting" => "Screenshot OCR is busy. Wait a moment and try again.",
+            "ConnectedAutomationStatus" => "Connected to LaTeXSnipper Automation API.",
+            "AutomationOcrAlreadyWaiting" => "Screenshot OCR is busy. Wait a moment and try again.",
             _ => key,
         };
     }
@@ -111,7 +128,7 @@ public static class PowerPointAddInText
             "SettingsButton" => "设置",
             "HelpButton" => "帮助",
             "InsertFormulaTip" => "打开公式编辑器。",
-            "ScreenshotOcrTip" => "等待下一次截图；再次单击可取消。",
+            "ScreenshotOcrTip" => "等待 LaTeXSnipper 的下一次识别结果；再次单击可取消。",
             "LoadSelectedTip" => "将所选公式加载到编辑器中。",
             "DeleteSelectedTip" => "删除所选受管理公式。",
             "ToOleTip" => "将所选 PNG 公式转换为 OLE。",
@@ -159,8 +176,8 @@ public static class PowerPointAddInText
             "SettingsStatus" => "已打开设置。",
             "SettingsTitle" => "LaTeXSnipper PowerPoint 插件设置",
             "TaskPaneShownStatus" => "状态窗格已显示。",
-            "ConnectedBridgeStatus" => "已连接到 LaTeXSnipper。",
-            "BridgeOcrAlreadyWaiting" => "截图识别正忙，请稍后再试。",
+            "ConnectedAutomationStatus" => "已连接到 LaTeXSnipper Automation API。",
+            "AutomationOcrAlreadyWaiting" => "截图识别正忙，请稍后再试。",
             _ => key,
         };
     }

@@ -86,11 +86,17 @@ class InternalModelMathCraftTests(unittest.TestCase):
     def test_external_model_failure_message_is_not_mathcraft_classified(self):
         from backend.recognition_errors import recognition_failure_user_message
 
-        raw = "无法连接到 127.0.0.1:11434，请确认服务已启动。"
-        self.assertEqual(
-            recognition_failure_user_message(raw, "external_model"),
-            raw,
-        )
+        raw = "HTTPConnectionPool(host='127.0.0.1', port=11434): raw upstream failure"
+        message = recognition_failure_user_message(raw, "external_model")
+        self.assertIn("外部模型", message)
+        self.assertNotIn("HTTPConnectionPool", message)
+
+    def test_recognition_error_codes_have_chinese_user_messages(self):
+        from backend.recognition_errors import recognition_error_code_user_message
+
+        for code in ("queue_full", "model_unavailable", "upstream_timeout", "internal_error", "unknown"):
+            message = recognition_error_code_user_message(code)
+            self.assertRegex(message, r"[\u4e00-\u9fff]")
 
     def test_mathcraft_failure_message_still_uses_mathcraft_classifier(self):
         from backend.recognition_errors import recognition_failure_user_message
@@ -118,6 +124,64 @@ class InternalModelMathCraftTests(unittest.TestCase):
                 detect_providers()
 
         self.assertIn("missing get_available_providers", str(ctx.exception))
+
+    def test_explicit_gpu_provider_does_not_fall_back_to_cpu(self):
+        from mathcraft_ocr.errors import ProviderError
+        from mathcraft_ocr.providers import detect_providers
+
+        ort = mock.Mock()
+        ort.get_available_providers.return_value = ["CPUExecutionProvider"]
+        with (
+            mock.patch(
+                "mathcraft_ocr.providers.importlib.import_module",
+                return_value=ort,
+            ),
+            self.assertRaises(ProviderError) as ctx,
+        ):
+            detect_providers("gpu")
+
+        self.assertIn("GPU provider was requested", str(ctx.exception))
+
+    def test_auto_provider_can_select_cpu_when_no_gpu_is_requested(self):
+        from mathcraft_ocr.providers import detect_providers
+
+        ort = mock.Mock()
+        ort.get_available_providers.return_value = ["CPUExecutionProvider"]
+        with mock.patch(
+            "mathcraft_ocr.providers.importlib.import_module",
+            return_value=ort,
+        ):
+            info = detect_providers("auto")
+
+        self.assertEqual(info.active_provider, "CPUExecutionProvider")
+        self.assertEqual(info.device, "cpu")
+
+    def test_explicit_cpu_provider_ignores_available_gpu(self):
+        from mathcraft_ocr.providers import detect_providers
+
+        ort = mock.Mock()
+        ort.get_available_providers.return_value = [
+            "CUDAExecutionProvider",
+            "CPUExecutionProvider",
+        ]
+        with mock.patch(
+            "mathcraft_ocr.providers.importlib.import_module",
+            return_value=ort,
+        ):
+            info = detect_providers("cpu")
+
+        self.assertEqual(info.active_provider, "CPUExecutionProvider")
+        self.assertEqual(info.device, "cpu")
+        self.assertFalse(info.gpu_requested)
+
+    def test_mathcraft_failure_classifier_reports_gpu_provider_failure(self):
+        from backend.model import classify_mathcraft_failure
+
+        info = classify_mathcraft_failure(
+            "GPU provider was requested but none is available: ('CPUExecutionProvider',)"
+        )
+
+        self.assertEqual(info["code"], "GPU_PROVIDER_UNAVAILABLE")
 
     def test_cleanup_removes_orphan_onnxruntime_namespace(self):
         from bootstrap import deps_runtime_verify

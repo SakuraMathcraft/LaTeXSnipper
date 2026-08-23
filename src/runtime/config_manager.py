@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from runtime.app_paths import app_config_path, app_state_dir
+from runtime.private_files import restrict_file_to_current_user
 
 
 class ConfigManager:
@@ -33,9 +36,22 @@ class ConfigManager:
         self.save()
 
     def save(self):
+        target = Path(self.path)
+        temp_path = None
         try:
-            Path(self.path).write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+            temp_path = Path(temp_name)
+            restrict_file_to_current_user(temp_path, descriptor=descriptor)
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+                json.dump(self.data, stream, ensure_ascii=False, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temp_path, target)
         except Exception as exc:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
             print(f"[WARN] 配置保存失败: {exc}")
 
 

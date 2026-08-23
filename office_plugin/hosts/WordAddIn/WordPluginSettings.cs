@@ -102,7 +102,7 @@ public sealed class WordPluginSettings
     public void Save()
     {
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath)
-            ?? throw new InvalidOperationException("Unable to open LaTeXSnipper Office plugin settings.");
+            ?? throw new InvalidOperationException("无法打开 LaTeXSnipper Office 插件设置。");
         key.SetValue(NumberPlacementValue, NumberPlacement.ToString(), RegistryValueKind.String);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
         key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);

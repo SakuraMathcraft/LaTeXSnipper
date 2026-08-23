@@ -159,6 +159,7 @@ class PdfRecognitionControllerMixin:
                 fmt_key,
                 dpi,
                 doc_mode,
+                coordinator=getattr(self, "recognition_coordinator", None),
             )
         else:
             if dpi is None:
@@ -170,6 +171,7 @@ class PdfRecognitionControllerMixin:
                 recognition_model,
                 fmt_key,
                 dpi,
+                coordinator=getattr(self, "recognition_coordinator", None),
             )
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 

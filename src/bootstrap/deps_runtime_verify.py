@@ -405,13 +405,18 @@ expected = "{expected_provider}"
 if expected not in providers:
     raise RuntimeError(f"{{expected}} unavailable: {{providers}}")
 
-session = ort.InferenceSession(_minimal_identity_onnx(), providers={requested_providers})
+session = ort.InferenceSession(
+    _minimal_identity_onnx(),
+    providers={requested_providers},
+    enable_fallback=False,
+)
 actual = list(session.get_providers() or [])
 if expected not in actual:
     raise RuntimeError(
         f"{{expected}} listed but failed to initialize an ONNX session; "
         f"available={{providers}}, session={{actual}}"
     )
+session.disable_fallback()
 
 print("ONNX providers:", providers)
 print("ONNX session providers:", actual)

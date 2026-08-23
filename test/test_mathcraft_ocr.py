@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
 import mathcraft_ocr.runtime as runtime_mod
+import mathcraft_ocr.adapters.common as common_adapter_mod
 import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
 import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
 from mathcraft_ocr.errors import ModelCacheError
@@ -1646,7 +1647,6 @@ def test_hardware_batch_policy_prefers_larger_gpu_batches() -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        cpu_fallback=False,
     )
     assert choose_rec_batch_num(
         provider,
@@ -1669,7 +1669,6 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        cpu_fallback=False,
     )
     assert choose_rec_batch_num(
         provider,
@@ -1686,10 +1685,10 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
 
 
 def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> None:
-    calls: list[tuple[str, bool, bool]] = []
+    calls: list[tuple[str, str, bool, bool]] = []
 
-    def _fake_cached(model_dir: str, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, use_cuda, use_dml))
+    def _fake_cached(model_dir: str, active_provider: str, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, active_provider, use_cuda, use_dml))
         return object()
 
     monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
@@ -1699,19 +1698,18 @@ def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> No
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        cpu_fallback=False,
     )
 
     text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
 
-    assert calls[0][1:] == (True, False)
+    assert calls[0][1:] == ("CUDAExecutionProvider", True, False)
 
 
 def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
-    calls: list[tuple[str, bool, bool]] = []
+    calls: list[tuple[str, str, bool, bool]] = []
 
-    def _fake_cached(model_dir: str, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, use_cuda, use_dml))
+    def _fake_cached(model_dir: str, active_provider: str, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, active_provider, use_cuda, use_dml))
         return object()
 
     monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
@@ -1721,12 +1719,118 @@ def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        cpu_fallback=False,
     )
 
     text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
 
-    assert calls[0][1:] == (False, True)
+    assert calls[0][1:] == ("DmlExecutionProvider", False, True)
+
+
+def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_path) -> None:
+    calls = {}
+
+    class _Session:
+        fallback_disabled = False
+
+        def get_providers(self):
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+        def disable_fallback(self):
+            self.fallback_disabled = True
+
+    session = _Session()
+
+    class _Ort:
+        @staticmethod
+        def InferenceSession(model_path, **kwargs):
+            calls["model_path"] = model_path
+            calls.update(kwargs)
+            return session
+
+    common_adapter_mod.clear_session_cache()
+    monkeypatch.setattr(common_adapter_mod, "_ort", lambda: _Ort)
+    provider = ProviderInfo(
+        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CUDAExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+    )
+
+    result = common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
+
+    assert result is session
+    assert calls["providers"] == ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    assert calls["enable_fallback"] is False
+    assert session.fallback_disabled is True
+    common_adapter_mod.clear_session_cache()
+
+
+def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_path) -> None:
+    class _Session:
+        def get_providers(self):
+            return ["CPUExecutionProvider"]
+
+    class _Ort:
+        @staticmethod
+        def InferenceSession(_model_path, **_kwargs):
+            return _Session()
+
+    common_adapter_mod.clear_session_cache()
+    monkeypatch.setattr(common_adapter_mod, "_ort", lambda: _Ort)
+    provider = ProviderInfo(
+        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CUDAExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+    )
+
+    try:
+        common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
+    except RuntimeError as exc:
+        assert "requested ONNX GPU provider" in str(exc)
+    else:
+        raise AssertionError("GPU initialization fallback must be rejected")
+    finally:
+        common_adapter_mod.clear_session_cache()
+
+
+def test_rapidocr_session_disables_runtime_provider_fallback() -> None:
+    class _Session:
+        fallback_disabled = False
+
+        def get_providers(self):
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+        def disable_fallback(self):
+            self.fallback_disabled = True
+
+    session = _Session()
+    recognizer = type("Recognizer", (), {"session": type("Engine", (), {"session": session})()})()
+
+    text_recognizer_mod._enforce_strict_provider(recognizer, "CUDAExecutionProvider")
+
+    assert session.fallback_disabled is True
+
+
+def test_rapidocr_session_rejects_gpu_initialization_fallback() -> None:
+    class _Session:
+        def get_providers(self):
+            return ["CPUExecutionProvider"]
+
+        def disable_fallback(self):
+            raise AssertionError("fallback should not be disabled after provider mismatch")
+
+    session = _Session()
+    recognizer = type("Recognizer", (), {"session": type("Engine", (), {"session": session})()})()
+
+    try:
+        text_recognizer_mod._enforce_strict_provider(recognizer, "CUDAExecutionProvider")
+    except RuntimeError as exc:
+        assert "RapidOCR session providers" in str(exc)
+    else:
+        raise AssertionError("RapidOCR GPU initialization fallback must be rejected")
 
 
 def test_provider_serialization_exposes_backend_capabilities() -> None:
@@ -1736,7 +1840,6 @@ def test_provider_serialization_exposes_backend_capabilities() -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        cpu_fallback=False,
     )
 
     payload = provider_info_to_json(provider)
@@ -1787,7 +1890,6 @@ def test_hardware_batch_policy_keeps_cpu_batches_moderate() -> None:
         device="cpu",
         gpu_requested=False,
         gpu_runtime_ok=False,
-        cpu_fallback=False,
     )
     assert choose_rec_batch_num(
         provider,

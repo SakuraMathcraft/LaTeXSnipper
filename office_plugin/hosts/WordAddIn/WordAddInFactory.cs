@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using LaTeXSnipper.OfficePlugin.Abstractions;
-using LaTeXSnipper.OfficePlugin.Bridge;
+using LaTeXSnipper.OfficePlugin.Automation;
 using LaTeXSnipper.OfficePlugin.Editor;
 using LaTeXSnipper.OfficePlugin.Rendering;
 
@@ -9,10 +9,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public static class WordAddInFactory
 {
-    private const string BridgeUrlEnvironmentVariable = "LATEXSNIPPER_OFFICE_BRIDGE_URL";
-    private const string BridgeTokenEnvironmentVariable = "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN";
-    private const string DefaultBridgeUrl = "http://127.0.0.1:28765/";
-
     public static WordPluginController CreateController(
         object wordApplication,
         IWordStatusSink? statusSink = null,
@@ -23,14 +19,14 @@ public static class WordAddInFactory
         statusSink ??= NullWordStatusSink.Instance;
         var editor = new MathLiveFormulaEditor(CreateEditorOptions());
         var editorSession = new FormulaEditorSession(editor);
-        var bridgeClient = new BridgeClient(CreateBridgeOptions());
+        var automationClient = new AutomationApiClient(new AutomationApiOptions());
         var wordAdapter = new DynamicWordApplicationAdapter(wordApplication);
         var oleIntermediateRenderer = new MathJaxSvgRenderer(
             new WebView2MathJaxJavaScriptRuntime(mathJaxHostName ?? "WordAddIn"));
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new WordPluginController(
             editorSession,
-            bridgeClient,
+            automationClient,
             wordAdapter,
             oleIntermediateRenderer,
             olePresentationPipeline,
@@ -45,16 +41,6 @@ public static class WordAddInFactory
         editor.EditorCancelled += (_, cancelled) => controller.CancelEditorFormula(cancelled.SessionGeneration);
         editor.EditorError += (_, message) => statusSink.Post(WordStatusKind.Error, message);
         return controller;
-    }
-
-    private static BridgeOptions CreateBridgeOptions()
-    {
-        string value = Environment.GetEnvironmentVariable(BridgeUrlEnvironmentVariable) ?? DefaultBridgeUrl;
-        string normalized = value.EndsWith("/", StringComparison.Ordinal) ? value : value + "/";
-        return new BridgeOptions(new Uri(normalized))
-        {
-            Token = Environment.GetEnvironmentVariable(BridgeTokenEnvironmentVariable) ?? string.Empty,
-        };
     }
 
     private static MathLiveFormulaEditorOptions CreateEditorOptions()

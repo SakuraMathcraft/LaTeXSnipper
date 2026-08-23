@@ -152,7 +152,7 @@ public sealed class WordRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(WordStatusKind.Error, exc.Message);
+            _statusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(exc));
         }
         finally
         {
@@ -174,7 +174,7 @@ public sealed class WordRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(WordStatusKind.Error, exc.Message);
+            _statusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(exc));
         }
         finally
         {
@@ -213,7 +213,7 @@ public sealed class WordRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(WordStatusKind.Error, exc.Message);
+            _statusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(exc));
         }
     }
 }

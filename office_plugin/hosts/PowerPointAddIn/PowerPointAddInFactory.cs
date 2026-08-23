@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using LaTeXSnipper.OfficePlugin.Abstractions;
-using LaTeXSnipper.OfficePlugin.Bridge;
+using LaTeXSnipper.OfficePlugin.Automation;
 using LaTeXSnipper.OfficePlugin.Editor;
 using LaTeXSnipper.OfficePlugin.Rendering;
 
@@ -9,10 +9,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 public static class PowerPointAddInFactory
 {
-    private const string BridgeUrlEnvironmentVariable = "LATEXSNIPPER_OFFICE_BRIDGE_URL";
-    private const string BridgeTokenEnvironmentVariable = "LATEXSNIPPER_OFFICE_BRIDGE_TOKEN";
-    private const string DefaultBridgeUrl = "http://127.0.0.1:28765/";
-
     public static PowerPointPluginController CreateController(
         object powerPointApplication,
         IPowerPointStatusSink? statusSink = null,
@@ -21,13 +17,13 @@ public static class PowerPointAddInFactory
         statusSink ??= NullPowerPointStatusSink.Instance;
         var editor = new MathLiveFormulaEditor(CreateEditorOptions());
         var editorSession = new FormulaEditorSession(editor);
-        var bridgeClient = new BridgeClient(CreateBridgeOptions());
+        var automationClient = new AutomationApiClient(new AutomationApiOptions());
         var adapter = new DynamicPowerPointApplicationAdapter(powerPointApplication);
         var oleIntermediateRenderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointAddIn"));
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new PowerPointPluginController(
             editorSession,
-            bridgeClient,
+            automationClient,
             adapter,
             oleIntermediateRenderer,
             olePresentationPipeline,
@@ -41,16 +37,6 @@ public static class PowerPointAddInFactory
         editor.EditorCancelled += (_, cancelled) => controller.CancelEditorFormula(cancelled.SessionGeneration);
         editor.EditorError += (_, message) => statusSink.Post(PowerPointStatusKind.Error, message);
         return controller;
-    }
-
-    private static BridgeOptions CreateBridgeOptions()
-    {
-        string value = Environment.GetEnvironmentVariable(BridgeUrlEnvironmentVariable) ?? DefaultBridgeUrl;
-        string normalized = value.EndsWith("/", StringComparison.Ordinal) ? value : value + "/";
-        return new BridgeOptions(new Uri(normalized))
-        {
-            Token = Environment.GetEnvironmentVariable(BridgeTokenEnvironmentVariable) ?? string.Empty,
-        };
     }
 
     private static MathLiveFormulaEditorOptions CreateEditorOptions()

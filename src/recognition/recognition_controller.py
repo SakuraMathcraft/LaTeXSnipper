@@ -13,6 +13,7 @@ from backend.external_model import ExternalModelWorker
 from backend.recognition_errors import recognition_failure_user_message
 from bootstrap.deps_ui import custom_warning_dialog
 from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
+from recognition.image_input import ImageInputError, image_from_path
 from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
 from workers.recognition_workers import PredictionWorker
 
@@ -78,13 +79,6 @@ class RecognitionControllerMixin:
         if pdf_worker and hasattr(pdf_worker, "cancel"):
             try:
                 pdf_worker.cancel()
-                cancelled = True
-            except Exception:
-                pass
-        model = getattr(self, "model", None)
-        if model and hasattr(model, "_stop_mathcraft_worker"):
-            try:
-                model._stop_mathcraft_worker()
                 cancelled = True
             except Exception:
                 pass
@@ -168,7 +162,12 @@ class RecognitionControllerMixin:
         self.set_model_status("识别中...")
 
         self.predict_thread = QThread()
-        self.predict_worker = PredictionWorker(self.model, img, active_model)
+        self.predict_worker = PredictionWorker(
+            self.model,
+            img,
+            active_model,
+            coordinator=getattr(self, "recognition_coordinator", None),
+        )
         self.predict_worker.moveToThread(self.predict_thread)
 
         def _cleanup():
@@ -209,7 +208,11 @@ class RecognitionControllerMixin:
         self._predict_busy = True
         self.set_model_status("外部模型识别中...")
         self.predict_thread = QThread()
-        self.predict_worker = ExternalModelWorker(config, img)
+        self.predict_worker = ExternalModelWorker(
+            config,
+            img,
+            coordinator=getattr(self, "recognition_coordinator", None),
+        )
         self.predict_worker.moveToThread(self.predict_thread)
 
         def _cleanup():
@@ -250,10 +253,6 @@ class RecognitionControllerMixin:
         if not path.is_file():
             custom_warning_dialog("错误", f"图片文件不存在: {path}", self)
             return
-        if self._drop_file_kind(path) != "image":
-            img_exts = ", ".join(self._get_supported_image_extensions())
-            custom_warning_dialog("提示", f"不支持的图片格式。支持格式：{img_exts}", self)
-            return
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return
@@ -261,11 +260,9 @@ class RecognitionControllerMixin:
             custom_warning_dialog("错误", "模型未初始化", self)
             return
         try:
-            img = Image.open(path)
-            if img.mode not in ("RGB", "L"):
-                img = img.convert("RGB")
-        except Exception as e:
-            custom_warning_dialog("错误", f"图片加载失败: {e}", self)
+            img = image_from_path(path)
+        except ImageInputError as exc:
+            custom_warning_dialog("错误", f"图片加载失败：{exc.user_message}", self)
             return
         self._start_predict_with_pil(img)
 

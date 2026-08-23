@@ -73,9 +73,13 @@ the failure is reported separately from OCR. Check the selected region,
 multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt or
 `screencapture` diagnostics.
 
+## How do automation clients connect?
+
+Automation API is disabled by default. After enabling it in Settings, local clients read `automation-api.json` from the application state directory and use its address and per-session Bearer token. Remote access must be explicitly enabled with a separate key and either HTTPS or an encrypted tunnel. See the [Automation API guide](automation_api.md).
+
 ## What is the Office plugin direction?
 
-LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR through the local Bridge recognition boundary without requiring Microsoft 365 enterprise deployment.
+LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR as an authenticated Automation API client without requiring Microsoft 365 enterprise deployment.
 
 ## Does LaTeXSnipper require an internet connection?
 
@@ -143,7 +147,7 @@ python -m mathcraft_ocr models check
 For GPU-related ONNX Runtime failures, use CPU mode:
 
 ```bash
-MATHCRAFT_FORCE_ORT_CPU=1
+MATHCRAFT_PROVIDER=cpu
 ```
 
 ## Does Linux/macOS bundle Python like Windows?

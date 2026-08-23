@@ -10,6 +10,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from runtime.hotkey_config import display_hotkey, hotkey_help_text, normalize_hotkey, normalize_hotkey_or_default
 from ui.hotkey_dialog import create_hotkey_dialog
+from ui.window_helpers import show_normal_window
 
 
 class HotkeyControllerMixin:
@@ -66,9 +67,8 @@ class HotkeyControllerMixin:
         self.start_capture(preserve_pinned_result=True)
 
     def set_shortcut(self):
-        if self.shortcut_window and self.shortcut_window.isVisible():
-            self.shortcut_window.raise_()
-            self.shortcut_window.activateWindow()
+        if self.shortcut_window:
+            show_normal_window(self.shortcut_window)
             return
 
         current_hotkey = display_hotkey(
@@ -82,9 +82,7 @@ class HotkeyControllerMixin:
             on_destroyed=lambda: setattr(self, "shortcut_window", None),
         )
         self.shortcut_window = dlg
-        dlg.show()
-        dlg.raise_()
-        dlg.activateWindow()
+        show_normal_window(dlg)
 
     def update_hotkey(self, text: str, dialog: QDialog):
         from qfluentwidgets import InfoBar, InfoBarPosition

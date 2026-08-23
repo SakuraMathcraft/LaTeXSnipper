@@ -53,7 +53,7 @@ internal sealed class MathJaxSvgRenderResponse
 
         if (parsed is not Dictionary<string, object> root)
         {
-            throw new InvalidOperationException("MathJax returned an invalid render response.");
+            throw new InvalidOperationException("MathJax 返回了无效的渲染数据。");
         }
 
         return ParseObject(root);
@@ -78,7 +78,7 @@ internal sealed class MathJaxSvgRenderResponse
         string svg = GetString(root, "svg");
         if (string.IsNullOrWhiteSpace(svg))
         {
-            throw new InvalidOperationException("MathJax returned an empty SVG payload.");
+            throw new InvalidOperationException("MathJax 未返回 SVG 内容。");
         }
 
         double scale = ReadScale(root);
@@ -99,7 +99,7 @@ internal sealed class MathJaxSvgRenderResponse
         string error = GetString(root, "error");
         if (!string.IsNullOrWhiteSpace(error))
         {
-            throw new InvalidOperationException("MathJax rendering failed: " + error);
+            throw new InvalidOperationException("MathJax 渲染失败，请检查公式内容后重试。");
         }
     }
 
@@ -141,7 +141,7 @@ internal sealed class MathJaxSvgRenderResponse
         string svg = GetString(root, "svg");
         if (string.IsNullOrWhiteSpace(svg))
         {
-            throw new InvalidOperationException("MathJax returned an empty SVG payload.");
+            throw new InvalidOperationException("MathJax 未返回 SVG 内容。");
         }
 
         double scale = ReadScale(root);
@@ -164,7 +164,7 @@ internal sealed class MathJaxSvgRenderResponse
         string error = GetString(root, "error");
         if (!string.IsNullOrWhiteSpace(error))
         {
-            throw new InvalidOperationException("MathJax rendering failed: " + error);
+            throw new InvalidOperationException("MathJax 渲染失败，请检查公式内容后重试。");
         }
     }
 

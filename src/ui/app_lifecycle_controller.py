@@ -164,18 +164,6 @@ class AppLifecycleMixin:
 
 
         try:
-            m = getattr(self, "model", None)
-            if m:
-                fn = getattr(m, "_stop_mathcraft_worker", None)
-                if callable(fn):
-                    try:
-                        fn()
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-        try:
             if getattr(self, "hotkey_provider", None):
                 self.hotkey_provider.cleanup()
         except Exception:
@@ -199,13 +187,26 @@ class AppLifecycleMixin:
         except Exception:
             pass
         try:
-            if hasattr(self, "_stop_office_bridge"):
-                self._stop_office_bridge()
+            if hasattr(self, "_stop_automation_api"):
+                self._stop_automation_api()
         except Exception:
             pass
         try:
-            if hasattr(self, "_cleanup_office_bridge_workers"):
-                self._cleanup_office_bridge_workers()
+            if hasattr(self, "_cleanup_automation_api_workers"):
+                self._cleanup_automation_api_workers()
+        except Exception:
+            pass
+        try:
+            coordinator = getattr(self, "recognition_coordinator", None)
+            if coordinator is not None:
+                coordinator.stop(wait=True)
+        except Exception:
+            pass
+        try:
+            model = getattr(self, "model", None)
+            stop_model = getattr(model, "_stop_mathcraft_worker", None)
+            if callable(stop_model):
+                stop_model()
         except Exception:
             pass
 

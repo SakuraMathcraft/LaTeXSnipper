@@ -17,7 +17,7 @@ public static class WordOmmlDocumentBuilder
     {
         if (string.IsNullOrWhiteSpace(omml))
         {
-            throw new ArgumentException("OMML is required.", nameof(omml));
+            throw new ArgumentException("OMML 内容不能为空。", nameof(omml));
         }
 
         if (metadata == null)
@@ -28,7 +28,7 @@ public static class WordOmmlDocumentBuilder
         string equationId = metadata.Identity.EquationId;
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(metadata));
+            throw new ArgumentException("公式标识不能为空。", nameof(metadata));
         }
 
         string body = display
@@ -46,7 +46,7 @@ public static class WordOmmlDocumentBuilder
     {
         if (string.IsNullOrWhiteSpace(omml))
         {
-            throw new ArgumentException("OMML is required.", nameof(omml));
+            throw new ArgumentException("OMML 内容不能为空。", nameof(omml));
         }
 
         if (metadata == null)
@@ -57,7 +57,7 @@ public static class WordOmmlDocumentBuilder
         string equationId = metadata.Identity.EquationId;
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(metadata));
+            throw new ArgumentException("公式标识不能为空。", nameof(metadata));
         }
 
         string documentXml =
@@ -72,7 +72,7 @@ public static class WordOmmlDocumentBuilder
     {
         if (string.IsNullOrWhiteSpace(omml))
         {
-            throw new ArgumentException("OMML is required.", nameof(omml));
+            throw new ArgumentException("OMML 内容不能为空。", nameof(omml));
         }
 
         string documentXml =
@@ -164,7 +164,7 @@ public static class WordOmmlDocumentBuilder
             : root.Descendants().FirstOrDefault(element => element.Name.LocalName == "oMath");
         if (equation == null)
         {
-            throw new InvalidOperationException("OMML does not contain an m:oMath equation.");
+            throw new InvalidOperationException("OMML 中未找到 m:oMath 公式。");
         }
 
         return equation.ToString(SaveOptions.DisableFormatting);

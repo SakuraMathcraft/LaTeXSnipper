@@ -57,11 +57,21 @@ def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer
     active_provider = str(getattr(provider_info, "active_provider", "") or "")
     use_cuda = active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
     use_dml = active_provider == "DmlExecutionProvider"
-    return _create_pp_text_recognizer_cached(str(model_dir), use_cuda, use_dml)
+    return _create_pp_text_recognizer_cached(
+        str(model_dir),
+        active_provider,
+        use_cuda,
+        use_dml,
+    )
 
 
 @lru_cache(maxsize=8)
-def _create_pp_text_recognizer_cached(model_dir: str, use_cuda: bool, use_dml: bool) -> TextRecognizer:
+def _create_pp_text_recognizer_cached(
+    model_dir: str,
+    active_provider: str,
+    use_cuda: bool,
+    use_dml: bool,
+) -> TextRecognizer:
     model_dir = Path(model_dir)
     model_candidates = sorted(model_dir.glob("**/*rec*.onnx"))
     if not model_candidates:
@@ -111,7 +121,26 @@ def _create_pp_text_recognizer_cached(model_dir: str, use_cuda: bool, use_dml: b
             },
         },
     })
-    return TextRecognizer(config)
+    recognizer = TextRecognizer(config)
+    _enforce_strict_provider(recognizer, active_provider)
+    return recognizer
+
+
+def _enforce_strict_provider(recognizer: TextRecognizer, active_provider: str) -> None:
+    engine = getattr(recognizer, "session", None)
+    session = getattr(engine, "session", None)
+    if session is None:
+        raise RuntimeError("RapidOCR did not expose its ONNX Runtime session")
+    actual = list(session.get_providers() or [])
+    if not active_provider or not actual or actual[0] != active_provider:
+        raise RuntimeError(
+            f"requested ONNX provider {active_provider or '<none>'}, "
+            f"but RapidOCR session providers are {actual}"
+        )
+    disable_fallback = getattr(session, "disable_fallback", None)
+    if not callable(disable_fallback):
+        raise RuntimeError("RapidOCR ONNX Runtime session cannot disable provider fallback")
+    disable_fallback()
 
 
 def clear_text_recognizer_cache() -> None:

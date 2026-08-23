@@ -26,17 +26,17 @@ internal sealed class MathJaxMathMlResponse
         var serializer = new JavaScriptSerializer();
         string decoded = serializer.Deserialize<string>(responseJson) ?? string.Empty;
         var response = serializer.Deserialize<Dictionary<string, object>>(decoded)
-            ?? throw new InvalidOperationException("MathJax returned an invalid MathML response.");
+            ?? throw new InvalidOperationException("MathJax 返回了无效的 MathML 数据。");
         string error = ReadString(response, "error");
         if (!string.IsNullOrWhiteSpace(error))
         {
-            throw new InvalidOperationException("MathJax MathML conversion failed: " + error);
+            throw new InvalidOperationException("MathJax MathML 转换失败，请检查公式内容后重试。");
         }
 
         string mathMl = ReadString(response, "mathml");
         if (string.IsNullOrWhiteSpace(mathMl))
         {
-            throw new InvalidOperationException("MathJax returned empty MathML.");
+            throw new InvalidOperationException("MathJax 未返回 MathML 内容。");
         }
 
         return new MathJaxMathMlResponse(mathMl, ReadString(response, "version"));
@@ -49,7 +49,7 @@ internal sealed class MathJaxMathMlResponse
             : string.Empty;
         if (!string.IsNullOrWhiteSpace(error))
         {
-            throw new InvalidOperationException("MathJax MathML conversion failed: " + error);
+            throw new InvalidOperationException("MathJax MathML 转换失败，请检查公式内容后重试。");
         }
 
         string mathMl = root.TryGetProperty("mathml", out JsonElement mathMlElement)
@@ -57,7 +57,7 @@ internal sealed class MathJaxMathMlResponse
             : string.Empty;
         if (string.IsNullOrWhiteSpace(mathMl))
         {
-            throw new InvalidOperationException("MathJax returned empty MathML.");
+            throw new InvalidOperationException("MathJax 未返回 MathML 内容。");
         }
 
         string version = root.TryGetProperty("version", out JsonElement versionElement)

@@ -5,44 +5,17 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 
 from backend.external_model import ExternalModelClient, ExternalModelConfig
+from backend.recognition_errors import recognition_error_code_user_message, recognition_failure_user_message
+from recognition.image_input import image_from_qimage, validated_rgb_image
+from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
 
 _UPSCALE_MIN_DIM = 120
 _UPSCALE_TARGET_DIM = 220
 
 
-def _qimage_to_pil_via_png(image: QImage) -> Image.Image:
-    from io import BytesIO
-
-    from PyQt6.QtCore import QBuffer, QIODevice
-
-    buffer = QBuffer()
-    buffer.open(QIODevice.OpenModeFlag.ReadWrite)
-    image.save(buffer, "PNG")
-    data = bytes(buffer.data())
-    buffer.close()
-    return Image.open(BytesIO(data)).convert("RGB")
-
-
 def qimage_to_pil(image: QImage) -> Image.Image:
-    """Convert QImage to PIL RGB without PNG encode/decode on the common path."""
-    try:
-        fmt_image = image.convertToFormat(QImage.Format.Format_RGB888)
-        width = fmt_image.width()
-        height = fmt_image.height()
-        ptr = fmt_image.bits()
-        ptr.setsize(height * fmt_image.bytesPerLine())
-        pil = Image.frombytes(
-            "RGB",
-            (width, height),
-            bytes(ptr),
-            "raw",
-            "RGB",
-            fmt_image.bytesPerLine(),
-            1,
-        )
-    except Exception:
-        pil = _qimage_to_pil_via_png(image)
-
+    """Normalize a handwriting canvas through the shared image boundary."""
+    pil = image_from_qimage(image)
     if pil.width < _UPSCALE_MIN_DIM or pil.height < _UPSCALE_MIN_DIM:
         scale = max(2.0, _UPSCALE_TARGET_DIM / max(1, min(pil.width, pil.height)))
         pil = pil.resize(
@@ -66,12 +39,14 @@ class HandwritingRecognitionWorker(QObject):
         image: QImage,
         model_name: str = "mathcraft",
         external_config: ExternalModelConfig | None = None,
+        coordinator: RecognitionJobCoordinator | None = None,
     ):
         super().__init__()
         self.model_wrapper = model_wrapper
         self.image = image
         self.model_name = model_name
         self.external_config = external_config
+        self.coordinator = coordinator
 
     def run(self) -> None:
         try:
@@ -82,14 +57,64 @@ class HandwritingRecognitionWorker(QObject):
                 if self.external_config is None:
                     self.failed.emit("外部模型未配置")
                     return
-                result_obj = ExternalModelClient(self.external_config).predict(pil_img)
-                result = result_obj.best_text(self.external_config.resolved_output_mode()).strip()
+                if self.coordinator is None:
+                    result_obj = ExternalModelClient(self.external_config).predict(pil_img)
+                    result = result_obj.best_text(self.external_config.resolved_output_mode()).strip()
+                else:
+                    mode = {
+                        "ocr_formula_v1": "formula",
+                        "ocr_text_v1": "text",
+                    }.get(self.external_config.prompt_template, "mixed")
+                    job = self.coordinator.submit(
+                        [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                        principal_id="desktop-handwriting",
+                        source=JobSource.HANDWRITING,
+                        mode=mode,
+                        timeout_seconds=self.external_config.normalized_timeout(),
+                        input_type="handwriting_canvas",
+                        backend="external",
+                        external_config=self.external_config,
+                    )
+                    snapshot = self.coordinator.wait(
+                        job["id"], principal_id="desktop-handwriting", timeout=None
+                    )
+                    item = snapshot["items"][0]
+                    if item["state"] != "completed":
+                        error = item.get("error") or {}
+                        raise RuntimeError(
+                            recognition_error_code_user_message(error.get("code"), "external_model")
+                        )
+                    result = str(item["text"]).strip()
             else:
-                result = (self.model_wrapper.predict(pil_img, model_name=model_name) or "").strip()
+                if self.coordinator is None:
+                    result = (self.model_wrapper.predict(pil_img, model_name=model_name) or "").strip()
+                else:
+                    mode = {
+                        "mathcraft": "formula",
+                        "mathcraft_text": "text",
+                        "mathcraft_mixed": "mixed",
+                    }.get(model_name, "formula")
+                    job = self.coordinator.submit(
+                        [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                        principal_id="desktop-handwriting",
+                        source=JobSource.HANDWRITING,
+                        mode=mode,
+                        timeout_seconds=300,
+                        input_type="handwriting_canvas",
+                    )
+                    snapshot = self.coordinator.wait(
+                        job["id"], principal_id="desktop-handwriting", timeout=None
+                    )
+                    item = snapshot["items"][0]
+                    if item["state"] != "completed":
+                        error = item.get("error") or {}
+                        raise RuntimeError(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+                    result = str(item["text"]).strip()
 
             if not str(result or "").strip():
                 self.failed.emit("识别结果为空")
                 return
             self.finished.emit(str(result).strip())
         except Exception as exc:
-            self.failed.emit(str(exc))
+            backend = "external_model" if str(self.model_name).strip().lower() == "external_model" else "mathcraft"
+            self.failed.emit(recognition_failure_user_message(exc, backend))

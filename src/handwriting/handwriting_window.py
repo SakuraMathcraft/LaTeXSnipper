@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout, Q
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
+from backend.recognition_errors import recognition_error_code_user_message, recognition_failure_user_message
 from backend.external_model.prompts import build_math_document_prompt
 from .editor_widgets import HandwritingPlainTextEdit
 from .ink_canvas import InkCanvas
@@ -18,6 +19,7 @@ from .recognizer import HandwritingRecognitionWorker
 from .tools import HandwritingTool
 from preview.math_preview import get_mathjax_base_url
 from runtime.app_paths import resource_path
+from ui.window_helpers import show_normal_window
 
 try:
     from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -36,24 +38,48 @@ class _HandwritingDocumentLayoutWorker(QObject):
     finished = pyqtSignal(str)
     failed = pyqtSignal(str)
 
-    def __init__(self, config, image):
+    def __init__(self, config, image, coordinator=None):
         super().__init__()
         self.config = config
         self.image = image
+        self.coordinator = coordinator
 
     def run(self) -> None:
         try:
             from .recognizer import qimage_to_pil
 
             pil_img = qimage_to_pil(self.image)
-            result = ExternalModelClient(self.config).predict(pil_img)
-            text = result.best_text("text").strip()
+            if self.coordinator is None:
+                result = ExternalModelClient(self.config).predict(pil_img)
+                text = result.best_text("text").strip()
+            else:
+                from recognition.image_input import validated_rgb_image
+                from recognition.jobs import JobSource, RecognitionItemInput
+
+                job = self.coordinator.submit(
+                    [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                    principal_id="desktop-handwriting-layout",
+                    source=JobSource.HANDWRITING,
+                    mode="mixed",
+                    timeout_seconds=self.config.normalized_timeout(),
+                    input_type="handwriting_canvas",
+                    backend="external",
+                    external_config=self.config,
+                )
+                snapshot = self.coordinator.wait(
+                    job["id"], principal_id="desktop-handwriting-layout", timeout=None
+                )
+                item = snapshot["items"][0]
+                if item["state"] != "completed":
+                    error = item.get("error") or {}
+                    raise RuntimeError(recognition_error_code_user_message(error.get("code"), "external_model"))
+                text = str(item["text"]).strip()
             if not text:
                 self.failed.emit("自动排版结果为空")
                 return
             self.finished.emit(text)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(recognition_failure_user_message(exc, "external_model"))
 
 
 class HandwritingWindow(QWidget):
@@ -661,6 +687,7 @@ class HandwritingWindow(QWidget):
             export.image,
             model_name=active_model,
             external_config=external_config,
+            coordinator=getattr(self.owner, "recognition_coordinator", None),
         )
         thread = self._recognize_thread
         worker = self._recognize_worker
@@ -835,7 +862,11 @@ class HandwritingWindow(QWidget):
         )
         self.status_label.setText("自动排版中")
         self._layout_thread = QThread()
-        self._layout_worker = _HandwritingDocumentLayoutWorker(runtime_cfg, export.image)
+        self._layout_worker = _HandwritingDocumentLayoutWorker(
+            runtime_cfg,
+            export.image,
+            coordinator=getattr(self.owner, "recognition_coordinator", None),
+        )
         worker = self._layout_worker
         thread = self._layout_thread
         worker.moveToThread(thread)
@@ -856,9 +887,7 @@ class HandwritingWindow(QWidget):
 
             self._document_preview_window = DocumentPreviewWindow()
         self._document_preview_window.set_document(doc_text)
-        self._document_preview_window.show()
-        self._document_preview_window.raise_()
-        self._document_preview_window.activateWindow()
+        show_normal_window(self._document_preview_window)
 
     def _teardown_layout(self, *_args) -> None:
         self._layout_thread = None

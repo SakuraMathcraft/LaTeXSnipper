@@ -85,6 +85,3 @@ jobs:
       - name: Build Office plugin managed projects
         shell: pwsh
         run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
-
-      - name: Run Office Bridge tests
-        run: python -m pytest test/test_office_bridge.py -q

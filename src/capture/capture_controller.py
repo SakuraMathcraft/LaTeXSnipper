@@ -38,13 +38,13 @@ class CaptureControllerMixin:
             capture_display_mode=self._get_capture_display_mode(),
             preferred_screen_index=self._get_capture_display_index(),
         )
-        windows_minimized = self._minimize_windows_for_capture(
+        windows_changed = self._prepare_windows_for_capture(
             preserve_pinned_result=bool(preserve_pinned_result)
         )
         self._capture_start_pending = True
-        self._capture_waiting_for_window_minimize = windows_minimized
-        if windows_minimized:
-            self._flush_desktop_after_capture_window_minimize()
+        self._capture_waiting_for_window_update = windows_changed
+        if windows_changed:
+            self._flush_desktop_after_capture_window_update()
             QTimer.singleShot(220, lambda cfg=cfg: self._begin_capture_overlay(cfg))
         else:
             self._begin_capture_overlay(cfg)
@@ -52,14 +52,14 @@ class CaptureControllerMixin:
     def _begin_capture_overlay(self, cfg: ScreenshotConfig):
         if not self._capture_start_pending:
             return
-        waiting_for_window_minimize = self._capture_waiting_for_window_minimize
+        waiting_for_window_update = self._capture_waiting_for_window_update
         self._capture_start_pending = False
-        self._capture_waiting_for_window_minimize = False
+        self._capture_waiting_for_window_update = False
         if self.overlay is not None:
             return
         try:
-            if waiting_for_window_minimize:
-                self._flush_desktop_after_capture_window_minimize()
+            if waiting_for_window_update:
+                self._flush_desktop_after_capture_window_update()
             self.overlay = self.screenshot_provider.create_overlay(cfg)
             self.overlay.installEventFilter(self)
             self.overlay.selection_done.connect(self.on_capture_done)
@@ -68,26 +68,39 @@ class CaptureControllerMixin:
             self.overlay = None
             custom_warning_dialog("错误", f"截图遮罩启动失败: {e}", self)
 
-    def _minimize_windows_for_capture(self, *, preserve_pinned_result: bool = False) -> bool:
+    def _prepare_windows_for_capture(self, *, preserve_pinned_result: bool = False) -> bool:
         app = QApplication.instance()
         if app is None:
             return False
-        minimized = False
-        for widget in app.topLevelWidgets():
+        changed = False
+        widgets = list(app.topLevelWidgets())
+        for widget in widgets:
             try:
-                if widget is None or not widget.isVisible() or widget.isMinimized():
+                if widget is None or widget is self:
                     continue
                 if preserve_pinned_result and bool(
                     getattr(widget, "_predict_result_pinned", False)
                 ):
                     continue
-                widget.showMinimized()
-                minimized = True
+                if widget.isVisible():
+                    widget.hide()
+                    changed = True
+                if widget.isMinimized():
+                    widget.setWindowState(
+                        widget.windowState() & ~Qt.WindowState.WindowMinimized
+                    )
+                    changed = True
             except Exception:
                 continue
-        return minimized
+        try:
+            if self.isVisible() and not self.isMinimized():
+                self.showMinimized()
+                changed = True
+        except Exception:
+            pass
+        return changed
 
-    def _flush_desktop_after_capture_window_minimize(self) -> None:
+    def _flush_desktop_after_capture_window_update(self) -> None:
         try:
             app = QApplication.instance()
             if app is not None:
@@ -129,7 +142,7 @@ class CaptureControllerMixin:
                 except Exception:
                     pass
                 self._capture_start_pending = False
-                self._capture_waiting_for_window_minimize = False
+                self._capture_waiting_for_window_update = False
                 self.overlay = None
                 self.show_action_status("已取消截图", level="info")
                 return True
@@ -137,7 +150,7 @@ class CaptureControllerMixin:
 
     def on_capture_done(self, pixmap):
         self._capture_start_pending = False
-        self._capture_waiting_for_window_minimize = False
+        self._capture_waiting_for_window_update = False
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(getattr(self.overlay, "last_capture_failure_message", "") or "").strip()
@@ -158,8 +171,6 @@ class CaptureControllerMixin:
         except Exception as e:
             custom_warning_dialog("错误", f"图片处理失败: {e}", self)
             return
-        if hasattr(self, "set_office_screenshot_ocr_state"):
-            self.set_office_screenshot_ocr_state("recognizing")
         self._start_predict_with_pil(img)
 
     def _show_capture_failure_info(self, message: str):

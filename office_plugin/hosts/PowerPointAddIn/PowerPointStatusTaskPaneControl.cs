@@ -118,7 +118,7 @@ public sealed class PowerPointStatusTaskPaneControl : UserControl, IPowerPointSt
         }
         catch (Exception exc)
         {
-            Post(PowerPointStatusKind.Error, exc.Message);
+            Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(exc));
         }
     }
 

@@ -101,6 +101,16 @@ def apply_no_minimize_window_flags(win):
     win.setWindowFlags(flags)
 
 
+def show_normal_window(win) -> None:
+    """Show an application window without retaining an invalid minimized child state."""
+    if win.isMinimized():
+        win.showNormal()
+    else:
+        win.show()
+    win.raise_()
+    win.activateWindow()
+
+
 def show_formula_rename_dialog(
     parent,
     current_name: str = "",

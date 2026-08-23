@@ -67,7 +67,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
             }
             catch (Exception exc)
             {
-                statusSink.Post(WordStatusKind.Error, exc.Message);
+                statusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(exc));
             }
         }
 

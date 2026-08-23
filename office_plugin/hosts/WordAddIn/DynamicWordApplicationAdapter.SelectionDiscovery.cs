@@ -108,7 +108,7 @@ public sealed partial class DynamicWordApplicationAdapter
         string wordOpenXml = Convert.ToString(range.WordOpenXML) ?? string.Empty;
         if (string.IsNullOrWhiteSpace(wordOpenXml))
         {
-            throw new InvalidOperationException("Selected Word equation did not expose OOXML.");
+            throw new InvalidOperationException("无法读取所选 Word 公式的 OOXML 数据。");
         }
 
         var document = XDocument.Parse(wordOpenXml, LoadOptions.PreserveWhitespace);
@@ -117,7 +117,7 @@ public sealed partial class DynamicWordApplicationAdapter
             ?? document.Descendants(math + "oMath").FirstOrDefault();
         if (equation == null)
         {
-            throw new InvalidOperationException("Selected Word equation OOXML did not contain OMML.");
+            throw new InvalidOperationException("所选 Word 公式中未找到 OMML 内容。");
         }
 
         return equation.ToString(SaveOptions.DisableFormatting);
@@ -307,7 +307,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (string.IsNullOrWhiteSpace(equationId))
         {
-            throw new ArgumentException("Equation ID is required.", nameof(equationId));
+            throw new ArgumentException("公式标识不能为空。", nameof(equationId));
         }
 
         dynamic controls = CurrentDocument.ContentControls;

@@ -14,7 +14,7 @@ public static class PowerPointRibbonXml
         using Stream? stream = typeof(PowerPointRibbonXml).Assembly.GetManifestResourceStream("LaTeXSnipper.OfficePlugin.PowerPointAddIn.Ribbon.PowerPointRibbon.xml");
         if (stream == null)
         {
-            throw new InvalidOperationException("PowerPoint Ribbon XML resource is missing.");
+            throw new InvalidOperationException("PowerPoint 功能区资源缺失，请重新安装插件。");
         }
 
         using var reader = new StreamReader(stream);

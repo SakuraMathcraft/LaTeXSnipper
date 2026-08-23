@@ -2,7 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Bridge\LaTeXSnipper.OfficePlugin.Bridge.csproj" />
+    <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Automation\LaTeXSnipper.OfficePlugin.Automation.csproj" />
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Editor\LaTeXSnipper.OfficePlugin.Editor.csproj" />
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Rendering\LaTeXSnipper.OfficePlugin.Rendering.csproj" />
   </ItemGroup>

@@ -166,7 +166,7 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
         }
         catch (Exception exc)
         {
-            Post(WordStatusKind.Error, exc.Message);
+            Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(exc));
         }
     }
 

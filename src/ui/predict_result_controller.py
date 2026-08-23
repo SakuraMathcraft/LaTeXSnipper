@@ -21,7 +21,10 @@ from runtime.content_types import normalize_content_type
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
-from ui.window_helpers import exec_close_only_message_box as _exec_close_only_message_box
+from ui.window_helpers import (
+    exec_close_only_message_box as _exec_close_only_message_box,
+    show_normal_window,
+)
 
 RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS = 10.0
 
@@ -236,7 +239,7 @@ class PredictResultControllerMixin:
         if not self._set_predict_result_native_topmost(dlg, pinned):
             dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, pinned)
         self._set_predict_result_transient_owner(dlg, pinned)
-        dlg.show()
+        show_normal_window(dlg)
         self._set_predict_result_native_caption_buttons(dlg, pinned)
 
         self._set_predict_result_pin_button_style(pin_btn, pinned)
@@ -244,8 +247,6 @@ class PredictResultControllerMixin:
             pin_btn.setChecked(pinned)
         except Exception:
             pass
-        dlg.raise_()
-        dlg.activateWindow()
 
     def _try_refresh_predict_result_dialog(self, dlg: QDialog, code: str, current_mode: str) -> bool:
         try:
@@ -259,8 +260,7 @@ class PredictResultControllerMixin:
                 return False
             info_label.setText(self._predict_result_mode_title(current_mode))
             editor.setPlainText(code)
-            dlg.raise_()
-            dlg.activateWindow()
+            show_normal_window(dlg)
             return True
         except Exception:
             return False
@@ -273,10 +273,13 @@ class PredictResultControllerMixin:
         elapsed: float | None,
     ):
         self._recognition_cancel_requested = False
-        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(result=content):
-            self.set_model_status("完成")
-            self.set_action_status("Office OCR 完成", auto_clear_ms=3000)
-            return
+        coordinator = getattr(self, "recognition_coordinator", None)
+        if coordinator is not None:
+            normalized_type = normalize_content_type(content_type)
+            mode = "text" if normalized_type == "text" else "mixed" if normalized_type == "markdown" else "formula"
+            internal_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
+            backend = "mathcraft" if str(model_name).strip().lower() in internal_models else "external"
+            coordinator.publish_next_result(content, backend=backend, mode=mode)
         self.set_model_status("完成")
         self.set_action_status("识别完成", auto_clear_ms=3000)
         if elapsed is not None:
@@ -355,10 +358,9 @@ class PredictResultControllerMixin:
         external_model: bool,
     ):
         self._next_predict_result_screen_index = None
-        if hasattr(self, "_complete_office_screenshot_ocr") and self._complete_office_screenshot_ocr(error=msg):
-            self.set_model_status("失败")
-            self.show_action_status("Office OCR 失败", level="error", auto_clear_ms=4500)
-            return
+        coordinator = getattr(self, "recognition_coordinator", None)
+        if coordinator is not None:
+            coordinator.fail_next_result("桌面识别失败。")
         if self._is_user_cancelled_recognition_error(msg):
             try:
                 print(f"[DEBUG] 识别已中断: {msg}")

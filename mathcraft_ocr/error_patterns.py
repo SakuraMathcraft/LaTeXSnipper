@@ -17,6 +17,13 @@ CUDA_RUNTIME_ERROR_MARKERS = (
     "cufft",
 )
 
+GPU_PROVIDER_ERROR_MARKERS = (
+    "gpu provider was requested",
+    "requested onnx gpu provider",
+    "requested onnx provider dmlexecutionprovider",
+    "requested onnx provider tensorrtexecutionprovider",
+)
+
 ONNXRUNTIME_INSTALL_ERROR_MARKERS = (
     "failed to import onnxruntime",
     "failed to query onnx providers",
@@ -31,6 +38,11 @@ def looks_like_cuda_runtime_error(detail: object) -> bool:
     return any(marker in text for marker in CUDA_RUNTIME_ERROR_MARKERS)
 
 
+def looks_like_gpu_provider_error(detail: object) -> bool:
+    text = str(detail or "").lower()
+    return any(marker in text for marker in GPU_PROVIDER_ERROR_MARKERS)
+
+
 def looks_like_onnxruntime_install_error(detail: object) -> bool:
     text = str(detail or "").lower()
     return any(marker in text for marker in ONNXRUNTIME_INSTALL_ERROR_MARKERS)
@@ -38,7 +50,9 @@ def looks_like_onnxruntime_install_error(detail: object) -> bool:
 
 __all__ = [
     "CUDA_RUNTIME_ERROR_MARKERS",
+    "GPU_PROVIDER_ERROR_MARKERS",
     "ONNXRUNTIME_INSTALL_ERROR_MARKERS",
     "looks_like_cuda_runtime_error",
+    "looks_like_gpu_provider_error",
     "looks_like_onnxruntime_install_error",
 ]

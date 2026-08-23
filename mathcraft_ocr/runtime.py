@@ -22,7 +22,7 @@ from .adapters.text_recognizer import (
 from .cache import ModelCacheState, inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
 from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
-from .error_patterns import looks_like_cuda_runtime_error
+from .error_patterns import looks_like_cuda_runtime_error, looks_like_gpu_provider_error
 from .errors import ModelCacheError
 from .formula_lines import (
     FormulaLineGroup,
@@ -207,7 +207,7 @@ class MathCraftRuntime:
     @staticmethod
     def _looks_like_broken_model_error(exc: Exception) -> bool:
         text = str(exc).lower()
-        if looks_like_cuda_runtime_error(text):
+        if looks_like_cuda_runtime_error(text) or looks_like_gpu_provider_error(text):
             return False
         needles = (
             "missing",

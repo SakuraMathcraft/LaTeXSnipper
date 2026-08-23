@@ -24,7 +24,7 @@ public sealed class OmmlToMathMlConverter
     {
         if (string.IsNullOrWhiteSpace(omml))
         {
-            throw new ArgumentException("OMML is required.", nameof(omml));
+            throw new ArgumentException("OMML 内容不能为空。", nameof(omml));
         }
 
         using var input = XmlReader.Create(new StringReader(omml), SecureReaderSettings());
@@ -37,7 +37,7 @@ public sealed class OmmlToMathMlConverter
         string mathMl = NormalizeMathMl(output.ToString());
         if (string.IsNullOrWhiteSpace(mathMl))
         {
-            throw new InvalidOperationException("Office OMML transform returned empty MathML.");
+            throw new InvalidOperationException("Office OMML 转换未返回 MathML 内容。");
         }
 
         return mathMl;
@@ -51,7 +51,7 @@ public sealed class OmmlToMathMlConverter
             : document.Descendants().FirstOrDefault(element => element.Name.LocalName == "math");
         if (math == null)
         {
-            throw new InvalidOperationException("Office OMML transform did not return MathML.");
+            throw new InvalidOperationException("Office OMML 转换结果中缺少 MathML 内容。");
         }
 
         return math.ToString(SaveOptions.DisableFormatting);

@@ -22,12 +22,12 @@ internal static class SvgVectorGraphicsRenderer
     {
         if (render.MimeType != MathJaxSvgRenderer.SvgMimeType)
         {
-            throw new ArgumentException("MathJax SVG input is required.", nameof(render));
+            throw new ArgumentException("MathJax SVG 输入不能为空。", nameof(render));
         }
 
         string svg = Encoding.UTF8.GetString(render.Payload);
         var document = XDocument.Parse(svg);
-        XElement root = document.Root ?? throw new InvalidOperationException("SVG root element was not found.");
+        XElement root = document.Root ?? throw new InvalidOperationException("SVG 中缺少根元素。");
         SvgViewBox viewBox = SvgViewBox.Parse(root.Attribute("viewBox")?.Value);
         using var rootTransform = new Matrix();
         rootTransform.Translate(-viewBox.X, -viewBox.Y, MatrixOrder.Append);
@@ -838,7 +838,7 @@ internal static class SvgVectorGraphicsRenderer
             string[] parts = (value ?? string.Empty).Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length != 4)
             {
-                throw new InvalidOperationException("SVG viewBox is required.");
+                throw new InvalidOperationException("SVG 中缺少 viewBox 属性。");
             }
 
             return new SvgViewBox(

@@ -113,7 +113,7 @@ public sealed class PowerPointRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(exc));
         }
         finally
         {
@@ -135,7 +135,7 @@ public sealed class PowerPointRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(exc));
         }
         finally
         {
@@ -174,7 +174,7 @@ public sealed class PowerPointRibbonCallbacks
         }
         catch (Exception exc)
         {
-            _statusSink.Post(PowerPointStatusKind.Error, exc.Message);
+            _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(exc));
         }
     }
 }
