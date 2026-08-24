@@ -10,6 +10,8 @@ from rapidocr import EngineType, LangRec, ModelType, OCRVersion
 from rapidocr.ch_ppocr_rec import TextRecInput, TextRecognizer
 from rapidocr.utils.typings import TaskType
 
+from .common import validate_session_provider
+
 
 class _Config(dict):
     def __init__(self, *args, **kwargs):
@@ -55,11 +57,13 @@ def recognize_pp_text_lines(
 def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer:
     model_dir = model_dir.resolve()
     active_provider = str(getattr(provider_info, "active_provider", "") or "")
+    device_id = int(getattr(provider_info, "device_id", 0) or 0)
     use_cuda = active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
     use_dml = active_provider == "DmlExecutionProvider"
     return _create_pp_text_recognizer_cached(
         str(model_dir),
         active_provider,
+        device_id,
         use_cuda,
         use_dml,
     )
@@ -69,6 +73,7 @@ def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer
 def _create_pp_text_recognizer_cached(
     model_dir: str,
     active_provider: str,
+    device_id: int,
     use_cuda: bool,
     use_dml: bool,
 ) -> TextRecognizer:
@@ -103,13 +108,13 @@ def _create_pp_text_recognizer_cached(
             "cpu_ep_cfg": {"arena_extend_strategy": "kSameAsRequested"},
             "use_cuda": use_cuda,
             "cuda_ep_cfg": {
-                "device_id": 0,
+                "device_id": device_id,
                 "arena_extend_strategy": "kNextPowerOfTwo",
                 "cudnn_conv_algo_search": "EXHAUSTIVE",
                 "do_copy_in_default_stream": True,
             },
             "use_dml": use_dml,
-            "dm_ep_cfg": None,
+            "dm_ep_cfg": {"device_id": device_id},
             "use_cann": False,
             "cann_ep_cfg": {
                 "device_id": 0,
@@ -122,25 +127,25 @@ def _create_pp_text_recognizer_cached(
         },
     })
     recognizer = TextRecognizer(config)
-    _enforce_strict_provider(recognizer, active_provider)
+    _enforce_strict_provider(recognizer, active_provider, device_id)
     return recognizer
 
 
-def _enforce_strict_provider(recognizer: TextRecognizer, active_provider: str) -> None:
+def _enforce_strict_provider(
+    recognizer: TextRecognizer,
+    active_provider: str,
+    device_id: int = 0,
+) -> None:
     engine = getattr(recognizer, "session", None)
     session = getattr(engine, "session", None)
     if session is None:
         raise RuntimeError("RapidOCR did not expose its ONNX Runtime session")
-    actual = list(session.get_providers() or [])
-    if not active_provider or not actual or actual[0] != active_provider:
-        raise RuntimeError(
-            f"requested ONNX provider {active_provider or '<none>'}, "
-            f"but RapidOCR session providers are {actual}"
-        )
-    disable_fallback = getattr(session, "disable_fallback", None)
-    if not callable(disable_fallback):
-        raise RuntimeError("RapidOCR ONNX Runtime session cannot disable provider fallback")
-    disable_fallback()
+    validate_session_provider(
+        session,
+        active_provider,
+        device_id,
+        runtime_name="RapidOCR",
+    )
 
 
 def clear_text_recognizer_cache() -> None:

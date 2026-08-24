@@ -1,6 +1,6 @@
-from backend.qhotkey.qhotkey_linux import LinuxHotkey
-from backend.qhotkey import _select_provider
-from backend.qhotkey.qhotkey_macos import MacHotkey
+from platform_services.hotkeys.qhotkey_linux import LinuxHotkey
+from platform_services.hotkeys import _select_provider
+from platform_services.hotkeys.qhotkey_macos import MacHotkey
 
 
 def test_pynput_combo_uses_separate_modifier_brackets() -> None:
@@ -23,7 +23,7 @@ def test_macos_uses_native_provider_without_pynput_listener() -> None:
     provider, global_hotkey = _select_provider("darwin")
 
     assert provider.__name__ == "MacHotkey"
-    assert provider.__module__ == "backend.qhotkey.qhotkey_macos"
+    assert provider.__module__ == "platform_services.hotkeys.qhotkey_macos"
     assert global_hotkey is None
 
 

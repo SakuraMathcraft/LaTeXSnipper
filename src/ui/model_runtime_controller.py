@@ -10,7 +10,7 @@ from PyQt6.QtCore import QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.external_model import load_config_from_mapping
-from backend.model import classify_mathcraft_failure
+from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
 

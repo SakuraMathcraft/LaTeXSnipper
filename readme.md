@@ -3,7 +3,7 @@
 <div align="center">
 
 > A cross-platform math OCR workspace and automation service for **capture -> recognize -> handwrite -> edit -> integrate**
-<img width="1919" height="1020" alt="封面" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
+<img width="1919" height="1021" alt="LaTeXSnipper v3.0.0" src="docs/latexsnipper-3.0.0.png" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)

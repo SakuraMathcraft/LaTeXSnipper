@@ -1,11 +1,10 @@
 import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-from bootstrap.deps_python_runtime import find_existing_python
+from runtime.dependency_runtime import iter_python_candidates
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
@@ -26,10 +25,10 @@ class SettingsMathCraftMixin:
             "out={'present': False, 'active_provider': '', 'device': '', 'gpu_name': '', 'cpu_name': ''}\n"
             "try:\n"
             " from mathcraft_ocr.providers import detect_providers\n"
-            f" info = detect_providers({preference!r})\n"
+            " from mathcraft_ocr.serialization import provider_info_to_json\n"
+            f" info = provider_info_to_json(detect_providers({preference!r}))\n"
+            " out.update(info)\n"
             " out['present'] = True\n"
-            " out['active_provider'] = info.active_provider or ''\n"
-            " out['device'] = info.device\n"
             "except Exception as e:\n"
             " out['error'] = f'{e.__class__.__name__}: {e}'\n"
             "print(json.dumps(out, ensure_ascii=False))\n"
@@ -47,13 +46,6 @@ class SettingsMathCraftMixin:
                 try:
                     info = json.loads(raw.splitlines()[-1])
                     if isinstance(info, dict):
-                        gpu_name, cpu_name = self._probe_local_device_names(
-                            str(info.get("active_provider") or "")
-                        )
-                        if gpu_name and not info.get("gpu_name"):
-                            info["gpu_name"] = gpu_name
-                        if cpu_name and not info.get("cpu_name"):
-                            info["cpu_name"] = cpu_name
                         return info
                 except Exception:
                     pass
@@ -70,153 +62,6 @@ class SettingsMathCraftMixin:
         except Exception:
             pass
         return "auto"
-
-    def _probe_local_device_names(self, active_provider: str = "") -> tuple[str, str]:
-        if sys.platform == "darwin":
-            self._device_name_cache = {"gpu": "", "cpu": "", "ts": time.monotonic()}
-            return "", ""
-
-        now = time.monotonic()
-        cached = getattr(self, "_device_name_cache", {}) or {}
-        ttl = 300.0
-        if (
-            str(cached.get("provider", "") or "") == active_provider
-            and (now - float(cached.get("ts", 0.0) or 0.0)) <= ttl
-        ):
-            return str(cached.get("gpu", "") or ""), str(cached.get("cpu", "") or "")
-
-        def _first_line(args: list[str], *, timeout: float = 5.0) -> str:
-            try:
-                res = subprocess.run(
-                    args,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=timeout,
-                    **_hidden_subprocess_kwargs(),
-                )
-                lines = [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
-                return lines[0] if lines else ""
-            except Exception:
-                return ""
-
-        def _nvidia_gpu_name() -> str:
-            return _first_line(
-                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                timeout=3,
-            )
-
-        def _windows_device_names() -> tuple[str, str]:
-            def _run_ps(cmd: str) -> str:
-                return _first_line(
-                    ["powershell", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
-                    timeout=5,
-                )
-
-            gpu = ""
-            if active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}:
-                gpu = _nvidia_gpu_name()
-            if active_provider == "DmlExecutionProvider" and not gpu:
-                gpu = _run_ps("(Get-CimInstance Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Sort-Object AdapterRAM -Descending | Select-Object -First 1 -ExpandProperty Name)")
-            if active_provider == "DmlExecutionProvider" and not gpu:
-                gpu = _run_ps("(Get-WmiObject Win32_VideoController | Where-Object {$_.Name -and $_.Name -notmatch 'Microsoft Basic'} | Sort-Object AdapterRAM -Descending | Select-Object -First 1 -ExpandProperty Name)")
-
-            cpu = _run_ps("(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
-            if not cpu:
-                cpu = _run_ps("(Get-WmiObject Win32_Processor | Select-Object -First 1 -ExpandProperty Name)")
-            return gpu, cpu
-
-        def _macos_device_names() -> tuple[str, str]:
-            cpu = _first_line(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=3)
-            gpu = ""
-            try:
-                res = subprocess.run(
-                    ["system_profiler", "SPDisplaysDataType"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=6,
-                )
-                for raw in (res.stdout or "").splitlines():
-                    line = raw.strip()
-                    if line.startswith("Chipset Model:"):
-                        gpu = line.split(":", 1)[1].strip()
-                        break
-            except Exception:
-                gpu = ""
-            if not gpu:
-                gpu = _nvidia_gpu_name()
-            return gpu, cpu
-
-        def _linux_cpu_name() -> str:
-            try:
-                res = subprocess.run(
-                    ["lscpu"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=3,
-                )
-                for raw in (res.stdout or "").splitlines():
-                    if raw.lower().startswith("model name:"):
-                        return raw.split(":", 1)[1].strip()
-            except Exception:
-                pass
-            try:
-                for raw in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
-                    if raw.lower().startswith("model name"):
-                        return raw.split(":", 1)[1].strip()
-            except Exception:
-                pass
-            return ""
-
-        def _linux_gpu_name() -> str:
-            gpu = _nvidia_gpu_name()
-            if gpu:
-                return gpu
-            try:
-                res = subprocess.run(
-                    ["lspci"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=3,
-                )
-                for raw in (res.stdout or "").splitlines():
-                    lower = raw.lower()
-                    if "vga compatible controller" in lower or "3d controller" in lower or "display controller" in lower:
-                        return raw.split(":", 2)[-1].strip()
-            except Exception:
-                pass
-            return ""
-
-        def _linux_device_names() -> tuple[str, str]:
-            gpu = _linux_gpu_name() if active_provider in {
-                "CUDAExecutionProvider",
-                "TensorrtExecutionProvider",
-            } else ""
-            return gpu, _linux_cpu_name()
-
-        if os.name == "nt":
-            gpu_name, cpu_name = _windows_device_names()
-        elif sys.platform == "darwin":
-            gpu_name, cpu_name = _macos_device_names()
-        elif sys.platform.startswith("linux"):
-            gpu_name, cpu_name = _linux_device_names()
-        else:
-            gpu_name, cpu_name = _nvidia_gpu_name(), ""
-
-        self._device_name_cache = {
-            "provider": active_provider,
-            "gpu": gpu_name,
-            "cpu": cpu_name,
-            "ts": now,
-        }
-        return gpu_name, cpu_name
 
     def _current_mathcraft_pyexe(self) -> str:
         return self._resolve_dynamic_main_pyexe()
@@ -316,9 +161,9 @@ class SettingsMathCraftMixin:
 
         base_dir = self._current_install_base_dir()
         if base_dir is not None:
-            candidate = find_existing_python(base_dir)
-            if candidate is not None:
-                return str(candidate)
+            for candidate in iter_python_candidates(base_dir):
+                if candidate.is_file():
+                    return str(candidate)
             return ""
         return ""
 
@@ -380,16 +225,19 @@ class SettingsMathCraftMixin:
             self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
             return True
         gpu_active = str(info.get("device") or "").strip().lower() == "gpu"
-        gpu_name = str(info.get("gpu_name") or "").strip()
-        cpu_name = str(info.get("cpu_name") or "").strip()
+        device_name = (
+            str(info.get("device_name") or "").strip()
+            if bool(info.get("device_verified"))
+            else ""
+        )
         if gpu_active:
-            if gpu_name:
-                self._set_compute_mode_text(f"🟢 GPU 模式: {gpu_name}", "gpu")
+            if device_name:
+                self._set_compute_mode_text(f"🟢 GPU 模式: {device_name}", "gpu")
             else:
                 self._set_compute_mode_text("🟢 GPU 模式", "gpu")
             return True
-        if cpu_name:
-            self._set_compute_mode_text(f"🟡 CPU 模式: {cpu_name}", "cpu")
+        if device_name:
+            self._set_compute_mode_text(f"🟡 CPU 模式: {device_name}", "cpu")
         else:
             self._set_compute_mode_text("🟡 CPU 模式", "cpu")
         return True
@@ -401,10 +249,25 @@ class SettingsMathCraftMixin:
         self._compute_mode_probe_info = dict(info) if isinstance(info, dict) else {}
         self._apply_compute_mode_from_info(self._compute_mode_probe_info or {}, self._compute_mode_probe_py)
 
+    def _active_mathcraft_provider_info(self) -> dict:
+        try:
+            model = getattr(self.parent(), "model", None)
+            info = getattr(model, "provider_info", None)
+            if isinstance(info, dict) and info:
+                return {"present": True, **info}
+        except Exception:
+            pass
+        return {}
+
     def _schedule_compute_mode_probe(self, force: bool = False) -> None:
         pyexe = self._resolve_dynamic_main_pyexe()
         if not pyexe or not os.path.exists(pyexe):
             self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            return
+
+        active_info = self._active_mathcraft_provider_info()
+        if active_info:
+            self._apply_compute_mode_from_info(active_info, pyexe)
             return
 
         now = time.monotonic()

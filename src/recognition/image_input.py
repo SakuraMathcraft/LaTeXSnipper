@@ -101,18 +101,27 @@ def image_from_stream(stream: BinaryIO, **kwargs) -> Image.Image:
         raise ImageInputError("corrupt_image", "图片数据已损坏或格式不受支持。") from exc
 
 
-def image_from_path(path: str | Path, **kwargs) -> Image.Image:
+def image_from_path(
+    path: str | Path,
+    *,
+    max_encoded_bytes: int | None = None,
+    max_pixels: int = DEFAULT_MAX_DECODED_IMAGE_PIXELS,
+) -> Image.Image:
+    """Decode a trusted local file without applying the remote upload byte limit."""
     source = Path(path)
     try:
         size = source.stat().st_size
     except OSError as exc:
         raise ImageInputError("corrupt_image", "无法读取图片文件。") from exc
-    max_encoded = int(kwargs.get("max_encoded_bytes", DEFAULT_MAX_ENCODED_IMAGE_BYTES))
-    if size > max_encoded:
+    if max_encoded_bytes is not None and size > int(max_encoded_bytes):
         raise ImageInputError("image_too_large", "图片文件超过大小限制。")
     try:
         with source.open("rb") as stream:
-            return image_from_stream(stream, **kwargs)
+            return image_from_stream(
+                stream,
+                max_encoded_bytes=int(max_encoded_bytes) if max_encoded_bytes is not None else max(1, size),
+                max_pixels=max_pixels,
+            )
     except OSError as exc:
         raise ImageInputError("corrupt_image", "无法读取图片文件。") from exc
 
@@ -150,7 +159,29 @@ def validated_rgb_image(
 def image_from_qimage(image, *, max_pixels: int = DEFAULT_MAX_DECODED_IMAGE_PIXELS) -> Image.Image:
     if image is None or image.isNull():
         raise ImageInputError("empty_image", "图片内容为空。")
-    return validated_rgb_image(qimage_to_rgb_pil(image), max_pixels=max_pixels)
+    try:
+        converted = qimage_to_rgb_pil(image)
+    except Exception:
+        converted = _qimage_via_png(image, max_pixels=max_pixels)
+    return validated_rgb_image(converted, max_pixels=max_pixels)
+
+
+def _qimage_via_png(image, *, max_pixels: int) -> Image.Image:
+    """Retain a portable fallback for uncommon Qt image layouts."""
+    from PyQt6.QtCore import QBuffer, QIODevice
+
+    buffer = QBuffer()
+    if not buffer.open(QIODevice.OpenModeFlag.ReadWrite) or not image.save(buffer, "PNG"):
+        raise ImageInputError("corrupt_image", "无法读取 Qt 图片数据。")
+    try:
+        encoded = bytes(buffer.data())
+        return image_from_bytes(
+            encoded,
+            max_encoded_bytes=max(1, len(encoded)),
+            max_pixels=max_pixels,
+        )
+    finally:
+        buffer.close()
 
 
 def image_from_qpixmap(pixmap, *, max_pixels: int = DEFAULT_MAX_DECODED_IMAGE_PIXELS) -> Image.Image:

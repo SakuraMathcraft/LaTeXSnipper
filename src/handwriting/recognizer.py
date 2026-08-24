@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 
 from backend.external_model import ExternalModelClient, ExternalModelConfig
-from backend.recognition_errors import recognition_error_code_user_message, recognition_failure_user_message
+from recognition.error_messages import recognition_error_code_user_message, recognition_failure_user_message
 from recognition.image_input import image_from_qimage, validated_rgb_image
 from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
 
@@ -47,9 +47,22 @@ class HandwritingRecognitionWorker(QObject):
         self.model_name = model_name
         self.external_config = external_config
         self.coordinator = coordinator
+        self._job_id: str | None = None
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+        if self.coordinator is not None and self._job_id:
+            try:
+                self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
+            except Exception:
+                pass
 
     def run(self) -> None:
         try:
+            if self._cancelled:
+                self.failed.emit("已取消")
+                return
             pil_img = qimage_to_pil(self.image)
             pil_img = enhance_stroke_image(pil_img)
             model_name = str(self.model_name or "mathcraft").strip().lower()
@@ -75,6 +88,9 @@ class HandwritingRecognitionWorker(QObject):
                         backend="external",
                         external_config=self.external_config,
                     )
+                    self._job_id = job["id"]
+                    if self._cancelled:
+                        self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
                     snapshot = self.coordinator.wait(
                         job["id"], principal_id="desktop-handwriting", timeout=None
                     )
@@ -102,6 +118,9 @@ class HandwritingRecognitionWorker(QObject):
                         timeout_seconds=300,
                         input_type="handwriting_canvas",
                     )
+                    self._job_id = job["id"]
+                    if self._cancelled:
+                        self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
                     snapshot = self.coordinator.wait(
                         job["id"], principal_id="desktop-handwriting", timeout=None
                     )

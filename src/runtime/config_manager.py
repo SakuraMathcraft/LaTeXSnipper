@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from runtime.app_paths import app_config_path, app_state_dir
-from runtime.private_files import restrict_file_to_current_user
+from runtime.private_files import ensure_private_directory
 
 
 class ConfigManager:
@@ -35,14 +35,17 @@ class ConfigManager:
         self.data[key] = value
         self.save()
 
+    def set_many(self, values: dict) -> None:
+        self.data.update(values)
+        self.save()
+
     def save(self):
         target = Path(self.path)
         temp_path = None
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
+            ensure_private_directory(target.parent)
             descriptor, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
             temp_path = Path(temp_name)
-            restrict_file_to_current_user(temp_path, descriptor=descriptor)
             with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
                 json.dump(self.data, stream, ensure_ascii=False, indent=2)
                 stream.write("\n")

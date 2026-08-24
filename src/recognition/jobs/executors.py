@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 from backend.external_model.client import ExternalModelClient
 from backend.external_model.schemas import ExternalModelConfig
-from integration.automation.contracts import AutomationApiError
+from recognition.jobs.contracts import RecognitionJobError
 
 
 _MODE_PROMPTS = {
@@ -31,7 +31,7 @@ class ExternalRecognitionExecutor:
     def snapshot(self, mode: str, config: ExternalModelConfig | None = None) -> ExternalModelConfig:
         source = config if config is not None else self._config_provider() if self._config_provider else None
         if source is None:
-            raise AutomationApiError(503, "backend_unavailable", "外部模型尚未配置。")
+            raise RecognitionJobError("backend_unavailable", "外部模型尚未配置。")
         snapshot = ExternalModelConfig(**asdict(source))
         if config is None:
             snapshot.prompt_template = _MODE_PROMPTS[mode]
@@ -40,15 +40,15 @@ class ExternalRecognitionExecutor:
             snapshot.normalized_prompt_template()
         provider = snapshot.normalized_provider()
         if not snapshot.normalized_base_url():
-            raise AutomationApiError(503, "backend_unavailable", "外部模型尚未配置。")
+            raise RecognitionJobError("backend_unavailable", "外部模型尚未配置。")
         if provider != "mineru" and not snapshot.normalized_model_name():
-            raise AutomationApiError(503, "backend_unavailable", "外部模型尚未配置。")
+            raise RecognitionJobError("backend_unavailable", "外部模型尚未配置。")
         return snapshot
 
     def available(self) -> bool:
         try:
             self.snapshot("formula")
-        except (AutomationApiError, ValueError):
+        except (RecognitionJobError, ValueError):
             return False
         return True
 

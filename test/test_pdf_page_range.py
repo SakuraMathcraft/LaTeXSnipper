@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from recognition.pdf_controller import parse_pdf_page_range
+from ui.controllers.pdf import parse_pdf_page_range
 
 
 @pytest.mark.parametrize(

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_spec
+from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_spec
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,

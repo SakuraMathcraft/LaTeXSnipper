@@ -10,8 +10,10 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
-from backend.model_factory import create_model_wrapper
-from backend.platform import PlatformCapabilityRegistry
+from backend.mathcraft.model import ModelWrapper
+from capture.window_manager import CaptureWindowManager
+from rendering.latex import configure_latex_settings
+from platform_services import PlatformCapabilityRegistry
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.app_paths import resource_path
 from runtime.config_manager import ConfigManager, default_user_data_file
@@ -20,6 +22,7 @@ from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
 from recognition.jobs import RecognitionJobCoordinator
 from ui.favorites_window import FavoritesWindow
+from ui.automation_api_controller import AutomationApiController
 from ui.theme_controller import normalize_theme_mode
 from ui.window_helpers import select_existing_directory_with_icon as _select_existing_directory_with_icon
 
@@ -84,10 +87,8 @@ class MainWindowSetupMixin:
         self._preview_render_thread = None
         self._preview_render_worker = None
         self._model_warmup_callbacks = []
-        self._automation_api_server = None
-
-
         self.cfg = ConfigManager()
+        configure_latex_settings(self.cfg)
         self._sanitize_model_config()
         self._theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
         self.apply_app_theme_mode(self._theme_mode, refresh_preview=False)
@@ -109,11 +110,17 @@ class MainWindowSetupMixin:
 
         self._report_startup_progress("初始化识别与预览...")
         self._apply_mathcraft_env()
-        self.model = create_model_wrapper("mathcraft", auto_warmup=False)
+        self.model = ModelWrapper("mathcraft", auto_warmup=False)
         self.recognition_coordinator = RecognitionJobCoordinator(
             self.model,
             external_config_provider=self._get_external_model_config,
         )
+        self.automation_api = AutomationApiController(
+            self.cfg,
+            self.recognition_coordinator,
+            self,
+        )
+        self.capture_window_manager = CaptureWindowManager(self)
         self.model.status_signal.connect(self.show_status_message)
         self.model_status = "未加载"
         self._sync_current_model_status_from_preference()

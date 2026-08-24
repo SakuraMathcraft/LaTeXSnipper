@@ -10,13 +10,13 @@ from runtime.app_paths import resource_path
 
 
 def apply_app_window_icon(win) -> None:
-    from core.window_icons import apply_app_window_icon as _apply_app_window_icon
+    from ui.window_icons import apply_app_window_icon as _apply_app_window_icon
 
     _apply_app_window_icon(win, resource_path("assets/icon.ico"))
 
 
 def select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
-    from core.window_icons import schedule_native_dialog_icon
+    from ui.window_icons import schedule_native_dialog_icon
 
     owner = parent
     if owner is None:
@@ -167,8 +167,8 @@ def exec_close_only_message_box(
     parent,
     title: str,
     text: str,
-    icon=QMessageBox.Icon.Information,
-    buttons=QMessageBox.StandardButton.Ok,
+    icon: QMessageBox.Icon,
+    buttons: QMessageBox.StandardButton,
     default_button=None,
     informative_text: str | None = None,
 ):

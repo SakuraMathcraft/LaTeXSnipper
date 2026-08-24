@@ -301,9 +301,9 @@ __MATHJAX_LOADER_SCRIPT__
 
 def _current_render_mode() -> str:
     try:
-        from backend.latex_renderer import _latex_settings
+        from rendering.latex import get_document_render_mode
 
-        return _latex_settings.get_render_mode() if _latex_settings else "auto"
+        return get_document_render_mode()
     except Exception as exc:
         print(f"[WARN] 获取渲染模式失败: {exc}")
     return "auto"

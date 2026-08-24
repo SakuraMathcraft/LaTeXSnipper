@@ -7,7 +7,7 @@ import sys
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QSystemTrayIcon
 
-from backend.platform import TrayMenuHandlers
+from platform_services import TrayMenuHandlers
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 
 

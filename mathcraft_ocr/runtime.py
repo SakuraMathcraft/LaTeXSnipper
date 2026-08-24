@@ -56,7 +56,7 @@ from .profiles import (
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
 )
-from .providers import ProviderInfo
+from .providers import ProviderInfo, confirm_provider_device
 from .results import Box4P, FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
 
 
@@ -618,13 +618,16 @@ class MathCraftRuntime:
                     except Exception as repair_exc:
                         exc = repair_exc
                 component_statuses.append(WarmupComponentStatus(model_id=model_id, ready=False, detail=str(exc)))
+        provider_info = report.provider_info
+        if any(item.ready for item in component_statuses):
+            provider_info = confirm_provider_device(provider_info)
         plan = WarmupPlan(
             profile=profile,
             required_models=model_ids,
             missing_models=tuple(missing),
             unsupported_models=tuple(unsupported),
             component_statuses=tuple(component_statuses),
-            provider_info=report.provider_info,
+            provider_info=provider_info,
             ready=not missing
             and not unsupported
             and all(item.ready for item in component_statuses),
@@ -639,13 +642,15 @@ class MathCraftRuntime:
             (
                 str(provider_info.device or ""),
                 str(provider_info.active_provider or ""),
+                str(provider_info.device_id),
+                str(provider_info.device_uuid or ""),
                 str(provider_info.gpu_runtime_ok),
             )
         )
         cached = self._rec_batch_cache.get(key)
         if cached:
             return cached
-        batch = choose_rec_batch_num(provider_info, detect_hardware_info())
+        batch = choose_rec_batch_num(provider_info, detect_hardware_info(provider_info))
         self._rec_batch_cache[key] = batch
         return batch
 

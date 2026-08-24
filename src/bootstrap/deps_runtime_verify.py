@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from backend.cuda_runtime_policy import onnxruntime_gpu_policy
+from backend.mathcraft.runtime_policy import onnxruntime_gpu_policy
 from bootstrap.deps_context import (
     PIP_INSTALL_SUPPRESS_ARGS,
     flags,
@@ -15,7 +15,7 @@ from bootstrap.deps_context import (
     subprocess_lock,
 )
 from bootstrap.deps_pip_runner import PipInstallRunner
-from bootstrap.deps_python_runtime import site_packages_root as _site_packages_root
+from runtime.dependency_runtime import site_packages_root as _site_packages_root
 from bootstrap.deps_layer_specs import _diagnose_install_failure, _version_satisfies_spec, layer_display_name
 from runtime.app_paths import app_config_path
 
@@ -529,11 +529,11 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
         ]
     try:
         if sys.platform == "linux":
-            from backend.cuda_diagnostics import diagnose_cuda_shared_libraries
+            from backend.mathcraft.cuda_diagnostics import diagnose_cuda_shared_libraries
 
             report = diagnose_cuda_shared_libraries()
         else:
-            from backend.cuda_diagnostics import diagnose_cuda_dll_paths
+            from backend.mathcraft.cuda_diagnostics import diagnose_cuda_dll_paths
 
             report = diagnose_cuda_dll_paths()
         return [report.format_for_user(), report.format_for_log()]

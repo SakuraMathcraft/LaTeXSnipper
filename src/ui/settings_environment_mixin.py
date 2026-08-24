@@ -1,15 +1,13 @@
 import os
-import shlex
-import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from qfluentwidgets import MessageBox
 
-from backend.cuda_runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
-from core.restart_contract import build_restart_with_wizard_launch
-from runtime.app_paths import app_temp_dir
+from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
+from application.restart import build_restart_with_wizard_launch
+from runtime.dependency_python import python_env_root
+from runtime.environment_terminal import open_main_environment_terminal
 from ui.settings_dialog_helpers import (
     _apply_app_window_icon,
     _mathcraft_code_roots,
@@ -18,214 +16,91 @@ from ui.settings_dialog_helpers import (
 
 
 class SettingsEnvironmentMixin:
-
-    def _terminal_launcher_dir(self) -> Path:
-        path = app_temp_dir() / "terminal-launchers"
-        if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def _get_terminal_env_key(self) -> str:
-        return "main"
-
-    def _onnxruntime_cpu_spec(self) -> str:
-        return onnxruntime_cpu_spec(self._current_mathcraft_pyexe())
-
-    def _onnxruntime_gpu_command(self) -> str:
-        return onnxruntime_gpu_policy(self._current_mathcraft_pyexe()).pip_command() + " --no-deps"
-
-    def _open_terminal(self, env_key: str | None = None):
-        if isinstance(env_key, bool):
-            env_key = None
-        if env_key is None:
-            env_key = self._get_terminal_env_key()
-        # Always open only the main environment terminal.
-        env_key = "main"
-        pyexe = self._resolve_dynamic_main_pyexe()
-        print(f"[DEBUG] 打开依赖环境终端: {pyexe}")
-        if not pyexe or not os.path.exists(pyexe):
-            msg = MessageBox(
-                "环境未就绪",
-                "当前依赖目录尚未初始化 Python 环境。\n\n请先在【依赖管理向导】中初始化依赖环境，再打开环境终端。",
-                self,
-            )
-            _apply_app_window_icon(msg)
-            msg.yesButton.setText("OK")
-            msg.cancelButton.hide()
-            msg.exec()
-            return
-        if os.name == "nt":
-            pyexe = _normalize_windows_drive_letter(pyexe)
-        env_root = self._python_env_root(pyexe)
-        pyexe_dir = str(env_root)
-        scripts_dir = os.path.join(pyexe_dir, "Scripts")
-        base_dir = self._current_install_base_dir()
-        venv_dir = str(base_dir or env_root)
+    @staticmethod
+    def _main_environment_terminal_help(pyexe: str) -> list[str]:
+        env_root = python_env_root(pyexe)
         mathcraft_roots = _mathcraft_code_roots()
-        mathcraft_doctor_code = (
+        doctor_code = (
             "import sys; "
             f"roots={mathcraft_roots!r}; "
             "[sys.path.insert(0, p) for p in reversed(roots) if p not in sys.path]; "
             "from mathcraft_ocr.cli import main; "
             "raise SystemExit(main(['doctor','--provider','cpu']))"
         )
-        env_name = {
-            "main": "主环境",
-        }.get(env_key, "主环境")
-        env_desc = "主环境（程序 / MathCraft / 核心依赖）"
-        gpu_onnx_cmd = self._onnxruntime_gpu_command()
-        cpu_onnx_cmd = f'pip install "{self._onnxruntime_cpu_spec()}"'
-        help_lines = [
-            "echo.",
-            "echo ================================================================================",
-            f"echo                        LaTeXSnipper Terminal - {env_name}",
-            "echo ================================================================================",
-            "echo.",
-            f"echo [*] Env: {env_desc}",
-            f"echo [*] Python env root: {pyexe_dir}",
-            "echo [*] python/pip are bound to this env for this terminal session",
-            "echo.",
-            "echo [Model Policy]",
-            "echo   - built-in OCR uses MathCraft model cache",
-            "echo   - external_model uses independently deployed local/online services",
-            "echo   - terminal commands target the current main dependency env",
-            "echo   - MathCraft uses ONNX Runtime providers for the internal OCR path",
-            "echo   - MATHCRAFT_CPU/MATHCRAFT_GPU select CPU/GPU ONNX Runtime backends",
-            "echo.",
-            "echo [Version Fix]",
-            "echo   pip install \"protobuf>=3.20,<5\"",
-            "echo.",
-            "echo [ONNX Runtime]",
-            f"echo   {gpu_onnx_cmd}",
-            f"echo   {cpu_onnx_cmd}",
-            "echo.",
-            "echo [Model]",
-            "echo   # Step-by-step install (stable order)",
-            "echo   pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   pip install -U \"transformers==4.55.4\" \"tokenizers==0.21.4\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo   # MathCraft is shipped with LaTeXSnipper; the doctor command loads the packaged code roots automatically.",
-            "echo   pip install -U \"protobuf>=3.20,<5\" \"pymupdf~=1.27.2.2\" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
-            "echo.",
-            "echo [MathCraft CPU/ONNX Check]",
-            f"echo   python -c \"{mathcraft_doctor_code}\"",
-            "echo.",
-        ]
-        diagnostics_lines = [
-            "echo [Diagnostics]",
-            "echo   pip list",
-            "echo   pip check",
-            "echo   python -c \"import onnxruntime as ort; print(ort.__version__, ort.get_available_providers())\"",
+        gpu_command = onnxruntime_gpu_policy(pyexe).pip_command() + " --no-deps"
+        cpu_command = f'pip install "{onnxruntime_cpu_spec(pyexe)}"'
+        lines = [
+            "",
+            "================================================================================",
+            "                       LaTeXSnipper Terminal - Main Environment",
+            "================================================================================",
+            "",
+            "[*] Env: Main environment (application / MathCraft / core dependencies)",
+            f"[*] Python env root: {env_root}",
+            "[*] python/pip are bound to this env for this terminal session",
+            "",
+            "[Model Policy]",
+            "  - built-in OCR uses MathCraft model cache",
+            "  - external_model uses independently deployed local/online services",
+            "  - terminal commands target the current main dependency env",
+            "  - MathCraft uses ONNX Runtime providers for the internal OCR path",
+            "  - MATHCRAFT_CPU/MATHCRAFT_GPU select CPU/GPU ONNX Runtime backends",
+            "",
+            "[Version Fix]",
+            '  pip install "protobuf>=3.20,<5"',
+            "",
+            "[ONNX Runtime]",
+            f"  {gpu_command}",
+            f"  {cpu_command}",
+            "",
+            "[Model]",
+            "  # Step-by-step install (stable order)",
+            "  pip install -U pip setuptools wheel --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple",
+            '  pip install -U "transformers==4.55.4" "tokenizers==0.21.4" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple',
+            "  # MathCraft is shipped with LaTeXSnipper; the doctor command loads the packaged code roots automatically.",
+            '  pip install -U "protobuf>=3.20,<5" "pymupdf~=1.27.2.2" --default-timeout 180 --retries 15 --prefer-binary --extra-index-url https://pypi.org/simple',
+            "",
+            "[MathCraft CPU/ONNX Check]",
+            f'  python -c "{doctor_code}"',
+            "",
+            "[Diagnostics]",
+            "  pip list",
+            "  pip check",
+            '  python -c "import onnxruntime as ort; print(ort.__version__, ort.get_available_providers())"',
         ]
         if sys.platform != "darwin":
-            diagnostics_lines += [
-                "echo   nvidia-smi",
-                "echo   nvcc --version",
-            ]
-        diagnostics_lines += [
-            "echo.",
-            "echo [Cache Clean]",
-            "echo   pip cache purge",
-            "echo.",
-            "echo ================================================================================",
-            "echo.",
-        ]
-        help_lines += diagnostics_lines
+            lines.extend(("  nvidia-smi", "  nvcc --version"))
+        lines.extend((
+            "",
+            "[Cache Clean]",
+            "  pip cache purge",
+            "",
+            "================================================================================",
+            "",
+        ))
+        return lines
+
+    def _open_terminal(self):
+        pyexe = self._resolve_dynamic_main_pyexe()
+        if not pyexe or not os.path.exists(pyexe):
+            self._show_info(
+                "环境未就绪",
+                "请先在依赖管理向导中初始化依赖环境，再打开主环境终端。",
+                "warning",
+            )
+            return
+        if os.name == "nt":
+            pyexe = _normalize_windows_drive_letter(pyexe)
+        base_dir = self._current_install_base_dir()
         try:
-            launcher_dir = self._terminal_launcher_dir()
-
-            if os.name == "nt":
-                help_text = "\n".join(help_lines) + "\n"
-                python_bind_lines = (
-                    f'set "LATEXSNIPPER_PYEXE={pyexe}"\n'
-                    f'doskey python="{pyexe}" $*\n'
-                    f'doskey py="{pyexe}" $*\n'
-                    f'doskey pip="{pyexe}" -m pip $*\n'
-                    "echo [*] python macro : %LATEXSNIPPER_PYEXE%\n"
-                    "echo [*] pip macro    : %LATEXSNIPPER_PYEXE% -m pip\n"
-                    "echo.\n"
-                )
-                batch_content = (
-                    "@echo off\n"
-                    + f'cd /d "{venv_dir}"\n'
-                    + f'set "PATH={pyexe_dir};{scripts_dir};%PATH%"\n'
-                    + python_bind_lines
-                    + help_text
-                )
-                batch_path = launcher_dir / "latexsnipper-terminal.bat"
-                with open(batch_path, "w", encoding="mbcs", newline="\r\n") as f:
-                    f.write(batch_content)
-                subprocess.Popen(
-                    ["cmd.exe", "/k", str(batch_path)],
-                    cwd=venv_dir,
-                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
-                )
+            if open_main_environment_terminal(
+                pyexe,
+                base_dir or os.path.dirname(pyexe),
+                lambda: self._main_environment_terminal_help(pyexe),
+            ):
+                self._show_info("终端已打开", "已打开主环境终端。", "success")
             else:
-                wrapper_dir_path = launcher_dir / "bin"
-                wrapper_dir_path.mkdir(parents=True, exist_ok=True)
-                wrapper_dir = str(wrapper_dir_path)
-                for name, command in {
-                    "python": f'exec {shlex.quote(pyexe)} "$@"\n',
-                    "py": f'exec {shlex.quote(pyexe)} "$@"\n',
-                    "pip": f'exec {shlex.quote(pyexe)} -m pip "$@"\n',
-                }.items():
-                    wrapper_path = os.path.join(wrapper_dir, name)
-                    with open(wrapper_path, "w", encoding="utf-8", newline="\n") as f:
-                        f.write("#!/bin/sh\n" + command)
-                    os.chmod(wrapper_path, 0o755)
-
-                shell_help_lines = []
-                for line in help_lines:
-                    if line == "echo.":
-                        shell_help_lines.append("")
-                    elif line.startswith("echo "):
-                        shell_help_lines.append(line[5:])
-                    else:
-                        shell_help_lines.append(line)
-                shell_help = "\n".join(shell_help_lines)
-                pyexe_bin = os.path.dirname(pyexe)
-                path_prefix = os.pathsep.join(
-                    item for item in (wrapper_dir, pyexe_bin, os.environ.get("PATH", "")) if item
-                )
-                script_suffix = ".command" if sys.platform == "darwin" else ".sh"
-                script_path = launcher_dir / f"latexsnipper-terminal{script_suffix}"
-                with open(script_path, "w", encoding="utf-8", newline="\n") as f:
-                    f.write(
-                        "#!/bin/sh\n"
-                        f"cd {shlex.quote(venv_dir)} || exit 1\n"
-                        f"export LATEXSNIPPER_PYEXE={shlex.quote(pyexe)}\n"
-                        f"export PATH={shlex.quote(path_prefix)}\n"
-                        "cat <<'LATEXSNIPPER_HELP'\n"
-                        f"{shell_help}\n"
-                        "LATEXSNIPPER_HELP\n"
-                        "echo \"[*] python command: $(command -v python)\"\n"
-                        "echo \"[*] pip command   : $(command -v pip)\"\n"
-                        "echo\n"
-                        "exec \"${SHELL:-/bin/sh}\" -i\n"
-                    )
-                os.chmod(script_path, 0o755)
-
-                if sys.platform == "darwin":
-                    subprocess.Popen(["open", str(script_path)], cwd=venv_dir)
-                else:
-                    launchers = []
-                    env_terminal = os.environ.get("TERMINAL", "").strip()
-                    if env_terminal:
-                        launchers.append([env_terminal, "-e", script_path])
-                    launchers.extend([
-                        ["x-terminal-emulator", "-e", script_path],
-                        ["gnome-terminal", "--", script_path],
-                        ["konsole", "-e", script_path],
-                        ["xfce4-terminal", "-e", script_path],
-                        ["xterm", "-e", script_path],
-                    ])
-                    for launcher in launchers:
-                        if shutil.which(launcher[0]):
-                            subprocess.Popen(launcher, cwd=venv_dir)
-                            break
-                    else:
-                        raise RuntimeError("No supported terminal emulator was found.")
-            self._show_info("终端已打开", "已打开当前依赖环境终端。", "success")
+                self._show_info("终端已打开", "主环境终端已经在运行。", "info")
         except Exception as e:
             self._show_info("终端打开失败", str(e), "error")
 

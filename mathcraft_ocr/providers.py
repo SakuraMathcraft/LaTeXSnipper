@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from .devices import confirm_device_identity, resolve_device_identity
 from .errors import ProviderError
 
 
@@ -22,6 +23,10 @@ class ProviderInfo:
     device: str
     gpu_requested: bool
     gpu_runtime_ok: bool
+    device_id: int | None = None
+    device_name: str = ""
+    device_uuid: str = ""
+    device_verified: bool = False
 
     @property
     def use_cuda(self) -> bool:
@@ -59,7 +64,7 @@ def detect_providers(prefer: str = "auto") -> ProviderInfo:
     if prefer_norm == "cpu":
         if "CPUExecutionProvider" not in available:
             raise ProviderError(f"CPUExecutionProvider unavailable: {available}")
-        return ProviderInfo(
+        return _provider_info(
             available_providers=available,
             active_provider="CPUExecutionProvider",
             device="cpu",
@@ -67,7 +72,7 @@ def detect_providers(prefer: str = "auto") -> ProviderInfo:
             gpu_runtime_ok=False,
         )
     if gpu_visible:
-        return ProviderInfo(
+        return _provider_info(
             available_providers=available,
             active_provider=gpu_candidates[0],
             device="gpu",
@@ -80,10 +85,44 @@ def detect_providers(prefer: str = "auto") -> ProviderInfo:
         )
     if "CPUExecutionProvider" not in available:
         raise ProviderError(f"no supported ONNX execution provider is available: {available}")
-    return ProviderInfo(
+    return _provider_info(
         available_providers=available,
         active_provider="CPUExecutionProvider",
         device="cpu",
         gpu_requested=False,
         gpu_runtime_ok=False,
+    )
+
+
+def _provider_info(
+    *,
+    available_providers: tuple[str, ...],
+    active_provider: str,
+    device: str,
+    gpu_requested: bool,
+    gpu_runtime_ok: bool,
+) -> ProviderInfo:
+    device_id = 0 if active_provider in GPU_PROVIDER_NAMES else None
+    identity = resolve_device_identity(active_provider, device_id)
+    return ProviderInfo(
+        available_providers=available_providers,
+        active_provider=active_provider,
+        device=device,
+        gpu_requested=gpu_requested,
+        gpu_runtime_ok=gpu_runtime_ok,
+        device_id=identity.device_id,
+        device_name=identity.name,
+        device_uuid=identity.uuid,
+        device_verified=identity.verified,
+    )
+
+
+def confirm_provider_device(provider_info: ProviderInfo) -> ProviderInfo:
+    identity = confirm_device_identity(provider_info.active_provider, provider_info.device_id)
+    return replace(
+        provider_info,
+        device_id=identity.device_id,
+        device_name=identity.name,
+        device_uuid=identity.uuid,
+        device_verified=identity.verified,
     )

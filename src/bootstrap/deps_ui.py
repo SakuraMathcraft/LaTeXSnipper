@@ -8,7 +8,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from runtime.app_paths import resource_path
-from bootstrap.deps_context import STATE_FILE
+from bootstrap.deps_context import CONFIG_FILE, STATE_FILE, _config_dir_path
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
     MATHCRAFT_RUNTIME_LAYERS,
@@ -16,12 +16,13 @@ from bootstrap.deps_layer_specs import (
     _sanitize_state_layers,
     layer_display_name,
 )
-from bootstrap.deps_python_runtime import (
+from runtime.dependency_runtime import (
     find_existing_python as _find_existing_python,
 )
 from bootstrap.deps_runtime_verify import _verify_layer_runtime, format_layer_verify_failure
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
 from bootstrap.deps_workers import UninstallLayerWorker
+from bootstrap.progress_dialog import InstallProgressDialog
 from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
 from runtime.dependency_python import normalize_deps_base_dir as _normalize_deps_base_dir
 
@@ -55,9 +56,7 @@ def activate_dependency_dialog(dlg) -> None:
 
 
 def _load_config_path():
-    from bootstrap.deps_entry import _load_config_path as _entry_load_config_path
-
-    return _entry_load_config_path()
+    return _config_dir_path() / CONFIG_FILE
 
 
 def _runtime_layer_names() -> tuple[str, ...]:
@@ -366,7 +365,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
                     pkg_name = pkg.split('~')[0].split('=')[0].split('>')[0].split('<')[0].strip()
                     if pkg_name and pkg_name not in pkg_names:
                         pkg_names.append(pkg_name)
-                pdlg, info2, logw2, btn_cancel2, btn_pause2, progress2 = _progress_dialog()
+                pdlg = InstallProgressDialog()
+                info2 = pdlg.info_label
+                logw2 = pdlg.log_view
+                btn_cancel2 = pdlg.cancel_button
+                btn_pause2 = pdlg.pause_button
+                progress2 = pdlg.progress_bar
                 pdlg.setWindowTitle("卸载进度")
                 info2.setText(f"正在卸载{layer_label}，请不要关闭此窗口...")
                 btn_pause2.hide()
@@ -664,10 +668,12 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         result = cleanup_macos_local_data()
         if result.failed:
             first_path, first_error = result.failed[0]
-            custom_warning_dialog(
+            show_info_bar(
+                dlg,
                 "清理未完成",
                 f"{len(result.failed)} 个项目清理失败。\n\n示例：{first_path}\n{first_error}",
-                dlg,
+                "error",
+                6000,
             )
             return
 
@@ -718,10 +724,11 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
         _save_mirror_source(mirror_source)
 
         if not _current_py_ready():
-            custom_warning_dialog(
+            show_info_bar(
+                dlg,
                 "不可进入",
                 "当前依赖目录尚未检测到可复用的 Python 环境。\n请先点击“下载”初始化依赖环境后再进入主程序。",
-                dlg
+                "warning",
             )
             return
 
@@ -862,112 +869,6 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
     return dlg, chosen
 
 
-def _progress_dialog():
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QProgressBar, QHBoxLayout, QApplication
-    from PyQt6.QtCore import QEvent
-    from qfluentwidgets import PushButton, FluentIcon
-    _sync_deps_fluent_theme()
-    def _is_dark_ui() -> bool:
-        try:
-            import qfluentwidgets as qfw
-            fn = getattr(qfw, "isDarkTheme", None)
-            if callable(fn):
-                return bool(fn())
-        except Exception:
-            pass
-        app = QApplication.instance()
-        if app is None:
-            return False
-        c = app.palette().window().color()
-        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
-
-    def _theme_tokens() -> dict:
-        dark = _is_dark_ui()
-        return {
-            "dark": dark,
-            "dialog_bg": "#1b1f27" if dark else "#ffffff",
-            "panel_bg": "#232934" if dark else "#f7f9fc",
-            "text": "#e7ebf0" if dark else "#222222",
-            "muted": "#a9b3bf" if dark else "#666666",
-            "border": "#465162" if dark else "#d0d7de",
-            "progress_bg": "#232934" if dark else "#ffffff",
-            "progress_border": "#465162" if dark else "#cfd6dd",
-            "progress_chunk": "#4c9aff" if dark else "#1976d2",
-        }
-
-    dlg = QDialog()
-    dlg.setWindowTitle("安装进度")
-    dlg.resize(680, 440)
-    icon_path = resource_path("assets/icon.ico")
-    if os.path.exists(icon_path):
-        dlg.setWindowIcon(QIcon(icon_path))
-    lay = QVBoxLayout(dlg)
-    info = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
-    logw = QTextEdit()
-    logw.setReadOnly(True)
-    progress = QProgressBar()
-    progress.setRange(0, 100)
-    progress.setFixedHeight(20)
-    progress.setMinimumWidth(400)
-
-    btn_cancel = PushButton(FluentIcon.CLOSE, "退出下载")
-    btn_cancel.setFixedHeight(32)
-    btn_pause = PushButton(FluentIcon.PAUSE, "暂停下载")
-    btn_pause.setFixedHeight(32)
-    btn_row = QHBoxLayout()
-    btn_row.addWidget(btn_pause)
-    btn_row.addWidget(btn_cancel)
-    lay.addWidget(info)
-    lay.addWidget(logw, 1)
-    lay.addWidget(progress)
-    lay.addLayout(btn_row)
-
-    def _apply_theme_styles(force: bool = False):
-        theme = _theme_tokens()
-        if (not force) and getattr(dlg, "_theme_is_dark_cached", None) == theme["dark"]:
-            return
-        dlg._theme_is_dark_cached = theme["dark"]
-
-        info.setStyleSheet(f"color: {theme['muted']};")
-        progress.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid __PROGRESS_BORDER__;
-                border-radius: 6px;
-                text-align: center;
-                background-color: __PROGRESS_BG__;
-                color: __TEXT__;
-            }
-            QProgressBar::chunk {
-                background: __PROGRESS_CHUNK__;
-                border-radius: 6px;
-            }
-        """.replace("__PROGRESS_BORDER__", theme["progress_border"])
-           .replace("__PROGRESS_BG__", theme["progress_bg"])
-           .replace("__TEXT__", theme["text"])
-           .replace("__PROGRESS_CHUNK__", theme["progress_chunk"]))
-
-    _apply_theme_styles(force=True)
-
-    _orig_event = dlg.event
-    def _event_with_theme_refresh(event):
-        if event.type() in (
-            QEvent.Type.StyleChange,
-            QEvent.Type.PaletteChange,
-            QEvent.Type.ApplicationPaletteChange,
-        ):
-            _apply_theme_styles()
-        return _orig_event(event)
-    dlg.event = _event_with_theme_refresh
-
-    _orig_show_event = dlg.showEvent
-    def _show_event_with_theme_refresh(event):
-        _apply_theme_styles(force=True)
-        _orig_show_event(event)
-    dlg.showEvent = _show_event_with_theme_refresh
-
-    return dlg, info, logw, btn_cancel, btn_pause, progress
-
-
 def _apply_close_only_window_flags(win):
     from PyQt6.QtCore import Qt
     flags = (
@@ -1018,13 +919,13 @@ def _sync_deps_fluent_theme() -> None:
 
 
 def _apply_app_window_icon(win) -> None:
-    from core.window_icons import apply_app_window_icon
+    from ui.window_icons import apply_app_window_icon
     apply_app_window_icon(win, resource_path("assets/icon.ico"))
 
 
 def _select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
     from PyQt6.QtWidgets import QFileDialog
-    from core.window_icons import schedule_native_dialog_icon
+    from ui.window_icons import schedule_native_dialog_icon
 
     dlg = QFileDialog(parent, title, initial_dir)
     dlg.setFileMode(QFileDialog.FileMode.Directory)
@@ -1062,8 +963,40 @@ def _exec_close_only_message_box(
     return QMessageBox.StandardButton(msg.exec())
 
 
-def custom_warning_dialog(title, message, parent=None):
+def show_info_bar(
+    parent,
+    title: str,
+    content: str,
+    level: str = "info",
+    duration: int = 4000,
+):
+    """Show a categorized, non-blocking Fluent notification."""
+    from qfluentwidgets import InfoBar, InfoBarPosition
+
+    _sync_deps_fluent_theme()
+    notifier = {
+        "success": InfoBar.success,
+        "warning": InfoBar.warning,
+        "error": InfoBar.error,
+    }.get(level, InfoBar.info)
+    return notifier(
+        title=title,
+        content=content,
+        parent=parent,
+        duration=duration,
+        position=InfoBarPosition.TOP,
+    )
+
+
+def show_user_notice(title, message, parent=None):
+    """Show a non-blocking warning/error when a host window is available."""
+    if parent is not None:
+        level = "error" if title in {"错误", "权限不足", "清理未完成"} else "warning"
+        show_info_bar(parent, title, message, level, 5000)
+        return True
+
     from PyQt6.QtWidgets import QMessageBox as _QMessageBox
+
     _sync_deps_fluent_theme()
     _exec_close_only_message_box(
         parent,

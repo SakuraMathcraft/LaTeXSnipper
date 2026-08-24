@@ -12,6 +12,10 @@ from recognition.image_contracts import (
     DEFAULT_MAX_ENCODED_IMAGE_BYTES,
     SUPPORTED_IMAGE_EXTENSIONS,
 )
+from recognition.jobs.contracts import (
+    RecognitionJobError,
+    RecognitionLimits,
+)
 
 
 API_VERSION = "1"
@@ -21,20 +25,17 @@ SUPPORTED_RECOGNITION_MODES = ("formula", "text", "mixed")
 
 
 @dataclass(frozen=True, slots=True)
-class AutomationLimits:
+class AutomationLimits(RecognitionLimits):
+    """HTTP transport limits layered on the recognition coordinator limits."""
+
     max_encoded_image_bytes: int = DEFAULT_MAX_ENCODED_IMAGE_BYTES
     max_request_body_bytes: int = 64 * 1024 * 1024
-    max_batch_items: int = 16
     max_decoded_image_pixels: int = DEFAULT_MAX_DECODED_IMAGE_PIXELS
     max_request_decoded_pixels: int = 80_000_000
-    max_queued_jobs: int = 32
-    max_queued_image_bytes: int = 256 * 1024 * 1024
     max_prefer_wait_seconds: int = 30
     request_concurrency: int = 16
     request_read_timeout_seconds: float = 20.0
     keep_alive_timeout_seconds: float = 10.0
-    completed_job_ttl_seconds: float = 15 * 60.0
-    max_retained_jobs: int = 256
     remote_submissions_per_minute: int = 20
     remote_status_queries_per_minute: int = 120
 
@@ -42,21 +43,43 @@ class AutomationLimits:
 DEFAULT_LIMITS = AutomationLimits()
 
 
-class AutomationApiError(Exception):
-    """A client-safe error with a stable code and HTTP status."""
+class AutomationApiError(RecognitionJobError):
+    """An HTTP API error with an explicit response status."""
 
     def __init__(self, status: int, code: str, message: str) -> None:
-        super().__init__(message)
+        super().__init__(code, message)
         self.status = int(status)
-        self.code = str(code)
-        self.message = str(message)
+
+
+_RECOGNITION_ERROR_STATUSES = {
+    "invalid_request": 400,
+    "invalid_mode": 400,
+    "invalid_backend": 400,
+    "next_result_busy": 409,
+    "job_expired": 410,
+    "batch_too_large": 413,
+    "mode_unsupported": 422,
+    "empty_formula": 422,
+    "empty_text": 422,
+    "empty_content": 422,
+    "job_not_found": 404,
+    "model_unavailable": 503,
+    "backend_unavailable": 503,
+    "queue_full": 503,
+}
+
+
+def error_http_status(error: RecognitionJobError) -> int:
+    if isinstance(error, AutomationApiError):
+        return error.status
+    return _RECOGNITION_ERROR_STATUSES.get(error.code, 500)
 
 
 def request_id() -> str:
     return uuid.uuid4().hex
 
 
-def error_response(error: AutomationApiError, *, request_id_value: str) -> dict[str, Any]:
+def error_response(error: RecognitionJobError, *, request_id_value: str) -> dict[str, Any]:
     return {
         "error": {
             "code": error.code,

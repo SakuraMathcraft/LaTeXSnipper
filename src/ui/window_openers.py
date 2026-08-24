@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import threading
 
-from bootstrap.deps_ui import custom_warning_dialog
 from handwriting import HandwritingWindow
 from recognition.model_policy import is_internal_document_model, resolve_document_recognition_model
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
@@ -82,10 +81,13 @@ class WindowOpenersMixin:
         handwriting_model = resolve_document_recognition_model(preferred)
         self._sync_current_model_status_from_preference()
         if not self.model and handwriting_model != "external_model":
-            custom_warning_dialog("错误", "模型未初始化", self)
+            self.show_action_status("模型未初始化", level="error")
             return
         if handwriting_model == "external_model" and not self._is_external_model_configured():
-            custom_warning_dialog("提示", "外部模型未配置，请先完成必要配置。", self)
+            self.show_action_status(
+                "外部模型未配置，请先完成必要配置。",
+                level="warning",
+            )
             self.open_settings()
             return
         if getattr(self, "handwriting_window", None):
@@ -135,10 +137,10 @@ class WindowOpenersMixin:
         self.system_provider.activate_window(self)
         self.set_action_status("主窗口已显示")
 
-    def _open_terminal_from_settings(self, env_key: str | None = None):
+    def _open_terminal_from_settings(self):
         try:
             if not self.settings_window:
                 self.settings_window = SettingsWindow(self)
-            self.settings_window._open_terminal(env_key=env_key)
+            self.settings_window._open_terminal()
         except Exception as e:
-            custom_warning_dialog("错误", f"打开终端失败: {e}", self)
+            self.show_action_status(f"打开终端失败：{e}", level="error")

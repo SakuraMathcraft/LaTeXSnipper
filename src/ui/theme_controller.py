@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 from preview.math_preview import formula_label_theme_tokens, is_dark_ui
 from runtime.app_paths import app_config_path
-from runtime.runtime_logging import refresh_runtime_log_dialog_theme
+from ui.runtime_log_controller import refresh_runtime_log_dialog_theme
 
 
 def apply_theme(mode: str = "AUTO") -> bool:

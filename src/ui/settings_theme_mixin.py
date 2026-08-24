@@ -21,7 +21,6 @@ class SettingsThemeMixin:
         try:
             if self.parent() and hasattr(self.parent(), "cfg"):
                 mode = self._normalize_theme_mode(self.parent().cfg.get("theme_mode", "auto"))
-                self.parent().cfg.set("theme_mode", mode)
         except Exception:
             mode = "auto"
         try:

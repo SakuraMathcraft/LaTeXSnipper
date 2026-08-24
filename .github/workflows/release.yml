@@ -382,7 +382,7 @@ jobs:
       - name: Compile user manual
         shell: pwsh
         run: |
-          & $env:TYPST compile user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
+          & $env:TYPST compile --root $env:GITHUB_WORKSPACE user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
 
       - name: Upload user manual artifact
         uses: actions/upload-artifact@v7

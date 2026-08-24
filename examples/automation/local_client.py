@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import urllib.request
 import uuid
 from pathlib import Path
@@ -13,6 +14,36 @@ def connection_file() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "automation-api.json"
     return Path.home() / ".latexsnipper" / "automation-api.json"
+
+
+TERMINAL_STATES = {"completed", "failed", "canceled"}
+
+
+def _open_json(request: urllib.request.Request, *, timeout: float) -> tuple[dict, str]:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.load(response), str(response.headers.get("Location") or "")
+
+
+def _wait_for_terminal(connection: dict, payload: dict, location: str) -> dict:
+    job = payload.get("job") or {}
+    if job.get("state") in TERMINAL_STATES:
+        return payload
+    job_id = str(job.get("id") or "")
+    if not job_id:
+        raise RuntimeError("Automation API response did not contain a job id")
+    path = location or f"/api/v1/recognition/jobs/{job_id}"
+    url = path if path.startswith(("http://", "https://")) else connection["base_url"] + path
+    deadline = time.monotonic() + 150
+    while time.monotonic() < deadline:
+        time.sleep(0.25)
+        request = urllib.request.Request(
+            url,
+            headers={"Authorization": "Bearer " + connection["token"]},
+        )
+        payload, _location = _open_json(request, timeout=20)
+        if (payload.get("job") or {}).get("state") in TERMINAL_STATES:
+            return payload
+    raise TimeoutError("Recognition job did not finish within 150 seconds")
 
 
 def main(image_path: str, backend: str = "mathcraft") -> None:
@@ -35,8 +66,9 @@ def main(image_path: str, backend: str = "mathcraft") -> None:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=35) as response:
-        print(json.dumps(json.load(response), ensure_ascii=False, indent=2))
+    payload, location = _open_json(request, timeout=35)
+    result = _wait_for_terminal(connection, payload, location)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

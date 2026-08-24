@@ -3,10 +3,10 @@ from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
 
 from backend.external_model import (
-    ExternalModelConnectionWorker,
     get_preset,
     load_config_from_mapping,
 )
+from recognition.external_workers import ExternalModelConnectionWorker
 from ui.settings_external_help import ExternalModelHelpWindow
 from ui.window_helpers import show_normal_window
 
@@ -53,7 +53,6 @@ class SettingsExternalModelMixin:
         self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
         self._set_lineedit_value(self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"])
         self._set_lineedit_value(self.external_mineru_test_endpoint_input, data["external_model_mineru_test_endpoint"])
-        self._on_external_preset_changed()
         self._update_external_provider_visibility()
 
     def _collect_external_model_config(self):
@@ -111,8 +110,12 @@ class SettingsExternalModelMixin:
         try:
             parent_cfg = getattr(self.parent(), "cfg", None)
             if parent_cfg is not None:
-                for key, value in config.to_mapping().items():
-                    parent_cfg.set(key, value)
+                values = config.to_mapping()
+                if hasattr(parent_cfg, "set_many"):
+                    parent_cfg.set_many(values)
+                else:
+                    for key, value in values.items():
+                        parent_cfg.set(key, value)
         except Exception:
             pass
         self._update_external_provider_visibility()

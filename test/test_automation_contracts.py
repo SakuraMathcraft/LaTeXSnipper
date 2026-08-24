@@ -13,7 +13,7 @@ from integration.automation.auth import (
     AutomationApiAuth,
 )
 from integration.automation.contracts import AutomationApiError, AutomationLimits, validate_mode
-from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
+from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator, RecognitionJobError
 
 
 def _image(width: int = 8, height: int = 8) -> RecognitionItemInput:
@@ -80,6 +80,45 @@ def test_coordinator_serializes_concurrent_inference_and_preserves_order() -> No
             [f"formula:{index + 1}", f"formula:{index + 10}"] for index in range(4)
         ]
     finally:
+        coordinator.stop()
+
+
+def test_cancel_interrupts_a_running_mathcraft_worker() -> None:
+    class InterruptiblePredictor:
+        def __init__(self) -> None:
+            self.started = threading.Event()
+            self.release = threading.Event()
+            self.interruptions = 0
+
+        def predict_result(self, _image, *, model_name: str):
+            self.started.set()
+            self.release.wait(2)
+            return {"text": model_name}
+
+        def _stop_mathcraft_worker(self) -> None:
+            self.interruptions += 1
+            self.release.set()
+
+    predictor = InterruptiblePredictor()
+    coordinator = RecognitionJobCoordinator(predictor)
+    try:
+        job = coordinator.submit(
+            [_image()],
+            principal_id="desktop-ui",
+            source=JobSource.UI,
+            mode="formula",
+            timeout_seconds=5,
+        )
+        assert predictor.started.wait(1)
+
+        coordinator.cancel(job["id"], principal_id="desktop-ui")
+        snapshot = coordinator.wait(job["id"], principal_id="desktop-ui", timeout=1)
+
+        assert predictor.interruptions == 1
+        assert snapshot["state"] == "canceled"
+        assert snapshot["error"]["code"] == "canceled"
+    finally:
+        predictor.release.set()
         coordinator.stop()
 
 
@@ -221,7 +260,7 @@ def test_mode_capability_and_partial_batch_failure_are_stable() -> None:
 
     coordinator = RecognitionJobCoordinator(Predictor())
     try:
-        with pytest.raises(AutomationApiError) as unsupported:
+        with pytest.raises(RecognitionJobError) as unsupported:
             coordinator.submit(
                 [_image()],
                 principal_id="p",
@@ -325,10 +364,10 @@ def test_coordinator_enforces_principal_ownership_and_active_image_memory() -> N
             mode="formula",
             timeout_seconds=5,
         )
-        with pytest.raises(AutomationApiError) as hidden:
+        with pytest.raises(RecognitionJobError) as hidden:
             coordinator.get(job["id"], principal_id="other")
         assert hidden.value.code == "job_not_found"
-        with pytest.raises(AutomationApiError) as full:
+        with pytest.raises(RecognitionJobError) as full:
             coordinator.submit(
                 [_image(10, 10)],
                 principal_id="owner",
@@ -382,7 +421,7 @@ def test_next_result_timeout_and_completed_ttl_are_enforced() -> None:
         assert snapshot["state"] == "failed"
         assert snapshot["error"]["code"] == "timeout"
         current[0] = 13.2
-        with pytest.raises(AutomationApiError) as expired:
+        with pytest.raises(RecognitionJobError) as expired:
             coordinator.get(waiter["id"], principal_id="p")
         assert expired.value.code == "job_expired"
     finally:
@@ -406,7 +445,7 @@ def test_next_result_is_published_once_and_external_secrets_are_released() -> No
             source=JobSource.LOCAL_API,
             timeout_seconds=5,
         )
-        with pytest.raises(AutomationApiError) as busy:
+        with pytest.raises(RecognitionJobError) as busy:
             coordinator.create_next_result_job(
                 principal_id="p",
                 source=JobSource.LOCAL_API,
@@ -429,5 +468,26 @@ def test_next_result_is_published_once_and_external_secrets_are_released() -> No
         )
         assert coordinator.wait(job["id"], principal_id="p", timeout=2)["state"] == "completed"
         assert coordinator._jobs[job["id"]].backend_config is None
+    finally:
+        coordinator.stop()
+
+
+def test_next_result_failure_preserves_specific_empty_result_code() -> None:
+    coordinator = RecognitionJobCoordinator(lambda _image, _mode: "unused")
+    try:
+        waiter = coordinator.create_next_result_job(
+            principal_id="office",
+            source=JobSource.OFFICE,
+            timeout_seconds=5,
+        )
+
+        assert coordinator.fail_next_result("未识别到公式内容", code="empty_formula")
+        snapshot = coordinator.get(waiter["id"], principal_id="office")
+
+        assert snapshot["state"] == "failed"
+        assert snapshot["error"] == {
+            "code": "empty_formula",
+            "message": "未识别到公式内容",
+        }
     finally:
         coordinator.stop()

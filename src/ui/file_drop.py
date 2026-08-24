@@ -7,8 +7,8 @@ from pathlib import Path
 from PyQt6.QtGui import QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
 
+from recognition.image_contracts import SUPPORTED_IMAGE_EXTENSIONS
 from recognition.image_input import image_from_qimage
-from integration.automation.contracts import SUPPORTED_IMAGE_FORMATS
 
 
 class FileDropMixin:
@@ -52,7 +52,7 @@ class FileDropMixin:
 
     def _get_supported_image_patterns(self):
         """Return image file dialog filter patterns."""
-        return [f"*.{extension}" for extension in SUPPORTED_IMAGE_FORMATS]
+        return [f"*.{extension}" for extension in SUPPORTED_IMAGE_EXTENSIONS]
 
     def _get_supported_image_extensions(self):
         """Return readable image extensions for prompts."""
@@ -95,13 +95,8 @@ class FileDropMixin:
                 duration=3200,
                 position=InfoBarPosition.TOP,
             )
-        except Exception:
-            try:
-                from bootstrap.deps_ui import custom_warning_dialog
-
-                custom_warning_dialog("提示", content, self)
-            except Exception:
-                pass
+        except Exception as exc:
+            print(f"[WARN] 无法显示拖入文件提示: {exc}")
 
     def _enable_file_drop_target(self, widget) -> None:
         if widget is None:

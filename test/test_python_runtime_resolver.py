@@ -12,7 +12,7 @@ if str(SRC) not in sys.path:
 
 
 def test_existing_dependency_python_does_not_require_ensurepip(monkeypatch, tmp_path) -> None:
-    from runtime import python_runtime_resolver as resolver
+    from application import python_runtime_resolver as resolver
 
     pyexe = tmp_path / "python311" / ("python.exe" if sys.platform == "win32" else "python3")
     pyexe.parent.mkdir()
