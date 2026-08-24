@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout, Q
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, isDarkTheme
 
 from backend.external_model import ExternalModelClient
-from backend.recognition_errors import recognition_error_code_user_message, recognition_failure_user_message
+from recognition.error_messages import recognition_error_code_user_message, recognition_failure_user_message
 from backend.external_model.prompts import build_math_document_prompt
 from .editor_widgets import HandwritingPlainTextEdit
 from .ink_canvas import InkCanvas
@@ -43,9 +43,22 @@ class _HandwritingDocumentLayoutWorker(QObject):
         self.config = config
         self.image = image
         self.coordinator = coordinator
+        self._job_id = None
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+        if self.coordinator is not None and self._job_id:
+            try:
+                self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting-layout")
+            except Exception:
+                pass
 
     def run(self) -> None:
         try:
+            if self._cancelled:
+                self.failed.emit("已取消")
+                return
             from .recognizer import qimage_to_pil
 
             pil_img = qimage_to_pil(self.image)
@@ -66,6 +79,12 @@ class _HandwritingDocumentLayoutWorker(QObject):
                     backend="external",
                     external_config=self.config,
                 )
+                self._job_id = job["id"]
+                if self._cancelled:
+                    self.coordinator.cancel(
+                        self._job_id,
+                        principal_id="desktop-handwriting-layout",
+                    )
                 snapshot = self.coordinator.wait(
                     job["id"], principal_id="desktop-handwriting-layout", timeout=None
                 )
@@ -883,7 +902,7 @@ class HandwritingWindow(QWidget):
 
     def _open_document_preview(self, doc_text: str) -> None:
         if self._document_preview_window is None:
-            from .document_preview_window import HandwritingDocumentPreviewWindow as DocumentPreviewWindow
+            from preview.document.window import HandwritingDocumentPreviewWindow as DocumentPreviewWindow
 
             self._document_preview_window = DocumentPreviewWindow()
         self._document_preview_window.set_document(doc_text)
@@ -905,7 +924,7 @@ class HandwritingWindow(QWidget):
             self._show_warning("排版结果为空", "外部模型未返回可用的 TeX 文档。")
             return
         try:
-            from .tex_document_utils import merge_layout_with_recognized_draft
+            from preview.document.tex_utils import merge_layout_with_recognized_draft
 
             doc_text = merge_layout_with_recognized_draft(doc_text, self._pending_layout_draft)
         except Exception:
@@ -958,6 +977,13 @@ class HandwritingWindow(QWidget):
     def closeEvent(self, event) -> None:
         self._closing = True
         self.recognize_timer.stop()
+        for worker in (self._layout_worker, self._recognize_worker):
+            cancel = getattr(worker, "cancel", None)
+            if callable(cancel):
+                try:
+                    cancel()
+                except Exception:
+                    pass
         layout_thread = self._layout_thread
         if layout_thread is not None:
             try:

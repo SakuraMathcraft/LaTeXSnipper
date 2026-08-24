@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
+import mathcraft_ocr.devices as devices_mod
+import mathcraft_ocr.providers as providers_mod
 import mathcraft_ocr.runtime as runtime_mod
 import mathcraft_ocr.adapters.common as common_adapter_mod
 import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
@@ -1685,10 +1687,10 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
 
 
 def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> None:
-    calls: list[tuple[str, str, bool, bool]] = []
+    calls: list[tuple[str, str, int, bool, bool]] = []
 
-    def _fake_cached(model_dir: str, active_provider: str, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, active_provider, use_cuda, use_dml))
+    def _fake_cached(model_dir: str, active_provider: str, device_id: int, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, active_provider, device_id, use_cuda, use_dml))
         return object()
 
     monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
@@ -1698,18 +1700,19 @@ def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> No
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
+        device_id=2,
     )
 
     text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
 
-    assert calls[0][1:] == ("CUDAExecutionProvider", True, False)
+    assert calls[0][1:] == ("CUDAExecutionProvider", 2, True, False)
 
 
 def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
-    calls: list[tuple[str, str, bool, bool]] = []
+    calls: list[tuple[str, str, int, bool, bool]] = []
 
-    def _fake_cached(model_dir: str, active_provider: str, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, active_provider, use_cuda, use_dml))
+    def _fake_cached(model_dir: str, active_provider: str, device_id: int, use_cuda: bool, use_dml: bool):
+        calls.append((model_dir, active_provider, device_id, use_cuda, use_dml))
         return object()
 
     monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
@@ -1719,11 +1722,12 @@ def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
+        device_id=1,
     )
 
     text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
 
-    assert calls[0][1:] == ("DmlExecutionProvider", False, True)
+    assert calls[0][1:] == ("DmlExecutionProvider", 1, False, True)
 
 
 def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_path) -> None:
@@ -1734,6 +1738,9 @@ def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_p
 
         def get_providers(self):
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+        def get_provider_options(self):
+            return {"CUDAExecutionProvider": {"device_id": "2"}}
 
         def disable_fallback(self):
             self.fallback_disabled = True
@@ -1755,12 +1762,16 @@ def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_p
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
+        device_id=2,
     )
 
     result = common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
 
     assert result is session
-    assert calls["providers"] == ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    assert calls["providers"] == [
+        ("CUDAExecutionProvider", {"device_id": "2"}),
+        "CPUExecutionProvider",
+    ]
     assert calls["enable_fallback"] is False
     assert session.fallback_disabled is True
     common_adapter_mod.clear_session_cache()
@@ -1792,6 +1803,44 @@ def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_
         assert "requested ONNX GPU provider" in str(exc)
     else:
         raise AssertionError("GPU initialization fallback must be rejected")
+    finally:
+        common_adapter_mod.clear_session_cache()
+
+
+def test_mathcraft_session_rejects_a_different_gpu_device(monkeypatch, tmp_path) -> None:
+    class _Session:
+        def get_providers(self):
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+        def get_provider_options(self):
+            return {"CUDAExecutionProvider": {"device_id": "1"}}
+
+        def disable_fallback(self):
+            raise AssertionError("device mismatch must be rejected first")
+
+    class _Ort:
+        @staticmethod
+        def InferenceSession(_model_path, **_kwargs):
+            return _Session()
+
+    common_adapter_mod.clear_session_cache()
+    monkeypatch.setattr(common_adapter_mod, "_ort", lambda: _Ort)
+    provider = ProviderInfo(
+        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CUDAExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        device_id=0,
+    )
+
+    try:
+        common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
+    except RuntimeError as exc:
+        assert "device_id=0" in str(exc)
+        assert "device_id=1" in str(exc)
+    else:
+        raise AssertionError("GPU device mismatch must be rejected")
     finally:
         common_adapter_mod.clear_session_cache()
 
@@ -1840,12 +1889,101 @@ def test_provider_serialization_exposes_backend_capabilities() -> None:
         device="gpu",
         gpu_requested=True,
         gpu_runtime_ok=True,
+        device_id=1,
+        device_name="Discrete GPU",
+        device_uuid="LUID-00000000-00000001",
+        device_verified=True,
     )
 
     payload = provider_info_to_json(provider)
 
     assert payload["use_cuda"] is False
     assert payload["use_dml"] is True
+    assert payload["device_id"] == 1
+    assert payload["device_name"] == "Discrete GPU"
+    assert payload["device_uuid"] == "LUID-00000000-00000001"
+    assert payload["device_verified"] is True
+
+
+def test_nvidia_device_selection_honors_cuda_visible_devices() -> None:
+    devices = (
+        devices_mod.NvidiaDevice(0, "GPU 0", "GPU-AAAA"),
+        devices_mod.NvidiaDevice(1, "GPU 1", "GPU-BBBB"),
+    )
+
+    assert devices_mod.select_nvidia_device(devices, 0, "1,0") == devices[1]
+    assert devices_mod.select_nvidia_device(devices, 1, "1,0") == devices[0]
+    assert devices_mod.select_nvidia_device(devices, 0, "GPU-BBBB") == devices[1]
+    assert devices_mod.select_nvidia_device(devices, 0, "-1") is None
+
+
+def test_cuda_device_confirmation_uses_the_worker_process_gpu(monkeypatch) -> None:
+    devices = (
+        devices_mod.NvidiaDevice(0, "GPU 0", "GPU-AAAA"),
+        devices_mod.NvidiaDevice(1, "GPU 1", "GPU-BBBB"),
+    )
+    monkeypatch.setattr(devices_mod, "query_nvidia_devices", lambda: devices)
+    monkeypatch.setattr(
+        devices_mod,
+        "query_nvidia_process_gpu_uuids",
+        lambda: frozenset({"gpu-bbbb"}),
+    )
+
+    identity = devices_mod.confirm_device_identity("CUDAExecutionProvider", 0)
+
+    assert identity.name == "GPU 1"
+    assert identity.uuid == "GPU-BBBB"
+    assert identity.verified is True
+
+
+def test_provider_report_uses_provider_specific_device_identity(monkeypatch) -> None:
+    ort = type(
+        "Ort",
+        (),
+        {"get_available_providers": staticmethod(lambda: ["DmlExecutionProvider", "CPUExecutionProvider"])},
+    )()
+    identity = devices_mod.DeviceIdentity(
+        device_id=0,
+        name="DXGI adapter zero",
+        uuid="LUID-00000000-00000042",
+        verified=True,
+    )
+    monkeypatch.setattr(providers_mod.importlib, "import_module", lambda _name: ort)
+    monkeypatch.setattr(providers_mod, "resolve_device_identity", lambda _provider, _device_id: identity)
+
+    info = providers_mod.detect_providers("gpu")
+
+    assert info.active_provider == "DmlExecutionProvider"
+    assert info.device_id == 0
+    assert info.device_name == "DXGI adapter zero"
+    assert info.device_uuid == "LUID-00000000-00000042"
+    assert info.device_verified is True
+
+
+def test_hardware_probe_uses_the_selected_cuda_device(monkeypatch) -> None:
+    devices = (
+        devices_mod.NvidiaDevice(0, "GPU 0", "GPU-AAAA", 4096, 2048, "1"),
+        devices_mod.NvidiaDevice(1, "GPU 1", "GPU-BBBB", 8192, 6144, "2"),
+    )
+    provider = ProviderInfo(
+        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CUDAExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        device_id=0,
+    )
+    hardware_mod.detect_hardware_info.cache_clear()
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "1,0")
+    monkeypatch.setattr(hardware_mod, "query_nvidia_devices", lambda: devices)
+    monkeypatch.setattr(hardware_mod, "_memory_status", lambda: (16384, 8192))
+
+    info = hardware_mod.detect_hardware_info(provider)
+
+    assert info.gpu_name == "GPU 1"
+    assert info.gpu_total_memory_mb == 8192
+    assert info.gpu_free_memory_mb == 6144
+    hardware_mod.detect_hardware_info.cache_clear()
 
 
 def test_hardware_video_controller_payload_parser() -> None:

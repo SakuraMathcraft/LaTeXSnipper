@@ -6,9 +6,9 @@ from qfluentwidgets import PrimaryPushButton
 
 from capture.capture_controller import CaptureControllerMixin
 from preview.preview_controller import PreviewControllerMixin
-from recognition.pdf_controller import PdfRecognitionControllerMixin
+from ui.controllers.pdf import PdfRecognitionControllerMixin
 from recognition.image_input import image_from_qpixmap
-from recognition.recognition_controller import RecognitionControllerMixin
+from ui.controllers.recognition import RecognitionControllerMixin
 from ui.app_lifecycle_controller import AppLifecycleMixin
 from ui.editor_actions_controller import EditorActionsControllerMixin
 from ui.file_drop import FileDropMixin
@@ -17,7 +17,6 @@ from ui.hotkey_controller import HotkeyControllerMixin
 from ui.main_window_setup import MainWindowSetupMixin
 from ui.menu_helpers import action_btn_style as _action_btn_style
 from ui.model_runtime_controller import ModelRuntimeControllerMixin
-from ui.automation_api_controller import AutomationApiControllerMixin
 from ui.predict_result_controller import PredictResultControllerMixin
 from ui.status_controller import StatusControllerMixin
 from ui.theme_controller import ThemeControllerMixin
@@ -41,7 +40,6 @@ class MainWindow(
     CaptureControllerMixin,
     HotkeyControllerMixin,
     WindowOpenersMixin,
-    AutomationApiControllerMixin,
     AppLifecycleMixin,
     QMainWindow,
 ):
@@ -93,7 +91,7 @@ class MainWindow(
         except Exception:
             pass
         try:
-            QTimer.singleShot(0, self.apply_automation_api_startup_preference)
+            QTimer.singleShot(0, self.automation_api.apply_automation_api_startup_preference)
         except Exception:
             pass
 

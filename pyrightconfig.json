@@ -1,6 +1,7 @@
 {
     "pythonVersion": "3.11",
     "typeCheckingMode": "off",
+    "reportMissingImports": "error",
     "include": [
         "src"
     ],

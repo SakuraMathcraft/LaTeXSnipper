@@ -463,6 +463,7 @@ def test_windows_private_file_acl_targets_only_current_sid(tmp_path: Path, monke
     target.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(private_files, "_is_windows", lambda: True)
     monkeypatch.setattr(private_files.subprocess, "run", run)
+    monkeypatch.setattr(private_files, "_CURRENT_USER_SID", "")
     restrict_file_to_current_user(target)
     assert calls[0][:2] == ["whoami", "/user"]
     assert calls[1] == [
@@ -472,6 +473,79 @@ def test_windows_private_file_acl_targets_only_current_sid(tmp_path: Path, monke
         "/grant:r",
         "*S-1-5-21-123:(F)",
     ]
+
+
+def test_private_directory_acl_is_applied_once_per_process(tmp_path: Path, monkeypatch) -> None:
+    import runtime.private_files as private_files
+
+    calls: list[list[str]] = []
+
+    def run(command, **_kwargs):
+        calls.append(command)
+        stdout = '"DESKTOP\\User","S-1-5-21-123"\n' if command[0] == "whoami" else ""
+        return types.SimpleNamespace(stdout=stdout)
+
+    target = tmp_path / "private"
+    monkeypatch.setattr(private_files, "_is_windows", lambda: True)
+    monkeypatch.setattr(private_files.subprocess, "run", run)
+    monkeypatch.setattr(private_files, "_CURRENT_USER_SID", "")
+    monkeypatch.setattr(private_files, "_PRIVATE_DIRECTORIES", set())
+
+    private_files.ensure_private_directory(target)
+    private_files.ensure_private_directory(target)
+
+    assert [command[0] for command in calls] == ["whoami", "icacls"]
+    assert calls[1][-1] == "*S-1-5-21-123:(OI)(CI)F"
+
+
+def test_tls_initialization_failure_closes_the_bound_server(tmp_path: Path, monkeypatch) -> None:
+    import integration.automation.server as server_module
+
+    cert = tmp_path / "cert.pem"
+    key = tmp_path / "key.pem"
+    cert.write_text("invalid", encoding="utf-8")
+    key.write_text("invalid", encoding="utf-8")
+
+    class BoundServer:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.socket = object()
+            self.closed = False
+
+        def server_close(self) -> None:
+            self.closed = True
+
+    class FailingContext:
+        minimum_version = None
+
+        def __init__(self, _protocol) -> None:
+            pass
+
+        def load_cert_chain(self, _cert, _key) -> None:
+            raise OSError("invalid certificate")
+
+    bound = BoundServer()
+    monkeypatch.setattr(server_module, "_BoundedHTTPServer", lambda *_args, **_kwargs: bound)
+    monkeypatch.setattr(server_module.ssl, "SSLContext", FailingContext)
+    coordinator = RecognitionJobCoordinator(lambda _image, _mode: "ok")
+    server = AutomationApiServer(
+        coordinator,
+        settings=AutomationApiSettings(
+            host="192.0.2.10",
+            port=28765,
+            access_scope="remote",
+            remote_security="https",
+            remote_key="secret",
+            tls_cert_path=str(cert),
+            tls_key_path=str(key),
+        ),
+    )
+    try:
+        with pytest.raises(OSError, match="invalid certificate"):
+            server.start()
+        assert bound.closed
+        assert server._httpd is None
+    finally:
+        coordinator.stop()
 
 
 def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:

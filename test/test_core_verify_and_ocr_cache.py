@@ -31,7 +31,7 @@ def _nonblank_test_image() -> Image.Image:
 
 class InternalModelMathCraftTests(unittest.TestCase):
     def test_mathcraft_failure_classifier_reports_missing_cache(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
             "MathCraft runtime is not ready: missing=['mathcraft-formula-rec'], unsupported=[]"
@@ -39,7 +39,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
 
     def test_mathcraft_failure_classifier_reports_cuda_runtime(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
             "Failed to create CUDAExecutionProvider. Require cuDNN 9.* and CUDA 12.*. "
@@ -49,7 +49,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(info["code"], "CUDA_RUNTIME_BROKEN")
 
     def test_mathcraft_failure_classifier_reports_broken_onnxruntime(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
             "onnxruntime dependency is incomplete: missing get_available_providers "
@@ -58,7 +58,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
 
     def test_mathcraft_failure_classifier_reports_broken_onnxruntime_without_patterns_module(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         real_import = __import__
 
@@ -76,7 +76,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
 
     def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
             "MathCraft runtime is not ready: missing=[], unsupported=[]"
@@ -84,7 +84,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertNotEqual(info["code"], "MODEL_CACHE_INCOMPLETE")
 
     def test_external_model_failure_message_is_not_mathcraft_classified(self):
-        from backend.recognition_errors import recognition_failure_user_message
+        from recognition.error_messages import recognition_failure_user_message
 
         raw = "HTTPConnectionPool(host='127.0.0.1', port=11434): raw upstream failure"
         message = recognition_failure_user_message(raw, "external_model")
@@ -92,20 +92,20 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertNotIn("HTTPConnectionPool", message)
 
     def test_recognition_error_codes_have_chinese_user_messages(self):
-        from backend.recognition_errors import recognition_error_code_user_message
+        from recognition.error_messages import recognition_error_code_user_message
 
         for code in ("queue_full", "model_unavailable", "upstream_timeout", "internal_error", "unknown"):
             message = recognition_error_code_user_message(code)
             self.assertRegex(message, r"[\u4e00-\u9fff]")
 
     def test_mathcraft_failure_message_still_uses_mathcraft_classifier(self):
-        from backend.recognition_errors import recognition_failure_user_message
+        from recognition.error_messages import recognition_failure_user_message
 
         message = recognition_failure_user_message("CUDAExecutionProvider failed", "mathcraft")
         self.assertIn("CUDA", message)
 
     def test_empty_recognition_failure_message_is_preserved(self):
-        from backend.recognition_errors import recognition_failure_user_message
+        from recognition.error_messages import recognition_failure_user_message
 
         self.assertEqual(
             recognition_failure_user_message("未识别到公式内容", "mathcraft"),
@@ -175,7 +175,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertFalse(info.gpu_requested)
 
     def test_mathcraft_failure_classifier_reports_gpu_provider_failure(self):
-        from backend.model import classify_mathcraft_failure
+        from backend.mathcraft.model import classify_mathcraft_failure
 
         info = classify_mathcraft_failure(
             "GPU provider was requested but none is available: ('CPUExecutionProvider',)"
@@ -202,7 +202,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
             self.assertFalse(orphan.exists())
 
     def test_subprocess_env_isolates_dependency_python_runtime(self):
-        from backend.model import ModelWrapper, _worker_code_roots, get_deps_python
+        from backend.mathcraft.model import ModelWrapper, _worker_code_roots, get_deps_python
         from runtime.dependency_python import python_env_root
 
         wrapper = ModelWrapper(auto_warmup=False)
@@ -227,14 +227,14 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertIn("site-packages", worker_code)
 
     def test_unknown_modes_are_rejected(self):
-        from backend.model import ModelWrapper
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         with self.assertRaises(ValueError):
             wrapper._mode_for_model("unknown_mode")
 
     def test_model_wrapper_uses_extended_formula_decode_budget(self):
-        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+        from backend.mathcraft.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("formula")
@@ -250,7 +250,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(requests[-1]["max_new_tokens"], FORMULA_RECOGNITION_MAX_NEW_TOKENS)
 
     def test_model_wrapper_uses_extended_mixed_formula_decode_budget(self):
-        from backend.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
+        from backend.mathcraft.model import FORMULA_RECOGNITION_MAX_NEW_TOKENS, ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("mixed")
@@ -269,7 +269,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         )
 
     def test_model_wrapper_skips_near_blank_images_before_worker_request(self):
-        from backend.model import ModelWrapper
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("formula")
@@ -285,7 +285,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(result["empty_reason"], "empty_image")
 
     def test_model_wrapper_filters_degenerate_formula_decoder_loop(self):
-        from backend.model import ModelWrapper
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("formula")
@@ -305,7 +305,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(result["empty_reason"], "degenerate_formula_output")
 
     def test_model_wrapper_keeps_non_degenerate_formula_text(self):
-        from backend.model import ModelWrapper
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("formula")
@@ -321,7 +321,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertNotIn("empty_reason", result)
 
     def test_model_wrapper_predict_empty_hint_has_no_render_brackets(self):
-        from backend.model import ModelWrapper
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
         wrapper._ready_modes.add("formula")
@@ -332,7 +332,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         )
 
     def test_mathcraft_provider_prefers_installed_gpu_layer(self):
-        from backend.model import _infer_provider_preference_from_deps_state
+        from backend.mathcraft.model import _infer_provider_preference_from_deps_state
         from mathcraft_ocr.providers import GPU_PROVIDER_NAMES
 
         self.assertEqual(GPU_PROVIDER_NAMES[0], "CUDAExecutionProvider")
@@ -348,7 +348,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
             self.assertEqual(_infer_provider_preference_from_deps_state(str(pyexe)), "gpu")
 
     def test_explicit_mathcraft_provider_env_wins(self):
-        from backend.model import resolve_mathcraft_provider_preference
+        from backend.mathcraft.model import resolve_mathcraft_provider_preference
 
         old = os.environ.get("MATHCRAFT_PROVIDER")
         os.environ["MATHCRAFT_PROVIDER"] = "cpu"
@@ -361,7 +361,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
                 os.environ["MATHCRAFT_PROVIDER"] = old
 
     def test_packaged_windows_initial_deps_dir_uses_bundled_deps(self):
-        import runtime.python_runtime_resolver as resolver
+        import application.python_runtime_resolver as resolver
 
         bundled = ROOT / "_internal" / "deps"
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -473,7 +473,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("sympy", CRITICAL_VERSIONS)
 
     def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
-        from backend.cuda_runtime_policy import (
+        from backend.mathcraft.runtime_policy import (
             CUDA11_ORT_INDEX_URL,
             CUDA13_ORT_NIGHTLY_INDEX_URL,
             CudaRuntimeInfo,
@@ -504,7 +504,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertEqual(cuda13.index_url, CUDA13_ORT_NIGHTLY_INDEX_URL)
 
     def test_cuda_runtime_detects_cudart_suffix_from_path(self):
-        from backend.cuda_runtime_policy import detect_cuda_runtime
+        from backend.mathcraft.runtime_policy import detect_cuda_runtime
 
         root = ROOT / ".tmp_test_cuda_detect" / "bin"
         if root.parent.exists():
@@ -520,8 +520,8 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertEqual(info.source, "PATH:cudart")
 
     def test_cuda_diagnostics_uses_cuda11_dll_suffixes(self):
-        from backend.cuda_diagnostics import diagnose_cuda_dll_paths
-        from backend.cuda_runtime_policy import CudaRuntimeInfo
+        from backend.mathcraft.cuda_diagnostics import diagnose_cuda_dll_paths
+        from backend.mathcraft.runtime_policy import CudaRuntimeInfo
 
         root = ROOT / ".tmp_test_cuda_diag" / "CUDA" / "v11.8"
         if root.parent.parent.exists():
@@ -551,7 +551,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         self.assertNotIn("cudart64_12.dll", dll_names)
 
     def test_cuda_shared_library_diagnostics_checks_linux_so_names(self):
-        from backend.cuda_diagnostics import diagnose_cuda_shared_libraries
+        from backend.mathcraft.cuda_diagnostics import diagnose_cuda_shared_libraries
 
         root = ROOT / ".tmp_test_cuda_so_diag" / "lib64"
         if root.parent.exists():

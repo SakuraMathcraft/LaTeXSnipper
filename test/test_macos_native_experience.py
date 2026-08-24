@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from bootstrap import deps_layer_specs
 from runtime import app_paths
-from ui.settings_mathcraft_mixin import SettingsMathCraftMixin
 
 
 def test_macos_app_paths_use_library_directories(tmp_path, monkeypatch) -> None:
@@ -28,16 +27,6 @@ def test_macos_dependency_gpu_probe_does_not_run_cuda_tools(monkeypatch) -> None
 
     assert deps_layer_specs._gpu_available() is False
     assert deps_layer_specs._cuda_toolkit_available() is False
-
-
-def test_macos_settings_device_probe_does_not_run_windows_or_nvidia_tools(monkeypatch) -> None:
-    def fail_run(*_args, **_kwargs):
-        raise AssertionError("macOS settings page must not run powershell or nvidia-smi")
-
-    monkeypatch.setattr("ui.settings_mathcraft_mixin.sys.platform", "darwin")
-    monkeypatch.setattr("ui.settings_mathcraft_mixin.subprocess.run", fail_run)
-
-    assert SettingsMathCraftMixin()._probe_local_device_names() == ("", "")
 
 
 def test_macos_dependency_wizard_hides_nvidia_cuda_gpu_option(monkeypatch) -> None:

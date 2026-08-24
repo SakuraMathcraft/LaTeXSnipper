@@ -68,7 +68,7 @@ class _AutomationApiResultReceiver(QObject):
             self._cleanup()
 
 
-class AutomationApiControllerMixin:
+class AutomationApiController(QObject):
     _AUTOMATION_SETTING_KEYS = (
         AUTOMATION_API_PORT_KEY,
         AUTOMATION_API_ACCESS_SCOPE_KEY,
@@ -82,21 +82,36 @@ class AutomationApiControllerMixin:
         AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY,
     )
 
+    def __init__(self, cfg, recognition_coordinator, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.cfg = cfg
+        self.recognition_coordinator = recognition_coordinator
+        self._automation_api_server: AutomationApiServer | None = None
+        self._automation_api_toggle_workers: list[tuple[_AutomationApiToggleWorker, _AutomationApiResultReceiver]] = []
+        self._automation_api_pending_operations: list[tuple[str, object]] = []
+        self._automation_api_operation_active = False
+        self._automation_api_shutting_down = False
+
     def _automation_api_enabled_pref(self) -> bool:
         try:
             return bool(self.cfg.get(AUTOMATION_API_ENABLED_KEY, False))
         except Exception:
             return False
 
-    def _automation_api_settings(self) -> AutomationApiSettings:
-        scope = str(self.cfg.get(AUTOMATION_API_ACCESS_SCOPE_KEY, "local") or "local")
+    def _automation_api_settings(self, overrides: dict[str, object] | None = None) -> AutomationApiSettings:
+        values = overrides or {}
+
+        def read(key: str, default):
+            return values[key] if key in values else self.cfg.get(key, default)
+
+        scope = str(read(AUTOMATION_API_ACCESS_SCOPE_KEY, "local") or "local")
         default_bind = "127.0.0.1"
-        bind = str(self.cfg.get(AUTOMATION_API_BIND_ADDRESS_KEY, default_bind) or default_bind).strip()
+        bind = str(read(AUTOMATION_API_BIND_ADDRESS_KEY, default_bind) or default_bind).strip()
         try:
-            port = int(self.cfg.get(AUTOMATION_API_PORT_KEY, DEFAULT_AUTOMATION_API_PORT))
+            port = int(read(AUTOMATION_API_PORT_KEY, DEFAULT_AUTOMATION_API_PORT))
         except (TypeError, ValueError):
             port = DEFAULT_AUTOMATION_API_PORT
-        origins_value = self.cfg.get(AUTOMATION_API_ALLOWED_ORIGINS_KEY, [])
+        origins_value = read(AUTOMATION_API_ALLOWED_ORIGINS_KEY, [])
         if isinstance(origins_value, str):
             origins = tuple(value.strip() for value in origins_value.splitlines() if value.strip())
         elif isinstance(origins_value, (list, tuple)):
@@ -107,12 +122,12 @@ class AutomationApiControllerMixin:
             host=bind,
             port=port,
             access_scope=scope,
-            remote_security=str(self.cfg.get(AUTOMATION_API_REMOTE_SECURITY_KEY, "tunnel") or "tunnel"),
-            remote_key=str(self.cfg.get(AUTOMATION_API_REMOTE_KEY, "") or ""),
-            tls_cert_path=str(self.cfg.get(AUTOMATION_API_TLS_CERT_PATH_KEY, "") or ""),
-            tls_key_path=str(self.cfg.get(AUTOMATION_API_TLS_KEY_PATH_KEY, "") or ""),
+            remote_security=str(read(AUTOMATION_API_REMOTE_SECURITY_KEY, "tunnel") or "tunnel"),
+            remote_key=str(read(AUTOMATION_API_REMOTE_KEY, "") or ""),
+            tls_cert_path=str(read(AUTOMATION_API_TLS_CERT_PATH_KEY, "") or ""),
+            tls_key_path=str(read(AUTOMATION_API_TLS_KEY_PATH_KEY, "") or ""),
             allowed_origins=origins,
-            remote_external_enabled=bool(self.cfg.get(AUTOMATION_API_REMOTE_EXTERNAL_ENABLED_KEY, False)),
+            remote_external_enabled=bool(read(AUTOMATION_API_REMOTE_EXTERNAL_ENABLED_KEY, False)),
         )
 
     def automation_api_status_text(self) -> str:
@@ -137,21 +152,29 @@ class AutomationApiControllerMixin:
         else:
             self._stop_automation_api_async(callback)
 
+    def _set_automation_api_config(self, values: dict[str, object]) -> None:
+        set_many = getattr(self.cfg, "set_many", None)
+        if callable(set_many):
+            set_many(values)
+            return
+        for key, value in values.items():
+            self.cfg.set(key, value)
+
     def update_automation_api_settings_async(self, values: dict[str, object], callback=None) -> None:
         old_values = {key: self.cfg.get(key, None) for key in self._AUTOMATION_SETTING_KEYS}
         was_running = self.automation_api_is_running()
-        for key in self._AUTOMATION_SETTING_KEYS:
-            if key in values:
-                self.cfg.set(key, values[key])
-        try:
-            self._automation_api_settings().validate()
-        except Exception:
-            for key, value in old_values.items():
-                self.cfg.set(key, value)
-            raise
+        new_values = {key: values[key] for key in self._AUTOMATION_SETTING_KEYS if key in values}
+        old_settings = self._automation_api_settings()
+        new_settings = self._automation_api_settings(new_values)
+        new_settings.validate()
+        self._set_automation_api_config(new_values)
         if not was_running:
             if callback:
                 QTimer.singleShot(0, lambda: callback(True, "Automation API 配置已保存"))
+            return
+        if new_settings == old_settings:
+            if callback:
+                QTimer.singleShot(0, lambda: callback(True, "Automation API 配置未更改"))
             return
 
         def after_stop(ok: bool, message: str) -> None:
@@ -165,9 +188,7 @@ class AutomationApiControllerMixin:
                     if callback:
                         callback(True, start_message)
                     return
-                for key, value in old_values.items():
-                    self.cfg.set(key, value)
-                self.cfg.set(AUTOMATION_API_ENABLED_KEY, True)
+                self._set_automation_api_config({**old_values, AUTOMATION_API_ENABLED_KEY: True})
                 self._start_automation_api_async(
                     lambda _restored, _restore_message: callback and callback(False, start_message)
                 )
@@ -180,7 +201,7 @@ class AutomationApiControllerMixin:
     def _create_automation_api_server(self) -> AutomationApiServer:
         settings = self._automation_api_settings()
         return AutomationApiServer(
-            getattr(self, "recognition_coordinator"),
+            self.recognition_coordinator,
             settings=settings,
             auth=AutomationApiAuth(
                 remote_key=settings.remote_key,
@@ -211,51 +232,109 @@ class AutomationApiControllerMixin:
         worker.completed.connect(receiver.handle_completed)
         worker.start()
 
-    def _start_automation_api_async(self, callback=None) -> None:
-        if getattr(self, "_automation_api_server", None):
-            if callback:
-                QTimer.singleShot(0, lambda: callback(True, self.automation_api_status_text()))
-            return
-        worker = _AutomationApiToggleWorker(action="start", create_server=self._create_automation_api_server)
+    def _automation_api_operation_queue(self):
+        operations = getattr(self, "_automation_api_pending_operations", None)
+        if operations is None:
+            operations = []
+            self._automation_api_pending_operations = operations
+        return operations
 
-        def done(ok: bool, message: str, server: object) -> None:
-            if ok:
-                self._automation_api_server = server
-            else:
-                self.cfg.set(AUTOMATION_API_ENABLED_KEY, False)
+    def _enqueue_automation_api_operation(self, action: str, callback=None) -> None:
+        if bool(getattr(self, "_automation_api_shutting_down", False)):
+            return
+        self._automation_api_operation_queue().append((action, callback))
+        self._run_next_automation_api_operation()
+
+    def _run_next_automation_api_operation(self) -> None:
+        if bool(getattr(self, "_automation_api_shutting_down", False)):
+            return
+        if bool(getattr(self, "_automation_api_operation_active", False)):
+            return
+        operations = self._automation_api_operation_queue()
+        if not operations:
+            return
+        action, callback = operations.pop(0)
+        self._automation_api_operation_active = True
+
+        def finish(ok: bool, message: str) -> None:
+            self._automation_api_operation_active = False
             if callback:
                 callback(ok, message)
+            self._run_next_automation_api_operation()
+
+        server = getattr(self, "_automation_api_server", None)
+        if action == "start" and server is not None:
+            QTimer.singleShot(0, lambda: finish(True, self.automation_api_status_text()))
+            return
+        if action == "stop" and server is None:
+            QTimer.singleShot(0, lambda: finish(True, "Automation API 已关闭"))
+            return
+
+        worker = _AutomationApiToggleWorker(
+            action=action,
+            server=server if action == "stop" else None,
+            create_server=self._create_automation_api_server if action == "start" else None,
+        )
+
+        def done(ok: bool, message: str, result_server: object) -> None:
+            if bool(getattr(self, "_automation_api_shutting_down", False)):
+                if result_server is not None:
+                    result_server.stop()
+                self._automation_api_operation_active = False
+                return
+            if action == "start":
+                if ok:
+                    self._automation_api_server = result_server
+                else:
+                    self.cfg.set(AUTOMATION_API_ENABLED_KEY, False)
+            elif ok:
+                if self._automation_api_server is server:
+                    self._automation_api_server = None
+            else:
+                self._automation_api_server = server
+                self.cfg.set(AUTOMATION_API_ENABLED_KEY, True)
+            finish(ok, message)
 
         self._run_automation_api_worker(worker, done)
 
+    def _start_automation_api_async(self, callback=None) -> None:
+        self._enqueue_automation_api_operation("start", callback)
+
     def _stop_automation_api_async(self, callback=None) -> None:
-        server = getattr(self, "_automation_api_server", None)
-        self._automation_api_server = None
-        if server is None:
-            if callback:
-                QTimer.singleShot(0, lambda: callback(True, "Automation API 已关闭"))
-            return
-        worker = _AutomationApiToggleWorker(action="stop", server=server)
-        self._run_automation_api_worker(worker, lambda ok, message, _server: callback and callback(ok, message))
+        self._enqueue_automation_api_operation("stop", callback)
 
     def _stop_automation_api(self) -> None:
+        self._automation_api_shutting_down = True
+        pending = getattr(self, "_automation_api_pending_operations", None)
+        if pending is not None:
+            pending.clear()
         server = getattr(self, "_automation_api_server", None)
         self._automation_api_server = None
         if server is not None:
             server.stop()
 
     def _cleanup_automation_api_workers(self, timeout_ms: int = 3000) -> None:
-        for worker, receiver in list(getattr(self, "_automation_api_toggle_workers", []) or []):
+        workers = getattr(self, "_automation_api_toggle_workers", []) or []
+        remaining = []
+        for worker, receiver in list(workers):
+            if worker.isRunning():
+                worker.quit()
+                worker.wait(timeout_ms)
+            if worker.isRunning():
+                remaining.append((worker, receiver))
+                continue
             try:
                 worker.completed.disconnect(receiver.handle_completed)
             except Exception:
                 pass
-            if worker.isRunning():
-                worker.quit()
-                worker.wait(timeout_ms)
             result_server = getattr(worker, "_result_server", None)
             if result_server is not None and result_server is not getattr(self, "_automation_api_server", None):
                 result_server.stop()
             worker.deleteLater()
             receiver.deleteLater()
-        self._automation_api_toggle_workers = []
+        workers[:] = remaining
+        self._automation_api_toggle_workers = workers
+
+    def shutdown(self) -> None:
+        self._stop_automation_api()
+        self._cleanup_automation_api_workers()

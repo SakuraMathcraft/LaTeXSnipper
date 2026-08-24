@@ -6,7 +6,7 @@ import re
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from backend.latex_renderer import get_latex_renderer
+from rendering.latex import get_document_render_mode, get_latex_renderer
 from preview.math_preview import get_mathjax_base_url
 from preview.smart_preview import build_preview_error_html, build_smart_preview_html, render_formula_content_html
 from runtime.content_types import ContentType, FORMULA_CONTENT_TYPE
@@ -57,12 +57,7 @@ class PreviewControllerMixin:
         self._refresh_preview()
 
     def _build_preview_latex_cache_key(self, latex_code: str) -> str:
-        try:
-            from backend.latex_renderer import _latex_settings
-
-            mode = _latex_settings.get_render_mode() if _latex_settings else "latex_pdflatex"
-        except Exception:
-            mode = "latex_pdflatex"
+        mode = get_document_render_mode()
         return f"{str(mode or '').strip()}|{str(latex_code or '').strip()}"
 
     def _namespace_preview_svg_ids(self, svg: str, namespace: str) -> str:
@@ -164,13 +159,7 @@ class PreviewControllerMixin:
                 pass
 
     def _render_formula_preview_content(self, content: str) -> str:
-        render_mode = None
-        try:
-            from backend.latex_renderer import _latex_settings
-
-            render_mode = _latex_settings.get_render_mode() if _latex_settings else None
-        except Exception:
-            render_mode = None
+        render_mode = get_document_render_mode()
 
         cache_key = self._build_preview_latex_cache_key(content) if render_mode and render_mode.startswith("latex_") else ""
         has_cached_svg = bool(cache_key) and cache_key in self._preview_svg_cache

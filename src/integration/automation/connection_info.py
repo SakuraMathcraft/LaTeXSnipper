@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from runtime.app_paths import app_state_dir
-from runtime.private_files import restrict_file_to_current_user
+from runtime.private_files import ensure_private_directory
 
 
 CONNECTION_FILENAME = "automation-api.json"
@@ -26,7 +26,7 @@ def write_connection_file(
     path: Path | None = None,
 ) -> Path:
     target = path or default_connection_file()
-    target.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_directory(target.parent)
     payload = {
         "base_url": base_url,
         "api_version": "1",
@@ -36,7 +36,6 @@ def write_connection_file(
     descriptor, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
     temp_path = Path(temp_name)
     try:
-        restrict_file_to_current_user(temp_path, descriptor=descriptor)
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             json.dump(payload, stream, ensure_ascii=False, separators=(",", ":"))
             stream.flush()

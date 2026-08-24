@@ -7,9 +7,11 @@ import sys
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
+from qfluentwidgets import InfoBar, InfoBarPosition
 
-from backend.platform import ApplicationMenuHandlers
-from runtime.runtime_logging import apply_runtime_log_window_preference, cleanup_runtime_log_session
+from platform_services import ApplicationMenuHandlers
+from runtime.runtime_logging import cleanup_runtime_log_session
+from ui.runtime_log_controller import apply_runtime_log_window_preference
 from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
 
 
@@ -82,10 +84,12 @@ class AppLifecycleMixin:
             return False
 
     def _show_about_dialog(self):
-        QMessageBox.about(
-            self,
-            "About LaTeXSnipper",
-            "LaTeXSnipper\n\nScreenshot, recognize, edit, and export mathematical content.",
+        InfoBar.info(
+            title="关于 LaTeXSnipper",
+            content="截图、识别、手写、编辑与导出数学内容。",
+            parent=self,
+            duration=5000,
+            position=InfoBarPosition.TOP,
         )
 
     def _close_active_window(self):
@@ -187,19 +191,15 @@ class AppLifecycleMixin:
         except Exception:
             pass
         try:
-            if hasattr(self, "_stop_automation_api"):
-                self._stop_automation_api()
-        except Exception:
-            pass
-        try:
-            if hasattr(self, "_cleanup_automation_api_workers"):
-                self._cleanup_automation_api_workers()
+            automation_api = getattr(self, "automation_api", None)
+            if automation_api is not None:
+                automation_api.shutdown()
         except Exception:
             pass
         try:
             coordinator = getattr(self, "recognition_coordinator", None)
             if coordinator is not None:
-                coordinator.stop(wait=True)
+                coordinator.stop(wait=False)
         except Exception:
             pass
         try:

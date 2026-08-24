@@ -100,7 +100,7 @@ def test_document_recognition_model_policy() -> None:
 
 
 def test_wrap_tex_document_normalizes_external_article_document() -> None:
-    from handwriting.tex_document_utils import wrap_tex_document
+    from preview.document.tex_utils import wrap_tex_document
 
     wrapped = wrap_tex_document(
         "\\documentclass{article}\n"
@@ -122,7 +122,7 @@ def test_wrap_tex_document_normalizes_external_article_document() -> None:
 
 
 def test_wrap_tex_document_preserves_plain_text_lines_as_paragraphs() -> None:
-    from handwriting.tex_document_utils import wrap_tex_document
+    from preview.document.tex_utils import wrap_tex_document
 
     wrapped = wrap_tex_document(
         "Hello\n"
@@ -136,7 +136,7 @@ def test_wrap_tex_document_preserves_plain_text_lines_as_paragraphs() -> None:
 
 
 def test_wrap_tex_document_completes_external_partial_document() -> None:
-    from handwriting.tex_document_utils import wrap_tex_document
+    from preview.document.tex_utils import wrap_tex_document
 
     wrapped = wrap_tex_document(
         "\\documentclass{article}\n"
@@ -150,7 +150,7 @@ def test_wrap_tex_document_completes_external_partial_document() -> None:
 
 
 def test_merge_layout_with_recognized_draft_restores_dropped_text() -> None:
-    from handwriting.tex_document_utils import merge_layout_with_recognized_draft
+    from preview.document.tex_utils import merge_layout_with_recognized_draft
 
     merged = merge_layout_with_recognized_draft(
         "\\documentclass[UTF8]{ctexart}\n"
@@ -170,7 +170,7 @@ def test_merge_layout_with_recognized_draft_restores_dropped_text() -> None:
 
 
 def test_merge_layout_with_recognized_draft_keeps_existing_text_once() -> None:
-    from handwriting.tex_document_utils import merge_layout_with_recognized_draft
+    from preview.document.tex_utils import merge_layout_with_recognized_draft
 
     merged = merge_layout_with_recognized_draft(
         "\\documentclass[UTF8]{ctexart}\n"
@@ -187,7 +187,7 @@ def test_merge_layout_with_recognized_draft_keeps_existing_text_once() -> None:
 
 
 def test_merge_layout_with_recognized_draft_preserves_multiple_text_lines() -> None:
-    from handwriting.tex_document_utils import merge_layout_with_recognized_draft
+    from preview.document.tex_utils import merge_layout_with_recognized_draft
 
     merged = merge_layout_with_recognized_draft(
         "\\documentclass[UTF8]{ctexart}\n"

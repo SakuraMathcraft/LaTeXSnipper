@@ -1,6 +1,6 @@
 # Automation API v1
 
-LaTeXSnipper 3.0 exposes its resident MathCraft runtime and the external OCR model already configured in the desktop application through a versioned job API. Clients cannot provide or read upstream URLs, model names, credentials, paths, or prompts.
+LaTeXSnipper v3.0.0 exposes its resident MathCraft runtime and the external OCR model already configured in the desktop application through a versioned job API. Clients cannot provide or read upstream URLs, model names, credentials, paths, or prompts.
 
 ## Enable and discover
 
@@ -17,7 +17,7 @@ The file contains `base_url`, `api_version`, `pid`, and a Bearer `token`. The lo
 |---|---|---|---|
 | `GET` | `/api/v1/health` | No | Minimal service health |
 | `GET` | `/api/v1/config` | Bearer | Capabilities, permissions, and limits |
-| `POST` | `/api/v1/recognition/jobs` | Bearer | Create upload or desktop-capture job |
+| `POST` | `/api/v1/recognition/jobs` | Bearer | Create an upload job or a passive next-result subscription |
 | `GET` | `/api/v1/recognition/jobs/{id}` | Bearer | Read an owned job |
 | `DELETE` | `/api/v1/recognition/jobs/{id}` | Bearer | Cancel an owned job |
 
@@ -61,6 +61,23 @@ Remote access is disabled by default. LaTeXSnipper permits remote mode only with
 Remote mode always requires an independent remote Bearer key. It is never returned by an endpoint. Remote keys initially have only `recognition.mathcraft`; `recognition.external` must be enabled separately. External access can consume a local Ollama/MinerU service or paid online API quota, but still cannot inspect or override its configuration. Remote clients can only submit existing images and cannot subscribe to desktop results or open desktop UI. Browser CORS is absent unless the request Origin exactly matches the configured whitelist. Do not expose a tunnel-mode HTTP listener directly to the public internet.
 
 Tunnel mode rejects ordinary LAN and public-interface addresses. For SSH port forwarding or a reverse proxy, keep LaTeXSnipper in local mode; let SSH carry the loopback connection or terminate HTTPS at the proxy. Mobile clients such as iOS Shortcuts and Android Tasker should call the HTTPS or encrypted-tunnel address with the remote key.
+
+### Desktop settings quick reference
+
+For local Office and automation clients, keep `仅本机`, port `28765`, and `127.0.0.1`. Local clients should discover the rotating session token from `automation-api.json`; do not hard-code it.
+
+For a Tailscale or WireGuard device:
+
+1. Join the LaTeXSnipper computer and remote device to the same encrypted network.
+2. Select `远程设备` and `安全隧道（推荐）`.
+3. Set the listener to the LaTeXSnipper computer's tunnel-interface IP, not the client IP, LAN IP, router IP, or `0.0.0.0`.
+4. Keep port `28765` unless it conflicts, generate a remote key, acknowledge the warning, and save.
+5. Leave the Origin list empty for Shortcuts, Tasker, curl, Python, and native clients. Add exact `scheme://host[:port]` values only for browser JavaScript.
+6. Enable remote external-model access only when its resource or billing impact is acceptable.
+
+The remote base URL is `http://<tunnel-address>:28765`; tunnel encryption protects the HTTP hop. HTTPS mode instead requires a certificate/private-key pair whose SAN matches the address used by clients and whose issuer is trusted by those clients.
+
+Saving changed network or permission settings while the API is running performs an asynchronous stop/start so the listener and authentication state are replaced. The local session token consequently rotates. Saving an unchanged effective configuration does not restart the service. Avoid changing settings during active jobs; if start or stop consistently takes several seconds, check port conflicts, firewall/security software, certificate files, and the runtime log.
 
 ## Limits and errors
 

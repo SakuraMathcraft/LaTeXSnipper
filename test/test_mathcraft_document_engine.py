@@ -10,7 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from core.mathcraft_document_engine import compose_mathcraft_markdown_document, compose_mathcraft_markdown_pages
+from recognition.postprocessing.mathcraft_document import compose_mathcraft_markdown_document, compose_mathcraft_markdown_pages
 
 
 def test_document_engine_promotes_title_and_sections() -> None:

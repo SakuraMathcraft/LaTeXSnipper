@@ -24,9 +24,26 @@
     http.SetRequestHeader("Content-Type", "multipart/form-data; boundary=" boundary)
     http.SetRequestHeader("Prefer", "wait=30")
     http.Send(body)
-    if http.Status != 200
+    if http.Status != 200 && http.Status != 202
         throw Error("Recognition failed: HTTP " http.Status)
-    if !RegExMatch(http.ResponseText, '"text":"((?:\\.|[^"])*)"', &result)
+    response := http.ResponseText
+    deadline := A_TickCount + 150000
+    while !RegExMatch(response, '"state":"(completed|failed|canceled)"', &state) {
+        if !RegExMatch(response, '"id":"([^"]+)"', &job)
+            throw Error("Recognition job id is missing")
+        if A_TickCount >= deadline
+            throw Error("Recognition timed out")
+        Sleep(250)
+        http.Open("GET", base[1] "/api/v1/recognition/jobs/" job[1], false)
+        http.SetRequestHeader("Authorization", "Bearer " token[1])
+        http.Send()
+        if http.Status != 200
+            throw Error("Recognition status failed: HTTP " http.Status)
+        response := http.ResponseText
+    }
+    if state[1] != "completed"
+        throw Error("Recognition failed: " state[1])
+    if !RegExMatch(response, '"text":"((?:\\.|[^"])*)"', &result)
         throw Error("Recognition result is missing")
     text := StrReplace(result[1], '\"', '"')
     text := StrReplace(text, "\\", "\")

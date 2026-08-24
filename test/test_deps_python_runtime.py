@@ -1,7 +1,7 @@
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 
-from bootstrap import deps_python_runtime
+from runtime import dependency_runtime as deps_python_runtime
 
 
 def test_system_python3_score_windows_skips_store_alias_without_launching(monkeypatch):

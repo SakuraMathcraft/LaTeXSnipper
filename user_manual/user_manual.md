@@ -7,11 +7,11 @@
 
 ## 用户手册
 
-*适用于 v3.0.0*
+*适用于 v3.0.0-LTS*
 
 ---
 
-<img src="LaTeXSnipper.png" width="100%" alt="LaTeXSnipper 封面图">
+<img src="../docs/latexsnipper-3.0.0.png" width="100%" alt="LaTeXSnipper v3.0.0 封面图">
 
 </div>
 
@@ -23,6 +23,7 @@
 
 - [开始使用前（必读）](#开始使用前必读)
 - [主窗口功能入口与识别流程](#主窗口功能入口与识别流程)
+- [自动化接口与远程设备](#自动化接口与远程设备)
 - [本地模型（MathCraft ONNX）相关问题](#本地模型mathcraft-onnx相关问题)
 - [外部模型相关问题](#外部模型相关问题)
 - [安装和环境问题](#安装和环境问题)
@@ -167,6 +168,70 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 - 程序会询问识别页码或连续范围，例如 `5`、`3-7`；默认先填入 `1-5`，避免大 PDF 一次性耗时过长。
 - 内置模型及 OpenAI-compatible / Ollama 会询问 PDF 渲染 DPI，范围为 90-300；OpenAI-compatible / Ollama 默认 150 DPI，内置模型默认 200 DPI。MinerU Local 直接解析原 PDF，不显示 DPI 选择。
 - 识别结果会打开独立的 PDF 结果窗口，可编辑、复制或保存。Markdown 文档保存时，如果结构化结果包含图片资源，程序会尽量把相关 assets 一起复制到保存目录。
+
+## 自动化接口与远程设备
+
+自动化接口供 Office 加载项、本机脚本、批量程序、编辑器插件，以及经用户明确授权的远程设备提交现有图片进行识别。API 调用不会打开桌面截图遮罩，也不会改变桌面端窗口；远程设备不能订阅下一次桌面识别结果。
+
+### 仅本机：推荐默认配置
+
+普通用户、Office 加载项和同一台电脑上的 Python、AutoHotkey、AutoKey、Hammerspoon 或 ShareX 应保持以下设置：
+
+| 设置 | 推荐值 | 说明 |
+|---|---|---|
+| 访问范围 | 仅本机 | 不接受其他设备连接 |
+| 端口 | `28765` | 只有端口冲突时才修改 |
+| 监听地址 | `127.0.0.1` | 不要填写路由器地址、其他设备地址或 `0.0.0.0` |
+
+开启“自动化接口”后，本机客户端从应用状态目录中的 `automation-api.json` 自动读取实际地址和每次启动都会更新的本机会话 token。Office 加载项不需要手工填写端口或 token。关闭 API 后该发现文件会被删除。
+
+### 远程设备：推荐使用 Tailscale 或 WireGuard
+
+最简单、安全的家庭远程方案是让运行 LaTeXSnipper 的电脑和手机/远程电脑加入同一个 Tailscale 网络：
+
+1. 在两台设备上安装并登录 Tailscale，确认它们可以互相访问。
+2. 在运行 LaTeXSnipper 的电脑上查询 Tailscale 地址，例如执行 `tailscale ip -4`，得到类似 `100.x.x.x` 的地址。
+3. 打开“设置 → 高级设置 → 自动化接口”，将“访问范围”改为“远程设备”。
+4. “安全方式”选择“安全隧道（推荐）”；“监听地址”填写本机的 Tailscale/WireGuard 接口地址，不能填写远程设备地址、普通局域网地址或 `0.0.0.0`。
+5. 端口通常保留 `28765`；生成独立的远程访问密钥并安全复制到远程设备。
+6. “浏览器 Origin 白名单”通常留空；只有网页 JavaScript 直接跨域调用时才填写网页的准确 Origin。
+7. 默认不要开启远程外部模型。只有确实需要调用桌面端已经配置好的 Ollama、MinerU 或在线接口，并接受资源/费用消耗时才开启。
+8. 勾选安全确认项，保存配置，然后开启自动化接口。必要时只允许 VPN 网卡访问该端口的系统防火墙规则。
+
+远程设备使用 `http://<隧道地址>:28765` 作为基础地址，并在每个受保护请求中发送：
+
+```text
+Authorization: Bearer <远程访问密钥>
+```
+
+可以先访问 `GET /api/v1/health` 检查连通性，再以 `multipart/form-data` 向 `/api/v1/recognition/jobs` 提交一个或多个 `images` 字段。iOS Shortcuts、Android Tasker、curl 和 Python 都不需要填写浏览器 Origin 白名单。手机远程调用要求家中电脑保持开机、LaTeXSnipper 正在运行且自动化接口已开启；识别结果直接返回调用端，不会唤起家中电脑的截图界面。
+
+例如，远程电脑可以使用以下命令提交一张图片。下面使用 macOS/Linux shell 的续行符；Windows PowerShell 应改用 `curl.exe`，并将每行末尾的 `\` 换成反引号 `` ` ``：
+
+```bash
+curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
+  -H "Authorization: Bearer <远程访问密钥>" \
+  -H "Prefer: wait=30" \
+  -F backend=mathcraft \
+  -F mode=formula \
+  -F "images=@formula.png"
+```
+
+返回 `202` 表示任务仍在后台执行，应按响应中的 `Location` 查询结果；返回 `200` 表示等待期间已经完成。
+
+### HTTPS 模式
+
+没有安全隧道时可以选择 HTTPS，但需要自行准备证书和私钥：监听地址填写这台电脑实际使用的非回环网卡 IP，证书的 SAN 必须覆盖远程设备访问时使用的主机名或 IP，并且远程设备必须信任该证书。不要把自签名证书错误或明文 HTTP 服务直接暴露到公网；家庭用户优先使用 Tailscale/WireGuard。
+
+### 字段说明与启动耗时
+
+- **端口：** 本机和远程调用地址的一部分。保持 `28765` 可以减少客户端配置；端口被其他程序占用时才更换。
+- **监听地址：** 指运行 LaTeXSnipper 这台电脑上的本地网卡地址，不是允许访问的客户端地址。本机模式固定使用回环地址；隧道模式必须是被识别出的 VPN 接口地址。
+- **远程访问密钥：** 与本机会话 token 完全独立，重启 API 后仍保持不变，除非点击重新生成或撤销。密钥只应保存在受信任设备中。
+- **浏览器 Origin 白名单：** 只控制浏览器 CORS，格式为 `协议://主机[:端口]`，多个地址用英文逗号分隔，不能包含路径。它不是设备 IP 白名单，也不会影响 Office、curl、Shortcuts、Tasker 或普通 Python 客户端。
+- **允许远程设备调用外部模型：** 只增加远程密钥的外部模型权限；远程端仍不能读取或覆盖桌面端保存的模型地址、模型名、API Key 和提示词。
+
+API 开关在后台执行，开启本身不会加载或预热 MathCraft。服务正在运行时，如果端口、监听地址、安全方式、证书、密钥、CORS 或远程权限发生变化，保存操作必须停止并重新绑定一次服务，因此会比普通设置保存稍慢，本机会话 token 也会更新。没有实际变化的重复保存不会重启服务。不要在识别任务进行中连续修改网络配置或反复开关；正常启停通常很快，持续数秒时应检查端口占用、防火墙、证书/私钥以及运行日志。
 
 ## 本地模型（MathCraft ONNX）相关问题
 
@@ -1890,7 +1955,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 ### 模型集与识别配置
 
-当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.2.7`；它使用自己的版本线，不与 LaTeXSnipper 3.0.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
+当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.2.8`；它使用自己的版本线，不与 LaTeXSnipper v3.0.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
 
 - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
 - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）

@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 
+from .devices import query_dxgi_adapters, query_nvidia_devices, select_nvidia_device
 from .providers import GPU_PROVIDER_NAMES, ProviderInfo
 
 
@@ -24,11 +25,25 @@ class HardwareInfo:
     gpu_driver_version: str = ""
 
 
-@lru_cache(maxsize=1)
-def detect_hardware_info() -> HardwareInfo:
+@lru_cache(maxsize=8)
+def detect_hardware_info(provider_info: ProviderInfo | None = None) -> HardwareInfo:
     total_mb, free_mb = _memory_status()
-    gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi()
-    if not gpu_name:
+    gpu_name = ""
+    gpu_total_mb = 0
+    gpu_free_mb = 0
+    gpu_driver = ""
+    active = str(getattr(provider_info, "active_provider", "") or "")
+    device_id = int(getattr(provider_info, "device_id", 0) or 0)
+    if active in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}:
+        gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi(device_id)
+    elif active == "DmlExecutionProvider":
+        adapter = next((item for item in query_dxgi_adapters() if item.index == device_id), None)
+        if adapter is not None:
+            gpu_name = adapter.name
+            gpu_total_mb = adapter.dedicated_memory_mb
+    elif provider_info is None:
+        gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi(0)
+    if provider_info is None and not gpu_name:
         gpu_name, gpu_total_mb, gpu_driver = _query_windows_video_controller()
     return HardwareInfo(
         logical_processors=max(1, int(os.cpu_count() or 1)),
@@ -148,30 +163,16 @@ def choose_rec_batch_num(
     return 4
 
 
-def _query_nvidia_smi() -> tuple[str, int, int, str]:
-    try:
-        proc = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=name,memory.total,memory.free,driver_version",
-                "--format=csv,noheader,nounits",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=2.0,
-        )
-    except Exception:
+def _query_nvidia_smi(device_id: int = 0) -> tuple[str, int, int, str]:
+    device = select_nvidia_device(query_nvidia_devices(), device_id)
+    if device is None:
         return "", 0, 0, ""
-    if proc.returncode != 0:
-        return "", 0, 0, ""
-    line = next((item.strip() for item in proc.stdout.splitlines() if item.strip()), "")
-    parts = [part.strip() for part in line.split(",")]
-    if len(parts) < 4:
-        return "", 0, 0, ""
-    return parts[0], _safe_int(parts[1]), _safe_int(parts[2]), parts[3]
+    return (
+        device.name,
+        device.total_memory_mb,
+        device.free_memory_mb,
+        device.driver_version,
+    )
 
 
 def _query_windows_video_controller() -> tuple[str, int, str]:

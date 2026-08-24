@@ -33,6 +33,7 @@ from integration.automation.contracts import (
     SUPPORTED_RECOGNITION_MODES,
     AutomationApiError,
     AutomationLimits,
+    error_http_status,
     error_response,
     parse_json_object,
     request_id,
@@ -43,7 +44,13 @@ from integration.automation.rate_limit import RateLimiter
 from integration.automation.multipart import parse_multipart_stream
 from integration.automation.network_security import tunnel_interface_for_address
 from recognition.image_input import ImageInputError, image_from_stream
-from recognition.jobs import JobSource, JobState, RecognitionItemInput, RecognitionJobCoordinator
+from recognition.jobs import (
+    JobSource,
+    JobState,
+    RecognitionItemInput,
+    RecognitionJobCoordinator,
+    RecognitionJobError,
+)
 
 
 _JOB_PATH = re.compile(r"^/api/v1/recognition/jobs/([^/]+)$")
@@ -126,6 +133,7 @@ class AutomationApiServer:
         self.connection_file = connection_file
         self._httpd: _BoundedHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._lifecycle_lock = threading.RLock()
         self._rate_limiter = RateLimiter()
         self._idempotency_lock = threading.Lock()
         self._idempotency: OrderedDict[tuple[str, str], str] = OrderedDict()
@@ -147,6 +155,10 @@ class AutomationApiServer:
         return f"{scheme}://{host}:{self.port}"
 
     def start(self) -> None:
+        with self._lifecycle_lock:
+            self._start_locked()
+
+    def _start_locked(self) -> None:
         if self._httpd is not None:
             return
         httpd = _BoundedHTTPServer(
@@ -155,11 +167,15 @@ class AutomationApiServer:
             api=self,
             concurrency=self.limits.request_concurrency,
         )
-        if self.settings.access_scope == "remote" and self.settings.remote_security == "https":
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-            context.load_cert_chain(self.settings.tls_cert_path, self.settings.tls_key_path)
-            httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+        try:
+            if self.settings.access_scope == "remote" and self.settings.remote_security == "https":
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.minimum_version = ssl.TLSVersion.TLSv1_2
+                context.load_cert_chain(self.settings.tls_cert_path, self.settings.tls_key_path)
+                httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+        except Exception:
+            httpd.server_close()
+            raise
         self._httpd = httpd
         self._thread = threading.Thread(target=httpd.serve_forever, name="AutomationApiServer", daemon=True)
         self._thread.start()
@@ -174,6 +190,10 @@ class AutomationApiServer:
             raise
 
     def stop(self) -> None:
+        with self._lifecycle_lock:
+            self._stop_locked()
+
+    def _stop_locked(self) -> None:
         httpd, self._httpd = self._httpd, None
         if httpd is not None:
             httpd.shutdown()
@@ -319,7 +339,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
     server: _BoundedHTTPServer
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, _format: str, *args) -> None:
+    def log_message(self, _format: str, *_args) -> None:
         return
 
     def do_GET(self) -> None:
@@ -366,8 +386,11 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, {"job": job})
                 return
             raise AutomationApiError(404, "job_not_found", "接口不存在。")
-        except AutomationApiError as exc:
-            self._send_json(HTTPStatus(exc.status), error_response(exc, request_id_value=current_request_id))
+        except RecognitionJobError as exc:
+            self._send_json(
+                HTTPStatus(error_http_status(exc)),
+                error_response(exc, request_id_value=current_request_id),
+            )
         except (BrokenPipeError, ConnectionResetError, socket.timeout):
             return
         except Exception:

@@ -5,12 +5,16 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from PyQt6.QtGui import QImage
 
+import recognition.image_input as image_input_module
+from recognition.image_contracts import DEFAULT_MAX_ENCODED_IMAGE_BYTES
 from recognition.image_input import (
     ImageInputError,
     image_from_bytes,
     image_from_path,
     image_from_pil,
+    image_from_qimage,
     image_from_stream,
     validated_rgb_image,
 )
@@ -106,8 +110,33 @@ def test_common_input_boundary_preserves_backend_independent_resolution() -> Non
     assert image.size == (5000, 2000)
 
 
+def test_trusted_local_file_is_not_limited_by_remote_upload_bytes(tmp_path: Path) -> None:
+    path = tmp_path / "large-local.bmp"
+    Image.new("RGB", (2500, 2300), "white").save(path, format="BMP")
+    assert path.stat().st_size > DEFAULT_MAX_ENCODED_IMAGE_BYTES
+
+    image = image_from_path(path)
+
+    assert image.size == (2500, 2300)
+
+
 def test_trusted_rgb_boundary_validates_without_copying_pixels() -> None:
     image = Image.new("RGB", (3000, 100))
     assert validated_rgb_image(image) is image
     with pytest.raises(ImageInputError):
         validated_rgb_image(Image.new("RGBA", (2, 2)))
+
+
+def test_qimage_conversion_keeps_png_fallback_for_uncommon_layouts(monkeypatch) -> None:
+    source = QImage(7, 5, QImage.Format.Format_ARGB32)
+    source.fill(0xFF123456)
+    monkeypatch.setattr(
+        image_input_module,
+        "qimage_to_rgb_pil",
+        lambda _image: (_ for _ in ()).throw(RuntimeError("unsupported layout")),
+    )
+
+    converted = image_from_qimage(source)
+
+    assert converted.mode == "RGB"
+    assert converted.size == (7, 5)

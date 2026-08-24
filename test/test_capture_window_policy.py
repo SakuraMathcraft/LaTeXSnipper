@@ -4,8 +4,8 @@ import types
 
 from PyQt6.QtCore import Qt
 
-import capture.capture_controller as capture_controller
-from capture.capture_controller import CaptureControllerMixin
+import capture.window_manager as window_manager
+from capture.window_manager import CaptureWindowManager
 
 
 class _Window:
@@ -43,7 +43,7 @@ class _Window:
 def _install_app(monkeypatch, windows: list[_Window]) -> None:
     app = types.SimpleNamespace(topLevelWidgets=lambda: windows)
     monkeypatch.setattr(
-        capture_controller,
+        window_manager,
         "QApplication",
         types.SimpleNamespace(instance=lambda: app),
     )
@@ -55,7 +55,7 @@ def test_capture_minimizes_only_main_window_and_hides_auxiliary_windows(monkeypa
     stale_minimized_dialog = _Window(visible=False, minimized=True)
     _install_app(monkeypatch, [settings, main, stale_minimized_dialog])
 
-    changed = CaptureControllerMixin._prepare_windows_for_capture(main)
+    changed = CaptureWindowManager(main).prepare()
 
     assert changed
     assert main.minimized == 1
@@ -69,7 +69,7 @@ def test_capture_shortcut_keeps_only_pinned_result_visible(monkeypatch) -> None:
     settings = _Window()
     _install_app(monkeypatch, [main, pinned_result, settings])
 
-    CaptureControllerMixin._prepare_windows_for_capture(main, preserve_pinned_result=True)
+    CaptureWindowManager(main).prepare(preserve_pinned_result=True)
 
     assert main.isMinimized()
     assert pinned_result.isVisible() and not pinned_result.isMinimized()

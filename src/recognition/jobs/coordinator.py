@@ -11,8 +11,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from integration.automation.contracts import AutomationApiError, AutomationLimits, DEFAULT_LIMITS
 from recognition.image_preprocess import optimize_mathcraft_input_image
+from recognition.jobs.contracts import (
+    DEFAULT_RECOGNITION_LIMITS as DEFAULT_LIMITS,
+    RecognitionJobError,
+    RecognitionLimits,
+)
 from recognition.jobs.models import (
     JobSource,
     JobState,
@@ -25,6 +29,11 @@ from recognition.jobs.executors import ExternalRecognitionExecutor
 
 
 _MODE_TO_MODEL = {"formula": "mathcraft", "text": "mathcraft_text", "mixed": "mathcraft_mixed"}
+_EMPTY_RESULT_ERRORS = {
+    "formula": ("empty_formula", "未识别到公式内容"),
+    "text": ("empty_text", "未识别到文本内容"),
+    "mixed": ("empty_content", "未检测到可识别内容"),
+}
 _BACKENDS = ("mathcraft", "external")
 _STOP = object()
 
@@ -42,7 +51,7 @@ class RecognitionJobCoordinator:
         self,
         predictor: Callable[[Any, str], str] | Any,
         *,
-        limits: AutomationLimits = DEFAULT_LIMITS,
+        limits: RecognitionLimits = DEFAULT_LIMITS,
         clock: Callable[[], float] = time.monotonic,
         external_config_provider: Callable[[], Any | None] | None = None,
         external_predictor: Callable[[Any, Any], str] | None = None,
@@ -106,11 +115,11 @@ class RecognitionJobCoordinator:
 
     def _validate_mode_capability(self, backend: str, mode: str) -> None:
         if mode not in _MODE_TO_MODEL:
-            raise AutomationApiError(400, "invalid_mode", "不支持该识别模式。")
+            raise RecognitionJobError("invalid_mode", "不支持该识别模式。")
         target = self._predictor if backend == "mathcraft" else self._external_executor
         supports_mode = getattr(target, "supports_mode", None)
         if callable(supports_mode) and not bool(supports_mode(mode)):
-            raise AutomationApiError(422, "mode_unsupported", "当前识别后端不支持该模式。")
+            raise RecognitionJobError("mode_unsupported", "当前识别后端不支持该模式。")
 
     def submit(
         self,
@@ -125,18 +134,18 @@ class RecognitionJobCoordinator:
         external_config: Any | None = None,
     ) -> dict[str, Any]:
         if not images:
-            raise AutomationApiError(400, "invalid_request", "至少需要一张图片。")
+            raise RecognitionJobError("invalid_request", "至少需要一张图片。")
         if len(images) > self._limits.max_batch_items:
-            raise AutomationApiError(413, "batch_too_large", "批量图片数量超过限制。")
+            raise RecognitionJobError("batch_too_large", "批量图片数量超过限制。")
         normalized_backend = str(backend or "mathcraft").strip().lower()
         if normalized_backend not in _BACKENDS:
-            raise AutomationApiError(400, "invalid_backend", "不支持该识别后端。")
+            raise RecognitionJobError("invalid_backend", "不支持该识别后端。")
         self._validate_mode_capability(normalized_backend, mode)
         backend_config = None
         if normalized_backend == "external":
             backend_config = self._external_executor.snapshot(mode, external_config)
         elif not self.model_available:
-            raise AutomationApiError(503, "model_unavailable", "MathCraft 识别当前不可用。")
+            raise RecognitionJobError("model_unavailable", "MathCraft 识别当前不可用。")
         job = RecognitionJob(
             id=secrets.token_urlsafe(24),
             principal_id=principal_id,
@@ -156,11 +165,11 @@ class RecognitionJobCoordinator:
         with self._lock:
             self._purge_locked()
             if self._stopping:
-                raise AutomationApiError(503, "model_unavailable", "识别服务正在停止。")
+                raise RecognitionJobError("model_unavailable", "识别服务正在停止。")
             if self._queued_count >= self._limits.max_queued_jobs:
-                raise AutomationApiError(503, "queue_full", "识别队列已满。")
+                raise RecognitionJobError("queue_full", "识别队列已满。")
             if self._active_image_memory + job.memory_bytes > self._limits.max_queued_image_bytes:
-                raise AutomationApiError(503, "queue_full", "识别任务的图片内存已达到上限。")
+                raise RecognitionJobError("queue_full", "识别任务的图片内存已达到上限。")
             self._jobs[job.id] = job
             self._queued_count += 1
             self._active_image_memory += job.memory_bytes
@@ -171,7 +180,7 @@ class RecognitionJobCoordinator:
                 self._queued_count -= 1
                 self._active_image_memory -= job.memory_bytes
                 job.memory_reserved = False
-                raise AutomationApiError(503, "queue_full", "识别队列已满。") from exc
+                raise RecognitionJobError("queue_full", "识别队列已满。") from exc
             return job.snapshot()
 
     def create_next_result_job(
@@ -197,13 +206,13 @@ class RecognitionJobCoordinator:
         with self._lock:
             self._purge_locked()
             if any(existing.state is JobState.AWAITING_RESULT for existing in self._jobs.values()):
-                raise AutomationApiError(409, "next_result_busy", "已有客户端正在等待下一次识别结果。")
+                raise RecognitionJobError("next_result_busy", "已有客户端正在等待下一次识别结果。")
             active_count = sum(
                 job.state not in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELED)
                 for job in self._jobs.values()
             )
             if active_count >= self._limits.max_queued_jobs:
-                raise AutomationApiError(503, "queue_full", "识别队列已满。")
+                raise RecognitionJobError("queue_full", "识别队列已满。")
             self._jobs[job.id] = job
             return job.snapshot()
 
@@ -220,13 +229,13 @@ class RecognitionJobCoordinator:
             self._finish_locked(job, JobState.COMPLETED)
             return True
 
-    def fail_next_result(self, message: str) -> bool:
+    def fail_next_result(self, message: str, *, code: str = "recognition_failed") -> bool:
         with self._lock:
             self._purge_locked()
             job = next((item for item in self._jobs.values() if item.state is JobState.AWAITING_RESULT), None)
             if job is None:
                 return False
-            self._finish_locked(job, JobState.FAILED, code="recognition_failed", message=message)
+            self._finish_locked(job, JobState.FAILED, code=code, message=message)
             return True
 
     def get(self, job_id: str, *, principal_id: str) -> dict[str, Any]:
@@ -243,6 +252,7 @@ class RecognitionJobCoordinator:
         return self.get(job_id, principal_id=principal_id)
 
     def cancel(self, job_id: str, *, principal_id: str) -> dict[str, Any]:
+        interrupt_mathcraft = False
         with self._lock:
             job = self._owned_job_locked(job_id, principal_id)
             if job.state in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELED):
@@ -252,7 +262,12 @@ class RecognitionJobCoordinator:
                 if job.state is JobState.QUEUED:
                     self._release_queue_slot_locked()
                 self._finish_locked(job, JobState.CANCELED, code="canceled", message="识别任务已取消。")
-            return job.snapshot()
+            elif job.backend == "mathcraft":
+                interrupt_mathcraft = True
+            snapshot = job.snapshot()
+        if interrupt_mathcraft:
+            self._interrupt_mathcraft_worker()
+        return snapshot
 
     def run_external_operation(self, callback: Callable[[], Any]) -> Any:
         """Serialize a trusted desktop external-model operation with API calls."""
@@ -261,19 +276,20 @@ class RecognitionJobCoordinator:
             if self._stopping:
                 raise RuntimeError("识别服务正在停止。")
             if self._queued_count >= self._limits.max_queued_jobs:
-                raise AutomationApiError(503, "queue_full", "识别队列已满。")
+                raise RecognitionJobError("queue_full", "识别队列已满。")
             self._queued_count += 1
             try:
                 self._queues["external"].put_nowait(operation)
             except queue.Full as exc:
                 self._queued_count -= 1
-                raise AutomationApiError(503, "queue_full", "识别队列已满。") from exc
+                raise RecognitionJobError("queue_full", "识别队列已满。") from exc
         operation.event.wait()
         if operation.error is not None:
             raise operation.error
         return operation.result
 
     def stop(self, *, wait: bool = True) -> None:
+        interrupt_mathcraft = False
         with self._lock:
             if self._stopping:
                 return
@@ -284,9 +300,24 @@ class RecognitionJobCoordinator:
                     if job.state is JobState.QUEUED:
                         self._release_queue_slot_locked()
                     self._finish_locked(job, JobState.CANCELED, code="canceled", message="识别任务已取消。")
+                elif job.state is JobState.RUNNING:
+                    job.cancel_requested = True
+                    if job.backend == "mathcraft":
+                        interrupt_mathcraft = True
+        if interrupt_mathcraft:
+            self._interrupt_mathcraft_worker()
         for backend, worker in self._workers.items():
             if worker.is_alive():
-                self._queues[backend].put(_STOP)
+                work_queue = self._queues[backend]
+                while True:
+                    try:
+                        pending = work_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    if isinstance(pending, _ExternalOperation):
+                        pending.error = RuntimeError("识别服务正在停止。")
+                        pending.event.set()
+                work_queue.put_nowait(_STOP)
         if wait:
             for worker in self._workers.values():
                 if worker.is_alive():
@@ -296,13 +327,21 @@ class RecognitionJobCoordinator:
             self._queued_count = 0
             self._active_image_memory = 0
 
+    def _interrupt_mathcraft_worker(self) -> None:
+        stop_worker = getattr(self._predictor, "_stop_mathcraft_worker", None)
+        if callable(stop_worker):
+            try:
+                stop_worker()
+            except Exception:
+                pass
+
     def _owned_job_locked(self, job_id: str, principal_id: str) -> RecognitionJob:
         job = self._jobs.get(job_id)
         if job is not None and job.principal_id == principal_id:
             return job
         if job_id in self._expired_ids:
-            raise AutomationApiError(410, "job_expired", "识别任务已过期。")
-        raise AutomationApiError(404, "job_not_found", "未找到识别任务。")
+            raise RecognitionJobError("job_expired", "识别任务已过期。")
+        raise RecognitionJobError("job_not_found", "未找到识别任务。")
 
     def _worker_main(self, backend: str) -> None:
         work_queue = self._queues[backend]
@@ -389,18 +428,30 @@ class RecognitionJobCoordinator:
 
     def _predict(self, image: Any, job: RecognitionJob) -> str:
         if job.backend == "external":
-            return self._external_executor.predict(image, job.backend_config)
+            text = self._external_executor.predict(image, job.backend_config).strip()
+            if not text:
+                code, message = _EMPTY_RESULT_ERRORS[job.mode]
+                raise RecognitionJobError(code, message)
+            return text
         image = optimize_mathcraft_input_image(image)
         predictor = self._predictor
         if callable(predictor) and not hasattr(predictor, "predict_result"):
-            return str(predictor(image, job.mode) or "")
+            text = str(predictor(image, job.mode) or "").strip()
+            if not text:
+                code, message = _EMPTY_RESULT_ERRORS[job.mode]
+                raise RecognitionJobError(code, message)
+            return text
         model_name = _MODE_TO_MODEL[job.mode]
         result = predictor.predict_result(image, model_name=model_name)
-        return str(result.get("text", "") or "")
+        text = str(result.get("text", "") or "").strip()
+        if result.get("empty_reason") or not text:
+            code, message = _EMPTY_RESULT_ERRORS[job.mode]
+            raise RecognitionJobError(code, message)
+        return text
 
     @staticmethod
     def _safe_execution_error(backend: str, exc: Exception) -> tuple[str, str]:
-        if isinstance(exc, AutomationApiError):
+        if isinstance(exc, RecognitionJobError):
             return exc.code, exc.message
         if backend == "external":
             name = type(exc).__name__

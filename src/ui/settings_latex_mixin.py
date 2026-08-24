@@ -2,6 +2,12 @@ import os
 import shutil
 import sys
 
+from rendering.latex import (
+    LaTeXRenderer,
+    get_document_render_mode,
+    get_latex_executable_path,
+    update_latex_settings,
+)
 from ui.settings_dialog_helpers import _select_open_file_with_icon
 
 
@@ -32,30 +38,22 @@ class SettingsLatexMixin:
     def _init_render_engine(self):
         """Initialize render-engine selection."""
         try:
-            from backend.latex_renderer import _latex_settings, LaTeXRenderer
-            if _latex_settings:
-                mode = _latex_settings.get_render_mode()
-                self.render_engine_combo.currentIndexChanged.disconnect(self._on_render_engine_changed)
-                # Find the matching index from _render_modes.
-                if mode in self._render_modes:
-                    index = self._render_modes.index(mode)
-                    self.render_engine_combo.setCurrentIndex(index)
-                else:
-                    # Default to auto detection.
-                    self.render_engine_combo.setCurrentIndex(0)
-                self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
-                current_index = self.render_engine_combo.currentIndex()
-                if current_index >= 0 and current_index < len(self._render_modes):
-                    engine = self._render_modes[current_index]
-                    is_latex = engine.startswith("latex_")
-                    self.latex_options_widget.setVisible(is_latex)
-                    # Try auto detection in LaTeX mode.
-                    if is_latex and not _latex_settings.get_latex_path():
-                        renderer = LaTeXRenderer()
-                        if renderer.is_available():
-                            self.latex_path_input.setText(renderer.latex_cmd)
-                            _latex_settings.set_latex_path(renderer.latex_cmd)
-                            _latex_settings.save()
+            mode = get_document_render_mode()
+            self.render_engine_combo.currentIndexChanged.disconnect(self._on_render_engine_changed)
+            index = self._render_modes.index(mode) if mode in self._render_modes else 0
+            self.render_engine_combo.setCurrentIndex(index)
+            self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
+            current_index = self.render_engine_combo.currentIndex()
+            if 0 <= current_index < len(self._render_modes):
+                engine = self._render_modes[current_index]
+                is_latex = engine.startswith("latex_")
+                self.latex_options_widget.setVisible(is_latex)
+                if is_latex and not get_latex_executable_path():
+                    renderer = LaTeXRenderer()
+                    if renderer.is_available():
+                        detected_path = str(renderer.latex_cmd or "")
+                        self.latex_path_input.setText(detected_path)
+                        update_latex_settings(executable_path=detected_path)
         except Exception as e:
             print(f"[WARN] 初始化渲染引擎失败: {e}")
 
@@ -83,11 +81,9 @@ class SettingsLatexMixin:
     def _load_latex_settings(self):
         """Load LaTeX settings."""
         try:
-            from backend.latex_renderer import _latex_settings
-            if _latex_settings:
-                latex_path = _latex_settings.get_latex_path()
-                if latex_path:
-                    self.latex_path_input.setText(latex_path)
+            latex_path = get_latex_executable_path()
+            if latex_path:
+                self.latex_path_input.setText(latex_path)
         except Exception as e:
             print(f"[WARN] 加载 LaTeX 设置失败: {e}")
 
@@ -189,16 +185,12 @@ class SettingsLatexMixin:
     def _save_latex_settings(self):
         """Save LaTeX settings."""
         try:
-            from backend.latex_renderer import _latex_settings
-            if _latex_settings:
-                latex_path = self.latex_path_input.text().strip()
-                mode = "auto"
-                idx = self.render_engine_combo.currentIndex()
-                if 0 <= idx < len(self._render_modes):
-                    mode = self._render_modes[idx]
-                _latex_settings.set_render_mode(mode)
-                if latex_path:
-                    _latex_settings.set_latex_path(latex_path)
+            latex_path = self.latex_path_input.text().strip()
+            mode = "auto"
+            idx = self.render_engine_combo.currentIndex()
+            if 0 <= idx < len(self._render_modes):
+                mode = self._render_modes[idx]
+            update_latex_settings(render_mode=mode, executable_path=latex_path)
         except Exception as e:
             print(f"[WARN] 保存 LaTeX 设置失败: {e}")
 
@@ -218,7 +210,7 @@ class SettingsLatexMixin:
         self.btn_test_latex.setEnabled(False)
 
         def worker(path_value: str, engine_value: str):
-            from backend.latex_renderer import LaTeXRenderer
+            from rendering.latex import LaTeXRenderer
 
             ok = False
             title = "验证失败"
@@ -320,22 +312,19 @@ class SettingsLatexMixin:
     def _save_render_mode(self, engine: str):
         """Save the render-engine selection."""
         try:
-            from backend.latex_renderer import _latex_settings
-            if _latex_settings:
-                _latex_settings.set_render_mode(engine)
-                # Show success through a floating InfoBar instead of MessageBox.
-                mode_names = {
-                    "auto": "自动检测（推荐）",
-                    "mathjax_local": "本地 MathJax",
-                    "mathjax_cdn": "CDN MathJax",
-                    "latex_pdflatex": "LaTeX + pdflatex",
-                    "latex_xelatex": "LaTeX + xelatex"
-                }
-                if engine in mode_names:
-                    self._show_notification(
-                        "success",
-                        "切换成功",
-                        f"已切换到: {mode_names[engine]}"
-                    )
+            update_latex_settings(render_mode=engine)
+            mode_names = {
+                "auto": "自动检测（推荐）",
+                "mathjax_local": "本地 MathJax",
+                "mathjax_cdn": "CDN MathJax",
+                "latex_pdflatex": "LaTeX + pdflatex",
+                "latex_xelatex": "LaTeX + xelatex",
+            }
+            if engine in mode_names:
+                self._show_notification(
+                    "success",
+                    "切换成功",
+                    f"已切换到: {mode_names[engine]}",
+                )
         except Exception as e:
             print(f"[ERR] 保存渲染模式失败: {e}")

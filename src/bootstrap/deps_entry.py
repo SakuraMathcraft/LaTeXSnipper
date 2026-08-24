@@ -1,6 +1,5 @@
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -28,7 +27,10 @@ from bootstrap.deps_layer_specs import (
     _sanitize_state_layers,
     layer_display_name,
 )
-from bootstrap.deps_python_runtime import (
+from bootstrap.download_progress import format_transfer_speed, parse_pip_transfer_status
+from bootstrap.models import DependencyPlan
+from bootstrap.progress_dialog import InstallProgressDialog
+from runtime.dependency_runtime import (
     find_existing_python as _find_existing_python,
     find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
@@ -43,10 +45,10 @@ from bootstrap.deps_state import save_json as _save_json
 from bootstrap.deps_ui import (
     _build_layers_ui,
     _exec_close_only_message_box,
-    _progress_dialog,
     _select_existing_directory_with_icon,
     activate_dependency_dialog,
-    custom_warning_dialog,
+    show_user_notice,
+    show_info_bar,
 )
 from bootstrap.deps_workers import InstallWorker, LayerVerifyWorker
 from runtime.dependency_python import normalize_deps_base_dir as _normalize_deps_base_dir
@@ -418,14 +420,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     if force_enter:
         if not _find_existing_python(Path(deps_dir)):
             try:
-                custom_warning_dialog("不可进入", "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。")
+                show_user_notice("不可进入", "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。")
             except Exception:
                 print("[WARN] 缺少可复用 Python 环境，不能跳过安装直接进入。")
             return False
         set_last_ensure_deps_force_enter(True)
         _notify_after_force_enter()
         try:
-            custom_warning_dialog("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
+            show_user_notice("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         except Exception:
             print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         print("[DEBUG] 用户确认跳过依赖安装")
@@ -630,34 +632,31 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
                 return False
 
-            chosen_layers = _normalize_chosen_layers(chosen.get("layers", []))
-            mirror_source = str(chosen.get("mirror_source", "")).strip().lower()
-            if mirror_source in ("off", "tuna"):
-                use_mirror = (mirror_source == "tuna")
-            else:
-                use_mirror = bool(chosen.get("mirror", False))
-                mirror_source = "tuna" if use_mirror else "off"
-            missing_layers, use_bundled_python = _switch_deps_context(chosen.get("deps_path", deps_dir))
+            plan = DependencyPlan.from_mapping(chosen, default_path=deps_path)
+            chosen_layers = _normalize_chosen_layers(list(plan.layers))
+            mirror_source = plan.mirror_source
+            use_mirror = mirror_source == "tuna"
+            missing_layers, use_bundled_python = _switch_deps_context(str(plan.deps_path))
 
 
-            if chosen.get("force_enter", False):
+            if plan.force_enter:
                 set_last_ensure_deps_force_enter(True)
                 _notify_after_force_enter()
                 print("[DEBUG] 用户选择跳过依赖安装")
                 return True
-            if chosen.get("action") == "enter":
+            if plan.action == "enter":
                 print("[DEBUG] 用户选择直接进入主程序")
                 return True
-            if chosen["layers"]:
+            if plan.layers:
                 failed_claims = {
                     str(x) for x in (state.get("failed_layers", []) if isinstance(state, dict) else [])
                 }
                 already_have = all(
-                    layer in state.get("installed_layers", []) for layer in chosen["layers"]
+                    layer in state.get("installed_layers", []) for layer in plan.layers
                 )
-                has_failed_choice = any(layer in failed_claims for layer in chosen["layers"])
+                has_failed_choice = any(layer in failed_claims for layer in plan.layers)
                 if already_have and not has_failed_choice:
-                    if not chosen.get("verified_in_ui", False) and not _reverify_installed_layers_if_needed("skip_download_already_have"):
+                    if not plan.verified_in_ui and not _reverify_installed_layers_if_needed("skip_download_already_have"):
                         print("[WARN] 复验后关键层不完整，返回向导。")
                         continue
                     print("[DEBUG] 所选依赖已存在，跳过下载")
@@ -747,7 +746,12 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 pause_event = threading.Event()
                 state_lock = threading.Lock()
 
-                dlg, info, logw, btn_cancel, btn_pause, progress = _progress_dialog()
+                dlg = InstallProgressDialog()
+                info = dlg.info_label
+                logw = dlg.log_view
+                btn_cancel = dlg.cancel_button
+                btn_pause = dlg.pause_button
+                progress = dlg.progress_bar
                 from PyQt6 import sip
                 ui_closed = {"value": False}
                 timer_holder = {"log": None, "speed": None}
@@ -790,19 +794,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         except RuntimeError:
                             pass
 
-                def _format_speed(bytes_per_sec):
-                    try:
-                        speed = float(bytes_per_sec)
-                    except Exception:
-                        return ""
-                    if speed < 1024:
-                        return f"{speed:.0f} B/s"
-                    if speed < 1024 * 1024:
-                        return f"{speed / 1024:.1f} KB/s"
-                    if speed < 1024 * 1024 * 1024:
-                        return f"{speed / (1024 * 1024):.1f} MB/s"
-                    return f"{speed / (1024 * 1024 * 1024):.2f} GB/s"
-
                 def _render_info_text():
                     text = net_speed_state.get("base_text", "") or ""
                     if net_speed_state.get("busy", False):
@@ -818,7 +809,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         else:
                             speed = net_speed_state.get("down_bps")
                             if speed is not None:
-                                text = f"{text}  下载速度：{_format_speed(speed)}"
+                                text = f"{text}  下载速度：{format_transfer_speed(speed)}"
                             else:
                                 text = f"{text}  下载速度：计算中..."
                     if _is_alive(info):
@@ -826,33 +817,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             info.setText(text)
                         except RuntimeError:
                             pass
-
-                def _parse_pip_transfer_status(line: str):
-                    if not line:
-                        return None
-                    text = line.strip().replace("\r", " ")
-                    if not text:
-                        return None
-                    speed_match = re.search(r"(\d+(?:\.\d+)?)\s*([kmg]?i?B/s)", text, re.IGNORECASE)
-                    if not speed_match:
-                        return None
-                    speed_text = f"{speed_match.group(1)} {speed_match.group(2)}"
-                    eta_match = re.search(r"(\d+:\d{2}:\d{2}|\d+:\d{2})", text)
-                    progress_match = re.search(
-                        r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*([kmg]?i?B)",
-                        text,
-                        re.IGNORECASE,
-                    )
-                    progress_text = ""
-                    if progress_match:
-                        progress_text = (
-                            f"{progress_match.group(1)}/{progress_match.group(2)} {progress_match.group(3)}"
-                        )
-                    return {
-                        "speed_text": speed_text,
-                        "eta_text": eta_match.group(1) if eta_match else "",
-                        "progress_text": progress_text,
-                    }
 
                 def _sample_network_speed():
                     if not net_speed_state.get("busy", False):
@@ -985,13 +949,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _append_log(_install_failure_log_line())
                         if _is_alive(dlg):
                             title, message = _install_failure_dialog_copy()
-                            _exec_close_only_message_box(
-                                dlg,
-                                title,
-                                message,
-                                icon=QMessageBox.Icon.Warning,
-                                buttons=QMessageBox.StandardButton.Ok,
-                            )
+                            show_info_bar(dlg, title, message, "error", 6000)
                         _finalize_done_ui()
                         return
 
@@ -1016,20 +974,19 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         if fail_layers:
                             failed_labels = "、".join(layer_display_name(layer) for layer in fail_layers)
                             _append_log(f"\n[WARN] 以下依赖验证失败：{failed_labels}")
-                            _exec_close_only_message_box(
+                            show_info_bar(
                                 dlg,
                                 "部分验证失败",
-                                f"以下依赖无法正常工作：\n{failed_labels}\n\n请查看日志。",
-                                icon=QMessageBox.Icon.Warning,
-                                buttons=QMessageBox.StandardButton.Ok,
+                                f"以下依赖无法正常工作：{failed_labels}。请查看日志。",
+                                "warning",
+                                6000,
                             )
                         else:
-                            _exec_close_only_message_box(
+                            show_info_bar(
                                 dlg,
                                 "安装完成",
                                 "所选依赖已安装并验证通过。",
-                                icon=QMessageBox.Icon.Information,
-                                buttons=QMessageBox.StandardButton.Ok,
+                                "success",
                             )
                         _finalize_done_ui()
 
@@ -1048,14 +1005,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             pass
                     if not success:
                         _append_log(f"\n[ERR] Python 依赖环境初始化失败: {message}")
-                        _exec_close_only_message_box(
+                        show_info_bar(
                             dlg,
                             "初始化失败",
                             _system_python_install_hint(
                                 "无法使用系统 Python 创建可用的依赖环境。"
                             ),
-                            icon=QMessageBox.Icon.Critical,
-                            buttons=QMessageBox.StandardButton.Ok,
+                            "error",
+                            7000,
                         )
                         _finalize_done_ui()
                         return
@@ -1081,7 +1038,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             drained += 1
                     if lines_to_emit:
                         for line in lines_to_emit:
-                            parsed_transfer = _parse_pip_transfer_status(line)
+                            parsed_transfer = parse_pip_transfer_status(line)
                             if parsed_transfer:
                                 net_speed_state["pip_speed_text"] = parsed_transfer["speed_text"]
                                 net_speed_state["pip_eta_text"] = parsed_transfer["eta_text"]

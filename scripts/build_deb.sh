@@ -89,7 +89,7 @@ update_debian_control \
     "latexsnipper" \
     "$VERSION" \
     "$INSTALLED_SIZE" \
-    "Desktop math workspace for capture, recognize, edit and compute"
+    "Cross-platform math OCR workspace and automation service"
 
 log_step "5/5" "Building .deb"
 mkdir -p "$DEB_OUTPUT_DIR"

@@ -148,7 +148,7 @@ Model artifacts are downloaded from the MathCraft-Models release assets declared
 - `cpu`: force CPU.
 - `gpu`: request CUDA-capable ONNX Runtime.
 
-The actual provider is available on results through the `provider` field.
+The actual provider is available on recognition results through the `provider` field. Doctor and warmup reports also expose `device_id`, `device_name`, `device_uuid`, and `device_verified` under `provider_info`. GPU sessions bind the reported `device_id` explicitly; `device_verified` becomes true only after the runtime confirms the device used by initialized inference sessions.
 
 ## Development
 

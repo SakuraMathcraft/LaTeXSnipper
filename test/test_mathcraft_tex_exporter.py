@@ -10,8 +10,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from core.mathcraft_tex_exporter import markdown_to_latex_document
-from core.pdf_output_contract import wrap_document_output
+from exporting.markdown_latex import markdown_to_latex_document
+from exporting.document_output import wrap_document_output
 
 
 def test_tex_exporter_converts_core_markdown_blocks() -> None:

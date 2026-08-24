@@ -50,7 +50,7 @@ def find_dependency_python(base_dir: str | Path | None) -> Path | None:
     if raw is None:
         return None
     base = normalize_deps_base_dir(raw)
-    from bootstrap.deps_python_runtime import find_existing_python
+    from runtime.dependency_runtime import find_existing_python
 
     return find_existing_python(base)
 

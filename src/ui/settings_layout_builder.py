@@ -59,7 +59,6 @@ class SettingsLayoutMixin:
         self._compute_mode_probe_ts = 0.0
         self._compute_mode_probe_info = None
         self._compute_mode_probe_running = False
-        self._device_name_cache = {"provider": "", "gpu": "", "cpu": "", "ts": 0.0}
         self._theme_mode_values = ["light", "dark", "auto"]
         # Model selection area.
         lay.addWidget(QLabel("选择识别模型:"))
@@ -424,10 +423,11 @@ class SettingsLayoutMixin:
             self._show_info("自动化接口", message or "设置已更新", "success")
 
         try:
-            if self.parent() and hasattr(self.parent(), "set_automation_api_enabled_async"):
-                self.parent().set_automation_api_enabled_async(enabled, _done)
+            controller = getattr(self.parent(), "automation_api", None) if self.parent() else None
+            if controller is not None:
+                controller.set_automation_api_enabled_async(enabled, _done)
                 return
-            raise RuntimeError("Automation API controller unavailable")
+            raise RuntimeError("自动化接口控制器不可用")
         except Exception as exc:
             _done(False, str(exc))
 

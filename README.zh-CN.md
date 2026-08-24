@@ -4,7 +4,7 @@
 
 > 跨平台数学 OCR 工作区与自动化服务，覆盖 **截图 -> 识别 -> 手写 -> 编辑 -> 集成**
 
-<img width="1919" height="1020" alt="封面" src="https://github.com/user-attachments/assets/9d00310b-d1b6-4321-b961-8837b3efb864" />
+<img width="1919" height="1021" alt="LaTeXSnipper v3.0.0" src="docs/latexsnipper-3.0.0.png" />
 
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
 ![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
@@ -51,11 +51,11 @@ Automation API 通过受控的 `mathcraft` 与 `external` backend 同时开放�
 
 图片输入支持八种常用扩展名：PNG、JPG、JPEG、BMP、GIF、TIF、TIFF、WEBP，对应六种实际编码。最有价值的实际组合是：
 
-- **Snipaste + AutoHotkey/AutoKey/Hammerspoon：**截图后识别并写回剪贴板。
-- **ShareX + Automation API：**截图完成后直接上传识别。
-- **VS Code/TeXstudio/Obsidian 插件：**识别后直接插入编辑位置。
-- **iOS Shortcuts/Android Tasker + Tailscale：**手机调用家中电脑常驻的 MathCraft。
-- **Python/curl + 批量接口：**自行批量识别整个图片目录。
+- **Snipaste + AutoHotkey/AutoKey/Hammerspoon**：截图后识别并写回剪贴板。
+- **ShareX + Automation API**：截图完成后直接上传识别。
+- **VS Code/TeXstudio/Obsidian 插件**：识别后直接插入编辑位置。
+- **iOS Shortcuts/Android Tasker + Tailscale**：手机调用家中电脑常驻的 MathCraft。
+- **Python/curl + 批量接口**：自行批量识别整个图片目录。
 
 接口**默认关闭**，默认仅监听本机 `127.0.0.1:28765`。本机客户端通过私有的 `automation-api.json` 连接文件发现实际地址和每次启动重新生成的 Bearer token。AutoKey、AutoHotkey、Hammerspoon、ShareX、编辑器插件和官方 Office 插件都可以使用这一方式。上传图片串行解码，规范化图片在识别完成前共用同一内存预算，避免并发大图成倍放大内存占用。
 

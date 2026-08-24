@@ -16,13 +16,15 @@ if str(SRC) not in sys.path:
 from PyQt6.QtCore import QPoint, QRect, Qt  # noqa: E402
 from PyQt6.QtGui import QColor, QGuiApplication, QImage  # noqa: E402
 
-from backend.capture_overlay import (  # noqa: E402
-    _ScreenSnapshot,
-    _capture_window_flags,
+from capture.geometry import (  # noqa: E402
+    ScreenSnapshot,
     _place_popup_near_pointer,
     choose_screen_index,
     crop_screen_snapshot,
     map_global_rect_to_screen_capture,
+)
+from capture.overlay import (  # noqa: E402
+    _capture_window_flags,
     ScreenCaptureOverlay,
 )
 
@@ -72,7 +74,7 @@ class CaptureOverlayMappingTests(unittest.TestCase):
         for y in range(6, 10):
             for x in range(4, 10):
                 image.setPixelColor(x, y, QColor(10, 20, 30))
-        snapshot = _ScreenSnapshot(
+        snapshot = ScreenSnapshot(
             geometry=QRect(100, 200, 10, 10),
             image=image,
             scale_x=2.0,
@@ -90,7 +92,7 @@ class CaptureOverlayMappingTests(unittest.TestCase):
     def test_crop_screen_snapshot_clamps_bottom_right_edge(self):
         image = QImage(20, 20, QImage.Format.Format_RGB32)
         image.fill(QColor("white"))
-        snapshot = _ScreenSnapshot(
+        snapshot = ScreenSnapshot(
             geometry=QRect(0, 0, 10, 10),
             image=image,
             scale_x=2.0,

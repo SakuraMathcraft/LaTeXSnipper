@@ -13,7 +13,6 @@ from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
-from bootstrap.deps_ui import custom_warning_dialog
 from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
@@ -21,10 +20,7 @@ from runtime.content_types import normalize_content_type
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
-from ui.window_helpers import (
-    exec_close_only_message_box as _exec_close_only_message_box,
-    show_normal_window,
-)
+from ui.window_helpers import show_normal_window
 
 RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS = 10.0
 
@@ -294,7 +290,7 @@ class PredictResultControllerMixin:
         self._next_predict_result_screen_index = None
         code = (recognized_content or "").strip()
         if not code:
-            _exec_close_only_message_box(self, "提示", "结果为空")
+            self.show_action_status("识别结果为空", level="warning")
             return
 
         current_mode = normalize_content_type(content_type)
@@ -358,10 +354,22 @@ class PredictResultControllerMixin:
         external_model: bool,
     ):
         self._next_predict_result_screen_index = None
+        canceled = self._is_user_cancelled_recognition_error(msg)
+        content = self._recognition_failure_content(
+            msg,
+            worker_attr="predict_worker",
+            external_model=external_model,
+        )
         coordinator = getattr(self, "recognition_coordinator", None)
         if coordinator is not None:
-            coordinator.fail_next_result("桌面识别失败。")
-        if self._is_user_cancelled_recognition_error(msg):
+            empty_codes = {
+                "未识别到公式内容": "empty_formula",
+                "未识别到文本内容": "empty_text",
+                "未检测到可识别内容": "empty_content",
+            }
+            code = "canceled" if canceled else empty_codes.get(content, "recognition_failed")
+            coordinator.fail_next_result(content, code=code)
+        if canceled:
             try:
                 print(f"[DEBUG] 识别已中断: {msg}")
             except Exception:
@@ -373,11 +381,6 @@ class PredictResultControllerMixin:
             print(f"[ERR] 识别失败 model={model_name} time={elapsed:.2f}s err={msg}")
         else:
             print(f"[ERR] 识别失败 model={model_name} err={msg}")
-        content = self._recognition_failure_content(
-            msg,
-            worker_attr="predict_worker",
-            external_model=external_model,
-        )
         if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
             hk = display_hotkey(
                 normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
@@ -401,8 +404,8 @@ class PredictResultControllerMixin:
                 duration=4500,
                 position=InfoBarPosition.TOP,
             )
-        except Exception:
-            custom_warning_dialog("错误", content, self)
+        except Exception as exc:
+            print(f"[WARN] 无法显示识别失败提示: {exc}")
 
     def accept_recognition_result(self, dialog, te: QTextEdit):
         t = te.toPlainText().strip()
@@ -418,12 +421,12 @@ class PredictResultControllerMixin:
             except Exception:
                 QApplication.clipboard().setText(t)
         except Exception as e:
-            custom_warning_dialog("错误", f"复制失败: {e}",self)
+            self.show_action_status(f"复制失败：{e}", level="error", parent=dialog)
         try:
             content_type = normalize_content_type(dialog._predict_result_mode)
             self.add_history_record(t, content_type=content_type)
         except Exception as e:
-            custom_warning_dialog("错误", f"写入历史失败: {e}", self)
+            self.show_action_status(f"写入历史失败：{e}", level="error", parent=dialog)
         if bool(getattr(dialog, "_predict_result_pinned", False)):
             self.set_action_status("已确认并复制到剪贴板", parent=dialog)
             try:
