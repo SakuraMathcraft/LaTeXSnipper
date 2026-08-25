@@ -1,6 +1,6 @@
 # MathCraft OCR Literature and Public Data Inventory
 
-Reviewed: 2026-07-06
+Reviewed: 2026-08-25
 
 This inventory records the paper evidence that is already reproducible, the
 public datasets still worth adding, and the claims each source can support. The
@@ -202,25 +202,27 @@ Claim policy:
     formula-recognition literature.
   - An additional public handwritten benchmark beyond UniMER-HWE.
 
-## Candidate Additions
+## Completed Evaluation Additions
 
 ### CDM / Render-Aware Formula Evaluation
 
 Primary reference: [Image Over Text: Transforming Formula Recognition Evaluation
 with Character Detection Matching](https://arxiv.org/abs/2409.03643).
 
-Priority: high.
+Status: complete.
 
-Action:
+Implementation:
 
-- Use the official UniMERNet CDM implementation from the local clone under
+- Uses the official UniMERNet CDM implementation from the local clone under
   `E:\MathCraftBenchData\sources\UniMERNet_official\cdm`.
-- Convert MathCraft outputs into the official `img_id` / `gt` / `pred` batch
+- Converts MathCraft outputs into the official `img_id` / `gt` / `pred` batch
   format before running the official CDM scorer.
-- Keep the current render-consistency fallback under a different name; it is
+- Keeps the current render-consistency fallback under a different name; it is
   supporting evidence, not CDM.
-- Use CDM-style results to explain cases where text exact match penalizes
+- Uses CDM results to explain cases where text exact match penalizes
   visually equivalent math.
+
+## Candidate Additions
 
 ### CROHME
 

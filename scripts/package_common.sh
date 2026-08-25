@@ -162,7 +162,7 @@ desktop_file.write_text(
             "[Desktop Entry]",
             "Type=Application",
             "Name=LaTeXSnipper",
-            "Comment=\u622a\u56fe\u3001\u8bc6\u522b\u3001\u7f16\u8f91\u548c\u8ba1\u7b97\u6570\u5b66\u5185\u5bb9",
+            "Comment=\u622a\u56fe\u8bc6\u522b\u3001\u624b\u5199\u3001\u7f16\u8f91\u3001\u5bfc\u51fa\u4e0e\u81ea\u52a8\u5316\u96c6\u6210\u6570\u5b66\u5185\u5bb9",
             "Exec=latexsnipper",
             "Icon=latexsnipper",
             "Terminal=false",

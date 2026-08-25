@@ -8,6 +8,7 @@ import os
 
 from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.app_paths import app_log_dir
+from runtime.log_lifecycle import CRASH_LOG_BACKUP_COUNT, CRASH_LOG_MAX_BYTES, rotate_before_append
 from runtime.native_runtime_preload import (
     configure_native_runtime_environment,
     preload_onnxruntime_before_qt,
@@ -30,6 +31,11 @@ def pre_bootstrap_runtime() -> None:
     log_dir = app_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     crash_log = log_dir / "crash-native.log"
+    rotate_before_append(
+        crash_log,
+        max_bytes=CRASH_LOG_MAX_BYTES,
+        backup_count=CRASH_LOG_BACKUP_COUNT,
+    )
 
     try:
         _CRASH_FH = open(crash_log, "a", encoding="utf-8", buffering=1)

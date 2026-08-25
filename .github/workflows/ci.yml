@@ -34,9 +34,6 @@ jobs:
         with:
           dotnet-version: "9.0.x"
 
-      - name: Install test runner
-        run: python -m pip install pytest
-
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
 

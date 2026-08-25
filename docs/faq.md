@@ -118,7 +118,7 @@ If the selected directory already contains a usable Python environment, the wiza
 
 The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.13` only to create the isolated optional dependency environment under the active dependency root. Python 3.11 is preferred because it matches the Windows bundled runtime; Python 3.13+ is intentionally rejected until all dependency layers are verified against it.
 
-Linux `.deb` packages declare `python3` and `python3-venv`. macOS users should install a supported Python, preferably Homebrew `python@3.11` or the official python.org 3.11/3.12 macOS installer, if no usable `python3` is available.
+Linux `.deb` packages require `python3 (>= 3.10)`, `python3 (<< 3.13)`, and `python3-venv`. macOS users should install a supported Python, preferably Homebrew `python@3.11` or the official python.org 3.11/3.12 macOS installer, if no usable `python3` is available.
 
 ## Where are logs stored?
 
