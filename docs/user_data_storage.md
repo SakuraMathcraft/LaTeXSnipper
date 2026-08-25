@@ -16,13 +16,14 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 
 | Data | Path under app state | Owner |
 |---|---|---|
-| Main settings | `LaTeXSnipper_config.json` | `runtime.config_manager`, dependency bootstrap, theme, LaTeX renderer, Pandoc runtime |
+| Main settings | `LaTeXSnipper_config.json` | Unified application settings, including dependency root, recognition backends, external models, Automation API, theme, rendering, export, and window behavior |
+| Local secret key | `secret.key` on Linux/macOS; Windows uses DPAPI and does not create this file | `runtime.secret_store`; created when the first persistent secret is encrypted |
 | Automation API discovery | `automation-api.json` | Ephemeral local address and per-session token; created only while the API runs and removed on shutdown |
 | Recognition history | `history.json` | Main window history; no user-facing path selector |
 | Favorites | `favorites.json`; user-facing export writes a copy to a chosen folder without changing the app data path | Favorites window |
 | Single-instance lock | `instance.lock` | Runtime single-instance guard |
 | Release cache | `release_etag_cache.json` | Update checker |
-| Downloaded update package | `updates/` | Update installer cache; old packages are pruned |
+| Downloaded update package | `updates/` | Update installer and `installer_meta.json` cache; old packages are pruned |
 
 ## Dependency Runtime
 

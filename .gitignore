@@ -6,27 +6,21 @@ __pycache__/
 
 # Virtual environment
 .venv/
-env/
 
 # Build
 build/
 dist/
-node_modules/
 office_plugin/**/bin/
 office_plugin/**/obj/
 office_plugin/**/obj-handler/
 office_plugin/**/*.user.props
 office_plugin/installer/vsto-signing.cer
 office_plugin/tests/**/artifacts/
-!LaTeXSnipper-linux.spec
-!LaTeXSnipper-macos.spec
-!LaTeXSnipper.spec
 *.egg-info/
 packaging/debian/usr
 
 # Large binary files
 *.exe
-!office_plugin/release/
 !office_plugin/release/OfficePluginSetup-*.exe
 office_plugin/release/InstallerAssets/
 *.dll
@@ -37,17 +31,13 @@ office_plugin/release/InstallerAssets/
 # Embedded runtime (do not version)
 tools/deps/python311/
 tools/deps/python311-*/
-tools/deps/pandoc/
 
 # Local runtime components (do not version)
 /python311/
 python-*.exe
-crash_log.txt
 
 # Logs
 *.log
-.coverage
-.tmp/
 
 # Local app state
 tools/deps/.deps_state.json
@@ -56,7 +46,6 @@ tools/deps/.deps_state.json
 test_pdf/outputs/**
 !test_pdf/outputs/
 !test_pdf/outputs/README.md
-test_pdf/tex_compile_outputs*/
 test_pdf/*.pdf
 test_samples/
 release_assets/
@@ -66,10 +55,3 @@ user_manual/*
 !user_manual/*.md
 !user_manual/*.png
 !user_manual/tinymist.lock
-
-# Local publishing drafts
-WECHAT_ARTICLE.md
-RELEASE_NOTES*.md
-release_v*.md
-release*.md
-

@@ -4,8 +4,8 @@ set -eu
 APP_NAME="LaTeXSnipper"
 
 usage() {
+    printf 'Usage: %s [--app-data] [--deps] [--models] [--all] [--yes]\n' "${0##*/}"
     cat <<'EOF'
-Usage: latexsnipper-clean-user-data.sh [--app-data] [--deps] [--models] [--all] [--yes]
 
 Removes LaTeXSnipper user-owned data for the current user only.
 By default the script asks interactively. Package uninstall does not run this
@@ -107,6 +107,50 @@ remove_path() {
     fi
 }
 
+remove_children_except() {
+    directory="$1"
+    keep_first="$2"
+    keep_second="$3"
+
+    for path in "$directory"/* "$directory"/.[!.]* "$directory"/..?*; do
+        if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+            continue
+        fi
+        name=${path##*/}
+        if { [ -n "$keep_first" ] && [ "$name" = "$keep_first" ]; } || \
+           { [ -n "$keep_second" ] && [ "$name" = "$keep_second" ]; }; then
+            continue
+        fi
+        rm -rf -- "$path"
+    done
+}
+
+remove_app_state_data() {
+    if [ ! -d "$app_state" ]; then
+        printf 'Skipped app state; not found: %s\n' "$app_state"
+        return
+    fi
+
+    if [ "$remove_deps" = "true" ] && { [ "$is_macos" = "false" ] || [ "$remove_models" = "true" ]; }; then
+        remove_path "$app_state" "app state"
+        return
+    fi
+
+    if [ "$remove_deps" = "false" ] && [ "$is_macos" = "true" ] && [ "$remove_models" = "false" ]; then
+        remove_children_except "$app_state" "tools" "MathCraft"
+    elif [ "$remove_deps" = "false" ]; then
+        remove_children_except "$app_state" "tools" ""
+    else
+        remove_children_except "$app_state" "MathCraft" ""
+    fi
+
+    if [ "$is_macos" = "true" ] && [ "$remove_models" = "false" ] && [ -d "$app_state/MathCraft" ]; then
+        remove_children_except "$app_state/MathCraft" "models" ""
+    fi
+
+    printf 'Removed selected app state data: %s\n' "$app_state"
+}
+
 if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remove_models" = "false" ]; then
     if ask_yes_no "Remove LaTeXSnipper settings, history, logs, dependency state, and temp files?"; then
         remove_app_data=true
@@ -119,19 +163,19 @@ if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remov
     fi
 fi
 
-if [ "$remove_deps" = "true" ]; then
-    remove_path "$app_state/tools" "shared dependency tools"
-fi
-
 if [ "$remove_app_data" = "true" ]; then
-    remove_path "$app_state" "app state"
+    remove_app_state_data
     if [ "$is_macos" = "true" ]; then
         remove_path "$log_dir" "logs"
     fi
     remove_path "$temp_dir" "temporary files"
 fi
 
-if [ "$remove_models" = "true" ]; then
+if [ "$remove_deps" = "true" ] && [ "$remove_app_data" = "false" ]; then
+    remove_path "$app_state/tools" "shared dependency tools"
+fi
+
+if [ "$remove_models" = "true" ] && { [ "$is_macos" = "false" ] || [ "$remove_app_data" = "false" ]; }; then
     remove_path "$model_dir" "MathCraft model weights"
 fi
 

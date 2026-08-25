@@ -76,6 +76,7 @@ PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags
 
 | Tag | 用途 |
 | --- | --- |
+| `LaTeXSnipperDocumentId` | 当前演示文稿标识 |
 | `LaTeXSnipperEquationId` | 公式 ID |
 | `LaTeXSnipperDisplayMode` | 显示模式 |
 | `LaTeXSnipperSchemaVersion` | schema |

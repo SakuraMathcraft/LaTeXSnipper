@@ -11,6 +11,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from runtime.app_paths import app_log_dir
+from runtime.log_lifecycle import (
+    APP_LOG_BACKUP_COUNT,
+    APP_LOG_MAX_BYTES,
+    cleanup_stale_fallback_logs,
+)
 from runtime.log_record import PERSISTENT_LOG_LEVEL, parse_print_log_record
 
 APP_LOG_FILE: Path | None = None
@@ -152,6 +157,7 @@ def init_app_logging() -> Path:
     _configure_utf8_stdio()
     log_dir = Path(app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
+    cleanup_stale_fallback_logs(log_dir)
     log_path = log_dir / "app.log"
 
     if _APP_LOGGING_INITIALIZED and APP_LOG_FILE is not None:
@@ -172,11 +178,21 @@ def init_app_logging() -> Path:
     active_log_path = log_path
     if not has_file:
         try:
-            fh = RotatingFileHandler(log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+            fh = RotatingFileHandler(
+                log_path,
+                maxBytes=APP_LOG_MAX_BYTES,
+                backupCount=APP_LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            )
         except PermissionError as e:
             active_log_path = log_dir / f"app-{os.getpid()}.log"
             try:
-                fh = RotatingFileHandler(active_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8")
+                fh = RotatingFileHandler(
+                    active_log_path,
+                    maxBytes=APP_LOG_MAX_BYTES,
+                    backupCount=APP_LOG_BACKUP_COUNT,
+                    encoding="utf-8",
+                )
                 try:
                     if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
                         sys.__stderr__.write(f"[WARN] app.log 被占用，已切换到 {active_log_path}: {e}\n")
