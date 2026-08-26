@@ -30,7 +30,7 @@ def test_find_system_python3_prefers_macos_python_with_ensurepip(monkeypatch):
     assert found == Path("/opt/homebrew/bin/python3")
 
 
-def test_find_system_python3_rejects_macos_python_newer_than_supported(monkeypatch):
+def test_find_system_python3_skips_unusable_macos_python(monkeypatch):
     monkeypatch.setattr(deps_python_runtime, "os", SimpleNamespace(name="posix"))
     monkeypatch.setattr(deps_python_runtime.sys, "platform", "darwin")
     monkeypatch.setattr(deps_python_runtime, "which", lambda name: "/opt/homebrew/bin/python3")
@@ -47,7 +47,7 @@ def test_find_system_python3_rejects_macos_python_newer_than_supported(monkeypat
     assert found == Path("/Library/Frameworks/Python.framework/Versions/3.12/bin/python3")
 
 
-def test_system_python3_score_rejects_python313_even_with_ensurepip(tmp_path, monkeypatch):
+def test_system_python3_score_accepts_python313_with_ensurepip(tmp_path, monkeypatch):
     pyexe = tmp_path / "python3"
     pyexe.write_text("#!/bin/sh\n", encoding="utf-8")
 
@@ -56,15 +56,58 @@ def test_system_python3_score_rejects_python313_even_with_ensurepip(tmp_path, mo
 
     def fake_run(args, *_unused_args, **_kwargs):
         code = args[2]
-        if "sys.version_info < (3, 13)" in code:
-            result = Result()
-            result.returncode = 1
-            return result
+        if "import ensurepip" not in code:
+            assert "sys.version_info < (3, 14)" in code
         return Result()
 
     monkeypatch.setattr(deps_python_runtime.subprocess, "run", fake_run)
 
-    assert deps_python_runtime._system_python3_score(pyexe) == 0
+    assert deps_python_runtime._system_python3_score(pyexe) == 2
+
+
+def test_supported_system_python_range_is_half_open():
+    assert deps_python_runtime.supported_system_python_range_label() == ">=3.10,<3.14"
+    assert deps_python_runtime.PREFERRED_SYSTEM_PYTHON_VERSIONS[0] == (3, 13)
+
+
+def test_system_python_unavailable_reason_reports_detected_unsupported_version(tmp_path, monkeypatch):
+    pyexe = tmp_path / "python3"
+    pyexe.write_text("", encoding="utf-8")
+    monkeypatch.setattr(deps_python_runtime, "_system_python_candidates", lambda: [pyexe])
+    monkeypatch.setattr(deps_python_runtime, "_python_candidate_version", lambda _path: (3, 14, 2))
+
+    reason = deps_python_runtime.system_python_unavailable_reason()
+
+    assert "Python 3.14.2" in reason
+    assert ">=3.10,<3.14" in reason
+    assert "版本不在支持范围" in reason
+
+
+def test_system_python_unavailable_reason_reports_missing_venv(tmp_path, monkeypatch):
+    pyexe = tmp_path / "python3"
+    pyexe.write_text("", encoding="utf-8")
+    monkeypatch.setattr(deps_python_runtime, "_system_python_candidates", lambda: [pyexe])
+    monkeypatch.setattr(deps_python_runtime, "_python_candidate_version", lambda _path: (3, 13, 7))
+
+    reason = deps_python_runtime.system_python_unavailable_reason()
+
+    assert "Python 3.13.7" in reason
+    assert "缺少 venv/ensurepip" in reason
+
+
+def test_venv_setup_returns_specific_system_python_reason(tmp_path, monkeypatch):
+    from bootstrap import deps_entry
+
+    expected = "检测到系统 Python 3.14.2，但版本不在支持范围 >=3.10,<3.14 内。"
+    logs = []
+    monkeypatch.setattr(deps_entry, "_find_system_python3", lambda: None)
+    monkeypatch.setattr(deps_entry, "_system_python_unavailable_reason", lambda: expected)
+
+    ok, reason = deps_entry._setup_python_venv_from_system(tmp_path / "venv", log_fn=logs.append)
+
+    assert ok is False
+    assert reason == expected
+    assert logs == [f"[ERR] {expected}"]
 
 
 def test_system_python3_score_rejects_python_without_ensurepip(tmp_path, monkeypatch):

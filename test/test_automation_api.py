@@ -579,12 +579,12 @@ def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
         assert status == 200
         assert completed["job"]["items"][0]["text"] == "x^2"
 
-        legacy_body = json.dumps({"input": {"type": "desktop_capture"}}).encode()
+        invalid_body = json.dumps({"input": {"type": "unsupported"}}).encode()
         status, _, error = _request(
             server,
             "POST",
             "/api/v1/recognition/jobs",
-            body=legacy_body,
+            body=invalid_body,
             headers={"Authorization": "Bearer local", "Content-Type": "application/json"},
         )
         assert status == 400 and error["error"]["code"] == "invalid_request"

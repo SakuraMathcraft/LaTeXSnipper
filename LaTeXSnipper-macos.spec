@@ -318,7 +318,7 @@ app_bundle = BUNDLE(
         "CFBundleShortVersionString": PRODUCT_VERSION,
         "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
         "CFBundleDocumentTypes": [],
-        "LSMinimumSystemVersion": "11.0",
+        "LSMinimumSystemVersion": "13.0",
         "NSDesktopFolderUsageDescription": "LaTeXSnipper needs access when you choose files from or export results to Desktop.",
         "NSDocumentsFolderUsageDescription": "LaTeXSnipper needs access when you choose documents or export recognition results to Documents.",
         "NSDownloadsFolderUsageDescription": "LaTeXSnipper needs access when you choose downloaded files or save exported results to Downloads.",

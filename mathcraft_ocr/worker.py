@@ -12,6 +12,9 @@ from .runtime import FORMULA_MAX_NEW_TOKENS, MathCraftRuntime
 from .serialization import doctor_report_to_json, formula_result_to_json, mixed_result_to_json, warmup_plan_to_json
 
 
+_PROVIDER_HELP = "auto, cpu, gpu, cuda, tensorrt, directml, coreml, or openvino"
+
+
 class MathCraftWorker:
     def __init__(
         self,
@@ -113,7 +116,7 @@ def serve_jsonl(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mathcraft-worker")
-    parser.add_argument("--provider", default="auto")
+    parser.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
     return parser
 
 

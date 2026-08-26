@@ -264,7 +264,6 @@ function Normalize-BundledPythonSeed {
         "libs",
         "tcl",
         "NEWS.txt",
-        "Lib\ensurepip",
         "Lib\venv",
         "Lib\idlelib",
         "Lib\lib2to3",
@@ -308,17 +307,30 @@ function Normalize-BundledPythonSeed {
 import json
 import importlib
 import pathlib
+import subprocess
 import sys
 
 root = pathlib.Path(sys.argv[1]).resolve()
 paths = [pathlib.Path(p).resolve() for p in sys.path]
 bad = [str(p) for p in paths if not (p == root or root in p.parents)]
+toolchain = {}
+for module_name in ("ensurepip", "setuptools", "wheel", "packaging", "pip"):
+    module = importlib.import_module(module_name)
+    toolchain[module_name] = getattr(module, "__version__", "available")
+pip_check = subprocess.run(
+    [sys.executable, "-m", "pip", "--version"],
+    check=False,
+    capture_output=True,
+    text=True,
+)
 result = {
     "executable": str(pathlib.Path(sys.executable).resolve()),
     "prefix": str(pathlib.Path(sys.prefix).resolve()),
     "base_prefix": str(pathlib.Path(sys.base_prefix).resolve()),
     "paths": [str(p) for p in paths],
     "outside_paths": bad,
+    "toolchain": toolchain,
+    "pip": pip_check.stdout.strip(),
 }
 print(json.dumps(result, ensure_ascii=False))
 if pathlib.Path(sys.prefix).resolve() != root:
@@ -327,6 +339,8 @@ if pathlib.Path(sys.base_prefix).resolve() != root:
     raise SystemExit("sys.base_prefix does not point to bundled python311")
 if bad:
     raise SystemExit("sys.path contains paths outside bundled python311")
+if pip_check.returncode != 0:
+    raise SystemExit(f"bundled pip is not executable: {pip_check.stderr.strip()}")
 '@
     $verifyScript = Join-Path ([System.IO.Path]::GetTempPath()) ("latexsnipper_verify_python_seed_{0}.py" -f ([System.Guid]::NewGuid().ToString("N")))
     try {
@@ -345,6 +359,7 @@ if bad:
     Write-Host "Bundled Python seed normalized:"
     Write-Host "  executable: $($verify.executable)"
     Write-Host "  prefix: $($verify.prefix)"
+    Write-Host "  pip: $($verify.pip)"
     Test-PythonHttpsRuntime -PythonExe $pythonExe
     Remove-PythonCache -Root $seedRoot
 }

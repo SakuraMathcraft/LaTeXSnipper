@@ -95,7 +95,7 @@ environment follows the new root.
 
 Within that root, LaTeXSnipper creates:
 
-- `python311` for the isolated dependency Python/venv.
+- `python` for the isolated dependency Python/venv.
 
 App-managed optional tools are shared under the app state root, independent of
 the active dependency root:
@@ -112,13 +112,13 @@ Linux/macOS release packages do not bundle build-machine environments from `tool
 
 The dependency wizard opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
 
-If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.13`) to create the isolated environment.
+If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.14`) to create the isolated environment.
 
 ## Why do Linux and macOS need Python 3?
 
-The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.13` only to create the isolated optional dependency environment under the active dependency root. Python 3.11 is preferred because it matches the Windows bundled runtime; Python 3.13+ is intentionally rejected until all dependency layers are verified against it.
+The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.14` only to create the isolated optional dependency environment under the active dependency root. Python 3.11 remains the packaged-build baseline, while dependency environments may use Python 3.10 through 3.13.
 
-Linux `.deb` packages require `python3 (>= 3.10)`, `python3 (<< 3.13)`, and `python3-venv`. macOS users should install a supported Python, preferably Homebrew `python@3.11` or the official python.org 3.11/3.12 macOS installer, if no usable `python3` is available.
+Linux `.deb` packages require `python3 (>= 3.10)`, `python3 (<< 3.14)`, and `python3-venv`. macOS users should install a supported Homebrew or python.org Python 3.10-3.13 build if no usable `python3` is available.
 
 ## Where are logs stored?
 

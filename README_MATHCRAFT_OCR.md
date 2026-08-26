@@ -30,9 +30,27 @@ GPU backend:
 pip install "mathcraft-ocr[gpu]"
 ```
 
-Install only one backend extra in a clean environment. `onnxruntime` and `onnxruntime-gpu` should not be mixed in the same environment.
+CUDA 12 backend:
 
-LaTeXSnipper's dependency wizard selects the ONNX Runtime GPU wheel line from the detected CUDA toolkit. CUDA 11.x uses the ONNX Runtime CUDA 11 package feed, CUDA 12.x uses the stable PyPI GPU wheels, and CUDA 13.x uses the ONNX Runtime CUDA 13 nightly feed. Static `mathcraft-ocr[gpu]` package metadata cannot inspect the local CUDA toolkit, so it keeps a broad stable PyPI range; CUDA 11.x users installing manually should use the CUDA 11 feed shown by the wizard.
+```powershell
+pip install "mathcraft-ocr[gpu-cu12]"
+```
+
+Windows DirectML backend:
+
+```powershell
+pip install "mathcraft-ocr[directml]"
+```
+
+Intel OpenVINO backend on Windows or Linux:
+
+```powershell
+pip install "mathcraft-ocr[openvino]"
+```
+
+Install only one backend extra in a clean environment. The CPU, CUDA/TensorRT, DirectML, and OpenVINO ONNX Runtime distributions must not be mixed in the same environment. The standard `onnxruntime` macOS wheel includes CoreML EP support.
+
+LaTeXSnipper's dependency wizard selects the ONNX Runtime GPU line from the detected CUDA toolkit: CUDA 11.x uses ONNX Runtime 1.20 from the official CUDA 11 feed, CUDA 12.x uses ONNX Runtime 1.21-1.26 from PyPI, and CUDA 13.x uses ONNX Runtime 1.27-1.29 from PyPI. The static `mathcraft-ocr[gpu]` extra follows the current PyPI default (CUDA 13 and Python 3.11+); use `gpu-cu12` for CUDA 12. CUDA 11 installations must also select the official CUDA 11 package feed, so LaTeXSnipper's dependency wizard is recommended for that configuration.
 
 ## Quick Start
 
@@ -144,9 +162,34 @@ Model artifacts are downloaded from the MathCraft-Models release assets declared
 
 `provider_preference` accepts:
 
-- `auto`: prefer CUDA when available and valid, otherwise CPU.
+- `auto`: prefer CUDA, then a platform accelerator, and finally CPU; TensorRT remains explicit because of its first-use engine build cost.
 - `cpu`: force CPU.
-- `gpu`: request CUDA-capable ONNX Runtime.
+- `gpu`: request the first available supported accelerator.
+- `cuda`: request CUDA.
+- `tensorrt` or `trt`: request TensorRT, followed by CUDA and CPU for unsupported nodes.
+- `directml` or `dml`: request DirectML.
+- `coreml`: request CoreML.
+- `openvino`: request OpenVINO.
+
+Advanced callers can pass an explicit ordered provider list and provider options:
+
+```python
+runtime = MathCraftRuntime(
+    providers=[
+        (
+            "TensorrtExecutionProvider",
+            {
+                "device_id": 0,
+                "trt_engine_cache_enable": True,
+                "trt_engine_cache_path": "./trt-cache",
+            },
+        ),
+        ("CUDAExecutionProvider", {"device_id": 0}),
+    ]
+)
+```
+
+`auto` deliberately prefers CUDA over TensorRT because TensorRT can spend substantial time building an engine on first use. Select `tensorrt` explicitly when its native runtime is installed; enable its engine cache for repeated startup performance.
 
 The actual provider is available on recognition results through the `provider` field. Doctor and warmup reports also expose `device_id`, `device_name`, `device_uuid`, and `device_verified` under `provider_info`. GPU sessions bind the reported `device_id` explicitly; `device_verified` becomes true only after the runtime confirms the device used by initialized inference sessions.
 

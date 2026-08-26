@@ -12,7 +12,6 @@ from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_g
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
-    MATHCRAFT_RUNTIME_LAYERS,
     _normalize_chosen_layers,
     _reorder_mathcraft_install_specs,
     _version_satisfies_spec,
@@ -24,7 +23,6 @@ from bootstrap.deps_runtime_verify import (
     _cleanup_orphan_onnxruntime_namespace,
     _cleanup_pip_interrupted_leftovers,
     _current_installed,
-    _fix_critical_versions,
     format_layer_verify_failure,
     _layer_verify_failure_diagnostics,
     onnxruntime_verify_failure_guidance,
@@ -33,6 +31,7 @@ from bootstrap.deps_runtime_verify import (
     _uninstall_package_if_present,
     _verify_layer_runtime,
     _verify_onnxruntime_runtime,
+    _verify_onnxruntime_with_support_repair,
 )
 from bootstrap.deps_state import load_json as _load_json, save_json as _save_json
 
@@ -255,9 +254,6 @@ class InstallWorker(QThread):
                     stop_event=self.stop_event,
                 )
 
-            if "CORE" in chosen_layers or any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
-                _fix_critical_versions(self.pyexe, self.log_updated.emit, use_mirror=self.mirror)
-
             runtime_ort_ok = True
             runtime_ort_err = ""
             if want_gpu_runtime:
@@ -273,8 +269,11 @@ class InstallWorker(QThread):
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime-gpu 运行时验证失败: {runtime_ort_err[:400]}")
             elif want_cpu_runtime:
-                runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_runtime(
-                    self.pyexe, expect_gpu=False, timeout=45
+                runtime_ort_ok, runtime_ort_err = _verify_onnxruntime_with_support_repair(
+                    self.pyexe,
+                    expect_gpu=False,
+                    log_fn=self.log_updated.emit,
+                    use_mirror=self.mirror,
                 )
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime CPU 运行时验证失败: {runtime_ort_err[:400]}")

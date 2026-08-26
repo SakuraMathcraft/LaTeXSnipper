@@ -9,9 +9,10 @@ from pathlib import Path
 from shutil import which
 
 
+DEPENDENCY_PYTHON_DIRNAME = "python"
 SUPPORTED_SYSTEM_PYTHON_MIN = (3, 10)
-SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 13)
-PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 12), (3, 11), (3, 10))
+SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 14)
+PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 13), (3, 12), (3, 11), (3, 10))
 _active_site_packages: str | None = None
 _active_dll_directory_handle = None
 
@@ -24,6 +25,12 @@ def supported_system_python_range_label() -> str:
     min_label = _version_label(SUPPORTED_SYSTEM_PYTHON_MIN)
     max_major, max_minor = SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE
     return f">={min_label},<{max_major}.{max_minor}"
+
+
+def dependency_venv_python(env_root: Path) -> Path:
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    executable = "python.exe" if os.name == "nt" else "python3"
+    return Path(env_root) / scripts_dir / executable
 
 
 def _supported_system_python_check() -> str:
@@ -146,8 +153,7 @@ def inject_private_python_paths(pyexe: Path) -> None:
 def _system_python3_score(pyexe: Path) -> int:
     """Return a suitability score for a system Python used to create a venv."""
     try:
-        path_text = str(pyexe).lower()
-        if os.name == "nt" and ("microsoft\\windowsapps" in path_text or "\\windowsapps\\python" in path_text):
+        if _is_windows_store_alias(pyexe):
             return 0
         if not pyexe.exists() or not pyexe.is_file():
             return 0
@@ -174,8 +180,8 @@ def _system_python3_score(pyexe: Path) -> int:
         return 0
 
 
-def find_system_python3() -> Path | None:
-    """Find a usable system Python 3 interpreter for creating dependency venvs."""
+def _system_python_candidates() -> list[Path]:
+    """Return deduplicated system Python candidates in preference order."""
     versioned_names = [f"python{major}.{minor}" for major, minor in PREFERRED_SYSTEM_PYTHON_VERSIONS]
     path_python = which("python3")
     path_versioned = [which(name) for name in versioned_names]
@@ -186,23 +192,27 @@ def find_system_python3() -> Path | None:
         windows_install_roots = []
         if local_appdata:
             windows_install_roots.extend([
-                Path(local_appdata) / "Programs" / "Python" / "Python311" / "python.exe",
+                Path(local_appdata) / "Programs" / "Python" / "Python313" / "python.exe",
                 Path(local_appdata) / "Programs" / "Python" / "Python312" / "python.exe",
+                Path(local_appdata) / "Programs" / "Python" / "Python311" / "python.exe",
                 Path(local_appdata) / "Programs" / "Python" / "Python310" / "python.exe",
             ])
         for root in (program_files, program_files_x86):
             if not root:
                 continue
             windows_install_roots.extend([
-                Path(root) / "Python311" / "python.exe",
+                Path(root) / "Python313" / "python.exe",
                 Path(root) / "Python312" / "python.exe",
+                Path(root) / "Python311" / "python.exe",
                 Path(root) / "Python310" / "python.exe",
             ])
         candidates = [
-            which("python3.11"),
-            which("python3.11.exe"),
+            which("python3.13"),
+            which("python3.13.exe"),
             which("python3.12"),
             which("python3.12.exe"),
+            which("python3.11"),
+            which("python3.11.exe"),
             which("python3.10"),
             which("python3.10.exe"),
             which("python"),
@@ -215,6 +225,9 @@ def find_system_python3() -> Path | None:
         ]
     elif sys.platform == "darwin":
         candidates = [
+            "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+            "/opt/homebrew/bin/python3.13",
+            "/usr/local/bin/python3.13",
             "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
             "/opt/homebrew/bin/python3.12",
             "/usr/local/bin/python3.12",
@@ -232,15 +245,19 @@ def find_system_python3() -> Path | None:
         ]
     else:
         candidates = [
+            "/usr/bin/python3.13",
+            "/usr/local/bin/python3.13",
+            "/opt/homebrew/bin/python3.13",
+            "/home/linuxbrew/.linuxbrew/bin/python3.13",
+            "/usr/bin/python3.12",
+            "/usr/local/bin/python3.12",
+            "/opt/homebrew/bin/python3.12",
+            "/home/linuxbrew/.linuxbrew/bin/python3.12",
             "/usr/bin/python3.11",
             "/usr/local/bin/python3.11",
             "/opt/homebrew/bin/python3.11",
             "/home/linuxbrew/.linuxbrew/bin/python3.11",
             *path_versioned,
-            "/usr/bin/python3.12",
-            "/usr/local/bin/python3.12",
-            "/opt/homebrew/bin/python3.12",
-            "/home/linuxbrew/.linuxbrew/bin/python3.12",
             "/usr/bin/python3.10",
             "/usr/local/bin/python3.10",
             "/opt/homebrew/bin/python3.10",
@@ -253,6 +270,7 @@ def find_system_python3() -> Path | None:
         ]
 
     seen: set[str] = set()
+    ordered: list[Path] = []
     for candidate in candidates:
         if not candidate:
             continue
@@ -264,11 +282,85 @@ def find_system_python3() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
+        ordered.append(p)
+    return ordered
 
+
+def find_system_python3() -> Path | None:
+    """Find a supported system Python with venv and ensurepip."""
+    for p in _system_python_candidates():
         score = _system_python3_score(p)
         if score >= 2:
             return p
     return None
+
+
+def system_python_unavailable_reason() -> str:
+    """Explain why no candidate can create the dependency environment."""
+    supported_but_incomplete: list[tuple[Path, tuple[int, int, int]]] = []
+    unsupported: list[tuple[Path, tuple[int, int, int]]] = []
+    for candidate in _system_python_candidates():
+        version = _python_candidate_version(candidate)
+        if version is None:
+            continue
+        major_minor = version[:2]
+        if SUPPORTED_SYSTEM_PYTHON_MIN <= major_minor < SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE:
+            supported_but_incomplete.append((candidate, version))
+        else:
+            unsupported.append((candidate, version))
+
+    version_range = supported_system_python_range_label()
+    if supported_but_incomplete:
+        path, version = supported_but_incomplete[0]
+        return (
+            f"检测到系统 Python {_format_python_version(version)}（{path}），版本位于支持范围 "
+            f"{version_range} 内，但缺少 venv/ensurepip，无法创建依赖环境。"
+        )
+    if unsupported:
+        path, version = unsupported[0]
+        return (
+            f"检测到系统 Python {_format_python_version(version)}（{path}），但版本不在支持范围 "
+            f"{version_range} 内，无法创建依赖环境。"
+        )
+    return f"未检测到可运行的系统 Python；需要 Python {version_range} 并提供 venv/ensurepip。"
+
+
+def _is_windows_store_alias(pyexe: Path) -> bool:
+    path_text = str(pyexe).lower()
+    return os.name == "nt" and (
+        "microsoft\\windowsapps" in path_text or "\\windowsapps\\python" in path_text
+    )
+
+
+def _python_candidate_version(pyexe: Path) -> tuple[int, int, int] | None:
+    if _is_windows_store_alias(pyexe) or not pyexe.exists() or not pyexe.is_file():
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                str(pyexe),
+                "-c",
+                "import sys; print('.'.join(str(x) for x in sys.version_info[:3]))",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            **_hidden_subprocess_kwargs(),
+        )
+        if proc.returncode != 0:
+            return None
+        parts = (proc.stdout or "").strip().split(".")
+        if len(parts) < 2:
+            return None
+        return int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def _format_python_version(version: tuple[int, int, int]) -> str:
+    return ".".join(str(part) for part in version)
 
 
 def is_usable_python(pyexe: Path) -> bool:
@@ -304,10 +396,8 @@ def iter_python_candidates(base_dir: Path) -> list[Path]:
         candidates.extend([
             base_dir / exe_name,
             base_dir / scripts_dir / exe_name,
-            base_dir / "python311" / exe_name,
-            base_dir / "python311" / scripts_dir / exe_name,
-            base_dir / "Python311" / exe_name,
-            base_dir / "Python311" / scripts_dir / exe_name,
+            base_dir / DEPENDENCY_PYTHON_DIRNAME / exe_name,
+            base_dir / DEPENDENCY_PYTHON_DIRNAME / scripts_dir / exe_name,
             base_dir / "python_full" / exe_name,
             base_dir / "venv" / scripts_dir / exe_name,
             base_dir / ".venv" / scripts_dir / exe_name,

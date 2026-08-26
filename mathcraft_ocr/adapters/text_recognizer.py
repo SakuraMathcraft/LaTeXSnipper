@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,7 +11,11 @@ from rapidocr import EngineType, LangRec, ModelType, OCRVersion
 from rapidocr.ch_ppocr_rec import TextRecInput, TextRecognizer
 from rapidocr.utils.typings import TaskType
 
-from .common import validate_session_provider
+from .common import create_session
+from ..providers import ProviderInfo
+
+
+logging.getLogger("RapidOCR").setLevel(logging.WARNING)
 
 
 class _Config(dict):
@@ -56,26 +61,13 @@ def recognize_pp_text_lines(
 
 def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer:
     model_dir = model_dir.resolve()
-    active_provider = str(getattr(provider_info, "active_provider", "") or "")
-    device_id = int(getattr(provider_info, "device_id", 0) or 0)
-    use_cuda = active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
-    use_dml = active_provider == "DmlExecutionProvider"
-    return _create_pp_text_recognizer_cached(
-        str(model_dir),
-        active_provider,
-        device_id,
-        use_cuda,
-        use_dml,
-    )
+    return _create_pp_text_recognizer_cached(str(model_dir), provider_info)
 
 
 @lru_cache(maxsize=8)
 def _create_pp_text_recognizer_cached(
     model_dir: str,
-    active_provider: str,
-    device_id: int,
-    use_cuda: bool,
-    use_dml: bool,
+    provider_info: ProviderInfo,
 ) -> TextRecognizer:
     model_dir = Path(model_dir)
     model_candidates = sorted(model_dir.glob("**/*rec*.onnx"))
@@ -89,6 +81,7 @@ def _create_pp_text_recognizer_cached(
     is_server = "server" in model_name or "server" in model_dir.name
     is_v5 = "v5" in model_name or "v5" in model_dir.name
     is_english = dict_path.name == "en_dict.txt"
+    session = create_session(model_path, provider_info)
     config = _Config({
         "engine_type": EngineType.ONNXRUNTIME,
         "lang_type": LangRec.EN if is_english else LangRec.CH,
@@ -101,51 +94,10 @@ def _create_pp_text_recognizer_cached(
         "rec_img_shape": [3, 48, 320],
         "rec_batch_num": 6,
         "font_path": None,
-        "engine_cfg": {
-            "intra_op_num_threads": -1,
-            "inter_op_num_threads": -1,
-            "enable_cpu_mem_arena": False,
-            "cpu_ep_cfg": {"arena_extend_strategy": "kSameAsRequested"},
-            "use_cuda": use_cuda,
-            "cuda_ep_cfg": {
-                "device_id": device_id,
-                "arena_extend_strategy": "kNextPowerOfTwo",
-                "cudnn_conv_algo_search": "EXHAUSTIVE",
-                "do_copy_in_default_stream": True,
-            },
-            "use_dml": use_dml,
-            "dm_ep_cfg": {"device_id": device_id},
-            "use_cann": False,
-            "cann_ep_cfg": {
-                "device_id": 0,
-                "arena_extend_strategy": "kNextPowerOfTwo",
-                "npu_mem_limit": 21474836480,
-                "op_select_impl_mode": "high_performance",
-                "optypelist_for_implmode": "Gelu",
-                "enable_cann_graph": True,
-            },
-        },
+        "session": session,
+        "engine_cfg": {},
     })
-    recognizer = TextRecognizer(config)
-    _enforce_strict_provider(recognizer, active_provider, device_id)
-    return recognizer
-
-
-def _enforce_strict_provider(
-    recognizer: TextRecognizer,
-    active_provider: str,
-    device_id: int = 0,
-) -> None:
-    engine = getattr(recognizer, "session", None)
-    session = getattr(engine, "session", None)
-    if session is None:
-        raise RuntimeError("RapidOCR did not expose its ONNX Runtime session")
-    validate_session_provider(
-        session,
-        active_provider,
-        device_id,
-        runtime_name="RapidOCR",
-    )
+    return TextRecognizer(config)
 
 
 def clear_text_recognizer_cache() -> None:

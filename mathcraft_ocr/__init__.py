@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.2.8"
+__version__ = "0.2.9"
 
 __all__ = [
     "DoctorReport",
@@ -12,6 +12,8 @@ __all__ = [
     "MathCraftRuntime",
     "MixedRecognitionResult",
     "OCRRegion",
+    "ProviderInfo",
+    "ProviderSpec",
     "__version__",
     "run_doctor",
 ]
@@ -32,6 +34,10 @@ def __getattr__(name: str) -> object:
         from . import doctor
 
         return getattr(doctor, name)
+    if name in {"ProviderInfo", "ProviderSpec"}:
+        from . import providers
+
+        return getattr(providers, name)
     if name == "MathCraftError":
         from .errors import MathCraftError
 

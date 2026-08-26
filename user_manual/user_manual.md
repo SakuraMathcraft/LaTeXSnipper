@@ -92,7 +92,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 - **Windows：** 确保以普通用户（非管理员）运行，且杀毒软件未拦截
 - **Linux：** 确保 `python3 -m venv` 可用（Debian/Ubuntu 通常需要 `python3-venv`）
-- **macOS：** 确保有可用的 Python `>=3.10,<3.13`，推荐 Homebrew Python 或 python.org 官方 3.11/3.12 安装包
+- **macOS：** 确保有可用的 Python `>=3.10,<3.14`，推荐 Homebrew Python 或 python.org 官方 Python 3.10-3.13 安装包
 
 ### 软件的基本工作流
 
@@ -280,8 +280,9 @@ API 开关在后台执行，开启本身不会加载或预热 MathCraft。服务
 **解决：**
 
 - `pip uninstall onnxruntime onnxruntime-gpu` 全部卸载后重新安装
-- 如需 GPU 加速：`pip install onnxruntime-gpu`
-- 仅 CPU：`pip install onnxruntime`
+- LaTeXSnipper 用户优先通过依赖向导重装，向导会按 CUDA 11/12/13 选择官方稳定运行时
+- 手动安装 CUDA 13：`pip install "onnxruntime-gpu>=1.27,<1.30"`；CUDA 12：`pip install "onnxruntime-gpu>=1.21,<1.27"`
+- 仅 CPU：`pip install "onnxruntime>=1.20,<1.30"`
 
 ### CUDA / GPU 相关错误
 
@@ -461,7 +462,7 @@ API 开关在后台执行，开启本身不会加载或预热 MathCraft。服务
 **解决：**
 
 - **普通 Windows 安装包用户：** 不需要单独安装 Python，安装包自带规范化的 Python 3.11 模板环境。
-- **Linux/macOS 安装包用户：** 需要系统中有可用 Python `>=3.10,<3.13`，仅用于创建用户目录下的隔离依赖环境。
+- **Linux/macOS 安装包用户：** 需要系统中有可用 Python `>=3.10,<3.14`，仅用于创建用户目录下的隔离依赖环境。
 - **源码运行/开发者：** 推荐 Python 3.11，与当前 Windows 打包环境保持一致。
 
 ```bash
@@ -515,7 +516,7 @@ macOS:  ~/Library/Application Support/LaTeXSnipper/deps
 依赖根内的常见子目录如下：
 
 ```text
-<依赖根>/python311         主依赖 Python/venv
+<依赖根>/python            主依赖 Python/venv
 ```
 
 共享工具目录如下：
@@ -544,7 +545,7 @@ https://www.python.org/downloads/macos/
 
 **现象：** `pip install -r requirements.txt` 报错。
 
-依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.12）创建隔离环境。
+依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.13）创建隔离环境。
 
 **原因：**
 
@@ -789,7 +790,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 | 截图实现 | Qt 框选截图 | Qt 优先，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退 | Qt 优先，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限 |
 | 关闭窗口 / 后台常驻 | 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出 | 有系统托盘时关闭主窗口会隐藏到托盘；没有托盘时会询问是否退出 | 关闭主窗口会最小化并保持应用运行；Dock 或菜单栏"退出"才真正退出 |
 | 权限要求 | 普通截图路径不需要额外系统权限 | Wayland 可能限制截图和全局快捷键 | 截图需要屏幕录制权限；Carbon 全局快捷键通常不需要辅助功能权限 |
-| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python `>=3.10,<3.13` 创建 venv |
+| 依赖环境 | 默认依赖根为 `<安装目录>\_internal\deps`，可切换 | 默认依赖根为 `~/.latexsnipper/deps`，可切换，需要系统 Python `>=3.10,<3.14` 创建 venv | 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换，需要系统 Python `>=3.10,<3.14` 创建 venv |
 | 安装包 | Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包 | Debian/Ubuntu `.deb` | `.dmg` / `.app.zip` |
 
 快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`。macOS 接受非系统保留的 `Command+字母` / `Command+Shift+字母`，并支持 `Option+Command` 组合；`Command+Q/H/M/W/A/C/V/X/Z/Space/Tab` 和系统截图键会被拒绝。若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
@@ -867,7 +868,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 **现象：** 依赖向导提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
 
-**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python `>=3.10,<3.13` 在活动依赖根下创建 `python311`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
+**原因：** macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python `>=3.10,<3.14` 在活动依赖根下创建 `python`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
 
 **解决：**
 
@@ -889,7 +890,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
   macOS:    ~/Library/Application Support/LaTeXSnipper/deps（默认，可切换）
 
 依赖根内：
-  python311         主依赖 Python/venv
+  python            主依赖 Python/venv
 
 共享工具目录：
   <应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
@@ -1033,7 +1034,7 @@ py -3.11 -m venv tools\deps\python311
 > - `tools/deps/python311/` — 开发、检查、构建环境。
 > - `~/.latexsnipper/deps` — Linux 默认运行时依赖根。
 > - `~/Library/Application Support/LaTeXSnipper/deps` — macOS 默认运行时依赖根。
-> - `<依赖根>/python311` — 程序创建的主 Python 依赖环境。
+> - `<依赖根>/python` — 程序创建的主 Python 依赖环境。
 > - `<应用状态目录>/tools/pandoc` — 程序创建的共享工具目录，切换依赖根后继续复用。
 
 ### 开发者验证命令注意事项
@@ -1928,11 +1929,13 @@ MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识�
 
 ```bash
 pip install "mathcraft-ocr[cpu]"
-# 或 GPU 环境：
+# CUDA 13（Python 3.11+）：
 pip install "mathcraft-ocr[gpu]"
+# CUDA 12：
+pip install "mathcraft-ocr[gpu-cu12]"
 ```
 
-单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。在 LaTeXSnipper 中使用时，通常通过依赖向导自动安装。
+单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。CUDA 11 还需使用 ONNX Runtime 官方 CUDA 11 feed。在 LaTeXSnipper 中使用时，通常通过依赖向导自动安装。
 
 **命令行使用：**
 
