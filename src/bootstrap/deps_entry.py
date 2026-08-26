@@ -31,12 +31,15 @@ from bootstrap.download_progress import format_transfer_speed, parse_pip_transfe
 from bootstrap.models import DependencyPlan
 from bootstrap.progress_dialog import InstallProgressDialog
 from runtime.dependency_runtime import (
+    DEPENDENCY_PYTHON_DIRNAME,
+    dependency_venv_python as _dependency_venv_python,
     find_existing_python as _find_existing_python,
     find_system_python3 as _find_system_python3,
     inject_private_python_paths as _inject_private_python_paths,
     is_usable_python as _is_usable_python,
     site_packages_root as _site_packages_root,
     supported_system_python_range_label as _supported_system_python_range_label,
+    system_python_unavailable_reason as _system_python_unavailable_reason,
 )
 from bootstrap.deps_pip_runner import _terminate_process
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal
@@ -220,7 +223,7 @@ def _system_python_install_hint(reason: str) -> str:
     ]
     if os.name == "nt":
         lines.extend([
-            "  python.org：安装 Python 3.11 或 3.12，并勾选 Add python.exe to PATH",
+            "  python.org：安装 Python 3.10-3.13，并勾选 Add python.exe to PATH",
             "  winget：    winget install Python.Python.3.11",
             "  安装后请重新打开 LaTeXSnipper，再点击下载/安装。",
         ])
@@ -237,12 +240,6 @@ def _system_python_install_hint(reason: str) -> str:
             "  Arch：          sudo pacman -S python",
         ])
     return "\n".join(lines)
-
-
-def _dependency_python_path(py_root: Path) -> Path:
-    bin_dir = "Scripts" if os.name == "nt" else "bin"
-    exe_name = "python.exe" if os.name == "nt" else "python3"
-    return py_root / bin_dir / exe_name
 
 
 def _install_failure_dialog_copy() -> tuple[str, str]:
@@ -262,14 +259,15 @@ def _setup_python_venv_from_system(
     log_fn=print,
     stop_event: threading.Event | None = None,
     proc_setter=None,
-) -> bool:
+) -> tuple[bool, str]:
     """Create a Python venv at target_dir using a supported system Python."""
     import time
 
     system_python = _find_system_python3()
     if system_python is None:
-        log_fn("[WARN] 未找到系统 Python 3，无法创建 venv")
-        return False
+        reason = _system_python_unavailable_reason()
+        log_fn(f"[ERR] {reason}")
+        return False, reason
 
     target_dir.mkdir(parents=True, exist_ok=True)
     log_fn(f"[INFO] 使用系统 Python 创建 venv: {system_python} -> {target_dir}")
@@ -292,7 +290,7 @@ def _setup_python_venv_from_system(
             if stop_event is not None and stop_event.is_set():
                 _terminate_process(proc)
                 log_fn("[INFO] 用户取消虚拟环境初始化。")
-                return False
+                return False, "Python 依赖环境初始化已取消"
             ret = proc.poll()
             if ret is not None:
                 break
@@ -302,9 +300,11 @@ def _setup_python_venv_from_system(
         output = proc.stdout.read() if proc.stdout else ""
         if ret == 0:
             log_fn(f"[INFO] Python 依赖环境创建成功: {target_dir}")
-            return True
-        log_fn(f"[WARN] venv 创建失败: {output[-500:]}")
-        return False
+            return True, ""
+        detail = output[-500:].strip()
+        reason = f"系统 Python {system_python} 创建 venv 失败"
+        log_fn(f"[WARN] {reason}: {detail}")
+        return False, reason
     except subprocess.TimeoutExpired:
         log_fn(f"[WARN] venv 创建超时（{timeout} 秒）")
         try:
@@ -312,10 +312,10 @@ def _setup_python_venv_from_system(
                 _terminate_process(proc)
         except Exception:
             pass
-        return False
+        return False, f"venv 创建超时（{timeout} 秒）"
     except Exception as e:
         log_fn(f"[WARN] venv 创建异常: {e}")
-        return False
+        return False, f"venv 创建异常: {e}"
     finally:
         if proc_setter is not None:
             proc_setter(None)
@@ -344,14 +344,14 @@ class PythonVenvInitWorker(QThread):
         try:
             self.status_updated.emit("正在初始化 Python 依赖环境...")
             self.progress_updated.emit(5)
-            ok = _setup_python_venv_from_system(
+            ok, error = _setup_python_venv_from_system(
                 self.target_dir,
                 log_fn=self.log_updated.emit,
                 stop_event=self.stop_event,
                 proc_setter=lambda proc: setattr(self, "proc", proc),
             )
             if not ok or self.stop_event.is_set():
-                self.done.emit(False, "无法创建 Python 虚拟环境")
+                self.done.emit(False, error or "Python 依赖环境初始化已取消")
                 return
             self.progress_updated.emit(25)
             self.status_updated.emit("正在初始化 pip 工具链...")
@@ -434,14 +434,13 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         return True
 
     is_frozen = getattr(sys, 'frozen', False)
-    _DEFAULT_PYEXE_NAME = "python.exe" if os.name == "nt" else "python3"
     if is_frozen:
         # Packaged: runtime stays bundled, but dependency wizard should only treat
         # a python inside deps_dir as reusable. Missing deps python must remain
         # visible to the UI so the user can initialize it from the wizard.
-        py_root = Path(deps_dir) / "python311"
+        py_root = Path(deps_dir) / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
+        pyexe = existing_pyexe or _dependency_venv_python(py_root)
         if existing_pyexe and existing_pyexe.exists():
             print(f"[DEBUG] 使用依赖目录 Python: {pyexe}")
             use_bundled_python = False
@@ -450,9 +449,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             use_bundled_python = True
     else:
 
-        py_root = Path(deps_dir) / "python311"
+        py_root = Path(deps_dir) / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(Path(deps_dir))
-        pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
+        pyexe = existing_pyexe or _dependency_venv_python(py_root)
         deps_dir_resolved = str(Path(deps_dir).resolve())
 
 
@@ -581,10 +580,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         pip_ready_event.clear()
         deps_dir = str(_normalize_deps_base_dir(Path(target_deps_dir or deps_dir)))
         deps_path = Path(deps_dir)
-        py_root = deps_path / "python311"
+        py_root = deps_path / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(deps_path)
         if is_frozen:
-            pyexe = existing_pyexe or (py_root / _DEFAULT_PYEXE_NAME)
+            pyexe = existing_pyexe or _dependency_venv_python(py_root)
             use_bundled = not (existing_pyexe and existing_pyexe.exists())
         else:
             deps_dir_resolved = str(deps_path.resolve())
@@ -595,7 +594,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 pyexe = existing_pyexe
                 use_bundled = False
             else:
-                pyexe = py_root / _DEFAULT_PYEXE_NAME
+                pyexe = _dependency_venv_python(py_root)
                 use_bundled = True
         _apply_runtime_context(pyexe)
         state_path = deps_path / STATE_FILE
@@ -663,7 +662,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     return True
 
             print(f"[DEBUG] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
-            py_root = deps_path / "python311"
+            py_root = deps_path / DEPENDENCY_PYTHON_DIRNAME
             need_install = bool(chosen_layers)
 
         if need_install:
@@ -684,7 +683,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         always_show_ui = True
                         continue
 
-                    pyexe = _dependency_python_path(py_root)
+                    pyexe = _dependency_venv_python(py_root)
                     init_python_required = True
 
                 RESULT_BACK_TO_WIZARD = 1001
@@ -1008,9 +1007,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         show_info_bar(
                             dlg,
                             "初始化失败",
-                            _system_python_install_hint(
-                                "无法使用系统 Python 创建可用的依赖环境。"
-                            ),
+                            _system_python_install_hint(message),
                             "error",
                             7000,
                         )

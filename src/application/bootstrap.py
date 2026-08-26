@@ -18,12 +18,12 @@ from runtime.native_runtime_preload import (
     configure_native_runtime_environment,
     preload_onnxruntime_before_qt,
 )
+from runtime.dependency_runtime import DEPENDENCY_PYTHON_DIRNAME, dependency_venv_python
 from application.python_runtime_resolver import (
     APP_DIR,
     _append_private_site_packages,
     _clean_bad_env,
     _config_path,
-    _default_python_exe_name,
     _find_install_base_python,
     _in_ide,
     _initial_deps_dir,
@@ -107,7 +107,9 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
         return
 
     py_exe_path = _find_install_base_python(install_base_dir)
-    py_exe = py_exe_path if py_exe_path is not None else (install_base_dir / "python311" / _default_python_exe_name())
+    py_exe = py_exe_path if py_exe_path is not None else dependency_venv_python(
+        install_base_dir / DEPENDENCY_PYTHON_DIRNAME
+    )
 
     if not py_exe.exists():
         print(f"[WARN] 依赖目录 Python 不存在，继续使用内置运行时: {py_exe}")
@@ -161,7 +163,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     ensure_startup_splash("准备运行环境...")
     target_py = ensure_full_python_or_prompt(base_dir)
     if not target_py:
-        print("[ERR] 未找到可用的完整 Python 3.11。")
+        print("[ERR] 未找到可用的完整依赖环境 Python。")
         raise SystemExit(2)
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py

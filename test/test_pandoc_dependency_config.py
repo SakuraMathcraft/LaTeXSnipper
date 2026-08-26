@@ -83,8 +83,8 @@ def test_pandoc_tool_is_installed_under_app_tools_root(tmp_path, monkeypatch) ->
     expected = app_state / "tools" / "pandoc"
     assert deps_pandoc._pandoc_data_dir(str(python_exe)) == expected
     assert deps_pandoc._pandoc_data_dir(str(scripts_python)) == expected
-    assert dependency_root_from_python(dependency_root / "python311" / "python.exe") == dependency_root
-    assert dependency_root_from_python(dependency_root / "python311" / "Scripts" / "python.exe") == dependency_root
+    assert dependency_root_from_python(dependency_root / "python" / "python.exe") == dependency_root
+    assert dependency_root_from_python(dependency_root / "python" / "Scripts" / "python.exe") == dependency_root
 
 
 def test_pandoc_exporter_ignores_unmanaged_binary_in_working_directory(tmp_path, monkeypatch) -> None:

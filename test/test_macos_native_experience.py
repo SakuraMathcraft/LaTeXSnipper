@@ -41,12 +41,12 @@ def test_macos_dependency_wizard_hides_nvidia_cuda_gpu_option(monkeypatch) -> No
 def test_dependency_failure_guidance_is_concise_and_platform_neutral() -> None:
     from bootstrap import deps_workers
 
-    text = "\n".join(deps_workers._install_failure_guidance(["lxml~=4.9.3"], 1, 2))
+    text = "\n".join(deps_workers._install_failure_guidance(["lxml>=6.1,<7"], 1, 2))
 
     assert "CMD" not in text
     assert "管理员" not in text
     assert "pip install" not in text
-    assert "lxml~=4.9.3" in text
+    assert "lxml>=6.1,<7" in text
     assert "重试" in text
 
 

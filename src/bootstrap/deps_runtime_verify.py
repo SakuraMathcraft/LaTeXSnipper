@@ -16,16 +16,16 @@ from bootstrap.deps_context import (
 )
 from bootstrap.deps_pip_runner import PipInstallRunner
 from runtime.dependency_runtime import site_packages_root as _site_packages_root
-from bootstrap.deps_layer_specs import _diagnose_install_failure, _version_satisfies_spec, layer_display_name
+from bootstrap.deps_layer_specs import _diagnose_install_failure, layer_display_name
 from runtime.app_paths import app_config_path
 
 
-CRITICAL_VERSIONS = {
-    "numpy": "numpy>=1.26,<3",
-    "flatbuffers": "flatbuffers>=24.3.25",
-    "packaging": "packaging>=23",
+RUNTIME_SUPPORT_SPECS = {
+    "numpy": "numpy>=2,<3",
+    "flatbuffers": "flatbuffers>=24.3.25,<26",
+    "packaging": "packaging>=25,<27",
     "rapidocr": "rapidocr==3.5.0",
-    "protobuf": "protobuf>=3.20,<5",
+    "protobuf": "protobuf>=4.25,<5",
 }
 
 VERIFY_LOG_DETAIL_LIMIT = 2000
@@ -217,7 +217,7 @@ def _force_repair_broken_runtime_imports(
             return True, ""
         last_err = err
         pkg = (err.split(":", 1)[0] if err else "").strip().lower()
-        spec = CRITICAL_VERSIONS.get(pkg)
+        spec = RUNTIME_SUPPORT_SPECS.get(pkg)
         if not spec:
             return False, err
 
@@ -260,67 +260,6 @@ def _force_repair_broken_runtime_imports(
 
     ok, err = _verify_runtime_support_imports(pyexe)
     return ok, err or last_err
-
-
-def _fix_critical_versions(pyexe: str, log_fn=None, use_mirror: bool = False) -> bool:
-    """Force critical dependency versions after installation."""
-    import subprocess
-
-    if log_fn:
-        log_fn("[INFO] 正在检查关键依赖版本...")
-
-    _cleanup_pip_interrupted_leftovers(pyexe, log_fn)
-
-    installed_before = _current_installed(pyexe)
-
-    for pkg, spec in CRITICAL_VERSIONS.items():
-        try:
-            cur = installed_before.get(pkg)
-            if cur and _version_satisfies_spec(pkg, cur, spec):
-                continue
-
-            cmd = [str(pyexe), "-m", "pip", "install", spec, "--upgrade", "--no-deps", *PIP_INSTALL_SUPPRESS_ARGS]
-            if use_mirror:
-                cmd += ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]
-            timeout_sec = 180
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout_sec,
-                creationflags=flags,
-            )
-            if log_fn:
-                if result.returncode == 0:
-                    log_fn(f"[INFO] 已修复 {pkg} → {spec.split('==')[-1] if '==' in spec else spec}")
-                else:
-                    err = (result.stderr or result.stdout or "").strip().replace("\r", "")
-                    log_fn(f"  [WARN] 修复 {pkg} 失败: {err[:240]}")
-        except subprocess.TimeoutExpired:
-            if log_fn:
-                log_fn(f"  [WARN] 修复 {pkg} 超时，已跳过")
-        except Exception as e:
-            if log_fn:
-                log_fn(f"  [WARN] 修复 {pkg} 异常: {e}")
-
-    if log_fn:
-        log_fn("[INFO] 关键依赖版本检查完成")
-
-    ok, err = _verify_runtime_support_imports(pyexe)
-    if not ok:
-        ok, err = _force_repair_broken_runtime_imports(
-            pyexe,
-            log_fn=log_fn,
-            use_mirror=use_mirror,
-        )
-    if log_fn:
-        if ok:
-            log_fn("[INFO] ONNX Runtime 支撑依赖导入检查通过")
-        else:
-            log_fn(f"[WARN] ONNX Runtime 关键依赖仍不可用: {err[:400]}")
-    return ok
 
 
 _CORE_VERIFY_CODE = """
@@ -685,6 +624,31 @@ def _uninstall_package_if_present(pyexe: str, pkg_name: str, installed_map: dict
         return False
 
 
+def _verify_onnxruntime_with_support_repair(
+    pyexe: str,
+    *,
+    expect_gpu: bool,
+    log_fn,
+    use_mirror: bool = False,
+) -> tuple[bool, str]:
+    """Repair only a support package whose import breaks ONNX Runtime."""
+    ort_ok, ort_err = _verify_onnxruntime_runtime(pyexe, expect_gpu=expect_gpu, timeout=45)
+    if ort_ok:
+        return True, ""
+
+    backend_label = "GPU" if expect_gpu else "CPU"
+    log_fn(f"[WARN] onnxruntime {backend_label} 运行时异常，检查 ONNX 支撑依赖: {ort_err}")
+    support_ok, support_err = _force_repair_broken_runtime_imports(
+        pyexe,
+        log_fn=log_fn,
+        use_mirror=use_mirror,
+    )
+    if not support_ok:
+        log_fn(f"[WARN] ONNX 支撑依赖仍不可用: {support_err[:400]}")
+
+    return _verify_onnxruntime_runtime(pyexe, expect_gpu=expect_gpu, timeout=45)
+
+
 def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, pause_event, log_q,
                                     use_mirror: bool = False, proc_setter=None) -> tuple[bool, str]:
     installed_now = _current_installed(pyexe)
@@ -697,20 +661,16 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
             log_fn=log_q.put,
         )
 
-    ort_ok, ort_err = _verify_onnxruntime_runtime(pyexe, expect_gpu=True, timeout=45)
+    ort_ok, ort_err = _verify_onnxruntime_with_support_repair(
+        pyexe,
+        expect_gpu=True,
+        log_fn=log_q.put,
+        use_mirror=use_mirror,
+    )
     if ort_ok:
         return True, ""
 
-    log_q.put(f"[WARN] onnxruntime-gpu 运行时异常，先修复 ONNX 关键依赖链: {ort_err}")
-    _fix_critical_versions(pyexe, log_q.put, use_mirror=use_mirror)
-
-    ort_ok_after_deps, ort_err_after_deps = _verify_onnxruntime_runtime(
-        pyexe, expect_gpu=True, timeout=45
-    )
-    if ort_ok_after_deps:
-        return True, ""
-
-    log_q.put(f"[WARN] ONNX 关键依赖修复后仍异常，刷新 onnxruntime-gpu 本体: {ort_err_after_deps}")
+    log_q.put(f"[WARN] ONNX 运行时仍异常，刷新 onnxruntime-gpu 本体: {ort_err}")
     repaired = _pip_install(
         pyexe,
         ort_gpu_spec,
@@ -722,10 +682,10 @@ def _repair_gpu_onnxruntime_runtime(pyexe: str, ort_gpu_spec: str, stop_event, p
         proc_setter=proc_setter,
     )
     if not repaired:
-        return False, ort_err_after_deps or ort_err
+        return False, ort_err
 
     ort_ok2, ort_err2 = _verify_onnxruntime_runtime(pyexe, expect_gpu=True, timeout=45)
-    return ort_ok2, (ort_err2 or ort_err_after_deps or ort_err)
+    return ort_ok2, (ort_err2 or ort_err)
 
 
 def _current_installed(pyexe):

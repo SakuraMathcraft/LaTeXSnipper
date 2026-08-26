@@ -307,8 +307,6 @@ class PipInstallRunner:
         manual_cmd = f'"{pyexe}" -m pip install "{pkg}" --upgrade'
         if name in {"onnxruntime", "onnxruntime-gpu"}:
             manual_cmd += " --no-deps"
-        if ort_gpu_policy is not None and ort_gpu_policy.pre:
-            manual_cmd += " --pre"
         if ort_gpu_policy is not None and ort_gpu_policy.index_url:
             manual_cmd += f" -i {ort_gpu_policy.index_url}"
         return manual_cmd
@@ -321,10 +319,6 @@ class PipInstallRunner:
                 f"CUDA {ort_gpu_policy.cuda.version_text} -> {ort_gpu_policy.requirement} "
                 f"({ort_gpu_policy.source_label})"
             )
-            if ort_gpu_policy.warning:
-                self.log_q.put(f"[WARN] {ort_gpu_policy.warning}")
-        if ort_gpu_policy is not None and ort_gpu_policy.pre:
-            args.append("--pre")
 
         if name in {"protobuf"}:
             args.append("--force-reinstall")
@@ -380,6 +374,9 @@ class PipInstallRunner:
         ort_gpu_policy = None
         if name == "onnxruntime-gpu" and callable(self.onnxruntime_gpu_policy):
             ort_gpu_policy = self.onnxruntime_gpu_policy(pyexe)
+            if getattr(ort_gpu_policy, "error", ""):
+                self.log_q.put(f"[ERR] {ort_gpu_policy.error}")
+                return False
             pkg = ort_gpu_policy.requirement
             name = self._root_name(pkg)
         if name in {"onnxruntime", "onnxruntime-gpu"} and callable(self.cleanup_orphan_onnxruntime_namespace):

@@ -6,7 +6,7 @@ import importlib
 from functools import lru_cache
 from pathlib import Path
 
-from ..providers import GPU_PROVIDER_NAMES, ProviderInfo
+from ..providers import ACCELERATOR_PROVIDER_NAMES, ProviderInfo
 
 
 ProviderOptions = tuple[tuple[str, str], ...]
@@ -17,12 +17,14 @@ def _ort():
     return importlib.import_module("onnxruntime")
 
 
-def session_providers(provider_info: ProviderInfo) -> list[str | tuple[str, dict[str, int]]]:
+def session_providers(provider_info: ProviderInfo) -> list[str | tuple[str, dict[str, object]]]:
+    if provider_info.provider_specs:
+        return [spec.as_ort_provider() for spec in provider_info.provider_specs]
     available = list(provider_info.available_providers)
     active = provider_info.active_provider
-    if active and active in GPU_PROVIDER_NAMES and "CPUExecutionProvider" in available:
+    if active and active in ACCELERATOR_PROVIDER_NAMES and "CPUExecutionProvider" in available:
         return [(active, {"device_id": int(provider_info.device_id or 0)}), "CPUExecutionProvider"]
-    if active and active in GPU_PROVIDER_NAMES:
+    if active and active in ACCELERATOR_PROVIDER_NAMES:
         return [(active, {"device_id": int(provider_info.device_id or 0)})]
     if "CPUExecutionProvider" in available:
         return ["CPUExecutionProvider"]
@@ -44,15 +46,34 @@ def _create_session_cached(model_path: str, providers: tuple[ProviderConfig, ...
         (name, {key: value for key, value in options}) if options else name
         for name, options in providers
     ]
-    return ort.InferenceSession(
-        model_path,
-        providers=configured,
-        enable_fallback=False,
-    )
+    kwargs = {
+        "providers": configured,
+        "enable_fallback": False,
+    }
+    session_options = _session_options(ort, providers)
+    if session_options is not None:
+        kwargs["sess_options"] = session_options
+    return ort.InferenceSession(model_path, **kwargs)
+
+
+def _session_options(ort, providers: tuple[ProviderConfig, ...]):
+    create_options = getattr(ort, "SessionOptions", None)
+    if not callable(create_options):
+        return None
+    session_options = create_options()
+    session_options.log_severity_level = 4
+    names = {name for name, _options in providers}
+    if "DmlExecutionProvider" not in names:
+        return session_options
+    session_options.enable_mem_pattern = False
+    execution_mode = getattr(getattr(ort, "ExecutionMode", None), "ORT_SEQUENTIAL", None)
+    if execution_mode is not None:
+        session_options.execution_mode = execution_mode
+    return session_options
 
 
 def _freeze_provider_config(
-    providers: list[str | tuple[str, dict[str, int]]],
+    providers: list[str | tuple[str, dict[str, object]]],
 ) -> tuple[ProviderConfig, ...]:
     frozen: list[ProviderConfig] = []
     for item in providers:
@@ -82,12 +103,12 @@ def validate_session_provider(
     actual = list(session.get_providers() or [])
     active = str(active_provider or "")
     if not actual or actual[0] != active:
-        provider_kind = "ONNX GPU provider" if active in GPU_PROVIDER_NAMES else "ONNX provider"
+        provider_kind = "ONNX accelerator provider" if active in ACCELERATOR_PROVIDER_NAMES else "ONNX provider"
         raise RuntimeError(
             f"requested {provider_kind} {active or '<none>'}, "
             f"but {runtime_name} session providers are {actual}"
         )
-    if active in GPU_PROVIDER_NAMES:
+    if active in {"CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider"}:
         get_options = getattr(session, "get_provider_options", None)
         if callable(get_options):
             options_by_provider = get_options() or {}

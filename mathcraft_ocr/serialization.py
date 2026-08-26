@@ -67,6 +67,7 @@ def mixed_result_to_json(result: MixedRecognitionResult) -> dict:
 def provider_info_to_json(provider_info) -> dict:
     return {
         "available_providers": list(provider_info.available_providers),
+        "requested_providers": list(provider_info.requested_providers),
         "active_provider": provider_info.active_provider,
         "device": provider_info.device,
         "device_id": provider_info.device_id,
@@ -77,6 +78,9 @@ def provider_info_to_json(provider_info) -> dict:
         "gpu_runtime_ok": provider_info.gpu_runtime_ok,
         "use_cuda": provider_info.use_cuda,
         "use_dml": provider_info.use_dml,
+        "use_tensorrt": provider_info.use_tensorrt,
+        "use_coreml": provider_info.use_coreml,
+        "use_openvino": provider_info.use_openvino,
     }
 
 

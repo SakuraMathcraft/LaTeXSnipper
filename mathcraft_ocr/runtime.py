@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -56,7 +57,7 @@ from .profiles import (
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
 )
-from .providers import ProviderInfo, confirm_provider_device
+from .providers import ProviderInfo, ProviderRequest, confirm_provider_device
 from .results import Box4P, FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
 
 
@@ -98,6 +99,7 @@ class MathCraftRuntime:
         *,
         cache_dir: str | Path | None = None,
         provider_preference: str = "auto",
+        providers: Sequence[ProviderRequest] | None = None,
         manifest: Manifest | None = None,
         bundled_models_dir: str | Path | None = None,
         auto_download: bool = True,
@@ -106,6 +108,7 @@ class MathCraftRuntime:
         self.bundled_models_dir = Path(bundled_models_dir) if bundled_models_dir else None
         self.model_roots = resolve_model_roots(cache_dir, bundled_models_dir)
         self.provider_preference = provider_preference
+        self.providers = tuple(providers) if providers is not None else None
         self.manifest = manifest or load_manifest()
         self.auto_download = auto_download
         self._warmup_cache: dict[str, WarmupPlan] = {}
@@ -131,6 +134,7 @@ class MathCraftRuntime:
             bundled_models_dir=self.bundled_models_dir,
             manifest=self.manifest,
             provider_preference=self.provider_preference,
+            providers=self.providers,
         )
 
     def doctor(self) -> DoctorReport:

@@ -39,7 +39,7 @@ the user switches Python dependency roots.
 | Data | Windows | Linux | macOS | Cleanup owner |
 |---|---|---|---|---|
 | Bundled Windows Python template | `<install-dir>\_internal\deps\python311` | Not bundled | Not bundled | Windows uninstaller removes installed `_internal` unconditionally |
-| Active dependency Python | `<dependency-root>\python311` or another reusable Python/venv selected by the user | `<dependency-root>/python311` or another reusable Python/venv selected by the user | `<dependency-root>/python311` or another reusable Python/venv selected by the user | Not removed automatically after the user changes the dependency root |
+| Active dependency Python | `<dependency-root>\python` or another reusable Python/venv selected by the user | `<dependency-root>/python` or another reusable Python/venv selected by the user | `<dependency-root>/python` or another reusable Python/venv selected by the user | Not removed automatically after the user changes the dependency root |
 | Default packaged dependency root | Windows starts with installed `_internal\deps` for the bundled Python template | `~/.latexsnipper/deps` | `~/Library/Application Support/LaTeXSnipper/deps` | Windows `_internal` is removed by the uninstaller; Linux/macOS default app-state deps are removed only when app data is removed |
 | Dependency layer state | `<dependency-root>\.deps_state.json` | `<dependency-root>/.deps_state.json` | `<dependency-root>/.deps_state.json` | Stays with the selected dependency root |
 | App-managed Pandoc binary | `%USERPROFILE%\.latexsnipper\tools\pandoc` | `~/.latexsnipper/tools/pandoc` | `~/Library/Application Support/LaTeXSnipper/tools/pandoc` | Dependency cleanup checkbox/script |
@@ -49,7 +49,7 @@ If a user switches `install_base_dir` to a full Python installation, a venv, or
 a broad directory such as `D:\deps` or `~/deps`, uninstall will not delete it.
 Shared tools are removed from `<app-state>/tools`, not from dependency roots.
 
-Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.13` only to
+Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.14` only to
 create the isolated dependency environment. The packaged app itself does not run
 on the user's system Python.
 
@@ -85,7 +85,7 @@ can explicitly override the model root.
 | App log root | Runtime logging/preflight starts | Uses the platform log path listed above |
 | App temp root | Preview, PDF asset, or launcher helpers run | Grouped under `LaTeXSnipper` in the OS temp directory |
 | Dependency root | Dependency bootstrap or user path switch | Can be changed repeatedly; only the current root is stored in config |
-| `<dependency-root>/python311` | Dependency Python/venv creation | Windows bundled runtime lives under installed `_internal\deps\python311` unless the user switches roots |
+| `<dependency-root>/python` | Dependency Python/venv creation | Windows bundled runtime lives under installed `_internal\deps\python311` unless the user switches roots |
 | `<app-state>/tools/pandoc` | Pandoc layer install | Shared app-managed tool; independent from the selected Python dependency root |
 | MathCraft model cache | MathCraft OCR model download/use | `MATHCRAFT_HOME` can intentionally redirect this outside standard roots |
 

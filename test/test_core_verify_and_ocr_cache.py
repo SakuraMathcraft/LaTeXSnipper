@@ -188,8 +188,8 @@ class InternalModelMathCraftTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            pyexe = root / "python311" / "python.exe"
-            site_packages = root / "python311" / "Lib" / "site-packages"
+            pyexe = root / "python" / "python.exe"
+            site_packages = root / "python" / "Lib" / "site-packages"
             orphan = site_packages / "onnxruntime"
             orphan.mkdir(parents=True)
             pyexe.parent.mkdir(parents=True, exist_ok=True)
@@ -338,7 +338,7 @@ class InternalModelMathCraftTests(unittest.TestCase):
         self.assertEqual(GPU_PROVIDER_NAMES[0], "CUDAExecutionProvider")
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            pyexe = root / "python311" / "python.exe"
+            pyexe = root / "python" / "python.exe"
             pyexe.parent.mkdir()
             pyexe.write_text("", encoding="utf-8")
             (root / ".deps_state.json").write_text(
@@ -384,6 +384,19 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
 
     def test_mathcraft_package_metadata_keeps_direct_library_deps_only(self):
         data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertEqual(data["project"]["requires-python"], ">=3.10,<3.14")
+        self.assertEqual(
+            data["project"]["optional-dependencies"]["cpu"],
+            ["onnxruntime>=1.20,<1.30"],
+        )
+        self.assertEqual(
+            data["project"]["optional-dependencies"]["gpu"],
+            ["onnxruntime-gpu>=1.27,<1.30"],
+        )
+        self.assertEqual(
+            data["project"]["optional-dependencies"]["gpu-cu12"],
+            ["onnxruntime-gpu>=1.21,<1.27"],
+        )
         dep_names = {
             re.split(r"[<>=!~; ]", dep, 1)[0].strip().lower()
             for dep in data["project"]["dependencies"]
@@ -463,28 +476,73 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
         protobuf_args = runner._build_install_args(sys.executable, "protobuf", "protobuf", 0, None)
         self.assertIn("--force-reinstall", protobuf_args)
 
-    def test_critical_repair_covers_onnxruntime_dependency_chain(self):
-        from bootstrap.deps_runtime_verify import CRITICAL_VERSIONS
+    def test_unsupported_onnxruntime_gpu_policy_stops_before_pip(self):
+        from bootstrap.deps_pip_runner import PipInstallRunner
 
-        for pkg in ("numpy", "flatbuffers", "packaging", "protobuf"):
-            self.assertIn(pkg, CRITICAL_VERSIONS)
+        log_q = mock.Mock()
+        runner = PipInstallRunner(
+            pyexe=sys.executable,
+            pkg="onnxruntime-gpu",
+            stop_event=mock.Mock(),
+            log_q=log_q,
+            onnxruntime_gpu_policy=lambda _pyexe: type(
+                "Policy",
+                (),
+                {"error": "unsupported CUDA/Python combination"},
+            )(),
+        )
 
-        self.assertNotIn("coloredlogs", CRITICAL_VERSIONS)
-        self.assertNotIn("sympy", CRITICAL_VERSIONS)
+        self.assertFalse(runner.install())
+        log_q.put.assert_called_once_with("[ERR] unsupported CUDA/Python combination")
+
+    def test_runtime_support_repair_specs_match_dependency_layer(self):
+        from bootstrap.deps_layer_specs import LAYER_MAP
+        from bootstrap.deps_runtime_verify import RUNTIME_SUPPORT_SPECS
+
+        core_specs = set(LAYER_MAP["CORE"])
+        for spec in RUNTIME_SUPPORT_SPECS.values():
+            self.assertIn(spec, core_specs)
+
+        self.assertNotIn("coloredlogs", RUNTIME_SUPPORT_SPECS)
+        self.assertNotIn("sympy", RUNTIME_SUPPORT_SPECS)
+
+    def test_onnxruntime_support_repair_preserves_requested_backend(self):
+        from bootstrap import deps_runtime_verify
+
+        verify = mock.Mock(side_effect=[(False, "broken"), (True, "")])
+        repair = mock.Mock(return_value=(True, ""))
+        with mock.patch.object(deps_runtime_verify, "_verify_onnxruntime_runtime", verify):
+            with mock.patch.object(deps_runtime_verify, "_force_repair_broken_runtime_imports", repair):
+                ok, error = deps_runtime_verify._verify_onnxruntime_with_support_repair(
+                    sys.executable,
+                    expect_gpu=False,
+                    log_fn=mock.Mock(),
+                )
+
+        self.assertTrue(ok)
+        self.assertEqual(error, "")
+        self.assertEqual(verify.call_count, 2)
+        for call in verify.call_args_list:
+            self.assertFalse(call.kwargs["expect_gpu"])
 
     def test_onnxruntime_gpu_policy_tracks_cuda_major(self):
         from backend.mathcraft.runtime_policy import (
             CUDA11_ORT_INDEX_URL,
-            CUDA13_ORT_NIGHTLY_INDEX_URL,
             CudaRuntimeInfo,
+            onnxruntime_cpu_spec,
             onnxruntime_gpu_policy,
+        )
+
+        self.assertEqual(
+            onnxruntime_cpu_spec(python_version=(3, 10)),
+            "onnxruntime>=1.20,<1.30",
         )
 
         cuda11 = onnxruntime_gpu_policy(
             cuda_info=CudaRuntimeInfo(major=11, minor=8, source="test"),
             python_version=(3, 11),
         )
-        self.assertEqual(cuda11.requirement, "onnxruntime-gpu>=1.19.2,<1.21")
+        self.assertEqual(cuda11.requirement, "onnxruntime-gpu>=1.20,<1.21")
         self.assertEqual(cuda11.index_url, CUDA11_ORT_INDEX_URL)
         self.assertEqual(cuda11.expected_cudnn_major, 8)
 
@@ -492,7 +550,7 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             cuda_info=CudaRuntimeInfo(major=12, minor=4, source="test"),
             python_version=(3, 11),
         )
-        self.assertEqual(cuda12.requirement, "onnxruntime-gpu>=1.19.2,<1.26")
+        self.assertEqual(cuda12.requirement, "onnxruntime-gpu>=1.21,<1.27")
         self.assertEqual(cuda12.index_url, "")
         self.assertEqual(cuda12.expected_cudnn_major, 9)
 
@@ -500,8 +558,27 @@ class DependencyBootstrapMathCraftTests(unittest.TestCase):
             cuda_info=CudaRuntimeInfo(major=13, minor=0, source="test"),
             python_version=(3, 11),
         )
-        self.assertTrue(cuda13.pre)
-        self.assertEqual(cuda13.index_url, CUDA13_ORT_NIGHTLY_INDEX_URL)
+        self.assertEqual(cuda13.requirement, "onnxruntime-gpu>=1.27,<1.30")
+        self.assertEqual(cuda13.index_url, "")
+        self.assertEqual(cuda13.source_label, "PyPI CUDA 13 wheels")
+
+        unknown_py310 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(source="test"),
+            python_version=(3, 10),
+        )
+        self.assertEqual(unknown_py310.requirement, "onnxruntime-gpu>=1.21,<1.24")
+
+        cuda13_py310 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(major=13, minor=0, source="test"),
+            python_version=(3, 10),
+        )
+        self.assertIn("Python >=3.11", cuda13_py310.error)
+
+        cuda14 = onnxruntime_gpu_policy(
+            cuda_info=CudaRuntimeInfo(major=14, minor=0, source="test"),
+            python_version=(3, 13),
+        )
+        self.assertIn("does not yet have", cuda14.error)
 
     def test_cuda_runtime_detects_cudart_suffix_from_path(self):
         from backend.mathcraft.runtime_policy import detect_cuda_runtime

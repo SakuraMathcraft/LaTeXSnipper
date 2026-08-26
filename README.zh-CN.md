@@ -121,7 +121,7 @@ LaTeXSnipper 在主窗口和收藏夹窗口中提供共享导出菜单。桌面�
 | Linux | 通过 provider 层支持 | `pynput` 全局快捷键、Qt 优先截图，可选 Wayland/X11 命令行或 portal 回退 |
 | macOS | 通过 provider 层支持 | 原生全局快捷键、Qt 截图和 `screencapture` 回退，截图可能需要屏幕录制权限 |
 
-Linux 和 macOS 会在用户状态目录中创建可选运行时依赖环境，因此需要系统中有可用的 Python `>=3.10,<3.13`，并带有 venv/pip 支持。推荐 Python 3.11，因为它与 Windows 内置运行时一致。Debian/Ubuntu `.deb` 声明 `python3` 和 `python3-venv`；macOS 用户在系统没有可用 `python3` 时，建议安装 Homebrew `python@3.11` 或 python.org 官方 3.11/3.12 安装包。
+Linux 和 macOS 会在用户状态目录中创建可选运行时依赖环境，因此需要系统中有可用的 Python `>=3.10,<3.14`，并带有 venv/pip 支持。依赖向导优先使用最新的受支持版本；Windows 内置运行时仍固定为 Python 3.11。Debian/Ubuntu `.deb` 声明 `python3` 和 `python3-venv`；macOS 用户在系统没有可用 `python3` 时，建议安装 Homebrew Python 或 python.org 官方 Python 3.10-3.13 安装包。
 
 Windows 默认依赖根是 `<安装目录>\_internal\deps`。Linux 默认依赖根是 `~/.latexsnipper/deps`。macOS 默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。用户切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
 

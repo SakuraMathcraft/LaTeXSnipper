@@ -9,7 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from runtime.dependency_runtime import find_system_python3, supported_system_python_range_label
+from runtime.dependency_runtime import (
+    DEPENDENCY_PYTHON_DIRNAME,
+    find_system_python3,
+    system_python_unavailable_reason,
+)
 from runtime.app_paths import app_config_path, app_state_dir, get_app_root, is_packaged_mode
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir as _normalize_install_base_dir
 from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
@@ -79,10 +83,6 @@ def _looks_like_packaged_deps_dir(path: Path | None) -> bool:
     return ("_internal" in normalized) and normalized.endswith("/deps")
 
 
-def _default_python_exe_name() -> str:
-    return "python.exe" if os.name == "nt" else "python3"
-
-
 def _default_packaged_user_deps_dir() -> Path:
     return _app_state_dir() / "deps"
 
@@ -117,10 +117,8 @@ def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
     candidates = [
         base_dir / "python.exe",
         base_dir / "Scripts" / "python.exe",
-        base_dir / "python311" / "python.exe",
-        base_dir / "python311" / "Scripts" / "python.exe",
-        base_dir / "Python311" / "python.exe",
-        base_dir / "Python311" / "Scripts" / "python.exe",
+        base_dir / DEPENDENCY_PYTHON_DIRNAME / "python.exe",
+        base_dir / DEPENDENCY_PYTHON_DIRNAME / "Scripts" / "python.exe",
         base_dir / "python_full" / "python.exe",
         base_dir / "venv" / "Scripts" / "python.exe",
         base_dir / ".venv" / "Scripts" / "python.exe",
@@ -130,7 +128,7 @@ def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
         candidates.extend([
             base_dir / "python3",
             base_dir / "bin" / "python3",
-            base_dir / "python311" / "bin" / "python3",
+            base_dir / DEPENDENCY_PYTHON_DIRNAME / "bin" / "python3",
             base_dir / "venv" / "bin" / "python3",
             base_dir / ".venv" / "bin" / "python3",
         ])
@@ -345,7 +343,7 @@ def resolve_install_base_dir() -> Path:
         _save_install_base_dir(p)
         return p
 
-    print(f"[DEBUG] 选定目录未检测到可复用 Python: {p / 'python311'}")
+    print(f"[DEBUG] 选定目录未检测到可复用 Python: {p / DEPENDENCY_PYTHON_DIRNAME}")
     _save_install_base_dir(p)
     return p
 
@@ -711,6 +709,9 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         return py
 
 
-    version_hint = supported_system_python_range_label()
-    print(f"[ERR] 未找到受支持的系统 Python（{version_hint}），无法创建依赖环境")
+    system_python = find_system_python3()
+    if system_python is not None:
+        print(f"[ERR] 系统 Python {system_python} 位于支持范围内，但缺少 LaTeXSnipper 运行依赖")
+    else:
+        print(f"[ERR] {system_python_unavailable_reason()}")
     return None

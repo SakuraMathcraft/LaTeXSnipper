@@ -17,6 +17,8 @@ from bootstrap.deps_layer_specs import (
     layer_display_name,
 )
 from runtime.dependency_runtime import (
+    DEPENDENCY_PYTHON_DIRNAME,
+    dependency_venv_python as _dependency_venv_python,
     find_existing_python as _find_existing_python,
 )
 from bootstrap.deps_runtime_verify import _verify_layer_runtime, format_layer_verify_failure
@@ -603,8 +605,9 @@ def _build_layers_ui(pyexe, deps_dir, installed_layers, default_select, chosen, 
             normalized = str(_normalize_deps_base_dir(Path(d)))
             path_edit.setText(normalized)
             normalized_path = Path(normalized)
-            _default_pyexe_name = "python.exe" if os.name == "nt" else "python3"
-            active_pyexe = _find_existing_python(normalized_path) or (normalized_path / "python311" / _default_pyexe_name)
+            active_pyexe = _find_existing_python(normalized_path) or (
+                _dependency_venv_python(normalized_path / DEPENDENCY_PYTHON_DIRNAME)
+            )
             pyexe = active_pyexe
             state_path = normalized_path / STATE_FILE
             state_file = str(state_path)

@@ -16,6 +16,9 @@ from .serialization import (
 )
 
 
+_PROVIDER_HELP = "auto, cpu, gpu, cuda, tensorrt, directml, coreml, or openvino"
+
+
 def _resolve_ocr_output_path(args: argparse.Namespace) -> Path | None:
     output = str(getattr(args, "output", "") or "").strip()
     output_dir = str(getattr(args, "output_dir", "") or "").strip()
@@ -45,22 +48,22 @@ def build_parser() -> argparse.ArgumentParser:
     models_sub.add_parser("check")
 
     doctor = sub.add_parser("doctor")
-    doctor.add_argument("--provider", default="auto")
+    doctor.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
 
     warmup = sub.add_parser("warmup")
     warmup.add_argument("--profile", default="formula")
-    warmup.add_argument("--provider", default="auto")
+    warmup.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
 
     ocr = sub.add_parser("ocr")
     ocr.add_argument("image")
     ocr.add_argument("--profile", choices=("formula", "text", "mixed"), default="mixed")
-    ocr.add_argument("--provider", default="auto")
+    ocr.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
     ocr.add_argument("--output", "-o", default="")
     ocr.add_argument("--output-dir", default="")
     ocr.add_argument("--json", action="store_true", dest="as_json")
 
     worker = sub.add_parser("worker")
-    worker.add_argument("--provider", default="auto")
+    worker.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
     return parser
 
 

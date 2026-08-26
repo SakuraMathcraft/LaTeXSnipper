@@ -1686,48 +1686,33 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
     ) == 8
 
 
-def test_text_recognizer_enables_cuda_only_for_cuda_providers(monkeypatch) -> None:
-    calls: list[tuple[str, str, int, bool, bool]] = []
+def test_text_recognizer_uses_mathcraft_session_for_any_provider(monkeypatch, tmp_path) -> None:
+    model_dir = tmp_path / "text-rec"
+    _touch(model_dir / "ppocrv5_mobile_rec.onnx")
+    _touch(model_dir / "ppocrv5_keys.txt", b"a\nb\n")
+    session = object()
+    captured = {}
 
-    def _fake_cached(model_dir: str, active_provider: str, device_id: int, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, active_provider, device_id, use_cuda, use_dml))
+    def _fake_recognizer(config):
+        captured.update(config)
         return object()
 
-    monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
+    monkeypatch.setattr(text_recognizer_mod, "create_session", lambda _path, _provider: session)
+    monkeypatch.setattr(text_recognizer_mod, "TextRecognizer", _fake_recognizer)
     provider = ProviderInfo(
-        available_providers=("CUDAExecutionProvider", "CPUExecutionProvider"),
-        active_provider="CUDAExecutionProvider",
-        device="gpu",
+        available_providers=("CoreMLExecutionProvider", "CPUExecutionProvider"),
+        active_provider="CoreMLExecutionProvider",
+        device="accelerator",
         gpu_requested=True,
         gpu_runtime_ok=True,
-        device_id=2,
     )
 
-    text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
+    text_recognizer_mod.clear_text_recognizer_cache()
+    result = text_recognizer_mod._create_pp_text_recognizer(model_dir, provider)
 
-    assert calls[0][1:] == ("CUDAExecutionProvider", 2, True, False)
-
-
-def test_text_recognizer_enables_dml_without_cuda(monkeypatch) -> None:
-    calls: list[tuple[str, str, int, bool, bool]] = []
-
-    def _fake_cached(model_dir: str, active_provider: str, device_id: int, use_cuda: bool, use_dml: bool):
-        calls.append((model_dir, active_provider, device_id, use_cuda, use_dml))
-        return object()
-
-    monkeypatch.setattr(text_recognizer_mod, "_create_pp_text_recognizer_cached", _fake_cached)
-    provider = ProviderInfo(
-        available_providers=("DmlExecutionProvider", "CPUExecutionProvider"),
-        active_provider="DmlExecutionProvider",
-        device="gpu",
-        gpu_requested=True,
-        gpu_runtime_ok=True,
-        device_id=1,
-    )
-
-    text_recognizer_mod._create_pp_text_recognizer(Path("."), provider)
-
-    assert calls[0][1:] == ("DmlExecutionProvider", 1, False, True)
+    assert result is not None
+    assert captured["session"] is session
+    text_recognizer_mod.clear_text_recognizer_cache()
 
 
 def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_path) -> None:
@@ -1777,6 +1762,55 @@ def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_p
     common_adapter_mod.clear_session_cache()
 
 
+def test_directml_session_uses_required_session_options(monkeypatch, tmp_path) -> None:
+    calls = {}
+
+    class _Options:
+        enable_mem_pattern = True
+        execution_mode = None
+
+    class _Session:
+        def get_providers(self):
+            return ["DmlExecutionProvider", "CPUExecutionProvider"]
+
+        def get_provider_options(self):
+            return {"DmlExecutionProvider": {"device_id": "0"}}
+
+        def disable_fallback(self):
+            return None
+
+    class _Ort:
+        SessionOptions = _Options
+        ExecutionMode = type("ExecutionMode", (), {"ORT_SEQUENTIAL": "sequential"})
+
+        @staticmethod
+        def InferenceSession(_model_path, **kwargs):
+            calls.update(kwargs)
+            return _Session()
+
+    provider = ProviderInfo(
+        available_providers=("DmlExecutionProvider", "CPUExecutionProvider"),
+        active_provider="DmlExecutionProvider",
+        device="gpu",
+        gpu_requested=True,
+        gpu_runtime_ok=True,
+        device_id=0,
+        provider_specs=(
+            providers_mod.ProviderSpec("DmlExecutionProvider", (("device_id", "0"),)),
+            providers_mod.ProviderSpec("CPUExecutionProvider"),
+        ),
+    )
+    common_adapter_mod.clear_session_cache()
+    monkeypatch.setattr(common_adapter_mod, "_ort", lambda: _Ort)
+
+    common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
+
+    options = calls["sess_options"]
+    assert options.enable_mem_pattern is False
+    assert options.execution_mode == "sequential"
+    common_adapter_mod.clear_session_cache()
+
+
 def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_path) -> None:
     class _Session:
         def get_providers(self):
@@ -1800,7 +1834,7 @@ def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_
     try:
         common_adapter_mod.create_session(tmp_path / "model.onnx", provider)
     except RuntimeError as exc:
-        assert "requested ONNX GPU provider" in str(exc)
+        assert "requested ONNX accelerator provider" in str(exc)
     else:
         raise AssertionError("GPU initialization fallback must be rejected")
     finally:
@@ -1845,41 +1879,48 @@ def test_mathcraft_session_rejects_a_different_gpu_device(monkeypatch, tmp_path)
         common_adapter_mod.clear_session_cache()
 
 
-def test_rapidocr_session_disables_runtime_provider_fallback() -> None:
-    class _Session:
-        fallback_disabled = False
+def test_tensorrt_preference_uses_cuda_and_cpu_for_unsupported_nodes(monkeypatch) -> None:
+    ort = type(
+        "Ort",
+        (),
+        {
+            "get_available_providers": staticmethod(
+                lambda: [
+                    "TensorrtExecutionProvider",
+                    "CUDAExecutionProvider",
+                    "CPUExecutionProvider",
+                ]
+            )
+        },
+    )()
+    monkeypatch.setattr(providers_mod.importlib, "import_module", lambda _name: ort)
 
-        def get_providers(self):
-            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    info = providers_mod.detect_providers("tensorrt")
 
-        def disable_fallback(self):
-            self.fallback_disabled = True
-
-    session = _Session()
-    recognizer = type("Recognizer", (), {"session": type("Engine", (), {"session": session})()})()
-
-    text_recognizer_mod._enforce_strict_provider(recognizer, "CUDAExecutionProvider")
-
-    assert session.fallback_disabled is True
+    assert info.requested_providers == (
+        "TensorrtExecutionProvider",
+        "CUDAExecutionProvider",
+        "CPUExecutionProvider",
+    )
 
 
-def test_rapidocr_session_rejects_gpu_initialization_fallback() -> None:
-    class _Session:
-        def get_providers(self):
-            return ["CPUExecutionProvider"]
+def test_explicit_provider_options_are_preserved(monkeypatch) -> None:
+    ort = type(
+        "Ort",
+        (),
+        {"get_available_providers": staticmethod(lambda: ["OpenVINOExecutionProvider"])},
+    )()
+    monkeypatch.setattr(providers_mod.importlib, "import_module", lambda _name: ort)
 
-        def disable_fallback(self):
-            raise AssertionError("fallback should not be disabled after provider mismatch")
+    info = providers_mod.detect_providers(
+        providers=[("openvino", {"device_type": "GPU"})]
+    )
 
-    session = _Session()
-    recognizer = type("Recognizer", (), {"session": type("Engine", (), {"session": session})()})()
-
-    try:
-        text_recognizer_mod._enforce_strict_provider(recognizer, "CUDAExecutionProvider")
-    except RuntimeError as exc:
-        assert "RapidOCR session providers" in str(exc)
-    else:
-        raise AssertionError("RapidOCR GPU initialization fallback must be rejected")
+    assert info.active_provider == "OpenVINOExecutionProvider"
+    assert info.provider_specs[0].as_ort_provider() == (
+        "OpenVINOExecutionProvider",
+        {"device_type": "GPU"},
+    )
 
 
 def test_provider_serialization_exposes_backend_capabilities() -> None:

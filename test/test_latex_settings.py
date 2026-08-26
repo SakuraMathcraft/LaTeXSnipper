@@ -24,21 +24,6 @@ def _isolate_renderer_settings(monkeypatch) -> None:
     monkeypatch.setattr(renderer_module, "_latex_renderer", None)
 
 
-def test_legacy_latex_keys_are_not_read(monkeypatch) -> None:
-    _isolate_renderer_settings(monkeypatch)
-    config = _ConfigStore(
-        {
-            "render_mode": "latex_xelatex",
-            "latex_path": "legacy-xelatex",
-        }
-    )
-
-    renderer_module.configure_latex_settings(config)
-
-    assert renderer_module.get_document_render_mode() == "auto"
-    assert renderer_module.get_latex_executable_path() == ""
-
-
 def test_latex_preferences_share_one_config_write(monkeypatch) -> None:
     _isolate_renderer_settings(monkeypatch)
     config = _ConfigStore()

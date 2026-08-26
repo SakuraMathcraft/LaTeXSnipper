@@ -14,10 +14,6 @@ CUDA11_ORT_INDEX_URL = (
     "https://aiinfra.pkgs.visualstudio.com/PublicPackages/"
     "_packaging/onnxruntime-cuda-11/pypi/simple/"
 )
-CUDA13_ORT_NIGHTLY_INDEX_URL = (
-    "https://aiinfra.pkgs.visualstudio.com/PublicPackages/"
-    "_packaging/ort-cuda-13-nightly/pypi/simple/"
-)
 
 
 @dataclass(frozen=True)
@@ -43,14 +39,11 @@ class OnnxRuntimeGpuPolicy:
     expected_cuda_major: int | None
     expected_cudnn_major: int | None
     index_url: str = ""
-    pre: bool = False
     source_label: str = "PyPI"
-    warning: str = ""
+    error: str = ""
 
     def pip_install_args(self) -> tuple[str, ...]:
         args: list[str] = [self.requirement]
-        if self.pre:
-            args.append("--pre")
         if self.index_url:
             args.extend(["--index-url", self.index_url])
         return tuple(args)
@@ -107,10 +100,7 @@ def detect_cuda_runtime(*, use_nvcc: bool = True) -> CudaRuntimeInfo:
 
 
 def onnxruntime_cpu_spec(pyexe: str | Path | None = None, python_version: tuple[int, int] | None = None) -> str:
-    pyver = python_version or python_version_for_executable(pyexe)
-    if pyver >= (3, 13):
-        return "onnxruntime>=1.20,<1.26"
-    return "onnxruntime>=1.19.2,<1.26"
+    return "onnxruntime>=1.20,<1.30"
 
 
 def onnxruntime_gpu_spec(pyexe: str | Path | None = None, python_version: tuple[int, int] | None = None) -> str:
@@ -132,9 +122,8 @@ def onnxruntime_gpu_policy(
     pyver = python_version or python_version_for_executable(pyexe)
 
     if cuda.major == 11:
-        requirement = "onnxruntime-gpu>=1.20,<1.21" if pyver >= (3, 13) else "onnxruntime-gpu>=1.19.2,<1.21"
         return OnnxRuntimeGpuPolicy(
-            requirement=requirement,
+            requirement="onnxruntime-gpu>=1.20,<1.21",
             cuda=cuda,
             expected_cuda_major=11,
             expected_cudnn_major=8,
@@ -142,35 +131,57 @@ def onnxruntime_gpu_policy(
             source_label="ORT CUDA 11 feed",
         )
 
-    if cuda.major is not None and cuda.major >= 13:
+    if cuda.major == 13:
+        error = ""
+        if pyver < (3, 11):
+            error = (
+                "CUDA 13 stable ONNX Runtime requires Python >=3.11; "
+                "select Python 3.11-3.13 for the dependency environment."
+            )
         return OnnxRuntimeGpuPolicy(
-            requirement="onnxruntime-gpu",
+            requirement="onnxruntime-gpu>=1.27,<1.30",
             cuda=cuda,
-            expected_cuda_major=cuda.major,
+            expected_cuda_major=13,
             expected_cudnn_major=9,
-            index_url=CUDA13_ORT_NIGHTLY_INDEX_URL,
-            pre=True,
-            source_label="ORT CUDA 13 nightly feed",
-            warning=(
-                "CUDA 13 uses ONNX Runtime nightly GPU wheels; stable PyPI "
-                "onnxruntime-gpu wheels currently target CUDA 12.x."
-            ),
+            source_label="PyPI CUDA 13 wheels",
+            error=error,
         )
 
-    requirement = "onnxruntime-gpu>=1.20,<1.26" if pyver >= (3, 13) else "onnxruntime-gpu>=1.19.2,<1.26"
-    warning = ""
-    if cuda.major is not None and cuda.major < 11:
-        warning = (
-            f"CUDA {cuda.version_text} is outside the supported modern ONNX Runtime GPU range; "
-            "falling back to CUDA 12 PyPI wheels."
+    if cuda.major == 12:
+        return OnnxRuntimeGpuPolicy(
+            requirement="onnxruntime-gpu>=1.21,<1.27",
+            cuda=cuda,
+            expected_cuda_major=12,
+            expected_cudnn_major=9,
+            source_label="PyPI CUDA 12 wheels",
         )
+
+    error = ""
+    if cuda.major is not None and cuda.major < 11:
+        error = (
+            f"CUDA {cuda.version_text} is not supported by the maintained ONNX Runtime GPU lines; "
+            "use the CPU backend or upgrade CUDA."
+        )
+    elif cuda.major is not None and cuda.major > 13:
+        error = (
+            f"CUDA {cuda.version_text} does not yet have a mapped stable ONNX Runtime GPU line; "
+            "use the CPU backend until official support is available."
+        )
+    if pyver < (3, 11):
+        requirement = "onnxruntime-gpu>=1.21,<1.24"
+        expected_cuda_major = 12
+        source_label = "PyPI CUDA 12 wheels (Python 3.10 compatible)"
+    else:
+        requirement = "onnxruntime-gpu>=1.27,<1.30"
+        expected_cuda_major = 13
+        source_label = "PyPI CUDA 13 wheels"
     return OnnxRuntimeGpuPolicy(
         requirement=requirement,
         cuda=cuda,
-        expected_cuda_major=12 if cuda.major is not None else None,
+        expected_cuda_major=expected_cuda_major if cuda.major is not None else None,
         expected_cudnn_major=9 if cuda.major is not None else None,
-        source_label="PyPI CUDA 12 wheels",
-        warning=warning,
+        source_label=source_label,
+        error=error,
     )
 
 
@@ -374,7 +385,6 @@ def _quote_cmd_arg(arg: str) -> str:
 
 __all__ = [
     "CUDA11_ORT_INDEX_URL",
-    "CUDA13_ORT_NIGHTLY_INDEX_URL",
     "CudaRuntimeInfo",
     "DllRequirement",
     "OnnxRuntimeGpuPolicy",

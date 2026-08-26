@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from .cache import inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
 from .manifest import Manifest, load_manifest
-from .providers import ProviderInfo, detect_providers
+from .providers import ProviderInfo, ProviderRequest, detect_providers
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ def run_doctor(
     bundled_models_dir: str | Path | None = None,
     manifest: Manifest | None = None,
     provider_preference: str = "auto",
+    providers: Sequence[ProviderRequest] | None = None,
     include_optional: bool = True,
 ) -> DoctorReport:
     manifest_obj = manifest or load_manifest()
@@ -36,7 +38,7 @@ def run_doctor(
     states = inspect_manifest_roots(
         model_roots, manifest_obj, include_optional=include_optional
     )
-    provider_info = detect_providers(prefer=provider_preference)
+    provider_info = detect_providers(prefer=provider_preference, providers=providers)
     return DoctorReport(
         python_executable=sys.executable,
         cache_dir=cache_root,
