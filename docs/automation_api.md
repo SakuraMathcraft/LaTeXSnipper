@@ -89,4 +89,4 @@ Errors use this shape and never include image content, credentials, local paths,
 {"error":{"code":"queue_full","message":"识别队列已满。","request_id":"..."}}
 ```
 
-See [`examples/automation`](../examples/automation/) for Python, curl, AutoKey, AutoHotkey, and Hammerspoon clients.
+See the [`examples/automation` workflow guide](../examples/automation/README.md) for complete Python, curl, AutoKey, AutoHotkey, and Hammerspoon clients. The desktop workflows accept actual clipboard image data as well as copied image-file paths; they also handle asynchronous jobs, classified API errors, timeouts, batches, and clipboard output.
