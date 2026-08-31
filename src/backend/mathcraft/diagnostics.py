@@ -58,7 +58,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
     if looks_like_onnxruntime_install_error(raw):
-        runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖向导重装当前 MathCraft 后端。"
+        runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖管理重装当前 MathCraft 后端。"
         if sys.platform == "win32":
             runtime_hint = (
                 f"{runtime_hint} 如 CPU 后端仍失败，请安装最新 Microsoft Visual C++ Redistributable x64 后重启。"
@@ -83,7 +83,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "MATHCRAFT_DEP_MISSING",
             "MathCraft 依赖不完整",
-            "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖向导安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。",
+            "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。",
             f"MathCraft worker 缺少运行依赖，通常是打包模板 Python 尚未部署完整依赖: {raw[:300]}",
         )
     if "not ready" in lower and "missing" in lower and "missing=[]" not in lower:

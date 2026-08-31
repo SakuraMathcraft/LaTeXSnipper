@@ -46,7 +46,7 @@ def test_unready_environment_terminal_reports_through_infobar() -> None:
         def _show_info(self, title: str, content: str, level: str = "info") -> None:
             messages.append((title, content, level))
 
-    Harness()._open_terminal()
+    Harness()._open_environment_terminal()
 
     assert len(messages) == 1
     assert messages[0][0] == "环境未就绪"

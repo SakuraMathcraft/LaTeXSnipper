@@ -29,7 +29,7 @@ def test_macos_dependency_gpu_probe_does_not_run_cuda_tools(monkeypatch) -> None
     assert deps_layer_specs._cuda_toolkit_available() is False
 
 
-def test_macos_dependency_wizard_hides_nvidia_cuda_gpu_option(monkeypatch) -> None:
+def test_macos_dependency_management_hides_nvidia_cuda_gpu_option(monkeypatch) -> None:
     from bootstrap import deps_ui
 
     monkeypatch.setattr(deps_ui.sys, "platform", "darwin")

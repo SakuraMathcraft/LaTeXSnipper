@@ -421,11 +421,6 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft Text Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_environment_mixin.py" line="130" />
-      <source>MathCraft 缓存目录: {path}</source>
-      <translation>MathCraft cache directory: {path}</translation>
-    </message>
-    <message>
       <location filename="../../../src/ui/settings_layout_builder.py" line="97" />
       <source>MathCraft 识别类型:</source>
       <translation>MathCraft recognition type:</translation>
@@ -1075,19 +1070,19 @@ Hint: Check the Base URL, protocol type, and server route.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_ui.py" line="232" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="375" />
-      <source>依赖管理向导</source>
-      <translation>Dependency Manager</translation>
+      <location filename="../../../src/ui/settings_layout_builder.py" line="379" />
+      <source>依赖管理</source>
+      <translation>Dependency Management</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="142" />
-      <source>依赖管理向导将以重启后的干净进程打开。
+      <source>依赖管理将以重启后的干净进程打开。
 
-是否立即重启并打开依赖向导？
+是否立即重启并打开依赖管理？
 • ESC：取消操作</source>
-      <translation>The dependency manager will open in a clean process after restart.
+      <translation>Dependency Management will open in a clean process after restart.
 
-Restart and open it now?
+Restart and open Dependency Management now?
 • Esc: Cancel</translation>
     </message>
     <message>
@@ -1270,7 +1265,7 @@ Restart and open it now?
       <translation>Content block rendering failed: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="566" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="574" />
       <source>内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。</source>
       <translation>Built-in MathCraft OCR for formulas, mixed content, text, and PDF documents.</translation>
     </message>
@@ -1312,7 +1307,7 @@ Restart and open it now?
     </message>
     <message>
       <location filename="../../../src/application/bootstrap.py" line="176" />
-      <location filename="../../../src/application/bootstrap.py" line="262" />
+      <location filename="../../../src/application/bootstrap.py" line="266" />
       <source>准备运行环境...</source>
       <translation>Preparing runtime environment...</translation>
     </message>
@@ -1391,7 +1386,7 @@ Restart and open it now?
     <message>
       <location filename="../../../src/application/app_runner.py" line="36" />
       <location filename="../../../src/application/app_runner.py" line="50" />
-      <location filename="../../../src/application/app_runner.py" line="69" />
+      <location filename="../../../src/application/app_runner.py" line="71" />
       <location filename="../../../src/ui/startup_splash.py" line="232" />
       <source>加载界面组件...</source>
       <translation>Loading interface components...</translation>
@@ -1501,7 +1496,7 @@ Restart and open it now?
       <translation>Startup behavior:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="531" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="539" />
       <source>启用失败: {message}</source>
       <translation>Failed to enable: {message}</translation>
     </message>
@@ -2430,8 +2425,8 @@ Path: {path}</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="73" />
-      <source>当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖向导安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。</source>
-      <translation>The dependency environment is missing MathCraft OCR runtime packages. Install BASIC, CORE, and the matching MATHCRAFT_CPU/GPU layer in the dependency wizard.</translation>
+      <source>当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。</source>
+      <translation>The current dependency environment is missing MathCraft OCR runtime dependencies. Install BASIC, CORE, and the appropriate MATHCRAFT_CPU/GPU layer in Dependency Management.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_entry.py" line="789" />
@@ -2748,7 +2743,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Handwriting result written to the main editor</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="384" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="388" />
       <source>打开 MathCraft 模型缓存目录</source>
       <translation>Open the MathCraft model cache directory</translation>
     </message>
@@ -2758,7 +2753,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Open the MathLive editor; closing it inserts the formula into the source</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="366" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="369" />
       <source>打开主环境终端，可手动安装/修复依赖</source>
       <translation>Open the primary environment terminal to install or repair dependencies manually</translation>
     </message>
@@ -2770,13 +2765,13 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="141" />
-      <source>打开依赖向导</source>
-      <translation>Open Dependency Manager</translation>
+      <source>打开依赖管理</source>
+      <translation>Open Dependency Management</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="378" />
-      <source>打开依赖管理向导，可安装/修复依赖</source>
-      <translation>Open the dependency manager to install or repair dependencies</translation>
+      <location filename="../../../src/ui/settings_layout_builder.py" line="383" />
+      <source>打开依赖管理，可安装/修复依赖</source>
+      <translation>Open Dependency Management to install or repair dependencies</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="135" />
@@ -2784,24 +2779,9 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Open failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="364" />
-      <source>打开环境终端</source>
-      <translation>Open Environment Terminal</translation>
-    </message>
-    <message>
       <location filename="../../../src/ui/runtime_log_dialog.py" line="51" />
       <source>打开目录</source>
       <translation>Open Directory</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/window_openers.py" line="169" />
-      <source>打开终端失败：{error}</source>
-      <translation>Failed to open terminal: {error}</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="381" />
-      <source>打开缓存目录</source>
-      <translation>Open Cache Directory</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="449" />
@@ -3079,8 +3059,8 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="135" />
-      <source>无法打开缓存目录: {error}</source>
-      <translation>Unable to open the cache directory: {error}</translation>
+      <source>无法打开模型缓存: {error}</source>
+      <translation>Could not open the model cache: {error}</translation>
     </message>
     <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="454" />
@@ -3461,9 +3441,9 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The format must be {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="71" />
-      <location filename="../../../src/application/app_runner.py" line="56" />
-      <location filename="../../../src/application/bootstrap.py" line="234" />
+      <location filename="../../../src/application/app_runner.py" line="75" />
+      <location filename="../../../src/application/app_runner.py" line="58" />
+      <location filename="../../../src/application/bootstrap.py" line="238" />
       <source>检查依赖...</source>
       <translation>Checking dependencies...</translation>
     </message>
@@ -3547,9 +3527,19 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model weight download failed</translation>
     </message>
     <message>
+      <location filename="../../../src/ui/settings_layout_builder.py" line="386" />
+      <source>模型缓存</source>
+      <translation>Model Cache</translation>
+    </message>
+    <message>
       <location filename="../../../src/recognition/error_messages.py" line="77" />
       <source>模型缓存不完整</source>
       <translation>Incomplete model cache</translation>
+    </message>
+    <message>
+      <location filename="../../../src/ui/settings_environment_mixin.py" line="130" />
+      <source>模型缓存目录: {path}</source>
+      <translation>Model cache directory: {path}</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="95" />
@@ -3707,7 +3697,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Recognition is in progress. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="84" />
+      <location filename="../../../src/application/app_runner.py" line="90" />
       <location filename="../../../src/ui/startup_splash.py" line="214" />
       <location filename="../../../src/ui/startup_splash.py" line="223" />
       <location filename="../../../src/ui/startup_splash.py" line="231" />
@@ -3902,7 +3892,7 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/bootstrap/deps_ui.py" line="539" />
       <location filename="../../../src/bootstrap/deps_ui.py" line="748" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="238" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="394" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="398" />
       <source>清理本机依赖与缓存</source>
       <translation>Clear Local Dependencies and Cache</translation>
     </message>
@@ -3961,6 +3951,11 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="93" />
       <source>环境未就绪</source>
       <translation>Environment not ready</translation>
+    </message>
+    <message>
+      <location filename="../../../src/ui/settings_layout_builder.py" line="365" />
+      <source>环境终端</source>
+      <translation>Environment Terminal</translation>
     </message>
     <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="147" />
@@ -4108,7 +4103,7 @@ The uninstall progress window will open after confirmation.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_ui.py" line="543" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="398" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="402" />
       <source>移除本机下载的依赖、缓存和日志；默认保留应用设置</source>
       <translation>Remove locally downloaded dependencies, caches, and logs while keeping app settings by default</translation>
     </message>
@@ -4308,18 +4303,18 @@ Install pymupdf in the dependency environment.</translation>
       <location filename="../../../src/ui/automation_access_dialog.py" line="101" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="443" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="331" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="536" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="530" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="544" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="538" />
       <source>自动化接口</source>
       <translation>Automation API</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="499" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="507" />
       <source>自动化接口: 关</source>
       <translation>Automation API: Off</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="499" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="507" />
       <source>自动化接口: 开</source>
       <translation>Automation API: On</translation>
     </message>
@@ -4329,7 +4324,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Automation API failed to start</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="547" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="555" />
       <source>自动化接口控制器不可用</source>
       <translation>The Automation API controller is unavailable</translation>
     </message>
@@ -4449,12 +4444,12 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Settings...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="517" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="525" />
       <source>设置已保存</source>
       <translation>Settings saved</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="536" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="544" />
       <source>设置已更新</source>
       <translation>Settings updated</translation>
     </message>
@@ -4605,8 +4600,8 @@ Install pymupdf in the dependency environment.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="94" />
-      <source>请先在依赖管理向导中初始化依赖环境，再打开主环境终端。</source>
-      <translation>Initialize the dependency environment in the dependency wizard before opening its terminal.</translation>
+      <source>请先在依赖管理中初始化依赖环境，再打开主环境终端。</source>
+      <translation>Initialize the dependency environment in Dependency Management before opening the main environment terminal.</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="779" />
@@ -4831,17 +4826,17 @@ Click “Check Again” to retry.</translation>
       <translation>Runtime Log</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="491" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="499" />
       <source>运行日志: 关</source>
       <translation>Runtime Log: Off</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="491" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="499" />
       <source>运行日志: 开</source>
       <translation>Runtime Log: On</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="517" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="525" />
       <source>运行日志显示偏好已更新</source>
       <translation>Runtime log display preference updated</translation>
     </message>
@@ -4946,7 +4941,7 @@ Continue?</translation>
       <translation>Connection to GitHub timed out. Check the network or proxy and try again.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="569" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="577" />
       <source>连接多模态 OCR / VLM 接口，支持本地服务和部分线上服务。</source>
       <translation>Connect to multimodal OCR/VLM APIs hosted locally or by supported online services.</translation>
     </message>

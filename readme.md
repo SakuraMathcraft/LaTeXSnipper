@@ -104,7 +104,7 @@ Built-in formula export formats:
 - MathML standard, `.mml`, `<m>`, and attribute forms
 - HTML, Word OMML, and SVG code
 
-Optional Pandoc export formats are enabled after installing the `PANDOC` layer in the dependency wizard:
+Optional Pandoc export formats are enabled after installing the `PANDOC` layer in Dependency Management:
 
 - Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`
 - PDF `.pdf` (requires Pandoc plus a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX)
@@ -122,7 +122,7 @@ Optional Pandoc export formats are enabled after installing the `PANDOC` layer i
 
 Linux and macOS both create optional runtime dependency environments in the
 user state directory, so they need a usable system Python `>=3.10,<3.14` with
-venv/pip support. The dependency wizard prefers the newest supported interpreter;
+venv/pip support. Dependency Management prefers the newest supported interpreter;
 the packaged Windows runtime remains fixed at Python 3.11. Debian/Ubuntu `.deb` installs declare `python3` and
 `python3-venv`; macOS users should install Homebrew Python or an
 official python.org Python 3.10-3.13 installer when the system does not provide a

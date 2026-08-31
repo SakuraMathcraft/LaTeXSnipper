@@ -408,7 +408,7 @@ def ensure_deps(
         try:
             before_show_ui()
         except Exception as e:
-            print(f"[DEBUG] 显示依赖向导前的回调失败: {e}")
+            print(f"[DEBUG] 显示依赖管理前的回调失败: {e}")
 
     def _notify_after_force_enter():
         if not callable(after_force_enter):
@@ -472,9 +472,9 @@ def ensure_deps(
 
     is_frozen = getattr(sys, "frozen", False)
     if is_frozen:
-        # Packaged: runtime stays bundled, but dependency wizard should only treat
+        # Packaged: runtime stays bundled, but dependency management should only treat
         # a python inside deps_dir as reusable. Missing deps python must remain
-        # visible to the UI so the user can initialize it from the wizard.
+        # visible to the UI so the user can initialize it there.
         py_root = Path(deps_dir) / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or _dependency_venv_python(py_root)
@@ -528,7 +528,7 @@ def ensure_deps(
     pip_ready_event.clear()
     try:
         if from_settings and always_show_ui:
-            print("[DEBUG] 等待依赖向导确认后初始化 pip")
+            print("[DEBUG] 等待依赖管理确认后初始化 pip")
         elif use_bundled_python and not _is_usable_python(pyexe):
             print("[DEBUG] 依赖目录 Python 尚未初始化，跳过 pip 预检查")
         else:
@@ -754,7 +754,7 @@ def ensure_deps(
                     pyexe = _dependency_venv_python(py_root)
                     init_python_required = True
 
-                RESULT_BACK_TO_WIZARD = 1001
+                RESULT_BACK_TO_DEPENDENCY_MANAGEMENT = 1001
                 if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():
                     r = _exec_close_only_message_box(
                         None,
@@ -1034,7 +1034,7 @@ def ensure_deps(
                             pass
                         btn_cancel.clicked.connect(
                             lambda: (
-                                dlg.done(RESULT_BACK_TO_WIZARD)
+                                dlg.done(RESULT_BACK_TO_DEPENDENCY_MANAGEMENT)
                                 if _is_alive(dlg)
                                 else None
                             )
@@ -1043,7 +1043,7 @@ def ensure_deps(
                         if hasattr(dlg, "refresh_ui"):
                             dlg.refresh_ui()
                     except Exception as e:
-                        print(f"[DEBUG] 刷新依赖向导失败: {e}")
+                        print(f"[DEBUG] 刷新依赖管理失败: {e}")
 
                 def on_install_done(success: bool):
                     if completion_state["install_done_handled"]:
@@ -1266,7 +1266,7 @@ def ensure_deps(
                 install_verified_in_progress_ui = bool(
                     post_install_verify_passed.get("value", False)
                 )
-                if result == RESULT_BACK_TO_WIZARD:
+                if result == RESULT_BACK_TO_DEPENDENCY_MANAGEMENT:
                     try:
                         state = _sanitize_state_layers(state_path)
                         installed["layers"] = state.get("installed_layers", [])

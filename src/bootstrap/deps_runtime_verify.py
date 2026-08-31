@@ -457,7 +457,7 @@ def _layer_verify_failure_diagnostics(layer: str) -> list[str]:
         if sys.platform == "win32":
             return [
                 "Windows CPU 后端验证失败时，请优先确认已安装最新 Microsoft Visual C++ Redistributable x64: https://aka.ms/vc14/vc_redist.x64.exe",
-                "安装 VC++ Runtime 并重启后，在依赖向导中重装 MATHCRAFT_CPU。",
+                "安装 VC++ Runtime 并重启后，在依赖管理中重装 MATHCRAFT_CPU。",
             ]
         return []
     if layer != "MATHCRAFT_GPU":
@@ -485,7 +485,7 @@ def onnxruntime_verify_failure_guidance(expect_gpu: bool, detail: str = "") -> l
         lines = [
             "[INFO] 建议操作:",
             "  1. 确认 NVIDIA 驱动、CUDA 和 cuDNN 与 onnxruntime-gpu 版本兼容。",
-            "  2. 在依赖向导中重装 MATHCRAFT_GPU。",
+            "  2. 在依赖管理中重装 MATHCRAFT_GPU。",
         ]
         if sys.platform == "linux":
             lines.append("  3. 确认 CUDA/cuDNN 共享库目录已加入 LD_LIBRARY_PATH。")
@@ -495,7 +495,7 @@ def onnxruntime_verify_failure_guidance(expect_gpu: bool, detail: str = "") -> l
 
     lines = [
         "[INFO] 建议操作:",
-        "  1. 在依赖向导中重装 MATHCRAFT_CPU。",
+        "  1. 在依赖管理中重装 MATHCRAFT_CPU。",
     ]
     if sys.platform == "win32":
         lines.append(

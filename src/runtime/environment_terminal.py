@@ -125,7 +125,7 @@ def _launch_windows(
     help_commands = "\n".join(f"echo {line}" if line else "echo." for line in help_lines)
     launcher.write_text(
         "@echo off\n"
-        "title LaTeXSnipper Terminal - Main Environment\n"
+        "title LaTeXSnipper Environment Terminal\n"
         f'doskey python="{pyexe}" $*\n'
         f'doskey py="{pyexe}" $*\n'
         f'doskey pip="{pyexe}" -m pip $*\n'

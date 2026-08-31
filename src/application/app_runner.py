@@ -48,11 +48,13 @@ def _create_window(main_window_cls, splash):
 
 def _run_packaged(app, main_window_cls) -> int:
     splash = take_startup_splash(app, startup_status_message(tr("加载界面组件...")))
-    open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
+    open_dependency_management = (
+        os.environ.pop("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", None) == "1"
+    )
 
     _apply_startup_theme()
 
-    if open_wizard_on_start:
+    if open_dependency_management:
         update_startup_splash(splash, startup_status_message(tr("检查依赖...")))
         ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
         if not ok:
@@ -67,13 +69,17 @@ def _run_packaged(app, main_window_cls) -> int:
 
 def _run_development(app, main_window_cls) -> int:
     splash = take_startup_splash(app, startup_status_message(tr("加载界面组件...")))
-    open_wizard_on_start = os.environ.pop("LATEXSNIPPER_OPEN_WIZARD", None) == "1"
+    open_dependency_management = (
+        os.environ.pop("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", None) == "1"
+    )
     deps_check_message = startup_status_message(tr("检查依赖..."))
     update_startup_splash(splash, deps_check_message)
     deps_ready_cached = os.environ.get("LATEXSNIPPER_DEPS_OK") == "1"
-    needs_interactive_deps_ui = bool(open_wizard_on_start or (not deps_ready_cached))
+    needs_interactive_deps_ui = bool(
+        open_dependency_management or (not deps_ready_cached)
+    )
 
-    if open_wizard_on_start:
+    if open_dependency_management:
         ok = ensure_deps(prompt_ui=True, always_show_ui=True, from_settings=True)
     else:
         ok = ensure_deps(prompt_ui=True, always_show_ui=False, from_settings=False)

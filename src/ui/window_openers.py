@@ -158,13 +158,3 @@ class WindowOpenersMixin:
     def show_window(self):
         self.system_provider.activate_window(self)
         self.set_action_status(tr("主窗口已显示"))
-
-    def _open_terminal_from_settings(self):
-        try:
-            if not self.settings_window:
-                self.settings_window = SettingsWindow(self)
-            self.settings_window._open_terminal()
-        except Exception as e:
-            self.show_action_status(
-                tr("打开终端失败：{error}").format(error=e), level="error"
-            )
