@@ -195,8 +195,10 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     return base_dir, target_py
 
 
-def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, str]:
-    """Prepare only the minimum runtime state needed before showing the wizard."""
+def _prepare_python_runtime_for_dependency_management(
+    install_base_dir: Path,
+) -> tuple[Path, str]:
+    """Prepare only the runtime state needed for dependency management."""
     base_dir = Path(install_base_dir)
     _clean_bad_env()
 
@@ -214,7 +216,7 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
     os.environ.pop("PYTHONPATH", None)
     os.environ.pop("MATHCRAFT_HOME", None)
 
-    print("[DEBUG] 依赖向导模式：等待用户选择后准备 Python 环境")
+    print("[DEBUG] 依赖管理模式：等待用户选择后准备 Python 环境")
     return base_dir, target_py
 
 
@@ -226,9 +228,11 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
     if _is_packaged_mode():
         _append_private_site_packages(target_py)
 
-    open_wizard_env = os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1"
-    if open_wizard_env:
-        print("[DEBUG] 依赖向导模式：由向导统一验证依赖")
+    open_dependency_management = (
+        os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
+    )
+    if open_dependency_management:
+        print("[DEBUG] 依赖管理模式：统一验证依赖")
         return
 
     ensure_startup_splash(tr("检查依赖..."))
@@ -246,7 +250,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
             if deps_force_entered():
                 mark_startup_force_entered()
     except Exception as e:
-        print(f"[WARN] 依赖向导启动失败: {e}")
+        print(f"[WARN] 依赖管理启动失败: {e}")
 
 
 def bootstrap_application() -> BootstrapContext:
@@ -271,9 +275,13 @@ def bootstrap_application() -> BootstrapContext:
     print(f"[DEBUG] 依赖目录: {deps_dir}")
 
     install_base_dir = resolve_install_base_dir()
-    open_wizard_env = os.environ.get("LATEXSNIPPER_OPEN_WIZARD", "") == "1"
-    if _is_packaged_mode() and open_wizard_env:
-        base_dir, target_py = _prepare_python_runtime_for_wizard(install_base_dir)
+    open_dependency_management = (
+        os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
+    )
+    if _is_packaged_mode() and open_dependency_management:
+        base_dir, target_py = _prepare_python_runtime_for_dependency_management(
+            install_base_dir
+        )
     else:
         _maybe_redirect_to_private_python(install_base_dir)
         base_dir, target_py = _prepare_python_runtime(install_base_dir)

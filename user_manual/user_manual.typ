@@ -193,9 +193,9 @@
 // ═══════════════════════════════════════════
 #heading(level: 1)[开始使用前（必读）] <sec-quick>
 
-== 安装后第一步：运行依赖向导
+== 安装后第一步：打开依赖管理
 
-LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导"。这不是可有可无的步骤——向导负责安装和配置内置 MathCraft OCR、PDF/Pandoc 等运行依赖层；外部模型服务本身仍需要用户另行部署或配置。
+LaTeXSnipper 首次启动或检测到关键依赖缺失时会打开“依赖管理”。这不是可有可无的步骤——依赖管理负责安装和配置内置 MathCraft OCR、PDF/Pandoc 等运行依赖层；外部模型服务本身仍需要用户另行部署或配置。
 
 #warn-block("常见错误：跳过向导后直接使用内置识别", [
   如果依赖层未完整安装，内置 MathCraft 截图识别、PDF 识别、手写识别和 Pandoc 导出可能不可用，或在首次调用时进入修复流程。
@@ -272,7 +272,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会弹出"依赖向导
 
 普通图片和截图的确认窗口、历史记录及主窗口预览会按结果类型渲染：LaTeX 使用公式预览，Markdown 使用混合预览，纯文本使用文本预览。本地 MathCraft 的公式、混合和纯文字结果遵循相同映射。
 
-设置页还包含外观主题、公式渲染引擎、LaTeX 路径验证、更新检查、启动时显示运行日志、依赖管理向导、打开 MathCraft 缓存目录等入口。MathCraft 依赖统一由主依赖环境管理，设置页不再提供单独的模型下载按钮。
+设置页还包含外观主题、公式渲染引擎、LaTeX 路径验证、更新检查、启动时显示运行日志、环境终端、依赖管理、模型缓存等入口。MathCraft 依赖统一由主依赖环境管理，设置页不再提供单独的模型下载按钮。
 
 == PDF 识别流程
 
@@ -410,7 +410,7 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 
 *解决：*
 - `pip uninstall onnxruntime onnxruntime-gpu` 全部卸载后重新安装
-- LaTeXSnipper 用户优先通过依赖向导重装，向导会按 CUDA 11/12/13 选择官方稳定运行时
+- LaTeXSnipper 用户优先通过依赖管理重装，程序会按 CUDA 11/12/13 选择官方稳定运行时
 - 手动安装 CUDA 13：`pip install "onnxruntime-gpu>=1.27,<1.30"`；CUDA 12：`pip install "onnxruntime-gpu>=1.21,<1.27"`
 - 仅 CPU：`pip install "onnxruntime>=1.20,<1.30"`
 
@@ -668,7 +668,7 @@ pip install -r requirements-macos.txt
 
 == 依赖环境创建在哪里
 
-LaTeXSnipper 使用 `install_base_dir` 作为活动 Python 依赖根。用户在依赖向导或设置中切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
+LaTeXSnipper 使用 `install_base_dir` 作为活动 Python 依赖根。用户在依赖管理或设置中切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
 
 ```text
 <安装目录>\_internal\deps
@@ -714,7 +714,7 @@ https://www.python.org/downloads/macos/
 
 #v(0.35em)
 
-依赖向导会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，向导会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.13）创建隔离环境。
+依赖管理会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，程序会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.13）创建隔离环境。
 
 #v(0.35em)
 
@@ -900,7 +900,7 @@ LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使�
 #v(0.35em)
 
 *解决：*
-- 打开依赖向导，安装 "PANDOC" 层
+- 打开依赖管理，安装 "PANDOC" 层
 - 或手动安装 Pandoc（https://pandoc.org）并确保在 PATH 中
 - 核心功能（LaTeX / Markdown / MathML / HTML / OMML / SVG 导出）不需要 Pandoc
 - PDF 导出如果继续失败，请确认已安装 TeX Live / MiKTeX 等 LaTeX 发行版，并且 `xelatex`、`lualatex` 或 `pdflatex` 可在 PATH 中找到
@@ -1033,7 +1033,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 - 某些发行版需要在设置中允许屏幕共享权限
 
 #info-block("Linux 依赖提示", [
-  依赖向导只管理 Python 依赖层。`grim`、`maim`、`gnome-screenshot` 等系统工具需要用户自行通过包管理器安装。
+  依赖管理只管理 Python 依赖层。`grim`、`maim`、`gnome-screenshot` 等系统工具需要用户自行通过包管理器安装。
   这些工具是可选的回退方案——应用在 Qt 原生截图失败时自动尝试它们。
 ])
 
@@ -1100,7 +1100,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 
 == macOS: 没有可用 pip 或 pip 版本太低
 
-*现象：* 依赖向导提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
+*现象：* 依赖管理提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
 
 #v(0.35em)
 
@@ -1111,7 +1111,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 *解决：*
 - 推荐安装 Homebrew Python：`brew install python`
 - 或安装 python.org 官方 macOS Python 包
-- 重新启动 LaTeXSnipper 后再运行依赖向导
+- 重新启动 LaTeXSnipper 后再打开依赖管理
 
 == 各平台数据目录速查
 
@@ -1122,7 +1122,7 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
   macOS:    ~/Library/Application Support/LaTeXSnipper/
 
 依赖根：
-  Windows:  <安装目录>\_internal\deps（默认，可在依赖向导/设置中切换）
+  Windows:  <安装目录>\_internal\deps（默认，可在依赖管理/设置中切换）
   Linux:    ~/.latexsnipper/deps（默认，可切换）
   macOS:    ~/Library/Application Support/LaTeXSnipper/deps（默认，可切换）
 
@@ -2425,7 +2425,7 @@ pip install "mathcraft-ocr[gpu]"
 pip install "mathcraft-ocr[gpu-cu12]"
 ```
 
-单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。CUDA 11 还需使用 ONNX Runtime 官方 CUDA 11 feed。在 LaTeXSnipper 中使用时，通常通过依赖向导自动安装。
+单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。CUDA 11 还需使用 ONNX Runtime 官方 CUDA 11 feed。在 LaTeXSnipper 中使用时，通常通过依赖管理自动安装。
 
 *命令行使用：*
 ```text

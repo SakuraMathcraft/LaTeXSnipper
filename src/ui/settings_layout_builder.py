@@ -355,34 +355,38 @@ class SettingsLayoutMixin:
         terminal_layout = QHBoxLayout(terminal_row)
         terminal_layout.setContentsMargins(0, 0, 0, 0)
         terminal_layout.setSpacing(6)
-        self.terminal_env_button = PushButton(FluentIcon.GLOBE, tr("访问范围"))
-        self.terminal_env_button.setFixedHeight(36)
-        self.terminal_env_button.setToolTip(
+        self.access_scope_button = PushButton(FluentIcon.GLOBE, tr("访问范围"))
+        self.access_scope_button.setFixedHeight(36)
+        self.access_scope_button.setToolTip(
             tr("配置 Automation API 的本机或远程访问范围")
         )
-        terminal_layout.addWidget(self.terminal_env_button, 1)
-        self.btn_terminal = PushButton(FluentIcon.COMMAND_PROMPT, tr("打开环境终端"))
-        self.btn_terminal.setFixedHeight(36)
-        self.btn_terminal.setToolTip(tr("打开主环境终端，可手动安装/修复依赖"))
-        terminal_layout.addWidget(self.btn_terminal, 1)
+        terminal_layout.addWidget(self.access_scope_button, 1)
+        self.environment_terminal_button = PushButton(
+            FluentIcon.COMMAND_PROMPT, tr("环境终端")
+        )
+        self.environment_terminal_button.setFixedHeight(36)
+        self.environment_terminal_button.setToolTip(
+            tr("打开主环境终端，可手动安装/修复依赖")
+        )
+        terminal_layout.addWidget(self.environment_terminal_button, 1)
         lay.addWidget(terminal_row)
-        # Dependency management wizard and cache directory.
+        # Dependency management and model cache.
         deps_row = QWidget()
         deps_row_layout = QHBoxLayout(deps_row)
         deps_row_layout.setContentsMargins(0, 0, 0, 0)
         deps_row_layout.setSpacing(6)
-        self.btn_deps_wizard = PushButton(
-            FluentIcon.DEVELOPER_TOOLS, tr("依赖管理向导")
+        self.dependency_management_button = PushButton(
+            FluentIcon.DEVELOPER_TOOLS, tr("依赖管理")
         )
-        self.btn_deps_wizard.setFixedHeight(36)
-        self.btn_deps_wizard.setToolTip(tr("打开依赖管理向导，可安装/修复依赖"))
-        deps_row_layout.addWidget(self.btn_deps_wizard, 1)
-        self.btn_open_mathcraft_cache = PushButton(
-            FluentIcon.FOLDER, tr("打开缓存目录")
+        self.dependency_management_button.setFixedHeight(36)
+        self.dependency_management_button.setToolTip(
+            tr("打开依赖管理，可安装/修复依赖")
         )
-        self.btn_open_mathcraft_cache.setFixedHeight(36)
-        self.btn_open_mathcraft_cache.setToolTip(tr("打开 MathCraft 模型缓存目录"))
-        deps_row_layout.addWidget(self.btn_open_mathcraft_cache, 1)
+        deps_row_layout.addWidget(self.dependency_management_button, 1)
+        self.model_cache_button = PushButton(FluentIcon.FOLDER, tr("模型缓存"))
+        self.model_cache_button.setFixedHeight(36)
+        self.model_cache_button.setToolTip(tr("打开 MathCraft 模型缓存目录"))
+        deps_row_layout.addWidget(self.model_cache_button, 1)
         lay.addWidget(deps_row)
         self.btn_cleanup_macos_local_data = None
         if sys.platform == "darwin":
@@ -406,10 +410,14 @@ class SettingsLayoutMixin:
         self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
         self._schedule_compute_mode_probe(force=True)
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
-        self.btn_terminal.clicked.connect(lambda: self._open_terminal())
-        self.terminal_env_button.clicked.connect(self._open_automation_access_dialog)
-        self.btn_deps_wizard.clicked.connect(self._open_deps_wizard)
-        self.btn_open_mathcraft_cache.clicked.connect(self._open_mathcraft_cache_dir)
+        self.environment_terminal_button.clicked.connect(
+            self._open_environment_terminal
+        )
+        self.access_scope_button.clicked.connect(self._open_automation_access_dialog)
+        self.dependency_management_button.clicked.connect(
+            self._open_dependency_management
+        )
+        self.model_cache_button.clicked.connect(self._open_model_cache)
         if self.btn_cleanup_macos_local_data is not None:
             self.btn_cleanup_macos_local_data.clicked.connect(
                 self._cleanup_macos_local_data

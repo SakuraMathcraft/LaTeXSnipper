@@ -738,7 +738,7 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             else:
                 print(f"[DEBUG] 使用外部私有 Python: {py}")
             return py
-        print("[DEBUG] 依赖目录未检测到可用 Python，使用内置运行时启动依赖向导")
+        print("[DEBUG] 依赖目录未检测到可用 Python，使用内置运行时启动依赖管理")
         return sys.executable
 
     py = _find_full_python(base_dir)

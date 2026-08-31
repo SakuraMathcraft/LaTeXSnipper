@@ -39,12 +39,12 @@ from runtime.dependency_python import (
 
 
 def activate_dependency_dialog(dlg) -> None:
-    """Make the dependency wizard a visible foreground window before exec()."""
+    """Make dependency management visible before entering its event loop."""
     try:
         dlg.setWindowFlag(Qt.WindowType.Window, True)
         dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     except Exception as e:
-        print(f"[DEBUG] 设置依赖向导窗口属性失败: {e}")
+        print(f"[DEBUG] 设置依赖管理窗口属性失败: {e}")
 
     def _raise_dialog() -> None:
         try:
@@ -59,7 +59,7 @@ def activate_dependency_dialog(dlg) -> None:
         except RuntimeError:
             pass
         except Exception as e:
-            print(f"[DEBUG] 激活依赖向导窗口失败: {e}")
+            print(f"[DEBUG] 激活依赖管理窗口失败: {e}")
 
     _raise_dialog()
     QTimer.singleShot(0, _raise_dialog)
@@ -229,7 +229,7 @@ def _build_layers_ui(
     icon_path = resource_path("assets/icon.ico")
     if os.path.exists(icon_path):
         dlg.setWindowIcon(QIcon(icon_path))
-    dlg.setWindowTitle(tr("依赖管理向导"))
+    dlg.setWindowTitle(tr("依赖管理"))
     lay = QVBoxLayout(dlg)
     lay.setSpacing(8)
     lay.setContentsMargins(16, 16, 16, 12)
@@ -929,7 +929,7 @@ def _build_layers_ui(
             py_ready_local = bool(_find_existing_python(Path(current_dir)))
             _set_environment_notice(py_ready_local, failed_layer_names)
         except Exception as e:
-            print(f"[WARN] 刷新依赖向导失败: {e}")
+            print(f"[WARN] 刷新依赖管理失败: {e}")
 
     dlg.refresh_ui = refresh_ui
 

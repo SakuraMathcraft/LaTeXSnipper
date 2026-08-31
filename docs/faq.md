@@ -108,11 +108,11 @@ dependency roots.
 
 Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
 
-## When does the dependency wizard initialize pip?
+## When does Dependency Management initialize pip?
 
-The dependency wizard opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
+Dependency Management opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
 
-If the selected directory already contains a usable Python environment, the wizard uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.14`) to create the isolated environment.
+If the selected directory already contains a usable Python environment, Dependency Management uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.14`) to create the isolated environment.
 
 ## Why do Linux and macOS need Python 3?
 
@@ -138,7 +138,7 @@ If a model download is interrupted or corrupted, delete the affected model subdi
 
 ## What should I do if MathCraft OCR does not start?
 
-Run the dependency wizard first. If the issue persists, check the logs and verify the model cache with:
+Open Dependency Management first. If the issue persists, check the logs and verify the model cache with:
 
 ```bash
 python -m mathcraft_ocr models check
@@ -173,7 +173,7 @@ Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture
 
 Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
-The dependency wizard manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; local developer/build tools belong under `tools/deps/` or the app-managed dependency directory.
+Dependency Management manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; local developer/build tools belong under `tools/deps/` or the app-managed dependency directory.
 
 ## How does PDF recognition work?
 

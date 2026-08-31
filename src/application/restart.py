@@ -6,13 +6,13 @@ from __future__ import annotations
 import os
 
 
-def build_restart_with_wizard_launch(
+def build_restart_with_dependency_management_launch(
     python_exe: str,
     argv0: str,
     base_env: dict | None = None,
 ) -> tuple[list[str], dict]:
     env = dict(base_env or os.environ.copy())
-    env["LATEXSNIPPER_OPEN_WIZARD"] = "1"
+    env["LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT"] = "1"
     env["LATEXSNIPPER_RESTART"] = "1"
     env.pop("LATEXSNIPPER_DEPS_OK", None)
 
@@ -22,4 +22,3 @@ def build_restart_with_wizard_launch(
     else:
         cmd = [script_path]
     return cmd, env
-

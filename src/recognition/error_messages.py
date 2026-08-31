@@ -71,7 +71,7 @@ _MATHCRAFT_DIAGNOSTIC_TEXTS = (
     mark_for_translation("onnxruntime 依赖异常"),
     mark_for_translation("MathCraft 依赖不完整"),
     mark_for_translation(
-        "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖向导安装 BASIC、CORE "
+        "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE "
         "和对应的 MATHCRAFT_CPU/GPU 层。"
     ),
     mark_for_translation("模型缓存不完整"),

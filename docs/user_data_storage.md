@@ -28,7 +28,7 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 ## Dependency Runtime
 
 `install_base_dir` in `LaTeXSnipper_config.json` is the active dependency root.
-Users can change it from the dependency wizard or settings. LaTeXSnipper records
+Users can change it from Dependency Management or settings. LaTeXSnipper records
 only the current active root and does not keep a cleanup history of previous
 user-selected dependency roots.
 

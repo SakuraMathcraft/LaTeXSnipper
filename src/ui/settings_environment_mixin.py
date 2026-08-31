@@ -9,7 +9,7 @@ from backend.mathcraft.runtime_policy import (
     onnxruntime_cpu_spec,
     onnxruntime_gpu_policy,
 )
-from application.restart import build_restart_with_wizard_launch
+from application.restart import build_restart_with_dependency_management_launch
 from runtime.dependency_python import python_env_root
 from runtime.environment_terminal import open_main_environment_terminal
 from ui.settings_dialog_helpers import (
@@ -86,12 +86,12 @@ class SettingsEnvironmentMixin:
         )
         return lines
 
-    def _open_terminal(self):
+    def _open_environment_terminal(self):
         pyexe = self._resolve_dynamic_main_pyexe()
         if not pyexe or not os.path.exists(pyexe):
             self._show_info(
                 tr("环境未就绪"),
-                tr("请先在依赖管理向导中初始化依赖环境，再打开主环境终端。"),
+                tr("请先在依赖管理中初始化依赖环境，再打开主环境终端。"),
                 "warning",
             )
             return
@@ -110,13 +110,13 @@ class SettingsEnvironmentMixin:
         except Exception as e:
             self._show_info(tr("终端打开失败"), str(e), "error")
 
-    def _resolve_mathcraft_cache_dir(self) -> str:
+    def _resolve_model_cache_dir(self) -> str:
         from mathcraft_ocr.cache import resolve_user_models_dir
 
         return os.path.normpath(str(resolve_user_models_dir()))
 
-    def _open_mathcraft_cache_dir(self):
-        path = self._resolve_mathcraft_cache_dir()
+    def _open_model_cache(self):
+        path = self._resolve_model_cache_dir()
         try:
             os.makedirs(path, exist_ok=True)
             if os.name == "nt":
@@ -127,20 +127,20 @@ class SettingsEnvironmentMixin:
                 subprocess.Popen(["xdg-open", path])
             self._show_info(
                 tr("已打开"),
-                tr("MathCraft 缓存目录: {path}").format(path=path),
+                tr("模型缓存目录: {path}").format(path=path),
                 "success",
             )
         except Exception as e:
             self._show_info(
-                tr("打开失败"), tr("无法打开缓存目录: {error}").format(error=e), "error"
+                tr("打开失败"), tr("无法打开模型缓存: {error}").format(error=e), "error"
             )
 
-    def _open_deps_wizard(self):
-        """Open the dependency management wizard."""
+    def _open_dependency_management(self):
+        """Open dependency management in a clean process."""
         msg = MessageBox(
-            tr("打开依赖向导"),
+            tr("打开依赖管理"),
             tr(
-                "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC：取消操作"
+                "依赖管理将以重启后的干净进程打开。\n\n是否立即重启并打开依赖管理？\n• ESC：取消操作"
             ),
             self,
         )
@@ -165,10 +165,10 @@ class SettingsEnvironmentMixin:
         result = msg.exec()
         if esc_pressed[0] or not result:
             return
-        self._restart_with_wizard()
+        self._restart_with_dependency_management()
 
-    def _restart_with_wizard(self):
-        """Restart the app and open the dependency wizard."""
+    def _restart_with_dependency_management(self):
+        """Restart the app and open dependency management."""
         import sys
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import QCoreApplication
@@ -187,7 +187,7 @@ class SettingsEnvironmentMixin:
             "pythonw",
         ):
             argv0 = os.path.abspath(sys.argv[0]) if sys.argv else ""
-        spawn_argv, env = build_restart_with_wizard_launch(
+        spawn_argv, env = build_restart_with_dependency_management_launch(
             python_exe=sys.executable,
             argv0=argv0,
             base_env=os.environ.copy(),
@@ -207,7 +207,7 @@ class SettingsEnvironmentMixin:
             except Exception:
                 pass
             # This launches the GUI app itself.  Passing SW_HIDE here can hide the
-            # child process' first Qt window, which is the dependency wizard.
+            # child process' first Qt window, which is dependency management.
             subprocess.Popen([str(x) for x in spawn_argv], env=env)
             # Close the current program.
             QApplication.instance().quit()

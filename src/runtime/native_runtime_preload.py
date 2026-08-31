@@ -28,7 +28,7 @@ def preload_onnxruntime_before_qt() -> bool:
     that makes a later onnxruntime-gpu import fail inside its extension module.
     Importing onnxruntime first keeps both Qt and ONNX Runtime usable in the
     same process. Missing or broken optional MathCraft dependencies are handled
-    later by the dependency wizard, so this preloader never raises.
+    later by dependency management, so this preloader never raises.
     """
     global _ONNXRUNTIME_PRELOADED
     if _ONNXRUNTIME_PRELOADED:

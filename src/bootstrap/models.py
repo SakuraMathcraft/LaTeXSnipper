@@ -1,4 +1,4 @@
-"""Typed values exchanged between the dependency wizard and installer."""
+"""Typed values exchanged between dependency management and the installer."""
 
 from __future__ import annotations
 
