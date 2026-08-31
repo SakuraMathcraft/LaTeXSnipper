@@ -55,9 +55,11 @@ def test_compiled_catalog_is_loaded_at_runtime():
     assert translate("截图识别") == "Capture & Recognize"
 
     from bootstrap.deps_layer_specs import layer_display_name
+    from backend.external_model.errors import ExternalModelConnectionError
     from recognition.error_messages import (
         EMPTY_FORMULA_MESSAGE,
         EMPTY_RESULT_MESSAGE,
+        external_model_test_error_user_message,
         recognition_error_code_user_message,
         recognition_failure_user_message,
         translate_image_input_error,
@@ -77,6 +79,15 @@ def test_compiled_catalog_is_loaded_at_runtime():
         "The recognition result is empty"
     )
     assert translate_image_input_error("图片内容为空。") == "The image is empty."
+    connection_error = ExternalModelConnectionError(
+        "internal diagnostic",
+        user_code="connection_unreachable",
+        user_context={"target": "127.0.0.1:8185"},
+    )
+    assert external_model_test_error_user_message(connection_error) == (
+        "Cannot connect to 127.0.0.1:8185. Make sure the service is running "
+        "and that the address and port are correct."
+    )
 
     install_application_translators(app, SIMPLIFIED_CHINESE_LANGUAGE)
     assert translate("设置") == "设置"

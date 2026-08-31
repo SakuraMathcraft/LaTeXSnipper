@@ -446,6 +446,16 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MinerU Local parsing endpoint path (for example, /file_parse)</translation>
     </message>
     <message>
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="241" />
+      <source>MinerU 健康检查通过：{endpoint}</source>
+      <translation>MinerU health check passed: {endpoint}</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="161" />
+      <source>MinerU 解析任务失败，请检查模型配置和服务日志。</source>
+      <translation>The MinerU parsing task failed. Check the model configuration and service log.</translation>
+    </message>
+    <message>
       <location filename="../../../src/recognition/error_messages.py" line="81" />
       <source>OCR 字典与模型不匹配</source>
       <translation>OCR vocabulary and model mismatch</translation>
@@ -753,34 +763,6 @@ Example: {path}
       <location filename="../../../src/bootstrap/deps_ui.py" line="381" />
       <source>{layer}（需要修复）</source>
       <translation>{layer} (repair required)</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="274" />
-      <source>{message}
-提示：服务响应较慢，可提高超时或先确认模型是否已完成加载。</source>
-      <translation>{message}
-Hint: The service is responding slowly. Increase the timeout or confirm that the model has finished loading.</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="262" />
-      <source>{message}
-提示：模型名填写错误或该模型未在服务中加载。</source>
-      <translation>{message}
-Hint: The model name may be incorrect or the service has not loaded the model.</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="266" />
-      <source>{message}
-提示：请检查 API Key 是否必填、是否填写正确。</source>
-      <translation>{message}
-Hint: Check whether an API key is required and whether it is correct.</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="270" />
-      <source>{message}
-提示：请检查 Base URL、协议类型以及服务端路由是否正确。</source>
-      <translation>{message}
-Hint: Check the Base URL, protocol type, and server route.</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="1850" />
@@ -1124,7 +1106,7 @@ Restart and open Dependency Management now?
       <translation>The new key takes effect after you save the configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="234" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="236" />
       <source>健康检查通过</source>
       <translation>Health check passed</translation>
     </message>
@@ -1471,7 +1453,7 @@ Restart and open Dependency Management now?
       <translation>Optional</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="112" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="113" />
       <source>可选：模型名（MinerU Local 通常可留空）</source>
       <translation>Optional: model name (usually blank for MinerU Local)</translation>
     </message>
@@ -1679,6 +1661,11 @@ Restart and open Dependency Management now?
       <translation>The external model timed out. Retry later or adjust the timeout.</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="107" />
+      <source>外部模型地址为空，请先填写 Base URL。</source>
+      <translation>The external model address is empty. Enter a Base URL first.</translation>
+    </message>
+    <message>
       <location filename="../../../src/recognition/error_messages.py" line="15" />
       <source>外部模型尚未配置或当前不可用，请检查外部模型设置。</source>
       <translation>The external model is not configured or is unavailable. Check the external model settings.</translation>
@@ -1727,6 +1714,11 @@ Restart and open Dependency Management now?
       <location filename="../../../src/recognition/error_messages.py" line="35" />
       <source>外部模型调用失败，请检查服务状态和模型配置。</source>
       <translation>The external model request failed. Check the service status and model configuration.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="162" />
+      <source>外部模型连接测试失败，请检查服务地址、协议和网络连接。</source>
+      <translation>The external model connection test failed. Check the service address, protocol, and network connection.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_external_help.py" line="32" />
@@ -2129,7 +2121,7 @@ Launch the installer now?</translation>
       <translation>Named: {name}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="198" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="199" />
       <source>已填入推荐配置，请按你的本地服务实际情况检查模型名。</source>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
@@ -2481,7 +2473,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The selected copy action is unavailable</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="206" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="207" />
       <source>当前已有一个测试连接任务在后台运行。</source>
       <translation>A connection test is already running in the background.</translation>
     </message>
@@ -2639,7 +2631,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Required: Base URL, such as local http://127.0.0.1:11434 or hosted https://api.example.com</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="116" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="117" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="149" />
       <source>必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致</source>
       <translation>Required: model name, such as qwen2.5vl:7b; it must match the name exposed by the service</translation>
@@ -2805,6 +2797,11 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>LaTeX executable not found</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="113" />
+      <source>指定地址</source>
+      <translation>the specified address</translation>
+    </message>
+    <message>
       <location filename="../../../src/ui/tray_controller.py" line="43" />
       <source>指定屏幕</source>
       <translation>Selected display</translation>
@@ -2854,6 +2851,41 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/handwriting/handwriting_window.py" line="1023" />
       <source>排版结果为空</source>
       <translation>The formatting result is empty</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="141" />
+      <source>接口已连接，但未能读取到可用模型列表。</source>
+      <translation>The API is reachable, but no available model list could be read.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="123" />
+      <source>接口认证失败，请检查 API Key。</source>
+      <translation>API authentication failed. Check the API key.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="125" />
+      <source>接口访问被拒绝，请检查权限或鉴权配置。</source>
+      <translation>API access was denied. Check the permissions or authentication settings.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="128" />
+      <source>接口路径不存在：{endpoint}，请检查 Base URL、协议类型或接口路径配置。</source>
+      <translation>The API endpoint does not exist: {endpoint}. Check the Base URL, protocol, or endpoint settings.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="154" />
+      <source>接口返回 {status_code}。服务端信息：{detail}</source>
+      <translation>The API returned {status_code}. Server response: {detail}</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="157" />
+      <source>接口返回 {status_code}，请检查服务配置。</source>
+      <translation>The API returned {status_code}. Check the service configuration.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="139" />
+      <source>接口返回的不是有效 JSON，请检查服务协议和响应内容。</source>
+      <translation>The API response is not valid JSON. Check the service protocol and response.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/pdf_options_dialog.py" line="127" />
@@ -3106,6 +3138,16 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Unable to connect to GitHub. Check network, proxy, or DNS settings.</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="116" />
+      <source>无法连接到 {target}，请确认 {service} 服务已启动，地址和端口填写正确。</source>
+      <translation>Cannot connect to {target}. Make sure the {service} service is running and that the address and port are correct.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="119" />
+      <source>无法连接到 {target}，请确认服务已启动，地址和端口填写正确。</source>
+      <translation>Cannot connect to {target}. Make sure the service is running and that the address and port are correct.</translation>
+    </message>
+    <message>
       <location filename="../../../src/ui/settings_environment_mixin.py" line="219" />
       <source>无法重启程序: {error}</source>
       <translation>Unable to restart the app: {error}</translation>
@@ -3240,6 +3282,11 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Oldest first</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="135" />
+      <source>服务端返回 {status_code}，请稍后重试或检查服务日志。</source>
+      <translation>The server returned {status_code}. Try again later or check the service log.</translation>
+    </message>
+    <message>
       <location filename="../../../src/capture/capture_controller.py" line="120" />
       <source>未创建识别任务。</source>
       <translation>No recognition task was created.</translation>
@@ -3293,6 +3340,11 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/update/release_types.py" line="90" />
       <source>未找到可用的 GitHub Release，请确认发布页已创建。</source>
       <translation>No usable GitHub Release was found. Make sure a release page has been created.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="145" />
+      <source>未找到模型 {model_name}。当前可用模型：{available_models}</source>
+      <translation>Model {model_name} was not found. Available models: {available_models}</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="1027" />
@@ -3378,7 +3430,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No content selected</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="171" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="172" />
       <source>未选择预设</source>
       <translation>No preset selected</translation>
     </message>
@@ -3511,6 +3563,11 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/ui/settings_latex_mixin.py" line="204" />
       <source>检测成功</source>
       <translation>Detection successful</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="109" />
+      <source>模型名为空，请先填写本地服务中的模型名称。</source>
+      <translation>The model name is empty. Enter the model name used by the local service.</translation>
     </message>
     <message>
       <location filename="../../../src/capture/capture_controller.py" line="26" />
@@ -3786,27 +3843,27 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Light</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="213" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="214" />
       <source>测试中...</source>
       <translation>Testing...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="244" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="252" />
       <source>测试失败</source>
       <translation>Test failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="236" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="238" />
       <source>测试成功</source>
       <translation>Test successful</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="205" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="206" />
       <source>测试进行中</source>
       <translation>Test in progress</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="222" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="223" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="200" />
       <source>测试连接</source>
       <translation>Test Connection</translation>
@@ -4579,6 +4636,11 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognition worker timed out</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="149" />
+      <source>该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。</source>
+      <translation>This API or model does not support image input. Use a vision-capable model or service.</translation>
+    </message>
+    <message>
       <location filename="../../../src/ui/file_drop.py" line="136" />
       <source>请一次只拖入一个图片或 PDF 文件。</source>
       <translation>Drop one image or PDF file at a time.</translation>
@@ -4692,6 +4754,11 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Check that MathJax resources are packaged correctly</translation>
     </message>
     <message>
+      <location filename="../../../src/recognition/error_messages.py" line="132" />
+      <source>请求过于频繁，请稍后重试。</source>
+      <translation>Too many requests. Try again later.</translation>
+    </message>
+    <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="382" />
       <source>请确认连接方式安全，并勾选远程访问确认项。</source>
       <translation>Confirm that the connection is secure and select the remote access acknowledgement.</translation>
@@ -4722,7 +4789,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Select a PDF rendering resolution:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="171" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="172" />
       <source>请选择一个推荐预设后再应用。</source>
       <translation>Select a recommended preset before applying it.</translation>
     </message>
@@ -4946,9 +5013,14 @@ Continue?</translation>
       <translation>Connect to multimodal OCR/VLM APIs hosted locally or by supported online services.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="239" />
-      <source>连接成功，本地服务可访问。</source>
-      <translation>Connection successful. The local service is reachable.</translation>
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="245" />
+      <source>连接成功，已找到模型 {model_name}。</source>
+      <translation>Connected successfully. Model {model_name} was found.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="111" />
+      <source>连接测试超时，请检查服务状态或适当提高超时设置。</source>
+      <translation>The connection test timed out. Check the service status or increase the timeout.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="112" />
@@ -5219,7 +5291,7 @@ Continue?</translation>
       <translation>Warming up</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="197" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="198" />
       <source>预设已应用</source>
       <translation>Preset applied</translation>
     </message>

@@ -111,11 +111,12 @@ def test_openai_compatible_400_includes_response_detail() -> None:
     response.status_code = 400
     response._content = b'{"error":{"message":"image input is not supported by this model"}}'
     error = requests.HTTPError(response=response)
-    message = ExternalModelClient(ExternalModelConfig())._format_request_error(
+    error = ExternalModelClient(ExternalModelConfig())._build_request_error(
         error,
         "外部模型请求",
         "https://api.example.com/v1/chat/completions",
     )
+    message = str(error)
 
     assert "接口返回 400" in message
     assert "image input is not supported" in message
@@ -132,11 +133,12 @@ def test_openai_compatible_text_only_schema_error_is_clear() -> None:
         b"messages[0]: unknown variant `image_url`, expected `text` at line 1 column 54657\"}}"
     )
     error = requests.HTTPError(response=response)
-    message = ExternalModelClient(ExternalModelConfig())._format_request_error(
+    error = ExternalModelClient(ExternalModelConfig())._build_request_error(
         error,
         "外部模型请求",
         "https://api.example.com/v1/chat/completions",
     )
+    message = str(error)
 
     assert "不支持图片输入" in message
     assert "服务端信息" not in message
