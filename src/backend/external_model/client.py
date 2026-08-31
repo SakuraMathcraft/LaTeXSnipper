@@ -24,9 +24,15 @@ class ExternalModelClient:
         base_url = self.config.normalized_base_url()
         model_name = self.config.normalized_model_name()
         if not base_url:
-            raise ExternalModelConfigError("外部模型地址为空，请先填写 Base URL。")
+            raise ExternalModelConfigError(
+                "外部模型地址为空，请先填写 Base URL。",
+                user_code="base_url_missing",
+            )
         if provider != "mineru" and not model_name:
-            raise ExternalModelConfigError("模型名为空，请先填写本地服务中的模型名称。")
+            raise ExternalModelConfigError(
+                "模型名为空，请先填写本地服务中的模型名称。",
+                user_code="model_name_missing",
+            )
         return provider, model_name
 
     def _headers(self) -> dict:
@@ -45,7 +51,9 @@ class ExternalModelClient:
         image.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("ascii")
 
-    def _format_request_error(self, e: requests.RequestException, action: str, url: str) -> str:
+    def _build_request_error(
+        self, e: requests.RequestException, action: str, url: str
+    ) -> ExternalModelConnectionError:
         parsed = urlparse(url or "")
         host = parsed.hostname or "未知地址"
         port = parsed.port
@@ -53,33 +61,62 @@ class ExternalModelClient:
         target = f"{host}:{port}" if port else host
 
         if isinstance(e, requests.Timeout):
-            return f"{action}超时，请检查服务响应速度或适当提高超时设置。"
+            return ExternalModelConnectionError(
+                f"{action}超时，请检查服务响应速度或适当提高超时设置。",
+                user_code="request_timeout",
+            )
         if isinstance(e, requests.ConnectionError):
-            return f"无法连接到 {target}，请确认服务已启动，地址和端口填写正确。"
+            return ExternalModelConnectionError(
+                f"无法连接到 {target}，请确认服务已启动，地址和端口填写正确。",
+                user_code="connection_unreachable",
+                user_context={"target": target},
+            )
 
         resp = getattr(e, "response", None)
         if resp is not None:
             code = int(getattr(resp, "status_code", 0) or 0)
             if code == 401:
-                return "接口认证失败，请检查 API Key。"
+                message = "接口认证失败，请检查 API Key。"
+                user_code = "authentication_failed"
             if code == 403:
-                return "接口访问被拒绝，请检查权限或鉴权配置。"
+                message = "接口访问被拒绝，请检查权限或鉴权配置。"
+                user_code = "access_denied"
             if code == 404:
-                return f"接口路径不存在：{endpoint}，请检查 Base URL 或协议类型。"
+                message = f"接口路径不存在：{endpoint}，请检查 Base URL 或协议类型。"
+                user_code = "endpoint_not_found"
             if code == 429:
-                return "请求过于频繁，请稍后重试。"
+                message = "请求过于频繁，请稍后重试。"
+                user_code = "rate_limited"
             if 500 <= code < 600:
-                return f"服务端返回 {code}，请稍后重试或检查服务日志。"
-            detail = self._response_error_detail(resp)
+                message = f"服务端返回 {code}，请稍后重试或检查服务日志。"
+                user_code = "server_error"
+            if code not in {401, 403, 404, 429} and not 500 <= code < 600:
+                detail = self._response_error_detail(resp)
+            else:
+                detail = ""
             if code == 400:
                 if self._is_image_input_rejected(detail):
                     suffix = "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
+                    user_code = "image_input_unsupported"
                 else:
                     suffix = f"服务端信息：{detail}" if detail else "请检查模型是否支持图片输入、模型名和请求协议。"
-                return f"{action}失败，接口返回 400。{suffix}"
-            return f"{action}失败，接口返回 {code}。" + (f"服务端信息：{detail}" if detail else "")
+                    user_code = "bad_request"
+                message = f"{action}失败，接口返回 400。{suffix}"
+            elif code not in {401, 403, 404, 429} and not 500 <= code < 600:
+                message = f"{action}失败，接口返回 {code}。" + (
+                    f"服务端信息：{detail}" if detail else ""
+                )
+                user_code = "http_error"
+            return ExternalModelConnectionError(
+                message,
+                user_code=user_code,
+                user_context={"status_code": code, "endpoint": endpoint, "detail": detail},
+            )
 
-        return f"{action}失败，请检查服务地址、协议和网络连接。"
+        return ExternalModelConnectionError(
+            f"{action}失败，请检查服务地址、协议和网络连接。",
+            user_code="request_failed",
+        )
 
     def _response_error_detail(self, resp) -> str:
         try:
@@ -145,18 +182,28 @@ class ExternalModelClient:
                 raw = resp.json()
                 names = self._extract_openai_model_names(raw)
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(self._format_request_error(e, "测试连接", locals().get("url", base_url))) from e
+            raise self._build_request_error(
+                e, "测试连接", locals().get("url", base_url)
+            ) from e
         except ValueError as e:
-            raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
+            raise ExternalModelResponseError(
+                f"接口返回的不是有效 JSON: {e}",
+                user_code="invalid_json",
+            ) from e
 
         if not names:
-            raise ExternalModelResponseError("接口已连接，但未能读取到可用模型列表。")
+            raise ExternalModelResponseError(
+                "接口已连接，但未能读取到可用模型列表。",
+                user_code="model_list_empty",
+            )
         if model_name not in names:
             preview = ", ".join(names[:8])
             if len(names) > 8:
                 preview += " ..."
             raise ExternalModelConfigError(
-                f"模型名不存在: {model_name}\n当前可用模型: {preview}"
+                f"模型名不存在: {model_name}\n当前可用模型: {preview}",
+                user_code="model_not_found",
+                user_context={"model_name": model_name, "available_models": preview},
             )
         return True, f"连接成功，已找到模型 {model_name}。"
 
@@ -196,7 +243,7 @@ class ExternalModelClient:
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(self._format_request_error(e, "外部模型请求", url)) from e
+            raise self._build_request_error(e, "外部模型请求", url) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
         text = self._extract_openai_content(raw)
@@ -228,7 +275,7 @@ class ExternalModelClient:
             resp.raise_for_status()
             raw = resp.json()
         except requests.RequestException as e:
-            raise ExternalModelConnectionError(self._format_request_error(e, "外部模型请求", url)) from e
+            raise self._build_request_error(e, "外部模型请求", url) from e
         except ValueError as e:
             raise ExternalModelResponseError(f"接口返回的不是有效 JSON: {e}") from e
         text = self._extract_ollama_content(raw)

@@ -7,6 +7,7 @@ from backend.external_model import (
     get_preset,
     load_config_from_mapping,
 )
+from recognition.error_messages import external_model_test_error_user_message
 from recognition.external_workers import ExternalModelConnectionWorker
 from ui.settings_external_help import ExternalModelHelpWindow
 from ui.window_helpers import show_normal_window
@@ -229,18 +230,25 @@ class SettingsExternalModelMixin:
                 self._external_test_thread.deleteLater()
                 self._external_test_thread = None
 
-        def _on_ok(_ok: bool, message: str):
+        def _on_ok(_ok: bool, _message: str):
+            provider = config.normalized_provider()
             title = (
                 tr("健康检查通过")
-                if config.normalized_provider() == "mineru"
+                if provider == "mineru"
                 else tr("测试成功")
             )
-            self._show_info(
-                title, message or tr("连接成功，本地服务可访问。"), "success"
-            )
+            if provider == "mineru":
+                message = tr("MinerU 健康检查通过：{endpoint}").format(
+                    endpoint=config.normalized_mineru_test_endpoint()
+                )
+            else:
+                message = tr("连接成功，已找到模型 {model_name}。").format(
+                    model_name=config.normalized_model_name()
+                )
+            self._show_info(title, message, "success")
 
-        def _on_fail(message: str):
-            pretty = self._format_external_test_error(message)
+        def _on_fail(error: object):
+            pretty = self._format_external_test_error(error)
             self._show_info(tr("测试失败"), pretty, "error")
 
         self._external_test_thread.started.connect(self._external_test_worker.run)
@@ -251,30 +259,8 @@ class SettingsExternalModelMixin:
         self._external_test_thread.finished.connect(_cleanup)
         self._external_test_thread.start()
 
-    def _format_external_test_error(self, message: str) -> str:
-        text = str(message or "").strip()
-        low = text.lower()
-        if (
-            "model not found" in low
-            or "unknown model" in low
-            or '"error":"model' in low
-        ):
-            return tr("{message}\n提示：模型名填写错误或该模型未在服务中加载。").format(
-                message=text
-            )
-        if "401" in low or "unauthorized" in low or "invalid api key" in low:
-            return tr(
-                "{message}\n提示：请检查 API Key 是否必填、是否填写正确。"
-            ).format(message=text)
-        if "404" in low:
-            return tr(
-                "{message}\n提示：请检查 Base URL、协议类型以及服务端路由是否正确。"
-            ).format(message=text)
-        if "timeout" in low:
-            return tr(
-                "{message}\n提示：服务响应较慢，可提高超时或先确认模型是否已完成加载。"
-            ).format(message=text)
-        return text
+    def _format_external_test_error(self, error: object) -> str:
+        return external_model_test_error_user_message(error)
 
     def _show_external_model_help(self):
         if self._external_help_window is None:

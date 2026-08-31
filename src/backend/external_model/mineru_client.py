@@ -19,7 +19,9 @@ class MineruClient:
             headers["Authorization"] = f"Bearer {api_key}"
         return headers
 
-    def _format_request_error(self, exc: requests.RequestException, action: str, url: str) -> str:
+    def _build_request_error(
+        self, exc: requests.RequestException, action: str, url: str
+    ) -> ExternalModelConnectionError:
         parsed = urlparse(url or "")
         host = parsed.hostname or "unknown host"
         port = parsed.port
@@ -27,31 +29,63 @@ class MineruClient:
         target = f"{host}:{port}" if port else host
 
         if isinstance(exc, requests.Timeout):
-            return f"{action}超时，请检查 MinerU 服务状态或提高超时时间。"
+            return ExternalModelConnectionError(
+                f"{action}超时，请检查 MinerU 服务状态或提高超时时间。",
+                user_code="request_timeout",
+                user_context={"service": "MinerU"},
+            )
         if isinstance(exc, requests.ConnectionError):
-            return f"无法连接到 {target}，请确认 MinerU 服务已启动，地址和端口填写正确。"
+            return ExternalModelConnectionError(
+                f"无法连接到 {target}，请确认 MinerU 服务已启动，地址和端口填写正确。",
+                user_code="connection_unreachable",
+                user_context={"target": target, "service": "MinerU"},
+            )
 
         resp = getattr(exc, "response", None)
         if resp is not None:
             code = int(getattr(resp, "status_code", 0) or 0)
             if code == 401:
-                return "MinerU 认证失败，请检查 API Key。"
-            if code == 403:
-                return "MinerU 访问被拒绝，请检查权限配置。"
-            if code == 404:
-                return f"MinerU 接口路径不存在：{endpoint}，请检查解析接口路径配置。"
-            if code == 409:
+                message = "MinerU 认证失败，请检查 API Key。"
+                user_code = "authentication_failed"
+                detail = ""
+            elif code == 403:
+                message = "MinerU 访问被拒绝，请检查权限配置。"
+                user_code = "access_denied"
+                detail = ""
+            elif code == 404:
+                message = f"MinerU 接口路径不存在：{endpoint}，请检查解析接口路径配置。"
+                user_code = "endpoint_not_found"
+                detail = ""
+            elif code == 409:
                 detail = self._response_detail(resp)
                 if detail:
-                    return f"MinerU 解析任务失败：{detail}"
-                return "MinerU 解析任务失败，请检查 MinerU 模型配置和服务日志。"
-            if code == 429:
-                return "MinerU 请求过于频繁，请稍后重试。"
-            if 500 <= code < 600:
-                return f"MinerU 服务端返回 {code}，请检查服务日志。"
-            return f"{action}失败，接口返回 {code}。"
+                    message = f"MinerU 解析任务失败：{detail}"
+                else:
+                    message = "MinerU 解析任务失败，请检查 MinerU 模型配置和服务日志。"
+                user_code = "mineru_parse_failed"
+            elif code == 429:
+                message = "MinerU 请求过于频繁，请稍后重试。"
+                user_code = "rate_limited"
+                detail = ""
+            elif 500 <= code < 600:
+                message = f"MinerU 服务端返回 {code}，请检查服务日志。"
+                user_code = "server_error"
+                detail = ""
+            else:
+                message = f"{action}失败，接口返回 {code}。"
+                user_code = "http_error"
+                detail = ""
+            return ExternalModelConnectionError(
+                message,
+                user_code=user_code,
+                user_context={"status_code": code, "endpoint": endpoint, "detail": detail},
+            )
 
-        return f"{action}失败，请检查服务地址、接口路径和网络连接。"
+        return ExternalModelConnectionError(
+            f"{action}失败，请检查服务地址、接口路径和网络连接。",
+            user_code="request_failed",
+            user_context={"service": "MinerU"},
+        )
 
     def _response_detail(self, resp: requests.Response) -> str:
         try:
@@ -76,7 +110,7 @@ class MineruClient:
             resp = requests.get(url, headers=self._headers(), timeout=timeout)
             resp.raise_for_status()
         except requests.RequestException as exc:
-            raise ExternalModelConnectionError(self._format_request_error(exc, "MinerU 连通性检查", url)) from exc
+            raise self._build_request_error(exc, "MinerU 连通性检查", url) from exc
         return True, f"MinerU 健康检查通过: {endpoint}"
 
     def _file_parse_data(self, backend: str, start_page_id: int = 0, end_page_id: int = 99999) -> dict:
@@ -127,15 +161,11 @@ class MineruClient:
                 resp = getattr(exc, "response", None)
                 status_code = int(getattr(resp, "status_code", 0) or 0) if resp is not None else 0
                 if status_code and status_code < 500 and status_code != 429:
-                    raise ExternalModelConnectionError(
-                        self._format_request_error(exc, "MinerU 请求", url)
-                    ) from exc
+                    raise self._build_request_error(exc, "MinerU 请求", url) from exc
                 last_error = exc
 
         assert last_error is not None
-        raise ExternalModelConnectionError(
-            self._format_request_error(last_error, "MinerU 请求", url)
-        ) from last_error
+        raise self._build_request_error(last_error, "MinerU 请求", url) from last_error
 
     def predict(self, image_b64: str) -> ExternalModelResult:
         try:

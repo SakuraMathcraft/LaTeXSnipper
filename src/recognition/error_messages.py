@@ -97,6 +97,71 @@ _MATHCRAFT_DIAGNOSTIC_TEXTS = (
 )
 
 
+def external_model_test_error_user_message(error: object) -> str:
+    """Translate a structured external-model connection error for the settings UI."""
+    code = str(getattr(error, "user_code", "") or "").strip()
+    context = getattr(error, "user_context", {})
+    context = context if isinstance(context, dict) else {}
+
+    if code == "base_url_missing":
+        return tr("外部模型地址为空，请先填写 Base URL。")
+    if code == "model_name_missing":
+        return tr("模型名为空，请先填写本地服务中的模型名称。")
+    if code == "request_timeout":
+        return tr("连接测试超时，请检查服务状态或适当提高超时设置。")
+    if code == "connection_unreachable":
+        target = str(context.get("target") or tr("指定地址"))
+        service = str(context.get("service") or "").strip()
+        if service:
+            return tr(
+                "无法连接到 {target}，请确认 {service} 服务已启动，地址和端口填写正确。"
+            ).format(target=target, service=service)
+        return tr(
+            "无法连接到 {target}，请确认服务已启动，地址和端口填写正确。"
+        ).format(target=target)
+    if code == "authentication_failed":
+        return tr("接口认证失败，请检查 API Key。")
+    if code == "access_denied":
+        return tr("接口访问被拒绝，请检查权限或鉴权配置。")
+    if code == "endpoint_not_found":
+        endpoint = str(context.get("endpoint") or "/")
+        return tr(
+            "接口路径不存在：{endpoint}，请检查 Base URL、协议类型或接口路径配置。"
+        ).format(endpoint=endpoint)
+    if code == "rate_limited":
+        return tr("请求过于频繁，请稍后重试。")
+    if code == "server_error":
+        status_code = int(context.get("status_code") or 0)
+        return tr("服务端返回 {status_code}，请稍后重试或检查服务日志。").format(
+            status_code=status_code
+        )
+    if code == "invalid_json":
+        return tr("接口返回的不是有效 JSON，请检查服务协议和响应内容。")
+    if code == "model_list_empty":
+        return tr("接口已连接，但未能读取到可用模型列表。")
+    if code == "model_not_found":
+        model_name = str(context.get("model_name") or "")
+        available_models = str(context.get("available_models") or "")
+        return tr(
+            "未找到模型 {model_name}。当前可用模型：{available_models}"
+        ).format(model_name=model_name, available_models=available_models)
+    if code == "image_input_unsupported":
+        return tr("该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。")
+    if code in {"bad_request", "http_error"}:
+        status_code = int(context.get("status_code") or 0)
+        detail = str(context.get("detail") or "").strip()
+        if detail:
+            return tr("接口返回 {status_code}。服务端信息：{detail}").format(
+                status_code=status_code, detail=detail
+            )
+        return tr("接口返回 {status_code}，请检查服务配置。").format(
+            status_code=status_code
+        )
+    if code == "mineru_parse_failed":
+        return tr("MinerU 解析任务失败，请检查模型配置和服务日志。")
+    return tr("外部模型连接测试失败，请检查服务地址、协议和网络连接。")
+
+
 def translate_mathcraft_diagnostic(value: object) -> str:
     text = str(value or "").strip()
     if not text:
@@ -160,6 +225,7 @@ __all__ = [
     "EMPTY_FORMULA_MESSAGE",
     "EMPTY_RESULT_MESSAGE",
     "EMPTY_TEXT_MESSAGE",
+    "external_model_test_error_user_message",
     "is_external_model_backend",
     "recognition_error_code_message",
     "recognition_error_code_user_message",
