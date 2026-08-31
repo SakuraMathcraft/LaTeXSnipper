@@ -1,3 +1,4 @@
+from localization.manager import translate as tr
 import os
 import queue
 import subprocess
@@ -54,7 +55,9 @@ from bootstrap.deps_ui import (
     show_info_bar,
 )
 from bootstrap.deps_workers import InstallWorker, LayerVerifyWorker
-from runtime.dependency_python import normalize_deps_base_dir as _normalize_deps_base_dir
+from runtime.dependency_python import (
+    normalize_deps_base_dir as _normalize_deps_base_dir,
+)
 
 
 def _ensure_pip(main_python: Path) -> bool:
@@ -67,26 +70,26 @@ def _ensure_pip(main_python: Path) -> bool:
     try:
         name = main_python.name.lower()
         is_python_exe = (
-            (os.name == "nt" and name.startswith("python") and name.endswith(".exe"))
-            or (os.name != "nt" and (name.startswith("python") or "python" in name))
-        )
+            os.name == "nt" and name.startswith("python") and name.endswith(".exe")
+        ) or (os.name != "nt" and (name.startswith("python") or "python" in name))
         if not is_python_exe:
             print(f"[DEBUG] 当前可执行文件不是 Python，跳过 pip 初始化: {main_python}")
             return False
     except Exception:
         pass
 
-
-
     try:
-        pth_candidates = list(main_python.parent.glob("python*.pth")) + list(main_python.parent.glob("python*._pth"))
+        pth_candidates = list(main_python.parent.glob("python*.pth")) + list(
+            main_python.parent.glob("python*._pth")
+        )
         for pth_file in pth_candidates:
             content = pth_file.read_text(encoding="utf-8")
             if "#import site" in content:
-                pth_file.write_text(content.replace("#import site", "import site"), encoding="utf-8")
+                pth_file.write_text(
+                    content.replace("#import site", "import site"), encoding="utf-8"
+                )
     except Exception:
         pass
-
 
     def _pip_version_tuple(raw: str) -> tuple[int, ...]:
         parts: list[int] = []
@@ -171,7 +174,9 @@ def _ensure_pip(main_python: Path) -> bool:
         print("[ERR] pip 不可用，且当前 Python 无法通过 ensurepip 初始化 pip。")
         return False
 
-    needs_upgrade = pip_version is None or pip_version < (23, 0) or not _has_packaging_toolchain()
+    needs_upgrade = (
+        pip_version is None or pip_version < (23, 0) or not _has_packaging_toolchain()
+    )
     ok = True
     if needs_upgrade:
         ok = _upgrade_packaging_toolchain()
@@ -188,6 +193,7 @@ def _read_config_install_dir(cfg_path: Path) -> str | None:
     if cfg_path.exists():
         try:
             import json
+
             data = json.loads(cfg_path.read_text(encoding="utf-8"))
             v = data.get("install_base_dir")
             if isinstance(v, str) and v.strip():
@@ -208,7 +214,9 @@ def _write_config_install_dir(cfg_path: Path, deps_dir: str) -> None:
             except Exception:
                 data = {}
         data["install_base_dir"] = deps_dir
-        Path(cfg_path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        Path(cfg_path).write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     except Exception:
         pass
 
@@ -219,33 +227,43 @@ def _system_python_install_hint(reason: str) -> str:
     lines = [
         reason,
         "",
-        f"请安装带 venv/pip 支持的 Python（{version_range}）后重试。",
+        tr("请安装带 venv/pip 支持的 Python（{version_range}）后重试。").format(
+            version_range=version_range
+        ),
     ]
     if os.name == "nt":
-        lines.extend([
-            "  python.org：安装 Python 3.10-3.13，并勾选 Add python.exe to PATH",
-            "  winget：    winget install Python.Python.3.11",
-            "  安装后请重新打开 LaTeXSnipper，再点击下载/安装。",
-        ])
+        lines.extend(
+            [
+                tr(
+                    "  python.org：安装 Python 3.10-3.13，并勾选 Add python.exe to PATH"
+                ),
+                "  winget：    winget install Python.Python.3.11",
+                tr("  安装后请重新打开 LaTeXSnipper，再点击下载/安装。"),
+            ]
+        )
     elif sys.platform == "darwin":
-        lines.extend([
-            "  Homebrew：brew install python",
-            "  python.org：安装最新版 macOS Python 3 安装包",
-            "  安装后请重新打开 LaTeXSnipper。",
-        ])
+        lines.extend(
+            [
+                "  Homebrew：brew install python",
+                tr("  python.org：安装最新版 macOS Python 3 安装包"),
+                tr("  安装后请重新打开 LaTeXSnipper。"),
+            ]
+        )
     else:
-        lines.extend([
-            "  Debian/Ubuntu：sudo apt install python3 python3-venv",
-            "  Fedora：        sudo dnf install python3",
-            "  Arch：          sudo pacman -S python",
-        ])
+        lines.extend(
+            [
+                "  Debian/Ubuntu：sudo apt install python3 python3-venv",
+                "  Fedora：        sudo dnf install python3",
+                "  Arch：          sudo pacman -S python",
+            ]
+        )
     return "\n".join(lines)
 
 
 def _install_failure_dialog_copy() -> tuple[str, str]:
     return (
-        "依赖安装未完成",
-        "部分依赖安装失败，请查看日志后重试。",
+        tr("依赖安装未完成"),
+        tr("部分依赖安装失败，请查看日志后重试。"),
     )
 
 
@@ -290,7 +308,7 @@ def _setup_python_venv_from_system(
             if stop_event is not None and stop_event.is_set():
                 _terminate_process(proc)
                 log_fn("[INFO] 用户取消虚拟环境初始化。")
-                return False, "Python 依赖环境初始化已取消"
+                return False, tr("Python 依赖环境初始化已取消")
             ret = proc.poll()
             if ret is not None:
                 break
@@ -302,7 +320,9 @@ def _setup_python_venv_from_system(
             log_fn(f"[INFO] Python 依赖环境创建成功: {target_dir}")
             return True, ""
         detail = output[-500:].strip()
-        reason = f"系统 Python {system_python} 创建 venv 失败"
+        reason = tr("系统 Python {python} 创建 venv 失败").format(
+            python=system_python
+        )
         log_fn(f"[WARN] {reason}: {detail}")
         return False, reason
     except subprocess.TimeoutExpired:
@@ -312,10 +332,10 @@ def _setup_python_venv_from_system(
                 _terminate_process(proc)
         except Exception:
             pass
-        return False, f"venv 创建超时（{timeout} 秒）"
+        return False, tr("venv 创建超时（{timeout} 秒）").format(timeout=timeout)
     except Exception as e:
         log_fn(f"[WARN] venv 创建异常: {e}")
-        return False, f"venv 创建异常: {e}"
+        return False, tr("venv 创建异常: {error}").format(error=e)
     finally:
         if proc_setter is not None:
             proc_setter(None)
@@ -342,7 +362,7 @@ class PythonVenvInitWorker(QThread):
 
     def run(self) -> None:
         try:
-            self.status_updated.emit("正在初始化 Python 依赖环境...")
+            self.status_updated.emit(tr("正在初始化 Python 依赖环境..."))
             self.progress_updated.emit(5)
             ok, error = _setup_python_venv_from_system(
                 self.target_dir,
@@ -351,12 +371,14 @@ class PythonVenvInitWorker(QThread):
                 proc_setter=lambda proc: setattr(self, "proc", proc),
             )
             if not ok or self.stop_event.is_set():
-                self.done.emit(False, error or "Python 依赖环境初始化已取消")
+                self.done.emit(
+                    False, error or tr("Python 依赖环境初始化已取消")
+                )
                 return
             self.progress_updated.emit(25)
-            self.status_updated.emit("正在初始化 pip 工具链...")
+            self.status_updated.emit(tr("正在初始化 pip 工具链..."))
             if not _ensure_pip(self.pyexe):
-                self.done.emit(False, "无法初始化 pip")
+                self.done.emit(False, tr("无法初始化 pip"))
                 return
             self.progress_updated.emit(30)
             self.done.emit(True, "")
@@ -365,11 +387,19 @@ class PythonVenvInitWorker(QThread):
             self.done.emit(False, str(e))
 
 
-def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=False, always_show_ui=False,
-                deps_dir=None, from_settings=False, before_show_ui=None,
-                after_force_enter=None):
+def ensure_deps(
+    prompt_ui=True,
+    require_layers=("BASIC", "CORE"),
+    force_enter=False,
+    always_show_ui=False,
+    deps_dir=None,
+    from_settings=False,
+    before_show_ui=None,
+    after_force_enter=None,
+):
     set_last_ensure_deps_force_enter(False)
     from PyQt6.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication(sys.argv[:1])
 
     def _notify_before_show_ui():
@@ -395,7 +425,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     current_pyexe = Path(sys.executable)
     current_site = _site_packages_root(current_pyexe)
 
-
     cfg_path = _load_config_path()
     if not deps_dir:
         deps_dir = _read_config_install_dir(cfg_path)
@@ -403,9 +432,10 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     if not deps_dir:
         parent = app.activeWindow()
         _notify_before_show_ui()
-        chosen = _select_existing_directory_with_icon(parent, "选择依赖安装/加载目录", str(Path.home()))
+        chosen = _select_existing_directory_with_icon(
+            parent, tr("选择依赖安装/加载目录"), str(Path.home())
+        )
         if not chosen:
-
             return False
         deps_dir = str(_normalize_deps_base_dir(Path(chosen)))
         _write_config_install_dir(cfg_path, deps_dir)
@@ -414,26 +444,33 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     deps_dir = str(deps_path)
     deps_path.mkdir(parents=True, exist_ok=True)
 
-
     from PyQt6.QtWidgets import QMessageBox, QDialog
+
     need_install = False
     if force_enter:
         if not _find_existing_python(Path(deps_dir)):
             try:
-                show_user_notice("不可进入", "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。")
+                show_user_notice(
+                    tr("不可进入"),
+                    tr(
+                        "当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。"
+                    ),
+                )
             except Exception:
                 print("[WARN] 缺少可复用 Python 环境，不能跳过安装直接进入。")
             return False
         set_last_ensure_deps_force_enter(True)
         _notify_after_force_enter()
         try:
-            show_user_notice("警告", "缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
+            show_user_notice(
+                tr("警告"), tr("缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
+            )
         except Exception:
             print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
         print("[DEBUG] 用户确认跳过依赖安装")
         return True
 
-    is_frozen = getattr(sys, 'frozen', False)
+    is_frozen = getattr(sys, "frozen", False)
     if is_frozen:
         # Packaged: runtime stays bundled, but dependency wizard should only treat
         # a python inside deps_dir as reusable. Missing deps python must remain
@@ -448,14 +485,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
             print(f"[DEBUG] 依赖目录尚未初始化 Python: {pyexe}")
             use_bundled_python = True
     else:
-
         py_root = Path(deps_dir) / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or _dependency_venv_python(py_root)
         deps_dir_resolved = str(Path(deps_dir).resolve())
 
-
-        is_packaged = hasattr(sys, '_MEIPASS') or '_internal' in str(Path(__file__).parent)
+        is_packaged = hasattr(sys, "_MEIPASS") or "_internal" in str(
+            Path(__file__).parent
+        )
         mode_str = "打包模式" if is_packaged else "开发模式"
 
         def _path_is_under(child: str | None, parent: str) -> bool:
@@ -471,7 +508,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         current_site_in_deps = _path_is_under(current_site, deps_dir_resolved)
 
         if current_site_in_deps:
-            print(f"[DEBUG] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}")
+            print(
+                f"[DEBUG] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}"
+            )
             pyexe = current_pyexe
             use_bundled_python = False
         else:
@@ -485,7 +524,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
         if use_bundled_python and not _is_usable_python(pyexe):
             print("[DEBUG] 目标依赖目录未检测到可复用 Python")
-
 
     pip_ready_event.clear()
     try:
@@ -518,7 +556,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
 
     state_path = deps_path / STATE_FILE
 
-    needed = {required_layer for required_layer in require_layers if required_layer in LAYER_MAP}
+    needed = {
+        required_layer
+        for required_layer in require_layers
+        if required_layer in LAYER_MAP
+    }
 
     def _missing_required_layers(layer_list: list[str]) -> list[str]:
         missing = [layer for layer in needed if layer not in layer_list]
@@ -532,11 +574,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
     missing_layers = _missing_required_layers(installed["layers"])
     skip_next_ui_runtime_verify = False
 
-    def _default_selected_layers(installed_layers_list: list[str], failed_layers_list: list[str] | None = None) -> list[str]:
+    def _default_selected_layers(
+        installed_layers_list: list[str], failed_layers_list: list[str] | None = None
+    ) -> list[str]:
         defaults = ["BASIC", "CORE"]
         installed_set = {str(x) for x in (installed_layers_list or [])}
         failed_set = {str(x) for x in (failed_layers_list or [])}
-        runtime_present = any(x in set(MATHCRAFT_RUNTIME_LAYERS) for x in (installed_set | failed_set))
+        runtime_present = any(
+            x in set(MATHCRAFT_RUNTIME_LAYERS) for x in (installed_set | failed_set)
+        )
         if not runtime_present:
             defaults.append("MATHCRAFT_CPU")
         return defaults
@@ -576,7 +622,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
         return _deps_ready(installed["layers"])
 
     def _switch_deps_context(target_deps_dir: str) -> tuple[list[str], bool]:
-        nonlocal deps_dir, deps_path, state_path, state, installed, missing_layers, pyexe
+        nonlocal \
+            deps_dir, \
+            deps_path, \
+            state_path, \
+            state, \
+            installed, \
+            missing_layers, \
+            pyexe
         pip_ready_event.clear()
         deps_dir = str(_normalize_deps_base_dir(Path(target_deps_dir or deps_dir)))
         deps_path = Path(deps_dir)
@@ -621,22 +674,22 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 chosen,
                 state_path,
                 from_settings=from_settings,
-                skip_runtime_verify_once=skip_next_ui_runtime_verify
+                skip_runtime_verify_once=skip_next_ui_runtime_verify,
             )
             skip_next_ui_runtime_verify = False
             _notify_before_show_ui()
             activate_dependency_dialog(dlg)
             result = dlg.exec()
             if result != dlg.DialogCode.Accepted:
-
                 return False
 
             plan = DependencyPlan.from_mapping(chosen, default_path=deps_path)
             chosen_layers = _normalize_chosen_layers(list(plan.layers))
             mirror_source = plan.mirror_source
             use_mirror = mirror_source == "tuna"
-            missing_layers, use_bundled_python = _switch_deps_context(str(plan.deps_path))
-
+            missing_layers, use_bundled_python = _switch_deps_context(
+                str(plan.deps_path)
+            )
 
             if plan.force_enter:
                 set_last_ensure_deps_force_enter(True)
@@ -648,20 +701,32 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 return True
             if plan.layers:
                 failed_claims = {
-                    str(x) for x in (state.get("failed_layers", []) if isinstance(state, dict) else [])
+                    str(x)
+                    for x in (
+                        state.get("failed_layers", [])
+                        if isinstance(state, dict)
+                        else []
+                    )
                 }
                 already_have = all(
                     layer in state.get("installed_layers", []) for layer in plan.layers
                 )
                 has_failed_choice = any(layer in failed_claims for layer in plan.layers)
                 if already_have and not has_failed_choice:
-                    if not plan.verified_in_ui and not _reverify_installed_layers_if_needed("skip_download_already_have"):
+                    if (
+                        not plan.verified_in_ui
+                        and not _reverify_installed_layers_if_needed(
+                            "skip_download_already_have"
+                        )
+                    ):
                         print("[WARN] 复验后关键层不完整，返回向导。")
                         continue
                     print("[DEBUG] 所选依赖已存在，跳过下载")
                     return True
 
-            print(f"[DEBUG] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})")
+            print(
+                f"[DEBUG] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})"
+            )
             py_root = deps_path / DEPENDENCY_PYTHON_DIRNAME
             need_install = bool(chosen_layers)
 
@@ -672,11 +737,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     _notify_before_show_ui()
                     confirm = _exec_close_only_message_box(
                         None,
-                        "初始化依赖环境",
-                        "目标依赖目录未检测到可复用 Python 环境。\n\n"
-                        f"是否现在使用系统 Python 初始化以下目录后继续安装依赖？\n{py_root}",
+                        tr("初始化依赖环境"),
+                        tr(
+                            "目标依赖目录未检测到可复用 Python 环境。\n\n"
+                            "是否现在使用系统 Python 初始化以下目录后继续安装依赖？\n{path}"
+                        ).format(path=py_root),
                         icon=QMessageBox.Icon.Question,
-                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        buttons=QMessageBox.StandardButton.Yes
+                        | QMessageBox.StandardButton.No,
                         default_button=QMessageBox.StandardButton.Yes,
                     )
                     if confirm != QMessageBox.StandardButton.Yes:
@@ -690,10 +758,14 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 if "MATHCRAFT_GPU" in chosen_layers and not _gpu_available():
                     r = _exec_close_only_message_box(
                         None,
-                        "GPU 未检测",
-                        "未检测到 NVIDIA GPU，继续安装 onnxruntime-gpu 可能无法启用 CUDAExecutionProvider，是否继续？",
+                        tr("GPU 未检测"),
+                        tr(
+                            "未检测到 NVIDIA GPU，继续安装 onnxruntime-gpu 可能无法启用 "
+                            "CUDAExecutionProvider，是否继续？"
+                        ),
                         icon=QMessageBox.Icon.Question,
-                        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        buttons=QMessageBox.StandardButton.Yes
+                        | QMessageBox.StandardButton.No,
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if r != QMessageBox.StandardButton.Yes:
@@ -701,7 +773,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         always_show_ui = True
                         continue
 
-                if "CORE" in chosen_layers and not any(layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS):
+                if "CORE" in chosen_layers and not any(
+                    layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS
+                ):
                     chosen_layers = list(chosen_layers) + ["MATHCRAFT_CPU"]
                     print("[DEBUG] 未指定推理后端，自动使用 CPU 推理后端")
 
@@ -711,8 +785,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             _notify_before_show_ui()
                             _exec_close_only_message_box(
                                 None,
-                                "pip 不可用",
-                                "当前依赖环境缺少 pip，且无法通过 ensurepip 初始化。请更换依赖目录或使用正常 Python 环境。",
+                                tr("pip 不可用"),
+                                tr(
+                                    "当前依赖环境缺少 pip，且无法通过 ensurepip 初始化。"
+                                    "请更换依赖目录或使用正常 Python 环境。"
+                                ),
                                 icon=QMessageBox.Icon.Critical,
                                 buttons=QMessageBox.StandardButton.Ok,
                             )
@@ -722,8 +799,8 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _notify_before_show_ui()
                         _exec_close_only_message_box(
                             None,
-                            "pip 初始化失败",
-                            f"当前依赖环境无法初始化 pip：{e}",
+                            tr("pip 初始化失败"),
+                            tr("当前依赖环境无法初始化 pip：{error}").format(error=e),
                             icon=QMessageBox.Icon.Critical,
                             buttons=QMessageBox.StandardButton.Ok,
                         )
@@ -735,9 +812,18 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     pkgs.extend(LAYER_MAP[layer])
 
                 if "MATHCRAFT_GPU" in chosen_layers:
-                    pkgs = [p for p in pkgs if not (p.lower().startswith("onnxruntime") and "gpu" not in p.lower())]
+                    pkgs = [
+                        p
+                        for p in pkgs
+                        if not (
+                            p.lower().startswith("onnxruntime")
+                            and "gpu" not in p.lower()
+                        )
+                    ]
                 elif "MATHCRAFT_CPU" in chosen_layers:
-                    pkgs = [p for p in pkgs if not p.lower().startswith("onnxruntime-gpu")]
+                    pkgs = [
+                        p for p in pkgs if not p.lower().startswith("onnxruntime-gpu")
+                    ]
 
                 pkgs = _filter_packages(pkgs)
                 log_q = queue.Queue()
@@ -752,6 +838,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 btn_pause = dlg.pause_button
                 progress = dlg.progress_bar
                 from PyQt6 import sip
+
                 ui_closed = {"value": False}
                 timer_holder = {"log": None, "speed": None}
                 verify_worker_holder = {"obj": None}
@@ -796,21 +883,35 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 def _render_info_text():
                     text = net_speed_state.get("base_text", "") or ""
                     if net_speed_state.get("busy", False):
-                        pip_speed = (net_speed_state.get("pip_speed_text") or "").strip()
+                        pip_speed = (
+                            net_speed_state.get("pip_speed_text") or ""
+                        ).strip()
                         pip_eta = (net_speed_state.get("pip_eta_text") or "").strip()
-                        pip_progress = (net_speed_state.get("pip_progress_text") or "").strip()
+                        pip_progress = (
+                            net_speed_state.get("pip_progress_text") or ""
+                        ).strip()
                         if pip_speed:
-                            text = f"{text}  下载速度：{pip_speed}"
+                            text = tr("{text}  下载速度：{speed}").format(
+                                text=text, speed=pip_speed
+                            )
                             if pip_eta:
-                                text = f"{text}  剩余：{pip_eta}"
+                                text = tr("{text}  剩余：{eta}").format(
+                                    text=text, eta=pip_eta
+                                )
                             if pip_progress:
                                 text = f"{text}  {pip_progress}"
                         else:
                             speed = net_speed_state.get("down_bps")
                             if speed is not None:
-                                text = f"{text}  下载速度：{format_transfer_speed(speed)}"
+                                text = (
+                                    tr("{text}  下载速度：{speed}").format(
+                                        text=text, speed=format_transfer_speed(speed)
+                                    )
+                                )
                             else:
-                                text = f"{text}  下载速度：计算中..."
+                                text = tr("{text}  下载速度：计算中...").format(
+                                    text=text
+                                )
                     if _is_alive(info):
                         try:
                             info.setText(text)
@@ -857,18 +958,25 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     paused = not paused
                     if paused:
                         pause_event.clear()
-                        btn_pause.setText("继续下载")
+                        btn_pause.setText(tr("继续下载"))
                     else:
                         pause_event.set()
-                        btn_pause.setText("暂停下载")
+                        btn_pause.setText(tr("暂停下载"))
 
                 btn_pause.clicked.connect(toggle_pause)
                 pause_event.set()
 
-
                 worker = InstallWorker(
-                    pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path,
-                    chosen_layers, log_q, mirror=use_mirror
+                    pyexe,
+                    pkgs,
+                    stop_event,
+                    pause_event,
+                    state_lock,
+                    state,
+                    state_path,
+                    chosen_layers,
+                    log_q,
+                    mirror=use_mirror,
                 )
                 init_worker = None
                 if init_python_required:
@@ -916,7 +1024,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     if _is_alive(progress):
                         _set_progress(progress.maximum())
                     if _is_alive(btn_cancel):
-                        btn_cancel.setText("完成")
+                        btn_cancel.setText(tr("完成"))
                     if _is_alive(btn_pause):
                         btn_pause.setEnabled(False)
                     if _is_alive(btn_cancel):
@@ -925,7 +1033,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         except Exception:
                             pass
                         btn_cancel.clicked.connect(
-                            lambda: dlg.done(RESULT_BACK_TO_WIZARD) if _is_alive(dlg) else None
+                            lambda: (
+                                dlg.done(RESULT_BACK_TO_WIZARD)
+                                if _is_alive(dlg)
+                                else None
+                            )
                         )
                     try:
                         if hasattr(dlg, "refresh_ui"):
@@ -941,7 +1053,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         worker.done.disconnect(on_install_done)
                     except Exception:
                         pass
-                    if ui_closed["value"] or stop_event.is_set() or (not _is_alive(dlg)):
+                    if (
+                        ui_closed["value"]
+                        or stop_event.is_set()
+                        or (not _is_alive(dlg))
+                    ):
                         return
 
                     if not success:
@@ -953,7 +1069,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         return
 
                     _append_log("\n[INFO] 正在验证所选依赖...")
-                    _set_info_text("依赖下载完成，正在验证...")
+                    _set_info_text(tr("依赖下载完成，正在验证..."))
 
                     verify_worker = LayerVerifyWorker(pyexe, chosen_layers, state_path)
                     verify_worker_holder["obj"] = verify_worker
@@ -971,20 +1087,24 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                             return
                         post_install_verify_passed["value"] = not bool(fail_layers)
                         if fail_layers:
-                            failed_labels = "、".join(layer_display_name(layer) for layer in fail_layers)
+                            failed_labels = "、".join(
+                                layer_display_name(layer) for layer in fail_layers
+                            )
                             _append_log(f"\n[WARN] 以下依赖验证失败：{failed_labels}")
                             show_info_bar(
                                 dlg,
-                                "部分验证失败",
-                                f"以下依赖无法正常工作：{failed_labels}。请查看日志。",
+                                tr("部分验证失败"),
+                                tr(
+                                    "以下依赖无法正常工作：{layers}。请查看日志。"
+                                ).format(layers=failed_labels),
                                 "warning",
                                 6000,
                             )
                         else:
                             show_info_bar(
                                 dlg,
-                                "安装完成",
-                                "所选依赖已安装并验证通过。",
+                                tr("安装完成"),
+                                tr("所选依赖已安装并验证通过。"),
                                 "success",
                             )
                         _finalize_done_ui()
@@ -995,7 +1115,11 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 worker.done.connect(on_install_done)
 
                 def on_python_init_done(success: bool, message: str):
-                    if ui_closed["value"] or stop_event.is_set() or (not _is_alive(dlg)):
+                    if (
+                        ui_closed["value"]
+                        or stop_event.is_set()
+                        or (not _is_alive(dlg))
+                    ):
                         return
                     if init_worker is not None:
                         try:
@@ -1006,7 +1130,7 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         _append_log(f"\n[ERR] Python 依赖环境初始化失败: {message}")
                         show_info_bar(
                             dlg,
-                            "初始化失败",
+                            tr("初始化失败"),
                             _system_python_install_hint(message),
                             "error",
                             7000,
@@ -1016,7 +1140,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     _apply_runtime_context(Path(pyexe))
                     _append_log("[INFO] Python 依赖环境初始化完成，开始安装依赖包。")
                     worker.start()
-
 
                 timer = QTimer(dlg)
                 timer_holder["log"] = timer
@@ -1037,9 +1160,15 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                         for line in lines_to_emit:
                             parsed_transfer = parse_pip_transfer_status(line)
                             if parsed_transfer:
-                                net_speed_state["pip_speed_text"] = parsed_transfer["speed_text"]
-                                net_speed_state["pip_eta_text"] = parsed_transfer["eta_text"]
-                                net_speed_state["pip_progress_text"] = parsed_transfer["progress_text"]
+                                net_speed_state["pip_speed_text"] = parsed_transfer[
+                                    "speed_text"
+                                ]
+                                net_speed_state["pip_eta_text"] = parsed_transfer[
+                                    "eta_text"
+                                ]
+                                net_speed_state["pip_progress_text"] = parsed_transfer[
+                                    "progress_text"
+                                ]
                                 _render_info_text()
                         _append_log("\n".join(lines_to_emit))
 
@@ -1134,7 +1263,9 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                 if vw is not None and vw.isRunning():
                     vw.wait(3000)
 
-                install_verified_in_progress_ui = bool(post_install_verify_passed.get("value", False))
+                install_verified_in_progress_ui = bool(
+                    post_install_verify_passed.get("value", False)
+                )
                 if result == RESULT_BACK_TO_WIZARD:
                     try:
                         state = _sanitize_state_layers(state_path)
@@ -1146,7 +1277,6 @@ def ensure_deps(prompt_ui=True, require_layers=("BASIC", "CORE"), force_enter=Fa
                     always_show_ui = True
                     continue
                 if result != QDialog.DialogCode.Accepted:
-
                     skip_next_ui_runtime_verify = install_verified_in_progress_ui
                     continue
         break

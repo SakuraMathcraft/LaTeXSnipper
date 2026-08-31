@@ -11,17 +11,14 @@ import tempfile
 LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
     "maim": {
         "cmds": [["maim", "-x", "{x}", "-y", "{y}", "-w", "{w}", "-h", "{h}", "{output}"]],
-        "desc": "maim (X11, 不包含光标)",
         "env": "x11",
     },
     "import": {
         "cmds": [["import", "-window", "root", "-crop", "{w}x{h}+{x}+{y}", "{output}"]],
-        "desc": "ImageMagick import (X11)",
         "env": "x11",
     },
     "scrot": {
         "cmds": [["scrot", "-a", "{x},{y},{w},{h}", "-o", "{output}"]],
-        "desc": "scrot (X11)",
         "env": "x11",
     },
     "gnome-screenshot": {
@@ -29,33 +26,27 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
             ["gnome-screenshot", "-a", "-f", "{output}"],
             ["gnome-screenshot", "-f", "{output}"],
         ],
-        "desc": "gnome-screenshot (GNOME 桌面)",
         "env": "any",
     },
     "flameshot": {
         "cmds": [["flameshot", "full", "-r", "{output}"]],
-        "desc": "flameshot (全屏截图)",
         "env": "any",
     },
     "spectacle": {
         "cmds": [["spectacle", "-b", "-r", "-o", "{output}"]],
-        "desc": "spectacle (KDE 桌面)",
         "env": "any",
     },
     "xdotool": {
         "cmds": [["import", "-window", "root", "-crop", "{w}x{h}+{x}+{y}", "{output}"]],
-        "desc": "xdotool + ImageMagick (X11)",
         "env": "x11",
         "requires": ["import"],
     },
     "grim": {
         "cmds": [["grim", "-g", "{x},{y} {w}x{h}", "{output}"]],
-        "desc": "grim (wlroots/Sway Wayland)",
         "env": "wayland",
     },
     "screencapture": {
         "cmds": [["screencapture", "-x", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
-        "desc": "screencapture (macOS 内置)",
         "env": "macos",
     },
 }

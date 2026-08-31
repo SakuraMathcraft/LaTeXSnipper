@@ -9,6 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_spec
+from localization.manager import translate as tr
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
@@ -196,7 +197,11 @@ class InstallWorker(QThread):
 
                     try:
                         pkg_label = re.split(r'[<>=!~ ]', pkg, 1)[0].strip()
-                        self.status_updated.emit(f"正在安装第 {idx}/{total} 个包：{pkg_label}")
+                        self.status_updated.emit(
+                            tr("正在安装第 {current}/{total} 个包：{package}").format(
+                                current=idx, total=total, package=pkg_label
+                            )
+                        )
                         self.busy_state_changed.emit(True)
                         ok = _pip_install(
                             self.pyexe,

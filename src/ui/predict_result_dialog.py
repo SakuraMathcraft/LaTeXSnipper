@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QTextEdit, QVBoxLayout
-from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton
+from qfluentwidgets import (
+    BodyLabel,
+    FluentIcon,
+    PrimaryPushButton,
+    PrimaryToolButton,
+    PushButton,
+)
 
-from preview.math_preview import build_math_html, dialog_theme_tokens, get_mathjax_base_url
+from preview.math_preview import (
+    build_math_html,
+    dialog_theme_tokens,
+    get_mathjax_base_url,
+)
 from runtime.content_types import normalize_content_type
 from ui.window_helpers import apply_no_minimize_window_flags
 
@@ -34,7 +46,7 @@ def show_predict_result_dialog(
 ) -> QDialog:
     dlg = QDialog(parent)
     apply_no_minimize_window_flags(dlg)
-    dlg.setWindowTitle("识别结果")
+    dlg.setWindowTitle(tr("识别结果"))
     dlg.resize(700, 500)
     dlg.setWindowModality(Qt.WindowModality.NonModal)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -62,7 +74,7 @@ def show_predict_result_dialog(
     lay.addWidget(te)
 
     if normalize_content_type(current_mode) == "mathcraft":
-        preview_label = BodyLabel("公式预览：")
+        preview_label = BodyLabel(tr("公式预览："))
         lay.addWidget(preview_label)
 
         if ensure_webengine_loaded():
@@ -70,7 +82,9 @@ def show_predict_result_dialog(
 
             preview_view = QWebEngineView()
             preview_view.setMinimumHeight(150)
-            preview_view.setHtml(build_math_html(code, center_viewport=True), get_mathjax_base_url())
+            preview_view.setHtml(
+                build_math_html(code, center_viewport=True), get_mathjax_base_url()
+            )
             lay.addWidget(preview_view, 1)
 
             render_timer = QTimer(dlg)
@@ -79,17 +93,22 @@ def show_predict_result_dialog(
             def do_render():
                 latex = te.toPlainText().strip()
                 if latex and preview_view:
-                    preview_view.setHtml(build_math_html(latex, center_viewport=True), get_mathjax_base_url())
+                    preview_view.setHtml(
+                        build_math_html(latex, center_viewport=True),
+                        get_mathjax_base_url(),
+                    )
 
             render_timer.timeout.connect(do_render)
             te.textChanged.connect(lambda: render_timer.start(300))
         else:
-            fallback = QLabel("WebEngine 未加载，无法渲染预览")
-            fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 10px;")
+            fallback = QLabel(tr("WebEngine 未加载，无法渲染预览"))
+            fallback.setStyleSheet(
+                f"color: {dialog_theme_tokens()['muted']}; padding: 10px;"
+            )
             lay.addWidget(fallback)
 
     elif current_mode == "mathcraft_mixed":
-        preview_label = BodyLabel("混合预览：")
+        preview_label = BodyLabel(tr("混合预览："))
         lay.addWidget(preview_label)
 
         if ensure_webengine_loaded():
@@ -106,13 +125,15 @@ def show_predict_result_dialog(
             def do_render_mixed():
                 content = te.toPlainText().strip()
                 if content and preview_view:
-                    preview_view.setHtml(build_mixed_html(content), get_mathjax_base_url())
+                    preview_view.setHtml(
+                        build_mixed_html(content), get_mathjax_base_url()
+                    )
 
             render_timer.timeout.connect(do_render_mixed)
             te.textChanged.connect(lambda: render_timer.start(300))
 
     elif current_mode == "mathcraft_text":
-        preview_label = BodyLabel("文本预览：")
+        preview_label = BodyLabel(tr("文本预览："))
         lay.addWidget(preview_label)
 
         preview_text = QTextEdit()
@@ -138,7 +159,7 @@ def show_predict_result_dialog(
         text = str(label or "").strip()
         if len(text) > 18:
             text = f"{text[:17]}..."
-        return f"导出 {text}" if text else ""
+        return tr("导出 {format}").format(format=text) if text else ""
 
     def _refresh_quick_export_button(format_type: str = "", label: str = ""):
         key = str(format_type or "").strip()
@@ -151,25 +172,27 @@ def show_predict_result_dialog(
     _refresh_quick_export_button(default_export_format, default_export_label)
 
     quick_export_btn.clicked.connect(
-        lambda: quick_export(
-            dlg._quick_export_format,
-            te.toPlainText(),
-            dlg,
+        lambda: (
+            quick_export(
+                dlg._quick_export_format,
+                te.toPlainText(),
+                dlg,
+            )
+            if quick_export is not None and str(dlg._quick_export_format or "").strip()
+            else None
         )
-        if quick_export is not None and str(dlg._quick_export_format or "").strip()
-        else None
     )
-    export_btn = PushButton(FluentIcon.SHARE, "导出")
+    export_btn = PushButton(FluentIcon.SHARE, tr("导出"))
     export_btn.setFixedHeight(32)
     export_btn.clicked.connect(
         lambda: show_export_menu_for_source(
             export_btn,
             lambda: te.toPlainText(),
-            empty_hint="识别结果为空",
+            empty_hint=tr("识别结果为空"),
             info_parent=dlg,
         )
     )
-    confirm_btn = PrimaryPushButton(FluentIcon.ACCEPT, "确定")
+    confirm_btn = PrimaryPushButton(FluentIcon.ACCEPT, tr("确定"))
     confirm_btn.setFixedHeight(32)
     confirm_btn.clicked.connect(lambda: accept_result(dlg, te))
     btn_row.addWidget(quick_export_btn)

@@ -1,4 +1,6 @@
 """Cross-platform screen capture overlay."""
+
+from localization.manager import translate as tr
 import os
 import sys
 import time
@@ -93,13 +95,14 @@ class ScreenCaptureOverlay(QWidget):
         self._clear_blank_override_cursors()
         self._screen_snapshots = self._capture_screen_snapshots()
         self._use_snapshot_background = is_wayland() and any(
-            not snapshot.image.isNull() and not is_image_effectively_black(snapshot.image)
+            not snapshot.image.isNull()
+            and not is_image_effectively_black(snapshot.image)
             for snapshot in self._screen_snapshots
         )
         self.setWindowFlags(_capture_window_flags())
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        self.setWindowTitle("LaTeXSnipper 截图识别")
+        self.setWindowTitle(tr("LaTeXSnipper 截图识别"))
         app = QGuiApplication.instance()
         if app is not None:
             self.setWindowIcon(app.windowIcon())
@@ -145,17 +148,21 @@ class ScreenCaptureOverlay(QWidget):
                     if geo.width() <= 0 or geo.height() <= 0:
                         continue
                     snapshots.append(
-                ScreenSnapshot(
+                        ScreenSnapshot(
                             geometry=geo,
                             image=wayland_bg,
-                            scale_x=float(wayland_bg.width()) / max(1, int(geo.width())),
-                            scale_y=float(wayland_bg.height()) / max(1, int(geo.height())),
+                            scale_x=float(wayland_bg.width())
+                            / max(1, int(geo.width())),
+                            scale_y=float(wayland_bg.height())
+                            / max(1, int(geo.height())),
                         )
                     )
                 print("[DEBUG] Wayland overlay 背景截图成功")
                 return snapshots
             print("[WARN] Wayland overlay 背景截图失败")
-            print("[WARN] 请安装 grim、gnome-screenshot 或 flameshot 以支持 Wayland 截图")
+            print(
+                "[WARN] 请安装 grim、gnome-screenshot 或 flameshot 以支持 Wayland 截图"
+            )
 
         for i, screen in enumerate(QGuiApplication.screens()):
             try:
@@ -201,7 +208,8 @@ class ScreenCaptureOverlay(QWidget):
                                 geometry=geo,
                                 image=image.copy(),
                                 scale_x=float(image.width()) / max(1, int(geo.width())),
-                                scale_y=float(image.height()) / max(1, int(geo.height())),
+                                scale_y=float(image.height())
+                                / max(1, int(geo.height())),
                             )
                         )
                         print(f"[DEBUG] macOS overlay 背景截图来源: {source}")
@@ -280,18 +288,25 @@ class ScreenCaptureOverlay(QWidget):
         self._finish_capture(None)
         self.close()
 
-    def _snapshot_at_global_pos(self, global_pos: QPoint | None) -> ScreenSnapshot | None:
+    def _snapshot_at_global_pos(
+        self, global_pos: QPoint | None
+    ) -> ScreenSnapshot | None:
         if global_pos is None:
             return None
         gx = int(global_pos.x())
         gy = int(global_pos.y())
         for snapshot in self._screen_snapshots:
             geo = snapshot.geometry
-            if geo.x() <= gx < geo.x() + geo.width() and geo.y() <= gy < geo.y() + geo.height():
+            if (
+                geo.x() <= gx < geo.x() + geo.width()
+                and geo.y() <= gy < geo.y() + geo.height()
+            ):
                 return snapshot
         return None
 
-    def _image_xy_for_global_pos(self, snapshot: ScreenSnapshot, global_pos: QPoint) -> tuple[int, int]:
+    def _image_xy_for_global_pos(
+        self, snapshot: ScreenSnapshot, global_pos: QPoint
+    ) -> tuple[int, int]:
         geo = snapshot.geometry
         image = snapshot.image
         local_x = max(0, int(global_pos.x()) - int(geo.x()))
@@ -306,7 +321,9 @@ class ScreenCaptureOverlay(QWidget):
         snapshot = self._snapshot_at_global_pos(self.current_global_pos)
         if snapshot is None or self.current_global_pos is None:
             return None
-        image_x, image_y = self._image_xy_for_global_pos(snapshot, self.current_global_pos)
+        image_x, image_y = self._image_xy_for_global_pos(
+            snapshot, self.current_global_pos
+        )
         return QColor(snapshot.image.pixelColor(image_x, image_y))
 
     def _format_color_value(self, color: QColor) -> str:
@@ -336,7 +353,9 @@ class ScreenCaptureOverlay(QWidget):
             return None
 
         image = snapshot.image
-        image_x, image_y = self._image_xy_for_global_pos(snapshot, self.current_global_pos)
+        image_x, image_y = self._image_xy_for_global_pos(
+            snapshot, self.current_global_pos
+        )
         radius_x = _MAGNIFIER_SOURCE_WIDTH // 2
         radius_y = _MAGNIFIER_SOURCE_HEIGHT // 2
         source_rect = QRect(
@@ -345,7 +364,11 @@ class ScreenCaptureOverlay(QWidget):
             _MAGNIFIER_SOURCE_WIDTH,
             _MAGNIFIER_SOURCE_HEIGHT,
         )
-        sample = QImage(_MAGNIFIER_SOURCE_WIDTH, _MAGNIFIER_SOURCE_HEIGHT, QImage.Format.Format_RGB32)
+        sample = QImage(
+            _MAGNIFIER_SOURCE_WIDTH,
+            _MAGNIFIER_SOURCE_HEIGHT,
+            QImage.Format.Format_RGB32,
+        )
         sample.fill(QColor(255, 255, 255))
         clipped_source = source_rect.intersected(image.rect())
         if not clipped_source.isEmpty():
@@ -485,7 +508,9 @@ class ScreenCaptureOverlay(QWidget):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
 
         outer_path = QPainterPath()
-        outer_path.addRoundedRect(QRectF(popup_rect), _MAGNIFIER_RADIUS, _MAGNIFIER_RADIUS)
+        outer_path.addRoundedRect(
+            QRectF(popup_rect), _MAGNIFIER_RADIUS, _MAGNIFIER_RADIUS
+        )
         painter.setClipPath(outer_path)
         painter.fillPath(outer_path, QColor(24, 24, 24, 244))
 
@@ -512,8 +537,12 @@ class ScreenCaptureOverlay(QWidget):
         guide_pen.setCosmetic(True)
         guide_pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         painter.setPen(guide_pen)
-        painter.drawLine(preview_rect.left() + 1, center_y, preview_rect.right() - 1, center_y)
-        painter.drawLine(center_x, preview_rect.top() + 1, center_x, preview_rect.bottom() - 1)
+        painter.drawLine(
+            preview_rect.left() + 1, center_y, preview_rect.right() - 1, center_y
+        )
+        painter.drawLine(
+            center_x, preview_rect.top() + 1, center_x, preview_rect.bottom() - 1
+        )
         painter.restore()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(28, 28, 28, 244))
@@ -524,7 +553,9 @@ class ScreenCaptureOverlay(QWidget):
         fm = QFontMetrics(font)
         text_color = QColor(255, 255, 255, 242)
 
-        coord_rect = QRect(panel_rect.left() + 8, panel_rect.top() + 4, panel_rect.width() - 16, 16)
+        coord_rect = QRect(
+            panel_rect.left() + 8, panel_rect.top() + 4, panel_rect.width() - 16, 16
+        )
         self._draw_shadowed_text(
             painter,
             coord_rect,
@@ -552,19 +583,33 @@ class ScreenCaptureOverlay(QWidget):
             text_color,
         )
 
-        copy_hint = "已复制" if time.monotonic() < self._copy_notice_until else "按 C 复制色值"
+        copy_hint = (
+            tr("已复制")
+            if time.monotonic() < self._copy_notice_until
+            else tr("按 C 复制色值")
+        )
         self._draw_shadowed_text(
             painter,
-            QRect(panel_rect.left() + 8, panel_rect.top() + 46, panel_rect.width() - 16, 16),
+            QRect(
+                panel_rect.left() + 8,
+                panel_rect.top() + 46,
+                panel_rect.width() - 16,
+                16,
+            ),
             Qt.AlignmentFlag.AlignCenter,
             copy_hint,
             QColor(255, 255, 255, 232),
         )
         self._draw_shadowed_text(
             painter,
-            QRect(panel_rect.left() + 8, panel_rect.top() + 59, panel_rect.width() - 16, 16),
+            QRect(
+                panel_rect.left() + 8,
+                panel_rect.top() + 59,
+                panel_rect.width() - 16,
+                16,
+            ),
             Qt.AlignmentFlag.AlignCenter,
-            "Shift 切换格式",
+            tr("Shift 切换格式"),
             QColor(255, 255, 255, 232),
         )
         painter.setClipping(False)
@@ -626,9 +671,16 @@ class ScreenCaptureOverlay(QWidget):
             # Show logical selection size and global top-left coordinates.
             width, height = self._selection_size()
             if width > 0 and height > 0:
-                if self.start_global_pos is not None and self.end_global_pos is not None:
-                    gx = min(int(self.start_global_pos.x()), int(self.end_global_pos.x()))
-                    gy = min(int(self.start_global_pos.y()), int(self.end_global_pos.y()))
+                if (
+                    self.start_global_pos is not None
+                    and self.end_global_pos is not None
+                ):
+                    gx = min(
+                        int(self.start_global_pos.x()), int(self.end_global_pos.x())
+                    )
+                    gy = min(
+                        int(self.start_global_pos.y()), int(self.end_global_pos.y())
+                    )
                 else:
                     gx = int(self.geometry().x() + rect.left())
                     gy = int(self.geometry().y() + rect.top())
@@ -680,7 +732,9 @@ class ScreenCaptureOverlay(QWidget):
             current_selection = self._selection_rect()
             dirty_region = previous_visual_region.united(self._cursor_visual_region())
             if previous_selection is not None and current_selection is not None:
-                dirty_region += QRegion(previous_selection).xored(QRegion(current_selection))
+                dirty_region += QRegion(previous_selection).xored(
+                    QRegion(current_selection)
+                )
             elif previous_selection is not None:
                 dirty_region += QRegion(previous_selection)
             elif current_selection is not None:
@@ -707,7 +761,9 @@ class ScreenCaptureOverlay(QWidget):
             return
         if event.key() == Qt.Key.Key_Shift:
             if not event.isAutoRepeat():
-                self.color_display_mode = "hex" if self.color_display_mode == "rgb" else "rgb"
+                self.color_display_mode = (
+                    "hex" if self.color_display_mode == "rgb" else "rgb"
+                )
                 self.update()
             event.accept()
             return
@@ -748,17 +804,20 @@ class ScreenCaptureOverlay(QWidget):
             except Exception:
                 name = ""
             if name:
-                return f"屏幕 {int(index) + 1}（{name}）"
-        return f"屏幕 {int(index) + 1}"
+                return tr("屏幕 {number}（{name}）").format(
+                    number=int(index) + 1, name=name
+                )
+        return tr("屏幕 {number}").format(number=int(index) + 1)
 
-    def _build_screen_mismatch_message(self, target_idx: int, actual_idx: int, screens) -> str:
+    def _build_screen_mismatch_message(
+        self, target_idx: int, actual_idx: int, screens
+    ) -> str:
         target = self._screen_label(target_idx, screens)
         actual = self._screen_label(actual_idx, screens)
-        return (
-            f"当前截图模式固定为{target}，但你框选的是{actual}。"
-            f"请在托盘菜单选择“识别屏幕 > {actual}”，"
-            "或切换为“自动”后再截图。"
-        )
+        return tr(
+            "当前截图模式固定为{target}，但你框选的是{actual}。"
+            "请在托盘菜单选择“识别屏幕 > {actual}”，或切换为“自动”后再截图。"
+        ).format(target=target, actual=actual)
 
     def capture_selection(self):
         self.last_capture_failure_message = ""
@@ -820,20 +879,34 @@ class ScreenCaptureOverlay(QWidget):
             _rect_to_tuple(screen.geometry()),
         )
         if mapped is None:
-            if self.capture_display_mode == "index" and actual_idx != target_idx and 0 <= actual_idx < len(screens):
-                self.last_capture_failure_message = self._build_screen_mismatch_message(target_idx, actual_idx, screens)
+            if (
+                self.capture_display_mode == "index"
+                and actual_idx != target_idx
+                and 0 <= actual_idx < len(screens)
+            ):
+                self.last_capture_failure_message = self._build_screen_mismatch_message(
+                    target_idx, actual_idx, screens
+                )
             self._finish_capture(None)
             return
 
         logical_rect, native_rect = mapped
         snapshot = self._snapshot_for_screen_index(int(target_idx))
-        pixmap = crop_screen_snapshot(snapshot, logical_rect) if snapshot is not None else QPixmap()
+        pixmap = (
+            crop_screen_snapshot(snapshot, logical_rect)
+            if snapshot is not None
+            else QPixmap()
+        )
 
         _is_wayland = is_wayland()
 
         # Wayland: grabWindow(0) can return an all-black snapshot; the crop is also black but .isNull() is False,
         # which blocks CLI/portal fallback. Explicitly detect all-black pixels and discard them.
-        if _is_wayland and not pixmap.isNull() and is_image_effectively_black(pixmap.toImage()):
+        if (
+            _is_wayland
+            and not pixmap.isNull()
+            and is_image_effectively_black(pixmap.toImage())
+        ):
             print("[DEBUG] Wayland 预截图裁剪结果为全黑，改用 CLI/portal")
             pixmap = QPixmap()
 
@@ -898,14 +971,17 @@ class ScreenCaptureOverlay(QWidget):
         if pixmap.isNull():
             print("[ERR] 所有截图方式均失败，pixmap 为空")
         if pixmap.isNull() and sys.platform == "darwin":
-            permission_state = str(getattr(self, "macos_permission_preflight_state", "unknown") or "unknown")
+            permission_state = str(
+                getattr(self, "macos_permission_preflight_state", "unknown")
+                or "unknown"
+            )
             if permission_state == "allowed":
-                self.last_capture_failure_message = (
+                self.last_capture_failure_message = tr(
                     "屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。"
                     "这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。"
                 )
             else:
-                self.last_capture_failure_message = (
+                self.last_capture_failure_message = tr(
                     "无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。"
                     "请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。"
                 )

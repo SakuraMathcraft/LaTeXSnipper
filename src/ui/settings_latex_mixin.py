@@ -1,3 +1,4 @@
+from localization.manager import translate as tr
 import os
 import shutil
 import sys
@@ -12,7 +13,6 @@ from ui.settings_dialog_helpers import _select_open_file_with_icon
 
 
 class SettingsLatexMixin:
-
     def _compiler_for_engine(self, engine: str) -> str:
         return "xelatex" if str(engine or "").strip() == "latex_xelatex" else "pdflatex"
 
@@ -24,12 +24,16 @@ class SettingsLatexMixin:
             return
         target = self._compiler_for_engine(engine)
         target_exe = self._compiler_executable_name(target)
-        other_exe = self._compiler_executable_name("pdflatex" if target == "xelatex" else "xelatex")
+        other_exe = self._compiler_executable_name(
+            "pdflatex" if target == "xelatex" else "xelatex"
+        )
         current_path = (self.latex_path_input.text() or "").strip()
         if current_path:
             base = os.path.basename(current_path).lower()
             if base == other_exe:
-                self.latex_path_input.setText(os.path.join(os.path.dirname(current_path), target_exe))
+                self.latex_path_input.setText(
+                    os.path.join(os.path.dirname(current_path), target_exe)
+                )
             return
         candidate = shutil.which(target) or target_exe
         if candidate:
@@ -39,10 +43,14 @@ class SettingsLatexMixin:
         """Initialize render-engine selection."""
         try:
             mode = get_document_render_mode()
-            self.render_engine_combo.currentIndexChanged.disconnect(self._on_render_engine_changed)
+            self.render_engine_combo.currentIndexChanged.disconnect(
+                self._on_render_engine_changed
+            )
             index = self._render_modes.index(mode) if mode in self._render_modes else 0
             self.render_engine_combo.setCurrentIndex(index)
-            self.render_engine_combo.currentIndexChanged.connect(self._on_render_engine_changed)
+            self.render_engine_combo.currentIndexChanged.connect(
+                self._on_render_engine_changed
+            )
             current_index = self.render_engine_combo.currentIndex()
             if 0 <= current_index < len(self._render_modes):
                 engine = self._render_modes[current_index]
@@ -73,7 +81,11 @@ class SettingsLatexMixin:
             self._sync_latex_path_for_engine(engine)
             latex_path = self.latex_path_input.text().strip()
             if not latex_path:
-                self._show_notification("warning", "LaTeX 路径未配置", "已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。")
+                self._show_notification(
+                    "warning",
+                    tr("LaTeX 路径未配置"),
+                    tr("已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。"),
+                )
 
         # Save engine changes immediately; expensive validation is triggered by the path validation button.
         self._save_render_mode(engine)
@@ -91,20 +103,20 @@ class SettingsLatexMixin:
         """Handle LaTeX path changes by clearing validation state."""
         if getattr(self, "_latex_test_in_progress", False):
             return
-        self.btn_test_latex.setText("验证路径")
+        self.btn_test_latex.setText(tr("验证路径"))
         self.btn_test_latex.setEnabled(True)
 
     def _browse_latex_path(self):
         """Browse for a LaTeX executable path."""
         file_path, _ = _select_open_file_with_icon(
             self,
-            "选择 pdflatex 或 xelatex 可执行文件",
+            tr("选择 pdflatex 或 xelatex 可执行文件"),
             "",
             (
-                "可执行文件 (pdflatex xelatex);;所有文件 (*)"
+                tr("可执行文件 (pdflatex xelatex);;所有文件 (*)")
                 if sys.platform == "darwin"
-                else "可执行文件 (pdflatex.exe xelatex.exe);;所有文件 (*.*)"
-            )
+                else tr("可执行文件 (pdflatex.exe xelatex.exe);;所有文件 (*.*)")
+            ),
         )
         if file_path:
             self.latex_path_input.setText(file_path)
@@ -116,7 +128,7 @@ class SettingsLatexMixin:
             return
 
         self._latex_detect_in_progress = True
-        self.btn_detect_latex.setText("检测中...")
+        self.btn_detect_latex.setText(tr("检测中..."))
         self.btn_detect_latex.setEnabled(False)
 
         # Use the current render-engine selection as the detection preference; infer from the current path outside LaTeX mode.
@@ -129,8 +141,14 @@ class SettingsLatexMixin:
         elif current_engine == "latex_pdflatex":
             selected_compiler = "pdflatex"
         else:
-            base = os.path.basename((self.latex_path_input.text() or "").strip()).lower()
-            selected_compiler = "xelatex" if base == self._compiler_executable_name("xelatex") else "pdflatex"
+            base = os.path.basename(
+                (self.latex_path_input.text() or "").strip()
+            ).lower()
+            selected_compiler = (
+                "xelatex"
+                if base == self._compiler_executable_name("xelatex")
+                else "pdflatex"
+            )
         current_path = self.latex_path_input.text().strip()
 
         def worker(preferred: str, current: str):
@@ -147,7 +165,9 @@ class SettingsLatexMixin:
                         suffix = ".exe" if os.name == "nt" else ""
                         pdflatex_exe = os.path.join(base_dir, f"pdflatex{suffix}")
                         xelatex_exe = os.path.join(base_dir, f"xelatex{suffix}")
-                        if (not candidates["pdflatex"]) and os.path.exists(pdflatex_exe):
+                        if (not candidates["pdflatex"]) and os.path.exists(
+                            pdflatex_exe
+                        ):
                             candidates["pdflatex"] = pdflatex_exe
                         if (not candidates["xelatex"]) and os.path.exists(xelatex_exe):
                             candidates["xelatex"] = xelatex_exe
@@ -162,25 +182,32 @@ class SettingsLatexMixin:
             elif candidates.get("xelatex"):
                 chosen = candidates["xelatex"]
 
-            pd = candidates.get("pdflatex") or "未找到"
-            xe = candidates.get("xelatex") or "未找到"
+            pd = candidates.get("pdflatex") or tr("未找到")
+            xe = candidates.get("xelatex") or tr("未找到")
             detail = f"pdflatex: {pd}\nxelatex: {xe}"
             self.latex_auto_detect_done.emit(bool(chosen), chosen, detail)
 
         import threading
-        threading.Thread(target=worker, args=(selected_compiler, current_path), daemon=True).start()
+
+        threading.Thread(
+            target=worker, args=(selected_compiler, current_path), daemon=True
+        ).start()
 
     def _on_latex_auto_detect_done(self, ok: bool, latex_path: str, detail: str):
         self._latex_detect_in_progress = False
-        self.btn_detect_latex.setText("自动检测")
+        self.btn_detect_latex.setText(tr("自动检测"))
         self.btn_detect_latex.setEnabled(True)
 
         if ok:
             self.latex_path_input.setText(str(latex_path or ""))
             self._save_latex_settings()
-            self._show_notification("success", "检测成功", detail)
+            self._show_notification("success", tr("检测成功"), detail)
         else:
-            self._show_notification("warning", "检测失败", f"未检测到 LaTeX。\n\n{detail}")
+            self._show_notification(
+                "warning",
+                tr("检测失败"),
+                tr("未检测到 LaTeX。\n\n{detail}").format(detail=detail),
+            )
 
     def _save_latex_settings(self):
         """Save LaTeX settings."""
@@ -198,50 +225,62 @@ class SettingsLatexMixin:
         """Test the LaTeX path asynchronously to avoid blocking the UI thread."""
         latex_path = self.latex_path_input.text().strip()
         if not latex_path:
-            self._show_notification("error", "路径为空", "请输入 LaTeX 路径或点击自动检测")
+            self._show_notification(
+                "error", tr("路径为空"), tr("请输入 LaTeX 路径或点击自动检测")
+            )
             return False
         if getattr(self, "_latex_test_in_progress", False):
             return False
 
         current_index = self.render_engine_combo.currentIndex()
-        engine = self._render_modes[current_index] if 0 <= current_index < len(self._render_modes) else "auto"
+        engine = (
+            self._render_modes[current_index]
+            if 0 <= current_index < len(self._render_modes)
+            else "auto"
+        )
         self._latex_test_in_progress = True
-        self.btn_test_latex.setText("验证中...")
+        self.btn_test_latex.setText(tr("验证中..."))
         self.btn_test_latex.setEnabled(False)
 
         def worker(path_value: str, engine_value: str):
             from rendering.latex import LaTeXRenderer
 
             ok = False
-            title = "验证失败"
-            message = "无法用该路径渲染公式，请检查安装"
+            title = tr("验证失败")
+            message = tr("无法用该路径渲染公式，请检查安装")
             try:
                 renderer = LaTeXRenderer(path_value)
                 if not renderer.is_available():
-                    title = "路径无效"
-                    message = "找不到 LaTeX 可执行文件"
+                    title = tr("路径无效")
+                    message = tr("找不到 LaTeX 可执行文件")
                 else:
                     print(f"[DEBUG] 测试 LaTeX 路径: {path_value}")
-                    test_svg = renderer.render_to_svg(r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}")
+                    test_svg = renderer.render_to_svg(
+                        r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}"
+                    )
                     if test_svg and len(test_svg) > 100:
                         ok = True
-                        title = "验证成功"
-                        message = "LaTeX 环境已就绪"
+                        title = tr("验证成功")
+                        message = tr("LaTeX 环境已就绪")
             except Exception as e:
                 print(f"[ERR] LaTeX 验证失败: {e}")
-                title = "验证出错"
+                title = tr("验证出错")
                 message = str(e)[:100]
-            self.latex_path_test_done.emit(bool(ok), str(title), str(message), str(engine_value), str(path_value))
+            self.latex_path_test_done.emit(
+                bool(ok), str(title), str(message), str(engine_value), str(path_value)
+            )
 
         import threading
 
         threading.Thread(target=worker, args=(latex_path, engine), daemon=True).start()
         return True
 
-    def _on_latex_path_test_done(self, ok: bool, title: str, message: str, engine: str, tested_path: str):
+    def _on_latex_path_test_done(
+        self, ok: bool, title: str, message: str, engine: str, tested_path: str
+    ):
         self._latex_test_in_progress = False
         if ok:
-            self.btn_test_latex.setText("✓ 已验证")
+            self.btn_test_latex.setText(tr("✓ 已验证"))
             self.btn_test_latex.setEnabled(False)
             # Save directly if the path was unchanged during validation; otherwise keep the success state visible.
             try:
@@ -251,19 +290,31 @@ class SettingsLatexMixin:
                 pass
             compiler = (
                 "xelatex"
-                if os.path.basename((tested_path or "").strip()).lower() == self._compiler_executable_name("xelatex")
+                if os.path.basename((tested_path or "").strip()).lower()
+                == self._compiler_executable_name("xelatex")
                 else "pdflatex"
             )
-            self._show_notification("success", title or "验证成功", f"已验证编译器: {compiler}\n路径: {tested_path or ''}")
+            self._show_notification(
+                "success",
+                title or tr("验证成功"),
+                tr("已验证编译器: {compiler}\n路径: {path}").format(
+                    compiler=compiler, path=tested_path or ""
+                ),
+            )
             return
-        self.btn_test_latex.setText("验证路径")
+        self.btn_test_latex.setText(tr("验证路径"))
         self.btn_test_latex.setEnabled(True)
-        self._show_notification("error", title or "验证失败", message or "无法用该路径渲染公式，请检查安装")
+        self._show_notification(
+            "error",
+            title or tr("验证失败"),
+            message or tr("无法用该路径渲染公式，请检查安装"),
+        )
 
     def _show_notification(self, level: str, title: str, message: str):
         """Show a floating notification."""
         try:
             from qfluentwidgets import InfoBar, InfoBarPosition
+
             # Call the matching method for the requested level.
             if level == "success":
                 InfoBar.success(
@@ -273,7 +324,7 @@ class SettingsLatexMixin:
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=2000,
-                    parent=self
+                    parent=self,
                 )
             elif level == "warning":
                 InfoBar.warning(
@@ -283,7 +334,7 @@ class SettingsLatexMixin:
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=2000,
-                    parent=self
+                    parent=self,
                 )
             elif level == "error":
                 InfoBar.error(
@@ -293,7 +344,7 @@ class SettingsLatexMixin:
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=2000,
-                    parent=self
+                    parent=self,
                 )
             else:
                 InfoBar.info(
@@ -303,7 +354,7 @@ class SettingsLatexMixin:
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=2000,
-                    parent=self
+                    parent=self,
                 )
         except Exception as e:
             print(f"[WARN] 显示通知失败: {e}")
@@ -314,17 +365,17 @@ class SettingsLatexMixin:
         try:
             update_latex_settings(render_mode=engine)
             mode_names = {
-                "auto": "自动检测（推荐）",
-                "mathjax_local": "本地 MathJax",
-                "mathjax_cdn": "CDN MathJax",
+                "auto": tr("自动检测（推荐）"),
+                "mathjax_local": tr("本地 MathJax"),
+                "mathjax_cdn": tr("CDN MathJax"),
                 "latex_pdflatex": "LaTeX + pdflatex",
                 "latex_xelatex": "LaTeX + xelatex",
             }
             if engine in mode_names:
                 self._show_notification(
                     "success",
-                    "切换成功",
-                    f"已切换到: {mode_names[engine]}",
+                    tr("切换成功"),
+                    tr("已切换到: {mode}").format(mode=mode_names[engine]),
                 )
         except Exception as e:
             print(f"[ERR] 保存渲染模式失败: {e}")

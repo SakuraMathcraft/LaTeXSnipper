@@ -9,13 +9,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+from localization.manager import install_application_translators, translate as tr
 from runtime.dependency_runtime import (
     DEPENDENCY_PYTHON_DIRNAME,
     find_system_python3,
     system_python_unavailable_reason,
 )
-from runtime.app_paths import app_config_path, app_state_dir, get_app_root, is_packaged_mode
-from runtime.dependency_python import clean_path_value, normalize_deps_base_dir as _normalize_install_base_dir
+from runtime.app_paths import (
+    app_config_path,
+    app_state_dir,
+    get_app_root,
+    is_packaged_mode,
+)
+from runtime.dependency_python import (
+    clean_path_value,
+    normalize_deps_base_dir as _normalize_install_base_dir,
+)
 from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
 from ui.window_helpers import (
     apply_app_window_icon as _apply_app_window_icon,
@@ -125,23 +134,27 @@ def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
     ]
     # Linux-specific candidates (python3, venv/bin/python3)
     if os.name != "nt":
-        candidates.extend([
-            base_dir / "python3",
-            base_dir / "bin" / "python3",
-            base_dir / DEPENDENCY_PYTHON_DIRNAME / "bin" / "python3",
-            base_dir / "venv" / "bin" / "python3",
-            base_dir / ".venv" / "bin" / "python3",
-        ])
+        candidates.extend(
+            [
+                base_dir / "python3",
+                base_dir / "bin" / "python3",
+                base_dir / DEPENDENCY_PYTHON_DIRNAME / "bin" / "python3",
+                base_dir / "venv" / "bin" / "python3",
+                base_dir / ".venv" / "bin" / "python3",
+            ]
+        )
     try:
         for child in base_dir.iterdir():
             if not child.is_dir():
                 continue
             name = child.name.lower()
             if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
-                candidates.extend([
-                    child / "python.exe",
-                    child / "Scripts" / "python.exe",
-                ])
+                candidates.extend(
+                    [
+                        child / "python.exe",
+                        child / "Scripts" / "python.exe",
+                    ]
+                )
     except Exception:
         pass
 
@@ -183,7 +196,8 @@ def _current_dev_install_base_dir() -> Path | None:
                 if base.exists():
                     return base
             if exe_path.parent.parent.name.lower() == "deps" and (
-                parent_name.startswith("python") or parent_name in {"venv", ".venv", "python_full", "scripts"}
+                parent_name.startswith("python")
+                or parent_name in {"venv", ".venv", "python_full", "scripts"}
             ):
                 base = exe_path.parent.parent
                 if base.exists():
@@ -205,7 +219,9 @@ def _read_install_base_dir() -> Path | None:
     if cfg.exists():
         try:
             data = json.loads(cfg.read_text("utf-8"))
-            p = _normalize_install_base_dir(Path(clean_path_value(data.get("install_base_dir", ""))).expanduser())
+            p = _normalize_install_base_dir(
+                Path(clean_path_value(data.get("install_base_dir", ""))).expanduser()
+            )
             if p and p.exists():
                 if _looks_like_packaged_deps_dir(p):
                     return None
@@ -232,10 +248,12 @@ def _get_bundled_deps_dir_for_packaged() -> Path | None:
         pass
     try:
         exe_dir = Path(sys.executable).resolve().parent
-        candidates.extend([
-            exe_dir / "_internal" / "deps",
-            exe_dir / "deps",
-        ])
+        candidates.extend(
+            [
+                exe_dir / "_internal" / "deps",
+                exe_dir / "deps",
+            ]
+        )
     except Exception:
         pass
     seen: set[str] = set()
@@ -256,22 +274,24 @@ def _get_bundled_deps_dir_for_packaged() -> Path | None:
 def _select_install_base_dir() -> Path:
     """Prompt for the dependency installation base directory."""
     from pathlib import Path
+
     try:
         from PyQt6.QtWidgets import QApplication
-        from PyQt6.QtGui import QFont
+
         app = QApplication.instance() or QApplication([])
+        install_application_translators(app)
         apply_theme_mode(read_theme_mode_from_config())
         _apply_app_window_icon(app)
-        font = QFont("Microsoft YaHei UI", 9)
-        font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
-        app.setFont(font)
-        d = _select_existing_directory_with_icon(None, "请选择依赖安装目录", os.path.expanduser("~"))
+        d = _select_existing_directory_with_icon(
+            None,
+            tr("请选择依赖安装目录"),
+            os.path.expanduser("~"),
+        )
         if d:
             p = _normalize_install_base_dir(Path(d))
             p.mkdir(parents=True, exist_ok=True)
             return p
         else:
-
             raise RuntimeError("user canceled")
     except RuntimeError:
         raise
@@ -304,7 +324,6 @@ def resolve_install_base_dir() -> Path:
         if current_dev_base is not None:
             return current_dev_base
 
-
     p = _read_install_base_dir()
 
     if not p and _is_packaged_mode() and os.name != "nt":
@@ -324,7 +343,6 @@ def resolve_install_base_dir() -> Path:
             _save_install_base_dir(bundled)
             p = bundled
 
-
     if not p:
         print("[DEBUG] 首次启动选择依赖安装目录")
         try:
@@ -336,7 +354,6 @@ def resolve_install_base_dir() -> Path:
     p = _normalize_install_base_dir(p)
 
     py_exe = _find_install_base_python(p)
-
 
     if py_exe is not None and py_exe.exists():
         print(f"[DEBUG] 已复用目录内 Python: {py_exe}")
@@ -351,9 +368,11 @@ def resolve_install_base_dir() -> Path:
 def _current_runtime_roots() -> list[str]:
     """Collect interpreter roots and standard-library paths that must survive cleanup."""
     bases: set[Path] = set()
-    for b in (getattr(sys, "base_prefix", None),
-              getattr(sys, "exec_prefix", None),
-              getattr(sys, "prefix", None)):
+    for b in (
+        getattr(sys, "base_prefix", None),
+        getattr(sys, "exec_prefix", None),
+        getattr(sys, "prefix", None),
+    ):
         if b:
             try:
                 bases.add(Path(b).resolve())
@@ -362,12 +381,14 @@ def _current_runtime_roots() -> list[str]:
 
     roots: set[str] = set()
     for base in bases:
-        roots.update({
-            str(base),
-            str(base / "DLLs"),
-            str(base / "Lib"),
-            str(base / "Lib" / "site-packages"),
-        })
+        roots.update(
+            {
+                str(base),
+                str(base / "DLLs"),
+                str(base / "Lib"),
+                str(base / "Lib" / "site-packages"),
+            }
+        )
 
     try:
         for p in list(sys.path):
@@ -406,20 +427,19 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
             if "windowsapps\\python" in sl or "microsoft\\windowsapps" in sl:
                 return False
 
-
             if under_any(q, allowed) or under_any(q, runtime_roots):
                 return True
 
-
             try:
                 import re
+
                 if re.fullmatch(r"python\d+\.zip", q.name.lower()):
                     return True
             except Exception:
                 pass
             return False
-        newp = [p for p in list(sys.path) if ok(p)]
 
+        newp = [p for p in list(sys.path) if ok(p)]
 
         try:
             src_dir = str(Path(__file__).resolve().parent)
@@ -436,7 +456,10 @@ def _sanitize_sys_path(pyexe: str | None, base_dir: Path):
 def _in_ide() -> bool:
     """Detect whether the app is running under an IDE or debugger console."""
     e = os.environ
-    return any(k in e for k in ("PYCHARM_HOSTED", "PYCHARM_DISPLAY_PORT", "PYDEV_CONSOLE_ENCODING"))
+    return any(
+        k in e
+        for k in ("PYCHARM_HOSTED", "PYCHARM_DISPLAY_PORT", "PYDEV_CONSOLE_ENCODING")
+    )
 
 
 def _python_base_from_exe(pyexe: str) -> Path:
@@ -485,10 +508,10 @@ def _scrub_path_inplace(env: dict | None = None):
 
 
 def _append_private_site_packages(pyexe: str | None):
-    '''
+    """
     Append dependency-runtime Lib/site-packages in packaged mode.
     UI dependencies are bundled with the app and are not managed by dependency layers.
-    '''
+    """
     if not pyexe or not os.path.exists(pyexe):
         return
     try:
@@ -527,21 +550,23 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
     """Return path roots allowed for the target interpreter."""
     roots: set[str] = set()
 
-
     try:
         src_dir = Path(__file__).resolve().parent
         roots.add(str(src_dir))
         roots.add(str(src_dir.parent))
     except Exception:
         pass
+
     def add_private_base(b: Path, allow_core: bool):
         if not b.exists():
             return
 
-        roots.update({
-            str(b / "Lib"),
-            str(b / "Lib" / "site-packages"),
-        })
+        roots.update(
+            {
+                str(b / "Lib"),
+                str(b / "Lib" / "site-packages"),
+            }
+        )
         try:
             lib_dir = b / "lib"
             if lib_dir.exists():
@@ -553,10 +578,12 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
             pass
 
         if allow_core:
-            roots.update({
-                str(b),
-                str(b / "DLLs"),
-            })
+            roots.update(
+                {
+                    str(b),
+                    str(b / "DLLs"),
+                }
+            )
             try:
                 for maj, minr, z in _stdlib_zip_versions(b):
                     if (maj, minr) == (sys.version_info.major, sys.version_info.minor):
@@ -565,13 +592,16 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
                 pass
 
     try:
-        allow_core = _same_runtime_version_as_current(pyexe) if (pyexe and os.path.exists(pyexe)) else False
+        allow_core = (
+            _same_runtime_version_as_current(pyexe)
+            if (pyexe and os.path.exists(pyexe))
+            else False
+        )
         if pyexe and os.path.exists(pyexe):
             base = _python_base_from_exe(pyexe)
             add_private_base(base, allow_core=allow_core)
     except Exception:
         pass
-
 
     for r in _current_runtime_roots():
         roots.add(r)
@@ -581,6 +611,7 @@ def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
 def _relaunch_with(pyexe: str):
     """Relaunch with the private interpreter while hiding background windows on Windows."""
     import subprocess
+
     if not pyexe or not os.path.exists(pyexe):
         print("[ERR] 无法重启：未找到目标解释器。")
         sys.exit(5)
@@ -656,14 +687,20 @@ def _has_dependency_runtime_modules(pyexe: str) -> bool:
     """Check whether an existing dependency interpreter can run app-managed packages."""
     try:
         import subprocess
+
         code = (
             "import encodings, ssl, sys, urllib.request; "
             "assert any(type(h).__name__ == 'HTTPSHandler' "
             "for h in urllib.request.build_opener().handlers); "
             "print(sys.version_info[:2], ssl.OPENSSL_VERSION)"
         )
-        r = subprocess.run([pyexe, "-c", code],
-                           capture_output=True, text=True, timeout=20, **_win_subprocess_kwargs())
+        r = subprocess.run(
+            [pyexe, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            **_win_subprocess_kwargs(),
+        )
         return r.returncode == 0
     except Exception:
         return False
@@ -683,7 +720,9 @@ def _find_full_python(base_dir: Path) -> str | None:
         return None
 
     system_python = find_system_python3()
-    if system_python is not None and _has_dependency_runtime_modules(str(system_python)):
+    if system_python is not None and _has_dependency_runtime_modules(
+        str(system_python)
+    ):
         return str(system_python)
     return None
 
@@ -692,7 +731,6 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         py = _find_full_python(base_dir)
         if py:
-
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
@@ -708,10 +746,11 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
         print(f"[DEBUG] 使用依赖目录 Python: {py}")
         return py
 
-
     system_python = find_system_python3()
     if system_python is not None:
-        print(f"[ERR] 系统 Python {system_python} 位于支持范围内，但缺少 LaTeXSnipper 运行依赖")
+        print(
+            f"[ERR] 系统 Python {system_python} 位于支持范围内，但缺少 LaTeXSnipper 运行依赖"
+        )
     else:
         print(f"[ERR] {system_python_unavailable_reason()}")
     return None

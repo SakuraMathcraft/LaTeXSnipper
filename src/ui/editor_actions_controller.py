@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtWidgets import QApplication
 from exporting.formula_export import export_format_label, is_export_format_available
-from exporting.formula_converters import latex_to_mathml, latex_to_omml, latex_to_svg_code
+from exporting.formula_converters import (
+    latex_to_mathml,
+    latex_to_omml,
+    latex_to_svg_code,
+)
 from ui.formula_export_menu import export_formula_to_clipboard, show_formula_export_menu
 from ui.menu_helpers import CenterMenu
 
@@ -29,37 +35,44 @@ class EditorActionsControllerMixin:
         """Copy editor content to the clipboard."""
         text = self.latex_editor.toPlainText().strip()
         if not text:
-            self.show_action_status("编辑器为空", level="warning")
+            self.show_action_status(tr("编辑器为空"), level="warning")
             return
         try:
             QApplication.clipboard().setText(text)
-            self.set_action_status("已复制")
+            self.set_action_status(tr("已复制"))
         except Exception:
             try:
                 import pyperclip
+
                 pyperclip.copy(text)
-                self.set_action_status("已复制")
+                self.set_action_status(tr("已复制"))
             except Exception:
-                self.show_action_status("复制失败", level="error")
+                self.show_action_status(tr("复制失败"), level="error")
 
     def _show_export_menu(self):
         """Show the export format menu."""
         self._show_export_menu_for_source(
             self.export_btn,
             lambda: self.latex_editor.toPlainText(),
-            empty_hint="编辑器为空",
+            empty_hint=tr("编辑器为空"),
         )
 
-    def _show_export_menu_for_source(self, anchor_widget, text_source, empty_hint: str = "内容为空", info_parent=None):
+    def _show_export_menu_for_source(
+        self, anchor_widget, text_source, empty_hint: str | None = None, info_parent=None
+    ):
         """Show the export menu below a specific widget."""
         show_formula_export_menu(
             parent=self,
             menu_cls=CenterMenu,
             anchor_widget=anchor_widget,
             text_source=text_source,
-            status_callback=lambda message, level: self.show_action_status(message, level=level, parent=info_parent),
-            export_callback=lambda format_type, text: self._export_as(format_type, text, info_parent=info_parent),
-            empty_hint=empty_hint,
+            status_callback=lambda message, level: self.show_action_status(
+                message, level=level, parent=info_parent
+            ),
+            export_callback=lambda format_type, text: self._export_as(
+                format_type, text, info_parent=info_parent
+            ),
+            empty_hint=empty_hint or tr("内容为空"),
         )
 
     def _export_as(self, format_type: str, latex: str, info_parent=None):
@@ -73,13 +86,19 @@ class EditorActionsControllerMixin:
                 omml_converter=latex_to_omml,
                 svg_converter=latex_to_svg_code,
                 parent=info_parent or self,
-                status_callback=lambda message, level: self.show_action_status(message, level=level, parent=info_parent),
+                status_callback=lambda message, level: self.show_action_status(
+                    message, level=level, parent=info_parent
+                ),
             )
         except Exception as e:
-            self.show_action_status(f"导出失败: {e}", level="error", parent=info_parent)
+            self.show_action_status(
+                tr("导出失败: {error}").format(error=e),
+                level="error",
+                parent=info_parent,
+            )
             return
         if ok:
-            level = "info" if message.startswith("正在") else "success"
+            level = "info" if message.startswith(tr("正在导出 ")) else "success"
         else:
-            level = "info" if "取消" in message else "error"
+            level = "info" if message == tr("已取消导出") else "error"
         self.show_action_status(message, level=level, parent=info_parent)

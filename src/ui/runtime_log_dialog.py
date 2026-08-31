@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import os
 import subprocess
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QIcon, QTextCursor
-from PyQt6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QVBoxLayout,
+)
 from qfluentwidgets import FluentIcon, PushButton
 
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
@@ -20,7 +29,7 @@ class RuntimeLogDialog(QDialog):
 
     def __init__(self, log_file: Path, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("LaTeXSnipper 运行日志")
+        self.setWindowTitle(tr("LaTeXSnipper 运行日志"))
         self.resize(980, 620)
         self._log_file = Path(log_file)
         self._pos = 0
@@ -39,10 +48,10 @@ class RuntimeLogDialog(QDialog):
         self.txt.setReadOnly(True)
 
         btn_row = QHBoxLayout()
-        self.btn_open = PushButton(FluentIcon.FOLDER, "打开目录")
-        self.btn_copy_all = PushButton(FluentIcon.COPY, "复制全部")
-        self.btn_clear_view = PushButton(FluentIcon.BROOM, "清空视图")
-        self.btn_close = PushButton(FluentIcon.CLOSE, "关闭")
+        self.btn_open = PushButton(FluentIcon.FOLDER, tr("打开目录"))
+        self.btn_copy_all = PushButton(FluentIcon.COPY, tr("复制全部"))
+        self.btn_clear_view = PushButton(FluentIcon.BROOM, tr("清空视图"))
+        self.btn_close = PushButton(FluentIcon.CLOSE, tr("关闭"))
         btn_row.addWidget(self.btn_open)
         btn_row.addWidget(self.btn_copy_all)
         btn_row.addWidget(self.btn_clear_view)
@@ -98,8 +107,8 @@ class RuntimeLogDialog(QDialog):
                 from qfluentwidgets import InfoBar, InfoBarPosition
 
                 InfoBar.success(
-                    title="已复制",
-                    content="日志内容已复制到剪贴板",
+                    title=tr("已复制"),
+                    content=tr("日志内容已复制到剪贴板"),
                     parent=self,
                     duration=1500,
                     position=InfoBarPosition.TOP,
@@ -116,8 +125,8 @@ class RuntimeLogDialog(QDialog):
                 from qfluentwidgets import InfoBar, InfoBarPosition
 
                 InfoBar.success(
-                    title="已清空",
-                    content="日志视图已清空",
+                    title=tr("已清空"),
+                    content=tr("日志视图已清空"),
                     parent=self,
                     duration=1500,
                     position=InfoBarPosition.TOP,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import mark_for_translation, translate as tr
+
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (
     QApplication,
@@ -51,12 +53,26 @@ from ui.settings_dialog_helpers import _select_open_file_with_icon
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
+_AUTOMATION_SETTINGS_ERROR_MESSAGES = frozenset(
+    (
+        mark_for_translation("Automation API 端口必须在 0 到 65535 之间。"),
+        mark_for_translation("Automation API 访问范围必须为仅本机或远程。"),
+        mark_for_translation("仅本机模式必须监听本机回环地址。"),
+        mark_for_translation("远程模式必须使用安全隧道或 HTTPS。"),
+        mark_for_translation("远程模式必须配置访问密钥。"),
+        mark_for_translation("远程模式必须填写明确的网卡 IP 地址。"),
+        mark_for_translation("远程模式必须监听明确的非回环网卡地址。"),
+        mark_for_translation("HTTPS 模式必须提供有效的证书和私钥文件。"),
+    )
+)
+
+
 class AutomationAccessDialog(QDialog):
     def __init__(self, window, parent=None) -> None:
         super().__init__(parent)
         self._window = window
         self._cfg = window.cfg
-        self.setWindowTitle("自动化接口")
+        self.setWindowTitle(tr("自动化接口"))
         self.resize(500, 480)
         self.setMinimumWidth(500)
         apply_no_minimize_window_flags(self)
@@ -82,8 +98,10 @@ class AutomationAccessDialog(QDialog):
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(14)
-        content_layout.addWidget(SubtitleLabel("自动化接口"))
-        introduction = CaptionLabel("配置本机自动化工具，以及经你明确授权的远程设备。")
+        content_layout.addWidget(SubtitleLabel(tr("自动化接口")))
+        introduction = CaptionLabel(
+            tr("配置本机自动化工具，以及经你明确授权的远程设备。")
+        )
         introduction.setWordWrap(True)
         content_layout.addWidget(introduction)
 
@@ -91,11 +109,11 @@ class AutomationAccessDialog(QDialog):
         connection_layout = QVBoxLayout(connection_card)
         connection_layout.setContentsMargins(16, 14, 16, 16)
         connection_layout.setSpacing(12)
-        connection_layout.addWidget(BodyLabel("连接设置"))
+        connection_layout.addWidget(BodyLabel(tr("连接设置")))
         self.scope = ComboBox()
-        self.scope.addItem("仅本机", userData="local")
-        self.scope.addItem("远程设备", userData="remote")
-        connection_layout.addWidget(self._field("访问范围", self.scope))
+        self.scope.addItem(tr("仅本机"), userData="local")
+        self.scope.addItem(tr("远程设备"), userData="remote")
+        connection_layout.addWidget(self._field(tr("访问范围"), self.scope))
 
         self.port = SpinBox()
         self.port.setRange(1024, 65535)
@@ -105,8 +123,8 @@ class AutomationAccessDialog(QDialog):
         endpoint_layout = QHBoxLayout(endpoint_row)
         endpoint_layout.setContentsMargins(0, 0, 0, 0)
         endpoint_layout.setSpacing(12)
-        endpoint_layout.addWidget(self._field("端口", self.port), 1)
-        endpoint_layout.addWidget(self._field("监听地址", self.bind_address), 2)
+        endpoint_layout.addWidget(self._field(tr("端口"), self.port), 1)
+        endpoint_layout.addWidget(self._field(tr("监听地址"), self.bind_address), 2)
         connection_layout.addWidget(endpoint_row)
         content_layout.addWidget(connection_card)
 
@@ -114,49 +132,51 @@ class AutomationAccessDialog(QDialog):
         remote_layout = QVBoxLayout(self.remote_card)
         remote_layout.setContentsMargins(16, 14, 16, 16)
         remote_layout.setSpacing(12)
-        remote_layout.addWidget(BodyLabel("远程访问"))
-        remote_note = CaptionLabel("仅允许安全隧道或 HTTPS，并始终使用独立访问密钥。")
+        remote_layout.addWidget(BodyLabel(tr("远程访问")))
+        remote_note = CaptionLabel(
+            tr("仅允许安全隧道或 HTTPS，并始终使用独立访问密钥。")
+        )
         remote_note.setWordWrap(True)
         remote_layout.addWidget(remote_note)
         self.security = ComboBox()
-        self.security.addItem("安全隧道（推荐）", userData="tunnel")
+        self.security.addItem(tr("安全隧道（推荐）"), userData="tunnel")
         self.security.addItem("HTTPS", userData="https")
-        remote_layout.addWidget(self._field("安全方式", self.security))
+        remote_layout.addWidget(self._field(tr("安全方式"), self.security))
 
         self.remote_key = PasswordLineEdit()
-        self.remote_key.setPlaceholderText("生成独立的远程访问密钥")
+        self.remote_key.setPlaceholderText(tr("生成独立的远程访问密钥"))
         key_row = QWidget()
         key_layout = QHBoxLayout(key_row)
         key_layout.setContentsMargins(0, 0, 0, 0)
         key_layout.setSpacing(8)
         key_layout.addWidget(self.remote_key, 1)
         for icon, tooltip, handler in (
-            (FluentIcon.COPY, "复制访问密钥", self._copy_key),
-            (FluentIcon.SYNC, "重新生成访问密钥", self._regenerate_key),
-            (FluentIcon.DELETE, "撤销远程访问密钥", self._revoke_key),
+            (FluentIcon.COPY, tr("复制访问密钥"), self._copy_key),
+            (FluentIcon.SYNC, tr("重新生成访问密钥"), self._regenerate_key),
+            (FluentIcon.DELETE, tr("撤销远程访问密钥"), self._revoke_key),
         ):
             button = ToolButton(icon, key_row)
             button.setToolTip(tooltip)
             button.clicked.connect(handler)
             key_layout.addWidget(button)
-        remote_layout.addWidget(self._field("远程访问密钥", key_row))
+        remote_layout.addWidget(self._field(tr("远程访问密钥"), key_row))
 
         self.cert_path = LineEdit()
-        self.cert_path.setPlaceholderText("选择 HTTPS 证书")
+        self.cert_path.setPlaceholderText(tr("选择 HTTPS 证书"))
         self.cert_row = self._path_field(
-            "HTTPS 证书",
+            tr("HTTPS 证书"),
             self.cert_path,
-            "选择 HTTPS 证书",
-            "证书文件 (*.pem *.crt *.cer);;所有文件 (*)",
+            tr("选择 HTTPS 证书"),
+            tr("证书文件 (*.pem *.crt *.cer);;所有文件 (*)"),
         )
         remote_layout.addWidget(self.cert_row)
         self.key_path = LineEdit()
-        self.key_path.setPlaceholderText("选择 HTTPS 私钥")
+        self.key_path.setPlaceholderText(tr("选择 HTTPS 私钥"))
         self.private_key_row = self._path_field(
-            "HTTPS 私钥",
+            tr("HTTPS 私钥"),
             self.key_path,
-            "选择 HTTPS 私钥",
-            "私钥文件 (*.pem *.key);;所有文件 (*)",
+            tr("选择 HTTPS 私钥"),
+            tr("私钥文件 (*.pem *.key);;所有文件 (*)"),
         )
         remote_layout.addWidget(self.private_key_row)
 
@@ -164,17 +184,17 @@ class AutomationAccessDialog(QDialog):
         self.origins.setPlaceholderText("https://example.com, https://app.example.com")
         remote_layout.addWidget(
             self._field(
-                "浏览器 Origin 白名单",
+                tr("浏览器 Origin 白名单"),
                 self.origins,
-                "仅浏览器跨域调用需要填写，多个地址使用逗号分隔。",
+                tr("仅浏览器跨域调用需要填写，多个地址使用逗号分隔。"),
             )
         )
         self.remote_external = CheckBox(
-            "允许远程设备调用已配置的外部模型（可能产生费用）"
+            tr("允许远程设备调用已配置的外部模型（可能产生费用）")
         )
         remote_layout.addWidget(self.remote_external)
         self.remote_ack = CheckBox(
-            "我已了解远程设备可向本机提交图片，并确认连接方式安全"
+            tr("我已了解远程设备可向本机提交图片，并确认连接方式安全")
         )
         remote_layout.addWidget(self.remote_ack)
         content_layout.addWidget(self.remote_card)
@@ -183,7 +203,7 @@ class AutomationAccessDialog(QDialog):
         status_layout = QVBoxLayout(status_card)
         status_layout.setContentsMargins(16, 12, 16, 12)
         status_layout.setSpacing(4)
-        status_layout.addWidget(CaptionLabel("当前状态"))
+        status_layout.addWidget(CaptionLabel(tr("当前状态")))
         self.status = BodyLabel()
         self.status.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -196,8 +216,8 @@ class AutomationAccessDialog(QDialog):
 
         button_row = QHBoxLayout()
         button_row.addStretch()
-        self.cancel_button = PushButton(FluentIcon.CANCEL, "取消")
-        self.save_button = PrimaryPushButton(FluentIcon.SAVE, "保存")
+        self.cancel_button = PushButton(FluentIcon.CANCEL, tr("取消"))
+        self.save_button = PrimaryPushButton(FluentIcon.SAVE, tr("保存"))
         self.cancel_button.clicked.connect(self.reject)
         self.save_button.clicked.connect(self._save)
         button_row.addWidget(self.cancel_button)
@@ -230,7 +250,7 @@ class AutomationAccessDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         layout.addWidget(editor, 1)
-        browse = PushButton(FluentIcon.FOLDER, "选择")
+        browse = PushButton(FluentIcon.FOLDER, tr("选择"))
         browse.clicked.connect(
             lambda: self._select_path(editor, dialog_title, file_filter)
         )
@@ -332,28 +352,34 @@ class AutomationAccessDialog(QDialog):
     def _copy_key(self) -> None:
         value = self.remote_key.text().strip()
         if not value:
-            self._show_info("没有可复制的密钥", "请先生成远程访问密钥。", "warning")
+            self._show_info(
+                tr("没有可复制的密钥"), tr("请先生成远程访问密钥。"), "warning"
+            )
             return
         QApplication.clipboard().setText(value)
-        self._show_info("已复制", "远程访问密钥已复制到剪贴板。", "success")
+        self._show_info(tr("已复制"), tr("远程访问密钥已复制到剪贴板。"), "success")
 
     def _regenerate_key(self) -> None:
         self.remote_key.setText(AutomationApiAuth.generate_remote_key())
-        self._show_info("密钥已更新", "保存配置后新密钥才会生效。", "info")
+        self._show_info(tr("密钥已更新"), tr("保存配置后新密钥才会生效。"), "info")
 
     def _revoke_key(self) -> None:
         self.remote_key.clear()
         self._select_combo(self.scope, "local")
         self.bind_address.setText("127.0.0.1")
         self.remote_ack.setChecked(False)
-        self._show_info("远程访问已撤销", "保存后接口将恢复为仅本机访问。", "warning")
+        self._show_info(
+            tr("远程访问已撤销"),
+            tr("保存后接口将恢复为仅本机访问。"),
+            "warning",
+        )
 
     def _save(self) -> None:
         remote = self.scope.currentData() == "remote"
         if remote and not self.remote_ack.isChecked():
             self._show_info(
-                "需要确认远程访问风险",
-                "请确认连接方式安全，并勾选远程访问确认项。",
+                tr("需要确认远程访问风险"),
+                tr("请确认连接方式安全，并勾选远程访问确认项。"),
                 "warning",
             )
             return
@@ -388,30 +414,41 @@ class AutomationAccessDialog(QDialog):
                 ),
             ).validate()
         except AutomationApiSettingsError as exc:
-            self._show_info("配置无效", exc.user_message, "error")
+            message = str(exc.user_message or "")
+            if message in _AUTOMATION_SETTINGS_ERROR_MESSAGES:
+                message = tr(message)
+            self._show_info(tr("配置无效"), message, "error")
             return
         except Exception:
             self._show_info(
-                "配置无效", "无法验证自动化接口配置，请检查填写内容。", "error"
+                tr("配置无效"),
+                tr("无法验证自动化接口配置，请检查填写内容。"),
+                "error",
             )
             return
 
         self.save_button.setEnabled(False)
-        self.save_button.setText("正在保存...")
+        self.save_button.setText(tr("正在保存..."))
 
         def done(ok: bool, message: str) -> None:
             self.save_button.setEnabled(True)
-            self.save_button.setText("保存")
-            self.status.setText(self._window.automation_api.automation_api_status_text())
+            self.save_button.setText(tr("保存"))
+            self.status.setText(
+                self._window.automation_api.automation_api_status_text()
+            )
             if not ok:
-                self._show_info("自动化接口启动失败", message, "error")
+                self._show_info(tr("自动化接口启动失败"), message, "error")
                 return
-            self._notify_parent("自动化接口", message or "配置已保存", "success")
+            self._notify_parent(
+                tr("自动化接口"), message or tr("配置已保存"), "success"
+            )
             self.accept()
 
         try:
-            self._window.automation_api.update_automation_api_settings_async(values, done)
+            self._window.automation_api.update_automation_api_settings_async(
+                values, done
+            )
         except Exception:
             self.save_button.setEnabled(True)
-            self.save_button.setText("保存")
-            self._show_info("保存失败", "无法更新自动化接口配置。", "error")
+            self.save_button.setText(tr("保存"))
+            self._show_info(tr("保存失败"), tr("无法更新自动化接口配置。"), "error")

@@ -1,9 +1,31 @@
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtCore import QPoint, QRect, QRectF, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QCursor, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap, QWheelEvent
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QCursor,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QWheelEvent,
+)
 from PyQt6.QtGui import QRegion
-from PyQt6.QtWidgets import QGraphicsBlurEffect, QGraphicsPixmapItem, QGraphicsScene, QLabel, QMenu, QScrollArea, QSizePolicy, QWidget
+from PyQt6.QtWidgets import (
+    QGraphicsBlurEffect,
+    QGraphicsPixmapItem,
+    QGraphicsScene,
+    QLabel,
+    QMenu,
+    QScrollArea,
+    QSizePolicy,
+    QWidget,
+)
 
 try:
     import fitz
@@ -12,6 +34,7 @@ except Exception:  # pragma: no cover
 
 
 if fitz is not None:
+
     class _FitzPdfCanvas(QWidget):
         def __init__(self, owner, parent=None):
             super().__init__(parent)
@@ -40,7 +63,6 @@ if fitz is not None:
         def leaveEvent(self, event) -> None:
             self.owner._handle_leave(event)
             super().leaveEvent(event)
-
 
     class FitzPdfView(QScrollArea):
         syncJumpRequested = pyqtSignal(int, float, float)
@@ -82,19 +104,35 @@ if fitz is not None:
             self._pan_start_h = 0
             self._pan_start_v = 0
             self._canvas = _FitzPdfCanvas(self, self)
-            self._canvas.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            self._canvas.setSizePolicy(
+                QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+            )
             self.setWidget(self._canvas)
             self.setWidgetResizable(False)
             self.setMouseTracking(True)
             self.viewport().setMouseTracking(True)
             self._magnifier_label = QLabel(self.viewport())
-            self._magnifier_label.setFixedSize(self._magnifier_size, self._magnifier_size)
+            self._magnifier_label.setFixedSize(
+                self._magnifier_size, self._magnifier_size
+            )
             try:
-                self._magnifier_label.setMask(QRegion(0, 0, self._magnifier_size, self._magnifier_size, QRegion.RegionType.Ellipse))
+                self._magnifier_label.setMask(
+                    QRegion(
+                        0,
+                        0,
+                        self._magnifier_size,
+                        self._magnifier_size,
+                        QRegion.RegionType.Ellipse,
+                    )
+                )
             except Exception:
                 pass
-            self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-            self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            self._magnifier_label.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+            )
+            self._magnifier_label.setAttribute(
+                Qt.WidgetAttribute.WA_TranslucentBackground, True
+            )
             self._magnifier_label.setStyleSheet("background: transparent;")
             self._magnifier_label.hide()
             self._magnifier_cursor = self._build_magnifier_cursor()
@@ -102,7 +140,9 @@ if fitz is not None:
             self._magnifier_update_timer = QTimer(self)
             self._magnifier_update_timer.setSingleShot(True)
             self._magnifier_update_timer.setTimerType(Qt.TimerType.PreciseTimer)
-            self._magnifier_update_timer.setInterval(self._magnifier_interactive_interval_ms)
+            self._magnifier_update_timer.setInterval(
+                self._magnifier_interactive_interval_ms
+            )
             self._magnifier_update_timer.timeout.connect(self._flush_magnifier_update)
             self._magnifier_hq_timer = QTimer(self)
             self._magnifier_hq_timer.setSingleShot(True)
@@ -113,8 +153,12 @@ if fitz is not None:
             self._deferred_render_timer.setSingleShot(True)
             self._deferred_render_timer.setInterval(120)
             self._deferred_render_timer.timeout.connect(self._render_pages)
-            self.verticalScrollBar().valueChanged.connect(self._schedule_deferred_render)
-            self.horizontalScrollBar().valueChanged.connect(self._schedule_deferred_render)
+            self.verticalScrollBar().valueChanged.connect(
+                self._schedule_deferred_render
+            )
+            self.horizontalScrollBar().valueChanged.connect(
+                self._schedule_deferred_render
+            )
             self._configure_magnifier_timing_for_display()
 
         def _configure_magnifier_timing_for_display(self) -> None:
@@ -129,8 +173,12 @@ if fitz is not None:
                 refresh = 60.0
             interval = max(5, min(16, int(round(1000.0 / refresh))))
             self._magnifier_interactive_interval_ms = int(interval)
-            self._magnifier_update_timer.setInterval(self._magnifier_interactive_interval_ms)
-            self._magnifier_min_move_px = 1 if self._magnifier_interactive_interval_ms <= 8 else 2
+            self._magnifier_update_timer.setInterval(
+                self._magnifier_interactive_interval_ms
+            )
+            self._magnifier_min_move_px = (
+                1 if self._magnifier_interactive_interval_ms <= 8 else 2
+            )
 
         def _build_magnifier_cursor(self) -> QCursor:
             pixmap = QPixmap(32, 32)
@@ -228,9 +276,17 @@ if fitz is not None:
             if self._zoom_mode == "fit_width":
                 return max(0.01, viewport_w / max(1.0, page_width))
             if self._zoom_mode == "fit_text_width":
-                return max(0.01, viewport_w / max(1.0, page_width * self._text_width_ratio))
+                return max(
+                    0.01, viewport_w / max(1.0, page_width * self._text_width_ratio)
+                )
             if self._zoom_mode == "fit_window":
-                return max(0.01, min(viewport_w / max(1.0, page_width), viewport_h / max(1.0, page_height)))
+                return max(
+                    0.01,
+                    min(
+                        viewport_w / max(1.0, page_width),
+                        viewport_h / max(1.0, page_height),
+                    ),
+                )
             return max(0.01, self._zoom_factor)
 
         def _schedule_deferred_render(self) -> None:
@@ -282,7 +338,9 @@ if fitz is not None:
             col_w = max(cell_w, int(max_draw_w))
             row_y = self._page_margin
             row_max_h = 0
-            for index, (page_w, page_h, zoom, draw_w, draw_h) in enumerate(page_metrics):
+            for index, (page_w, page_h, zoom, draw_w, draw_h) in enumerate(
+                page_metrics
+            ):
                 col = index % cols
                 if index > 0 and col == 0:
                     row_y += row_max_h + gap
@@ -294,7 +352,9 @@ if fitz is not None:
                 self._page_sizes.append((page_w, page_h))
                 page_layout.append((draw_rect, page_w, page_h, zoom))
                 row_max_h = max(row_max_h, draw_h)
-                max_w = max(max_w, self._page_margin * 2 + cols * col_w + max(0, cols - 1) * gap)
+                max_w = max(
+                    max_w, self._page_margin * 2 + cols * col_w + max(0, cols - 1) * gap
+                )
             total_h = row_y + row_max_h + self._page_margin
             visible_rect = QRect(
                 self.horizontalScrollBar().value(),
@@ -310,15 +370,23 @@ if fitz is not None:
             )
             render_indices = {
                 index
-                for index, (draw_rect, _page_w, _page_h, _zoom) in enumerate(page_layout)
+                for index, (draw_rect, _page_w, _page_h, _zoom) in enumerate(
+                    page_layout
+                )
                 if draw_rect.intersects(preload_rect)
             }
             for index, (draw_rect, _page_w, _page_h, zoom) in enumerate(page_layout):
-                image = self._page_sources[index] if index < len(self._page_sources) else QImage()
+                image = (
+                    self._page_sources[index]
+                    if index < len(self._page_sources)
+                    else QImage()
+                )
                 if rerender_sources and index in render_indices:
                     page = self._doc[index]
                     matrix_scale = zoom * self._page_render_scale
-                    max_edge = max(page.rect.width * matrix_scale, page.rect.height * matrix_scale)
+                    max_edge = max(
+                        page.rect.width * matrix_scale, page.rect.height * matrix_scale
+                    )
                     if max_edge > self._max_source_edge:
                         matrix_scale *= self._max_source_edge / max_edge
                     matrix = fitz.Matrix(matrix_scale, matrix_scale)
@@ -331,27 +399,44 @@ if fitz is not None:
                         QImage.Format.Format_RGB888,
                     ).copy()
                     self._page_sources[index] = image
-                    self._page_source_scales[index] = max(1.0, matrix_scale / max(zoom, 1e-6))
-                display_image = image.scaled(
-                    draw_rect.width(),
-                    draw_rect.height(),
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation if rerender_sources else Qt.TransformationMode.FastTransformation,
-                ) if image is not None and not image.isNull() else QImage()
+                    self._page_source_scales[index] = max(
+                        1.0, matrix_scale / max(zoom, 1e-6)
+                    )
+                display_image = (
+                    image.scaled(
+                        draw_rect.width(),
+                        draw_rect.height(),
+                        Qt.AspectRatioMode.IgnoreAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                        if rerender_sources
+                        else Qt.TransformationMode.FastTransformation,
+                    )
+                    if image is not None and not image.isNull()
+                    else QImage()
+                )
                 self._page_pixmaps.append(display_image)
             self._canvas.resize(max_w, max(total_h, self.viewport().height()))
             self._canvas.update()
 
         def _content_pos(self, pos: QPoint) -> QPoint:
-            return QPoint(pos.x() + self.horizontalScrollBar().value(), pos.y() + self.verticalScrollBar().value())
+            return QPoint(
+                pos.x() + self.horizontalScrollBar().value(),
+                pos.y() + self.verticalScrollBar().value(),
+            )
 
         def _clamp_magnifier_center_to_page(self, viewport_pos: QPoint) -> QPoint:
-            hit = self._locate_page_at(self._content_pos(viewport_pos), allow_outside=True)
+            hit = self._locate_page_at(
+                self._content_pos(viewport_pos), allow_outside=True
+            )
             if hit is None:
                 return QPoint(viewport_pos)
             _idx, rect, _rel_x, _rel_y = hit
-            cx = int(min(max(self._content_pos(viewport_pos).x(), rect.left()), rect.right()))
-            cy = int(min(max(self._content_pos(viewport_pos).y(), rect.top()), rect.bottom()))
+            cx = int(
+                min(max(self._content_pos(viewport_pos).x(), rect.left()), rect.right())
+            )
+            cy = int(
+                min(max(self._content_pos(viewport_pos).y(), rect.top()), rect.bottom())
+            )
             return QPoint(
                 cx - self.horizontalScrollBar().value(),
                 cy - self.verticalScrollBar().value(),
@@ -444,7 +529,9 @@ if fitz is not None:
             inner_path.addEllipse(lens_rect.adjusted(-0.5, -0.5, 0.5, 0.5))
             painter.save()
             painter.setClipPath(outside_path.subtracted(inner_path))
-            painter.drawPixmap(0, 0, shadow_blurred.copy(pad, pad, int(size), int(size)))
+            painter.drawPixmap(
+                0, 0, shadow_blurred.copy(pad, pad, int(size), int(size))
+            )
             painter.restore()
 
             # Keep a crisp thin rim above the blurred feather.
@@ -455,7 +542,9 @@ if fitz is not None:
             self._magnifier_frame_cache[key] = result
             return result
 
-        def _compose_magnifier_pixmap(self, source_image: QImage, lens_d: int, quality: str) -> QPixmap:
+        def _compose_magnifier_pixmap(
+            self, source_image: QImage, lens_d: int, quality: str
+        ) -> QPixmap:
             result = QPixmap(self._magnifier_size, self._magnifier_size)
             result.fill(Qt.GlobalColor.transparent)
             painter = QPainter(result)
@@ -466,9 +555,17 @@ if fitz is not None:
             lens_path.addEllipse(QRectF(lens_rect))
             painter.setClipPath(lens_path)
             painter.fillPath(lens_path, QColor(232, 232, 232))
-            painter.drawImage(QRectF(lens_rect), source_image, QRectF(0.0, 0.0, float(source_image.width()), float(source_image.height())))
+            painter.drawImage(
+                QRectF(lens_rect),
+                source_image,
+                QRectF(
+                    0.0, 0.0, float(source_image.width()), float(source_image.height())
+                ),
+            )
             painter.setClipping(False)
-            painter.drawPixmap(0, 0, self._build_magnifier_frame(self._magnifier_size, quality=quality))
+            painter.drawPixmap(
+                0, 0, self._build_magnifier_frame(self._magnifier_size, quality=quality)
+            )
             painter.end()
             return result
 
@@ -478,7 +575,9 @@ if fitz is not None:
             # Keep lens centered on cursor; let viewport clipping show partial disk near edges.
             self._magnifier_label.move(top_left)
 
-        def _present_magnifier_pixmap(self, pixmap: QPixmap, viewport_pos: QPoint) -> None:
+        def _present_magnifier_pixmap(
+            self, pixmap: QPixmap, viewport_pos: QPoint
+        ) -> None:
             self._magnifier_label.resize(self._magnifier_size, self._magnifier_size)
             self._magnifier_label.setPixmap(pixmap)
             self._position_magnifier_label(viewport_pos)
@@ -501,7 +600,9 @@ if fitz is not None:
             painter = QPainter(shifted)
             painter.drawImage(-delta.x(), -delta.y(), src)
             painter.end()
-            pixmap = self._compose_magnifier_pixmap(shifted, self._magnifier_last_lens_d, quality="fast")
+            pixmap = self._compose_magnifier_pixmap(
+                shifted, self._magnifier_last_lens_d, quality="fast"
+            )
             self._present_magnifier_pixmap(pixmap, viewport_pos)
             self._magnifier_last_source_image = shifted
             self._magnifier_last_presented_pos = QPoint(viewport_pos)
@@ -521,19 +622,31 @@ if fitz is not None:
                 self._magnifier_label.hide()
                 return
             lens_d = self._magnifier_size - 16
-            source_scale = self._page_source_scales[page_index] if page_index < len(self._page_source_scales) else self._page_render_scale
+            source_scale = (
+                self._page_source_scales[page_index]
+                if page_index < len(self._page_source_scales)
+                else self._page_render_scale
+            )
             img_w = max(1, source_image.width())
             img_h = max(1, source_image.height())
             center_x = int(round(rel_x * img_w))
             center_y = int(round(rel_y * img_h))
-            sample_w = max(40, int(round(lens_d * source_scale / max(1.0, self._magnifier_zoom))))
-            sample_h = max(40, int(round(lens_d * source_scale / max(1.0, self._magnifier_zoom))))
-            sample_rect = QRect(center_x - sample_w // 2, center_y - sample_h // 2, sample_w, sample_h)
+            sample_w = max(
+                40, int(round(lens_d * source_scale / max(1.0, self._magnifier_zoom)))
+            )
+            sample_h = max(
+                40, int(round(lens_d * source_scale / max(1.0, self._magnifier_zoom)))
+            )
+            sample_rect = QRect(
+                center_x - sample_w // 2, center_y - sample_h // 2, sample_w, sample_h
+            )
             clipped = sample_rect.intersected(QRect(0, 0, img_w, img_h))
             if clipped.width() <= 0 or clipped.height() <= 0:
                 self._magnifier_label.hide()
                 return
-            sampled = QImage(sample_w, sample_h, QImage.Format.Format_ARGB32_Premultiplied)
+            sampled = QImage(
+                sample_w, sample_h, QImage.Format.Format_ARGB32_Premultiplied
+            )
             sampled.fill(QColor(242, 242, 242))
             paste_x = int(clipped.x() - sample_rect.x())
             paste_y = int(clipped.y() - sample_rect.y())
@@ -548,14 +661,20 @@ if fitz is not None:
                 int(clipped.height()),
             )
             sample_painter.end()
-            transform_mode = Qt.TransformationMode.SmoothTransformation if str(quality).lower() == "hq" else Qt.TransformationMode.FastTransformation
+            transform_mode = (
+                Qt.TransformationMode.SmoothTransformation
+                if str(quality).lower() == "hq"
+                else Qt.TransformationMode.FastTransformation
+            )
             scaled_source = sampled.scaled(
                 lens_d,
                 lens_d,
                 Qt.AspectRatioMode.IgnoreAspectRatio,
                 transform_mode,
             )
-            pixmap = self._compose_magnifier_pixmap(scaled_source, lens_d, quality=quality)
+            pixmap = self._compose_magnifier_pixmap(
+                scaled_source, lens_d, quality=quality
+            )
             self._present_magnifier_pixmap(pixmap, viewport_pos)
             self._magnifier_last_source_image = scaled_source
             self._magnifier_last_lens_d = lens_d
@@ -564,7 +683,9 @@ if fitz is not None:
         def _queue_magnifier_update(self, viewport_pos: QPoint) -> None:
             viewport_pos = self._clamp_magnifier_center_to_page(viewport_pos)
             if self._magnifier_last_viewport_pos is not None:
-                if (viewport_pos - self._magnifier_last_viewport_pos).manhattanLength() < self._magnifier_min_move_px:
+                if (
+                    viewport_pos - self._magnifier_last_viewport_pos
+                ).manhattanLength() < self._magnifier_min_move_px:
                     return
             self._predictive_magnifier_reuse(viewport_pos)
             self._pending_magnifier_pos = QPoint(viewport_pos)
@@ -584,7 +705,9 @@ if fitz is not None:
             return
 
         def _handle_mouse_press(self, event: QMouseEvent) -> None:
-            vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+            vp = event.position().toPoint() - QPoint(
+                self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+            )
             if event.button() == Qt.MouseButton.LeftButton:
                 vp = self._clamp_magnifier_center_to_page(vp)
                 self._magnifier_active = True
@@ -608,9 +731,9 @@ if fitz is not None:
 
         def _show_context_menu(self, viewport_pos: QPoint, global_pos: QPoint) -> None:
             menu = QMenu(self)
-            jump_action = QAction("跳转到源", menu)
-            zoom_in_action = QAction("放大", menu)
-            zoom_out_action = QAction("缩小", menu)
+            jump_action = QAction(tr("跳转到源"), menu)
+            zoom_in_action = QAction(tr("放大"), menu)
+            zoom_out_action = QAction(tr("缩小"), menu)
             menu.addAction(jump_action)
             menu.addAction(zoom_in_action)
             menu.addAction(zoom_out_action)
@@ -621,7 +744,9 @@ if fitz is not None:
                     return
                 idx, _rect, rel_x, rel_y = hit
                 page_w, page_h = self._page_sizes[idx]
-                self.syncJumpRequested.emit(idx + 1, float(rel_x) * float(page_w), float(rel_y) * float(page_h))
+                self.syncJumpRequested.emit(
+                    idx + 1, float(rel_x) * float(page_w), float(rel_y) * float(page_h)
+                )
                 return
             current = self.zoomFactor()
             if chosen is zoom_in_action:
@@ -647,7 +772,9 @@ if fitz is not None:
             self.verticalScrollBar().setValue(max(0, target.y()))
 
         def _handle_mouse_move(self, event: QMouseEvent) -> None:
-            vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+            vp = event.position().toPoint() - QPoint(
+                self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+            )
             if self._pan_active:
                 delta = vp - self._pan_start_pos
                 if not self._pan_dragged and delta.manhattanLength() > 4:
@@ -662,7 +789,9 @@ if fitz is not None:
                 return
 
         def _handle_mouse_release(self, event: QMouseEvent) -> None:
-            vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+            vp = event.position().toPoint() - QPoint(
+                self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+            )
             if event.button() == Qt.MouseButton.LeftButton and self._magnifier_active:
                 self._magnifier_active = False
                 self._magnifier_update_timer.stop()

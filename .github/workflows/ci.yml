@@ -37,6 +37,11 @@ jobs:
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
 
+      - name: Validate translation catalog
+        run: |
+          python scripts/update_translations.py --check
+          python scripts/check_ui_translations.py
+
       - name: Validate Python comment language
         shell: pwsh
         run: |

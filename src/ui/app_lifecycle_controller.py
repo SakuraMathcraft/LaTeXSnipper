@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from qfluentwidgets import InfoBar, InfoBarPosition
@@ -12,7 +13,9 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from platform_services import ApplicationMenuHandlers
 from runtime.runtime_logging import cleanup_runtime_log_session
 from ui.runtime_log_controller import apply_runtime_log_window_preference
-from runtime.single_instance import release_single_instance_lock as _release_single_instance_lock
+from runtime.single_instance import (
+    release_single_instance_lock as _release_single_instance_lock,
+)
 
 
 class _MacApplicationQuitFilter(QObject):
@@ -28,7 +31,9 @@ class _MacApplicationQuitFilter(QObject):
                 window._graceful_shutdown()
             except Exception:
                 pass
-        elif sys.platform == "darwin" and event.type() == QEvent.Type.ApplicationActivate:
+        elif (
+            sys.platform == "darwin" and event.type() == QEvent.Type.ApplicationActivate
+        ):
             window = self._window
             try:
                 QTimer.singleShot(0, window._reactivate_from_dock)
@@ -85,8 +90,8 @@ class AppLifecycleMixin:
 
     def _show_about_dialog(self):
         InfoBar.info(
-            title="关于 LaTeXSnipper",
-            content="截图、识别、手写、编辑与导出数学内容。",
+            title=tr("关于 LaTeXSnipper"),
+            content=tr("截图、识别、手写、编辑与导出数学内容。"),
             parent=self,
             duration=5000,
             position=InfoBarPosition.TOP,
@@ -147,25 +152,21 @@ class AppLifecycleMixin:
         self._shutdown_done = True
         self._model_warmup_cancelled = True
 
-
         try:
             self.save_history()
         except Exception as e:
             print(f"[WARN] 保存历史失败: {e}")
 
-
         try:
-            if hasattr(self, 'favorites_window') and self.favorites_window:
+            if hasattr(self, "favorites_window") and self.favorites_window:
                 self.favorites_window.save_favorites()
         except Exception as e:
             print(f"[WARN] 保存收藏夹失败: {e}")
-
 
         try:
             self.cfg.save()
         except Exception as e:
             print(f"[WARN] 保存配置失败: {e}")
-
 
         try:
             if getattr(self, "hotkey_provider", None):
@@ -277,7 +278,6 @@ class AppLifecycleMixin:
 
     def closeEvent(self, event):
         if self._force_exit:
-
             self._graceful_shutdown()
             event.accept()
             return
@@ -295,14 +295,16 @@ class AppLifecycleMixin:
             if tray_available:
                 self.hide()
                 if not getattr(self, "_tray_msg_shown", False):
-                    self.system_provider.show_notification(self.tray_icon, "LaTeXSnipper", "已最小化到系统托盘")
+                    self.system_provider.show_notification(
+                        self.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
+                    )
                     self._tray_msg_shown = True
                 event.ignore()
                 return
             reply = QMessageBox.question(
                 self,
-                "确认退出",
-                "关闭窗口将完全退出 LaTeXSnipper，是否确认？",
+                tr("确认退出"),
+                tr("关闭窗口将完全退出 LaTeXSnipper，是否确认？"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -318,15 +320,25 @@ class AppLifecycleMixin:
 
         if sys.platform == "darwin":
             self.hide()
-            self.show_action_status("主窗口已关闭，可通过 Dock 或菜单栏重新打开", level="info")
+            if self.tray_icon and not getattr(self, "_dock_close_notice_shown", False):
+                try:
+                    self.system_provider.show_notification(
+                        self.tray_icon,
+                        "LaTeXSnipper",
+                        tr("主窗口已关闭，可通过 Dock 或菜单栏重新打开"),
+                    )
+                    self._dock_close_notice_shown = True
+                except Exception:
+                    pass
             event.accept()
             return
 
         self.hide()
         if self.tray_icon:
-
-            if not getattr(self, '_tray_msg_shown', False):
-                self.system_provider.show_notification(self.tray_icon, "LaTeXSnipper", "已最小化到系统托盘")
+            if not getattr(self, "_tray_msg_shown", False):
+                self.system_provider.show_notification(
+                    self.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
+                )
                 self._tray_msg_shown = True
         event.ignore()
 
@@ -339,4 +351,6 @@ class AppLifecycleMixin:
             self.close()
         except Exception:
             pass
-        QTimer.singleShot(0, lambda: (self._graceful_shutdown(), QCoreApplication.quit()))
+        QTimer.singleShot(
+            0, lambda: (self._graceful_shutdown(), QCoreApplication.quit())
+        )

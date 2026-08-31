@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-
+from localization.manager import translate as tr
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
 
-from integration.automation import AutomationApiAuth, AutomationApiServer, AutomationApiSettings
+from integration.automation import (
+    AutomationApiAuth,
+    AutomationApiServer,
+    AutomationApiSettings,
+)
 
 
 AUTOMATION_API_ENABLED_KEY = "automation_api_enabled"
@@ -18,20 +22,28 @@ AUTOMATION_API_TLS_CERT_PATH_KEY = "automation_api_tls_cert_path"
 AUTOMATION_API_TLS_KEY_PATH_KEY = "automation_api_tls_key_path"
 AUTOMATION_API_ALLOWED_ORIGINS_KEY = "automation_api_allowed_origins"
 AUTOMATION_API_REMOTE_EXTERNAL_ENABLED_KEY = "automation_api_remote_external_enabled"
-AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY = "automation_api_remote_warning_acknowledged"
+AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY = (
+    "automation_api_remote_warning_acknowledged"
+)
 DEFAULT_AUTOMATION_API_PORT = 28765
 
 
 def automation_api_operation_error_message(action: str) -> str:
     if action == "stop":
-        return "Automation API 停止失败，请重试或退出应用。"
-    return "Automation API 启动失败，请检查端口、监听地址和证书配置。"
+        return tr("Automation API 停止失败，请重试或退出应用。")
+    return tr("Automation API 启动失败，请检查端口、监听地址和证书配置。")
 
 
 class _AutomationApiToggleWorker(QThread):
     completed = pyqtSignal(bool, str, object)
 
-    def __init__(self, *, action: str, server: AutomationApiServer | None = None, create_server=None) -> None:
+    def __init__(
+        self,
+        *,
+        action: str,
+        server: AutomationApiServer | None = None,
+        create_server=None,
+    ) -> None:
         super().__init__()
         self._action = action
         self._server = server
@@ -44,14 +56,20 @@ class _AutomationApiToggleWorker(QThread):
                 server = self._create_server()
                 server.start()
                 self._result_server = server
-                self.completed.emit(True, f"Automation API 已运行：{server.base_url}", server)
+                self.completed.emit(
+                    True,
+                    tr("Automation API 已运行：{url}").format(url=server.base_url),
+                    server,
+                )
                 return
             if self._server is not None:
                 self._server.stop()
-            self.completed.emit(True, "Automation API 已关闭", None)
+            self.completed.emit(True, tr("Automation API 已关闭"), None)
         except Exception:
             self._result_server = None
-            self.completed.emit(False, automation_api_operation_error_message(self._action), None)
+            self.completed.emit(
+                False, automation_api_operation_error_message(self._action), None
+            )
 
 
 class _AutomationApiResultReceiver(QObject):
@@ -82,12 +100,16 @@ class AutomationApiController(QObject):
         AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY,
     )
 
-    def __init__(self, cfg, recognition_coordinator, parent: QObject | None = None) -> None:
+    def __init__(
+        self, cfg, recognition_coordinator, parent: QObject | None = None
+    ) -> None:
         super().__init__(parent)
         self.cfg = cfg
         self.recognition_coordinator = recognition_coordinator
         self._automation_api_server: AutomationApiServer | None = None
-        self._automation_api_toggle_workers: list[tuple[_AutomationApiToggleWorker, _AutomationApiResultReceiver]] = []
+        self._automation_api_toggle_workers: list[
+            tuple[_AutomationApiToggleWorker, _AutomationApiResultReceiver]
+        ] = []
         self._automation_api_pending_operations: list[tuple[str, object]] = []
         self._automation_api_operation_active = False
         self._automation_api_shutting_down = False
@@ -98,7 +120,9 @@ class AutomationApiController(QObject):
         except Exception:
             return False
 
-    def _automation_api_settings(self, overrides: dict[str, object] | None = None) -> AutomationApiSettings:
+    def _automation_api_settings(
+        self, overrides: dict[str, object] | None = None
+    ) -> AutomationApiSettings:
         values = overrides or {}
 
         def read(key: str, default):
@@ -106,37 +130,47 @@ class AutomationApiController(QObject):
 
         scope = str(read(AUTOMATION_API_ACCESS_SCOPE_KEY, "local") or "local")
         default_bind = "127.0.0.1"
-        bind = str(read(AUTOMATION_API_BIND_ADDRESS_KEY, default_bind) or default_bind).strip()
+        bind = str(
+            read(AUTOMATION_API_BIND_ADDRESS_KEY, default_bind) or default_bind
+        ).strip()
         try:
             port = int(read(AUTOMATION_API_PORT_KEY, DEFAULT_AUTOMATION_API_PORT))
         except (TypeError, ValueError):
             port = DEFAULT_AUTOMATION_API_PORT
         origins_value = read(AUTOMATION_API_ALLOWED_ORIGINS_KEY, [])
         if isinstance(origins_value, str):
-            origins = tuple(value.strip() for value in origins_value.splitlines() if value.strip())
+            origins = tuple(
+                value.strip() for value in origins_value.splitlines() if value.strip()
+            )
         elif isinstance(origins_value, (list, tuple)):
-            origins = tuple(str(value).strip() for value in origins_value if str(value).strip())
+            origins = tuple(
+                str(value).strip() for value in origins_value if str(value).strip()
+            )
         else:
             origins = ()
         return AutomationApiSettings(
             host=bind,
             port=port,
             access_scope=scope,
-            remote_security=str(read(AUTOMATION_API_REMOTE_SECURITY_KEY, "tunnel") or "tunnel"),
+            remote_security=str(
+                read(AUTOMATION_API_REMOTE_SECURITY_KEY, "tunnel") or "tunnel"
+            ),
             remote_key=str(read(AUTOMATION_API_REMOTE_KEY, "") or ""),
             tls_cert_path=str(read(AUTOMATION_API_TLS_CERT_PATH_KEY, "") or ""),
             tls_key_path=str(read(AUTOMATION_API_TLS_KEY_PATH_KEY, "") or ""),
             allowed_origins=origins,
-            remote_external_enabled=bool(read(AUTOMATION_API_REMOTE_EXTERNAL_ENABLED_KEY, False)),
+            remote_external_enabled=bool(
+                read(AUTOMATION_API_REMOTE_EXTERNAL_ENABLED_KEY, False)
+            ),
         )
 
     def automation_api_status_text(self) -> str:
         server = getattr(self, "_automation_api_server", None)
         if server:
-            return f"Automation API 已运行：{server.base_url}"
+            return tr("Automation API 已运行：{url}").format(url=server.base_url)
         if self._automation_api_enabled_pref():
-            return "Automation API 已启用，但当前未运行"
-        return "Automation API 已关闭"
+            return tr("Automation API 已启用，但当前未运行")
+        return tr("Automation API 已关闭")
 
     def automation_api_is_running(self) -> bool:
         return getattr(self, "_automation_api_server", None) is not None
@@ -160,21 +194,31 @@ class AutomationApiController(QObject):
         for key, value in values.items():
             self.cfg.set(key, value)
 
-    def update_automation_api_settings_async(self, values: dict[str, object], callback=None) -> None:
-        old_values = {key: self.cfg.get(key, None) for key in self._AUTOMATION_SETTING_KEYS}
+    def update_automation_api_settings_async(
+        self, values: dict[str, object], callback=None
+    ) -> None:
+        old_values = {
+            key: self.cfg.get(key, None) for key in self._AUTOMATION_SETTING_KEYS
+        }
         was_running = self.automation_api_is_running()
-        new_values = {key: values[key] for key in self._AUTOMATION_SETTING_KEYS if key in values}
+        new_values = {
+            key: values[key] for key in self._AUTOMATION_SETTING_KEYS if key in values
+        }
         old_settings = self._automation_api_settings()
         new_settings = self._automation_api_settings(new_values)
         new_settings.validate()
         self._set_automation_api_config(new_values)
         if not was_running:
             if callback:
-                QTimer.singleShot(0, lambda: callback(True, "Automation API 配置已保存"))
+                QTimer.singleShot(
+                    0, lambda: callback(True, tr("Automation API 配置已保存"))
+                )
             return
         if new_settings == old_settings:
             if callback:
-                QTimer.singleShot(0, lambda: callback(True, "Automation API 配置未更改"))
+                QTimer.singleShot(
+                    0, lambda: callback(True, tr("Automation API 配置未更改"))
+                )
             return
 
         def after_stop(ok: bool, message: str) -> None:
@@ -188,9 +232,13 @@ class AutomationApiController(QObject):
                     if callback:
                         callback(True, start_message)
                     return
-                self._set_automation_api_config({**old_values, AUTOMATION_API_ENABLED_KEY: True})
+                self._set_automation_api_config(
+                    {**old_values, AUTOMATION_API_ENABLED_KEY: True}
+                )
                 self._start_automation_api_async(
-                    lambda _restored, _restore_message: callback and callback(False, start_message)
+                    lambda _restored, _restore_message: (
+                        callback and callback(False, start_message)
+                    )
                 )
 
             self.cfg.set(AUTOMATION_API_ENABLED_KEY, True)
@@ -216,7 +264,9 @@ class AutomationApiController(QObject):
             self._automation_api_toggle_workers = workers
         return workers
 
-    def _run_automation_api_worker(self, worker: _AutomationApiToggleWorker, on_done) -> None:
+    def _run_automation_api_worker(
+        self, worker: _AutomationApiToggleWorker, on_done
+    ) -> None:
         workers = self._automation_api_workers()
 
         def cleanup() -> None:
@@ -264,16 +314,20 @@ class AutomationApiController(QObject):
 
         server = getattr(self, "_automation_api_server", None)
         if action == "start" and server is not None:
-            QTimer.singleShot(0, lambda: finish(True, self.automation_api_status_text()))
+            QTimer.singleShot(
+                0, lambda: finish(True, self.automation_api_status_text())
+            )
             return
         if action == "stop" and server is None:
-            QTimer.singleShot(0, lambda: finish(True, "Automation API 已关闭"))
+            QTimer.singleShot(0, lambda: finish(True, tr("Automation API 已关闭")))
             return
 
         worker = _AutomationApiToggleWorker(
             action=action,
             server=server if action == "stop" else None,
-            create_server=self._create_automation_api_server if action == "start" else None,
+            create_server=self._create_automation_api_server
+            if action == "start"
+            else None,
         )
 
         def done(ok: bool, message: str, result_server: object) -> None:
@@ -328,7 +382,9 @@ class AutomationApiController(QObject):
             except Exception:
                 pass
             result_server = getattr(worker, "_result_server", None)
-            if result_server is not None and result_server is not getattr(self, "_automation_api_server", None):
+            if result_server is not None and result_server is not getattr(
+                self, "_automation_api_server", None
+            ):
                 result_server.stop()
             worker.deleteLater()
             receiver.deleteLater()

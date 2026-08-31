@@ -12,6 +12,7 @@ from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
+from localization.manager import install_application_translators, translate as tr
 from preview.math_preview import configure_math_preview_runtime
 from runtime.app_paths import resource_path
 from runtime.native_runtime_preload import (
@@ -78,7 +79,7 @@ def _show_already_running_message(app: QApplication) -> None:
             icon = None
         msg = QMessageBox()
         msg.setWindowTitle("LaTeXSnipper")
-        msg.setText("LaTeXSnipper 已在运行。")
+        msg.setText(tr("LaTeXSnipper 已在运行。"))
         msg.setIcon(QMessageBox.Icon.Information)
         if icon is not None:
             msg.setWindowIcon(icon)
@@ -107,8 +108,10 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
         return
 
     py_exe_path = _find_install_base_python(install_base_dir)
-    py_exe = py_exe_path if py_exe_path is not None else dependency_venv_python(
-        install_base_dir / DEPENDENCY_PYTHON_DIRNAME
+    py_exe = (
+        py_exe_path
+        if py_exe_path is not None
+        else dependency_venv_python(install_base_dir / DEPENDENCY_PYTHON_DIRNAME)
     )
 
     if not py_exe.exists():
@@ -127,7 +130,9 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
     env = os.environ.copy()
     env["LATEXSNIPPER_INNER_PY"] = "1"
 
-    raw_pref = (os.environ.get("LATEXSNIPPER_SHOW_RUNTIME_LOG", "") or "").strip().lower()
+    raw_pref = (
+        (os.environ.get("LATEXSNIPPER_SHOW_RUNTIME_LOG", "") or "").strip().lower()
+    )
     if raw_pref in ("1", "true", "yes", "on", "0", "false", "no", "off"):
         show_runtime_log = raw_pref in ("1", "true", "yes", "on")
     else:
@@ -136,7 +141,11 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
             cfg_path = _config_path()
             if cfg_path.exists():
                 cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-                raw = cfg_data.get("show_runtime_log", False) if isinstance(cfg_data, dict) else False
+                raw = (
+                    cfg_data.get("show_runtime_log", False)
+                    if isinstance(cfg_data, dict)
+                    else False
+                )
                 if isinstance(raw, bool):
                     show_runtime_log = raw
                 elif isinstance(raw, (int, float)):
@@ -151,7 +160,11 @@ def _maybe_redirect_to_private_python(install_base_dir: Path) -> None:
     pyw = py_exe.parent / "pythonw.exe"
     if pyw.exists():
         run_py = pyw
-    argv = [str(run_py), os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py"), *sys.argv[1:]]
+    argv = [
+        str(run_py),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py"),
+        *sys.argv[1:],
+    ]
     subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
     raise SystemExit(0)
 
@@ -160,7 +173,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     base_dir = Path(install_base_dir)
     _clean_bad_env()
 
-    ensure_startup_splash("准备运行环境...")
+    ensure_startup_splash(tr("准备运行环境..."))
     target_py = ensure_full_python_or_prompt(base_dir)
     if not target_py:
         print("[ERR] 未找到可用的完整依赖环境 Python。")
@@ -188,7 +201,11 @@ def _prepare_python_runtime_for_wizard(install_base_dir: Path) -> tuple[Path, st
     _clean_bad_env()
 
     py_exe_path = _find_install_base_python(base_dir)
-    target_py = str(py_exe_path) if py_exe_path is not None and py_exe_path.exists() else sys.executable
+    target_py = (
+        str(py_exe_path)
+        if py_exe_path is not None and py_exe_path.exists()
+        else sys.executable
+    )
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py
     os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
@@ -214,7 +231,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         print("[DEBUG] 依赖向导模式：由向导统一验证依赖")
         return
 
-    ensure_startup_splash("检查依赖...")
+    ensure_startup_splash(tr("检查依赖..."))
     try:
         ok = ensure_deps(
             prompt_ui=True,
@@ -240,8 +257,9 @@ def bootstrap_application() -> BootstrapContext:
     configure_native_runtime_environment()
     preload_onnxruntime_before_qt()
     app = _ensure_qt_application()
+    install_application_translators(app)
     _ensure_single_instance(app)
-    ensure_startup_splash("准备运行环境...")
+    ensure_startup_splash(tr("准备运行环境..."))
     _ensure_src_path()
     configure_default_webengine_profile()
 

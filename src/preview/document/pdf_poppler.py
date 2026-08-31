@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import os
 import re
 import shutil
@@ -8,8 +10,31 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QPoint, QRect, QRectF, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QAction, QColor, QCursor, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap, QRegion, QSurfaceFormat, QWheelEvent
+from PyQt6.QtCore import (
+    QObject,
+    QPoint,
+    QRect,
+    QRectF,
+    Qt,
+    QThread,
+    QTimer,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QCursor,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRegion,
+    QSurfaceFormat,
+    QWheelEvent,
+)
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QLabel, QMenu, QScrollArea, QSizePolicy, QWidget
 
@@ -90,17 +115,17 @@ def detect_poppler_backend() -> PopplerBackendStatus:
     ready = bool(pdfinfo_path and pdftocairo_path)
     system_found = bool(pdfinfo_path or pdftocairo_path or pdftoppm_path)
     if ready:
-        detail = (
+        detail = tr(
             "已检测到 TeX Live 或 MiKTeX 提供的 Poppler 命令；"
             "当前可直接启用 Poppler 高清预览。"
         )
     elif system_found:
-        detail = (
+        detail = tr(
             "已检测到部分系统级 Poppler 命令，但缺少完整渲染链；"
             "请确认 TeX Live 或 MiKTeX 已正确安装并已加入 PATH。"
         )
     else:
-        detail = "未检测到系统级 Poppler 命令。请先部署 TeX Live 或 MiKTeX。"
+        detail = tr("未检测到系统级 Poppler 命令。请先部署 TeX Live 或 MiKTeX。")
     return PopplerBackendStatus(
         requested_backend="poppler",
         pdfinfo_path=pdfinfo_path,
@@ -152,6 +177,7 @@ def _has_nvidia_gpu_silent() -> bool:
 
 
 if QOpenGLWidget is not None:
+
     class _MagnifierGpuSurface(QOpenGLWidget):
         def __init__(self, parent=None):
             fmt = QSurfaceFormat()
@@ -173,7 +199,9 @@ if QOpenGLWidget is not None:
             except Exception:
                 pass
 
-        def setSourceFrame(self, source_image: QImage, dpr: float, lens_d: int, frame: QPixmap) -> None:
+        def setSourceFrame(
+            self, source_image: QImage, dpr: float, lens_d: int, frame: QPixmap
+        ) -> None:
             self._source_image = source_image
             self._dpr = max(1.0, float(dpr))
             self._lens_d = int(lens_d)
@@ -194,7 +222,9 @@ if QOpenGLWidget is not None:
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
             painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_SourceOver
+            )
             if not self._source_image.isNull() and self._lens_d > 0:
                 lens_rect = QRect(8, 8, self._lens_d, self._lens_d)
                 lens_path = QPainterPath()
@@ -204,7 +234,12 @@ if QOpenGLWidget is not None:
                 painter.drawImage(
                     QRectF(lens_rect),
                     self._source_image,
-                    QRectF(0.0, 0.0, float(self._source_image.width()), float(self._source_image.height())),
+                    QRectF(
+                        0.0,
+                        0.0,
+                        float(self._source_image.width()),
+                        float(self._source_image.height()),
+                    ),
                 )
                 painter.setClipping(False)
             if not self._frame.isNull():
@@ -225,9 +260,19 @@ class _PopplerSvgCanvas(QWidget):
         painter.fillRect(self.rect(), QColor("#7d7d7d"))
         for rect in self.owner._page_rects:
             painter.fillRect(rect, QColor("#ffffff"))
-        for index, (renderer, rect) in enumerate(zip(self.owner._page_renderers, self.owner._page_rects)):
-            pixmap = self.owner._page_pixmaps[index] if index < len(self.owner._page_pixmaps) else None
-            if pixmap is not None and not pixmap.isNull() and self.owner._pixmap_matches_rect(pixmap, rect):
+        for index, (renderer, rect) in enumerate(
+            zip(self.owner._page_renderers, self.owner._page_rects)
+        ):
+            pixmap = (
+                self.owner._page_pixmaps[index]
+                if index < len(self.owner._page_pixmaps)
+                else None
+            )
+            if (
+                pixmap is not None
+                and not pixmap.isNull()
+                and self.owner._pixmap_matches_rect(pixmap, rect)
+            ):
                 painter.drawPixmap(rect, pixmap)
                 continue
             if renderer is None or not renderer.isValid():
@@ -301,7 +346,9 @@ class _MagnifierRenderWorker(QObject):
 
 class PopplerPdfView(QScrollArea):
     syncJumpRequested = pyqtSignal(int, float, float)
-    _magnifier_render_request = pyqtSignal(int, str, float, float, float, float, int, float, float, bool)
+    _magnifier_render_request = pyqtSignal(
+        int, str, float, float, float, float, int, float, float, bool
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -366,7 +413,9 @@ class PopplerPdfView(QScrollArea):
         self._pan_start_h = 0
         self._pan_start_v = 0
         self._pending_magnifier_pos: QPoint | None = None
-        self._magnifier_gpu_enabled = bool(QOpenGLWidget is not None and _has_nvidia_gpu_silent())
+        self._magnifier_gpu_enabled = bool(
+            QOpenGLWidget is not None and _has_nvidia_gpu_silent()
+        )
         if self._magnifier_gpu_enabled and self._window_has_qquickwidget():
             self._magnifier_gpu_enabled = False
         fixed_temp_root = app_temp_dir() / "poppler-svg"
@@ -389,17 +438,31 @@ class PopplerPdfView(QScrollArea):
             self._magnifier_label = QLabel(self.viewport())
         self._magnifier_label.setFixedSize(self._magnifier_size, self._magnifier_size)
         try:
-            self._magnifier_label.setMask(QRegion(0, 0, self._magnifier_size, self._magnifier_size, QRegion.RegionType.Ellipse))
+            self._magnifier_label.setMask(
+                QRegion(
+                    0,
+                    0,
+                    self._magnifier_size,
+                    self._magnifier_size,
+                    QRegion.RegionType.Ellipse,
+                )
+            )
         except Exception:
             pass
-        self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._magnifier_label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        self._magnifier_label.setAttribute(
+            Qt.WidgetAttribute.WA_TranslucentBackground, True
+        )
         self._magnifier_label.setStyleSheet("background: transparent;")
         self._magnifier_label.hide()
         self._magnifier_update_timer = QTimer(self)
         self._magnifier_update_timer.setSingleShot(True)
         self._magnifier_update_timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self._magnifier_update_timer.setInterval(self._magnifier_interactive_interval_ms)
+        self._magnifier_update_timer.setInterval(
+            self._magnifier_interactive_interval_ms
+        )
         self._magnifier_update_timer.timeout.connect(self._flush_magnifier_update)
         self._magnifier_hq_timer = QTimer(self)
         self._magnifier_hq_timer.setSingleShot(True)
@@ -430,8 +493,12 @@ class PopplerPdfView(QScrollArea):
             refresh = 60.0
         interval = max(5, min(16, int(round(1000.0 / refresh))))
         self._magnifier_interactive_interval_ms = int(interval)
-        self._magnifier_update_timer.setInterval(self._magnifier_interactive_interval_ms)
-        self._magnifier_min_move_px = 1 if self._magnifier_interactive_interval_ms <= 8 else 2
+        self._magnifier_update_timer.setInterval(
+            self._magnifier_interactive_interval_ms
+        )
+        self._magnifier_min_move_px = (
+            1 if self._magnifier_interactive_interval_ms <= 8 else 2
+        )
         if refresh >= 140.0:
             self._magnifier_fast_dpr_cap = 1.1
         elif refresh >= 100.0:
@@ -470,11 +537,16 @@ class PopplerPdfView(QScrollArea):
             **_hidden_subprocess_kwargs(),
         )
         if result.returncode != 0:
-            raise RuntimeError((result.stderr or result.stdout or "Poppler 命令执行失败").strip())
+            raise RuntimeError(
+                (result.stderr or result.stdout or tr("Poppler 命令执行失败")).strip()
+            )
         return result.stdout
 
     def _ensure_magnifier_render_worker(self) -> None:
-        if self._magnifier_render_thread is not None and self._magnifier_render_worker is not None:
+        if (
+            self._magnifier_render_thread is not None
+            and self._magnifier_render_worker is not None
+        ):
             return
         thread = QThread(self)
         worker = _MagnifierRenderWorker()
@@ -509,20 +581,36 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_render_worker = None
 
     def _load_page_metadata(self) -> None:
-        output = self._run_command([self._backend_status.pdfinfo_path, self._doc_path], timeout=20)
+        output = self._run_command(
+            [self._backend_status.pdfinfo_path, self._doc_path], timeout=20
+        )
         pages_match = re.search(r"Pages:\s+(\d+)", output)
         self._page_count = int(pages_match.group(1)) if pages_match else 0
         self._page_sizes = []
         for index in range(self._page_count):
             page_out = self._run_command(
-                [self._backend_status.pdfinfo_path, "-f", str(index + 1), "-l", str(index + 1), "-box", self._doc_path],
+                [
+                    self._backend_status.pdfinfo_path,
+                    "-f",
+                    str(index + 1),
+                    "-l",
+                    str(index + 1),
+                    "-box",
+                    self._doc_path,
+                ],
                 timeout=20,
             )
-            size_match = re.search(r"Page\s+\d+\s+size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts", page_out)
+            size_match = re.search(
+                r"Page\s+\d+\s+size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts", page_out
+            )
             if not size_match:
-                size_match = re.search(r"Page size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts", page_out)
+                size_match = re.search(
+                    r"Page size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts", page_out
+                )
             if size_match:
-                self._page_sizes.append((float(size_match.group(1)), float(size_match.group(2))))
+                self._page_sizes.append(
+                    (float(size_match.group(1)), float(size_match.group(2)))
+                )
             else:
                 self._page_sizes.append((595.0, 842.0))
 
@@ -638,7 +726,13 @@ class PopplerPdfView(QScrollArea):
         if self._zoom_mode == "fit_text_width":
             return max(0.01, viewport_w / max(1.0, page_width * self._text_width_ratio))
         if self._zoom_mode == "fit_window":
-            return max(0.01, min(viewport_w / max(1.0, page_width), viewport_h / max(1.0, page_height)))
+            return max(
+                0.01,
+                min(
+                    viewport_w / max(1.0, page_width),
+                    viewport_h / max(1.0, page_height),
+                ),
+            )
         return max(0.01, self._zoom_factor)
 
     def _svg_path_candidates(self, prefix: Path) -> list[Path]:
@@ -656,7 +750,10 @@ class PopplerPdfView(QScrollArea):
     def _ensure_page_renderer(self, index: int) -> None:
         if index < 0 or index >= self._page_count:
             return
-        if self._page_renderers[index] is not None and self._page_renderers[index].isValid():
+        if (
+            self._page_renderers[index] is not None
+            and self._page_renderers[index].isValid()
+        ):
             self._touch_renderer(index)
             return
         prefix = Path(self._temp_dir.name) / f"page_{index + 1}"
@@ -679,12 +776,19 @@ class PopplerPdfView(QScrollArea):
             ],
             timeout=30,
         )
-        svg_path = next((str(candidate) for candidate in self._svg_path_candidates(prefix) if candidate.exists()), "")
+        svg_path = next(
+            (
+                str(candidate)
+                for candidate in self._svg_path_candidates(prefix)
+                if candidate.exists()
+            ),
+            "",
+        )
         if not svg_path:
-            raise RuntimeError("pdftocairo 未生成 SVG 文件")
+            raise RuntimeError(tr("pdftocairo 未生成 SVG 文件"))
         renderer = QSvgRenderer(svg_path)
         if not renderer.isValid():
-            raise RuntimeError("Poppler 生成的 SVG 无法加载")
+            raise RuntimeError(tr("Poppler 生成的 SVG 无法加载"))
         self._page_svg_files[index] = svg_path
         self._page_renderers[index] = renderer
         self._touch_renderer(index)
@@ -722,8 +826,12 @@ class PopplerPdfView(QScrollArea):
         if not wanted:
             return
         missing = [
-            i for i in wanted
-            if not (self._page_renderers[i] is not None and self._page_renderers[i].isValid())
+            i
+            for i in wanted
+            if not (
+                self._page_renderers[i] is not None
+                and self._page_renderers[i].isValid()
+            )
         ]
         if not missing:
             for i in wanted:
@@ -793,7 +901,11 @@ class PopplerPdfView(QScrollArea):
         base = self._visible_page_indexes()
         if not base:
             return set()
-        r = self._renderer_prefetch_radius_dynamic if radius is None else max(0, int(radius))
+        r = (
+            self._renderer_prefetch_radius_dynamic
+            if radius is None
+            else max(0, int(radius))
+        )
         window: set[int] = set()
         for idx in base:
             start = max(0, idx - r)
@@ -849,7 +961,9 @@ class PopplerPdfView(QScrollArea):
             rect = QRect(x, row_y, draw_w, draw_h)
             self._page_rects.append(rect)
             row_max_h = max(row_max_h, draw_h)
-            max_w = max(max_w, self._page_margin * 2 + cols * col_w + max(0, cols - 1) * gap)
+            max_w = max(
+                max_w, self._page_margin * 2 + cols * col_w + max(0, cols - 1) * gap
+            )
         total_h = row_y + row_max_h + self._page_margin
         self._canvas.resize(max_w, max(total_h, self.viewport().height()))
         self._canvas.update()
@@ -882,7 +996,9 @@ class PopplerPdfView(QScrollArea):
         self._schedule_page_cache_refresh()
 
     def _target_cache_dpr(self) -> float:
-        base = max(float(self.devicePixelRatioF()), float(self.viewport().devicePixelRatioF()))
+        base = max(
+            float(self.devicePixelRatioF()), float(self.viewport().devicePixelRatioF())
+        )
         return max(1.0, min(2.25, base))
 
     def _target_magnifier_dpr(self) -> float:
@@ -894,7 +1010,10 @@ class PopplerPdfView(QScrollArea):
         dpr = max(0.01, float(pixmap.devicePixelRatioF()))
         logical_w = float(pixmap.width()) / dpr
         logical_h = float(pixmap.height()) / dpr
-        if abs(logical_w - float(rect.width())) > 0.75 or abs(logical_h - float(rect.height())) > 0.75:
+        if (
+            abs(logical_w - float(rect.width())) > 0.75
+            or abs(logical_h - float(rect.height())) > 0.75
+        ):
             return False
         return dpr + 0.05 >= self._target_cache_dpr()
 
@@ -919,13 +1038,22 @@ class PopplerPdfView(QScrollArea):
         visible_indexes = self._visible_page_indexes()
         warm_indexes = self._visible_window_indexes()
         missing_warm = [
-            i for i in sorted(warm_indexes)
-            if 0 <= i < self._page_count and not (self._page_renderers[i] is not None and self._page_renderers[i].isValid())
+            i
+            for i in sorted(warm_indexes)
+            if 0 <= i < self._page_count
+            and not (
+                self._page_renderers[i] is not None
+                and self._page_renderers[i].isValid()
+            )
         ]
         if missing_warm:
             self._ensure_page_renderers_batched(missing_warm)
         for index in sorted(warm_indexes):
-            if 0 <= index < self._page_count and self._page_renderers[index] is not None and self._page_renderers[index].isValid():
+            if (
+                0 <= index < self._page_count
+                and self._page_renderers[index] is not None
+                and self._page_renderers[index].isValid()
+            ):
                 self._touch_renderer(index)
         self._evict_renderer_cache(protected=warm_indexes)
         for index in visible_indexes:
@@ -934,7 +1062,9 @@ class PopplerPdfView(QScrollArea):
             rect = self._page_rects[index]
             if rect.width() <= 0 or rect.height() <= 0:
                 continue
-            pixmap = self._page_pixmaps[index] if index < len(self._page_pixmaps) else None
+            pixmap = (
+                self._page_pixmaps[index] if index < len(self._page_pixmaps) else None
+            )
             if pixmap is not None and self._pixmap_matches_rect(pixmap, rect):
                 continue
             renderer = self._page_renderers[index]
@@ -960,7 +1090,10 @@ class PopplerPdfView(QScrollArea):
         self._canvas.update()
 
     def _content_pos(self, pos: QPoint) -> QPoint:
-        return QPoint(pos.x() + self.horizontalScrollBar().value(), pos.y() + self.verticalScrollBar().value())
+        return QPoint(
+            pos.x() + self.horizontalScrollBar().value(),
+            pos.y() + self.verticalScrollBar().value(),
+        )
 
     def _clamp_magnifier_center_to_page(self, viewport_pos: QPoint) -> QPoint:
         hit = self._locate_page_at(self._content_pos(viewport_pos), allow_outside=True)
@@ -1008,7 +1141,9 @@ class PopplerPdfView(QScrollArea):
                 best_d2 = d2
         return best
 
-    def _build_magnifier_frame(self, size: int, dpr: float, quality: str = "hq") -> QPixmap:
+    def _build_magnifier_frame(
+        self, size: int, dpr: float, quality: str = "hq"
+    ) -> QPixmap:
         quality_key = "unified"
         key = (int(size), round(float(dpr), 2), quality_key)
         cached = self._magnifier_frame_cache.get(key)
@@ -1031,7 +1166,9 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_frame_cache[key] = frame
         return frame
 
-    def _compose_magnifier_pixmap(self, source_image: QImage, dpr: float, lens_d: int, quality: str) -> QPixmap:
+    def _compose_magnifier_pixmap(
+        self, source_image: QImage, dpr: float, lens_d: int, quality: str
+    ) -> QPixmap:
         use_dpr = max(1.0, float(dpr))
         result_px = max(1, int(round(float(self._magnifier_size) * use_dpr)))
         result = QPixmap(result_px, result_px)
@@ -1051,7 +1188,11 @@ class PopplerPdfView(QScrollArea):
             QRectF(0.0, 0.0, float(source_image.width()), float(source_image.height())),
         )
         painter.setClipping(False)
-        painter.drawPixmap(0, 0, self._build_magnifier_frame(self._magnifier_size, use_dpr, quality=quality))
+        painter.drawPixmap(
+            0,
+            0,
+            self._build_magnifier_frame(self._magnifier_size, use_dpr, quality=quality),
+        )
         painter.end()
         result.setDevicePixelRatio(use_dpr)
         return result
@@ -1064,8 +1205,10 @@ class PopplerPdfView(QScrollArea):
             return
         try:
             InfoBar.warning(
-                title="GPU 放大镜已回退",
-                content=str(reason or "检测到显卡驱动合成异常，已自动切换为 CPU 放大镜。"),
+                title=tr("GPU 放大镜已回退"),
+                content=str(
+                    reason or tr("检测到显卡驱动合成异常，已自动切换为 CPU 放大镜。")
+                ),
                 parent=self.window() if isinstance(self.window(), QWidget) else self,
                 position=InfoBarPosition.TOP,
                 duration=4200,
@@ -1094,11 +1237,23 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_label = QLabel(self.viewport())
         self._magnifier_label.setFixedSize(self._magnifier_size, self._magnifier_size)
         try:
-            self._magnifier_label.setMask(QRegion(0, 0, self._magnifier_size, self._magnifier_size, QRegion.RegionType.Ellipse))
+            self._magnifier_label.setMask(
+                QRegion(
+                    0,
+                    0,
+                    self._magnifier_size,
+                    self._magnifier_size,
+                    QRegion.RegionType.Ellipse,
+                )
+            )
         except Exception:
             pass
-        self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self._magnifier_label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._magnifier_label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        self._magnifier_label.setAttribute(
+            Qt.WidgetAttribute.WA_TranslucentBackground, True
+        )
         self._magnifier_label.setStyleSheet("background: transparent;")
         self._magnifier_label.hide()
         try:
@@ -1111,8 +1266,12 @@ class PopplerPdfView(QScrollArea):
         if show_feedback:
             self._show_gpu_fallback_infobar(reason)
 
-    def force_cpu_magnifier(self, reason: str = "", show_feedback: bool = False) -> None:
-        self._switch_magnifier_to_cpu(reason or "已切换为 CPU 放大镜。", show_feedback=show_feedback)
+    def force_cpu_magnifier(
+        self, reason: str = "", show_feedback: bool = False
+    ) -> None:
+        self._switch_magnifier_to_cpu(
+            reason or tr("已切换为 CPU 放大镜。"), show_feedback=show_feedback
+        )
 
     def _gpu_surface_has_artifact(self) -> bool:
         if not self._magnifier_gpu_enabled:
@@ -1172,11 +1331,26 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_label.show()
         self._magnifier_label.raise_()
 
-    def _present_magnifier_source(self, source_image: QImage, dpr: float, lens_d: int, quality: str, viewport_pos: QPoint) -> None:
+    def _present_magnifier_source(
+        self,
+        source_image: QImage,
+        dpr: float,
+        lens_d: int,
+        quality: str,
+        viewport_pos: QPoint,
+    ) -> None:
         if self._magnifier_gpu_enabled and self._window_has_qquickwidget():
-            self._switch_magnifier_to_cpu("检测到窗口内存在 QQuickWidget，与 OpenGL 放大镜合成不兼容，已自动切换 CPU 放大镜。")
-        if self._magnifier_gpu_enabled and hasattr(self._magnifier_label, "setSourceFrame"):
-            frame = self._build_magnifier_frame(self._magnifier_size, dpr, quality="gpu")
+            self._switch_magnifier_to_cpu(
+                tr(
+                    "检测到窗口内存在 QQuickWidget，与 OpenGL 放大镜合成不兼容，已自动切换 CPU 放大镜。"
+                )
+            )
+        if self._magnifier_gpu_enabled and hasattr(
+            self._magnifier_label, "setSourceFrame"
+        ):
+            frame = self._build_magnifier_frame(
+                self._magnifier_size, dpr, quality="gpu"
+            )
             self._magnifier_label.resize(self._magnifier_size, self._magnifier_size)
             self._magnifier_label.setSourceFrame(source_image, dpr, lens_d, frame)
             self._position_magnifier_label(viewport_pos)
@@ -1185,11 +1359,17 @@ class PopplerPdfView(QScrollArea):
             if self._gpu_probe_remaining > 0:
                 self._gpu_probe_remaining -= 1
                 if self._gpu_surface_has_artifact():
-                    self._switch_magnifier_to_cpu("检测到显卡驱动合成异常，已自动切换 CPU 放大镜。")
-                    pixmap = self._compose_magnifier_pixmap(source_image, dpr, lens_d, quality=quality)
+                    self._switch_magnifier_to_cpu(
+                        tr("检测到显卡驱动合成异常，已自动切换 CPU 放大镜。")
+                    )
+                    pixmap = self._compose_magnifier_pixmap(
+                        source_image, dpr, lens_d, quality=quality
+                    )
                     self._present_magnifier_pixmap(pixmap, viewport_pos)
             return
-        pixmap = self._compose_magnifier_pixmap(source_image, dpr, lens_d, quality=quality)
+        pixmap = self._compose_magnifier_pixmap(
+            source_image, dpr, lens_d, quality=quality
+        )
         self._present_magnifier_pixmap(pixmap, viewport_pos)
 
     def _predictive_magnifier_reuse(self, viewport_pos: QPoint) -> None:
@@ -1213,17 +1393,27 @@ class PopplerPdfView(QScrollArea):
         painter = QPainter(shifted)
         painter.drawImage(shift_x, shift_y, src)
         painter.end()
-        self._present_magnifier_source(shifted, dpr, self._magnifier_last_lens_d, quality="fast", viewport_pos=viewport_pos)
+        self._present_magnifier_source(
+            shifted,
+            dpr,
+            self._magnifier_last_lens_d,
+            quality="fast",
+            viewport_pos=viewport_pos,
+        )
         self._magnifier_last_source_image = shifted
         self._magnifier_last_presented_pos = QPoint(viewport_pos)
 
-    def _update_renderer_cache_limit(self, visible_indexes: list[int], refresh_ms: float) -> None:
+    def _update_renderer_cache_limit(
+        self, visible_indexes: list[int], refresh_ms: float
+    ) -> None:
         if refresh_ms <= 0:
             return
         if self._cache_refresh_cost_ema_ms <= 0:
             self._cache_refresh_cost_ema_ms = float(refresh_ms)
         else:
-            self._cache_refresh_cost_ema_ms = 0.75 * self._cache_refresh_cost_ema_ms + 0.25 * float(refresh_ms)
+            self._cache_refresh_cost_ema_ms = (
+                0.75 * self._cache_refresh_cost_ema_ms + 0.25 * float(refresh_ms)
+            )
         dpr = self._target_cache_dpr()
         total_pixels = 0.0
         for idx in visible_indexes:
@@ -1243,7 +1433,10 @@ class PopplerPdfView(QScrollArea):
             target -= 4
         elif self._cache_refresh_cost_ema_ms < 22.0:
             target += 2
-        target = max(int(self._renderer_cache_limit_min), min(int(self._renderer_cache_limit_max), int(target)))
+        target = max(
+            int(self._renderer_cache_limit_min),
+            min(int(self._renderer_cache_limit_max), int(target)),
+        )
         self._renderer_cache_limit = target
 
     def _position_magnifier_label(self, viewport_pos: QPoint) -> None:
@@ -1252,7 +1445,12 @@ class PopplerPdfView(QScrollArea):
         # Do not clamp to viewport; viewport clipping should reveal half/quarter disk near page edges.
         self._magnifier_label.move(top_left)
 
-    def _request_magnifier_render(self, viewport_pos: QPoint, dpr_override: float | None = None, is_hq: bool = False) -> None:
+    def _request_magnifier_render(
+        self,
+        viewport_pos: QPoint,
+        dpr_override: float | None = None,
+        is_hq: bool = False,
+    ) -> None:
         self._ensure_magnifier_render_worker()
         content_pos = self._content_pos(viewport_pos)
         hit = self._locate_page_at(content_pos, allow_outside=True)
@@ -1269,11 +1467,22 @@ class PopplerPdfView(QScrollArea):
         keep = self._visible_window_indexes(radius=1)
         keep.add(page_index)
         self._evict_renderer_cache(protected=keep)
-        svg_path = self._page_svg_files[page_index] if page_index < len(self._page_svg_files) else ""
+        svg_path = (
+            self._page_svg_files[page_index]
+            if page_index < len(self._page_svg_files)
+            else ""
+        )
         if not svg_path:
             self._magnifier_label.hide()
             return
-        dpr = max(1.0, float(dpr_override if dpr_override is not None else self._target_magnifier_dpr()))
+        dpr = max(
+            1.0,
+            float(
+                dpr_override
+                if dpr_override is not None
+                else self._target_magnifier_dpr()
+            ),
+        )
         self._magnifier_output_dpr = dpr
         lens_d = self._magnifier_size - 16
         render_side = max(1, int(round(float(lens_d) * dpr)))
@@ -1305,7 +1514,10 @@ class PopplerPdfView(QScrollArea):
         self._magnifier_inflight_keys.add(key)
         self._magnifier_request_keys[token] = key
         self._magnifier_request_positions[token] = QPoint(payload["viewport_pos"])
-        self._magnifier_request_meta[token] = (int(payload["lens_d"]), float(payload["dpr"]))
+        self._magnifier_request_meta[token] = (
+            int(payload["lens_d"]),
+            float(payload["dpr"]),
+        )
         self._magnifier_render_request.emit(
             token,
             str(payload["svg_path"]),
@@ -1320,7 +1532,9 @@ class PopplerPdfView(QScrollArea):
         )
 
     @pyqtSlot(int, QImage, float, bool)
-    def _on_magnifier_render_finished(self, token: int, source_image: QImage, dpr: float, _is_hq: bool) -> None:
+    def _on_magnifier_render_finished(
+        self, token: int, source_image: QImage, dpr: float, _is_hq: bool
+    ) -> None:
         pos = self._magnifier_request_positions.pop(int(token), None)
         meta = self._magnifier_request_meta.pop(int(token), None)
         key = self._magnifier_request_keys.pop(int(token), None)
@@ -1340,7 +1554,9 @@ class PopplerPdfView(QScrollArea):
         lens_d = int(meta[0])
         use_dpr = max(1.0, float(dpr))
         quality = "hq" if bool(_is_hq) else "fast"
-        self._present_magnifier_source(source_image, use_dpr, lens_d, quality=quality, viewport_pos=pos)
+        self._present_magnifier_source(
+            source_image, use_dpr, lens_d, quality=quality, viewport_pos=pos
+        )
         self._magnifier_last_source_image = source_image
         self._magnifier_last_source_dpr = use_dpr
         self._magnifier_last_lens_d = lens_d
@@ -1354,7 +1570,9 @@ class PopplerPdfView(QScrollArea):
     def _queue_magnifier_update(self, viewport_pos: QPoint) -> None:
         viewport_pos = self._clamp_magnifier_center_to_page(viewport_pos)
         if self._magnifier_last_viewport_pos is not None:
-            if (viewport_pos - self._magnifier_last_viewport_pos).manhattanLength() < self._magnifier_min_move_px:
+            if (
+                viewport_pos - self._magnifier_last_viewport_pos
+            ).manhattanLength() < self._magnifier_min_move_px:
                 return
         self._predictive_magnifier_reuse(viewport_pos)
         self._pending_magnifier_pos = QPoint(viewport_pos)
@@ -1368,13 +1586,17 @@ class PopplerPdfView(QScrollArea):
             return
         pos = QPoint(self._pending_magnifier_pos)
         self._magnifier_last_viewport_pos = QPoint(pos)
-        self._request_magnifier_render(pos, dpr_override=self._target_magnifier_dpr(), is_hq=True)
+        self._request_magnifier_render(
+            pos, dpr_override=self._target_magnifier_dpr(), is_hq=True
+        )
 
     def _flush_magnifier_hq(self) -> None:
         return
 
     def _handle_mouse_press(self, event: QMouseEvent) -> None:
-        vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+        vp = event.position().toPoint() - QPoint(
+            self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        )
         if event.button() == Qt.MouseButton.LeftButton:
             vp = self._clamp_magnifier_center_to_page(vp)
             self._magnifier_active = True
@@ -1402,9 +1624,9 @@ class PopplerPdfView(QScrollArea):
 
     def _show_context_menu(self, viewport_pos: QPoint, global_pos: QPoint) -> None:
         menu = QMenu(self)
-        jump_action = QAction("跳转到源", menu)
-        zoom_in_action = QAction("放大", menu)
-        zoom_out_action = QAction("缩小", menu)
+        jump_action = QAction(tr("跳转到源"), menu)
+        zoom_in_action = QAction(tr("放大"), menu)
+        zoom_out_action = QAction(tr("缩小"), menu)
         menu.addAction(jump_action)
         menu.addAction(zoom_in_action)
         menu.addAction(zoom_out_action)
@@ -1415,7 +1637,9 @@ class PopplerPdfView(QScrollArea):
                 return
             idx, _rect, rel_x, rel_y = hit
             page_w, page_h = self._page_sizes[idx]
-            self.syncJumpRequested.emit(idx + 1, float(rel_x) * float(page_w), float(rel_y) * float(page_h))
+            self.syncJumpRequested.emit(
+                idx + 1, float(rel_x) * float(page_w), float(rel_y) * float(page_h)
+            )
             return
         current = self.zoomFactor()
         if chosen is zoom_in_action:
@@ -1441,7 +1665,9 @@ class PopplerPdfView(QScrollArea):
         self.verticalScrollBar().setValue(max(0, target.y()))
 
     def _handle_mouse_move(self, event: QMouseEvent) -> None:
-        vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+        vp = event.position().toPoint() - QPoint(
+            self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        )
         if self._pan_active:
             delta = vp - self._pan_start_pos
             if not self._pan_dragged and delta.manhattanLength() > 4:
@@ -1455,7 +1681,9 @@ class PopplerPdfView(QScrollArea):
             event.accept()
 
     def _handle_mouse_release(self, event: QMouseEvent) -> None:
-        vp = event.position().toPoint() - QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+        vp = event.position().toPoint() - QPoint(
+            self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        )
         if event.button() == Qt.MouseButton.LeftButton and self._magnifier_active:
             self._magnifier_active = False
             self._magnifier_update_timer.stop()
@@ -1482,7 +1710,9 @@ class PopplerPdfView(QScrollArea):
         if event.button() == Qt.MouseButton.RightButton and self._pan_active:
             dragged = self._pan_dragged
             self._pan_active = False
-            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor if dragged else self._magnifier_cursor)
+            self.viewport().setCursor(
+                Qt.CursorShape.OpenHandCursor if dragged else self._magnifier_cursor
+            )
             if not dragged:
                 self._show_context_menu(vp, event.globalPosition().toPoint())
             event.accept()

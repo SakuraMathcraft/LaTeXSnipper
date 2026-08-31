@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import ctypes
 
 from PyQt6.QtCore import QObject, Qt
@@ -7,7 +9,13 @@ from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 from capture.overlay import ScreenCaptureOverlay
-from platform_services.protocols import ApplicationMenuHandlers, PermissionResult, PermissionState, ScreenshotConfig, TrayMenuHandlers
+from platform_services.protocols import (
+    ApplicationMenuHandlers,
+    PermissionResult,
+    PermissionState,
+    ScreenshotConfig,
+    TrayMenuHandlers,
+)
 from platform_services.hotkeys import QHotkey
 
 
@@ -72,7 +80,9 @@ class WindowsSystemProvider:
         if tray:
             tray.setToolTip(text)
 
-    def update_tray_menu(self, tray: QSystemTrayIcon, hotkey: str, handlers: TrayMenuHandlers) -> None:
+    def update_tray_menu(
+        self, tray: QSystemTrayIcon, hotkey: str, handlers: TrayMenuHandlers
+    ) -> None:
         if not tray:
             return
         tray_menu = QMenu()
@@ -85,22 +95,38 @@ class WindowsSystemProvider:
             "QMenu#latexsnipperTrayMenu::icon{width:0px;height:0px;margin:0px;padding:0px;}"
             "QMenu#latexsnipperTrayMenu::indicator{width:0px;height:0px;margin:0px;padding:0px;}"
         )
-        tray_menu.addAction("打开主窗口", handlers.on_open)
-        tray_menu.addAction(f"截图识别（{hotkey}）", handlers.on_capture)
+        tray_menu.addAction(tr("打开主窗口"), handlers.on_open)
+        tray_menu.addAction(
+            tr("截图识别（{hotkey}）").format(hotkey=hotkey), handlers.on_capture
+        )
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
-        tray_menu.addAction("退出", handlers.on_exit)
+        tray_menu.addAction(tr("退出"), handlers.on_exit)
         tray.setContextMenu(tray_menu)
 
-    def show_notification(self, tray: QSystemTrayIcon, title: str, text: str, critical: bool = False, timeout_ms: int = 2500) -> None:
+    def show_notification(
+        self,
+        tray: QSystemTrayIcon,
+        title: str,
+        text: str,
+        critical: bool = False,
+        timeout_ms: int = 2500,
+    ) -> None:
         if not tray:
             return
-        icon = QSystemTrayIcon.MessageIcon.Critical if critical else QSystemTrayIcon.MessageIcon.Information
+        icon = (
+            QSystemTrayIcon.MessageIcon.Critical
+            if critical
+            else QSystemTrayIcon.MessageIcon.Information
+        )
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
         window.showNormal()
-        window.setWindowState((window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
+        window.setWindowState(
+            (window.windowState() & ~Qt.WindowState.WindowMinimized)
+            | Qt.WindowState.WindowActive
+        )
         window.raise_()
         window.activateWindow()
         try:
@@ -110,5 +136,7 @@ class WindowsSystemProvider:
         except Exception:
             pass
 
-    def install_application_menu(self, window, handlers: ApplicationMenuHandlers) -> None:
+    def install_application_menu(
+        self, window, handlers: ApplicationMenuHandlers
+    ) -> None:
         return None

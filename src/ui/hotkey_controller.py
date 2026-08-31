@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import sys
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition
 
-from runtime.hotkey_config import display_hotkey, hotkey_help_text, normalize_hotkey, normalize_hotkey_or_default
-from ui.hotkey_dialog import create_hotkey_dialog
+from runtime.hotkey_config import (
+    display_hotkey,
+    normalize_hotkey,
+    normalize_hotkey_or_default,
+)
+from ui.hotkey_dialog import create_hotkey_dialog, localized_hotkey_help_text
 from ui.window_helpers import show_normal_window
 
 
@@ -22,20 +27,21 @@ class HotkeyControllerMixin:
         except Exception as e:
             print(f"[WARN] 全局快捷键注册失败: {e}")
 
-    def _has_blocking_window(self) -> bool:
+    def _blocking_window(self):
         app = QApplication.instance()
         if app is None:
-            return False
+            return None
         try:
             modal = app.activeModalWidget()
             if modal is not None and modal is not self and modal.isVisible():
-                return True
+                return modal
         except Exception:
             pass
         try:
             popup = app.activePopupWidget()
             if popup is not None and popup.isVisible():
-                return True
+                active = app.activeWindow()
+                return active if active is not None and active.isVisible() else popup
         except Exception:
             pass
         try:
@@ -43,21 +49,25 @@ class HotkeyControllerMixin:
                 if widget is None or widget is self or (not widget.isVisible()):
                     continue
                 try:
-                    if bool(widget.isModal()) or widget.windowModality() != Qt.WindowModality.NonModal:
-                        return True
+                    if (
+                        bool(widget.isModal())
+                        or widget.windowModality() != Qt.WindowModality.NonModal
+                    ):
+                        return widget
                 except Exception:
                     continue
         except Exception:
             pass
-        return False
+        return None
 
     def on_hotkey_triggered(self):
-        if self._has_blocking_window():
+        blocking_window = self._blocking_window()
+        if blocking_window is not None:
             try:
                 InfoBar.info(
-                    title="提示",
-                    content="请先关闭当前对话框，再执行截图识别",
-                    parent=self._get_infobar_parent(),
+                    title=tr("提示"),
+                    content=tr("请先关闭当前对话框，再执行截图识别"),
+                    parent=blocking_window,
                     duration=2200,
                     position=InfoBarPosition.TOP,
                 )
@@ -85,27 +95,28 @@ class HotkeyControllerMixin:
         show_normal_window(dlg)
 
     def update_hotkey(self, text: str, dialog: QDialog):
-        from qfluentwidgets import InfoBar, InfoBarPosition
-
         normalized_hotkey = normalize_hotkey(text, sys.platform)
         if normalized_hotkey is None:
             InfoBar.error(
-                title="快捷键格式错误",
-                content=f"格式必须为 {hotkey_help_text(sys.platform)}",
-                parent=self._get_infobar_parent(),
+                title=tr("快捷键格式错误"),
+                content=tr("格式必须为 {format}").format(
+                    format=localized_hotkey_help_text(sys.platform)
+                ),
+                parent=dialog,
                 duration=3000,
                 position=InfoBarPosition.TOP,
             )
             return
         self.register_hotkey(normalized_hotkey)
-        if (
-            getattr(self, "hotkey_provider", None)
-            and (not self.hotkey_provider.is_registered())
+        if getattr(self, "hotkey_provider", None) and (
+            not self.hotkey_provider.is_registered()
         ):
             InfoBar.error(
-                title="快捷键注册失败",
-                content=f"请更换其他 {hotkey_help_text(sys.platform)} 组合后重试",
-                parent=self._get_infobar_parent(),
+                title=tr("快捷键注册失败"),
+                content=tr("请更换其他 {format} 组合后重试").format(
+                    format=localized_hotkey_help_text(sys.platform)
+                ),
+                parent=dialog,
                 duration=3500,
                 position=InfoBarPosition.TOP,
             )
@@ -116,8 +127,10 @@ class HotkeyControllerMixin:
         except Exception:
             pass
         InfoBar.success(
-            title="快捷键已更新",
-            content=f"已更新为 {display_hotkey(normalized_hotkey, sys.platform)}",
+            title=tr("快捷键已更新"),
+            content=tr("已更新为 {hotkey}").format(
+                hotkey=display_hotkey(normalized_hotkey, sys.platform)
+            ),
             parent=self._get_infobar_parent(),
             duration=2500,
             position=InfoBarPosition.TOP,

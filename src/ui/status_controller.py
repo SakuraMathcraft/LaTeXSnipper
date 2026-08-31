@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from typing import Literal
 
 from qfluentwidgets import InfoBar, InfoBarPosition
@@ -26,7 +28,11 @@ class StatusControllerMixin:
         return current
 
     def _sync_current_model_status_from_preference(self) -> None:
-        preferred = str(self._get_preferred_model_for_predict() or getattr(self, "current_model", "mathcraft") or "mathcraft").strip()
+        preferred = str(
+            self._get_preferred_model_for_predict()
+            or getattr(self, "current_model", "mathcraft")
+            or "mathcraft"
+        ).strip()
         self.current_model = preferred
         try:
             self.cfg.set("default_model", preferred)
@@ -36,18 +42,22 @@ class StatusControllerMixin:
             self.set_model_status(self._get_external_model_status_text())
             return
         if not getattr(self, "model", None):
-            self.set_model_status("待识别时加载")
+            self.set_model_status(tr("待识别时加载"))
             return
         if self.model.is_model_ready(preferred):
-            self.set_model_status("已加载")
-        elif preferred.startswith("mathcraft") and getattr(self.model, "_import_failed", False):
-            self.set_model_status("加载失败")
+            self.set_model_status(tr("已加载"))
+        elif preferred.startswith("mathcraft") and getattr(
+            self.model, "_import_failed", False
+        ):
+            self.set_model_status(tr("加载失败"))
         else:
-            self.set_model_status("待识别时加载")
+            self.set_model_status(tr("待识别时加载"))
 
     def refresh_status_label(self):
         model_display = self._get_status_model_display_name()
-        base = f"当前模型: {model_display} | 状态: {self.model_status}"
+        base = tr("当前模型: {model} | 状态: {status}").format(
+            model=model_display, status=self.model_status
+        )
         lbl = getattr(self, "status_label", None)
         if lbl is None:
             return
@@ -58,7 +68,9 @@ class StatusControllerMixin:
         self.refresh_status_label()
 
     def set_action_status(self, msg: str, auto_clear_ms: int = 2500, parent=None):
-        self.show_action_status(msg, level="success", auto_clear_ms=auto_clear_ms, parent=parent)
+        self.show_action_status(
+            msg, level="success", auto_clear_ms=auto_clear_ms, parent=parent
+        )
 
     def show_action_status(
         self,
@@ -79,7 +91,7 @@ class StatusControllerMixin:
             "error": InfoBar.error,
         }.get(level, InfoBar.info)
         infobar(
-            title="提示",
+            title=tr("提示"),
             content=text,
             parent=parent or self,
             position=position,
@@ -99,7 +111,9 @@ class StatusControllerMixin:
             return
         self.set_model_status(text)
 
-    def _should_show_mathcraft_warmup_started_infobar(self, model_name: str | None) -> bool:
+    def _should_show_mathcraft_warmup_started_infobar(
+        self, model_name: str | None
+    ) -> bool:
         if self._mathcraft_required_models_incomplete(model_name):
             return True
         return not bool(self.cfg.get("mathcraft_warmup_notice_done", False))
@@ -110,8 +124,10 @@ class StatusControllerMixin:
         self._model_warmup_notice_shown = True
         try:
             InfoBar.info(
-                title="MathCraft OCR 正在预热",
-                content="首次预热可能需要下载或初始化模型权重，网速较慢时耗时会更长，请稍候。",
+                title=tr("MathCraft OCR 正在预热"),
+                content=tr(
+                    "首次预热可能需要下载或初始化模型权重，网速较慢时耗时会更长，请稍候。"
+                ),
                 parent=self._get_infobar_parent(),
                 duration=5200,
                 position=InfoBarPosition.TOP,
@@ -123,12 +139,12 @@ class StatusControllerMixin:
         if self._model_cache_repair_notice_shown:
             return
         self._model_cache_repair_notice_shown = True
-        content = "检测到 MathCraft 模型权重缺失或不完整，正在自动补全。"
+        content = tr("检测到 MathCraft 模型权重缺失或不完整，正在自动补全。")
         if detail:
             content = f"{content}\n{detail[:180]}"
         try:
             InfoBar.warning(
-                title="正在修复模型缓存",
+                title=tr("正在修复模型缓存"),
                 content=content,
                 parent=self._get_infobar_parent(),
                 duration=6500,

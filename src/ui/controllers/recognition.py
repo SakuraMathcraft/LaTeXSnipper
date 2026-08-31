@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import time
 from pathlib import Path
 
@@ -10,9 +12,16 @@ from PyQt6.QtCore import QThread
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from recognition.external_workers import ExternalModelWorker
-from recognition.error_messages import recognition_failure_user_message
+from recognition.error_messages import (
+    CANCELED_WORKER_MESSAGE,
+    recognition_failure_user_message,
+    translate_image_input_error,
+)
 from ui.notifications import show_user_notice
-from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
+from runtime.content_types import (
+    content_type_for_external_output,
+    content_type_for_mathcraft,
+)
 from recognition.image_input import ImageInputError, image_from_path
 from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
 from recognition.workers import PredictionWorker
@@ -36,17 +45,17 @@ class RecognitionControllerMixin:
         except Exception:
             pass
 
-    def _show_recognition_busy_info(self, content: str = "正在识别，请稍候") -> None:
+    def _show_recognition_busy_info(self, content: str | None = None) -> None:
         try:
             InfoBar.info(
-                title="提示",
-                content=content,
+                title=tr("提示"),
+                content=content or tr("正在识别，请稍候"),
                 parent=self,
                 duration=2200,
                 position=InfoBarPosition.TOP,
             )
         except Exception:
-            show_user_notice("提示", content, self)
+            show_user_notice(tr("提示"), content, self)
 
     def is_recognition_busy(self, source: str = "main") -> bool:
         main_busy = bool(
@@ -95,7 +104,7 @@ class RecognitionControllerMixin:
                     pass
         if cancelled:
             self._predict_busy = False
-            self.set_model_status("识别已中断")
+            self.set_model_status(tr("识别已中断"))
             self._show_recognition_cancelled_infobar(reset_cancel_flag=False)
 
     def _is_user_cancelled_recognition_error(self, msg: str) -> bool:
@@ -106,22 +115,28 @@ class RecognitionControllerMixin:
             "cancel" in text
             or "cancelled" in text
             or "canceled" in text
-            or "已取消" in text
-            or "已中断" in text
+            or CANCELED_WORKER_MESSAGE in text
+            or tr("已取消").lower() in text
+            or tr("已中断").lower() in text
         )
 
-    def _show_recognition_cancelled_infobar(self, *, reset_cancel_flag: bool = True) -> None:
+    def _show_recognition_cancelled_infobar(
+        self, *, reset_cancel_flag: bool = True
+    ) -> None:
         if reset_cancel_flag:
             self._recognition_cancel_requested = False
-        self.set_model_status("已中断")
+        self.set_model_status(tr("已中断"))
         now = time.monotonic()
-        if now - float(getattr(self, "_last_recognition_cancel_notice_at", 0.0) or 0.0) < 2.5:
+        if (
+            now - float(getattr(self, "_last_recognition_cancel_notice_at", 0.0) or 0.0)
+            < 2.5
+        ):
             return
         self._last_recognition_cancel_notice_at = now
         try:
             InfoBar.info(
-                title="识别已中断",
-                content="已停止当前识别任务，可重新截图或切换识别类型后再试。",
+                title=tr("识别已中断"),
+                content=tr("已停止当前识别任务，可重新截图或切换识别类型后再试。"),
                 parent=self,
                 duration=3000,
                 position=InfoBarPosition.TOP,
@@ -129,37 +144,51 @@ class RecognitionControllerMixin:
         except Exception:
             pass
 
-    def _start_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
+    def _start_predict_with_pil(
+        self, img: Image.Image, external_prompt_template: str | None = None
+    ):
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return
-        if self.current_model == "external_model" or self._get_preferred_model_for_predict() == "external_model":
-            self._start_external_predict_with_pil(img, external_prompt_template=external_prompt_template)
+        if (
+            self.current_model == "external_model"
+            or self._get_preferred_model_for_predict() == "external_model"
+        ):
+            self._start_external_predict_with_pil(
+                img, external_prompt_template=external_prompt_template
+            )
             return
         if not self.model:
-            show_user_notice("错误", "模型未初始化", self)
+            show_user_notice(tr("错误"), tr("模型未初始化"), self)
             return
         if self.predict_thread and self.predict_thread.isRunning():
-            show_user_notice("错误", "前一识别线程尚未结束", self)
+            show_user_notice(tr("错误"), tr("前一识别线程尚未结束"), self)
             return
         preferred = self._get_preferred_model_for_predict()
         if preferred != self.current_model:
             self.current_model = preferred
         if self.model and not self.model.is_model_ready(preferred):
-            self.set_model_status("预热中")
-            self.show_action_status("模型预热中，完成后将自动开始识别", level="info", auto_clear_ms=2200)
+            self.set_model_status(tr("预热中"))
+            self.show_action_status(
+                tr("模型预热中，完成后将自动开始识别"), level="info", auto_clear_ms=2200
+            )
             self._ensure_model_warmup_async(
                 preferred_model=preferred,
-                on_ready=lambda img=img, template=external_prompt_template: self._start_predict_with_pil(img, template),
+                on_ready=lambda img=img, template=external_prompt_template: (
+                    self._start_predict_with_pil(img, template)
+                ),
                 on_fail=lambda msg, model=preferred: self.on_predict_fail(
-                    f"模型预热失败: {msg}", model, None, external_model=False
+                    tr("模型预热失败: {message}").format(message=msg),
+                    model,
+                    None,
+                    external_model=False,
                 ),
             )
             return
         active_model = self.current_model
         self._recognition_cancel_requested = False
         self._predict_busy = True
-        self.set_model_status("识别中...")
+        self.set_model_status(tr("识别中..."))
 
         self.predict_thread = QThread()
         self.predict_worker = PredictionWorker(
@@ -187,26 +216,25 @@ class RecognitionControllerMixin:
         self.predict_thread.finished.connect(_cleanup)
         self.predict_thread.start()
 
-    def _start_external_predict_with_pil(self, img: Image.Image, external_prompt_template: str | None = None):
+    def _start_external_predict_with_pil(
+        self, img: Image.Image, external_prompt_template: str | None = None
+    ):
         if self.predict_thread and self.predict_thread.isRunning():
-            show_user_notice("错误", "前一识别线程尚未结束", self)
+            show_user_notice(tr("错误"), tr("前一识别线程尚未结束"), self)
             return
         config = self._get_external_model_config()
         one_shot_template = str(external_prompt_template or "").strip()
         if one_shot_template:
             config.prompt_template = one_shot_template
         if not self._is_external_model_configured():
-            self.set_model_status("外部模型未配置")
-            self.show_action_status("请先在设置中配置外部模型", level="warning", auto_clear_ms=3000)
-            self.open_settings()
-            show_user_notice("提示", f"外部模型未配置，{self._get_external_model_required_fields_hint()}", self)
+            self._open_external_model_settings_with_notice()
             return
         self.current_model = "external_model"
         self.cfg.set("default_model", "external_model")
         self.cfg.set("desired_model", "external_model")
         self._recognition_cancel_requested = False
         self._predict_busy = True
-        self.set_model_status("外部模型识别中...")
+        self.set_model_status(tr("外部模型识别中..."))
         self.predict_thread = QThread()
         self.predict_worker = ExternalModelWorker(
             config,
@@ -235,12 +263,12 @@ class RecognitionControllerMixin:
     def _upload_image_recognition(self):
         """Upload an image and recognize formulas or text."""
         patterns = self._get_supported_image_patterns()
-        filter_ = f"图片文件 ({' '.join(patterns)})"
+        filter_ = tr("图片文件 ({patterns})").format(patterns=" ".join(patterns))
         file_path, _ = _select_open_file_with_icon(
             self,
-            "选择图片",
+            tr("选择图片"),
             "",
-            f"{filter_};;所有文件 (*.*)",
+            tr("{images};;所有文件 (*.*)").format(images=filter_),
         )
         if not file_path:
             return
@@ -251,18 +279,29 @@ class RecognitionControllerMixin:
         self._next_predict_result_screen_index = None
         path = Path(file_path)
         if not path.is_file():
-            show_user_notice("错误", f"图片文件不存在: {path}", self)
+            show_user_notice(
+                tr("错误"), tr("图片文件不存在: {path}").format(path=path), self
+            )
             return
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return
-        if not self.model and self._get_preferred_model_for_predict() != "external_model":
-            show_user_notice("错误", "模型未初始化", self)
+        if (
+            not self.model
+            and self._get_preferred_model_for_predict() != "external_model"
+        ):
+            show_user_notice(tr("错误"), tr("模型未初始化"), self)
             return
         try:
             img = image_from_path(path)
         except ImageInputError as exc:
-            show_user_notice("错误", f"图片加载失败：{exc.user_message}", self)
+            show_user_notice(
+                tr("错误"),
+                tr("图片加载失败：{error}").format(
+                    error=translate_image_input_error(exc.user_message)
+                ),
+                self,
+            )
             return
         self._start_predict_with_pil(img)
 
@@ -287,8 +326,12 @@ class RecognitionControllerMixin:
         )
 
     def _on_external_predict_fail(self, msg: str):
-        model_name = self._get_external_model_display_name(config=self.predict_worker.config)
-        self.on_predict_fail(msg, model_name, self.predict_worker.elapsed, external_model=True)
+        model_name = self._get_external_model_display_name(
+            config=self.predict_worker.config
+        )
+        self.on_predict_fail(
+            msg, model_name, self.predict_worker.elapsed, external_model=True
+        )
 
     def _on_internal_predict_fail(self, msg: str) -> None:
         self.on_predict_fail(
@@ -299,7 +342,9 @@ class RecognitionControllerMixin:
         )
 
     def _is_external_recognition_worker(self, worker) -> bool:
-        return bool(getattr(worker, "config", None)) and worker.__class__.__name__.startswith("ExternalModel")
+        return bool(
+            getattr(worker, "config", None)
+        ) and worker.__class__.__name__.startswith("ExternalModel")
 
     def _recognition_failure_content(
         self,

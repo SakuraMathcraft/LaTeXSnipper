@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
@@ -73,47 +74,61 @@ class MacOSScreenshotProvider:
         """Describe the process identity macOS can associate with capture access."""
         executable = Path(sys.executable or "python3").expanduser()
         bundle = next(
-            (candidate for candidate in (executable, *executable.parents) if candidate.suffix.lower() == ".app"),
+            (
+                candidate
+                for candidate in (executable, *executable.parents)
+                if candidate.suffix.lower() == ".app"
+            ),
             None,
         )
         if bundle is not None and bool(getattr(sys, "frozen", False)):
-            temporary_copy = str(bundle).startswith("/Volumes/") or "/AppTranslocation/" in str(bundle)
+            temporary_copy = str(bundle).startswith(
+                "/Volumes/"
+            ) or "/AppTranslocation/" in str(bundle)
             return f"LaTeXSnipper.app ({bundle})", temporary_copy
 
         if bool(getattr(sys, "frozen", False)):
-            return f"LaTeXSnipper 打包可执行文件 ({executable})", False
+            return tr("LaTeXSnipper 打包可执行文件 ({path})").format(
+                path=executable
+            ), False
 
         return (
-            "当前开发启动进程 "
-            f"(Python: {executable}；以系统设置中实际显示的 Python、Terminal、iTerm 或 VS Code 为准)",
+            tr(
+                "当前开发启动进程 (Python: {path}；以系统设置中实际显示的 Python、Terminal、iTerm 或 VS Code 为准)"
+            ).format(path=executable),
             False,
         )
 
     def _screen_capture_denial_message(self) -> str:
         target, temporary_copy = self._screen_capture_permission_target()
         temporary_guidance = (
-            "检测到当前副本位于 DMG 或 App Translocation 临时位置。请先将 LaTeXSnipper.app 移到 /Applications，"
-            "再从该位置重新打开并授权。\n\n"
+            tr(
+                "检测到当前副本位于 DMG 或 App Translocation 临时位置。请先将 LaTeXSnipper.app 移到 /Applications，再从该位置重新打开并授权。\n\n"
+            )
             if temporary_copy
-            else "如果是从 DMG 或 Downloads 直接打开，请先将 LaTeXSnipper.app 移到 /Applications，"
-            "并确保授权的是当前运行的同一副本。\n\n"
+            else tr(
+                "如果是从 DMG 或 Downloads 直接打开，请先将 LaTeXSnipper.app 移到 /Applications，并确保授权的是当前运行的同一副本。\n\n"
+            )
         )
-        return (
+        return tr(
             "LaTeXSnipper 无法获得当前运行副本的屏幕录制权限。\n\n"
-            f"当前授权对象：{target}\n\n"
+            "当前授权对象：{target}\n\n"
             "请打开 System Settings -> Privacy & Security -> Screen & System Audio Recording "
             "(旧版 macOS 显示为 Screen Recording)，授权上述对象。\n\n"
-            f"{temporary_guidance}"
-            "授权后请使用 Command+Q 完全退出 LaTeXSnipper，再从同一位置重新打开。"
-        )
+            "{guidance}授权后请使用 Command+Q 完全退出 LaTeXSnipper，再从同一位置重新打开。"
+        ).format(target=target, guidance=temporary_guidance)
 
-    def _permission_result(self, state: PermissionState, message: str) -> PermissionResult:
+    def _permission_result(
+        self, state: PermissionState, message: str
+    ) -> PermissionResult:
         self._last_permission_state = state
         return PermissionResult(state, message)
 
     def _preflight_screen_capture_access(self) -> bool | None:
         try:
-            app_services = ctypes.CDLL("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+            app_services = ctypes.CDLL(
+                "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+            )
             fn = app_services.CGPreflightScreenCaptureAccess
             fn.argtypes = []
             fn.restype = ctypes.c_bool
@@ -124,7 +139,9 @@ class MacOSScreenshotProvider:
 
     def _request_screen_capture_access(self) -> bool | None:
         try:
-            app_services = ctypes.CDLL("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+            app_services = ctypes.CDLL(
+                "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+            )
             fn = app_services.CGRequestScreenCaptureAccess
             fn.argtypes = []
             fn.restype = ctypes.c_bool
@@ -146,18 +163,26 @@ class MacOSScreenshotProvider:
 
         target, temporary_copy = self._screen_capture_permission_target()
         allowed = self._preflight_screen_capture_access()
-        print(f"[DEBUG] macOS 屏幕录制权限预检: result={allowed!r} target={target} temporary_copy={temporary_copy}")
+        print(
+            f"[DEBUG] macOS 屏幕录制权限预检: result={allowed!r} target={target} temporary_copy={temporary_copy}"
+        )
         if allowed is True:
-            return self._permission_result(PermissionState.ALLOWED, "macos-screen-recording-allowed")
+            return self._permission_result(
+                PermissionState.ALLOWED, "macos-screen-recording-allowed"
+            )
         if allowed is None:
-            return self._permission_result(PermissionState.UNKNOWN, "macos-screen-recording-unknown")
+            return self._permission_result(
+                PermissionState.UNKNOWN, "macos-screen-recording-unknown"
+            )
 
         if not self._screen_capture_prompted:
             self._screen_capture_prompted = True
             self._screen_capture_restart_required = True
             print("[INFO] 通过 CoreGraphics 请求 macOS 屏幕录制权限")
             requested = self._request_screen_capture_access()
-            print(f"[INFO] macOS 屏幕录制权限请求结果: {requested!r}，需要重启应用后再截图")
+            print(
+                f"[INFO] macOS 屏幕录制权限请求结果: {requested!r}，需要重启应用后再截图"
+            )
 
         return self._permission_result(
             PermissionState.DENIED,
@@ -169,7 +194,12 @@ class MacOSScreenshotProvider:
             return
         self._settings_opened = True
         try:
-            subprocess.Popen(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
+            subprocess.Popen(
+                [
+                    "open",
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+                ]
+            )
         except Exception as exc:
             print(f"[WARN] 打开 macOS 隐私设置失败: {exc}")
 
@@ -195,7 +225,9 @@ class MacOSSystemProvider:
     def set_tray_tooltip(self, tray: QSystemTrayIcon, text: str) -> None:
         tray.setToolTip(text)
 
-    def update_tray_menu(self, tray: QSystemTrayIcon, hotkey: str, handlers: TrayMenuHandlers) -> None:
+    def update_tray_menu(
+        self, tray: QSystemTrayIcon, hotkey: str, handlers: TrayMenuHandlers
+    ) -> None:
         tray_menu = tray.contextMenu()
         if tray_menu is None:
             return
@@ -235,7 +267,9 @@ class MacOSSystemProvider:
         window.raise_()
         window.activateWindow()
 
-    def install_application_menu(self, window, handlers: ApplicationMenuHandlers) -> None:
+    def install_application_menu(
+        self, window, handlers: ApplicationMenuHandlers
+    ) -> None:
         if getattr(window, "_macos_application_menu_installed", False):
             return
         menu_bar = window.menuBar()
@@ -244,12 +278,12 @@ class MacOSSystemProvider:
 
         app_menu = menu_bar.addMenu("LaTeXSnipper")
 
-        about_action = QAction("About LaTeXSnipper", app_menu)
+        about_action = QAction(tr("关于 LaTeXSnipper"), app_menu)
         about_action.setMenuRole(QAction.MenuRole.AboutRole)
         about_action.triggered.connect(handlers.on_about)
         app_menu.addAction(about_action)
 
-        prefs_action = QAction("Preferences...", app_menu)
+        prefs_action = QAction(tr("设置..."), app_menu)
         prefs_action.setMenuRole(QAction.MenuRole.PreferencesRole)
         prefs_action.setShortcut(QKeySequence("Meta+,"))
         prefs_action.triggered.connect(handlers.on_preferences)
@@ -257,56 +291,66 @@ class MacOSSystemProvider:
 
         app_menu.addSeparator()
 
-        hide_action = QAction("Hide LaTeXSnipper", app_menu)
+        hide_action = QAction(tr("隐藏 LaTeXSnipper"), app_menu)
         hide_action.setShortcut(QKeySequence("Meta+H"))
         hide_action.triggered.connect(self._hide_application)
         app_menu.addAction(hide_action)
 
-        hide_others_action = QAction("Hide Others", app_menu)
+        hide_others_action = QAction(tr("隐藏其他窗口"), app_menu)
         hide_others_action.setShortcut(QKeySequence("Alt+Meta+H"))
         hide_others_action.triggered.connect(self._hide_other_applications)
         app_menu.addAction(hide_others_action)
 
         app_menu.addSeparator()
 
-        quit_action = QAction("Quit LaTeXSnipper", app_menu)
+        quit_action = QAction(tr("退出 LaTeXSnipper"), app_menu)
         quit_action.setMenuRole(QAction.MenuRole.QuitRole)
         quit_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Quit))
         quit_action.triggered.connect(handlers.on_quit)
         app_menu.addAction(quit_action)
 
-        file_menu = menu_bar.addMenu("File")
-        capture_action = QAction("Start Capture / Snip", file_menu)
+        file_menu = menu_bar.addMenu(tr("文件"))
+        capture_action = QAction(tr("开始截图识别"), file_menu)
         capture_action.setShortcut(QKeySequence("Meta+Alt+S"))
         capture_action.triggered.connect(handlers.on_capture)
         file_menu.addAction(capture_action)
 
-        show_action = QAction("Show Main Window", file_menu)
+        show_action = QAction(tr("显示主窗口"), file_menu)
         show_action.triggered.connect(handlers.on_show_window)
         file_menu.addAction(show_action)
 
-        close_action = QAction("Close Window", file_menu)
+        close_action = QAction(tr("关闭窗口"), file_menu)
         close_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Close))
         close_action.triggered.connect(handlers.on_close_window)
         file_menu.addAction(close_action)
 
-        edit_menu = menu_bar.addMenu("Edit")
-        self._add_standard_edit_action(edit_menu, "Copy", QKeySequence.StandardKey.Copy, "copy")
+        edit_menu = menu_bar.addMenu(tr("编辑"))
+        self._add_standard_edit_action(
+            edit_menu, tr("复制"), QKeySequence.StandardKey.Copy, "copy"
+        )
         self._add_paste_action(edit_menu, handlers.on_paste)
-        self._add_standard_edit_action(edit_menu, "Select All", QKeySequence.StandardKey.SelectAll, "selectAll")
+        self._add_standard_edit_action(
+            edit_menu, tr("全选"), QKeySequence.StandardKey.SelectAll, "selectAll"
+        )
 
         setattr(window, "_macos_application_menu_installed", True)
 
-    def _add_standard_edit_action(self, menu: QMenu, text: str, key, method_name: str) -> None:
+    def _add_standard_edit_action(
+        self, menu: QMenu, text: str, key, method_name: str
+    ) -> None:
         action = QAction(text, menu)
         action.setShortcut(QKeySequence(key))
-        action.triggered.connect(lambda _=False, name=method_name: self._trigger_focused_widget_method(name))
+        action.triggered.connect(
+            lambda _=False, name=method_name: self._trigger_focused_widget_method(name)
+        )
         menu.addAction(action)
 
     def _add_paste_action(self, menu: QMenu, image_paste_handler) -> None:
-        action = QAction("Paste", menu)
+        action = QAction(tr("粘贴"), menu)
         action.setShortcut(QKeySequence(QKeySequence.StandardKey.Paste))
-        action.triggered.connect(lambda _=False: self._trigger_paste(image_paste_handler))
+        action.triggered.connect(
+            lambda _=False: self._trigger_paste(image_paste_handler)
+        )
         menu.addAction(action)
 
     def _trigger_paste(self, image_paste_handler) -> None:

@@ -6,7 +6,13 @@ import html as html_module
 import re
 from collections.abc import Callable
 
-from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
+from localization.manager import translate as tr
+from preview.math_preview import (
+    build_math_html,
+    mathjax_loader_script,
+    preview_scrollbar_css,
+    preview_theme_tokens,
+)
 from runtime.content_types import normalize_content_type
 
 
@@ -15,19 +21,27 @@ FormulaRenderer = Callable[[str], str]
 
 def build_preview_error_html(error: Exception | str) -> str:
     tokens = preview_theme_tokens()
-    return f'''<!DOCTYPE html>
+    title = html_module.escape(tr("公式渲染失败"))
+    error_label = html_module.escape(tr("错误:"))
+    checklist_label = html_module.escape(tr("检查项:"))
+    checklist = (
+        tr("MathJax 资源是否存在"),
+        tr("资源路径是否正确"),
+        tr("PyQt6 WebEngine 是否正常工作"),
+    )
+    return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
-<h3>公式渲染失败</h3>
-<p><strong>错误:</strong></p>
-<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{html_module.escape(str(error))}</pre>
-<p><strong>检查项:</strong></p>
+<body style="color: {tokens["error_text"]}; background: {tokens["body_bg"]}; padding: 20px; font-family: sans-serif;">
+<h3>{title}</h3>
+<p><strong>{error_label}</strong></p>
+<pre style="background: {tokens["pre_bg"]}; color: {tokens["body_text"]}; padding: 10px; border-radius: 4px; overflow-x: auto;">{html_module.escape(str(error))}</pre>
+<p><strong>{checklist_label}</strong></p>
 <ul>
-<li>MathJax 资源是否存在</li>
-<li>资源路径是否正确</li>
-<li>PyQt6 WebEngine 是否正常工作</li>
+<li>{html_module.escape(checklist[0])}</li>
+<li>{html_module.escape(checklist[1])}</li>
+<li>{html_module.escape(checklist[2])}</li>
 </ul>
-</body></html>'''
+</body></html>"""
 
 
 def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> str:
@@ -42,7 +56,7 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> 
             for content, label, content_type in items
         )
 
-        mathjax_config = f'''
+        mathjax_config = f"""
 <script>
 window.MathJax = {{
   tex: {{
@@ -60,9 +74,9 @@ window.MathJax = {{
   }}
 }};
 </script>
-{mathjax_loader_script()}'''
+{mathjax_loader_script()}"""
 
-        return f'''<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -73,22 +87,22 @@ body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     padding: 16px;
     line-height: 1.6;
-    background: {tokens['body_bg']};
-    color: {tokens['body_text']};
+    background: {tokens["body_bg"]};
+    color: {tokens["body_text"]};
 }}
 .content-block {{
     margin-bottom: 16px;
     padding: 12px;
-    background: {tokens['panel_bg']};
+    background: {tokens["panel_bg"]};
     border-radius: 8px;
-    border-left: 4px solid {tokens['border_formula']};
+    border-left: 4px solid {tokens["border_formula"]};
 }}
-.content-block.text-type {{ border-left-color: {tokens['border_text']}; }}
-.content-block.table-type {{ border-left-color: {tokens['border_table']}; }}
-.content-block.mixed-type {{ border-left-color: {tokens['border_mixed']}; }}
+.content-block.text-type {{ border-left-color: {tokens["border_text"]}; }}
+.content-block.table-type {{ border-left-color: {tokens["border_table"]}; }}
+.content-block.mixed-type {{ border-left-color: {tokens["border_mixed"]}; }}
 .block-label {{
     font-size: 12px;
-    color: {tokens['muted_text']};
+    color: {tokens["muted_text"]};
     margin-bottom: 8px;
     display: flex;
     align-items: center;
@@ -98,12 +112,12 @@ body {{
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 4px;
-    background: {tokens['badge_formula_bg']};
-    color: {tokens['badge_formula_text']};
+    background: {tokens["badge_formula_bg"]};
+    color: {tokens["badge_formula_text"]};
 }}
-.type-badge.text {{ background: {tokens['badge_text_bg']}; color: {tokens['badge_text_text']}; }}
-.type-badge.table {{ background: {tokens['badge_table_bg']}; color: {tokens['badge_table_text']}; }}
-.type-badge.mixed {{ background: {tokens['badge_mixed_bg']}; color: {tokens['badge_mixed_text']}; }}
+.type-badge.text {{ background: {tokens["badge_text_bg"]}; color: {tokens["badge_text_text"]}; }}
+.type-badge.table {{ background: {tokens["badge_table_bg"]}; color: {tokens["badge_table_text"]}; }}
+.type-badge.mixed {{ background: {tokens["badge_mixed_bg"]}; color: {tokens["badge_mixed_text"]}; }}
 .block-content {{
     font-size: 14px;
     text-align: center;
@@ -133,7 +147,7 @@ body {{
     transform-origin: center center;
 }}
 .formula-content.latex-svg {{
-    color: {tokens['latex_formula_text']};
+    color: {tokens["latex_formula_text"]};
     padding-top: 0.25em;
     padding-bottom: 0.25em;
 }}
@@ -163,31 +177,33 @@ table {{
     margin: 8px 0;
 }}
 th, td {{
-    border: 1px solid {tokens['table_border']};
+    border: 1px solid {tokens["table_border"]};
     padding: 8px;
     text-align: left;
 }}
-th {{ background-color: {tokens['th_bg']}; }}
+th {{ background-color: {tokens["th_bg"]}; }}
 .MathJax {{ font-size: 1.4em; }}
 .formula-content mjx-container,
 .block-content mjx-container {{ font-size: 140% !important; }}
 </style>
 </head>
 <body>{body_content}</body>
-</html>'''
+</html>"""
     except Exception as exc:
         return build_html_build_error(exc)
 
 
 def build_html_build_error(error: Exception | str) -> str:
     tokens = preview_theme_tokens()
-    return f'''<!DOCTYPE html>
+    title = html_module.escape(tr("HTML 构建失败"))
+    error_label = html_module.escape(tr("错误:"))
+    return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
-<h3>HTML 构建失败</h3>
-<p><strong>错误:</strong></p>
-<pre style="background: {tokens['pre_bg']}; color: {tokens['body_text']}; padding: 10px; border-radius: 4px; overflow-x: auto;">{html_module.escape(str(error))}</pre>
-</body></html>'''
+<body style="color: {tokens["error_text"]}; background: {tokens["body_bg"]}; padding: 20px; font-family: sans-serif;">
+<h3>{title}</h3>
+<p><strong>{error_label}</strong></p>
+<pre style="background: {tokens["pre_bg"]}; color: {tokens["body_text"]}; padding: 10px; border-radius: 4px; overflow-x: auto;">{html_module.escape(str(error))}</pre>
+</body></html>"""
 
 
 def render_content_block(
@@ -202,9 +218,9 @@ def render_content_block(
         content_type = normalize_content_type(content_type)
 
         type_name, type_class = {
-            "mathcraft": ("公式", ""),
-            "mathcraft_text": ("文字", "text"),
-            "mathcraft_mixed": ("混合", "mixed"),
+            "mathcraft": (tr("公式"), ""),
+            "mathcraft_text": (tr("文字"), "text"),
+            "mathcraft_mixed": (tr("混合"), "mixed"),
         }[content_type]
 
         if content_type == "mathcraft":
@@ -212,9 +228,13 @@ def render_content_block(
         elif content_type == "mathcraft_mixed":
             rendered_content = render_mixed_content(content)
         else:
-            rendered_content = f'<div class="text-content">{html_module.escape(content)}</div>'
+            rendered_content = (
+                f'<div class="text-content">{html_module.escape(content)}</div>'
+            )
 
-        block_class = f"content-block {type_class}-type" if type_class else "content-block"
+        block_class = (
+            f"content-block {type_class}-type" if type_class else "content-block"
+        )
         badge_class = f"type-badge {type_class}" if type_class else "type-badge"
         result = f'''<div class="{block_class}">
     <div class="block-label">
@@ -227,7 +247,7 @@ def render_content_block(
     except Exception as exc:
         print(f"[WARN] 预览内容块渲染失败: {exc}")
         tokens = preview_theme_tokens()
-        error_msg = f"内容块渲染失败: {exc}"
+        error_msg = tr("内容块渲染失败: {error}").format(error=exc)
         return (
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
             f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
@@ -262,7 +282,7 @@ def render_mixed_content(content: str) -> str:
         if not content:
             return ""
 
-        formula_pattern = r'(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)'
+        formula_pattern = r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)"
         parts = re.split(formula_pattern, content)
         result_parts = []
 
@@ -279,4 +299,5 @@ def render_mixed_content(content: str) -> str:
         return "".join(result_parts)
     except Exception as exc:
         print(f"[WARN] 混合内容渲染失败: {exc}")
-        return f'<div style="color: red;">{html_module.escape(f"混合内容渲染失败: {exc}")}</div>'
+        message = tr("混合内容渲染失败: {error}").format(error=exc)
+        return f'<div style="color: red;">{html_module.escape(message)}</div>'

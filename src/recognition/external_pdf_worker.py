@@ -3,7 +3,12 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from recognition.error_messages import recognition_error_code_user_message
+from localization.manager import translate as tr
+from recognition.error_messages import (
+    CANCELED_WORKER_MESSAGE,
+    EMPTY_RESULT_MESSAGE,
+    recognition_error_code_message,
+)
 from backend.external_model.asset_store import PdfAssetStore
 from backend.external_model.document_pipeline import ExternalDocumentPipeline
 from backend.external_model.mineru_client import MineruClient
@@ -45,7 +50,9 @@ class ExternalModelPdfWorker(QObject):
             try:
                 self.coordinator.run_external_operation(self._run_uncoordinated)
             except Exception:
-                self.failed.emit(recognition_error_code_user_message("upstream_error", "external_model"))
+                self.failed.emit(
+                    recognition_error_code_message("upstream_error", "external_model")
+                )
             return
         self._run_uncoordinated()
 
@@ -58,7 +65,7 @@ class ExternalModelPdfWorker(QObject):
 
         if self._cancelled:
             _set_elapsed()
-            self.failed.emit("已取消")
+            self.failed.emit(CANCELED_WORKER_MESSAGE)
             return
 
         if self.config.normalized_provider() == "mineru":
@@ -74,7 +81,7 @@ class ExternalModelPdfWorker(QObject):
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
                     asset_store.cleanup()
                     _set_elapsed()
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 page_result = pipeline.process_result(result, page_start + 1)
                 content = pipeline.compose_document([page_result] if page_result else [])
@@ -82,7 +89,7 @@ class ExternalModelPdfWorker(QObject):
                 if not content.strip():
                     asset_store.cleanup()
                     _set_elapsed()
-                    self.failed.emit("识别结果为空")
+                    self.failed.emit(EMPTY_RESULT_MESSAGE)
                     return
                 self.progress.emit(total, total)
                 _set_elapsed()
@@ -97,14 +104,14 @@ class ExternalModelPdfWorker(QObject):
 
         if self.dpi is None:
             _set_elapsed()
-            self.failed.emit("PDF 渲染 DPI 未设置")
+            self.failed.emit(tr("PDF 渲染 DPI 未设置"))
             return
 
         try:
             import fitz  # PyMuPDF
         except Exception as e:
             _set_elapsed()
-            self.failed.emit(f"缺少 PyMuPDF 依赖: {e}")
+            self.failed.emit(tr("缺少 PyMuPDF 依赖: {error}").format(error=e))
             return
 
         try:
@@ -113,14 +120,14 @@ class ExternalModelPdfWorker(QObject):
             from recognition.image_input import validated_rgb_image
         except Exception as e:
             _set_elapsed()
-            self.failed.emit(f"缺少 Pillow 依赖: {e}")
+            self.failed.emit(tr("缺少 Pillow 依赖: {error}").format(error=e))
             return
 
         try:
             doc = fitz.open(self.pdf_path)
         except Exception as e:
             _set_elapsed()
-            self.failed.emit(f"PDF 打开失败: {e}")
+            self.failed.emit(tr("PDF 打开失败: {error}").format(error=e))
             return
 
         asset_store = (
@@ -141,7 +148,7 @@ class ExternalModelPdfWorker(QObject):
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 page = doc.load_page(page_index)
                 render_dpi = max(self.dpi, 72)
@@ -155,7 +162,7 @@ class ExternalModelPdfWorker(QObject):
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
         except Exception as e:
             if asset_store is not None:
@@ -175,7 +182,7 @@ class ExternalModelPdfWorker(QObject):
             if asset_store is not None:
                 asset_store.cleanup()
             _set_elapsed()
-            self.failed.emit("识别结果为空")
+            self.failed.emit(EMPTY_RESULT_MESSAGE)
             return
         _set_elapsed()
         self.finished.emit(content.strip())

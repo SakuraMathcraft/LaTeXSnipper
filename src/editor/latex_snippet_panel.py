@@ -4,29 +4,31 @@ from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QHBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, PushButton
 
+from localization.manager import mark_for_translation, translate as tr
+
 
 LATEX_SNIPPETS = {
-    "分式  (/)": ("fraction", r"\frac{#?}{#?}"),
-    "上标  (Shift+^)": ("superscript", r"x^{#?}"),
-    "下标  (Shift+_)": ("subscript", r"x_{#?}"),
-    "上下标  (Shift+_ + Shift+^)": ("subsuperscript", r"x_{#?}^{#?}"),
-    "根号  (sqrt)": ("sqrt", r"\sqrt{#?}"),
-    "求和  (sum)": ("sum", r"\sum_{n=1}^{\infty} #?"),
-    "连乘  (prod)": ("product", r"\prod_{n=1}^{\infty} #?"),
-    "积分  (int)": ("integral", r"\int_{a}^{b} #?\,dx"),
-    "矩阵  (matrix)": ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
+    mark_for_translation("分式  (/)"): ("fraction", r"\frac{#?}{#?}"),
+    mark_for_translation("上标  (Shift+^)"): ("superscript", r"x^{#?}"),
+    mark_for_translation("下标  (Shift+_)"): ("subscript", r"x_{#?}"),
+    mark_for_translation("上下标  (Shift+_ + Shift+^)"): ("subsuperscript", r"x_{#?}^{#?}"),
+    mark_for_translation("根号  (sqrt)"): ("sqrt", r"\sqrt{#?}"),
+    mark_for_translation("求和  (sum)"): ("sum", r"\sum_{n=1}^{\infty} #?"),
+    mark_for_translation("连乘  (prod)"): ("product", r"\prod_{n=1}^{\infty} #?"),
+    mark_for_translation("积分  (int)"): ("integral", r"\int_{a}^{b} #?\,dx"),
+    mark_for_translation("矩阵  (matrix)"): ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
 }
 
 COMPACT_LATEX_SNIPPETS = {
-    "分式": ("fraction", r"\frac{#?}{#?}"),
-    "上标": ("superscript", r"x^{#?}"),
-    "下标": ("subscript", r"x_{#?}"),
-    "上下标": ("subsuperscript", r"x_{#?}^{#?}"),
-    "根号": ("sqrt", r"\sqrt{#?}"),
-    "求和": ("sum", r"\sum_{n=1}^{\infty} #?"),
-    "连乘": ("product", r"\prod_{n=1}^{\infty} #?"),
-    "积分": ("integral", r"\int_{a}^{b} #?\,dx"),
-    "矩阵": ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
+    mark_for_translation("分式"): ("fraction", r"\frac{#?}{#?}"),
+    mark_for_translation("上标"): ("superscript", r"x^{#?}"),
+    mark_for_translation("下标"): ("subscript", r"x_{#?}"),
+    mark_for_translation("上下标"): ("subsuperscript", r"x_{#?}^{#?}"),
+    mark_for_translation("根号"): ("sqrt", r"\sqrt{#?}"),
+    mark_for_translation("求和"): ("sum", r"\sum_{n=1}^{\infty} #?"),
+    mark_for_translation("连乘"): ("product", r"\prod_{n=1}^{\infty} #?"),
+    mark_for_translation("积分"): ("integral", r"\int_{a}^{b} #?\,dx"),
+    mark_for_translation("矩阵"): ("matrix2", r"\begin{bmatrix}#? & #? \\ #? & #?\end{bmatrix}"),
 }
 
 SNIPPET_TEMPLATES = {key: template for key, template in (value for value in LATEX_SNIPPETS.values())}
@@ -71,7 +73,14 @@ def insert_snippet_into_editor(editor, key: str) -> bool:
 
 
 class LaTeXSnippetPanel(QWidget):
-    def __init__(self, parent=None, *, insert_button_text: str = "插入", on_insert_key=None, compact: bool = False):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        insert_button_text: str = mark_for_translation("插入"),
+        on_insert_key=None,
+        compact: bool = False,
+    ):
         super().__init__(parent)
         self._on_insert_key = on_insert_key
         self._snippet_items = COMPACT_LATEX_SNIPPETS if compact else LATEX_SNIPPETS
@@ -81,14 +90,14 @@ class LaTeXSnippetPanel(QWidget):
         layout.setSpacing(8)
 
         self.combo = ComboBox(self)
-        self.button = PushButton(FluentIcon.CODE, insert_button_text, self)
+        self.button = PushButton(FluentIcon.CODE, tr(insert_button_text), self)
         self.combo.setFixedHeight(32)
         self.combo.setMinimumWidth(112)
         self.button.setFixedHeight(30)
         self.button.setMinimumWidth(0)
 
         for label, (key, _template) in self._snippet_items.items():
-            self.combo.addItem(label, userData=key)
+            self.combo.addItem(tr(label), userData=key)
 
         try:
             self.combo.view().setVerticalScrollMode(self.combo.view().ScrollMode.ScrollPerPixel)

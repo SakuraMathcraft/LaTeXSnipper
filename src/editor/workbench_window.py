@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QUrl, Qt
+from PyQt6.QtCore import QUrl, QUrlQuery, Qt
 from PyQt6.QtGui import QGuiApplication, QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -12,37 +12,34 @@ from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PushB
 
 from editor.latex_snippet_panel import LaTeXSnippetPanel
 from editor.workbench_bridge import WorkbenchBridge
+from localization.manager import (
+    current_ui_language,
+    mark_for_translation,
+    translate as tr,
+)
 from runtime.app_paths import resource_path
 
 
 class WorkbenchWindow(QWidget):
     EXAMPLES = {
-        "分式计算": r"\frac{1}{3}+\frac{5}{12}",
-        "三角恒等式": r"\sin\left(\frac{\pi}{4}\right)^2+\cos\left(\frac{\pi}{4}\right)^2",
-        "多项式展开": r"(x+1)^3",
-        "因式分解": r"x^2-5x+6",
-        "方程求解": r"x^2-5x+6=0",
-        "求和开方": r"\sqrt{6\sum_{n=1}^{\infty} \frac{1}{n^2}}",
-        "导数": r"\frac{d}{dx}\left(x^3+3x^2+1\right)",
-        "定积分": r"\int_0^1 x^2\,dx",
-        "极限": r"\lim_{x\to 0}\frac{\sin x}{x}",
-        "广义积分": r"\int_0^{\infty} e^{-x}\,dx",
-        "几何级数": r"\sum_{n=0}^{\infty} \left(\frac{1}{2}\right)^n",
-        "无穷级数": r"\sum_{n=1}^{\infty} \frac{1}{n^2}",
-        "无穷乘积": r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)",
-        "Wallis 乘积": r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}",
-    }
-    COMPUTE_ACTIONS = {
-        "计算": "evaluate",
-        "化简": "simplify",
-        "数值化": "numeric",
-        "展开": "expand",
-        "因式分解": "factor",
-        "求解": "solve",
+        "fraction": (mark_for_translation("分式计算"), r"\frac{1}{3}+\frac{5}{12}"),
+        "trigonometry": (mark_for_translation("三角恒等式"), r"\sin\left(\frac{\pi}{4}\right)^2+\cos\left(\frac{\pi}{4}\right)^2"),
+        "polynomial": (mark_for_translation("多项式展开"), r"(x+1)^3"),
+        "factor": (mark_for_translation("因式分解"), r"x^2-5x+6"),
+        "equation": (mark_for_translation("方程求解"), r"x^2-5x+6=0"),
+        "sum_root": (mark_for_translation("求和开方"), r"\sqrt{6\sum_{n=1}^{\infty} \frac{1}{n^2}}"),
+        "derivative": (mark_for_translation("导数"), r"\frac{d}{dx}\left(x^3+3x^2+1\right)"),
+        "definite_integral": (mark_for_translation("定积分"), r"\int_0^1 x^2\,dx"),
+        "limit": (mark_for_translation("极限"), r"\lim_{x\to 0}\frac{\sin x}{x}"),
+        "improper_integral": (mark_for_translation("广义积分"), r"\int_0^{\infty} e^{-x}\,dx"),
+        "geometric_series": (mark_for_translation("几何级数"), r"\sum_{n=0}^{\infty} \left(\frac{1}{2}\right)^n"),
+        "infinite_series": (mark_for_translation("无穷级数"), r"\sum_{n=1}^{\infty} \frac{1}{n^2}"),
+        "infinite_product": (mark_for_translation("无穷乘积"), r"\prod_{n=1}^{\infty}\left(1-\frac{1}{2^n}\right)"),
+        "wallis_product": (mark_for_translation("Wallis 乘积"), r"\prod_{n=1}^{\infty}\frac{4n^2}{4n^2-1}"),
     }
     COPY_ACTIONS = {
-        "复制 LaTeX": "latex",
-        "复制 MathJSON": "mathjson",
+        "latex": mark_for_translation("复制 LaTeX"),
+        "mathjson": mark_for_translation("复制 MathJSON"),
     }
 
     def __init__(self, parent=None, on_insert_latex=None):
@@ -54,7 +51,7 @@ class WorkbenchWindow(QWidget):
         self._theme_is_dark_cached = None
         self._centered_once = False
 
-        self.setWindowTitle("数学工作台")
+        self.setWindowTitle(tr("数学工作台"))
         self.resize(1160, 700)
         self.setMinimumSize(1160, 700)
         try:
@@ -72,34 +69,34 @@ class WorkbenchWindow(QWidget):
 
         top_bar = QHBoxLayout()
         top_bar.setSpacing(8)
-        self.title_label = QLabel("工作台")
+        self.title_label = QLabel(tr("工作台"))
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
 
-        self.load_btn = PushButton(FluentIcon.FOLDER, "载入")
-        self.eval_btn = PushButton(FluentIcon.LABEL, "计算")
-        self.simplify_btn = PushButton(FluentIcon.PENCIL_INK, "化简")
-        self.numeric_btn = PushButton(FluentIcon.CALORIES, "数值化")
-        self.solve_btn = PushButton(FluentIcon.COMMAND_PROMPT, "求解")
-        self.expand_btn = PushButton(FluentIcon.ZOOM, "展开")
-        self.factor_btn = PushButton(FluentIcon.TILES, "因式分解")
+        self.load_btn = PushButton(FluentIcon.FOLDER, tr("载入"))
+        self.eval_btn = PushButton(FluentIcon.LABEL, tr("计算"))
+        self.simplify_btn = PushButton(FluentIcon.PENCIL_INK, tr("化简"))
+        self.numeric_btn = PushButton(FluentIcon.CALORIES, tr("数值化"))
+        self.solve_btn = PushButton(FluentIcon.COMMAND_PROMPT, tr("求解"))
+        self.expand_btn = PushButton(FluentIcon.ZOOM, tr("展开"))
+        self.factor_btn = PushButton(FluentIcon.TILES, tr("因式分解"))
         self.multiline_combo = ComboBox()
-        self.multiline_apply_btn = PushButton(FluentIcon.APPLICATION, "应用")
+        self.multiline_apply_btn = PushButton(FluentIcon.APPLICATION, tr("应用"))
         self.snippet_panel = LaTeXSnippetPanel(self, on_insert_key=self._insert_snippet_key)
         self.snippet_combo = self.snippet_panel.combo
         self.snippet_insert_btn = self.snippet_panel.button
         self.copy_combo = ComboBox()
-        self.copy_run_btn = PushButton(FluentIcon.PASTE, "复制")
-        self.insert_btn = PushButton(FluentIcon.FOLDER_ADD, "写回")
+        self.copy_run_btn = PushButton(FluentIcon.PASTE, tr("复制"))
+        self.insert_btn = PushButton(FluentIcon.FOLDER_ADD, tr("写回"))
         self.example_combo = ComboBox()
-        self.example_load_btn = PushButton(FluentIcon.CONNECT, "载入")
+        self.example_load_btn = PushButton(FluentIcon.CONNECT, tr("载入"))
         self.multiline_combo.addItem("displaylines", userData="displaylines")
         self.multiline_combo.addItem("multline", userData="multline")
         self.multiline_combo.addItem("align", userData="align")
-        for label, key in self.COPY_ACTIONS.items():
-            self.copy_combo.addItem(label, userData=key)
-        for name in self.EXAMPLES:
-            self.example_combo.addItem(name)
+        for key, label in self.COPY_ACTIONS.items():
+            self.copy_combo.addItem(tr(label), userData=key)
+        for key, (label, _latex) in self.EXAMPLES.items():
+            self.example_combo.addItem(tr(label), userData=key)
 
         for btn in (
             self.load_btn,
@@ -124,17 +121,17 @@ class WorkbenchWindow(QWidget):
         self.copy_combo.setFixedHeight(32)
         self.copy_combo.setMinimumWidth(126)
 
-        top_bar.addWidget(self._make_group_label("工作流"))
+        top_bar.addWidget(self._make_group_label(tr("工作流")))
         top_bar.addWidget(self.load_btn)
         top_bar.addWidget(self.insert_btn)
         top_bar.addWidget(self._make_group_divider())
-        top_bar.addWidget(self._make_group_label("基础运算"))
+        top_bar.addWidget(self._make_group_label(tr("基础运算")))
         top_bar.addWidget(self.eval_btn)
         top_bar.addWidget(self.simplify_btn)
         top_bar.addWidget(self.numeric_btn)
         top_bar.addWidget(self.solve_btn)
         top_bar.addWidget(self._make_group_divider())
-        top_bar.addWidget(self._make_group_label("排版"))
+        top_bar.addWidget(self._make_group_label(tr("排版")))
         top_bar.addWidget(self.multiline_combo)
         top_bar.addWidget(self.multiline_apply_btn)
         top_bar.addStretch()
@@ -142,18 +139,18 @@ class WorkbenchWindow(QWidget):
 
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(8)
-        bottom_bar.addWidget(self._make_group_label("进阶运算"))
+        bottom_bar.addWidget(self._make_group_label(tr("进阶运算")))
         bottom_bar.addWidget(self.expand_btn)
         bottom_bar.addWidget(self.factor_btn)
         bottom_bar.addWidget(self._make_group_divider())
-        bottom_bar.addWidget(self._make_group_label("快捷插入"))
+        bottom_bar.addWidget(self._make_group_label(tr("快捷插入")))
         bottom_bar.addWidget(self.snippet_panel)
         bottom_bar.addWidget(self._make_group_divider())
-        bottom_bar.addWidget(self._make_group_label("示例"))
+        bottom_bar.addWidget(self._make_group_label(tr("示例")))
         bottom_bar.addWidget(self.example_combo)
         bottom_bar.addWidget(self.example_load_btn)
         bottom_bar.addWidget(self._make_group_divider())
-        bottom_bar.addWidget(self._make_group_label("复制"))
+        bottom_bar.addWidget(self._make_group_label(tr("复制")))
         bottom_bar.addWidget(self.copy_combo)
         bottom_bar.addWidget(self.copy_run_btn)
         bottom_bar.addStretch()
@@ -165,9 +162,9 @@ class WorkbenchWindow(QWidget):
         footer = QHBoxLayout()
         footer.setSpacing(8)
         footer.setContentsMargins(0, 0, 0, 0)
-        self.status_caption = QLabel("状态")
+        self.status_caption = QLabel(tr("状态"))
         self.status_caption.setObjectName("workbenchStatusCaption")
-        self.status_label = QLabel("正在加载数学工作台...")
+        self.status_label = QLabel(tr("正在加载数学工作台..."))
         self.status_label.setObjectName("workbenchStatusText")
         self.status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         footer.addWidget(self.status_caption)
@@ -255,6 +252,9 @@ class WorkbenchWindow(QWidget):
 
     def _load_page(self) -> None:
         page_url = self._asset_url("assets/mathlive/index.html")
+        query = QUrlQuery()
+        query.addQueryItem("lang", current_ui_language())
+        page_url.setQuery(query)
         self.web_view.setUrl(page_url)
 
     def apply_theme_styles(self, force: bool = False) -> None:
@@ -269,7 +269,9 @@ class WorkbenchWindow(QWidget):
         try:
             self.web_view.page().runJavaScript(code)
         except Exception as e:
-            self._set_status(f"工作台脚本调用失败: {e}")
+            self._set_status(
+                tr("工作台脚本调用失败: {message}").format(message=e)
+            )
 
     def _json_arg(self, value: str) -> str:
         return json.dumps(value or "", ensure_ascii=False)
@@ -284,38 +286,26 @@ class WorkbenchWindow(QWidget):
 
     def _on_editor_ready(self, _ready: bool) -> None:
         self.apply_theme_styles(force=True)
-        self._set_status("已就绪")
+        self._set_status(tr("已就绪"))
         if self._pending_latex:
             self.set_latex(self._pending_latex)
 
     def _set_status(self, text: str) -> None:
         self.status_label.setText(text or "")
 
-    def _on_bridge_status(self, text: str) -> None:
+    def _on_bridge_status(self, level: str, text: str) -> None:
         message = (text or "").strip()
         self._set_status(message)
-        if not message or message in {"正在编辑", "已就绪"}:
+        if not message or not level:
             return
-        if message.startswith("提示:"):
-            self.show_info("当前无内容", message.removeprefix("提示:").strip())
+        if level == "info":
+            self.show_info(tr("提示"), message)
             return
-        lowered = message.lower()
-        if "失败" in message or "未定义" in message or "无法" in message or "error" in lowered:
-            self.show_error("操作失败", message)
+        if level == "error":
+            self.show_error(tr("操作失败"), message)
             return
-        success_prefixes = (
-            "计算完成",
-            "化简完成",
-            "数值化完成",
-            "展开完成",
-            "因式分解完成",
-            "求解完成",
-            "已复制",
-            "已载入",
-            "已写回",
-        )
-        if message.startswith(success_prefixes):
-            self.show_success("操作完成", message)
+        if level == "success":
+            self.show_success(tr("操作完成"), message)
 
     def _emit_insert_request(self, latex: str) -> None:
         if not callable(self._on_insert_latex):
@@ -323,13 +313,16 @@ class WorkbenchWindow(QWidget):
         self._on_insert_latex(latex)
 
     def _load_selected_example(self) -> None:
-        key = self.example_combo.currentText().strip()
-        latex = self.EXAMPLES.get(key, "")
+        key = str(self.example_combo.currentData() or "").strip()
+        label, latex = self.EXAMPLES.get(key, ("", ""))
         if not latex:
-            self.show_error("载入失败", "当前示例不存在或内容为空")
+            self.show_error(tr("载入失败"), tr("当前示例不存在或内容为空"))
             return
         self.set_latex(latex)
-        self.show_success("示例已载入", f"已载入示例：{key}")
+        self.show_success(
+            tr("示例已载入"),
+            tr("已载入示例：{name}").format(name=tr(label)),
+        )
 
     def _apply_multiline_layout(self) -> None:
         kind = self.multiline_combo.currentData() or self.multiline_combo.currentText().strip() or "displaylines"
@@ -350,7 +343,7 @@ class WorkbenchWindow(QWidget):
         }
         code = js_map.get(action)
         if not code:
-            self.show_error("执行失败", "当前运算动作不可用")
+            self.show_error(tr("执行失败"), tr("当前运算动作不可用"))
             return
         self._run_js(code)
 
@@ -362,7 +355,7 @@ class WorkbenchWindow(QWidget):
         }
         code = js_map.get(action)
         if not code:
-            self.show_error("复制失败", "当前复制动作不可用")
+            self.show_error(tr("复制失败"), tr("当前复制动作不可用"))
             return
         self._run_js(code)
 

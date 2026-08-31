@@ -7,6 +7,7 @@ import sys
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QSystemTrayIcon
 
+from localization.manager import translate as tr
 from platform_services import TrayMenuHandlers
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 
@@ -14,7 +15,11 @@ from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 class TrayControllerMixin:
     def connect_tray_activation(self):
         tray = getattr(self, "tray_icon", None)
-        if sys.platform == "darwin" or not tray or getattr(self, "_tray_activation_connected", False):
+        if (
+            sys.platform == "darwin"
+            or not tray
+            or getattr(self, "_tray_activation_connected", False)
+        ):
             return
 
         def _on_tray_activated(reason):
@@ -32,14 +37,26 @@ class TrayControllerMixin:
         mode = self._get_capture_display_mode()
         if mode == "index":
             idx = self._get_capture_display_index()
-            disp = f"屏幕{idx + 1}" if idx is not None else "指定屏幕"
+            disp = (
+                tr("屏幕 {index}").format(index=idx + 1)
+                if idx is not None
+                else tr("指定屏幕")
+            )
         else:
-            disp = "自动选择屏幕"
+            disp = tr("自动选择屏幕")
         if getattr(self, "tray_icon", None):
-            self.system_provider.set_tray_tooltip(self.tray_icon, f"LaTeXSnipper - 截图识别快捷键: {hk} | {disp}")
+            self.system_provider.set_tray_tooltip(
+                self.tray_icon,
+                tr("LaTeXSnipper - 截图识别快捷键: {hotkey} | {display}").format(
+                    hotkey=hk,
+                    display=disp,
+                ),
+            )
 
     def _get_capture_display_mode(self) -> str:
-        mode = str(self.cfg.get("capture_display_mode", "auto") or "auto").strip().lower()
+        mode = (
+            str(self.cfg.get("capture_display_mode", "auto") or "auto").strip().lower()
+        )
         return mode if mode in ("auto", "index") else "auto"
 
     def _get_capture_display_index(self) -> int | None:
@@ -62,29 +79,42 @@ class TrayControllerMixin:
         self.update_tray_tooltip()
         self.update_tray_menu()
         if m == "auto":
-            self.set_action_status("识别屏幕：自动选择")
+            self.set_action_status(tr("识别屏幕：自动选择"))
         else:
             idx = self._get_capture_display_index() or 0
-            self.set_action_status(f"识别屏幕：屏幕 {idx + 1}")
+            self.set_action_status(tr("识别屏幕：屏幕 {index}").format(index=idx + 1))
 
     def _build_capture_display_submenu(self, tray_menu):
-        submenu = tray_menu.addMenu("识别屏幕")
+        submenu = tray_menu.addMenu(tr("识别屏幕"))
         mode = self._get_capture_display_mode()
         idx = self._get_capture_display_index() or 0
 
-        act_auto = submenu.addAction("自动选择")
+        act_auto = submenu.addAction(tr("自动选择"))
         act_auto.setCheckable(True)
         act_auto.setChecked(mode == "auto")
-        act_auto.triggered.connect(lambda _=False: self._set_capture_display_mode("auto"))
+        act_auto.triggered.connect(
+            lambda _=False: self._set_capture_display_mode("auto")
+        )
 
         screens = QGuiApplication.screens()
         for i, screen in enumerate(screens):
             g = screen.geometry()
-            title = f"屏幕 {i + 1}: {screen.name()} ({g.width()}x{g.height()} @ {g.x()},{g.y()})"
+            title = tr("屏幕 {index}: {name} ({width}x{height} @ {x},{y})").format(
+                index=i + 1,
+                name=screen.name(),
+                width=g.width(),
+                height=g.height(),
+                x=g.x(),
+                y=g.y(),
+            )
             act = submenu.addAction(title)
             act.setCheckable(True)
             act.setChecked(mode == "index" and idx == i)
-            act.triggered.connect(lambda _=False, screen_idx=i: self._set_capture_display_mode("index", screen_idx))
+            act.triggered.connect(
+                lambda _=False, screen_idx=i: self._set_capture_display_mode(
+                    "index", screen_idx
+                )
+            )
 
     def update_tray_menu(self):
         hk = display_hotkey(

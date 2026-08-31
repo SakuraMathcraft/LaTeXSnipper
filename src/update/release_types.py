@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import requests
 
+from localization.manager import translate as tr
 from runtime.distribution import APP_VERSION
 
 _API_RELEASES = "https://api.github.com/repos/SakuraMathcraft/LaTeXSnipper/releases"
@@ -75,22 +76,22 @@ def _normalize_sha256(value: object) -> str:
 
 def _brief_error_message(err: object, *, context: str = "update") -> str:
     if isinstance(err, requests.exceptions.Timeout):
-        return "连接 GitHub 超时，请检查网络或代理后重试。"
+        return tr("连接 GitHub 超时，请检查网络或代理后重试。")
     if isinstance(err, requests.exceptions.SSLError):
-        return "TLS 证书校验失败，请检查系统证书、代理或安全软件设置。"
+        return tr("TLS 证书校验失败，请检查系统证书、代理或安全软件设置。")
     if isinstance(err, requests.exceptions.ConnectionError):
-        return "无法连接 GitHub，请检查网络、代理或 DNS 设置。"
+        return tr("无法连接 GitHub，请检查网络、代理或 DNS 设置。")
     if isinstance(err, requests.exceptions.HTTPError):
         resp = getattr(err, "response", None)
         code = getattr(resp, "status_code", None)
         if code == 403:
-            return "GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。"
+            return tr("GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。")
         if code == 404:
-            return "未找到可用的 GitHub Release，请确认发布页已创建。"
+            return tr("未找到可用的 GitHub Release，请确认发布页已创建。")
         if code:
-            return f"GitHub API 返回 HTTP {code}，请稍后重试。"
+            return tr("GitHub API 返回 HTTP {code}，请稍后重试。").format(code=code)
     raw = " ".join(str(err or "").replace("\r", " ").replace("\n", " ").split())
     if not raw:
-        return "更新请求失败，请检查网络后重试。"
+        return tr("更新请求失败，请检查网络后重试。")
     limit = 120 if context == "download" else 96
     return raw if len(raw) <= limit else raw[: limit - 3] + "..."

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import mark_for_translation, translate as tr
+
 from collections.abc import Callable
 import sys
 
@@ -13,6 +15,15 @@ from preview.math_preview import dialog_theme_tokens, is_dark_ui
 from runtime.hotkey_config import hotkey_help_text
 from ui.window_helpers import apply_close_only_window_flags
 
+_HOTKEY_HELP_TRANSLATION_SOURCES = (
+    mark_for_translation("Ctrl+字母 或 Ctrl+Shift+字母"),
+    mark_for_translation("Command/Option/Shift + 字母"),
+)
+
+
+def localized_hotkey_help_text(platform: str | None = None) -> str:
+    return tr(hotkey_help_text(platform))
+
 
 def create_hotkey_dialog(
     parent,
@@ -22,7 +33,7 @@ def create_hotkey_dialog(
 ) -> QDialog:
     dlg = QDialog(parent)
     apply_close_only_window_flags(dlg)
-    dlg.setWindowTitle("设置快捷键")
+    dlg.setWindowTitle(tr("设置快捷键"))
     dlg.setFixedSize(300, 148)
     dlg.setModal(False)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -34,9 +45,13 @@ def create_hotkey_dialog(
     lay.setContentsMargins(14, 12, 14, 12)
     lay.setSpacing(6)
 
-    current_label = QLabel(f"当前快捷键：{current_hotkey}")
+    current_label = QLabel(tr("当前快捷键：{hotkey}").format(hotkey=current_hotkey))
     current_label.setStyleSheet(f"color: {t['text']}; font-weight: 600;")
-    hint_label = QLabel(f"按下新的：{hotkey_help_text(sys.platform)}")
+    hint_label = QLabel(
+        tr("按下新的：{format}").format(
+            format=localized_hotkey_help_text(sys.platform)
+        )
+    )
     hint_label.setStyleSheet(f"color: {t['muted']};")
     lay.addWidget(current_label)
     lay.addWidget(hint_label)
@@ -48,13 +63,13 @@ def create_hotkey_dialog(
     edit.setStyleSheet(
         f"""
 QLineEdit {{
-    background: {t['panel_bg']};
-    color: {t['text']};
-    border: 1px solid {t['border']};
+    background: {t["panel_bg"]};
+    color: {t["text"]};
+    border: 1px solid {t["border"]};
     border-radius: 6px;
     padding: 4px 8px;
     selection-background-color: {"#3b4756" if is_dark_ui() else "#d7e3f1"};
-    selection-color: {t['text']};
+    selection-color: {t["text"]};
 }}
 QLineEdit:focus {{
     border: 1px solid {"#66788a" if is_dark_ui() else "#9aa9bb"};
@@ -113,7 +128,7 @@ QLineEdit:focus {{
     lay.addWidget(edit)
     lay.addSpacing(8)
 
-    btn = PushButton(FluentIcon.ACCEPT, "确定")
+    btn = PushButton(FluentIcon.ACCEPT, tr("确定"))
     btn.setFixedHeight(32)
     btn.clicked.connect(lambda: on_confirm(edit.text().strip(), dlg))
     lay.addWidget(btn)

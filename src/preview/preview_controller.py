@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from rendering.latex import get_document_render_mode, get_latex_renderer
@@ -144,7 +145,7 @@ class PreviewControllerMixin:
         editor_text = self.latex_editor.toPlainText().strip()
         existing_formulas = [f for f, _, _ in self._rendered_formulas]
         if editor_text and editor_text not in existing_formulas:
-            all_items.append((editor_text, "编辑中", self._editor_preview_content_type))
+            all_items.append((editor_text, tr("编辑中"), self._editor_preview_content_type))
 
         all_items.extend(self._rendered_formulas)
 
@@ -184,4 +185,4 @@ class PreviewControllerMixin:
         """Clear all formulas from the preview area."""
         self._rendered_formulas = []
         self._refresh_preview()
-        self.set_action_status("已清空预览")
+        self.set_action_status(tr("已清空预览"))

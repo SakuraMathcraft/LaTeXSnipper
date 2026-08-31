@@ -1,5 +1,7 @@
 import { routeMathfieldNavigationKey } from './mathfield-keyboard.js';
 
+const t = window.lsnI18n?.t || ((source) => source);
+
 let bridge = null;
 let mathfield = null;
 let resultView = null;
@@ -39,14 +41,14 @@ function setRenderedResult(latex, detail = '') {
   resultOutput.textContent = detail || '';
 }
 
-function normalizeComputeError(err, fallback = '计算失败') {
+function normalizeComputeError(err, fallback = t('计算失败')) {
   const message = String(err ?? '').trim();
   if (!message) return fallback;
-  if (message.includes('Timeout exceeded')) return '前端计算引擎无法完成当前表达式';
-  if (message.includes('Nothing')) return '表达式当前无法得到可用结果';
-  if (message.includes('unexpected') || message.includes('parse')) return `公式解析失败：${message}`;
-  if (message.includes('undefined')) return `表达式未定义：${message}`;
-  return `${fallback}：${message}`;
+  if (message.includes('Timeout exceeded')) return t('前端计算引擎无法完成当前表达式');
+  if (message.includes('Nothing')) return t('表达式当前无法得到可用结果');
+  if (message.includes('unexpected') || message.includes('parse')) return t('公式解析失败：{message}', { message });
+  if (message.includes('undefined')) return t('表达式未定义：{message}', { message });
+  return t('{fallback}：{message}', { fallback, message });
 }
 
 function inferSolveVariable(latex) {
@@ -103,7 +105,7 @@ function decorateAlignSegment(segment) {
 function applyMultilineLayout(kind = 'displaylines') {
   const latex = currentLatex();
   if (!latex) {
-    setStatus('请先输入公式，再应用多行排版');
+    setStatus(t('请先输入公式，再应用多行排版'), 'info');
     return;
   }
   const normalizedLatex = unwrapMultilineLatex(latex);
@@ -117,7 +119,7 @@ function applyMultilineLayout(kind = 'displaylines') {
     wrapped = `\\displaylines{${lines.join(' \\\\ ')}}`;
   }
   setLatex(wrapped);
-  setStatus(`已应用 ${kind} 多行排版`);
+  setStatus(t('已应用 {kind} 多行排版', { kind }), 'success');
 }
 
 function insertSnippet(kind = '') {
@@ -135,26 +137,26 @@ function insertSnippet(kind = '') {
   };
   const template = map[String(kind || '').trim()];
   if (!template) {
-    setStatus('当前快捷插入模板不可用');
+    setStatus(t('当前快捷插入模板不可用'), 'error');
     return;
   }
   try {
     mathfield.insert(template, { format: 'latex' });
     mathfield.focus();
     syncOutputs();
-    setStatus('已插入快捷模板');
+    setStatus(t('已插入快捷模板'), 'success');
   } catch (err) {
-    setStatus(`快捷插入失败：${String(err)}`);
+    setStatus(t('快捷插入失败：{message}', { message: String(err) }), 'error');
   }
 }
 
-function currentExpression(actionLabel = '计算') {
+function currentExpression(actionLabel = t('计算')) {
   if (!ce || !mathfield) {
-    throw new Error('计算引擎尚未就绪');
+    throw new Error(t('计算引擎尚未就绪'));
   }
   const latex = currentLatex();
   if (!latex) {
-    throw new Error(`请先输入公式，再执行${actionLabel}`);
+    throw new Error(t('请先输入公式，再执行{action}', { action: actionLabel }));
   }
   return { latex, expr: ce.parse(latex) };
 }
@@ -197,7 +199,7 @@ function installClipboardBridge() {
             bridge.readClipboardText((text) => resolve(String(text ?? '')));
             return;
           }
-          reject(new Error('剪贴板读取接口不可用'));
+          reject(new Error(t('剪贴板读取接口不可用')));
         } catch (err) {
           reject(err);
         }
@@ -209,14 +211,14 @@ function installClipboardBridge() {
           if (typeof bridge.writeClipboardText === 'function') {
             bridge.writeClipboardText(String(text ?? ''), (ok) => {
               if (ok === false) {
-                reject(new Error('剪贴板写入失败'));
+                reject(new Error(t('剪贴板写入失败')));
               } else {
                 resolve();
               }
             });
             return;
           }
-          reject(new Error('剪贴板写入接口不可用'));
+          reject(new Error(t('剪贴板写入接口不可用')));
         } catch (err) {
           reject(err);
         }
@@ -372,8 +374,8 @@ function formatMathJsonNode(node, level = 0) {
   return JSON.stringify(String(node));
 }
 
-function setStatus(text) {
-  bridge?.onComputeError?.(text || '');
+function setStatus(text, level = '') {
+  bridge?.onStatus?.(level || '', text || '');
 }
 
 function syncOutputs() {
@@ -392,8 +394,8 @@ function syncOutputs() {
       mathjsonOutput.title = mathJsonFormatted;
       bridge?.onMathJsonChanged?.(mathJsonFormatted);
     } else {
-      mathJsonFormatted = '计算引擎尚未就绪';
-      mathjsonOutput.textContent = '计算引擎尚未就绪';
+      mathJsonFormatted = t('计算引擎尚未就绪');
+      mathjsonOutput.textContent = t('计算引擎尚未就绪');
       mathjsonOutput.title = '';
     }
   } catch (err) {
@@ -406,101 +408,101 @@ function syncOutputs() {
 
 async function evaluateExpression() {
   try {
-    const { expr } = currentExpression('计算');
+    const { expr } = currentExpression(t('计算'));
     const result = await expr.evaluateAsync();
     if (isEmptyResult(result)) {
-      throw new Error('表达式当前没有可显示的计算结果');
+      throw new Error(t('表达式当前没有可显示的计算结果'));
     }
     const rendered = extractResultLatex(result);
-    setRenderedResult(rendered, '已完成符号计算。');
+    setRenderedResult(rendered, t('已完成符号计算。'));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('计算完成');
+    setStatus(t('计算完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '计算失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('计算失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
 async function simplifyExpression() {
   try {
-    const { expr } = currentExpression('化简');
+    const { expr } = currentExpression(t('化简'));
     const result = expr.simplify();
     const rendered = extractResultLatex(result);
     if (isEmptyResult(result)) {
-      throw new Error('当前公式无法进一步化简');
+      throw new Error(t('当前公式无法进一步化简'));
     }
-    setRenderedResult(rendered, '已完成公式化简。');
+    setRenderedResult(rendered, t('已完成公式化简。'));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('化简完成');
+    setStatus(t('化简完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '化简失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('化简失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
 async function numericEvaluate() {
   try {
-    const { expr } = currentExpression('数值化');
+    const { expr } = currentExpression(t('数值化'));
     const result = expr.N();
     if (isEmptyResult(result)) {
-      throw new Error('当前公式无法数值化');
+      throw new Error(t('当前公式无法数值化'));
     }
     const rendered = extractResultLatex(result);
-    setRenderedResult(rendered, '已完成数值化计算。');
+    setRenderedResult(rendered, t('已完成数值化计算。'));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('数值化完成');
+    setStatus(t('数值化完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '数值化失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('数值化失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
 async function expandExpression() {
   try {
-    const { expr } = currentExpression('展开');
+    const { expr } = currentExpression(t('展开'));
     const result = typeof expr.expand === 'function'
       ? expr.expand()
       : computeHelpers.expand?.(expr) ?? null;
     if (!result || isEmptyResult(result)) {
-      throw new Error('当前公式无法展开');
+      throw new Error(t('当前公式无法展开'));
     }
     const rendered = extractResultLatex(result);
-    setRenderedResult(rendered, '已完成公式展开。');
+    setRenderedResult(rendered, t('已完成公式展开。'));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('展开完成');
+    setStatus(t('展开完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '展开失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('展开失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
 async function factorExpression() {
   try {
-    const { expr } = currentExpression('因式分解');
+    const { expr } = currentExpression(t('因式分解'));
     const result = typeof expr.factor === 'function'
       ? expr.factor()
       : computeHelpers.factor?.(expr) ?? null;
     if (!result || isEmptyResult(result)) {
-      throw new Error('当前公式无法做因式分解');
+      throw new Error(t('当前公式无法做因式分解'));
     }
     const rendered = extractResultLatex(result);
-    setRenderedResult(rendered, '已完成因式分解。');
+    setRenderedResult(rendered, t('已完成因式分解。'));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('因式分解完成');
+    setStatus(t('因式分解完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '因式分解失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('因式分解失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
 async function solveExpression() {
   try {
-    const { latex, expr } = currentExpression('求解');
+    const { latex, expr } = currentExpression(t('求解'));
     const variable = inferSolveVariable(latex);
     let result = null;
     if (typeof expr.solve === 'function') {
@@ -509,20 +511,20 @@ async function solveExpression() {
       result = computeHelpers.solve(expr, variable);
     }
     if (!result || isEmptyResult(result)) {
-      throw new Error(`未找到关于 ${variable} 的可用解`);
+      throw new Error(t('未找到关于 {variable} 的可用解', { variable }));
     }
     const rendered = Array.isArray(result)
       ? result
           .map((item) => `${variable} = ${item?.latex ?? String(item)}`)
           .join(',\\;')
       : extractResultLatex(result);
-    setRenderedResult(rendered, `已尝试对 ${variable} 求解。`);
+    setRenderedResult(rendered, t('已尝试对 {variable} 求解。', { variable }));
     bridge?.onEvaluationResult?.(rendered);
-    setStatus('求解完成');
+    setStatus(t('求解完成'), 'success');
   } catch (err) {
     clearRenderedResult();
-    resultOutput.textContent = normalizeComputeError(err, '求解失败');
-    setStatus(resultOutput.textContent);
+    resultOutput.textContent = normalizeComputeError(err, t('求解失败'));
+    setStatus(resultOutput.textContent, 'error');
   }
 }
 
@@ -539,7 +541,7 @@ function copyLatex() {
     return;
   }
   navigator.clipboard?.writeText(text);
-  setStatus('已复制 LaTeX');
+  setStatus(t('已复制 LaTeX'), 'success');
 }
 
 function copyMathJson() {
@@ -549,7 +551,7 @@ function copyMathJson() {
     return;
   }
   navigator.clipboard?.writeText(text);
-  setStatus('已复制 MathJSON');
+  setStatus(t('已复制 MathJSON'), 'success');
 }
 
 function insertToMain() {
@@ -627,8 +629,8 @@ async function bootstrap() {
     mathfield.addEventListener('input', () => {
       syncOutputs();
       clearRenderedResult();
-      resultOutput.textContent = '等待执行计算、化简、数值化或求解。';
-      setStatus('正在编辑');
+      resultOutput.textContent = t('等待执行计算、化简、数值化或求解。');
+      setStatus(t('正在编辑'));
       syncKeyboardState();
     });
     mathfield.addEventListener('keydown', handleMathfieldKeydown, true);
@@ -641,10 +643,10 @@ async function bootstrap() {
     document.body.classList.add('editor-empty');
     document.body.classList.add('workspace-empty');
     document.body.classList.add('result-empty');
-    resultOutput.textContent = '等待执行计算、化简、数值化或求解。';
+    resultOutput.textContent = t('等待执行计算、化简、数值化或求解。');
     bridge?.onEditorReady?.();
   } catch (err) {
-    setStatus(`数学工作台加载失败：${String(err)}`);
+    setStatus(t('数学工作台加载失败：{message}', { message: String(err) }), 'error');
     resultOutput.textContent = String(err);
   }
 }

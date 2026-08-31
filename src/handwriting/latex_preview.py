@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import re
 
+from localization.manager import translate as tr
 from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
 
 
@@ -46,7 +47,11 @@ def build_handwriting_preview_html(text: str, output_mode: str = "latex") -> str
 
 def _build_markdown_math_html(content: str) -> str:
     tokens = preview_theme_tokens()
-    body = _render_markdown_math_content(content) if content else '<div class="empty">写完后会在这里看到预览</div>'
+    body = (
+        _render_markdown_math_content(content)
+        if content
+        else f'<div class="empty">{html.escape(tr("写完后会在这里看到预览"))}</div>'
+    )
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -135,7 +140,7 @@ def _render_markdown_math_content(content: str) -> str:
 
 def _build_plain_text_html(content: str) -> str:
     tokens = preview_theme_tokens()
-    body = html.escape(content) if content else "写完后会在这里看到预览"
+    body = html.escape(content) if content else html.escape(tr("写完后会在这里看到预览"))
     return f"""<!DOCTYPE html>
 <html>
 <head>

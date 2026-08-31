@@ -5,13 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import QApplication
 
 APP_DIR: Path | None = None
 
 MATHJAX_CDN_URL = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
-MATHJAX_CDN_URL_BACKUP = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
+MATHJAX_CDN_URL_BACKUP = (
+    "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
+)
 
 _MATHJAX_LOGGED_KEYS: set[str] = set()
 
@@ -140,22 +143,22 @@ def preview_scrollbar_css(tokens: dict) -> str:
     return f"""
 html {{
   color-scheme: {scheme};
-  scrollbar-color: {tokens['scrollbar_thumb']} {tokens['scrollbar_track']};
+  scrollbar-color: {tokens["scrollbar_thumb"]} {tokens["scrollbar_track"]};
 }}
 ::-webkit-scrollbar {{
   width: 10px;
   height: 10px;
-  background: {tokens['scrollbar_track']};
+  background: {tokens["scrollbar_track"]};
 }}
 ::-webkit-scrollbar-thumb {{
-  background: {tokens['scrollbar_thumb']};
+  background: {tokens["scrollbar_thumb"]};
   border-radius: 0;
 }}
 ::-webkit-scrollbar-thumb:hover {{
-  background: {tokens['scrollbar_thumb_hover']};
+  background: {tokens["scrollbar_thumb_hover"]};
 }}
 ::-webkit-scrollbar-corner {{
-  background: {tokens['scrollbar_track']};
+  background: {tokens["scrollbar_track"]};
 }}
 """
 
@@ -359,7 +362,11 @@ def get_mathjax_base_url() -> QUrl:
         else:
             local_key = f"local:{source_desc}:{url_str}"
             if local_key not in _MATHJAX_LOGGED_KEYS:
-                label = "使用本地资源" if source_desc == "本地资源" else f"使用本地资源({source_desc})"
+                label = (
+                    "使用本地资源"
+                    if source_desc == "本地资源"
+                    else f"使用本地资源({source_desc})"
+                )
                 print(f"[DEBUG] MathJax {label}: {url_str}")
                 _MATHJAX_LOGGED_KEYS.add(local_key)
 
@@ -372,7 +379,9 @@ def get_mathjax_base_url() -> QUrl:
         return QUrl.fromLocalFile("/")
 
 
-def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False) -> str:
+def build_math_html(
+    latex_or_list, labels=None, *, center_viewport: bool = False
+) -> str:
     """Build MathJax rendering HTML for a single formula or a formula list."""
     try:
         if isinstance(latex_or_list, str):
@@ -391,13 +400,18 @@ def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False
             formula_html += f'<div class="math-container">{label_html}<div class="formula-content">$${latex}$$</div></div>\n'
 
         if not formula_html:
-            formula_html = f'<div class="math-container" style="color:{tokens["muted_text"]};">无公式</div>'
+            formula_html = (
+                f'<div class="math-container" style="color:{tokens["muted_text"]};">'
+                f'{tr("无公式")}</div>'
+            )
 
         mode = _current_render_mode()
         log_local_fallback = mode in ("auto", "mathjax_local")
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
-            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(log_local_fallback=log_local_fallback),
+            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(
+                log_local_fallback=log_local_fallback
+            ),
             "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
             "__SCROLLBAR_CSS__": preview_scrollbar_css(tokens),
             "__BODY_BG__": tokens["body_bg"],
@@ -416,10 +430,13 @@ def build_math_html(latex_or_list, labels=None, *, center_viewport: bool = False
 
         traceback.print_exc()
         tokens = preview_theme_tokens()
-        return f'''<!DOCTYPE html>
+        title = tr("公式渲染出错")
+        error_label = tr("错误信息:")
+        hint = tr("请检查 MathJax 资源是否正确打包")
+        return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
-<body style="color: {tokens['error_text']}; background: {tokens['body_bg']}; padding: 20px; font-family: sans-serif;">
-<h3>公式渲染出错</h3>
-<p><strong>错误信息:</strong> {str(exc)}</p>
-<p>请检查 MathJax 资源是否正确打包</p>
-</body></html>'''
+<body style="color: {tokens["error_text"]}; background: {tokens["body_bg"]}; padding: 20px; font-family: sans-serif;">
+<h3>{title}</h3>
+<p><strong>{error_label}</strong> {str(exc)}</p>
+<p>{hint}</p>
+</body></html>"""
