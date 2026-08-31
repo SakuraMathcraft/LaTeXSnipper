@@ -4,6 +4,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from localization.manager import translate as tr
 from runtime.dependency_runtime import iter_python_candidates
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 from ui.settings_dialog_helpers import (
@@ -217,12 +218,12 @@ class SettingsMathCraftMixin:
 
     def _apply_compute_mode_from_info(self, info: dict, pyexe: str) -> bool:
         if not pyexe or not os.path.exists(pyexe):
-            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            self._set_compute_mode_text(tr("⚪ 计算模式未知"), "unknown")
             return True
         if not isinstance(info, dict) or not info:
             return False
         if not info.get("present"):
-            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            self._set_compute_mode_text(tr("⚪ 计算模式未知"), "unknown")
             return True
         gpu_active = str(info.get("device") or "").strip().lower() == "gpu"
         device_name = (
@@ -232,14 +233,18 @@ class SettingsMathCraftMixin:
         )
         if gpu_active:
             if device_name:
-                self._set_compute_mode_text(f"🟢 GPU 模式: {device_name}", "gpu")
+                self._set_compute_mode_text(
+                    tr("🟢 GPU 模式: {device}").format(device=device_name), "gpu"
+                )
             else:
-                self._set_compute_mode_text("🟢 GPU 模式", "gpu")
+                self._set_compute_mode_text(tr("🟢 GPU 模式"), "gpu")
             return True
         if device_name:
-            self._set_compute_mode_text(f"🟡 CPU 模式: {device_name}", "cpu")
+            self._set_compute_mode_text(
+                tr("🟡 CPU 模式: {device}").format(device=device_name), "cpu"
+            )
         else:
-            self._set_compute_mode_text("🟡 CPU 模式", "cpu")
+            self._set_compute_mode_text(tr("🟡 CPU 模式"), "cpu")
         return True
 
     def _on_compute_mode_probe_done(self, info: object, pyexe: str) -> None:
@@ -262,7 +267,7 @@ class SettingsMathCraftMixin:
     def _schedule_compute_mode_probe(self, force: bool = False) -> None:
         pyexe = self._resolve_dynamic_main_pyexe()
         if not pyexe or not os.path.exists(pyexe):
-            self._set_compute_mode_text("⚪ 计算模式未知", "unknown")
+            self._set_compute_mode_text(tr("⚪ 计算模式未知"), "unknown")
             return
 
         active_info = self._active_mathcraft_provider_info()
@@ -282,7 +287,7 @@ class SettingsMathCraftMixin:
         if self._compute_mode_probe_running and not force:
             return
 
-        self._set_compute_mode_text("⚪ 计算模式检测中...", "unknown")
+        self._set_compute_mode_text(tr("⚪ 计算模式检测中..."), "unknown")
 
         self._compute_mode_probe_running = True
 

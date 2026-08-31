@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import pyperclip
 from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
@@ -32,16 +34,18 @@ class HistoryControllerMixin:
             return
         latex = self._safe_row_text(row)
         m = CenterMenu(parent=self)
-        m.addAction(Action("编辑", triggered=lambda: self._edit_history_row(row)))
-        m.addAction(Action("复制", triggered=lambda: self._do_copy_row(row)))
-        m.addAction(Action("收藏", triggered=lambda: self._do_fav_row(row)))
+        m.addAction(Action(tr("编辑"), triggered=lambda: self._edit_history_row(row)))
+        m.addAction(Action(tr("复制"), triggered=lambda: self._do_copy_row(row)))
+        m.addAction(Action(tr("收藏"), triggered=lambda: self._do_fav_row(row)))
 
-        export_menu = CenterMenu("导出为...", parent=m)
-        populate_formula_export_menu(export_menu, lambda format_type: self._export_as(format_type, latex))
+        export_menu = CenterMenu(tr("导出为..."), parent=m)
+        populate_formula_export_menu(
+            export_menu, lambda format_type: self._export_as(format_type, latex)
+        )
         m.addMenu(export_menu)
 
-        m.addAction(Action("重命名", triggered=lambda: self._rename_history_row(row)))
-        m.addAction(Action("删除", triggered=lambda: self._do_delete_row(row)))
+        m.addAction(Action(tr("重命名"), triggered=lambda: self._rename_history_row(row)))
+        m.addAction(Action(tr("删除"), triggered=lambda: self._do_delete_row(row)))
         m.exec(global_pos)
 
     def _rename_history_row(self, row: QWidget):
@@ -53,8 +57,8 @@ class HistoryControllerMixin:
         new_name, ok = _show_formula_rename_dialog(
             self,
             current_name=current_name,
-            title="重命名公式",
-            prompt="输入公式名称：",
+            title=tr("重命名公式"),
+            prompt=tr("输入公式名称："),
         )
         if not ok:
             return
@@ -66,16 +70,11 @@ class HistoryControllerMixin:
                 self.favorites_window.refresh_list()
         else:
             self._formula_names.pop(latex, None)
-            if (
-                hasattr(self, "favorites_window")
-                and self.favorites_window
-            ):
+            if hasattr(self, "favorites_window") and self.favorites_window:
                 self.favorites_window._favorite_names.pop(latex, None)
                 self.favorites_window.save_favorites()
                 self.favorites_window.refresh_list()
         self.save_history()
-
-
 
         for i, (formula, label, content_type) in enumerate(self._rendered_formulas):
             if formula == latex:
@@ -89,10 +88,11 @@ class HistoryControllerMixin:
                     new_label = prefix
                 self._rendered_formulas[i] = (formula, new_label, content_type)
 
-
         self.rebuild_history_ui()
         self._refresh_preview()
-        self.set_action_status(f"已命名: {new_name}" if new_name else "已清除名称")
+        self.set_action_status(
+            tr("已命名: {name}").format(name=new_name) if new_name else tr("已清除名称")
+        )
 
     def _history_row_index(self, row: QWidget):
         actual_index = getattr(row, "_history_index", None)
@@ -116,12 +116,10 @@ class HistoryControllerMixin:
         if not new_latex or new_latex == old_latex:
             return
 
-
         if old_latex in self._formula_names:
             self._formula_names[new_latex] = self._formula_names.pop(old_latex)
         if old_latex in self._formula_types:
             self._formula_types[new_latex] = self._formula_types.pop(old_latex)
-
 
         row._latex_text = new_latex
         lbl = getattr(row, "_content_label", None)
@@ -137,16 +135,17 @@ class HistoryControllerMixin:
             except Exception as e:
                 print("[WARN] 保存历史失败:", e)
 
-
         for i, (formula, label, content_type) in enumerate(self._rendered_formulas):
             if formula == old_latex:
                 self._rendered_formulas[i] = (new_latex, label, content_type)
         self._refresh_preview()
 
-        self.set_action_status("已更新")
+        self.set_action_status(tr("已更新"))
 
     def _history_display_entries(self):
-        return history_display_entries(self.history, bool(getattr(self, "history_reverse", False)))
+        return history_display_entries(
+            self.history, bool(getattr(self, "history_reverse", False))
+        )
 
     def _refresh_history_order_button(self):
         refresh_history_order_button(
@@ -190,22 +189,22 @@ class HistoryControllerMixin:
     def _do_copy_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.show_action_status("内容不存在", level="warning")
+            self.show_action_status(tr("内容不存在"), level="warning")
             return
         try:
             QApplication.clipboard().setText(txt)
-            self.set_action_status("已复制")
+            self.set_action_status(tr("已复制"))
         except Exception:
             try:
                 pyperclip.copy(txt)
-                self.set_action_status("已复制")
+                self.set_action_status(tr("已复制"))
             except Exception:
-                self.show_action_status("复制失败", level="error")
+                self.show_action_status(tr("复制失败"), level="error")
 
     def _do_fav_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.show_action_status("内容不存在", level="warning")
+            self.show_action_status(tr("内容不存在"), level="warning")
             return
         self.favorites_window.add_favorite(
             txt,
@@ -215,7 +214,7 @@ class HistoryControllerMixin:
     def _do_delete_row(self, row):
         txt = self._safe_row_text(row)
         if not txt:
-            self.set_action_status("已删除")
+            self.set_action_status(tr("已删除"))
             return
 
         self.delete_history_item(row, txt)
@@ -224,7 +223,7 @@ class HistoryControllerMixin:
         txt = self._safe_row_text(row)
         if txt:
             self._set_editor_text_silent(txt)
-            idx = getattr(row, '_index', 0)
+            idx = getattr(row, "_index", 0)
             name = self._formula_names.get(txt, "")
             if name:
                 label = f"#{idx} {name}"
@@ -233,9 +232,11 @@ class HistoryControllerMixin:
             else:
                 label = ""
             self.render_latex_in_preview(txt, self._formula_types[txt], label)
-            self.set_action_status("已加载到编辑器")
+            self.set_action_status(tr("已加载到编辑器"))
 
-    def create_history_row(self, t: str, index: int = 0, history_index: int | None = None):
+    def create_history_row(
+        self, t: str, index: int = 0, history_index: int | None = None
+    ):
         return create_history_row_widget(
             parent=self,
             history_container=self.history_container,
@@ -268,11 +269,13 @@ class HistoryControllerMixin:
                 self._formula_types.pop(old_text, None)
         self.save_history()
         self.rebuild_history_ui()
-        self.set_action_status("已加入历史")
+        self.set_action_status(tr("已加入历史"))
 
     def load_history(self):
         try:
-            self.history, self._formula_names, self._formula_types = load_history_store(self.history_file)
+            self.history, self._formula_names, self._formula_types = load_history_store(
+                self.history_file
+            )
         except Exception as e:
             print(f"[WARN] 加载历史失败: {e}")
             self.history = []
@@ -284,7 +287,6 @@ class HistoryControllerMixin:
             self._formula_names.pop(text, None)
             self._formula_types.pop(text, None)
         if widget:
-
             try:
                 if self.history_layout.indexOf(widget) != -1:
                     self.history_layout.removeWidget(widget)
@@ -293,23 +295,26 @@ class HistoryControllerMixin:
             widget.setParent(None)
             widget.deleteLater()
         self.save_history()
-        self.set_action_status("已删除")
+        self.set_action_status(tr("已删除"))
         self.update_history_ui()
 
     def update_history_ui(self):
-        self.clear_history_button.setText("清空历史记录")
+        self.clear_history_button.setText(tr("清空历史记录"))
         if self.history:
-
-            self.clear_history_button.setToolTip("清空所有历史记录")
+            self.clear_history_button.setToolTip(tr("清空所有历史记录"))
         else:
-
-            self.clear_history_button.setToolTip("当前无历史记录，点击会提示")
+            self.clear_history_button.setToolTip(tr("当前无历史记录，点击会提示"))
 
         self.clear_history_button.setEnabled(True)
 
     def save_history(self):
         try:
-            save_history_store(self.history_file, self.history, self._formula_names, self._formula_types)
+            save_history_store(
+                self.history_file,
+                self.history,
+                self._formula_names,
+                self._formula_types,
+            )
         except Exception as e:
             print(f"[WARN] 保存历史失败: {e}")
 
@@ -317,8 +322,8 @@ class HistoryControllerMixin:
 
         if not self.history:
             InfoBar.info(
-                title="提示",
-                content="当前没有历史记录可清空",
+                title=tr("提示"),
+                content=tr("当前没有历史记录可清空"),
                 parent=self._get_infobar_parent(),
                 duration=2500,
                 position=InfoBarPosition.TOP,
@@ -326,8 +331,8 @@ class HistoryControllerMixin:
             return
         ret = _exec_close_only_message_box(
             self,
-            "确认",
-            f"确定要清空所有 {len(self.history)} 条历史记录吗？",
+            tr("确认"),
+            tr("确定要清空所有 {count} 条历史记录吗？").format(count=len(self.history)),
             icon=QMessageBox.Icon.Question,
             buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             default_button=QMessageBox.StandardButton.No,
@@ -340,4 +345,4 @@ class HistoryControllerMixin:
         self.save_history()
         self.rebuild_history_ui()
         self.update_history_ui()
-        self.set_action_status("已清空历史")
+        self.set_action_status(tr("已清空历史"))

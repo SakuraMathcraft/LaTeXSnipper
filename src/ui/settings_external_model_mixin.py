@@ -1,3 +1,4 @@
+from localization.manager import translate as tr
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
@@ -12,7 +13,6 @@ from ui.window_helpers import show_normal_window
 
 
 class SettingsExternalModelMixin:
-
     def _set_combo_value(self, combo: ComboBox, value: str):
         for i in range(combo.count()):
             if combo.itemData(i) == value:
@@ -43,31 +43,58 @@ class SettingsExternalModelMixin:
             cfg = None
         config = load_config_from_mapping(cfg or {})
         data = config.to_mapping()
-        self._set_combo_value(self.external_provider_combo, data["external_model_provider"])
-        self._set_combo_value(self.external_prompt_combo, data["external_model_prompt_template"])
+        self._set_combo_value(
+            self.external_provider_combo, data["external_model_provider"]
+        )
+        self._set_combo_value(
+            self.external_prompt_combo, data["external_model_prompt_template"]
+        )
         self._set_combo_value(self.external_preset_combo, data["external_model_preset"])
-        self._set_lineedit_value(self.external_base_url_input, data["external_model_base_url"])
-        self._set_lineedit_value(self.external_model_name_input, data["external_model_model_name"])
-        self._set_lineedit_value(self.external_api_key_input, config.normalized_api_key())
-        self._set_lineedit_value(self.external_timeout_input, str(data["external_model_timeout_sec"]))
-        self._set_lineedit_value(self.external_custom_prompt_input, data["external_model_custom_prompt"])
-        self._set_lineedit_value(self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"])
-        self._set_lineedit_value(self.external_mineru_test_endpoint_input, data["external_model_mineru_test_endpoint"])
+        self._set_lineedit_value(
+            self.external_base_url_input, data["external_model_base_url"]
+        )
+        self._set_lineedit_value(
+            self.external_model_name_input, data["external_model_model_name"]
+        )
+        self._set_lineedit_value(
+            self.external_api_key_input, config.normalized_api_key()
+        )
+        self._set_lineedit_value(
+            self.external_timeout_input, str(data["external_model_timeout_sec"])
+        )
+        self._set_lineedit_value(
+            self.external_custom_prompt_input, data["external_model_custom_prompt"]
+        )
+        self._set_lineedit_value(
+            self.external_mineru_endpoint_input, data["external_model_mineru_endpoint"]
+        )
+        self._set_lineedit_value(
+            self.external_mineru_test_endpoint_input,
+            data["external_model_mineru_test_endpoint"],
+        )
         self._update_external_provider_visibility()
 
     def _collect_external_model_config(self):
         config = load_config_from_mapping({})
-        config.provider = self._get_external_combo_value(self.external_provider_combo, "ollama")
+        config.provider = self._get_external_combo_value(
+            self.external_provider_combo, "ollama"
+        )
         config.base_url = self.external_base_url_input.text().strip()
         config.model_name = self.external_model_name_input.text().strip()
         config.api_key = self.external_api_key_input.text().strip()
-        config.prompt_template = self._get_external_combo_value(self.external_prompt_combo, "ocr_formula_v1")
+        config.prompt_template = self._get_external_combo_value(
+            self.external_prompt_combo, "ocr_formula_v1"
+        )
         config.custom_prompt = self.external_custom_prompt_input.text().strip()
         config.preset = self._get_external_combo_value(self.external_preset_combo, "")
         config.mineru_endpoint = self.external_mineru_endpoint_input.text().strip()
-        config.mineru_test_endpoint = self.external_mineru_test_endpoint_input.text().strip()
+        config.mineru_test_endpoint = (
+            self.external_mineru_test_endpoint_input.text().strip()
+        )
         try:
-            config.timeout_sec = int((self.external_timeout_input.text() or "60").strip())
+            config.timeout_sec = int(
+                (self.external_timeout_input.text() or "60").strip()
+            )
         except Exception:
             config.timeout_sec = 60
         return config
@@ -81,9 +108,13 @@ class SettingsExternalModelMixin:
         self.external_prompt_combo.setVisible(not is_mineru)
         self.external_custom_prompt_input.setVisible(not is_mineru)
         if is_mineru:
-            self.external_model_name_input.setPlaceholderText("可选：模型名（MinerU Local 通常可留空）")
+            self.external_model_name_input.setPlaceholderText(
+                tr("可选：模型名（MinerU Local 通常可留空）")
+            )
         else:
-            self.external_model_name_input.setPlaceholderText("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
+            self.external_model_name_input.setPlaceholderText(
+                tr("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
+            )
 
     def _on_external_provider_changed(self, *_args):
         self._update_external_provider_visibility()
@@ -95,10 +126,14 @@ class SettingsExternalModelMixin:
         try:
             preferred = ""
             if hasattr(parent, "_get_preferred_model_for_predict"):
-                preferred = str(parent._get_preferred_model_for_predict() or "").strip().lower()
+                preferred = (
+                    str(parent._get_preferred_model_for_predict() or "").strip().lower()
+                )
             current = str(getattr(parent, "current_model", "") or "").strip().lower()
             if current == "external_model" or preferred == "external_model":
-                if hasattr(parent, "set_model_status") and hasattr(parent, "_get_external_model_status_text"):
+                if hasattr(parent, "set_model_status") and hasattr(
+                    parent, "_get_external_model_status_text"
+                ):
                     parent.set_model_status(parent._get_external_model_status_text())
                 elif hasattr(parent, "refresh_status_label"):
                     parent.refresh_status_label()
@@ -128,27 +163,54 @@ class SettingsExternalModelMixin:
         self._save_external_model_config()
 
     def _apply_external_preset(self):
-        preset = get_preset(self._get_external_combo_value(self.external_preset_combo, ""))
+        preset = get_preset(
+            self._get_external_combo_value(self.external_preset_combo, "")
+        )
         if not preset:
-            self._show_info("未选择预设", "请选择一个推荐预设后再应用。", "warning")
+            self._show_info(
+                tr("未选择预设"), tr("请选择一个推荐预设后再应用。"), "warning"
+            )
             return
-        self._set_combo_value(self.external_provider_combo, str(preset.get("provider") or "ollama"))
-        self._set_lineedit_value(self.external_base_url_input, str(preset.get("base_url") or ""))
-        self._set_lineedit_value(self.external_model_name_input, str(preset.get("model_name") or ""))
-        self._set_combo_value(self.external_prompt_combo, str(preset.get("prompt_template") or "ocr_formula_v1"))
-        self._set_lineedit_value(self.external_mineru_endpoint_input, str(preset.get("mineru_endpoint") or "/file_parse"))
-        self._set_lineedit_value(self.external_mineru_test_endpoint_input, str(preset.get("mineru_test_endpoint") or "/health"))
+        self._set_combo_value(
+            self.external_provider_combo, str(preset.get("provider") or "ollama")
+        )
+        self._set_lineedit_value(
+            self.external_base_url_input, str(preset.get("base_url") or "")
+        )
+        self._set_lineedit_value(
+            self.external_model_name_input, str(preset.get("model_name") or "")
+        )
+        self._set_combo_value(
+            self.external_prompt_combo,
+            str(preset.get("prompt_template") or "ocr_formula_v1"),
+        )
+        self._set_lineedit_value(
+            self.external_mineru_endpoint_input,
+            str(preset.get("mineru_endpoint") or "/file_parse"),
+        )
+        self._set_lineedit_value(
+            self.external_mineru_test_endpoint_input,
+            str(preset.get("mineru_test_endpoint") or "/health"),
+        )
         self._save_external_model_config()
-        self._show_info("预设已应用", "已填入推荐配置，请按你的本地服务实际情况检查模型名。", "success")
+        self._show_info(
+            tr("预设已应用"),
+            tr("已填入推荐配置，请按你的本地服务实际情况检查模型名。"),
+            "success",
+        )
 
     def _test_external_model_connection(self):
         if self._external_test_thread and self._external_test_thread.isRunning():
-            self._show_info("测试进行中", "当前已有一个测试连接任务在后台运行。", "warning")
+            self._show_info(
+                tr("测试进行中"),
+                tr("当前已有一个测试连接任务在后台运行。"),
+                "warning",
+            )
             return
         config = self._collect_external_model_config()
         self._save_external_model_config()
         self.external_test_btn.setEnabled(False)
-        self.external_test_btn.setText("测试中...")
+        self.external_test_btn.setText(tr("测试中..."))
 
         self._external_test_thread = QThread(self)
         self._external_test_worker = ExternalModelConnectionWorker(config)
@@ -157,7 +219,7 @@ class SettingsExternalModelMixin:
         def _cleanup():
             try:
                 self.external_test_btn.setEnabled(True)
-                self.external_test_btn.setText("测试连接")
+                self.external_test_btn.setText(tr("测试连接"))
             except Exception:
                 pass
             if self._external_test_worker:
@@ -168,12 +230,18 @@ class SettingsExternalModelMixin:
                 self._external_test_thread = None
 
         def _on_ok(_ok: bool, message: str):
-            title = "健康检查通过" if config.normalized_provider() == "mineru" else "测试成功"
-            self._show_info(title, message or "连接成功，本地服务可访问。", "success")
+            title = (
+                tr("健康检查通过")
+                if config.normalized_provider() == "mineru"
+                else tr("测试成功")
+            )
+            self._show_info(
+                title, message or tr("连接成功，本地服务可访问。"), "success"
+            )
 
         def _on_fail(message: str):
             pretty = self._format_external_test_error(message)
-            self._show_info("测试失败", pretty, "error")
+            self._show_info(tr("测试失败"), pretty, "error")
 
         self._external_test_thread.started.connect(self._external_test_worker.run)
         self._external_test_worker.finished.connect(_on_ok)
@@ -186,18 +254,32 @@ class SettingsExternalModelMixin:
     def _format_external_test_error(self, message: str) -> str:
         text = str(message or "").strip()
         low = text.lower()
-        if "model not found" in low or "unknown model" in low or '"error":"model' in low:
-            return f"{text}\n提示：模型名填写错误或该模型未在服务中加载。"
+        if (
+            "model not found" in low
+            or "unknown model" in low
+            or '"error":"model' in low
+        ):
+            return tr("{message}\n提示：模型名填写错误或该模型未在服务中加载。").format(
+                message=text
+            )
         if "401" in low or "unauthorized" in low or "invalid api key" in low:
-            return f"{text}\n提示：请检查 API Key 是否必填、是否填写正确。"
+            return tr(
+                "{message}\n提示：请检查 API Key 是否必填、是否填写正确。"
+            ).format(message=text)
         if "404" in low:
-            return f"{text}\n提示：请检查 Base URL、协议类型以及服务端路由是否正确。"
+            return tr(
+                "{message}\n提示：请检查 Base URL、协议类型以及服务端路由是否正确。"
+            ).format(message=text)
         if "timeout" in low:
-            return f"{text}\n提示：服务响应较慢，可提高超时或先确认模型是否已完成加载。"
+            return tr(
+                "{message}\n提示：服务响应较慢，可提高超时或先确认模型是否已完成加载。"
+            ).format(message=text)
         return text
 
     def _show_external_model_help(self):
         if self._external_help_window is None:
             self._external_help_window = ExternalModelHelpWindow(self)
-            self._external_help_window.destroyed.connect(lambda: setattr(self, "_external_help_window", None))
+            self._external_help_window.destroyed.connect(
+                lambda: setattr(self, "_external_help_window", None)
+            )
         show_normal_window(self._external_help_window)

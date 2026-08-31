@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QFileDialog, QDialog, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import PrimaryPushButton, PushButton
 
 from runtime.app_paths import resource_path
@@ -114,8 +124,8 @@ def show_normal_window(win) -> None:
 def show_formula_rename_dialog(
     parent,
     current_name: str = "",
-    title: str = "重命名公式",
-    prompt: str = "输入公式名称：",
+    title: str | None = None,
+    prompt: str | None = None,
 ):
     """Shared formula rename dialog with only the top-right close button and fixed size."""
     from PyQt6.QtWidgets import QLineEdit
@@ -125,13 +135,13 @@ def show_formula_rename_dialog(
     dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
     dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
     dlg.setWindowFlag(Qt.WindowType.MSWindowsFixedSizeDialogHint, True)
-    dlg.setWindowTitle(title)
+    dlg.setWindowTitle(title or tr("重命名公式"))
     dlg.setModal(True)
 
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(14, 14, 14, 14)
     lay.setSpacing(10)
-    lay.addWidget(QLabel(prompt))
+    lay.addWidget(QLabel(prompt or tr("输入公式名称：")))
 
     edit = QLineEdit(dlg)
     edit.setText(current_name or "")
@@ -143,8 +153,8 @@ def show_formula_rename_dialog(
     btn_row = QHBoxLayout()
     btn_row.setContentsMargins(0, 4, 0, 0)
     btn_row.setSpacing(8)
-    btn_ok = PrimaryPushButton("确定", dlg)
-    btn_cancel = PushButton("取消", dlg)
+    btn_ok = PrimaryPushButton(tr("确定"), dlg)
+    btn_cancel = PushButton(tr("取消"), dlg)
     btn_ok.setFixedHeight(32)
     btn_cancel.setFixedHeight(32)
     btn_ok.clicked.connect(dlg.accept)

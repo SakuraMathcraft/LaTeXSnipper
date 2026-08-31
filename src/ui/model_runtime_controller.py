@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import threading
 import os
 
@@ -11,6 +13,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from backend.external_model import load_config_from_mapping
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
+from recognition.error_messages import translate_mathcraft_diagnostic
 from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
 
@@ -19,7 +22,12 @@ class ModelRuntimeControllerMixin:
     def _sanitize_model_config(self):
         """Validate and normalize the supported model configuration."""
         try:
-            valid_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model"}
+            valid_models = {
+                "mathcraft",
+                "mathcraft_text",
+                "mathcraft_mixed",
+                "external_model",
+            }
             default_model = (self.cfg.get("default_model", "") or "").lower()
             desired_model = (self.cfg.get("desired_model", "") or "").lower()
             changed = False
@@ -73,10 +81,14 @@ class ModelRuntimeControllerMixin:
         try:
             if config is None:
                 config = self._get_external_model_config()
-            model_name = str(getattr(config, "normalized_model_name", lambda: "")() or "").strip()
+            model_name = str(
+                getattr(config, "normalized_model_name", lambda: "")() or ""
+            ).strip()
             if model_name:
                 return model_name
-            provider = str(getattr(config, "normalized_provider", lambda: "external_model")() or "").strip()
+            provider = str(
+                getattr(config, "normalized_provider", lambda: "external_model")() or ""
+            ).strip()
             return provider or "external_model"
         except Exception:
             return "external_model"
@@ -92,13 +104,28 @@ class ModelRuntimeControllerMixin:
     def _get_external_model_required_fields_hint(self) -> str:
         cfg = self._get_external_model_config()
         if cfg.normalized_provider() == "mineru":
-            return "请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。"
-        return "请先在设置页填写 Base URL 和模型名。"
+            return tr("请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。")
+        return tr("请先在设置页填写 Base URL 和模型名。")
 
     def _get_external_model_status_text(self) -> str:
         if self._is_external_model_configured():
-            return "外部模型已配置"
-        return "外部模型未配置"
+            return tr("外部模型已配置")
+        return tr("外部模型未配置")
+
+    def _open_external_model_settings_with_notice(self) -> None:
+        """Open external-model settings and attach guidance to that visible window."""
+        self.set_model_status(tr("外部模型未配置"))
+        self.open_settings()
+        parent = getattr(self, "settings_window", None)
+        if parent is None or not parent.isVisible():
+            parent = self
+        self.show_action_status(
+            self._get_external_model_required_fields_hint(),
+            level="warning",
+            auto_clear_ms=5200,
+            parent=parent,
+            position=InfoBarPosition.TOP,
+        )
 
     def _warmup_desired_model(self):
         if not self.model:
@@ -112,7 +139,7 @@ class ModelRuntimeControllerMixin:
         self._ensure_model_warmup_async(
             preferred_model=preferred,
             announce_success=True,
-            success_message="MathCraft OCR 预热完成，可直接识别",
+            success_message=tr("MathCraft OCR 预热完成，可直接识别"),
         )
 
     def _ensure_model_warmup_async(
@@ -125,11 +152,13 @@ class ModelRuntimeControllerMixin:
     ):
         if not self.model:
             return
-        preferred = (preferred_model or self._get_preferred_model_for_predict() or "mathcraft").lower()
+        preferred = (
+            preferred_model or self._get_preferred_model_for_predict() or "mathcraft"
+        ).lower()
         if self.model.is_model_ready(preferred):
             self.current_model = preferred
             self.cfg.set("default_model", preferred)
-            self.set_model_status("已加载")
+            self.set_model_status(tr("已加载"))
             if callable(on_ready):
                 QTimer.singleShot(0, on_ready)
             return
@@ -138,7 +167,7 @@ class ModelRuntimeControllerMixin:
             self._model_warmup_callbacks.append((on_ready, on_fail))
 
         if self._model_warmup_in_progress:
-            self.set_model_status("预热中")
+            self.set_model_status(tr("预热中"))
             return
 
         self._model_warmup_in_progress = True
@@ -153,7 +182,7 @@ class ModelRuntimeControllerMixin:
                 self.model.set_default_model(preferred)
         except Exception:
             pass
-        self.set_model_status("预热中")
+        self.set_model_status(tr("预热中"))
         if self._should_show_mathcraft_warmup_started_infobar(preferred):
             self._show_mathcraft_warmup_started_infobar()
 
@@ -161,7 +190,9 @@ class ModelRuntimeControllerMixin:
             ok = False
             err = ""
             try:
-                if getattr(self, "_model_warmup_cancelled", False) or getattr(self, "_shutdown_done", False):
+                if getattr(self, "_model_warmup_cancelled", False) or getattr(
+                    self, "_shutdown_done", False
+                ):
                     return
                 self._apply_mathcraft_env()
                 ok = bool(self.model._lazy_load_mathcraft())
@@ -194,7 +225,9 @@ class ModelRuntimeControllerMixin:
         threading.Thread(target=worker, daemon=True).start()
 
     def _apply_model_warmup_result(self):
-        if getattr(self, "_model_warmup_cancelled", False) or getattr(self, "_shutdown_done", False):
+        if getattr(self, "_model_warmup_cancelled", False) or getattr(
+            self, "_shutdown_done", False
+        ):
             return
         data = getattr(self, "_pending_model_warmup_result", None)
         self._pending_model_warmup_result = None
@@ -213,15 +246,15 @@ class ModelRuntimeControllerMixin:
         self._model_warmup_callbacks.clear()
 
         if ok:
-            self.set_model_status("已加载")
+            self.set_model_status(tr("已加载"))
             if not bool(self.cfg.get("mathcraft_warmup_notice_done", False)):
                 self.cfg.set("mathcraft_warmup_notice_done", True)
             if self.settings_window:
                 self.settings_window.update_model_selection()
             if announce_success:
                 InfoBar.success(
-                    title="模型预热完成",
-                    content=success_message or "MathCraft OCR 已就绪",
+                    title=tr("模型预热完成"),
+                    content=success_message or tr("MathCraft OCR 已就绪"),
                     parent=self._get_infobar_parent(),
                     duration=2500,
                     position=InfoBarPosition.TOP,
@@ -239,17 +272,24 @@ class ModelRuntimeControllerMixin:
                     pass
             return
 
-        self.set_model_status("未就绪")
+        self.set_model_status(tr("未就绪"))
         fail_info = classify_mathcraft_failure(err)
         if announce_success:
             InfoBar.warning(
-                title=fail_info["title"] or "模型预热未完成",
-                content=fail_info["user_message"] or "MathCraft OCR 预热失败，将在首次识别时重试",
+                title=translate_mathcraft_diagnostic(
+                    fail_info["title"] or "模型预热未完成"
+                ),
+                content=translate_mathcraft_diagnostic(
+                    fail_info["user_message"]
+                    or "MathCraft OCR 预热失败，将在首次识别时重试"
+                ),
                 parent=self._get_infobar_parent(),
                 duration=4200,
                 position=InfoBarPosition.TOP,
             )
-        fail_msg = fail_info["user_message"] or err or "MathCraft OCR 模型未部署或加载失败。"
+        fail_msg = translate_mathcraft_diagnostic(
+            fail_info["user_message"] or err or "MathCraft OCR 模型未部署或加载失败。"
+        )
         for _, cb_fail in callbacks:
             if callable(cb_fail):
                 try:
@@ -265,7 +305,12 @@ class ModelRuntimeControllerMixin:
     def on_model_changed(self, model_name: str):
         info_parent = self._get_infobar_parent()
         m = (model_name or "").lower()
-        valid_modes = ("mathcraft", "mathcraft_text", "mathcraft_mixed", "external_model")
+        valid_modes = (
+            "mathcraft",
+            "mathcraft_text",
+            "mathcraft_mixed",
+            "external_model",
+        )
         if m not in valid_modes:
             m = "mathcraft"
         prev_model = str(getattr(self, "current_model", "") or "")
@@ -279,21 +324,21 @@ class ModelRuntimeControllerMixin:
                 return
             if m.startswith("mathcraft") and prev_desired == "mathcraft":
                 if self.model and self.model.is_model_ready(m):
-                    self.set_model_status("已加载")
+                    self.set_model_status(tr("已加载"))
                 else:
-                    self.set_model_status("待识别时加载")
+                    self.set_model_status(tr("待识别时加载"))
                 return
 
         mode_names = {
-            "mathcraft": "MathCraft 公式识别",
-            "mathcraft_text": "MathCraft 纯文字识别",
-            "mathcraft_mixed": "MathCraft 混合识别",
-            "external_model": "外部模型",
+            "mathcraft": tr("MathCraft 公式识别"),
+            "mathcraft_text": tr("MathCraft 纯文字识别"),
+            "mathcraft_mixed": tr("MathCraft 混合识别"),
+            "external_model": tr("外部模型"),
         }
         mode_display = mode_names.get(m, m)
         InfoBar.success(
-            title="模式切换成功",
-            content=f"已切换到 {mode_display}",
+            title=tr("模式切换成功"),
+            content=tr("已切换到 {mode}").format(mode=mode_display),
             parent=info_parent,
             duration=3000,
             position=InfoBarPosition.TOP,
@@ -319,20 +364,20 @@ class ModelRuntimeControllerMixin:
 
         if self.model:
             if self.model.is_model_ready(m):
-                self.set_model_status("已加载")
+                self.set_model_status(tr("已加载"))
             else:
-                self.set_model_status("预热中")
+                self.set_model_status(tr("预热中"))
         else:
-            self.set_model_status("预热中")
+            self.set_model_status(tr("预热中"))
 
         if self.settings_window:
             self.settings_window.update_model_selection()
 
         if m.startswith("mathcraft"):
             if self.model and self.model.is_model_ready(m):
-                self.set_model_status("已加载")
+                self.set_model_status(tr("已加载"))
             else:
-                self.set_model_status("待识别时加载")
+                self.set_model_status(tr("待识别时加载"))
             return
 
     def _mathcraft_profile_for_model(self, model_name: str | None) -> str:
@@ -365,13 +410,14 @@ class ModelRuntimeControllerMixin:
     def _apply_mathcraft_env(self):
         env_pyexe = ""
         try:
-
             configured_base = ""
             try:
                 configured_base = self.cfg.get("install_base_dir", "") or ""
             except Exception:
                 configured_base = ""
-            pyexe = resolve_dependency_python((configured_base,), fallback_to_current=True)
+            pyexe = resolve_dependency_python(
+                (configured_base,), fallback_to_current=True
+            )
             if pyexe and os.path.exists(pyexe):
                 env_pyexe = pyexe
         except Exception:
@@ -381,9 +427,7 @@ class ModelRuntimeControllerMixin:
         except Exception:
             pass
         try:
-            new_state = (
-                env_pyexe,
-            )
+            new_state = (env_pyexe,)
             old_state = getattr(self, "_mathcraft_env_state", None)
             self._mathcraft_env_state = new_state
             old_key = old_state

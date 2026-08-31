@@ -3,13 +3,15 @@ from __future__ import annotations
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
+from localization.manager import translate as tr
+
 
 class WorkbenchBridge(QObject):
     readyChanged = pyqtSignal(bool)
     latexChanged = pyqtSignal(str)
     mathJsonChanged = pyqtSignal(str)
     resultChanged = pyqtSignal(str)
-    statusChanged = pyqtSignal(str)
+    statusChanged = pyqtSignal(str, str)
     insertRequested = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -39,7 +41,7 @@ class WorkbenchBridge(QObject):
     def onEditorReady(self) -> None:
         self._ready = True
         self.readyChanged.emit(True)
-        self.statusChanged.emit("已就绪")
+        self.statusChanged.emit("", tr("已就绪"))
 
     @pyqtSlot(str)
     def onLatexChanged(self, latex: str) -> None:
@@ -56,15 +58,20 @@ class WorkbenchBridge(QObject):
         self._result = payload or ""
         self.resultChanged.emit(self._result)
 
-    @pyqtSlot(str)
-    def onComputeError(self, message: str) -> None:
-        self.statusChanged.emit(message or "计算失败")
+    @pyqtSlot(str, str)
+    def onStatus(self, level: str, message: str) -> None:
+        normalized_level = str(level or "").strip().lower()
+        if normalized_level not in {"", "info", "success", "error"}:
+            normalized_level = ""
+        self.statusChanged.emit(normalized_level, message or "")
 
     @pyqtSlot(str)
     def requestInsertToMain(self, latex: str) -> None:
         text = (latex or "").strip()
         if not text:
-            self.statusChanged.emit("提示: 数学工作台为空，没有可写回的内容")
+            self.statusChanged.emit(
+                "info", tr("数学工作台为空，没有可写回的内容")
+            )
             return
         self.insertRequested.emit(text)
 
@@ -75,15 +82,17 @@ class WorkbenchBridge(QObject):
             clipboard = QGuiApplication.clipboard()
             if clipboard is not None:
                 clipboard.setText(text)
-            self.statusChanged.emit("已复制 LaTeX")
+            self.statusChanged.emit("success", tr("已复制 LaTeX"))
         except Exception:
             try:
                 import pyperclip
 
                 pyperclip.copy(text)
-                self.statusChanged.emit("已复制 LaTeX")
+                self.statusChanged.emit("success", tr("已复制 LaTeX"))
             except Exception as e:
-                self.statusChanged.emit(f"LaTeX 复制失败：{e}")
+                self.statusChanged.emit(
+                    "error", tr("LaTeX 复制失败：{message}").format(message=e)
+                )
 
     @pyqtSlot(str)
     def copyMathJsonToClipboard(self, payload: str) -> None:
@@ -92,15 +101,17 @@ class WorkbenchBridge(QObject):
             clipboard = QGuiApplication.clipboard()
             if clipboard is not None:
                 clipboard.setText(text)
-            self.statusChanged.emit("已复制 MathJSON")
+            self.statusChanged.emit("success", tr("已复制 MathJSON"))
         except Exception:
             try:
                 import pyperclip
 
                 pyperclip.copy(text)
-                self.statusChanged.emit("已复制 MathJSON")
+                self.statusChanged.emit("success", tr("已复制 MathJSON"))
             except Exception as e:
-                self.statusChanged.emit(f"MathJSON 复制失败：{e}")
+                self.statusChanged.emit(
+                    "error", tr("MathJSON 复制失败：{message}").format(message=e)
+                )
 
     @pyqtSlot(result=str)
     def readClipboardText(self) -> str:

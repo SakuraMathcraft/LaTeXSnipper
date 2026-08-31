@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import BodyLabel
 
-from preview.math_preview import build_math_html, dialog_theme_tokens, get_mathjax_base_url, is_dark_ui
+from preview.math_preview import (
+    build_math_html,
+    dialog_theme_tokens,
+    get_mathjax_base_url,
+    is_dark_ui,
+)
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
 class EditFormulaDialog(QDialog):
     def __init__(self, latex: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("编辑")
+        self.setWindowTitle(tr("编辑"))
         apply_no_minimize_window_flags(self)
         self.resize(700, 500)
         self._theme_is_dark_cached = None
@@ -28,7 +35,7 @@ class EditFormulaDialog(QDialog):
         self.editor.setMaximumHeight(150)
         lay.addWidget(self.editor)
 
-        preview_label = BodyLabel("实时预览:")
+        preview_label = BodyLabel(tr("实时预览:"))
         lay.addWidget(preview_label)
 
         self._pending_latex = ""
@@ -47,12 +54,15 @@ class EditFormulaDialog(QDialog):
             self._render_timer.timeout.connect(self._do_render)
             self.editor.textChanged.connect(self._on_text_changed)
         else:
-            fallback = QLabel("WebEngine 未加载，无法预览")
-            fallback.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; padding: 20px;")
+            fallback = QLabel(tr("WebEngine 未加载，无法预览"))
+            fallback.setStyleSheet(
+                f"color: {dialog_theme_tokens()['muted']}; padding: 20px;"
+            )
             lay.addWidget(fallback, 1)
 
         btns = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
         )
         btns.accepted.connect(self.accept)

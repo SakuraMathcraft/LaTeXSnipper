@@ -1,10 +1,14 @@
+from localization.manager import translate as tr
 import os
 import subprocess
 import sys
 
 from qfluentwidgets import MessageBox
 
-from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_policy
+from backend.mathcraft.runtime_policy import (
+    onnxruntime_cpu_spec,
+    onnxruntime_gpu_policy,
+)
 from application.restart import build_restart_with_wizard_launch
 from runtime.dependency_python import python_env_root
 from runtime.environment_terminal import open_main_environment_terminal
@@ -70,22 +74,24 @@ class SettingsEnvironmentMixin:
         ]
         if sys.platform != "darwin":
             lines.extend(("  nvidia-smi", "  nvcc --version"))
-        lines.extend((
-            "",
-            "[Cache Clean]",
-            "  pip cache purge",
-            "",
-            "================================================================================",
-            "",
-        ))
+        lines.extend(
+            (
+                "",
+                "[Cache Clean]",
+                "  pip cache purge",
+                "",
+                "================================================================================",
+                "",
+            )
+        )
         return lines
 
     def _open_terminal(self):
         pyexe = self._resolve_dynamic_main_pyexe()
         if not pyexe or not os.path.exists(pyexe):
             self._show_info(
-                "环境未就绪",
-                "请先在依赖管理向导中初始化依赖环境，再打开主环境终端。",
+                tr("环境未就绪"),
+                tr("请先在依赖管理向导中初始化依赖环境，再打开主环境终端。"),
                 "warning",
             )
             return
@@ -98,11 +104,11 @@ class SettingsEnvironmentMixin:
                 base_dir or os.path.dirname(pyexe),
                 lambda: self._main_environment_terminal_help(pyexe),
             ):
-                self._show_info("终端已打开", "已打开主环境终端。", "success")
+                self._show_info(tr("终端已打开"), tr("已打开主环境终端。"), "success")
             else:
-                self._show_info("终端已打开", "主环境终端已经在运行。", "info")
+                self._show_info(tr("终端已打开"), tr("主环境终端已经在运行。"), "info")
         except Exception as e:
-            self._show_info("终端打开失败", str(e), "error")
+            self._show_info(tr("终端打开失败"), str(e), "error")
 
     def _resolve_mathcraft_cache_dir(self) -> str:
         from mathcraft_ocr.cache import resolve_user_models_dir
@@ -119,24 +125,33 @@ class SettingsEnvironmentMixin:
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
-            self._show_info("已打开", f"MathCraft 缓存目录: {path}", "success")
+            self._show_info(
+                tr("已打开"),
+                tr("MathCraft 缓存目录: {path}").format(path=path),
+                "success",
+            )
         except Exception as e:
-            self._show_info("打开失败", f"无法打开缓存目录: {e}", "error")
+            self._show_info(
+                tr("打开失败"), tr("无法打开缓存目录: {error}").format(error=e), "error"
+            )
 
     def _open_deps_wizard(self):
         """Open the dependency management wizard."""
         msg = MessageBox(
-            "打开依赖向导",
-            "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC：取消操作",
-            self
+            tr("打开依赖向导"),
+            tr(
+                "依赖管理向导将以重启后的干净进程打开。\n\n是否立即重启并打开依赖向导？\n• ESC：取消操作"
+            ),
+            self,
         )
         _apply_app_window_icon(msg)
-        msg.yesButton.setText("重启并打开")
-        msg.cancelButton.setText("取消")
+        msg.yesButton.setText(tr("重启并打开"))
+        msg.cancelButton.setText(tr("取消"))
 
         esc_pressed = [False]
         from PyQt6.QtCore import Qt as QtCore_Qt
         from PyQt6.QtGui import QKeyEvent
+
         original_keyPressEvent = msg.keyPressEvent
 
         def custom_keyPressEvent(event: QKeyEvent):
@@ -165,7 +180,12 @@ class SettingsEnvironmentMixin:
         except Exception:
             argv0 = ""
         exe_name = os.path.basename(argv0).lower() if argv0 else ""
-        if (not argv0) or exe_name in ("python.exe", "pythonw.exe", "python", "pythonw"):
+        if (not argv0) or exe_name in (
+            "python.exe",
+            "pythonw.exe",
+            "python",
+            "pythonw",
+        ):
             argv0 = os.path.abspath(sys.argv[0]) if sys.argv else ""
         spawn_argv, env = build_restart_with_wizard_launch(
             python_exe=sys.executable,
@@ -193,33 +213,39 @@ class SettingsEnvironmentMixin:
             QApplication.instance().quit()
         except Exception as e:
             from qfluentwidgets import InfoBar, InfoBarPosition
+
             InfoBar.error(
-                title="重启失败",
-                content=f"无法重启程序: {e}",
+                title=tr("重启失败"),
+                content=tr("无法重启程序: {error}").format(error=e),
                 parent=self,
                 duration=5000,
-                position=InfoBarPosition.TOP
+                position=InfoBarPosition.TOP,
             )
 
     def _cleanup_macos_local_data(self):
         """Remove macOS user-scoped dependency data without touching app settings."""
         if sys.platform != "darwin":
-            self._show_info("清理不可用", "本清理入口仅适用于 macOS。", "info")
+            self._show_info(tr("清理不可用"), tr("本清理入口仅适用于 macOS。"), "info")
             return
 
-        from runtime.macos_local_data_cleanup import cleanup_macos_local_data, macos_cleanup_targets
+        from runtime.macos_local_data_cleanup import (
+            cleanup_macos_local_data,
+            macos_cleanup_targets,
+        )
 
         target_lines = "\n".join(f"• {path}" for path in macos_cleanup_targets())
         msg = MessageBox(
-            "清理本机依赖与缓存",
-            "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n"
-            "应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n"
-            f"将清理：\n{target_lines}\n\n是否继续？",
+            tr("清理本机依赖与缓存"),
+            tr(
+                "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n"
+                "应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n"
+                "将清理：\n{targets}\n\n是否继续？"
+            ).format(targets=target_lines),
             self,
         )
         _apply_app_window_icon(msg)
-        msg.yesButton.setText("清理")
-        msg.cancelButton.setText("取消")
+        msg.yesButton.setText(tr("清理"))
+        msg.cancelButton.setText(tr("取消"))
 
         if not msg.exec():
             return
@@ -228,23 +254,30 @@ class SettingsEnvironmentMixin:
         if result.failed:
             first_path, first_error = result.failed[0]
             self._show_info(
-                "清理未完成",
-                f"{len(result.failed)} 个项目清理失败。示例：{first_path}: {first_error}",
+                tr("清理未完成"),
+                tr("{count} 个项目清理失败。示例：{path}: {error}").format(
+                    count=len(result.failed), path=first_path, error=first_error
+                ),
                 "error",
             )
             return
         if result.removed:
             self._show_info(
-                "清理完成",
-                f"已清理 {len(result.removed)} 个项目；应用设置已保留，请重启后按需重新下载依赖。",
+                tr("清理完成"),
+                tr(
+                    "已清理 {count} 个项目；应用设置已保留，请重启后按需重新下载依赖。"
+                ).format(count=len(result.removed)),
                 "success",
             )
             return
-        self._show_info("无需清理", "没有发现已下载的本机依赖、缓存或日志。", "info")
+        self._show_info(
+            tr("无需清理"), tr("没有发现已下载的本机依赖、缓存或日志。"), "info"
+        )
 
     def _show_info(self, title: str, content: str, level: str = "info"):
         """Show a Fluent floating notification."""
         from qfluentwidgets import InfoBar, InfoBarPosition
+
         # Anchor to the settings window to avoid covering the main window.
         parent = self
         func = getattr(InfoBar, level, InfoBar.info)
@@ -253,5 +286,5 @@ class SettingsEnvironmentMixin:
             content=content,
             parent=parent,
             duration=4000,
-            position=InfoBarPosition.TOP
+            position=InfoBarPosition.TOP,
         )

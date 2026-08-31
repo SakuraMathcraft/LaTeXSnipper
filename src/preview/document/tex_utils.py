@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from localization.manager import mark_for_translation, translate as tr
+
 
 DOCUMENT_CLASS = r"\documentclass[UTF8]{ctexart}"
 REQUIRED_PREAMBLE_LINES = (
@@ -32,8 +34,8 @@ _INLINE_MATH_RE = re.compile(r"\$(?:\\.|[^$])+\$")
 
 
 WRAP_ENVIRONMENTS = {
-    "行内公式 $...$": ("inline", "$", "$"),
-    "行间公式 \\[...\\]": ("display", r"\[", r"\]"),
+    mark_for_translation("行内公式 $...$"): ("inline", "$", "$"),
+    mark_for_translation("行间公式 \\[...\\]"): ("display", r"\[", r"\]"),
     "equation": ("equation", r"\begin{equation}", r"\end{equation}"),
     "equation*": ("equation*", r"\begin{equation*}", r"\end{equation*}"),
     "align": ("align", r"\begin{align}", r"\end{align}"),
@@ -52,7 +54,9 @@ def sanitize_tex_templates(text: str) -> str:
     value = re.sub(r"_\{\}", "", value)
     value = re.sub(r"\^\{\}", "", value)
     value = re.sub(r"\\!\s*\\mathrm\{d\}", r"\\,\\mathrm{d}", value)
-    value = _DISPLAY_DOLLAR_RE.sub(lambda match: _display_dollars_to_latex(match.group(1)), value)
+    value = _DISPLAY_DOLLAR_RE.sub(
+        lambda match: _display_dollars_to_latex(match.group(1)), value
+    )
     value = re.sub(r"[ \t]{2,}", " ", value)
     value = re.sub(r"[ \t]+\n", "\n", value)
     return value.rstrip()
@@ -66,7 +70,9 @@ def _display_dollars_to_latex(body: str) -> str:
 
 
 def normalize_document_preamble(preamble: str) -> str:
-    raw_lines = str(preamble or "").replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    raw_lines = (
+        str(preamble or "").replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    )
     preserved: list[str] = []
     for raw_line in raw_lines:
         line = raw_line.rstrip()
@@ -253,14 +259,30 @@ def merge_layout_with_recognized_draft(layout_text: str, draft_text: str) -> str
 def _ordinary_text_lines(text: str) -> list[str]:
     lines: list[str] = []
     in_math_block = False
-    for raw_line in str(text or "").replace("\r\n", "\n").replace("\r", "\n").splitlines():
+    for raw_line in (
+        str(text or "").replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    ):
         line = raw_line.strip()
         if not line:
             continue
-        if line.startswith("$$") or line == r"\[" or line.startswith(r"\begin{equation") or line.startswith(r"\begin{align") or line.startswith(r"\begin{gather") or line.startswith(r"\begin{multline"):
+        if (
+            line.startswith("$$")
+            or line == r"\["
+            or line.startswith(r"\begin{equation")
+            or line.startswith(r"\begin{align")
+            or line.startswith(r"\begin{gather")
+            or line.startswith(r"\begin{multline")
+        ):
             in_math_block = True
             continue
-        if line.endswith("$$") or line == r"\]" or line.startswith(r"\end{equation") or line.startswith(r"\end{align") or line.startswith(r"\end{gather") or line.startswith(r"\end{multline"):
+        if (
+            line.endswith("$$")
+            or line == r"\]"
+            or line.startswith(r"\end{equation")
+            or line.startswith(r"\end{align")
+            or line.startswith(r"\end{gather")
+            or line.startswith(r"\end{multline")
+        ):
             in_math_block = False
             continue
         if in_math_block:
@@ -282,7 +304,9 @@ def _draft_line_is_preserved(draft_line: str, existing_norms: list[str]) -> bool
     draft_norm = _compare_text_line(draft_line)
     if not draft_norm:
         return True
-    return any(draft_norm == existing or draft_norm in existing for existing in existing_norms)
+    return any(
+        draft_norm == existing or draft_norm in existing for existing in existing_norms
+    )
 
 
 def _remove_superseded_text_lines(body: str, replacement_lines: list[str]) -> str:
@@ -304,14 +328,20 @@ def wrap_tex_document(text: str) -> str:
     content = sanitize_tex_templates(str(text or "")).strip()
     if not content:
         return ""
-    if "\\documentclass" in content and "\\begin{document}" in content and "\\end{document}" in content:
+    if (
+        "\\documentclass" in content
+        and "\\begin{document}" in content
+        and "\\end{document}" in content
+    ):
         begin_idx = content.find("\\begin{document}")
         end_idx = content.rfind("\\end{document}")
         if begin_idx >= 0 and end_idx > begin_idx:
             begin_token = "\\begin{document}"
             preamble = normalize_document_preamble(content[:begin_idx].strip())
-            body = content[begin_idx + len(begin_token): end_idx].strip()
-            normalized_body = normalize_document_body(body) or "% TODO: 补全文档正文"
+            body = content[begin_idx + len(begin_token) : end_idx].strip()
+            normalized_body = normalize_document_body(body) or tr(
+                "% TODO: 补全文档正文"
+            )
             return f"{preamble}\n\n\\begin{{document}}\n{normalized_body}\n\\end{{document}}".strip()
         return content
 
@@ -342,8 +372,13 @@ def wrap_tex_document(text: str) -> str:
                     in_preamble = False
                     body_lines.append(line)
             preamble = normalize_document_preamble("\n".join(preamble_lines).strip())
-            body = normalize_document_body("\n".join(body_lines)) or "% TODO: 补全文档正文"
-            return f"{preamble}\n\n\\begin{{document}}\n{body}\n\\end{{document}}".strip()
+            body = (
+                normalize_document_body("\n".join(body_lines))
+                or tr("% TODO: 补全文档正文")
+            )
+            return (
+                f"{preamble}\n\n\\begin{{document}}\n{body}\n\\end{{document}}".strip()
+            )
         return content
 
     content = normalize_document_body(content)
@@ -358,7 +393,7 @@ def wrap_tex_document(text: str) -> str:
 def validate_tex_document(text: str) -> str | None:
     content = str(text or "")
     if not content.strip():
-        return "没有可编译的 TeX 文档。"
+        return tr("没有可编译的 TeX 文档。")
     if "placeholder{}" in content or "\\placeholder{}" in content:
-        return "文档中仍有未填写的模板占位符，请先补全后再编译。"
+        return tr("文档中仍有未填写的模板占位符，请先补全后再编译。")
     return None

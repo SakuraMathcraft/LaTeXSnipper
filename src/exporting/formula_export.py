@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from localization.manager import mark_for_translation
 from exporting.formula_format_helpers import (
     latex_display,
     latex_equation,
@@ -31,12 +32,16 @@ class ExportFormatSpec:
 
 
 EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
-    ExportFormatSpec("latex", "LaTeX (行内 $...$)"),
+    ExportFormatSpec("latex", mark_for_translation("LaTeX (行内 $...$)")),
     ExportFormatSpec("latex_display", "LaTeX (display \\[...\\])"),
-    ExportFormatSpec("latex_equation", "LaTeX (equation 编号)"),
+    ExportFormatSpec(
+        "latex_equation", mark_for_translation("LaTeX (equation 编号)")
+    ),
     ExportFormatSpec("", separator_before=True),
-    ExportFormatSpec("markdown_inline", "Markdown (行内 $...$)"),
-    ExportFormatSpec("markdown_block", "Markdown (块级 $$...$$)"),
+    ExportFormatSpec("markdown_inline", mark_for_translation("Markdown (行内 $...$)")),
+    ExportFormatSpec(
+        "markdown_block", mark_for_translation("Markdown (块级 $$...$$)")
+    ),
     ExportFormatSpec("", separator_before=True),
     ExportFormatSpec("mathml", "MathML"),
     ExportFormatSpec("mathml_mml", "MathML (.mml)"),
@@ -55,17 +60,19 @@ def _get_pandoc_format_specs() -> tuple[ExportFormatSpec, ...]:
         return ()
     from exporting.pandoc_exporter import PANDOC_FORMATS
     specs = [ExportFormatSpec("", separator_before=True)]
-    specs.append(ExportFormatSpec("_pandoc_header", "── Pandoc 导出 ──"))
+    specs.append(
+        ExportFormatSpec("_pandoc_header", mark_for_translation("── Pandoc 导出 ──"))
+    )
     for fmt in PANDOC_FORMATS:
         specs.append(ExportFormatSpec(fmt.key, fmt.label))
     return tuple(specs)
 
 FORMAT_DISPLAY_NAMES = {
-    "latex": "LaTeX (行内)",
+    "latex": mark_for_translation("LaTeX (行内)"),
     "latex_display": "LaTeX (display \\[\\])",
-    "latex_equation": "LaTeX (equation)",
-    "markdown_inline": "Markdown 行内",
-    "markdown_block": "Markdown 块级",
+    "latex_equation": mark_for_translation("LaTeX (equation)"),
+    "markdown_inline": mark_for_translation("Markdown 行内"),
+    "markdown_block": mark_for_translation("Markdown 块级"),
     "mathml": "MathML",
     "mathml_mml": "MathML (.mml)",
     "mathml_m": "MathML (<m>)",

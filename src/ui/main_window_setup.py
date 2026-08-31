@@ -7,11 +7,19 @@ import sys
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import FluentIcon, PushButton
 
 from backend.mathcraft.model import ModelWrapper
 from capture.window_manager import CaptureWindowManager
+from localization.manager import translate as tr
 from rendering.latex import configure_latex_settings
 from platform_services import PlatformCapabilityRegistry
 from preview.math_preview import build_math_html, get_mathjax_base_url
@@ -24,7 +32,9 @@ from recognition.jobs import RecognitionJobCoordinator
 from ui.favorites_window import FavoritesWindow
 from ui.automation_api_controller import AutomationApiController
 from ui.theme_controller import normalize_theme_mode
-from ui.window_helpers import select_existing_directory_with_icon as _select_existing_directory_with_icon
+from ui.window_helpers import (
+    select_existing_directory_with_icon as _select_existing_directory_with_icon,
+)
 
 DEFAULT_HISTORY_NAME = "history.json"
 PLATFORM_DISABLE_GLOBAL_HOTKEY = False
@@ -40,13 +50,13 @@ class MainWindowSetupMixin:
         self._startup_centered_once = False
         self._pending_hotkey_seq = None
 
-        self.setWindowTitle("LaTeXSnipper")
+        self.setWindowTitle(tr("LaTeXSnipper"))
         self.resize(1180, 720)
         self.setMinimumSize(1180, 720)
 
         self._force_exit = False
 
-        self.model_status = "未加载"
+        self.model_status = tr("未加载")
         self.action_status = ""
         self._predict_busy = False
         self._last_recognition_cancel_notice_at = 0.0
@@ -77,7 +87,9 @@ class MainWindowSetupMixin:
         self._auto_theme_refresh_timer = QTimer(self)
         self._auto_theme_refresh_timer.setSingleShot(True)
         self._auto_theme_refresh_timer.setInterval(160)
-        self._auto_theme_refresh_timer.timeout.connect(self._on_auto_theme_refresh_timeout)
+        self._auto_theme_refresh_timer.timeout.connect(
+            self._on_auto_theme_refresh_timeout
+        )
         self._model_warmup_in_progress = False
         self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False
@@ -102,13 +114,11 @@ class MainWindowSetupMixin:
         except Exception:
             pass
 
-
         icon_path = resource_path("assets/icon.ico")
         self.icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
         self.setWindowIcon(self.icon)
 
-
-        self._report_startup_progress("初始化识别与预览...")
+        self._report_startup_progress(tr("初始化识别与预览..."))
         self._apply_mathcraft_env()
         self.model = ModelWrapper("mathcraft", auto_warmup=False)
         self.recognition_coordinator = RecognitionJobCoordinator(
@@ -122,17 +132,14 @@ class MainWindowSetupMixin:
         )
         self.capture_window_manager = CaptureWindowManager(self)
         self.model.status_signal.connect(self.show_status_message)
-        self.model_status = "未加载"
+        self.model_status = tr("未加载")
         self._sync_current_model_status_from_preference()
-
 
         self.history_file = str(default_user_data_file(DEFAULT_HISTORY_NAME))
         self.history = []
 
-
         self.status_label = QLabel()
         self.refresh_status_label()
-
 
         self.favorites_window = FavoritesWindow(
             self.cfg,
@@ -153,37 +160,36 @@ class MainWindowSetupMixin:
         seq = normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform)
         self._pending_hotkey_seq = seq
 
-
-
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(6, 6, 6, 6)
         left_layout.setSpacing(8)
 
-
-        self.capture_button = PushButton(FluentIcon.SEARCH, "截图识别")
+        self.capture_button = PushButton(FluentIcon.SEARCH, tr("截图识别"))
         self.capture_button.setFixedHeight(40)
         self.capture_button.clicked.connect(self.start_capture)
         left_layout.addWidget(self.capture_button)
 
-
         history_header = QHBoxLayout()
         history_header.setContentsMargins(0, 0, 0, 0)
         history_header.setSpacing(6)
-        self.history_title_label = QLabel("历史记录")
+        self.history_title_label = QLabel(tr("历史记录"))
         history_header.addWidget(self.history_title_label)
         history_header.addStretch()
         self.history_reverse = bool(self.cfg.get("history_reverse", True))
-        self.history_order_button = PushButton("最新在前" if self.history_reverse else "最早在前")
+        self.history_order_button = PushButton(
+            tr("最新在前") if self.history_reverse else tr("最早在前")
+        )
         self.history_order_button.setFixedHeight(28)
         self.history_order_button.clicked.connect(self.toggle_history_order)
         history_header.addWidget(self.history_order_button)
         left_layout.addLayout(history_header)
 
-
         self.history_scroll = QScrollArea()
         self.history_scroll.setWidgetResizable(True)
-        self.history_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.history_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.history_container = QWidget()
         self.history_layout = QVBoxLayout(self.history_container)
         self.history_layout.setContentsMargins(0, 0, 0, 0)
@@ -192,12 +198,11 @@ class MainWindowSetupMixin:
         self.history_scroll.setWidget(self.history_container)
         left_layout.addWidget(self.history_scroll, 1)
 
-
         btn_row = QHBoxLayout()
-        self.clear_history_button = PushButton(FluentIcon.DELETE, "清空")
-        self.change_key_button = PushButton(FluentIcon.CLIPPING_TOOL, "快捷键")
-        self.show_fav_button = PushButton(FluentIcon.HEART, "收藏夹")
-        self.settings_button = PushButton(FluentIcon.SETTING, "设置")
+        self.clear_history_button = PushButton(FluentIcon.DELETE, tr("清空"))
+        self.change_key_button = PushButton(FluentIcon.CLIPPING_TOOL, tr("快捷键"))
+        self.show_fav_button = PushButton(FluentIcon.HEART, tr("收藏夹"))
+        self.settings_button = PushButton(FluentIcon.SETTING, tr("设置"))
         self.clear_history_button.clicked.connect(self.clear_history)
         self.change_key_button.clicked.connect(self.set_shortcut)
         self.show_fav_button.clicked.connect(self.open_favorites)
@@ -210,36 +215,34 @@ class MainWindowSetupMixin:
 
         left_layout.addWidget(self.status_label)
 
-
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(6, 6, 6, 6)
         right_layout.setSpacing(8)
 
-
         editor_header = QHBoxLayout()
         editor_header.setContentsMargins(0, 0, 0, 0)
         editor_header.setSpacing(0)
-        self.editor_title_label = QLabel("LaTeX 编辑器")
+        self.editor_title_label = QLabel(tr("LaTeX 编辑器"))
         editor_header.addWidget(self.editor_title_label)
         editor_header.addSpacing(6)
-        self.upload_image_btn = PushButton(FluentIcon.PHOTO, "图片识别")
+        self.upload_image_btn = PushButton(FluentIcon.PHOTO, tr("图片识别"))
         self.upload_image_btn.clicked.connect(self._upload_image_recognition)
-        self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, "PDF 识别")
+        self.upload_pdf_btn = PushButton(FluentIcon.DOCUMENT, tr("PDF 识别"))
         self.upload_pdf_btn.clicked.connect(self._upload_pdf_recognition)
         try:
             img_exts = self._get_supported_image_extensions()
-            self.upload_image_btn.setToolTip("支持格式: " + ", ".join(img_exts))
+            self.upload_image_btn.setToolTip(tr("支持格式: ") + ", ".join(img_exts))
         except Exception:
             pass
-        self.upload_pdf_btn.setToolTip("支持格式: PDF")
-        self.copy_editor_btn = PushButton(FluentIcon.COPY, "复制")
+        self.upload_pdf_btn.setToolTip(tr("支持格式: PDF"))
+        self.copy_editor_btn = PushButton(FluentIcon.COPY, tr("复制"))
         self.copy_editor_btn.clicked.connect(self._copy_editor_content)
-        self.export_btn = PushButton(FluentIcon.SHARE, "导出")
+        self.export_btn = PushButton(FluentIcon.SHARE, tr("导出"))
         self.export_btn.clicked.connect(self._show_export_menu)
-        self.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, "手写识别")
+        self.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, tr("手写识别"))
         self.handwriting_btn.clicked.connect(self.open_handwriting_window)
-        self.workbench_btn = PushButton(FluentIcon.PROJECTOR, "数学工作台")
+        self.workbench_btn = PushButton(FluentIcon.PROJECTOR, tr("数学工作台"))
         self.workbench_btn.clicked.connect(self.open_workbench)
         editor_actions = QHBoxLayout()
         editor_actions.setContentsMargins(0, 0, 0, 0)
@@ -254,22 +257,23 @@ class MainWindowSetupMixin:
         right_layout.addLayout(editor_header)
 
         from qfluentwidgets import PlainTextEdit
+
         self.latex_editor = PlainTextEdit()
-        self.latex_editor.setPlaceholderText("在此输入 LaTeX 公式，下方将实时渲染...")
+        self.latex_editor.setPlaceholderText(
+            tr("在此输入 LaTeX 公式，下方将实时渲染...")
+        )
         self.latex_editor.setMinimumHeight(100)
         self.latex_editor.setMaximumHeight(150)
         right_layout.addWidget(self.latex_editor)
 
-
         preview_header = QHBoxLayout()
-        self.preview_title_label = QLabel("实时渲染预览")
+        self.preview_title_label = QLabel(tr("实时渲染预览"))
         preview_header.addWidget(self.preview_title_label)
         preview_header.addStretch()
-        self.clear_preview_btn = PushButton(FluentIcon.BROOM, "清空预览")
+        self.clear_preview_btn = PushButton(FluentIcon.BROOM, tr("清空预览"))
         self.clear_preview_btn.clicked.connect(self._clear_preview)
         preview_header.addWidget(self.clear_preview_btn)
         right_layout.addLayout(preview_header)
-
 
         self.preview_view = None
         self._render_timer = None
@@ -279,29 +283,40 @@ class MainWindowSetupMixin:
         self._editor_preview_content_type = FORMULA_CONTENT_TYPE
         self._formula_names = {}
         self._formula_types = {}
-        webengine_view_cls = get_webengine_view_class() if ensure_webengine_loaded() else None
+        webengine_view_cls = (
+            get_webengine_view_class() if ensure_webengine_loaded() else None
+        )
         if webengine_view_cls is not None:
             self.preview_view = webengine_view_cls()
 
-
             try:
                 from PyQt6.QtWebEngineCore import QWebEngineSettings
+
                 settings = self.preview_view.settings()
-                settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
-                settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+                settings.setAttribute(
+                    QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
+                    True,
+                )
+                settings.setAttribute(
+                    QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
+                )
             except Exception:
                 pass
 
             self.preview_view.setMinimumHeight(200)
             try:
-                self.preview_view.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+                self.preview_view.setContextMenuPolicy(
+                    Qt.ContextMenuPolicy.DefaultContextMenu
+                )
             except Exception:
                 pass
 
             try:
                 pg = self.preview_view.page()
                 pg.renderProcessTerminated.connect(
-                    lambda status, code: print(f"[WARN] WebEngine 渲染进程终止 status={status} code={code}")
+                    lambda status, code: print(
+                        f"[WARN] WebEngine 渲染进程终止 status={status} code={code}"
+                    )
                 )
             except Exception:
                 pass
@@ -315,21 +330,20 @@ class MainWindowSetupMixin:
                 pass
             right_layout.addWidget(self.preview_view, 1)
 
-
             self._render_timer = QTimer(self)
             self._render_timer.setSingleShot(True)
             self._render_timer.timeout.connect(self._do_render_latex)
 
-
             self.latex_editor.textChanged.connect(self._on_editor_text_changed)
         else:
-
-            self.preview_fallback_label = QLabel("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
+            self.preview_fallback_label = QLabel(
+                tr("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
+            )
             self.preview_fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             right_layout.addWidget(self.preview_fallback_label, 1)
 
-
         from PyQt6.QtWidgets import QSplitter
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
@@ -353,9 +367,7 @@ class MainWindowSetupMixin:
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(splitter)
 
-
         self.setCentralWidget(container)
-
 
         self.tray_icon = self.system_provider.create_tray(self.icon, self)
         self.connect_tray_activation()
@@ -365,16 +377,18 @@ class MainWindowSetupMixin:
 
             qapp = QGuiApplication.instance()
             if qapp is not None:
-                qapp.screenAdded.connect(lambda _screen: QTimer.singleShot(0, self.update_tray_menu))
-                qapp.screenRemoved.connect(lambda _screen: QTimer.singleShot(0, self.update_tray_menu))
+                qapp.screenAdded.connect(
+                    lambda _screen: QTimer.singleShot(0, self.update_tray_menu)
+                )
+                qapp.screenRemoved.connect(
+                    lambda _screen: QTimer.singleShot(0, self.update_tray_menu)
+                )
         except Exception:
             pass
 
         self.load_history()
         self.update_history_ui()
         self.refresh_status_label()
-
-
 
         self.update_tray_menu()
 

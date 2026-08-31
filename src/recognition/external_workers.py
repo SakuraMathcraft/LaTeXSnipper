@@ -3,7 +3,10 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from recognition.error_messages import recognition_error_code_user_message
+from recognition.error_messages import (
+    CANCELED_WORKER_MESSAGE,
+    recognition_error_code_message,
+)
 from backend.external_model.client import ExternalModelClient
 from backend.external_model.schemas import ExternalModelConfig
 
@@ -33,7 +36,7 @@ class ExternalModelWorker(QObject):
         t0 = time.perf_counter()
         try:
             if self._cancelled:
-                self.failed.emit("已取消")
+                self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
             if self.coordinator is None:
                 result = ExternalModelClient(self.config).predict(self.image)
@@ -59,7 +62,11 @@ class ExternalModelWorker(QObject):
                 item = snapshot["items"][0]
                 if item["state"] != "completed":
                     error = item.get("error") or {}
-                    raise RuntimeError(recognition_error_code_user_message(error.get("code"), "external_model"))
+                    raise RuntimeError(
+                        recognition_error_code_message(
+                            error.get("code"), "external_model"
+                        )
+                    )
                 from backend.external_model.schemas import ExternalModelResult
 
                 text = str(item["text"])

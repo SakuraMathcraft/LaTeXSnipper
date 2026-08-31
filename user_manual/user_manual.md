@@ -1958,7 +1958,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 ### 模型集与识别配置
 
-当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.2.8`；它使用自己的版本线，不与 LaTeXSnipper v3.0.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
+当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.2.9`；它使用自己的版本线，不与 LaTeXSnipper v3.0.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
 
 - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
 - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 
+from localization.manager import translate as tr
 from update.dialog_helpers import _hidden_subprocess_kwargs
 
 
@@ -55,7 +56,7 @@ def _prepare_app_for_update_exit() -> None:
 def _read_signature_status(path: str) -> str:
     ext = Path(path).suffix.lower()
     if os.name != "nt" or ext != ".exe":
-        return "未校验（非 Windows 安装器）"
+        return tr("未校验（非 Windows 安装器）")
     try:
         escaped_path = path.replace("'", "''")
         cmd = (
@@ -74,7 +75,7 @@ def _read_signature_status(path: str) -> str:
         )
         raw = (proc.stdout or "").strip()
         if not raw:
-            return "未校验（无签名信息）"
+            return tr("未校验（无签名信息）")
         obj = json.loads(raw)
         status = str(obj.get("Status", "") or "Unknown")
         cert = obj.get("SignerCertificate") or {}
@@ -83,4 +84,4 @@ def _read_signature_status(path: str) -> str:
             return f"{status} / {subject}"
         return status
     except Exception as e:
-        return f"未校验（{e}）"
+        return tr("未校验（{error}）").format(error=e)

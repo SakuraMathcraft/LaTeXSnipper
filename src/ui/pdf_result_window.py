@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import base64
 import pathlib
 import re
@@ -11,7 +13,13 @@ from typing import Callable
 import pyperclip
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QPlainTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QMainWindow,
+    QPlainTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import BodyLabel, FluentIcon, InfoBar, InfoBarPosition, PushButton
 
 
@@ -36,7 +44,7 @@ class PdfResultWindow(QMainWindow):
         self._theme_is_dark_cached = None
         self._structured_result = None
 
-        self.setWindowTitle("PDF 识别结果")
+        self.setWindowTitle(tr("PDF 识别结果"))
         if window_icon is not None:
             try:
                 self.setWindowIcon(window_icon)
@@ -55,15 +63,15 @@ class PdfResultWindow(QMainWindow):
 
         container = QWidget(self)
         lay = QVBoxLayout(container)
-        lay.addWidget(BodyLabel("识别结果："))
+        lay.addWidget(BodyLabel(tr("识别结果：")))
         self.editor = QPlainTextEdit(self)
         self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         lay.addWidget(self.editor, 1)
 
         btn_row = QHBoxLayout()
-        self.btn_copy = PushButton(FluentIcon.COPY, "复制")
-        self.btn_save = PushButton(FluentIcon.SAVE, "保存")
-        self.btn_close = PushButton(FluentIcon.CLOSE, "关闭")
+        self.btn_copy = PushButton(FluentIcon.COPY, tr("复制"))
+        self.btn_save = PushButton(FluentIcon.SAVE, tr("保存"))
+        self.btn_close = PushButton(FluentIcon.CLOSE, tr("关闭"))
         for button in (self.btn_copy, self.btn_save, self.btn_close):
             button.setFixedHeight(34)
             btn_row.addWidget(button)
@@ -75,12 +83,22 @@ class PdfResultWindow(QMainWindow):
         self.btn_close.clicked.connect(self.close)
         self._apply_theme_styles(force=True)
 
-    def set_content(self, text: str, fmt_key: str, preference_label: str = "", structured_result: dict | None = None):
+    def set_content(
+        self,
+        text: str,
+        fmt_key: str,
+        preference_label: str = "",
+        structured_result: dict | None = None,
+    ):
         self._fmt_key = fmt_key
         self._preference_label = str(preference_label or "").strip()
-        self._structured_result = structured_result if isinstance(structured_result, dict) else None
-        mode = str((self._structured_result or {}).get("mode", "") or "").strip().lower()
-        title = "PDF 文档解析结果" if mode == "parse" else "PDF 识别结果"
+        self._structured_result = (
+            structured_result if isinstance(structured_result, dict) else None
+        )
+        mode = (
+            str((self._structured_result or {}).get("mode", "") or "").strip().lower()
+        )
+        title = tr("PDF 文档解析结果") if mode == "parse" else tr("PDF 识别结果")
         if self._preference_label:
             title = f"{title} - {self._preference_label}"
         self.setWindowTitle(title)
@@ -112,7 +130,7 @@ class PdfResultWindow(QMainWindow):
 
     def _show_local_status(self, msg: str):
         InfoBar.success(
-            title="提示",
+            title=tr("提示"),
             content=msg,
             parent=self,
             position=InfoBarPosition.TOP_RIGHT,
@@ -149,20 +167,20 @@ class PdfResultWindow(QMainWindow):
     def _do_copy(self):
         try:
             pyperclip.copy(self.editor.toPlainText())
-            self._emit_status("已复制文档")
+            self._emit_status(tr("已复制文档"))
         except Exception as exc:
-            self._warn("错误", f"复制失败: {exc}")
+            self._warn(tr("错误"), tr("复制失败: {error}").format(error=exc))
 
     def _do_save(self):
         suffix = "md" if self._fmt_key == "markdown" else "tex"
         filter_ = "Markdown (*.md)" if self._fmt_key == "markdown" else "LaTeX (*.tex)"
         if not callable(self._select_save_file):
-            self._warn("错误", "保存对话框不可用")
+            self._warn(tr("错误"), tr("保存对话框不可用"))
             return
         path, _ = self._select_save_file(
             self,
-            "保存识别结果",
-            f"识别结果.{suffix}",
+            tr("保存识别结果"),
+            tr("识别结果.{suffix}").format(suffix=suffix),
             filter_,
         )
         if not path:
@@ -171,12 +189,14 @@ class PdfResultWindow(QMainWindow):
             with open(path, "w", encoding="utf-8") as file:
                 file.write(self.editor.toPlainText())
             self._export_structured_assets(path)
-            self._emit_status("已保存文档")
+            self._emit_status(tr("已保存文档"))
         except Exception as exc:
-            self._warn("错误", f"保存失败: {exc}")
+            self._warn(tr("错误"), tr("保存失败: {error}").format(error=exc))
 
     def _export_structured_assets(self, document_path: str):
-        payload = self._structured_result if isinstance(self._structured_result, dict) else {}
+        payload = (
+            self._structured_result if isinstance(self._structured_result, dict) else {}
+        )
         assets_root = str(payload.get("assets_root", "") or "").strip()
         assets = payload.get("assets") or []
         inline_images = payload.get("inline_images") or {}
@@ -239,7 +259,11 @@ class PdfResultWindow(QMainWindow):
         if not text:
             return False
         low = text.lower()
-        return not (low.startswith("http://") or low.startswith("https://") or low.startswith("data:"))
+        return not (
+            low.startswith("http://")
+            or low.startswith("https://")
+            or low.startswith("data:")
+        )
 
     @classmethod
     def _collect_candidate_dirs(cls, node, acc: set[pathlib.Path]):
@@ -267,7 +291,9 @@ class PdfResultWindow(QMainWindow):
             pass
 
     @staticmethod
-    def _find_referenced_image(candidate_dirs: set[pathlib.Path], rel_path: pathlib.Path) -> pathlib.Path | None:
+    def _find_referenced_image(
+        candidate_dirs: set[pathlib.Path], rel_path: pathlib.Path
+    ) -> pathlib.Path | None:
         for directory in candidate_dirs:
             src = directory / rel_path
             if src.exists() and src.is_file():
@@ -275,7 +301,9 @@ class PdfResultWindow(QMainWindow):
         return None
 
     @staticmethod
-    def _materialize_inline_image(inline_images, rel_path: pathlib.Path, dst: pathlib.Path) -> bool:
+    def _materialize_inline_image(
+        inline_images, rel_path: pathlib.Path, dst: pathlib.Path
+    ) -> bool:
         if not isinstance(inline_images, dict):
             return False
         key = rel_path.name

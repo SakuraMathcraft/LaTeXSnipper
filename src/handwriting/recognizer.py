@@ -5,7 +5,11 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 
 from backend.external_model import ExternalModelClient, ExternalModelConfig
-from recognition.error_messages import recognition_error_code_user_message, recognition_failure_user_message
+from localization.manager import translate as tr
+from recognition.error_messages import (
+    recognition_error_code_message,
+    recognition_failure_user_message,
+)
 from recognition.image_input import image_from_qimage, validated_rgb_image
 from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
 
@@ -61,14 +65,14 @@ class HandwritingRecognitionWorker(QObject):
     def run(self) -> None:
         try:
             if self._cancelled:
-                self.failed.emit("已取消")
+                self.failed.emit(tr("已取消"))
                 return
             pil_img = qimage_to_pil(self.image)
             pil_img = enhance_stroke_image(pil_img)
             model_name = str(self.model_name or "mathcraft").strip().lower()
             if model_name == "external_model":
                 if self.external_config is None:
-                    self.failed.emit("外部模型未配置")
+                    self.failed.emit(tr("外部模型未配置"))
                     return
                 if self.coordinator is None:
                     result_obj = ExternalModelClient(self.external_config).predict(pil_img)
@@ -98,7 +102,9 @@ class HandwritingRecognitionWorker(QObject):
                     if item["state"] != "completed":
                         error = item.get("error") or {}
                         raise RuntimeError(
-                            recognition_error_code_user_message(error.get("code"), "external_model")
+                            recognition_error_code_message(
+                                error.get("code"), "external_model"
+                            )
                         )
                     result = str(item["text"]).strip()
             else:
@@ -127,11 +133,15 @@ class HandwritingRecognitionWorker(QObject):
                     item = snapshot["items"][0]
                     if item["state"] != "completed":
                         error = item.get("error") or {}
-                        raise RuntimeError(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+                        raise RuntimeError(
+                            recognition_error_code_message(
+                                error.get("code"), "mathcraft"
+                            )
+                        )
                     result = str(item["text"]).strip()
 
             if not str(result or "").strip():
-                self.failed.emit("识别结果为空")
+                self.failed.emit(tr("识别结果为空"))
                 return
             self.finished.emit(str(result).strip())
         except Exception as exc:

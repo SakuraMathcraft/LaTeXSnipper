@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from localization.manager import translate as tr
 from PyQt6.QtGui import QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -56,10 +57,16 @@ class FileDropMixin:
 
     def _get_supported_image_extensions(self):
         """Return readable image extensions for prompts."""
-        return [p.replace("*.", "").upper() for p in self._get_supported_image_patterns()]
+        return [
+            p.replace("*.", "").upper() for p in self._get_supported_image_patterns()
+        ]
 
     def _get_supported_image_suffixes(self) -> set[str]:
-        return {p.replace("*", "").lower() for p in self._get_supported_image_patterns() if p.startswith("*.")}
+        return {
+            p.replace("*", "").lower()
+            for p in self._get_supported_image_patterns()
+            if p.startswith("*.")
+        }
 
     def _local_drop_paths(self, event) -> list[Path]:
         try:
@@ -89,7 +96,7 @@ class FileDropMixin:
     def _show_drop_file_warning(self, content: str) -> None:
         try:
             InfoBar.warning(
-                title="无法处理拖入文件",
+                title=tr("无法处理拖入文件"),
                 content=content,
                 parent=self,
                 duration=3200,
@@ -126,11 +133,15 @@ class FileDropMixin:
         paths = self._local_drop_paths(event)
         if len(paths) != 1:
             if paths:
-                self._show_drop_file_warning("请一次只拖入一个图片或 PDF 文件。")
+                self._show_drop_file_warning(tr("请一次只拖入一个图片或 PDF 文件。"))
                 event.acceptProposedAction()
             else:
                 img_exts = ", ".join(self._get_supported_image_extensions())
-                self._show_drop_file_warning(f"请拖入单个图片或 PDF 文件。支持图片格式：{img_exts}。")
+                self._show_drop_file_warning(
+                    tr("请拖入单个图片或 PDF 文件。支持图片格式：{formats}。").format(
+                        formats=img_exts
+                    )
+                )
                 event.ignore()
             return
 
@@ -138,7 +149,11 @@ class FileDropMixin:
         kind = self._drop_file_kind(path)
         if not kind:
             img_exts = ", ".join(self._get_supported_image_extensions())
-            self._show_drop_file_warning(f"请拖入单个图片或 PDF 文件。支持图片格式：{img_exts}。")
+            self._show_drop_file_warning(
+                tr("请拖入单个图片或 PDF 文件。支持图片格式：{formats}。").format(
+                    formats=img_exts
+                )
+            )
             event.ignore()
             return
 

@@ -1,3 +1,4 @@
+from localization.manager import translate as tr
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtWidgets import QDialog, QLabel, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton
@@ -28,14 +29,14 @@ class ExternalModelHelpWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
-        self.setWindowTitle("外部模型配置说明")
+        self.setWindowTitle(tr("外部模型配置说明"))
         self.setFixedSize(500, 600)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        self._title_label = QLabel("外部模型使用教程")
+        self._title_label = QLabel(tr("外部模型使用教程"))
         layout.addWidget(self._title_label)
 
         scroll = QScrollArea(self)
@@ -48,45 +49,59 @@ class ExternalModelHelpWindow(QDialog):
 
         self._add_section(
             content_layout,
-            "适用范围",
-            "支持 Ollama、OpenAI-compatible 和 MinerU Local。线上接口需要确认鉴权、模型名、额度和服务协议。",
+            tr("适用范围"),
+            tr(
+                "支持 Ollama、OpenAI-compatible 和 MinerU Local。线上接口需要确认鉴权、模型名、额度和服务协议。"
+            ),
         )
         self._add_section(
             content_layout,
-            "字段说明",
-            "协议决定请求格式。Base URL 填服务根地址或服务商提供的 /v1 API 前缀，不要填写 /chat/completions、/api/chat 或 /file_parse 这类具体接口。模型名必须与服务中实际可用名称完全一致。API Key 本地加密保存。",
+            tr("字段说明"),
+            tr(
+                "协议决定请求格式。Base URL 填服务根地址或服务商提供的 /v1 API 前缀，不要填写 /chat/completions、/api/chat 或 /file_parse 这类具体接口。模型名必须与服务中实际可用名称完全一致。API Key 本地加密保存。"
+            ),
         )
         self._add_section(
             content_layout,
-            "提示词边界",
-            "提示词模板决定普通图片和截图识别的请求内容与结果类型。手写识别固定使用混合文档类型；内置模型及 OpenAI-compatible / Ollama 的 PDF 导出格式和 DPI 在 PDF 入口选择。自定义提示词优先级最高，会覆盖这些入口的内置提示词；MinerU Local 直接解析原 PDF，不使用提示词或渲染 DPI。",
+            tr("提示词边界"),
+            tr(
+                "提示词模板决定普通图片和截图识别的请求内容与结果类型。手写识别固定使用混合文档类型；内置模型及 OpenAI-compatible / Ollama 的 PDF 导出格式和 DPI 在 PDF 入口选择。自定义提示词优先级最高，会覆盖这些入口的内置提示词；MinerU Local 直接解析原 PDF，不使用提示词或渲染 DPI。"
+            ),
         )
         self._add_section(
             content_layout,
-            "本地 Ollama",
-            "协议选择 Ollama，Base URL 填 http://127.0.0.1:11434，模型名填 qwen2.5vl:7b、glm-ocr 或实际 pull 的模型名，API Key 留空。",
+            tr("本地 Ollama"),
+            tr(
+                "协议选择 Ollama，Base URL 填 http://127.0.0.1:11434，模型名填 qwen2.5vl:7b、glm-ocr 或实际 pull 的模型名，API Key 留空。"
+            ),
         )
         self._add_section(
             content_layout,
             "MinerU Local",
-            "协议选择 MinerU Local，Base URL 填本地服务根地址，例如 http://127.0.0.1:8000。解析接口路径和健康检查路径按实际服务填写，常见值为 /file_parse 和 /health。",
+            tr(
+                "协议选择 MinerU Local，Base URL 填本地服务根地址，例如 http://127.0.0.1:8000。解析接口路径和健康检查路径按实际服务填写，常见值为 /file_parse 和 /health。"
+            ),
         )
         self._add_section(
             content_layout,
-            "线上接口",
-            "按服务要求选择 OpenAI-compatible 或 Ollama。Base URL 填服务商提供的 HTTPS 根地址或 /v1 API 前缀。模型名和 API Key 以服务商控制台为准。",
+            tr("线上接口"),
+            tr(
+                "按服务要求选择 OpenAI-compatible 或 Ollama。Base URL 填服务商提供的 HTTPS 根地址或 /v1 API 前缀。模型名和 API Key 以服务商控制台为准。"
+            ),
         )
         self._add_section(
             content_layout,
-            "排查顺序",
-            "先应用预设，再改成真实模型名，然后测试连接。连接通过后先测截图或图片识别，再测 PDF。PDF 效果不稳时优先调整 DPI。",
+            tr("排查顺序"),
+            tr(
+                "先应用预设，再改成真实模型名，然后测试连接。连接通过后先测截图或图片识别，再测 PDF。PDF 效果不稳时优先调整 DPI。"
+            ),
         )
 
         content_layout.addStretch()
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
 
-        close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
+        close_btn = PrimaryPushButton(FluentIcon.CLOSE, tr("关闭"))
         close_btn.clicked.connect(self.close)
         layout.addWidget(close_btn)
         self._apply_theme_styles(force=True)

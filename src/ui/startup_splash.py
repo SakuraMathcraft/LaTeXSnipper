@@ -8,10 +8,10 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
+from localization.manager import translate as tr
 from runtime.app_paths import resource_path
 
 _STARTUP_SPLASH = None
-FORCE_ENTER_STARTUP_MESSAGE = "正在跳过依赖安装并进入主程序..."
 
 
 class StartupDialog(QWidget):
@@ -66,22 +66,35 @@ def build_startup_splash_pixmap(app, status_text: str = ""):
         icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter)
 
     painter.setPen(QColor(38, 38, 38))
-    title_font = QFont("Microsoft YaHei UI", 16)
+    title_font = QFont(app.font()) if app is not None else QFont()
+    title_font.setPointSize(16)
     title_font.setBold(True)
     painter.setFont(title_font)
-    painter.drawText(QRect(0, 196, logical_w, 34), int(Qt.AlignmentFlag.AlignCenter), "LaTeXSnipper")
+    painter.drawText(
+        QRect(0, 196, logical_w, 34), int(Qt.AlignmentFlag.AlignCenter), "LaTeXSnipper"
+    )
 
     painter.setPen(QColor(110, 110, 110))
-    sub_font = QFont("Microsoft YaHei UI", 11)
+    sub_font = QFont(app.font()) if app is not None else QFont()
+    sub_font.setPointSize(11)
     painter.setFont(sub_font)
-    painter.drawText(QRect(0, 232, logical_w, 24), int(Qt.AlignmentFlag.AlignCenter), "正在启动...")
+    painter.drawText(
+        QRect(0, 232, logical_w, 24),
+        int(Qt.AlignmentFlag.AlignCenter),
+        tr("正在启动..."),
+    )
 
-    status_font = QFont("Microsoft YaHei UI", 10)
+    status_font = QFont(app.font()) if app is not None else QFont()
+    status_font.setPointSize(10)
     painter.setFont(status_font)
     fm = QFontMetrics(status_font)
-    safe_text = fm.elidedText((status_text or "").strip(), Qt.TextElideMode.ElideRight, logical_w - 44)
+    safe_text = fm.elidedText(
+        (status_text or "").strip(), Qt.TextElideMode.ElideRight, logical_w - 44
+    )
     painter.setPen(QColor(92, 92, 92))
-    painter.drawText(QRect(22, 270, logical_w - 44, 32), int(Qt.AlignmentFlag.AlignCenter), safe_text)
+    painter.drawText(
+        QRect(22, 270, logical_w - 44, 32), int(Qt.AlignmentFlag.AlignCenter), safe_text
+    )
 
     painter.end()
     return pm
@@ -100,7 +113,10 @@ def create_startup_splash(app):
             screen = app.primaryScreen()
             if screen is not None:
                 geo = screen.availableGeometry()
-                splash.move(geo.center().x() - splash.width() // 2, geo.center().y() - splash.height() // 2)
+                splash.move(
+                    geo.center().x() - splash.width() // 2,
+                    geo.center().y() - splash.height() // 2,
+                )
         except Exception:
             pass
         splash.show()
@@ -194,8 +210,8 @@ def mark_startup_force_entered():
     os.environ["LATEXSNIPPER_FORCE_ENTERED"] = "1"
     app = QApplication.instance()
     if app is not None:
-        return take_startup_splash(app, FORCE_ENTER_STARTUP_MESSAGE)
-    return ensure_startup_splash(FORCE_ENTER_STARTUP_MESSAGE)
+        return take_startup_splash(app, tr("正在跳过依赖安装并进入主程序..."))
+    return ensure_startup_splash(tr("正在跳过依赖安装并进入主程序..."))
 
 
 def startup_force_enter_pending() -> bool:
@@ -203,10 +219,14 @@ def startup_force_enter_pending() -> bool:
 
 
 def startup_status_message(default: str) -> str:
-    return FORCE_ENTER_STARTUP_MESSAGE if startup_force_enter_pending() else default
+    return (
+        tr("正在跳过依赖安装并进入主程序...")
+        if startup_force_enter_pending()
+        else default
+    )
 
 
 def startup_deps_resume_message() -> str:
     if os.environ.pop("LATEXSNIPPER_FORCE_ENTERED", "0") == "1":
-        return FORCE_ENTER_STARTUP_MESSAGE
-    return "加载界面组件..."
+        return tr("正在跳过依赖安装并进入主程序...")
+    return tr("加载界面组件...")

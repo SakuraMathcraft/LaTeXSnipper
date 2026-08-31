@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import json
 
 from PyQt6.QtCore import QEvent
@@ -96,7 +98,9 @@ class ThemeControllerMixin:
             return
         self._theme_is_dark_cached = dark
         t = self._main_theme_tokens()
-        title_style = f"font-size: 14px; font-weight: 500; color: {t['title']}; padding: 4px 0;"
+        title_style = (
+            f"font-size: 14px; font-weight: 500; color: {t['title']}; padding: 4px 0;"
+        )
         try:
             if hasattr(self, "history_title_label"):
                 self.history_title_label.setStyleSheet(title_style)
@@ -105,11 +109,17 @@ class ThemeControllerMixin:
             if hasattr(self, "preview_title_label"):
                 self.preview_title_label.setStyleSheet(title_style)
             if hasattr(self, "preview_fallback_label") and self.preview_fallback_label:
-                self.preview_fallback_label.setStyleSheet(f"color: {t['muted']}; padding: 20px;")
+                self.preview_fallback_label.setStyleSheet(
+                    f"color: {t['muted']}; padding: 20px;"
+                )
         except Exception:
             pass
         try:
-            if self.settings_window and self.settings_window.isVisible() and hasattr(self.settings_window, "apply_theme_styles"):
+            if (
+                self.settings_window
+                and self.settings_window.isVisible()
+                and hasattr(self.settings_window, "apply_theme_styles")
+            ):
                 self.settings_window.apply_theme_styles(force=True)
         except Exception:
             pass
@@ -126,7 +136,10 @@ class ThemeControllerMixin:
         if getattr(self, "_theme_mode", "auto") != "auto":
             return
         try:
-            if hasattr(self, "_auto_theme_refresh_timer") and self._auto_theme_refresh_timer is not None:
+            if (
+                hasattr(self, "_auto_theme_refresh_timer")
+                and self._auto_theme_refresh_timer is not None
+            ):
                 self._auto_theme_refresh_timer.start()
         except Exception:
             pass
@@ -148,7 +161,12 @@ class ThemeControllerMixin:
                 dark_by_palette = is_dark_ui()
             apply_theme("DARK" if dark_by_palette else "LIGHT")
             self._apply_theme_styles(force=True)
-            for attr in ("settings_window", "workbench_window", "favorites_window", "handwriting_window"):
+            for attr in (
+                "settings_window",
+                "workbench_window",
+                "favorites_window",
+                "handwriting_window",
+            ):
                 try:
                     win = getattr(self, attr, None)
                     if win and win.isVisible() and hasattr(win, "apply_theme_styles"):
@@ -182,12 +200,8 @@ class ThemeControllerMixin:
         if lbl is None:
             return
         t = formula_label_theme_tokens()
-        lbl.setToolTip("点击加载到编辑器并渲染")
-        lbl.setStyleSheet(
-            "QLabel {"
-            f"color: {t['text']}; padding: 2px;"
-            "}"
-        )
+        lbl.setToolTip(tr("点击加载到编辑器并渲染"))
+        lbl.setStyleSheet(f"QLabel {{color: {t['text']}; padding: 2px;}}")
 
     def _history_row_theme_tokens(self) -> dict:
         return history_row_theme_tokens()
@@ -235,7 +249,10 @@ class ThemeControllerMixin:
         except Exception:
             pass
         try:
-            if getattr(self, "workbench_window", None) and self.workbench_window.isVisible():
+            if (
+                getattr(self, "workbench_window", None)
+                and self.workbench_window.isVisible()
+            ):
                 self.workbench_window.apply_theme_styles(force=True)
         except Exception:
             pass

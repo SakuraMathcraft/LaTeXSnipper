@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from localization.manager import translate as tr
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import Action
@@ -31,7 +32,10 @@ class _PandocFileExportWorker(QObject):
     @pyqtSlot()
     def run(self) -> None:
         try:
-            from exporting.document_assets import prepare_pandoc_document, supports_document_assets
+            from exporting.document_assets import (
+                prepare_pandoc_document,
+                supports_document_assets,
+            )
             from exporting.pandoc_exporter import convert_latex_to
 
             output_path = Path(self._file_path)
@@ -54,16 +58,26 @@ class _PandocFileExportWorker(QObject):
                 output_path.write_bytes(data)
             else:
                 output_path.write_text(str(data), encoding="utf-8")
-            message = f"已导出 {self._format_name} 到 {self._file_path}"
+            message = tr("已导出 {format} 到 {path}").format(
+                format=tr(self._format_name), path=self._file_path
+            )
             level = "success"
-            if prepared is not None and prepared.assets and prepared.asset_dir is not None:
-                message += f"；图像资源 {len(prepared.assets)} 个：{prepared.asset_dir}"
+            if (
+                prepared is not None
+                and prepared.assets
+                and prepared.asset_dir is not None
+            ):
+                message += tr("；图像资源 {count} 个：{path}").format(
+                    count=len(prepared.assets), path=prepared.asset_dir
+                )
             if prepared is not None and prepared.skipped_svg_count:
-                message += f"；已跳过 {prepared.skipped_svg_count} 个无效或不完整 SVG"
+                message += tr("；已跳过 {count} 个无效或不完整 SVG").format(
+                    count=prepared.skipped_svg_count
+                )
                 level = "warning"
             self.finished.emit(message, level)
         except Exception as exc:
-            self.failed.emit(f"导出失败: {exc}")
+            self.failed.emit(tr("导出失败: {error}").format(error=exc))
 
 
 class _PandocExportTask(QObject):
@@ -109,11 +123,16 @@ def populate_formula_export_menu(menu, export_callback: Callable[[str], None]) -
             menu.addSeparator()
             continue
         if spec.key == "_pandoc_header":
-            header_action = Action(spec.label or spec.key)
+            header_action = Action(tr(spec.label or spec.key))
             header_action.setEnabled(False)
             menu.addAction(header_action)
             continue
-        menu.addAction(Action(spec.label or spec.key, triggered=lambda _checked=False, key=spec.key: export_callback(key)))
+        menu.addAction(
+            Action(
+                tr(spec.label or spec.key),
+                triggered=lambda _checked=False, key=spec.key: export_callback(key),
+            )
+        )
 
 
 def export_formula_to_clipboard(
@@ -134,7 +153,9 @@ def export_formula_to_clipboard(
         svg_converter=svg_converter,
     )
     if not result:
-        return False, "复制失败"
+        return False, tr("复制失败")
+
+    format_name = tr(format_name)
 
     if result.startswith("[BINARY:"):
         return _handle_pandoc_file_export(
@@ -145,20 +166,26 @@ def export_formula_to_clipboard(
             status_callback=status_callback,
         )
 
-    if result.startswith("[Pandoc ") and ("不可用" in result or "失败" in result):
-        return False, result
+    if result.startswith("[Pandoc 不可用]"):
+        return False, tr("Pandoc 不可用: {error}").format(
+            error=result.partition("]")[2].strip()
+        )
+    if result.startswith("[Pandoc 转换失败]"):
+        return False, tr("Pandoc 转换失败: {error}").format(
+            error=result.partition("]")[2].strip()
+        )
 
     try:
         QApplication.clipboard().setText(result)
-        return True, f"已复制 {format_name} 格式"
+        return True, tr("已复制 {format} 格式").format(format=format_name)
     except Exception:
         try:
             import pyperclip
 
             pyperclip.copy(result)
-            return True, f"已复制 {format_name} 格式"
+            return True, tr("已复制 {format} 格式").format(format=format_name)
         except Exception:
-            return False, "复制失败"
+            return False, tr("复制失败")
 
 
 def _handle_pandoc_file_export(
@@ -174,16 +201,16 @@ def _handle_pandoc_file_export(
 
     fmt = PANDOC_FORMAT_MAP.get(format_key)
     if fmt is None:
-        return False, f"未知的 Pandoc 格式: {format_key}"
+        return False, tr("未知的 Pandoc 格式: {format}").format(format=format_key)
 
     file_path, _ = QFileDialog.getSaveFileName(
         parent,
-        f"导出为 {format_name}",
+        tr("导出为 {format}").format(format=format_name),
         f"formula{fmt.extension}",
         f"{fmt.label} (*{fmt.extension})",
     )
     if not file_path:
-        return False, "已取消导出"
+        return False, tr("已取消导出")
 
     thread = QThread()
     worker = _PandocFileExportWorker(format_key, latex, file_path, format_name)
@@ -201,7 +228,7 @@ def _handle_pandoc_file_export(
     _active_export_threads.append(thread)
     _active_export_tasks.append(task)
     thread.start()
-    return True, f"正在导出 {format_name}..."
+    return True, tr("正在导出 {format}...").format(format=format_name)
 
 
 def show_formula_export_menu(
@@ -212,8 +239,9 @@ def show_formula_export_menu(
     text_source,
     status_callback: StatusCallback,
     export_callback: Callable[[str, str], None],
-    empty_hint: str = "内容为空",
+    empty_hint: str | None = None,
 ) -> None:
+    empty_hint = empty_hint or tr("内容为空")
     def current_text() -> str:
         try:
             if callable(text_source):
@@ -236,5 +264,9 @@ def show_formula_export_menu(
 
     menu = menu_cls(parent=parent)
     populate_formula_export_menu(menu, export_current)
-    pos = anchor_widget.mapToGlobal(anchor_widget.rect().bottomLeft()) if anchor_widget else parent.mapToGlobal(parent.rect().center())
+    pos = (
+        anchor_widget.mapToGlobal(anchor_widget.rect().bottomLeft())
+        if anchor_widget
+        else parent.mapToGlobal(parent.rect().center())
+    )
     menu.exec(pos)

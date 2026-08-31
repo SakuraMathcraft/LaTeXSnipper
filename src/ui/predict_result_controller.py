@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import ctypes
 import datetime
 import os
@@ -42,7 +44,9 @@ class PredictResultControllerMixin:
             pass
         return True
 
-    def _move_predict_result_dialog_to_screen(self, dlg: QDialog, screen_index: int | None) -> None:
+    def _move_predict_result_dialog_to_screen(
+        self, dlg: QDialog, screen_index: int | None
+    ) -> None:
         if screen_index is None or bool(getattr(dlg, "_predict_result_pinned", False)):
             return
         try:
@@ -63,7 +67,9 @@ class PredictResultControllerMixin:
                 main_screen = None
             if main_screen is None:
                 try:
-                    main_screen = QGuiApplication.screenAt(self.frameGeometry().center())
+                    main_screen = QGuiApplication.screenAt(
+                        self.frameGeometry().center()
+                    )
                 except Exception:
                     main_screen = None
             same_screen_as_main = bool(main_screen is screens[idx])
@@ -91,11 +97,11 @@ class PredictResultControllerMixin:
 
     def _predict_result_mode_title(self, current_mode: str) -> str:
         mode_titles = {
-            "mathcraft": "确认或修改公式：",
-            "mathcraft_text": "确认或修改文本：",
-            "mathcraft_mixed": "确认或修改内容：",
+            "mathcraft": tr("确认或修改公式："),
+            "mathcraft_text": tr("确认或修改文本："),
+            "mathcraft_mixed": tr("确认或修改内容："),
         }
-        return mode_titles.get(current_mode, "确认或修改内容：")
+        return mode_titles.get(current_mode, tr("确认或修改内容："))
 
     def _set_predict_result_pin_button_style(self, button, pinned: bool):
         try:
@@ -103,7 +109,7 @@ class PredictResultControllerMixin:
             icon = FluentIcon.UNPIN if pinned else FluentIcon.PIN
             button.setIcon(icon.icon())
             button.setIconSize(QSize(18, 18))
-            button.setToolTip("固定为小窗口并保持置顶，再点一次恢复可调整大小")
+            button.setToolTip(tr("固定为小窗口并保持置顶，再点一次恢复可调整大小"))
             if pinned:
                 dark = is_dark_ui()
                 bg = "#2f6ea8" if dark else "#3daee9"
@@ -153,7 +159,9 @@ class PredictResultControllerMixin:
         except Exception:
             pass
 
-    def _set_predict_result_native_caption_buttons(self, dlg: QDialog, pinned: bool) -> bool:
+    def _set_predict_result_native_caption_buttons(
+        self, dlg: QDialog, pinned: bool
+    ) -> bool:
         if os.name != "nt":
             return False
         try:
@@ -173,7 +181,9 @@ class PredictResultControllerMixin:
                 style &= ~ws_minimizebox
                 style |= ws_maximizebox
             user32.SetWindowLongW(hwnd, -16, style)
-            flags = 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020  # NOMOVE | NOSIZE | NOZORDER | NOACTIVATE | FRAMECHANGED
+            flags = (
+                0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020
+            )  # NOMOVE | NOSIZE | NOZORDER | NOACTIVATE | FRAMECHANGED
             user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, flags)
             return True
         except Exception:
@@ -188,7 +198,9 @@ class PredictResultControllerMixin:
                 return False
             user32 = ctypes.windll.user32
             insert_after = -1 if topmost else -2  # HWND_TOPMOST / HWND_NOTOPMOST
-            flags = 0x0010 | 0x0001 | 0x0002 | 0x0040  # NOACTIVATE | NOSIZE | NOMOVE | SHOWWINDOW
+            flags = (
+                0x0010 | 0x0001 | 0x0002 | 0x0040
+            )  # NOACTIVATE | NOSIZE | NOMOVE | SHOWWINDOW
             ok = user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, flags)
             return bool(ok)
         except Exception:
@@ -244,7 +256,9 @@ class PredictResultControllerMixin:
         except Exception:
             pass
 
-    def _try_refresh_predict_result_dialog(self, dlg: QDialog, code: str, current_mode: str) -> bool:
+    def _try_refresh_predict_result_dialog(
+        self, dlg: QDialog, code: str, current_mode: str
+    ) -> bool:
         try:
             if not bool(getattr(dlg, "_predict_result_pinned", False)):
                 return False
@@ -272,12 +286,22 @@ class PredictResultControllerMixin:
         coordinator = getattr(self, "recognition_coordinator", None)
         if coordinator is not None:
             normalized_type = normalize_content_type(content_type)
-            mode = "text" if normalized_type == "text" else "mixed" if normalized_type == "markdown" else "formula"
+            mode = (
+                "text"
+                if normalized_type == "text"
+                else "mixed"
+                if normalized_type == "markdown"
+                else "formula"
+            )
             internal_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
-            backend = "mathcraft" if str(model_name).strip().lower() in internal_models else "external"
+            backend = (
+                "mathcraft"
+                if str(model_name).strip().lower() in internal_models
+                else "external"
+            )
             coordinator.publish_next_result(content, backend=backend, mode=mode)
-        self.set_model_status("完成")
-        self.set_action_status("识别完成", auto_clear_ms=3000)
+        self.set_model_status(tr("完成"))
+        self.set_action_status(tr("识别完成"), auto_clear_ms=3000)
         if elapsed is not None:
             print(f"[INFO] 识别完成 model={model_name} time={elapsed:.2f}s")
         else:
@@ -290,12 +314,14 @@ class PredictResultControllerMixin:
         self._next_predict_result_screen_index = None
         code = (recognized_content or "").strip()
         if not code:
-            self.show_action_status("识别结果为空", level="warning")
+            self.show_action_status(tr("识别结果为空"), level="warning")
             return
 
         current_mode = normalize_content_type(content_type)
         old_dialog = getattr(self, "_predict_result_dialog", None)
-        if old_dialog is not None and self._try_refresh_predict_result_dialog(old_dialog, code, current_mode):
+        if old_dialog is not None and self._try_refresh_predict_result_dialog(
+            old_dialog, code, current_mode
+        ):
             return
         if old_dialog is not None:
             try:
@@ -304,10 +330,14 @@ class PredictResultControllerMixin:
                 pass
             self._clear_predict_result_dialog_ref(old_dialog)
 
-        default_export_format = str(self.cfg.get("last_export_format", "") or "").strip()
+        default_export_format = str(
+            self.cfg.get("last_export_format", "") or ""
+        ).strip()
         if not is_export_format_available(default_export_format):
             default_export_format = ""
-        default_export_label = export_format_label(default_export_format) if default_export_format else ""
+        default_export_label = (
+            export_format_label(default_export_format) if default_export_format else ""
+        )
 
         self._predict_result_dialog = show_predict_result_dialog(
             parent=self,
@@ -335,16 +365,67 @@ class PredictResultControllerMixin:
     def _build_mixed_html(self, content: str) -> str:
         return build_mixed_content_html(content)
 
-    def _should_show_recognition_failure_tray_notification(self, now_ts: float | None = None) -> bool:
+    def _should_show_recognition_failure_tray_notification(
+        self, now_ts: float | None = None
+    ) -> bool:
         try:
-            current = float(now_ts if now_ts is not None else datetime.datetime.now().timestamp())
-            last = float(getattr(self, "_last_recognition_failure_toast_ts", 0.0) or 0.0)
+            current = float(
+                now_ts if now_ts is not None else datetime.datetime.now().timestamp()
+            )
+            last = float(
+                getattr(self, "_last_recognition_failure_toast_ts", 0.0) or 0.0
+            )
             if current - last < RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS:
                 return False
             self._last_recognition_failure_toast_ts = current
             return True
         except Exception:
             return True
+
+    def _show_recognition_failure_notice(self, content: str) -> None:
+        visible = False
+        try:
+            visible = bool(self.isVisible() and not self.isMinimized())
+        except Exception:
+            pass
+        if not visible and getattr(self, "tray_icon", None):
+            if self._should_show_recognition_failure_tray_notification():
+                hotkey = display_hotkey(
+                    normalize_hotkey_or_default(
+                        self.cfg.get("hotkey", None), sys.platform
+                    ),
+                    sys.platform,
+                )
+                try:
+                    self.system_provider.show_notification(
+                        self.tray_icon,
+                        tr("识别失败"),
+                        tr("{content}\n可使用快捷键 {hotkey} 重试。").format(
+                            content=content, hotkey=hotkey
+                        ),
+                        critical=True,
+                        timeout_ms=4000,
+                    )
+                    return
+                except Exception:
+                    pass
+            else:
+                return
+        if not visible:
+            try:
+                self.system_provider.activate_window(self)
+            except Exception:
+                pass
+        try:
+            InfoBar.error(
+                title=tr("识别失败"),
+                content=content,
+                parent=self,
+                duration=4500,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception as exc:
+            print(f"[WARN] 无法显示识别失败提示: {exc}")
 
     def on_predict_fail(
         self,
@@ -363,11 +444,15 @@ class PredictResultControllerMixin:
         coordinator = getattr(self, "recognition_coordinator", None)
         if coordinator is not None:
             empty_codes = {
-                "未识别到公式内容": "empty_formula",
-                "未识别到文本内容": "empty_text",
-                "未检测到可识别内容": "empty_content",
+                tr("未识别到公式内容"): "empty_formula",
+                tr("未识别到文本内容"): "empty_text",
+                tr("未检测到可识别内容"): "empty_content",
             }
-            code = "canceled" if canceled else empty_codes.get(content, "recognition_failed")
+            code = (
+                "canceled"
+                if canceled
+                else empty_codes.get(content, "recognition_failed")
+            )
             coordinator.fail_next_result(content, code=code)
         if canceled:
             try:
@@ -376,42 +461,20 @@ class PredictResultControllerMixin:
                 pass
             self._show_recognition_cancelled_infobar()
             return
-        self.set_model_status("失败")
+        self.set_model_status(tr("失败"))
         if elapsed is not None:
             print(f"[ERR] 识别失败 model={model_name} time={elapsed:.2f}s err={msg}")
         else:
             print(f"[ERR] 识别失败 model={model_name} err={msg}")
-        if getattr(self, "tray_icon", None) and self._should_show_recognition_failure_tray_notification():
-            hk = display_hotkey(
-                normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
-                sys.platform,
-            )
-            try:
-                self.system_provider.show_notification(
-                    self.tray_icon,
-                    "识别失败",
-                    f"{content}\n可使用快捷键 {hk} 重试。",
-                    critical=True,
-                    timeout_ms=4000,
-                )
-            except Exception:
-                pass
-        try:
-            InfoBar.error(
-                title="识别失败",
-                content=content,
-                parent=self,
-                duration=4500,
-                position=InfoBarPosition.TOP,
-            )
-        except Exception as exc:
-            print(f"[WARN] 无法显示识别失败提示: {exc}")
+        self._show_recognition_failure_notice(content)
 
     def accept_recognition_result(self, dialog, te: QTextEdit):
         t = te.toPlainText().strip()
         if not t:
             if bool(getattr(dialog, "_predict_result_pinned", False)):
-                self.show_action_status("识别结果为空", level="warning", parent=dialog)
+                self.show_action_status(
+                    tr("识别结果为空"), level="warning", parent=dialog
+                )
                 return
             dialog.reject()
             return
@@ -421,14 +484,24 @@ class PredictResultControllerMixin:
             except Exception:
                 QApplication.clipboard().setText(t)
         except Exception as e:
-            self.show_action_status(f"复制失败：{e}", level="error", parent=dialog)
+            self.show_action_status(
+                tr("复制失败：{error}").format(error=e),
+                level="error",
+                parent=dialog,
+            )
+            return
         try:
             content_type = normalize_content_type(dialog._predict_result_mode)
             self.add_history_record(t, content_type=content_type)
         except Exception as e:
-            self.show_action_status(f"写入历史失败：{e}", level="error", parent=dialog)
+            self.show_action_status(
+                tr("写入历史失败：{error}").format(error=e),
+                level="error",
+                parent=dialog,
+            )
+            return
         if bool(getattr(dialog, "_predict_result_pinned", False)):
-            self.set_action_status("已确认并复制到剪贴板", parent=dialog)
+            self.set_action_status(tr("已确认并复制到剪贴板"), parent=dialog)
             try:
                 dialog.raise_()
                 dialog.activateWindow()

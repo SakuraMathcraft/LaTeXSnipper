@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QProgressBar, QTextEdit, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QTextEdit,
+    QVBoxLayout,
+)
 from qfluentwidgets import FluentIcon, PushButton
 
 from runtime.app_paths import resource_path
@@ -13,20 +23,22 @@ from runtime.app_paths import resource_path
 class InstallProgressDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("安装进度")
+        self.setWindowTitle(tr("安装进度"))
         self.resize(680, 440)
         self.setWindowIcon(QIcon(resource_path("assets/icon.ico")))
 
-        self.info_label = QLabel("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
+        self.info_label = QLabel(
+            tr("正在遍历寻找缺失的库，完成后将自动下载，请不要关闭此窗口(๑•̀ㅂ•́)و✧)...")
+        )
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setFixedHeight(20)
         self.progress_bar.setMinimumWidth(400)
-        self.cancel_button = PushButton(FluentIcon.CLOSE, "退出下载")
+        self.cancel_button = PushButton(FluentIcon.CLOSE, tr("退出下载"))
         self.cancel_button.setFixedHeight(32)
-        self.pause_button = PushButton(FluentIcon.PAUSE, "暂停下载")
+        self.pause_button = PushButton(FluentIcon.PAUSE, tr("暂停下载"))
         self.pause_button.setFixedHeight(32)
 
         button_row = QHBoxLayout()

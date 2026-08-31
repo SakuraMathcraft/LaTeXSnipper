@@ -1,17 +1,65 @@
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import shutil
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QEvent, QObject, QRect, QSize, QThread, QTimer, QUrl, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QAction, QColor, QFontMetrics, QIcon, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat, QWheelEvent
-from PyQt6.QtWidgets import QApplication, QFileDialog, QDialog, QHBoxLayout, QLabel, QLineEdit, QMenu, QPlainTextEdit, QSplitter, QTextEdit, QVBoxLayout, QWidget
-from qfluentwidgets import ComboBox, FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, PushButton, ToolButton, isDarkTheme
+from PyQt6.QtCore import (
+    QEvent,
+    QObject,
+    QRect,
+    QSize,
+    QThread,
+    QTimer,
+    QUrl,
+    QUrlQuery,
+    Qt,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QFontMetrics,
+    QIcon,
+    QKeySequence,
+    QShortcut,
+    QTextCursor,
+    QTextDocument,
+    QTextFormat,
+    QWheelEvent,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPlainTextEdit,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import (
+    ComboBox,
+    FluentIcon,
+    InfoBar,
+    InfoBarPosition,
+    PrimaryPushButton,
+    PushButton,
+    ToolButton,
+    isDarkTheme,
+)
 
 from editor.latex_snippet_panel import LaTeXSnippetPanel, insert_snippet_into_editor
 from editor.workbench_bridge import WorkbenchBridge
+from localization.manager import current_ui_language
 from runtime.app_paths import app_temp_dir, resource_path
 
 from .tex_utils import WRAP_ENVIRONMENTS, validate_tex_document, wrap_tex_document
@@ -71,14 +119,18 @@ class SlowZoomPlainTextEdit(QPlainTextEdit):
         if dy:
             self._line_number_area.scroll(0, dy)
         else:
-            self._line_number_area.update(0, rect.y(), self._line_number_area.width(), rect.height())
+            self._line_number_area.update(
+                0, rect.y(), self._line_number_area.width(), rect.height()
+            )
         if rect.contains(self.viewport().rect()):
             self._update_line_number_area_width(0)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         cr = self.contentsRect()
-        self._line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
+        self._line_number_area.setGeometry(
+            QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
+        )
 
     def paint_line_number_area(self, event) -> None:
         from PyQt6.QtGui import QPainter
@@ -88,15 +140,28 @@ class SlowZoomPlainTextEdit(QPlainTextEdit):
         painter.fillRect(event.rect(), QColor("#1a2029" if dark else "#f3f4f6"))
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
-        top = int(round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top()))
+        top = int(
+            round(
+                self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+            )
+        )
         bottom = top + int(round(self.blockBoundingRect(block).height()))
         current_line = self.textCursor().blockNumber()
         text_color = QColor("#7f8a99" if dark else "#8b95a5")
         active_color = QColor("#d7dee8" if dark else "#334155")
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(active_color if block_number == current_line else text_color)
-                painter.drawText(0, top, self._line_number_area.width() - 6, self.fontMetrics().height(), int(Qt.AlignmentFlag.AlignRight), str(block_number + 1))
+                painter.setPen(
+                    active_color if block_number == current_line else text_color
+                )
+                painter.drawText(
+                    0,
+                    top,
+                    self._line_number_area.width() - 6,
+                    self.fontMetrics().height(),
+                    int(Qt.AlignmentFlag.AlignRight),
+                    str(block_number + 1),
+                )
             block = block.next()
             block_number += 1
             top = bottom
@@ -107,7 +172,9 @@ class SlowZoomPlainTextEdit(QPlainTextEdit):
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
             dark = bool(isDarkTheme())
-            selection.format.setBackground(QColor(74, 144, 226, 92) if dark else QColor(66, 133, 244, 72))
+            selection.format.setBackground(
+                QColor(74, 144, 226, 92) if dark else QColor(66, 133, 244, 72)
+            )
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
@@ -116,6 +183,7 @@ class SlowZoomPlainTextEdit(QPlainTextEdit):
 
 
 if QWebEngineView is not None:
+
     class SlowZoomWebView(QWebEngineView):
         def wheelEvent(self, event: QWheelEvent) -> None:
             if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -143,7 +211,9 @@ class _TexDocumentCompileWorker(QObject):
         try:
             from rendering.latex import compile_tex_document_detailed
 
-            result = compile_tex_document_detailed(self.tex_content, Path(self.output_dir))
+            result = compile_tex_document_detailed(
+                self.tex_content, Path(self.output_dir)
+            )
             self.finished.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -164,7 +234,7 @@ class _MathLivePreviewBridge(WorkbenchBridge):
 class HandwritingDocumentPreviewWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("自动排版")
+        self.setWindowTitle(tr("自动排版"))
         try:
             icon_path = resource_path("assets/icon.ico")
             if icon_path:
@@ -222,11 +292,15 @@ class HandwritingDocumentPreviewWindow(QDialog):
         ready = bool(pdfinfo_path and pdftocairo_path)
         system_found = bool(pdfinfo_path or pdftocairo_path or pdftoppm_path)
         if ready:
-            detail = "已检测到 TeX Live 或 MiKTeX 提供的 Poppler 命令；当前可直接启用 Poppler 高清预览。"
+            detail = tr(
+                "已检测到 TeX Live 或 MiKTeX 提供的 Poppler 命令；当前可直接启用 Poppler 高清预览。"
+            )
         elif system_found:
-            detail = "已检测到部分系统级 Poppler 命令，但缺少完整渲染链；请确认 TeX Live 或 MiKTeX 已正确安装并已加入 PATH。"
+            detail = tr(
+                "已检测到部分系统级 Poppler 命令，但缺少完整渲染链；请确认 TeX Live 或 MiKTeX 已正确安装并已加入 PATH。"
+            )
         else:
-            detail = "未检测到系统级 Poppler 命令。请先部署 TeX Live 或 MiKTeX。"
+            detail = tr("未检测到系统级 Poppler 命令。请先部署 TeX Live 或 MiKTeX。")
         return SimpleNamespace(
             ready=ready,
             detail=detail,
@@ -263,9 +337,11 @@ class HandwritingDocumentPreviewWindow(QDialog):
         title_row = QHBoxLayout()
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(10)
-        self.preview_title_label = QLabel("自动排版", self)
+        self.preview_title_label = QLabel(tr("自动排版"), self)
         self.preview_title_label.setObjectName("docPreviewTitle")
-        self.preview_hint_label = QLabel("编辑源码，按需打开公式编辑器；关闭编辑器时会自动插入到源码。", self)
+        self.preview_hint_label = QLabel(
+            tr("编辑源码，按需打开公式编辑器；关闭编辑器时会自动插入到源码。"), self
+        )
         self.preview_hint_label.setObjectName("docPreviewHint")
         title_row.addWidget(self.preview_title_label)
         title_row.addWidget(self.preview_hint_label)
@@ -289,9 +365,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
         editor_title_row = QHBoxLayout()
         editor_title_row.setContentsMargins(0, 0, 0, 0)
         editor_title_row.setSpacing(8)
-        editor_title_row.addWidget(QLabel("TeX 文档内容"))
+        editor_title_row.addWidget(QLabel(tr("TeX 文档内容")))
         editor_title_row.addStretch(1)
-        self.editor_search_hint_label = QLabel("Alt+F 搜索", editor_panel)
+        self.editor_search_hint_label = QLabel(tr("Alt+F 搜索"), editor_panel)
         editor_title_row.addWidget(self.editor_search_hint_label)
         editor_layout.addLayout(editor_title_row)
         self.editor_search_bar = QWidget(editor_panel)
@@ -299,17 +375,25 @@ class HandwritingDocumentPreviewWindow(QDialog):
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(6)
         self.editor_search_input = QLineEdit(self.editor_search_bar)
-        self.editor_search_input.setPlaceholderText("搜索当前 TeX 文档")
+        self.editor_search_input.setPlaceholderText(tr("搜索当前 TeX 文档"))
         self.editor_search_prev_btn = ToolButton(FluentIcon.UP, self.editor_search_bar)
-        self.editor_search_next_btn = ToolButton(FluentIcon.DOWN, self.editor_search_bar)
-        self.editor_search_close_btn = ToolButton(FluentIcon.CLOSE, self.editor_search_bar)
+        self.editor_search_next_btn = ToolButton(
+            FluentIcon.DOWN, self.editor_search_bar
+        )
+        self.editor_search_close_btn = ToolButton(
+            FluentIcon.CLOSE, self.editor_search_bar
+        )
         self.editor_search_status_label = QLabel("", self.editor_search_bar)
-        for btn in (self.editor_search_prev_btn, self.editor_search_next_btn, self.editor_search_close_btn):
+        for btn in (
+            self.editor_search_prev_btn,
+            self.editor_search_next_btn,
+            self.editor_search_close_btn,
+        ):
             btn.setFixedHeight(30)
             btn.setFixedWidth(34)
-        self.editor_search_prev_btn.setToolTip("上一个")
-        self.editor_search_next_btn.setToolTip("下一个")
-        self.editor_search_close_btn.setToolTip("关闭搜索")
+        self.editor_search_prev_btn.setToolTip(tr("上一个"))
+        self.editor_search_next_btn.setToolTip(tr("下一个"))
+        self.editor_search_close_btn.setToolTip(tr("关闭搜索"))
         self.editor_search_status_label.setMinimumWidth(84)
         search_layout.addWidget(self.editor_search_input, 1)
         search_layout.addWidget(self.editor_search_prev_btn)
@@ -325,7 +409,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
         editor_content_layout.setContentsMargins(0, 0, 0, 0)
         editor_content_layout.setSpacing(0)
         self.editor = SlowZoomPlainTextEdit(editor_content)
-        self.editor.setPlaceholderText("自动排版后的 TeX 文档会显示在这里，可直接编辑。")
+        self.editor.setPlaceholderText(
+            tr("自动排版后的 TeX 文档会显示在这里，可直接编辑。")
+        )
         self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.editor.customContextMenuRequested.connect(self._show_editor_context_menu)
         editor_content_layout.addWidget(self.editor, 1)
@@ -333,11 +419,13 @@ class HandwritingDocumentPreviewWindow(QDialog):
         compile_log_layout = QVBoxLayout(self.compile_log_panel)
         compile_log_layout.setContentsMargins(0, 0, 0, 0)
         compile_log_layout.setSpacing(6)
-        self.compile_log_title = QLabel("编译日志", self.compile_log_panel)
+        self.compile_log_title = QLabel(tr("编译日志"), self.compile_log_panel)
         compile_log_layout.addWidget(self.compile_log_title)
         self.compile_log = QPlainTextEdit(self.compile_log_panel)
         self.compile_log.setReadOnly(True)
-        self.compile_log.setPlaceholderText("这里会显示最近一次编译的错误、警告和原始日志。")
+        self.compile_log.setPlaceholderText(
+            tr("这里会显示最近一次编译的错误、警告和原始日志。")
+        )
         self.compile_log.setMinimumHeight(120)
         compile_log_layout.addWidget(self.compile_log, 1)
         self.editor_body_splitter.addWidget(editor_content)
@@ -345,25 +433,29 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self.editor_body_splitter.setStretchFactor(0, 6)
         self.editor_body_splitter.setStretchFactor(1, 2)
         self.editor_body_splitter.setSizes(self._editor_log_splitter_sizes)
-        self.editor_body_splitter.splitterMoved.connect(self._remember_editor_log_splitter_sizes)
+        self.editor_body_splitter.splitterMoved.connect(
+            self._remember_editor_log_splitter_sizes
+        )
         editor_layout.addWidget(self.editor_body_splitter, 1)
         self.left_splitter.addWidget(editor_panel)
 
         control_row = QHBoxLayout()
         control_row.setContentsMargins(0, 0, 0, 0)
         control_row.setSpacing(8)
-        self.snippet_panel = LaTeXSnippetPanel(left, on_insert_key=self._insert_snippet_into_editor, compact=True)
+        self.snippet_panel = LaTeXSnippetPanel(
+            left, on_insert_key=self._insert_snippet_into_editor, compact=True
+        )
         control_row.addWidget(self.snippet_panel)
-        self.mathlive_toggle_btn = PushButton(FluentIcon.EDIT, "打开编辑器", left)
+        self.mathlive_toggle_btn = PushButton(FluentIcon.EDIT, tr("打开编辑器"), left)
         self.mathlive_toggle_btn.setFixedHeight(36)
         control_row.addWidget(self.mathlive_toggle_btn)
         self.wrap_env_combo = ComboBox(left)
         self.wrap_env_combo.setFixedHeight(32)
         self.wrap_env_combo.setMinimumWidth(154)
         for label, (env_key, _begin, _end) in WRAP_ENVIRONMENTS.items():
-            self.wrap_env_combo.addItem(label, userData=env_key)
+            self.wrap_env_combo.addItem(tr(label), userData=env_key)
         control_row.addWidget(self.wrap_env_combo)
-        self.wrap_env_btn = PushButton(FluentIcon.EMBED, "包裹选中", left)
+        self.wrap_env_btn = PushButton(FluentIcon.EMBED, tr("包裹选中"), left)
         self.wrap_env_btn.setFixedHeight(36)
         control_row.addWidget(self.wrap_env_btn)
         control_row.addStretch(1)
@@ -379,17 +471,29 @@ class HandwritingDocumentPreviewWindow(QDialog):
             self.mathlive_view.setMinimumHeight(310)
             if QWebChannel is not None:
                 self._mathlive_bridge = _MathLivePreviewBridge(self)
-                self._mathlive_bridge.preferredHeightChanged.connect(self._on_mathlive_preferred_height_changed)
+                self._mathlive_bridge.preferredHeightChanged.connect(
+                    self._on_mathlive_preferred_height_changed
+                )
                 self._mathlive_channel = QWebChannel(self.mathlive_view.page())
                 self._mathlive_channel.registerObject("pyBridge", self._mathlive_bridge)
                 self.mathlive_view.page().setWebChannel(self._mathlive_channel)
-            self.mathlive_view.page().loadFinished.connect(self._on_mathlive_bridge_loaded)
-            bridge_url = QUrl.fromLocalFile(str(Path(resource_path("assets/mathlive/bridge_panel.html")).resolve()))
+            self.mathlive_view.page().loadFinished.connect(
+                self._on_mathlive_bridge_loaded
+            )
+            bridge_url = QUrl.fromLocalFile(
+                str(Path(resource_path("assets/mathlive/bridge_panel.html")).resolve())
+            )
+            query = QUrlQuery()
+            query.addQueryItem("lang", current_ui_language())
+            bridge_url.setQuery(query)
             self.mathlive_view.setUrl(bridge_url)
             mathlive_panel_layout.addWidget(self.mathlive_view, 1)
         else:
             self.mathlive_view = None
-            fallback = QLabel("当前环境未加载 WebEngine，无法使用 MathLive 键盘桥接层。", self.mathlive_panel)
+            fallback = QLabel(
+                tr("当前环境未加载 WebEngine，无法使用 MathLive 键盘桥接层。"),
+                self.mathlive_panel,
+            )
             fallback.setWordWrap(True)
             mathlive_panel_layout.addWidget(fallback, 1)
         self.left_splitter.addWidget(self.mathlive_panel)
@@ -409,31 +513,38 @@ class HandwritingDocumentPreviewWindow(QDialog):
         preview_header = QHBoxLayout()
         preview_header.setContentsMargins(0, 0, 0, 0)
         preview_header.setSpacing(8)
-        preview_header.addWidget(QLabel("PDF 预览"))
+        preview_header.addWidget(QLabel(tr("PDF 预览")))
         self.pdf_backend_status_label = QLabel("", right)
-        self.pdf_backend_status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.pdf_backend_status_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         preview_header.addWidget(self.pdf_backend_status_label)
         preview_header.addStretch(1)
         self.pdf_backend_combo = ComboBox(right)
         self.pdf_backend_combo.setMinimumWidth(148)
         self.pdf_backend_combo.setFixedHeight(32)
-        self.pdf_backend_combo.addItem("自动", userData="auto")
-        self.pdf_backend_combo.addItem("Poppler(高清)", userData="poppler")
-        self.pdf_backend_combo.addItem("Fitz(兼容)", userData="fitz")
+        self.pdf_backend_combo.addItem(tr("自动"), userData="auto")
+        self.pdf_backend_combo.addItem(tr("Poppler(高清)"), userData="poppler")
+        self.pdf_backend_combo.addItem(tr("Fitz(兼容)"), userData="fitz")
         preview_header.addWidget(self.pdf_backend_combo)
         right_layout.addLayout(preview_header)
         toolbar = QHBoxLayout()
-        self.actual_size_btn = PushButton(FluentIcon.ZOOM, "实际大小")
-        self.fit_window_btn = PushButton(FluentIcon.FIT_PAGE, "适应窗口")
-        self.fit_width_btn = PushButton(FluentIcon.VIDEO, "适应宽度")
-        self.fit_text_width_btn = PushButton(FluentIcon.BOOK_SHELF, "适应文本宽度")
+        self.actual_size_btn = PushButton(FluentIcon.ZOOM, tr("实际大小"))
+        self.fit_window_btn = PushButton(FluentIcon.FIT_PAGE, tr("适应窗口"))
+        self.fit_width_btn = PushButton(FluentIcon.VIDEO, tr("适应宽度"))
+        self.fit_text_width_btn = PushButton(FluentIcon.BOOK_SHELF, tr("适应文本宽度"))
         self.pdf_grid_combo = ComboBox(right)
         self.pdf_grid_combo.setFixedHeight(32)
         self.pdf_grid_combo.setMinimumWidth(110)
-        self.pdf_grid_combo.addItem("1x1 网格", userData="1x1")
-        self.pdf_grid_combo.addItem("2x1 网格", userData="2x1")
-        self.pdf_grid_combo.addItem("3x1 网格", userData="3x1")
-        for btn in (self.actual_size_btn, self.fit_window_btn, self.fit_width_btn, self.fit_text_width_btn):
+        self.pdf_grid_combo.addItem(tr("1x1 网格"), userData="1x1")
+        self.pdf_grid_combo.addItem(tr("2x1 网格"), userData="2x1")
+        self.pdf_grid_combo.addItem(tr("3x1 网格"), userData="3x1")
+        for btn in (
+            self.actual_size_btn,
+            self.fit_window_btn,
+            self.fit_width_btn,
+            self.fit_text_width_btn,
+        ):
             btn.setFixedHeight(32)
             toolbar.addWidget(btn)
         toolbar.addWidget(self.pdf_grid_combo)
@@ -449,20 +560,27 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self.preview_splitter.addWidget(right)
         self.preview_splitter.setStretchFactor(0, 5)
         self.preview_splitter.setStretchFactor(1, 4)
-        self.preview_splitter.splitterMoved.connect(self._schedule_mathlive_layout_refresh)
+        self.preview_splitter.splitterMoved.connect(
+            self._schedule_mathlive_layout_refresh
+        )
         root.addWidget(self.preview_splitter, 1)
 
         btn_row = QHBoxLayout()
-        self.compile_btn = PushButton(FluentIcon.PRINT, "编译预览 PDF")
+        self.compile_btn = PushButton(FluentIcon.PRINT, tr("编译预览 PDF"))
         self.compile_btn.setFixedHeight(34)
         self.compile_btn.setMinimumWidth(150)
         btn_row.addWidget(self.compile_btn)
         btn_row.addStretch(1)
-        self.copy_btn = PushButton(FluentIcon.COPY, "复制")
-        self.export_pdf_btn = PushButton(FluentIcon.DOCUMENT, "导出 PDF")
-        self.export_btn = PushButton(FluentIcon.SHARE, "导出 .tex")
-        self.close_btn = PrimaryPushButton(FluentIcon.CLOSE, "关闭")
-        for btn in (self.copy_btn, self.export_pdf_btn, self.export_btn, self.close_btn):
+        self.copy_btn = PushButton(FluentIcon.COPY, tr("复制"))
+        self.export_pdf_btn = PushButton(FluentIcon.DOCUMENT, tr("导出 PDF"))
+        self.export_btn = PushButton(FluentIcon.SHARE, tr("导出 .tex"))
+        self.close_btn = PrimaryPushButton(FluentIcon.CLOSE, tr("关闭"))
+        for btn in (
+            self.copy_btn,
+            self.export_pdf_btn,
+            self.export_btn,
+            self.close_btn,
+        ):
             btn.setFixedHeight(34)
         btn_row.addWidget(self.copy_btn)
         btn_row.addWidget(self.export_pdf_btn)
@@ -490,16 +608,36 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self.editor_search_next_btn.clicked.connect(self._find_next_in_editor)
         self.editor_search_close_btn.clicked.connect(self._hide_editor_search_bar)
         self._editor_search_toggle_shortcut = QShortcut(QKeySequence("Alt+F"), self)
-        self._editor_search_toggle_shortcut.activated.connect(self._handle_editor_search_toggle_shortcut)
-        self._editor_search_next_shortcut = QShortcut(QKeySequence("F3"), self.editor_search_bar)
-        self._editor_search_next_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        self._editor_search_next_shortcut.activated.connect(self._handle_editor_search_next_shortcut)
-        self._editor_search_prev_shortcut = QShortcut(QKeySequence("Shift+F3"), self.editor_search_bar)
-        self._editor_search_prev_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        self._editor_search_prev_shortcut.activated.connect(self._handle_editor_search_prev_shortcut)
-        self._editor_search_close_shortcut = QShortcut(QKeySequence("Esc"), self.editor_search_bar)
-        self._editor_search_close_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        self._editor_search_close_shortcut.activated.connect(self._handle_editor_search_close_shortcut)
+        self._editor_search_toggle_shortcut.activated.connect(
+            self._handle_editor_search_toggle_shortcut
+        )
+        self._editor_search_next_shortcut = QShortcut(
+            QKeySequence("F3"), self.editor_search_bar
+        )
+        self._editor_search_next_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self._editor_search_next_shortcut.activated.connect(
+            self._handle_editor_search_next_shortcut
+        )
+        self._editor_search_prev_shortcut = QShortcut(
+            QKeySequence("Shift+F3"), self.editor_search_bar
+        )
+        self._editor_search_prev_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self._editor_search_prev_shortcut.activated.connect(
+            self._handle_editor_search_prev_shortcut
+        )
+        self._editor_search_close_shortcut = QShortcut(
+            QKeySequence("Esc"), self.editor_search_bar
+        )
+        self._editor_search_close_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self._editor_search_close_shortcut.activated.connect(
+            self._handle_editor_search_close_shortcut
+        )
         self._apply_preview_theme()
         self._rebuild_pdf_backend_view(show_feedback=False)
 
@@ -593,21 +731,35 @@ class HandwritingDocumentPreviewWindow(QDialog):
             self.editor_search_status_label.setText("")
             return
         count = self._count_editor_search_matches(text)
-        self.editor_search_status_label.setText(f"{count} 项" if count else "未找到")
+        self.editor_search_status_label.setText(
+            tr("{count} 项").format(count=count) if count else tr("未找到")
+        )
 
     def _find_in_editor(self, backward: bool = False) -> None:
         needle = str(self.editor_search_input.text() or "").strip()
         if not needle:
             self.editor_search_status_label.setText("")
             return
-        flags = QTextDocument.FindFlag.FindBackward if backward else QTextDocument.FindFlag(0)
+        flags = (
+            QTextDocument.FindFlag.FindBackward
+            if backward
+            else QTextDocument.FindFlag(0)
+        )
         found = self.editor.find(needle, flags)
         if not found:
             cursor = self.editor.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End if backward else QTextCursor.MoveOperation.Start)
+            cursor.movePosition(
+                QTextCursor.MoveOperation.End
+                if backward
+                else QTextCursor.MoveOperation.Start
+            )
             self.editor.setTextCursor(cursor)
             found = self.editor.find(needle, flags)
-        self.editor_search_status_label.setText(f"{self._count_editor_search_matches(needle)} 项" if found else "未找到")
+        self.editor_search_status_label.setText(
+            tr("{count} 项").format(count=self._count_editor_search_matches(needle))
+            if found
+            else tr("未找到")
+        )
 
     def _find_next_in_editor(self) -> None:
         self._find_in_editor(backward=False)
@@ -622,7 +774,13 @@ class HandwritingDocumentPreviewWindow(QDialog):
         cursor = self.editor.textCursor()
         selected = cursor.selectedText().replace("\u2029", "\n")
         if not selected.strip():
-            InfoBar.warning(title="未选择内容", content="请先在源码区选中需要包裹的内容。", parent=self, position=InfoBarPosition.TOP, duration=2200)
+            InfoBar.warning(
+                title=tr("未选择内容"),
+                content=tr("请先在源码区选中需要包裹的内容。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2200,
+            )
             return
         env_key = str(self.wrap_env_combo.currentData() or "").strip()
         begin = end = None
@@ -633,11 +791,21 @@ class HandwritingDocumentPreviewWindow(QDialog):
         if not begin or not end:
             return
         stripped = selected.strip()
-        wrapped = f"{begin}{stripped}{end}" if env_key == "inline" else f"{begin}\n{stripped}\n{end}"
+        wrapped = (
+            f"{begin}{stripped}{end}"
+            if env_key == "inline"
+            else f"{begin}\n{stripped}\n{end}"
+        )
         cursor.insertText(wrapped)
         self.editor.setTextCursor(cursor)
         self.editor.setFocus()
-        InfoBar.success(title="已包裹选中内容", content=f"已包裹为 {env_key}", parent=self, position=InfoBarPosition.TOP, duration=1800)
+        InfoBar.success(
+            title=tr("已包裹选中内容"),
+            content=tr("已包裹为 {environment}").format(environment=env_key),
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=1800,
+        )
 
     def _set_mathlive_panel_visible(self, visible: bool) -> None:
         actual_visible = bool(visible and self.mathlive_view is not None)
@@ -647,7 +815,11 @@ class HandwritingDocumentPreviewWindow(QDialog):
             total = max(1, self.left_splitter.height())
             lower = max(180, min(self._mathlive_expand_height, max(180, total // 2)))
             upper = max(220, total - lower)
-            sizes = self._mathlive_splitter_last_sizes if sum(self._mathlive_splitter_last_sizes) > 0 else [upper, lower]
+            sizes = (
+                self._mathlive_splitter_last_sizes
+                if sum(self._mathlive_splitter_last_sizes) > 0
+                else [upper, lower]
+            )
             self.left_splitter.setSizes(sizes)
             self._schedule_mathlive_layout_refresh()
         else:
@@ -657,7 +829,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
                     self._mathlive_splitter_last_sizes = sizes[:2]
             except Exception:
                 pass
-            total = max(1, sum(self.left_splitter.sizes()) or self.left_splitter.height() or 1)
+            total = max(
+                1, sum(self.left_splitter.sizes()) or self.left_splitter.height() or 1
+            )
             self.left_splitter.setSizes([total, 0])
             self.mathlive_panel.setVisible(False)
             self._set_compile_log_visible(True)
@@ -678,7 +852,11 @@ class HandwritingDocumentPreviewWindow(QDialog):
             return
         if visible:
             panel.setVisible(True)
-            sizes = self._editor_log_splitter_sizes if sum(self._editor_log_splitter_sizes) > 0 else [640, 180]
+            sizes = (
+                self._editor_log_splitter_sizes
+                if sum(self._editor_log_splitter_sizes) > 0
+                else [640, 180]
+            )
             splitter.setSizes(sizes)
         else:
             try:
@@ -706,14 +884,26 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _sync_mathlive_bridge_buttons(self) -> None:
         has_bridge = self.mathlive_view is not None
         self.mathlive_toggle_btn.setEnabled(has_bridge)
-        is_open = bool(has_bridge and self.mathlive_panel.isVisible() and self.left_splitter.sizes()[1] > 0)
-        self.mathlive_toggle_btn.setText("关闭编辑器" if is_open else "打开编辑器")
-        self.mathlive_toggle_btn.setToolTip("打开 MathLive 编辑器；关闭时会自动插入到源码" if has_bridge else "当前环境未加载 WebEngine，MathLive 键盘桥接层不可用")
+        is_open = bool(
+            has_bridge
+            and self.mathlive_panel.isVisible()
+            and self.left_splitter.sizes()[1] > 0
+        )
+        self.mathlive_toggle_btn.setText(
+            tr("关闭编辑器") if is_open else tr("打开编辑器")
+        )
+        self.mathlive_toggle_btn.setToolTip(
+            tr("打开 MathLive 编辑器；关闭时会自动插入到源码")
+            if has_bridge
+            else tr("当前环境未加载 WebEngine，MathLive 键盘桥接层不可用")
+        )
 
     def _toggle_mathlive_bridge(self) -> None:
         if self.mathlive_view is None:
             return
-        visible = not self.mathlive_panel.isVisible() or self.left_splitter.sizes()[1] == 0
+        visible = (
+            not self.mathlive_panel.isVisible() or self.left_splitter.sizes()[1] == 0
+        )
         if visible:
             self._mathlive_anchor_pos = self.editor.textCursor().position()
             self._set_mathlive_panel_visible(True)
@@ -730,7 +920,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
         if self.mathlive_view is None:
             return
         mode = "dark" if isDarkTheme() else "light"
-        self.mathlive_view.page().runJavaScript(f"window.mathliveBridgeApi?.setThemeMode('{mode}')")
+        self.mathlive_view.page().runJavaScript(
+            f"window.mathliveBridgeApi?.setThemeMode('{mode}')"
+        )
         self._schedule_mathlive_layout_refresh()
 
     def _focus_mathlive_bridge(self, show_keyboard: bool = True) -> None:
@@ -754,7 +946,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _refresh_mathlive_layout(self) -> None:
         if self.mathlive_view is None or not self.mathlive_panel.isVisible():
             return
-        self.mathlive_view.page().runJavaScript("window.mathliveBridgeApi?.syncLayout?.()")
+        self.mathlive_view.page().runJavaScript(
+            "window.mathliveBridgeApi?.syncLayout?.()"
+        )
 
     def _on_mathlive_preferred_height_changed(self, height: int) -> None:
         target = max(120, min(int(height), 560))
@@ -785,13 +979,17 @@ class HandwritingDocumentPreviewWindow(QDialog):
         cursor = self.editor.cursorForPosition(pos)
         line_no = int(cursor.blockNumber()) + 1
         menu = QMenu(self.editor)
-        cut_action = QAction("剪切", menu)
-        copy_action = QAction("复制", menu)
-        paste_action = QAction("粘贴", menu)
-        jump_action = QAction("跳转到 PDF", menu)
-        cut_action.setEnabled(self.editor.textCursor().hasSelection() and not self.editor.isReadOnly())
+        cut_action = QAction(tr("剪切"), menu)
+        copy_action = QAction(tr("复制"), menu)
+        paste_action = QAction(tr("粘贴"), menu)
+        jump_action = QAction(tr("跳转到 PDF"), menu)
+        cut_action.setEnabled(
+            self.editor.textCursor().hasSelection() and not self.editor.isReadOnly()
+        )
         copy_action.setEnabled(self.editor.textCursor().hasSelection())
-        paste_action.setEnabled((not self.editor.isReadOnly()) and bool(QApplication.clipboard().text()))
+        paste_action.setEnabled(
+            (not self.editor.isReadOnly()) and bool(QApplication.clipboard().text())
+        )
         menu.addAction(cut_action)
         menu.addAction(copy_action)
         menu.addAction(paste_action)
@@ -814,30 +1012,77 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _jump_to_pdf_from_source_line(self, line_no: int) -> None:
         pdf_path = Path(self._preview_pdf_path) if self._preview_pdf_path else None
         if pdf_path is None or not pdf_path.exists():
-            InfoBar.warning(title="无法跳转", content="请先完成一次 PDF 编译预览。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("无法跳转"),
+                content=tr("请先完成一次 PDF 编译预览。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         source_path = self._current_preview_source_path()
         if source_path is None or not source_path.exists():
-            InfoBar.warning(title="无法跳转", content="未找到编译时源码，请先重新编译。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("无法跳转"),
+                content=tr("未找到编译时源码，请先重新编译。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         try:
             from rendering.latex import synctex_view_from_source
 
-            page, x_pt, y_pt, w_pt, h_pt, error = synctex_view_from_source(source_file=source_path, line_no=int(line_no), pdf_file=pdf_path)
+            page, x_pt, y_pt, w_pt, h_pt, error = synctex_view_from_source(
+                source_file=source_path, line_no=int(line_no), pdf_file=pdf_path
+            )
         except Exception as exc:
             page, x_pt, y_pt, w_pt, h_pt, error = None, None, None, None, None, str(exc)
         if error:
-            InfoBar.warning(title="SyncTeX 跳转失败", content=str(error), parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.warning(
+                title=tr("SyncTeX 跳转失败"),
+                content=str(error),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
         if page is None or x_pt is None or y_pt is None:
-            InfoBar.warning(title="未定位到 PDF", content="SyncTeX 未返回有效的 PDF 坐标。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("未定位到 PDF"),
+                content=tr("SyncTeX 未返回有效的 PDF 坐标。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
-        if not self._scroll_pdf_to_point(int(page), float(x_pt), float(y_pt), width_pt=w_pt, height_pt=h_pt):
-            InfoBar.warning(title="跳转未完成", content="当前预览控件不支持定位到 PDF 坐标。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+        if not self._scroll_pdf_to_point(
+            int(page), float(x_pt), float(y_pt), width_pt=w_pt, height_pt=h_pt
+        ):
+            InfoBar.warning(
+                title=tr("跳转未完成"),
+                content=tr("当前预览控件不支持定位到 PDF 坐标。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
-        InfoBar.success(title="已跳转到 PDF", content=f"源码第 {int(line_no)} 行", parent=self, position=InfoBarPosition.TOP, duration=1600)
+        InfoBar.success(
+            title=tr("已跳转到 PDF"),
+            content=tr("源码第 {line} 行").format(line=int(line_no)),
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=1600,
+        )
 
-    def _scroll_pdf_to_point(self, page: int, x_pt: float, y_pt: float, width_pt: float | None = None, height_pt: float | None = None) -> bool:
+    def _scroll_pdf_to_point(
+        self,
+        page: int,
+        x_pt: float,
+        y_pt: float,
+        width_pt: float | None = None,
+        height_pt: float | None = None,
+    ) -> bool:
         view = self.pdf_view
         if view is None:
             return False
@@ -874,8 +1119,14 @@ class HandwritingDocumentPreviewWindow(QDialog):
         target_y = int(round(float(rect.y()) + rel_y * float(rect.height())))
         scale_x = float(rect.width()) / max(1e-6, float(page_w))
         scale_y = float(rect.height()) / max(1e-6, float(page_h))
-        width_px = max(0, int(round(float(width_pt) * scale_x))) if width_pt is not None else 0
-        height_px = max(0, int(round(float(height_pt) * scale_y))) if height_pt is not None else 0
+        width_px = (
+            max(0, int(round(float(width_pt) * scale_x))) if width_pt is not None else 0
+        )
+        height_px = (
+            max(0, int(round(float(height_pt) * scale_y)))
+            if height_pt is not None
+            else 0
+        )
         try:
             hbar = view.horizontalScrollBar()
             vbar = view.verticalScrollBar()
@@ -885,12 +1136,16 @@ class HandwritingDocumentPreviewWindow(QDialog):
             hbar.setValue(max(0, target_x - half_w))
             vbar.setValue(max(0, target_y - half_h))
             if vp is not None:
-                self._show_pdf_jump_indicator(target_x, target_y, line_width_px=width_px, line_height_px=height_px)
+                self._show_pdf_jump_indicator(
+                    target_x, target_y, line_width_px=width_px, line_height_px=height_px
+                )
             return True
         except Exception:
             return False
 
-    def _show_pdf_jump_indicator(self, x: int, y: int, line_width_px: int = 0, line_height_px: int = 0) -> None:
+    def _show_pdf_jump_indicator(
+        self, x: int, y: int, line_width_px: int = 0, line_height_px: int = 0
+    ) -> None:
         view = self.pdf_view
         if view is None or not hasattr(view, "viewport"):
             return
@@ -969,7 +1224,10 @@ class HandwritingDocumentPreviewWindow(QDialog):
         if self.mathlive_view is None:
             self._mathlive_anchor_pos = None
             return
-        self.mathlive_view.page().runJavaScript("window.mathliveBridgeApi?.currentLatex() || ''", self._apply_mathlive_commit)
+        self.mathlive_view.page().runJavaScript(
+            "window.mathliveBridgeApi?.currentLatex() || ''",
+            self._apply_mathlive_commit,
+        )
 
     def _apply_mathlive_commit(self, result) -> None:
         latex = str(result or "").strip()
@@ -980,7 +1238,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
             cursor.insertText(latex)
             self.editor.setTextCursor(cursor)
             self.editor.setFocus()
-            self.mathlive_view.page().runJavaScript("window.mathliveBridgeApi?.clearMathfield?.()")
+            self.mathlive_view.page().runJavaScript(
+                "window.mathliveBridgeApi?.clearMathfield?.()"
+            )
         self._focus_editor_cursor()
         self._mathlive_anchor_pos = None
 
@@ -1001,7 +1261,11 @@ class HandwritingDocumentPreviewWindow(QDialog):
             self.pdf_view.set_fit_text_width()
 
     def _desired_pdf_backend(self) -> str:
-        return str(self.pdf_backend_combo.currentData() or self._pdf_backend_preference or "auto").strip()
+        return str(
+            self.pdf_backend_combo.currentData()
+            or self._pdf_backend_preference
+            or "auto"
+        ).strip()
 
     def _resolve_pdf_backend_kind(self) -> str:
         self._poppler_status = self._detect_poppler_backend_light()
@@ -1034,14 +1298,20 @@ class HandwritingDocumentPreviewWindow(QDialog):
         if self.pdf_view is not None:
             try:
                 try:
-                    self.pdf_view.horizontalScrollBar().valueChanged.disconnect(self._refresh_pdf_jump_indicator_position)
+                    self.pdf_view.horizontalScrollBar().valueChanged.disconnect(
+                        self._refresh_pdf_jump_indicator_position
+                    )
                 except Exception:
                     pass
                 try:
-                    self.pdf_view.verticalScrollBar().valueChanged.disconnect(self._refresh_pdf_jump_indicator_position)
+                    self.pdf_view.verticalScrollBar().valueChanged.disconnect(
+                        self._refresh_pdf_jump_indicator_position
+                    )
                 except Exception:
                     pass
-                if self._pdf_backend_kind == "poppler" and hasattr(self.pdf_view, "shutdown_render_worker"):
+                if self._pdf_backend_kind == "poppler" and hasattr(
+                    self.pdf_view, "shutdown_render_worker"
+                ):
                     self.pdf_view.shutdown_render_worker()
                 self.pdf_view.close()
                 self.pdf_view.setParent(None)
@@ -1101,33 +1371,41 @@ class HandwritingDocumentPreviewWindow(QDialog):
 
     def _describe_active_pdf_backend(self, requested: str, actual: str) -> str:
         if actual == "poppler":
-            return "当前后端: Poppler(高清)"
+            return tr("当前后端: Poppler(高清)")
         if actual == "fitz":
             if requested == "poppler":
-                return "当前后端: Fitz(兼容，Poppler 未启用)"
-            return "当前后端: Fitz(兼容)"
+                return tr("当前后端: Fitz(兼容，Poppler 未启用)")
+            return tr("当前后端: Fitz(兼容)")
         if requested == "poppler":
-            return "当前后端: Poppler 不可用"
-        return "当前后端: 无可用预览后端"
+            return tr("当前后端: Poppler 不可用")
+        return tr("当前后端: 无可用预览后端")
 
     def _rebuild_pdf_backend_view(self, show_feedback: bool = True) -> None:
         kind = self._resolve_pdf_backend_kind()
         requested = self._desired_pdf_backend()
         if kind == self._pdf_backend_kind and self.pdf_view is not None:
-            self._set_pdf_backend_status_text(self._describe_active_pdf_backend(requested, kind))
+            self._set_pdf_backend_status_text(
+                self._describe_active_pdf_backend(requested, kind)
+            )
             if show_feedback:
                 self._show_pdf_backend_info(requested, kind)
             return
         self._clear_preview_host()
         self._pdf_backend_kind = kind
-        self._set_pdf_backend_status_text(self._describe_active_pdf_backend(requested, kind))
+        self._set_pdf_backend_status_text(
+            self._describe_active_pdf_backend(requested, kind)
+        )
         if kind:
             self.pdf_view = self._create_pdf_view_for_kind(kind)
             if self.pdf_view is not None:
                 self.pdf_view.syncJumpRequested.connect(self._sync_jump_to_source)
                 try:
-                    self.pdf_view.horizontalScrollBar().valueChanged.connect(self._refresh_pdf_jump_indicator_position)
-                    self.pdf_view.verticalScrollBar().valueChanged.connect(self._refresh_pdf_jump_indicator_position)
+                    self.pdf_view.horizontalScrollBar().valueChanged.connect(
+                        self._refresh_pdf_jump_indicator_position
+                    )
+                    self.pdf_view.verticalScrollBar().valueChanged.connect(
+                        self._refresh_pdf_jump_indicator_position
+                    )
                 except Exception:
                     pass
                 self._preview_area_layout.addWidget(self.pdf_view, 1)
@@ -1140,7 +1418,9 @@ class HandwritingDocumentPreviewWindow(QDialog):
                 if show_feedback:
                     self._show_pdf_backend_info(requested, kind)
                 return
-        self.preview_placeholder = QLabel("当前环境缺少可用的 PDF 预览引擎。", self.preview_host)
+        self.preview_placeholder = QLabel(
+            tr("当前环境缺少可用的 PDF 预览引擎。"), self.preview_host
+        )
         self.preview_placeholder.setWordWrap(True)
         self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_area_layout.addWidget(self.preview_placeholder, 1)
@@ -1155,25 +1435,37 @@ class HandwritingDocumentPreviewWindow(QDialog):
 
     def _show_pdf_backend_info(self, requested: str, actual: str) -> None:
         labels = {
-            "poppler": "Poppler(高清)",
-            "fitz": "Fitz(兼容)",
+            "poppler": tr("Poppler(高清)"),
+            "fitz": tr("Fitz(兼容)"),
         }
-        actual_label = labels.get(actual, "无可用后端")
+        actual_label = labels.get(actual, tr("无可用后端"))
         if requested == "auto":
-            title = "已切换到自动"
-            content = f"当前自动选择 {actual_label} 渲染 PDF 预览。"
+            title = tr("已切换到自动")
+            content = tr("当前自动选择 {backend} 渲染 PDF 预览。").format(
+                backend=actual_label
+            )
             level = "info" if actual else "warning"
         elif requested == actual:
-            title = f"已切换到 {labels[requested]}"
-            content = f"当前 PDF 预览使用 {actual_label} 渲染。"
+            title = tr("已切换到 {backend}").format(backend=labels[requested])
+            content = tr("当前 PDF 预览使用 {backend} 渲染。").format(
+                backend=actual_label
+            )
             level = "info"
         else:
             requested_label = labels.get(requested, requested)
-            title = f"{requested_label} 未启用"
-            content = f"当前环境无法使用 {requested_label}，已改用 {actual_label}。"
+            title = tr("{backend} 未启用").format(backend=requested_label)
+            content = tr("当前环境无法使用 {requested}，已改用 {actual}。").format(
+                requested=requested_label, actual=actual_label
+            )
             level = "warning"
         show = InfoBar.warning if level == "warning" else InfoBar.info
-        show(title=title, content=content, parent=self, position=InfoBarPosition.TOP, duration=2600 if level == "warning" else 1800)
+        show(
+            title=title,
+            content=content,
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=2600 if level == "warning" else 1800,
+        )
 
     def showEvent(self, event) -> None:
         self._update_compile_button_state()
@@ -1198,15 +1490,25 @@ class HandwritingDocumentPreviewWindow(QDialog):
         border = "#2f3946" if dark else "#d8dee6"
         input_bg = "#11161d" if dark else "#f7f9fc"
         if hasattr(self, "preview_title_label"):
-            self.preview_title_label.setStyleSheet(f"color: {title}; font-size: 24px; font-weight: 600;")
+            self.preview_title_label.setStyleSheet(
+                f"color: {title}; font-size: 24px; font-weight: 600;"
+            )
         if hasattr(self, "preview_hint_label"):
-            self.preview_hint_label.setStyleSheet(f"color: {hint}; font-size: 12px; padding-top: 6px;")
+            self.preview_hint_label.setStyleSheet(
+                f"color: {hint}; font-size: 12px; padding-top: 6px;"
+            )
         if hasattr(self, "pdf_backend_status_label"):
-            self.pdf_backend_status_label.setStyleSheet(f"color: {hint}; font-size: 12px;")
+            self.pdf_backend_status_label.setStyleSheet(
+                f"color: {hint}; font-size: 12px;"
+            )
         if hasattr(self, "editor_search_hint_label"):
-            self.editor_search_hint_label.setStyleSheet(f"color: {hint}; font-size: 12px;")
+            self.editor_search_hint_label.setStyleSheet(
+                f"color: {hint}; font-size: 12px;"
+            )
         if hasattr(self, "editor_search_status_label"):
-            self.editor_search_status_label.setStyleSheet(f"color: {hint}; font-size: 12px;")
+            self.editor_search_status_label.setStyleSheet(
+                f"color: {hint}; font-size: 12px;"
+            )
         if hasattr(self, "compile_log_title"):
             self.compile_log_title.setStyleSheet(f"color: {hint}; font-size: 12px;")
         if hasattr(self, "editor_search_input"):
@@ -1221,10 +1523,22 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _copy_all(self) -> None:
         text = self.document_text()
         if not text:
-            InfoBar.warning(title="当前无内容", content="没有可复制的 TeX 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("当前无内容"),
+                content=tr("没有可复制的 TeX 文档。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         QApplication.clipboard().setText(text)
-        InfoBar.success(title="已复制", content="TeX 文档已复制到剪贴板。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+        InfoBar.success(
+            title=tr("已复制"),
+            content=tr("TeX 文档已复制到剪贴板。"),
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=2500,
+        )
 
     def _current_preview_source_path(self) -> Path | None:
         pdf_path = Path(self._preview_pdf_path) if self._preview_pdf_path else None
@@ -1236,61 +1550,135 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _export_tex(self) -> None:
         text = self.document_text()
         if not text:
-            InfoBar.warning(title="当前无内容", content="没有可导出的 TeX 文档。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("当前无内容"),
+                content=tr("没有可导出的 TeX 文档。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
-        path, _ = QFileDialog.getSaveFileName(self, "导出 TeX 文档", "handwriting_layout.tex", "TeX 文档 (*.tex)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("导出 TeX 文档"), "handwriting_layout.tex", tr("TeX 文档 (*.tex)")
+        )
         if not path:
             return
         try:
             Path(path).write_text(text, encoding="utf-8")
         except Exception as exc:
-            InfoBar.error(title="导出失败", content=str(exc), parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.error(
+                title=tr("导出失败"),
+                content=str(exc),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
-        InfoBar.success(title="导出成功", content=Path(path).name, parent=self, position=InfoBarPosition.TOP, duration=2500)
+        InfoBar.success(
+            title=tr("导出成功"),
+            content=Path(path).name,
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=2500,
+        )
 
     def _export_pdf(self) -> None:
         pdf_path = Path(self._preview_pdf_path) if self._preview_pdf_path else None
         if pdf_path is None or not pdf_path.exists():
-            InfoBar.warning(title="当前无 PDF", content="请先完成一次 PDF 编译预览后再导出。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("当前无 PDF"),
+                content=tr("请先完成一次 PDF 编译预览后再导出。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
-        path, _ = QFileDialog.getSaveFileName(self, "导出 PDF", "handwriting_layout.pdf", "PDF 文件 (*.pdf)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("导出 PDF"), "handwriting_layout.pdf", tr("PDF 文件 (*.pdf)")
+        )
         if not path:
             return
         try:
             shutil.copy2(pdf_path, path)
         except Exception as exc:
-            InfoBar.error(title="导出失败", content=str(exc), parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.error(
+                title=tr("导出失败"),
+                content=str(exc),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
-        InfoBar.success(title="导出成功", content=Path(path).name, parent=self, position=InfoBarPosition.TOP, duration=2500)
+        InfoBar.success(
+            title=tr("导出成功"),
+            content=Path(path).name,
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=2500,
+        )
 
     def _sync_jump_to_source(self, page: int, x_pt: float, y_pt: float) -> None:
         pdf_path = Path(self._preview_pdf_path) if self._preview_pdf_path else None
         if pdf_path is None or not pdf_path.exists():
-            InfoBar.warning(title="无法跳转", content="请先完成一次 PDF 编译预览后再使用源码跳转。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("无法跳转"),
+                content=tr("请先完成一次 PDF 编译预览后再使用源码跳转。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         try:
             from rendering.latex import synctex_edit_from_pdf
 
-            source, line_no, error = synctex_edit_from_pdf(pdf_file=pdf_path, page=page, x_pt=x_pt, y_pt=y_pt)
+            source, line_no, error = synctex_edit_from_pdf(
+                pdf_file=pdf_path, page=page, x_pt=x_pt, y_pt=y_pt
+            )
         except Exception as exc:
             source, line_no, error = None, None, str(exc)
         if error:
-            InfoBar.warning(title="SyncTeX 跳转失败", content=str(error), parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.warning(
+                title=tr("SyncTeX 跳转失败"),
+                content=str(error),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
         if not line_no or line_no <= 0:
-            InfoBar.warning(title="未定位到源码", content="SyncTeX 未返回有效的源码行号。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("未定位到源码"),
+                content=tr("SyncTeX 未返回有效的源码行号。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         block = self.editor.document().findBlockByLineNumber(max(0, int(line_no) - 1))
         if not block.isValid():
-            InfoBar.warning(title="未定位到源码", content=f"已解析到第 {line_no} 行，但当前编辑器中未找到对应位置。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.warning(
+                title=tr("未定位到源码"),
+                content=tr(
+                    "已解析到第 {line} 行，但当前编辑器中未找到对应位置。"
+                ).format(line=line_no),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         cursor = self.editor.textCursor()
         cursor.setPosition(block.position())
         self.editor.setTextCursor(cursor)
         self.editor.setFocus()
         self._focus_editor_cursor()
-        origin = source.name if isinstance(source, Path) else "当前源码"
-        InfoBar.success(title="已跳转到源码", content=f"{origin} 第 {line_no} 行", parent=self, position=InfoBarPosition.TOP, duration=1800)
+        origin = source.name if isinstance(source, Path) else tr("当前源码")
+        InfoBar.success(
+            title=tr("已跳转到源码"),
+            content=tr("{source} 第 {line} 行").format(source=origin, line=line_no),
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=1800,
+        )
 
     def _format_compile_result_log(self, result: object) -> str:
         summary = str(getattr(result, "summary", "") or "").strip()
@@ -1303,28 +1691,34 @@ class HandwritingDocumentPreviewWindow(QDialog):
         log_text = str(getattr(result, "log_text", "") or "").strip()
         log_path = getattr(result, "log_path", None)
         lines = [
-            f"引擎: {engine}",
-            f"返回码: {return_code if return_code is not None else 'n/a'}",
-            f"PDF 输出: {'已生成' if generated_pdf else '未生成'}",
-            f"超时: {'是' if timed_out else '否'}",
+            tr("引擎: {engine}").format(engine=engine),
+            tr("返回码: {code}").format(
+                code=return_code if return_code is not None else "n/a"
+            ),
+            tr("PDF 输出: {status}").format(
+                status=tr("已生成") if generated_pdf else tr("未生成")
+            ),
+            tr("超时: {status}").format(
+                status=tr("是") if timed_out else tr("否")
+            ),
         ]
         if log_path:
-            lines.append(f"日志文件: {log_path}")
+            lines.append(tr("日志文件: {path}").format(path=log_path))
         if summary:
-            lines.extend(["", f"摘要: {summary}"])
+            lines.extend(["", tr("摘要: {summary}").format(summary=summary)])
         if errors:
             lines.append("")
-            lines.append("错误:")
+            lines.append(tr("错误:"))
             for index, item in enumerate(errors, 1):
                 lines.append(f"{index}. {item}")
         if warnings:
             lines.append("")
-            lines.append("警告:")
+            lines.append(tr("警告:"))
             for index, item in enumerate(warnings[:20], 1):
                 lines.append(f"{index}. {item}")
         if log_text:
             lines.append("")
-            lines.append("原始日志:")
+            lines.append(tr("原始日志:"))
             lines.append(log_text)
         return "\n".join(lines).strip()
 
@@ -1350,28 +1744,46 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _update_compile_button_state(self) -> None:
         if self._compile_thread is not None and self._compile_thread.isRunning():
             self.compile_btn.setEnabled(False)
-            self.compile_btn.setText("编译中...")
+            self.compile_btn.setText(tr("编译中..."))
             return
         self.compile_btn.setEnabled(True)
-        self.compile_btn.setText("编译预览 PDF")
+        self.compile_btn.setText(tr("编译预览 PDF"))
 
     def _compile_preview(self) -> None:
         self._update_compile_button_state()
         mode = self._current_render_mode()
         if mode not in {"latex_pdflatex", "latex_xelatex"}:
-            InfoBar.warning(title="暂不可用", content="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。", parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.warning(
+                title=tr("暂不可用"),
+                content=tr("请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
         if self._compile_thread is not None and self._compile_thread.isRunning():
-            InfoBar.info(title="正在编译", content="当前文档正在编译，请稍候。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+            InfoBar.info(
+                title=tr("正在编译"),
+                content=tr("当前文档正在编译，请稍候。"),
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=2500,
+            )
             return
         compile_text = self.document_text()
         validation_error = validate_tex_document(compile_text)
         if validation_error:
-            InfoBar.warning(title="文档未完成", content=validation_error, parent=self, position=InfoBarPosition.TOP, duration=3200)
+            InfoBar.warning(
+                title=tr("文档未完成"),
+                content=validation_error,
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=3200,
+            )
             return
         output_dir = self._prepare_preview_output_dir()
-        self._set_compile_log_text("正在编译...\n")
-        self.compile_btn.setText("编译中...")
+        self._set_compile_log_text(tr("正在编译...\n"))
+        self.compile_btn.setText(tr("编译中..."))
         self.compile_btn.setEnabled(False)
         self._compile_thread = QThread(self)
         self._compile_worker = _TexDocumentCompileWorker(compile_text, str(output_dir))
@@ -1405,22 +1817,56 @@ class HandwritingDocumentPreviewWindow(QDialog):
             if self.pdf_view is not None:
                 self.pdf_view.load_document(self._preview_pdf_path)
             elif self.preview_placeholder is not None:
-                self.preview_placeholder.setText(f"PDF 已生成: {self._preview_pdf_path}")
+                self.preview_placeholder.setText(
+                    tr("PDF 已生成: {path}").format(path=self._preview_pdf_path)
+                )
             if has_errors:
-                InfoBar.warning(title="编译完成但存在错误", content=summary or "已尽量生成 PDF，请查看下方编译日志。", parent=self, position=InfoBarPosition.TOP, duration=4200)
+                InfoBar.warning(
+                    title=tr("编译完成但存在错误"),
+                    content=summary or tr("已尽量生成 PDF，请查看下方编译日志。"),
+                    parent=self,
+                    position=InfoBarPosition.TOP,
+                    duration=4200,
+                )
             elif has_warnings:
-                InfoBar.warning(title="编译完成但存在警告", content=summary or "PDF 预览已更新，请查看下方编译日志。", parent=self, position=InfoBarPosition.TOP, duration=3200)
+                InfoBar.warning(
+                    title=tr("编译完成但存在警告"),
+                    content=summary or tr("PDF 预览已更新，请查看下方编译日志。"),
+                    parent=self,
+                    position=InfoBarPosition.TOP,
+                    duration=3200,
+                )
             else:
-                InfoBar.success(title="编译完成", content="PDF 预览已更新。", parent=self, position=InfoBarPosition.TOP, duration=2500)
+                InfoBar.success(
+                    title=tr("编译完成"),
+                    content=tr("PDF 预览已更新。"),
+                    parent=self,
+                    position=InfoBarPosition.TOP,
+                    duration=2500,
+                )
             return
-        hint = summary or "TeX 文档编译失败"
+        hint = summary or tr("TeX 文档编译失败")
         if self._preview_pdf_path:
-            hint = f"{hint}；已保留上一版 PDF 预览。"
-        InfoBar.error(title="编译失败", content=hint, parent=self, position=InfoBarPosition.TOP, duration=4200)
+            hint = tr("{message}；已保留上一版 PDF 预览。").format(message=hint)
+        InfoBar.error(
+            title=tr("编译失败"),
+            content=hint,
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=4200,
+        )
 
     def _on_compile_failed(self, error: str) -> None:
-        self._set_compile_log_text(f"编译器异常:\n{str(error or '').strip()}")
-        InfoBar.error(title="编译失败", content=str(error or "TeX 文档编译失败"), parent=self, position=InfoBarPosition.TOP, duration=4200)
+        self._set_compile_log_text(
+            tr("编译器异常:\n{error}").format(error=str(error or "").strip())
+        )
+        InfoBar.error(
+            title=tr("编译失败"),
+            content=str(error or tr("TeX 文档编译失败")),
+            parent=self,
+            position=InfoBarPosition.TOP,
+            duration=4200,
+        )
 
     def closeEvent(self, event) -> None:
         self._mathlive_anchor_pos = None

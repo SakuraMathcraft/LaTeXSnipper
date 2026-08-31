@@ -1,5 +1,7 @@
 import { routeMathfieldNavigationKey } from './mathfield-keyboard.js';
 
+const t = window.lsnI18n?.t || ((source) => source);
+
 let mathfield = null;
 let bridge = null;
 let currentKeyboardHeight = 0;
@@ -164,7 +166,7 @@ function installClipboardBridge() {
             bridge.readClipboardText((text) => resolve(String(text ?? '')));
             return;
           }
-          reject(new Error('剪贴板读取接口不可用'));
+          reject(new Error(t('剪贴板读取接口不可用')));
         } catch (err) {
           reject(err);
         }
@@ -176,14 +178,14 @@ function installClipboardBridge() {
           if (typeof bridge.writeClipboardText === 'function') {
             bridge.writeClipboardText(String(text ?? ''), (ok) => {
               if (ok === false) {
-                reject(new Error('剪贴板写入失败'));
+                reject(new Error(t('剪贴板写入失败')));
               } else {
                 resolve();
               }
             });
             return;
           }
-          reject(new Error('剪贴板写入接口不可用'));
+          reject(new Error(t('剪贴板写入接口不可用')));
         } catch (err) {
           reject(err);
         }
@@ -265,7 +267,7 @@ async function init() {
     focusMathfield(false);
   } catch (error) {
     const host = document.getElementById('mathfield-host');
-    host.textContent = `MathLive 初始化失败：${String(error)}`;
+    host.textContent = t('MathLive 初始化失败：{message}', { message: String(error) });
   }
 }
 

@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QInputDialog, QLabel, QSlider, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QInputDialog,
+    QLabel,
+    QSlider,
+    QVBoxLayout,
+)
 
 from preview.math_preview import dialog_theme_tokens
 from ui.window_helpers import apply_app_window_icon
@@ -47,7 +56,9 @@ def prompt_pdf_output_options(
 ) -> tuple[str, int | None, str] | None:
     """Prompt for PDF recognition output format and DPI."""
     doc_mode = "document"
-    external_provider = external_config.normalized_provider() if external_config is not None else ""
+    external_provider = (
+        external_config.normalized_provider() if external_config is not None else ""
+    )
 
     if current_model == "external_model" and external_provider == "mineru":
         doc_mode = "parse"
@@ -56,13 +67,13 @@ def prompt_pdf_output_options(
         return "markdown", None, doc_mode
 
     fmt_items = ["Markdown", "LaTeX"]
-    fmt = _pick_item(parent, "导出格式", "请选择导出格式：", fmt_items, 0)
+    fmt = _pick_item(parent, tr("导出格式"), tr("请选择导出格式："), fmt_items, 0)
     if not fmt:
         return None
     fmt_key = "markdown" if fmt.lower().startswith("markdown") else "latex"
 
     dlg = QDialog(parent)
-    dlg.setWindowTitle("PDF 渲染分辨率")
+    dlg.setWindowTitle(tr("PDF 渲染分辨率"))
     dlg.setWindowFlags(
         (
             dlg.windowFlags()
@@ -82,7 +93,7 @@ def prompt_pdf_output_options(
     apply_app_window_icon(dlg)
 
     layout = QVBoxLayout(dlg)
-    layout.addWidget(QLabel("请选择 PDF 渲染分辨率："))
+    layout.addWidget(QLabel(tr("请选择 PDF 渲染分辨率：")))
 
     dpi_label = QLabel()
     dpi_label.setWordWrap(True)
@@ -99,9 +110,11 @@ def prompt_pdf_output_options(
     layout.addWidget(slider)
 
     tip = QLabel(
-        "清晰文字型 PDF 建议 140-170 DPI，扫描件可尝试 200-300 DPI。"
-        "提高 DPI 仅在原页面细节不足时有帮助；过高会增加内存和处理时间，"
-        "使用外部模型时还可能触发缩放、输入限制或超时。"
+        tr(
+            "清晰文字型 PDF 建议 140-170 DPI，扫描件可尝试 200-300 DPI。"
+            "提高 DPI 仅在原页面细节不足时有帮助；过高会增加内存和处理时间，"
+            "使用外部模型时还可能触发缩放、输入限制或超时。"
+        )
     )
     tip.setWordWrap(True)
     tip.setStyleSheet(f"color: {dialog_theme_tokens()['muted']}; font-size: 11px;")
@@ -109,19 +122,23 @@ def prompt_pdf_output_options(
 
     def _refresh_dpi_label(value: int):
         if value < 120:
-            zone = "清晰文档"
+            zone = tr("清晰文档")
         elif 140 <= value <= 170:
-            zone = "推荐"
+            zone = tr("推荐")
         elif value > 220:
-            zone = "高 DPI：扫描件"
+            zone = tr("高 DPI：扫描件")
         else:
-            zone = "可选"
-        dpi_label.setText(f"当前 DPI：{value}（{zone}）")
+            zone = tr("可选")
+        dpi_label.setText(
+            tr("当前 DPI：{value}（{zone}）").format(value=value, zone=zone)
+        )
 
     slider.valueChanged.connect(_refresh_dpi_label)
     _refresh_dpi_label(default_dpi)
 
-    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dlg)
+    buttons = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dlg
+    )
     buttons.accepted.connect(dlg.accept)
     buttons.rejected.connect(dlg.reject)
     layout.addWidget(buttons)

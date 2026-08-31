@@ -10,7 +10,15 @@ from typing import Any
 from PIL import Image
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from recognition.error_messages import recognition_error_code_user_message
+from localization.manager import translate as tr
+from recognition.error_messages import (
+    CANCELED_WORKER_MESSAGE,
+    EMPTY_CONTENT_MESSAGE,
+    EMPTY_FORMULA_MESSAGE,
+    EMPTY_RESULT_MESSAGE,
+    EMPTY_TEXT_MESSAGE,
+    recognition_error_code_message,
+)
 from recognition.image_input import validated_rgb_image
 from recognition.image_preprocess import optimize_mathcraft_input_image
 from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
@@ -19,10 +27,10 @@ from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoor
 def _empty_recognition_message(result: dict[str, Any] | None = None) -> str:
     mode = str((result or {}).get("mode") or "").strip().lower()
     if mode == "text":
-        return "未识别到文本内容"
+        return EMPTY_TEXT_MESSAGE
     if mode == "mixed":
-        return "未检测到可识别内容"
-    return "未识别到公式内容"
+        return EMPTY_CONTENT_MESSAGE
+    return EMPTY_FORMULA_MESSAGE
 
 
 class PredictionWorker(QObject):
@@ -52,7 +60,7 @@ class PredictionWorker(QObject):
         try:
             if self._cancel_requested():
                 self.elapsed = time.perf_counter() - t0
-                self.failed.emit("已取消")
+                self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
             if self.coordinator is not None:
                 mode = {"mathcraft": "formula", "mathcraft_text": "text", "mathcraft_mixed": "mixed"}.get(
@@ -69,12 +77,14 @@ class PredictionWorker(QObject):
                 job = self.coordinator.wait(job["id"], principal_id="desktop-ui", timeout=None)
                 self.elapsed = time.perf_counter() - t0
                 if job["state"] == "canceled":
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 item = job["items"][0]
                 if item["state"] != "completed":
                     error = item.get("error") or {}
-                    self.failed.emit(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+                    self.failed.emit(
+                        recognition_error_code_message(error.get("code"), "mathcraft")
+                    )
                     return
                 self.finished.emit(str(item["text"]).strip())
                 return
@@ -93,16 +103,16 @@ class PredictionWorker(QObject):
                 )
             self.elapsed = time.perf_counter() - t0
             if self._cancel_requested():
-                self.failed.emit("已取消")
+                self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
             if not result or not result.strip():
-                self.failed.emit("识别结果为空")
+                self.failed.emit(EMPTY_RESULT_MESSAGE)
             else:
                 self.finished.emit(result.strip())
         except Exception as exc:
             self.elapsed = time.perf_counter() - t0
             if self._cancel_requested():
-                self.failed.emit("已取消")
+                self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
             self.failed.emit(str(exc))
 
@@ -155,14 +165,14 @@ class PdfPredictWorker(QObject):
             import fitz  # PyMuPDF
         except Exception as exc:
             _set_elapsed()
-            self.failed.emit(f"缺少 PyMuPDF 依赖: {exc}")
+            self.failed.emit(tr("缺少 PyMuPDF 依赖: {error}").format(error=exc))
             return
 
         try:
             doc = fitz.open(self.pdf_path)
         except Exception as exc:
             _set_elapsed()
-            self.failed.emit(f"PDF 打开失败: {exc}")
+            self.failed.emit(tr("PDF 打开失败: {error}").format(error=exc))
             return
 
         page_count = doc.page_count or 1
@@ -188,7 +198,7 @@ class PdfPredictWorker(QObject):
             while True:
                 if self._cancel_requested():
                     _set_elapsed()
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 try:
                     item = render_queue.get(timeout=0.1)
@@ -202,7 +212,7 @@ class PdfPredictWorker(QObject):
                 result = self._predict_page(img)
                 if self._cancel_requested():
                     _set_elapsed()
-                    self.failed.emit("已取消")
+                    self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 if isinstance(result, dict):
                     result["page_index"] = page_index + 1
@@ -212,7 +222,7 @@ class PdfPredictWorker(QObject):
         except Exception as exc:
             _set_elapsed()
             if self._cancel_requested():
-                self.failed.emit("已取消")
+                self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
             self.failed.emit(str(exc))
             return
@@ -227,7 +237,7 @@ class PdfPredictWorker(QObject):
         content = compose_mathcraft_markdown_pages(clean_results)
         if not content.strip():
             _set_elapsed()
-            self.failed.emit("识别结果为空")
+            self.failed.emit(EMPTY_RESULT_MESSAGE)
             return
         _set_elapsed()
         self.finished.emit(content.strip())
@@ -285,7 +295,9 @@ class PdfPredictWorker(QObject):
             item = snapshot["items"][0]
             if item["state"] != "completed":
                 error = item.get("error") or {}
-                raise RuntimeError(recognition_error_code_user_message(error.get("code"), "mathcraft"))
+                raise RuntimeError(
+                    recognition_error_code_message(error.get("code"), "mathcraft")
+                )
             return {"text": item["text"], "mode": mode}
         if hasattr(self.model_wrapper, "predict_result"):
             return self.model_wrapper.predict_result(img, model_name=self.model_name)

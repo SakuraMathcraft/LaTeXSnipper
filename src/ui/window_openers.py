@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import threading
 
 from handwriting import HandwritingWindow
-from recognition.model_policy import is_internal_document_model, resolve_document_recognition_model
+from recognition.model_policy import (
+    is_internal_document_model,
+    resolve_document_recognition_model,
+)
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
 from ui.settings_window import SettingsWindow
 from ui.window_helpers import show_normal_window
@@ -24,7 +29,9 @@ class WindowOpenersMixin:
         if not self.settings_window:
             self.settings_window = SettingsWindow(self)
             self.settings_window.model_changed.connect(self.on_model_changed)
-            self.settings_window.destroyed.connect(lambda: setattr(self, "settings_window", None))
+            self.settings_window.destroyed.connect(
+                lambda: setattr(self, "settings_window", None)
+            )
         show_normal_window(self.settings_window)
         try:
             if hasattr(self.settings_window, "apply_theme_styles"):
@@ -42,20 +49,28 @@ class WindowOpenersMixin:
             text = self.latex_editor.toPlainText().strip()
             if not text:
                 if getattr(self, "workbench_window", None):
-                    self.workbench_window.show_info("当前无内容", "主编辑器为空，没有可载入的公式")
+                    self.workbench_window.show_info(
+                        tr("当前无内容"), tr("主编辑器为空，没有可载入的公式")
+                    )
                 return
             self.workbench_window.set_latex(text)
-            self.workbench_window.show_success("已载入", "主编辑器内容已载入数学工作台")
+            self.workbench_window.show_success(
+                tr("已载入"), tr("主编辑器内容已载入数学工作台")
+            )
             return
         if not text:
             if getattr(self, "workbench_window", None):
-                self.workbench_window.show_info("当前无内容", "数学工作台为空，没有可写回的内容")
+                self.workbench_window.show_info(
+                    tr("当前无内容"), tr("数学工作台为空，没有可写回的内容")
+                )
             return
         self.latex_editor.setPlainText(text)
         self.render_latex_in_preview(text, FORMULA_CONTENT_TYPE)
-        self.set_action_status("工作台内容已回填到主编辑器")
+        self.set_action_status(tr("工作台内容已回填到主编辑器"))
         if getattr(self, "workbench_window", None):
-            self.workbench_window.show_success("已写回", "数学工作台内容已写回主编辑器")
+            self.workbench_window.show_success(
+                tr("已写回"), tr("数学工作台内容已写回主编辑器")
+            )
 
     def _on_handwriting_insert(self, latex: str, output_mode: str):
         text = (latex or "").strip()
@@ -63,9 +78,11 @@ class WindowOpenersMixin:
             return
         self._set_editor_text_silent(text)
         self._editor_preview_source = text
-        self._editor_preview_content_type = content_type_for_external_output(output_mode)
+        self._editor_preview_content_type = content_type_for_external_output(
+            output_mode
+        )
         self._refresh_preview()
-        self.set_action_status("手写识别结果已写入主编辑器")
+        self.set_action_status(tr("手写识别结果已写入主编辑器"))
         try:
             if self.isMinimized():
                 self.showNormal()
@@ -81,14 +98,13 @@ class WindowOpenersMixin:
         handwriting_model = resolve_document_recognition_model(preferred)
         self._sync_current_model_status_from_preference()
         if not self.model and handwriting_model != "external_model":
-            self.show_action_status("模型未初始化", level="error")
+            self.show_action_status(tr("模型未初始化"), level="error")
             return
-        if handwriting_model == "external_model" and not self._is_external_model_configured():
-            self.show_action_status(
-                "外部模型未配置，请先完成必要配置。",
-                level="warning",
-            )
-            self.open_settings()
+        if (
+            handwriting_model == "external_model"
+            and not self._is_external_model_configured()
+        ):
+            self._open_external_model_settings_with_notice()
             return
         if getattr(self, "handwriting_window", None):
             show_normal_window(self.handwriting_window)
@@ -96,7 +112,9 @@ class WindowOpenersMixin:
             return
         self.handwriting_window = HandwritingWindow(self.model, owner=self, parent=None)
         self.handwriting_window.latexInserted.connect(self._on_handwriting_insert)
-        self.handwriting_window.destroyed.connect(lambda: setattr(self, "handwriting_window", None))
+        self.handwriting_window.destroyed.connect(
+            lambda: setattr(self, "handwriting_window", None)
+        )
         show_normal_window(self.handwriting_window)
         self._warmup_handwriting_model_async(handwriting_model)
 
@@ -125,8 +143,12 @@ class WindowOpenersMixin:
         if not getattr(self, "workbench_window", None):
             from editor.workbench_window import WorkbenchWindow
 
-            self.workbench_window = WorkbenchWindow(self, on_insert_latex=self._on_workbench_insert)
-            self.workbench_window.destroyed.connect(lambda: setattr(self, "workbench_window", None))
+            self.workbench_window = WorkbenchWindow(
+                self, on_insert_latex=self._on_workbench_insert
+            )
+            self.workbench_window.destroyed.connect(
+                lambda: setattr(self, "workbench_window", None)
+            )
             self.workbench_window.apply_theme_styles(force=True)
         current = self.latex_editor.toPlainText().strip()
         if current:
@@ -135,7 +157,7 @@ class WindowOpenersMixin:
 
     def show_window(self):
         self.system_provider.activate_window(self)
-        self.set_action_status("主窗口已显示")
+        self.set_action_status(tr("主窗口已显示"))
 
     def _open_terminal_from_settings(self):
         try:
@@ -143,4 +165,6 @@ class WindowOpenersMixin:
                 self.settings_window = SettingsWindow(self)
             self.settings_window._open_terminal()
         except Exception as e:
-            self.show_action_status(f"打开终端失败：{e}", level="error")
+            self.show_action_status(
+                tr("打开终端失败：{error}").format(error=e), level="error"
+            )

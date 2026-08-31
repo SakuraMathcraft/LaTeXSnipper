@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from localization.manager import translate as tr
 from update.release_assets import _release_info_from_payload
 from update.release_cache import _load_cached_info, _save_cached_info
 from update.release_types import (
@@ -123,7 +124,7 @@ def _attach_auth_headers(h: dict):
 
 def _fmt_reset(ts_utc: Optional[str]):
     if not ts_utc:
-        return "未知"
+        return tr("未知")
     try:
         dt = datetime.fromtimestamp(int(ts_utc), tz=timezone.utc)
         return dt.astimezone().strftime("%H:%M:%S")
@@ -149,30 +150,34 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         remain_header = resp.headers.get("X-RateLimit-Remaining")
         if resp.status_code == 200 and remain_header == "0":
             reset = resp.headers.get("X-RateLimit-Reset")
-            msg = f"GitHub 限频: 剩余=0 重置≈{_fmt_reset(reset)}"
+            msg = tr("GitHub 限频: 剩余=0 重置≈{reset}").format(
+                reset=_fmt_reset(reset)
+            )
             diagnostics.append(("RATE_LIMIT", msg))  # Sentinel.
 
         if resp.status_code == 304:
             if cached_info:
                 return cached_info, None, diagnostics
-            diagnostics.append(("GitHub Releases API", "缓存已过期，请重新检查"))
-            return None, "更新缓存失效，请重新检查。", diagnostics
+            diagnostics.append(("GitHub Releases API", tr("缓存已过期，请重新检查")))
+            return None, tr("更新缓存失效，请重新检查。"), diagnostics
 
         if resp.status_code == 403:
             remain = resp.headers.get("X-RateLimit-Remaining")
             reset = resp.headers.get("X-RateLimit-Reset")
-            msg = f"GitHub 限频: 剩余={remain} 重置≈{_fmt_reset(reset)}"
+            msg = tr("GitHub 限频: 剩余={remaining} 重置≈{reset}").format(
+                remaining=remain, reset=_fmt_reset(reset)
+            )
             diagnostics.append((_API_RELEASES, msg))
             diagnostics.append(("RATE_LIMIT", msg))  # Sentinel.
-            return None, "GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。", diagnostics
+            return None, tr("GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。"), diagnostics
 
         resp.raise_for_status()
 
         new_etag = resp.headers.get("ETag")
         releases = resp.json()
         if not isinstance(releases, list):
-            diagnostics.append((_API_RELEASES, "响应格式不是 release 列表"))
-            return None, "GitHub Releases 响应格式异常。", diagnostics
+            diagnostics.append((_API_RELEASES, tr("响应格式不是 release 列表")))
+            return None, tr("GitHub Releases 响应格式异常。"), diagnostics
 
         ordered = sorted(
             releases,
@@ -187,7 +192,7 @@ def _fetch_release() -> Tuple[Optional[ReleaseInfo], Optional[str], List[Tuple[s
         rel = stable_releases[0] if stable_releases else (ordered[0] if ordered else None)
         if not rel:
             diagnostics.append(("EMPTY_RELEASES", "GitHub Releases API returned an empty list"))
-            return None, "GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。", diagnostics
+            return None, tr("GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。"), diagnostics
 
         info = _release_info_from_payload(rel)
         if new_etag:

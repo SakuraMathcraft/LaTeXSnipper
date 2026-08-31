@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exporting.formula_format_helpers import normalize_latex_for_export
+from localization.manager import mark_for_translation
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
 logger = logging.getLogger(__name__)
@@ -41,9 +42,16 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
     PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
     PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
     PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
-    PandocFormat("pandoc_html_standalone", "HTML 独立页(.html)", "html", ".html"),
+    PandocFormat(
+        "pandoc_html_standalone",
+        mark_for_translation("HTML 独立页(.html)"),
+        "html",
+        ".html",
+    ),
     PandocFormat("pandoc_typst", "Typst (.typ)", "typst", ".typ"),
-    PandocFormat("pandoc_plain", "纯文本 (.txt)", "plain", ".txt"),
+    PandocFormat(
+        "pandoc_plain", mark_for_translation("纯文本 (.txt)"), "plain", ".txt"
+    ),
 )
 
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}

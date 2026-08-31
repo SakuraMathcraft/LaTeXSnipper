@@ -8,6 +8,7 @@ from bootstrap.deps_state import (
     normalize_chosen_layers as _normalize_chosen_layers_impl,
     sanitize_state_layers as _sanitize_state_layers_impl,
 )
+from localization.manager import mark_for_translation, translate as tr
 
 
 ORT_CPU_SPEC = "onnxruntime"
@@ -19,7 +20,8 @@ ORT_GPU_DEFAULT_SPEC = "onnxruntime-gpu"
 LAYER_MAP = {
     "BASIC": [
         "lxml>=6.1,<7",
-        "pillow>=12,<13", "pyperclip~=1.11.0",
+        "pillow>=12,<13",
+        "pyperclip~=1.11.0",
         "requests~=2.32.5",
         "certifi>=2024.8.30",
         "psutil~=7.1.0",
@@ -53,16 +55,17 @@ MATHCRAFT_RUNTIME_LAYERS = ("MATHCRAFT_CPU", "MATHCRAFT_GPU")
 
 
 LAYER_DISPLAY_NAMES = {
-    "BASIC": "基础依赖",
-    "CORE": "核心功能",
-    "MATHCRAFT_CPU": "CPU 推理后端",
-    "MATHCRAFT_GPU": "GPU 推理后端",
-    "PANDOC": "Pandoc 文档导出",
+    "BASIC": mark_for_translation("基础依赖"),
+    "CORE": mark_for_translation("核心功能"),
+    "MATHCRAFT_CPU": mark_for_translation("CPU 推理后端"),
+    "MATHCRAFT_GPU": mark_for_translation("GPU 推理后端"),
+    "PANDOC": mark_for_translation("Pandoc 文档导出"),
 }
 
 
 def layer_display_name(layer: str) -> str:
-    return LAYER_DISPLAY_NAMES.get(str(layer), str(layer))
+    value = LAYER_DISPLAY_NAMES.get(str(layer))
+    return tr(value) if value is not None else str(layer)
 
 
 def _sanitize_state_layers(state_path: Path, state: dict | None = None) -> dict:
@@ -98,6 +101,7 @@ def _version_satisfies_spec(pkg_name: str, installed_ver: str, spec: str) -> boo
     try:
         from packaging.specifiers import SpecifierSet
         from packaging.version import Version
+
         return Version(installed_ver or "") in SpecifierSet(constraint)
     except Exception:
         return True
@@ -107,7 +111,7 @@ def _filter_packages(pkgs):
     res = []
     seen = set()
     for spec in pkgs:
-        name = re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
+        name = re.split(r"[<>=!~ ]", spec, 1)[0].strip().lower()
         if name in seen:
             continue
         seen.add(name)
@@ -119,10 +123,7 @@ def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
     """Keep MathCraft / ONNX dependency chain in a stable order to reduce pip backtracking."""
     if not pkgs:
         return []
-    names = {
-        re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
-        for spec in pkgs
-    }
+    names = {re.split(r"[<>=!~ ]", spec, 1)[0].strip().lower() for spec in pkgs}
     if gpu_runtime_first or "onnxruntime-gpu" in names:
         priority = (
             "onnxruntime-gpu",
@@ -148,7 +149,7 @@ def _reorder_mathcraft_install_specs(pkgs, gpu_runtime_first=False):
     grouped = {k: [] for k in priority}
     tail = []
     for spec in pkgs:
-        name = re.split(r'[<>=!~ ]', spec, 1)[0].strip().lower()
+        name = re.split(r"[<>=!~ ]", spec, 1)[0].strip().lower()
         if name in grouped:
             grouped[name].append(spec)
         else:
@@ -164,7 +165,16 @@ def _gpu_available():
     if sys.platform == "darwin":
         return False
     try:
-        r = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=2, creationflags=flags)
+        r = subprocess.run(
+            ["nvidia-smi"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=2,
+            creationflags=flags,
+        )
         return r.returncode == 0
     except Exception:
         return False
@@ -195,90 +205,110 @@ def _diagnose_install_failure(output: str, returncode: int) -> str:
     output_lower = output.lower()
 
     if ("antlr4-python3-runtime" in output_lower) and ("bdist_wheel" in output_lower):
-        return "antlr4-python3-runtime 构建环境缺少 wheel，可先修复 pip/setuptools/wheel"
+        return (
+            "antlr4-python3-runtime 构建环境缺少 wheel，可先修复 pip/setuptools/wheel"
+        )
 
-
-    if any(x in output_lower for x in [
-        "permission denied",
-        "access is denied",
-        "being used by another process",
-        "permissionerror",
-        "winerror 5",
-        "winerror 32",
-        "errno 13",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "permission denied",
+            "access is denied",
+            "being used by another process",
+            "permissionerror",
+            "winerror 5",
+            "winerror 32",
+            "errno 13",
+        ]
+    ):
         return "依赖文件被占用或依赖目录不可写"
 
-
-    if any(x in output_lower for x in [
-        "conflicting dependencies",
-        "incompatible",
-        "no matching distribution",
-        "could not find a version",
-        "resolutionimpossible",
-        "package requires",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "conflicting dependencies",
+            "incompatible",
+            "no matching distribution",
+            "could not find a version",
+            "resolutionimpossible",
+            "package requires",
+        ]
+    ):
         return "依赖版本冲突"
 
-
-    if any(x in output_lower for x in [
-        "connection refused",
-        "connection timed out",
-        "could not fetch url",
-        "network is unreachable",
-        "name or service not known",
-        "getaddrinfo failed",
-        "ssl: certificate",
-        "readtimeouterror",
-        "connectionerror",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "connection refused",
+            "connection timed out",
+            "could not fetch url",
+            "network is unreachable",
+            "name or service not known",
+            "getaddrinfo failed",
+            "ssl: certificate",
+            "readtimeouterror",
+            "connectionerror",
+        ]
+    ):
         return "网络连接失败，请检查网络或更换下载源"
 
-
-    if any(x in output_lower for x in [
-        "no space left",
-        "disk full",
-        "not enough space",
-        "oserror: [errno 28]",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "no space left",
+            "disk full",
+            "not enough space",
+            "oserror: [errno 28]",
+        ]
+    ):
         return "磁盘空间不足"
 
-
-    if any(x in output_lower for x in [
-        "building wheel",
-        "failed building",
-        "error: command",
-        "microsoft visual c++",
-        "vcvarsall.bat",
-        "cl.exe",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "building wheel",
+            "failed building",
+            "error: command",
+            "microsoft visual c++",
+            "vcvarsall.bat",
+            "cl.exe",
+        ]
+    ):
         return "本地编译失败，可能缺少所需的编译工具链"
 
-
-    if any(x in output_lower for x in [
-        "requires python",
-        "python_requires",
-        "not supported",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "requires python",
+            "python_requires",
+            "not supported",
+        ]
+    ):
         return "当前 Python 版本不受该依赖支持"
 
-
-    if any(x in output_lower for x in [
-        "pip._internal",
-        "attributeerror",
-        "modulenotfounderror: no module named 'pip'",
-    ]):
+    if any(
+        x in output_lower
+        for x in [
+            "pip._internal",
+            "attributeerror",
+            "modulenotfounderror: no module named 'pip'",
+        ]
+    ):
         return "pip 不可用或版本过低"
 
-
-    if any(x in output_lower for x in [
-        "cuda",
-        "cudnn",
-        "nvidia",
-        "gpu",
-    ]) and "error" in output_lower:
+    if (
+        any(
+            x in output_lower
+            for x in [
+                "cuda",
+                "cudnn",
+                "nvidia",
+                "gpu",
+            ]
+        )
+        and "error" in output_lower
+    ):
         return "CUDA/GPU 运行时不兼容"
-
 
     if returncode == 1:
         return f"pip 返回错误码 {returncode}，请查看上方日志"

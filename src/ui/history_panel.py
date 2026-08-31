@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from localization.manager import translate as tr
+
 import weakref
 from collections.abc import Callable
 
@@ -10,7 +12,10 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
-def history_display_entries(history: list[str], reverse: bool) -> list[tuple[int, int, str]]:
+
+def history_display_entries(
+    history: list[str], reverse: bool
+) -> list[tuple[int, int, str]]:
     entries = list(enumerate(history))
     if reverse:
         entries.reverse()
@@ -24,11 +29,11 @@ def refresh_history_order_button(button, reverse: bool) -> None:
     if button is None:
         return
     if reverse:
-        button.setText("最新在前")
-        button.setToolTip("当前按最新记录在前显示，点击切换为最早在前")
+        button.setText(tr("最新在前"))
+        button.setToolTip(tr("当前按最新记录在前显示，点击切换为最早在前"))
     else:
-        button.setText("最早在前")
-        button.setToolTip("当前按最早记录在前显示，点击切换为最新在前")
+        button.setText(tr("最早在前"))
+        button.setToolTip(tr("当前按最早记录在前显示，点击切换为最新在前"))
 
 
 def clear_history_rows(history_layout) -> None:
@@ -66,7 +71,7 @@ def create_history_row(
     hl.setSpacing(6)
 
     if index > 0:
-        num_lbl = QLabel(f"#{index}")
+        num_lbl = QLabel(f"#{index}")  # numeric content, not translatable
         num_lbl.setFixedWidth(35)
         num_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         row._index_label = num_lbl
@@ -78,10 +83,12 @@ def create_history_row(
 
     formula_name = formula_names.get(text, "")
     if formula_name:
-        name_lbl = QLabel(f"[{formula_name}]")
+        name_lbl = QLabel(f"[{formula_name}]")  # user content, not translatable
         name_lbl.setWordWrap(True)
         name_lbl.setMinimumWidth(0)
-        name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        name_lbl.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
         text_col.addWidget(name_lbl)
         row._name_label = name_lbl
     else:
@@ -129,7 +136,7 @@ def create_history_row(
         hl.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
         return b
 
-    add_btn("复制", "复制到剪贴板", on_copy, FluentIcon.COPY)
+    add_btn(tr("复制"), tr("复制到剪贴板"), on_copy, FluentIcon.COPY)
     row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def _ctx(pos):
