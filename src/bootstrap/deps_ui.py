@@ -891,7 +891,7 @@ def _build_layers_ui(
         return _exec_close_only_message_box(
             dlg,
             tr("退出确认"),
-            tr("确定要退出安装向导并关闭程序吗？"),
+            tr("确定要退出依赖管理并关闭程序吗？"),
             icon=QMessageBox.Icon.Question,
             buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             default_button=QMessageBox.StandardButton.No,

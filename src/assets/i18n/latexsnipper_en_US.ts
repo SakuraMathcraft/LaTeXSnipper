@@ -4093,8 +4093,8 @@ The uninstall progress window will open after confirmation.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_ui.py" line="894" />
-      <source>确定要退出安装向导并关闭程序吗？</source>
-      <translation>Exit the installation wizard and close the app?</translation>
+      <source>确定要退出依赖管理并关闭程序吗？</source>
+      <translation>Exit Dependency Management and close the app?</translation>
     </message>
     <message>
       <location filename="../../../src/ui/favorites_window.py" line="518" />
