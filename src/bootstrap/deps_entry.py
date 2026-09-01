@@ -719,7 +719,7 @@ def ensure_deps(
                             "skip_download_already_have"
                         )
                     ):
-                        print("[WARN] 复验后关键层不完整，返回向导。")
+                        print("[WARN] 复验后关键层不完整，返回依赖管理。")
                         continue
                     print("[DEBUG] 所选依赖已存在，跳过下载")
                     return True

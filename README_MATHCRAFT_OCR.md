@@ -50,7 +50,7 @@ pip install "mathcraft-ocr[openvino]"
 
 Install only one backend extra in a clean environment. The CPU, CUDA/TensorRT, DirectML, and OpenVINO ONNX Runtime distributions must not be mixed in the same environment. The standard `onnxruntime` macOS wheel includes CoreML EP support.
 
-LaTeXSnipper's dependency wizard selects the ONNX Runtime GPU line from the detected CUDA toolkit: CUDA 11.x uses ONNX Runtime 1.20 from the official CUDA 11 feed, CUDA 12.x uses ONNX Runtime 1.21-1.26 from PyPI, and CUDA 13.x uses ONNX Runtime 1.27-1.29 from PyPI. The static `mathcraft-ocr[gpu]` extra follows the current PyPI default (CUDA 13 and Python 3.11+); use `gpu-cu12` for CUDA 12. CUDA 11 installations must also select the official CUDA 11 package feed, so LaTeXSnipper's dependency wizard is recommended for that configuration.
+LaTeXSnipper's Dependency Management selects the ONNX Runtime GPU line from the detected CUDA toolkit: CUDA 11.x uses ONNX Runtime 1.20 from the official CUDA 11 feed, CUDA 12.x uses ONNX Runtime 1.21-1.26 from PyPI, and CUDA 13.x uses ONNX Runtime 1.27-1.29 from PyPI. The static `mathcraft-ocr[gpu]` extra follows the current PyPI default (CUDA 13 and Python 3.11+); use `gpu-cu12` for CUDA 12. CUDA 11 installations must also select the official CUDA 11 package feed, so LaTeXSnipper's Dependency Management is recommended for that configuration.
 
 ## Quick Start
 
