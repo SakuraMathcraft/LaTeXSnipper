@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Protocol, Tuple
+from typing import Optional, Protocol
 
 LATEX_RENDER_MODE_KEY = "latex_render_mode"
 LATEX_EXECUTABLE_PATH_KEY = "latex_executable_path"
@@ -26,7 +26,7 @@ class LaTeXConfigStore(Protocol):
 @dataclass
 class LaTeXCompileResult:
     pdf_path: Optional[Path]
-    summary: str = ""
+    message: Optional["RenderMessage"] = None
     log_text: str = ""
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -35,6 +35,26 @@ class LaTeXCompileResult:
     generated_pdf: bool = False
     timed_out: bool = False
     log_path: Optional[Path] = None
+
+
+@dataclass(frozen=True)
+class RenderMessage:
+    """Structured renderer status for localization at the presentation boundary."""
+
+    code: str
+    parameters: tuple[tuple[str, str], ...] = ()
+
+    @classmethod
+    def create(cls, code: str, **parameters: object) -> "RenderMessage":
+        return cls(
+            code=code,
+            parameters=tuple(
+                (name, str(value)) for name, value in sorted(parameters.items())
+            ),
+        )
+
+    def format_parameters(self) -> dict[str, str]:
+        return dict(self.parameters)
 
 
 def _hidden_subprocess_kwargs() -> dict:
@@ -266,7 +286,7 @@ def compile_tex_document_detailed(
     if not is_supported_document_render_mode(mode):
         return LaTeXCompileResult(
             pdf_path=None,
-            summary="请先在设置中选择 LaTeX + pdflatex 或 LaTeX + xelatex。",
+            message=RenderMessage.create("compile.unsupported_mode"),
         )
 
     latex_path = get_latex_executable_path()
@@ -275,7 +295,9 @@ def compile_tex_document_detailed(
     if not latex_cmd:
         return LaTeXCompileResult(
             pdf_path=None,
-            summary=f"未找到可用的 {engine_name}，请先在设置中完成 LaTeX 路径配置。",
+            message=RenderMessage.create(
+                "compile.engine_missing", engine=engine_name
+            ),
             engine=engine_name,
         )
 
@@ -283,7 +305,7 @@ def compile_tex_document_detailed(
     if not text:
         return LaTeXCompileResult(
             pdf_path=None,
-            summary="当前没有可编译的 TeX 文档内容。",
+            message=RenderMessage.create("compile.empty_document"),
             engine=engine_name,
         )
 
@@ -319,19 +341,23 @@ def compile_tex_document_detailed(
         warnings = _extract_latex_warnings(log_text)
         generated_pdf = pdf_file.exists()
         if generated_pdf and errors:
-            summary = "编译存在错误，已尽量生成 PDF。请查看下方编译日志。"
+            message = RenderMessage.create("compile.generated_with_errors")
         elif generated_pdf and warnings:
-            summary = "编译完成，但存在警告；请查看下方编译日志。"
+            message = RenderMessage.create("compile.generated_with_warnings")
         elif generated_pdf:
-            summary = ""
+            message = None
         else:
             cleaned = _extract_latex_error_message(log_text, tex_file)
             if cleaned:
                 cleaned = re.sub(r"\s+", " ", cleaned).strip()[:320]
-            summary = cleaned or "TeX 文档编译失败，请检查源码和 LaTeX 环境。"
+            message = (
+                RenderMessage.create("compile.failed_detail", detail=cleaned)
+                if cleaned
+                else RenderMessage.create("compile.failed")
+            )
         return LaTeXCompileResult(
             pdf_path=pdf_file if generated_pdf else None,
-            summary=summary,
+            message=message,
             log_text=log_text,
             errors=errors,
             warnings=warnings,
@@ -349,7 +375,7 @@ def compile_tex_document_detailed(
         )
         return LaTeXCompileResult(
             pdf_path=pdf_file if pdf_file.exists() else None,
-            summary="TeX 文档编译超时，请检查内容或 LaTeX 环境。",
+            message=RenderMessage.create("compile.timeout"),
             log_text=log_text,
             errors=_extract_latex_errors(log_text, tex_file),
             warnings=_extract_latex_warnings(log_text),
@@ -361,7 +387,7 @@ def compile_tex_document_detailed(
     except Exception as exc:
         return LaTeXCompileResult(
             pdf_path=None,
-            summary=f"TeX 文档编译失败: {exc}",
+            message=RenderMessage.create("compile.exception", error=exc),
             engine=engine_name,
             log_path=log_file if log_file.exists() else None,
         )
@@ -373,18 +399,18 @@ def synctex_edit_from_pdf(
     page: int,
     x_pt: float,
     y_pt: float,
-) -> Tuple[Optional[Path], Optional[int], str]:
+) -> tuple[Optional[Path], Optional[int], Optional[RenderMessage]]:
     mode = get_document_render_mode()
     if not is_supported_document_render_mode(mode):
-        return None, None, "当前渲染引擎不支持 SyncTeX。"
+        return None, None, RenderMessage.create("synctex.unsupported_mode")
     latex_path = get_latex_executable_path()
     latex_cmd = _resolve_latex_command_for_mode(mode, latex_path)
     synctex_cmd = _resolve_synctex_command_for_latex(latex_cmd)
     if not synctex_cmd:
-        return None, None, "未找到可用的 synctex 命令。"
+        return None, None, RenderMessage.create("synctex.command_missing")
     target_pdf = Path(pdf_file)
     if not target_pdf.exists():
-        return None, None, "PDF 预览文件不存在。"
+        return None, None, RenderMessage.create("synctex.pdf_missing")
     try:
         result = subprocess.run(
             [
@@ -402,14 +428,19 @@ def synctex_edit_from_pdf(
             **_hidden_subprocess_kwargs(),
         )
     except Exception as exc:
-        return None, None, f"SyncTeX 查询失败: {exc}"
+        return None, None, RenderMessage.create("synctex.query_failed", error=exc)
 
     output = "\n".join(filter(None, [result.stdout, result.stderr]))
     input_match = re.search(r"^Input:(.+)$", output, re.MULTILINE)
     line_match = re.search(r"^Line:(\d+)$", output, re.MULTILINE)
     if not input_match or not line_match:
         cleaned = re.sub(r"\s+", " ", output).strip()
-        return None, None, cleaned or "未能从 SyncTeX 输出中解析源码位置。"
+        message = (
+            RenderMessage.create("synctex.source_parse_detail", detail=cleaned)
+            if cleaned
+            else RenderMessage.create("synctex.source_parse_failed")
+        )
+        return None, None, message
     source = Path(input_match.group(1).strip())
     try:
         line_no = int(line_match.group(1))
@@ -423,21 +454,36 @@ def synctex_view_from_source(
     source_file: Path,
     line_no: int,
     pdf_file: Path,
-) -> Tuple[Optional[int], Optional[float], Optional[float], Optional[float], Optional[float], str]:
+) -> tuple[
+    Optional[int],
+    Optional[float],
+    Optional[float],
+    Optional[float],
+    Optional[float],
+    Optional[RenderMessage],
+]:
     mode = get_document_render_mode()
     if not is_supported_document_render_mode(mode):
-        return None, None, None, None, None, "当前渲染引擎不支持 SyncTeX。"
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.unsupported_mode"
+        )
     latex_path = get_latex_executable_path()
     latex_cmd = _resolve_latex_command_for_mode(mode, latex_path)
     synctex_cmd = _resolve_synctex_command_for_latex(latex_cmd)
     if not synctex_cmd:
-        return None, None, None, None, None, "未找到可用的 synctex 命令。"
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.command_missing"
+        )
     src = Path(source_file)
     target_pdf = Path(pdf_file)
     if not src.exists():
-        return None, None, None, None, None, "源码文件不存在。"
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.source_missing"
+        )
     if not target_pdf.exists():
-        return None, None, None, None, None, "PDF 预览文件不存在。"
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.pdf_missing"
+        )
     try:
         result = subprocess.run(
             [
@@ -457,7 +503,9 @@ def synctex_view_from_source(
             **_hidden_subprocess_kwargs(),
         )
     except Exception as exc:
-        return None, None, None, None, None, f"SyncTeX 查询失败: {exc}"
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.query_failed", error=exc
+        )
 
     output = "\n".join(filter(None, [result.stdout, result.stderr]))
     page_match = re.search(r"^Page:(\d+)$", output, re.MULTILINE | re.IGNORECASE)
@@ -467,7 +515,12 @@ def synctex_view_from_source(
     h_match = re.search(r"^H:([+-]?[0-9]*\.?[0-9]+)$", output, re.MULTILINE | re.IGNORECASE)
     if not page_match or not x_match or not y_match:
         cleaned = re.sub(r"\s+", " ", output).strip()
-        return None, None, None, None, None, cleaned or "未能从 SyncTeX 输出中解析 PDF 坐标。"
+        message = (
+            RenderMessage.create("synctex.pdf_parse_detail", detail=cleaned)
+            if cleaned
+            else RenderMessage.create("synctex.pdf_parse_failed")
+        )
+        return None, None, None, None, None, message
     try:
         page = int(page_match.group(1))
         x_pt = float(x_match.group(1))
@@ -475,8 +528,10 @@ def synctex_view_from_source(
         w_pt = abs(float(w_match.group(1))) if w_match else None
         h_pt = abs(float(h_match.group(1))) if h_match else None
     except Exception:
-        return None, None, None, None, None, "SyncTeX 输出解析失败。"
-    return page, x_pt, y_pt, w_pt, h_pt, ""
+        return None, None, None, None, None, RenderMessage.create(
+            "synctex.output_parse_failed"
+        )
+    return page, x_pt, y_pt, w_pt, h_pt, None
 
 
 class LaTeXRenderer:

@@ -76,11 +76,14 @@ def test_system_python_unavailable_reason_reports_detected_unsupported_version(t
     monkeypatch.setattr(deps_python_runtime, "_system_python_candidates", lambda: [pyexe])
     monkeypatch.setattr(deps_python_runtime, "_python_candidate_version", lambda _path: (3, 14, 2))
 
+    issue = deps_python_runtime.system_python_unavailable()
     reason = deps_python_runtime.system_python_unavailable_reason()
 
+    assert issue.code == "unsupported_version"
+    assert issue.version == "3.14.2"
     assert "Python 3.14.2" in reason
     assert ">=3.10,<3.14" in reason
-    assert "版本不在支持范围" in reason
+    assert "outside the supported range" in reason
 
 
 def test_system_python_unavailable_reason_reports_missing_venv(tmp_path, monkeypatch):
@@ -89,10 +92,13 @@ def test_system_python_unavailable_reason_reports_missing_venv(tmp_path, monkeyp
     monkeypatch.setattr(deps_python_runtime, "_system_python_candidates", lambda: [pyexe])
     monkeypatch.setattr(deps_python_runtime, "_python_candidate_version", lambda _path: (3, 13, 7))
 
+    issue = deps_python_runtime.system_python_unavailable()
     reason = deps_python_runtime.system_python_unavailable_reason()
 
+    assert issue.code == "missing_venv"
+    assert issue.version == "3.13.7"
     assert "Python 3.13.7" in reason
-    assert "缺少 venv/ensurepip" in reason
+    assert "venv/ensurepip is unavailable" in reason
 
 
 def test_venv_setup_returns_specific_system_python_reason(tmp_path, monkeypatch):
@@ -101,7 +107,7 @@ def test_venv_setup_returns_specific_system_python_reason(tmp_path, monkeypatch)
     expected = "检测到系统 Python 3.14.2，但版本不在支持范围 >=3.10,<3.14 内。"
     logs = []
     monkeypatch.setattr(deps_entry, "_find_system_python3", lambda: None)
-    monkeypatch.setattr(deps_entry, "_system_python_unavailable_reason", lambda: expected)
+    monkeypatch.setattr(deps_entry, "_system_python_unavailable_text", lambda: expected)
 
     ok, reason = deps_entry._setup_python_venv_from_system(tmp_path / "venv", log_fn=logs.append)
 

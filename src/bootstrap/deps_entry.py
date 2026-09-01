@@ -40,7 +40,7 @@ from runtime.dependency_runtime import (
     is_usable_python as _is_usable_python,
     site_packages_root as _site_packages_root,
     supported_system_python_range_label as _supported_system_python_range_label,
-    system_python_unavailable_reason as _system_python_unavailable_reason,
+    system_python_unavailable as _system_python_unavailable,
 )
 from bootstrap.deps_pip_runner import _terminate_process
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal
@@ -260,6 +260,31 @@ def _system_python_install_hint(reason: str) -> str:
     return "\n".join(lines)
 
 
+def _system_python_unavailable_text() -> str:
+    issue = _system_python_unavailable()
+    values = {
+        "version": issue.version,
+        "path": issue.path,
+        "version_range": issue.version_range,
+    }
+    if issue.code == "missing_venv":
+        source = tr(
+            "检测到系统 Python {version}（{path}），版本位于支持范围 "
+            "{version_range} 内，但缺少 venv/ensurepip，无法创建依赖环境。"
+        )
+    elif issue.code == "unsupported_version":
+        source = tr(
+            "检测到系统 Python {version}（{path}），但版本不在支持范围 "
+            "{version_range} 内，无法创建依赖环境。"
+        )
+    else:
+        source = tr(
+            "未检测到可运行的系统 Python；需要 Python {version_range} "
+            "并提供 venv/ensurepip。"
+        )
+    return source.format(**values)
+
+
 def _install_failure_dialog_copy() -> tuple[str, str]:
     return (
         tr("依赖安装未完成"),
@@ -283,7 +308,7 @@ def _setup_python_venv_from_system(
 
     system_python = _find_system_python3()
     if system_python is None:
-        reason = _system_python_unavailable_reason()
+        reason = _system_python_unavailable_text()
         log_fn(f"[ERR] {reason}")
         return False, reason
 
