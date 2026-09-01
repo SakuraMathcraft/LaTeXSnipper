@@ -21,6 +21,7 @@ UI_DIRECTORIES = (
     "ui",
     "update",
 )
+DOMAIN_BOUNDARY_DIRECTORIES = ("rendering", "runtime")
 TRANSLATION_FUNCTIONS = {"tr", "translate", "mark_for_translation"}
 USER_TEXT_CALLS = {
     "Action",
@@ -133,6 +134,10 @@ def _is_user_text_literal(node: ast.AST) -> bool:
     return any("\u4e00" <= character <= "\u9fff" for character in value)
 
 
+def _contains_user_text_literal(node: ast.AST) -> bool:
+    return any(_is_user_text_literal(child) for child in ast.walk(node))
+
+
 def _source_files() -> list[Path]:
     files: set[Path] = set()
     for relative in UI_DIRECTORIES:
@@ -182,6 +187,19 @@ def main() -> int:
                 if _is_user_text_literal(argument) and not _is_translated(argument):
                     relative = path.relative_to(PROJECT_ROOT)
                     failures.append(f"{relative}:{argument.lineno}")
+    for directory in DOMAIN_BOUNDARY_DIRECTORIES:
+        for path in sorted((SOURCE_ROOT / directory).rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Return)
+                    and node.value is not None
+                    and _contains_user_text_literal(node.value)
+                ):
+                    relative = path.relative_to(PROJECT_ROOT)
+                    failures.append(
+                        f"{relative}:{node.lineno} (localized domain return)"
+                    )
     if failures:
         print("Untranslated UI string literals:")
         print("\n".join(f"  {item}" for item in failures))

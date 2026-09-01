@@ -62,6 +62,7 @@ from editor.workbench_bridge import WorkbenchBridge
 from localization.manager import current_ui_language
 from runtime.app_paths import app_temp_dir, resource_path
 
+from .messages import render_message_text
 from .tex_utils import WRAP_ENVIRONMENTS, validate_tex_document, wrap_tex_document
 
 try:
@@ -1033,15 +1034,25 @@ class HandwritingDocumentPreviewWindow(QDialog):
         try:
             from rendering.latex import synctex_view_from_source
 
-            page, x_pt, y_pt, w_pt, h_pt, error = synctex_view_from_source(
+            page, x_pt, y_pt, w_pt, h_pt, message = synctex_view_from_source(
                 source_file=source_path, line_no=int(line_no), pdf_file=pdf_path
             )
         except Exception as exc:
-            page, x_pt, y_pt, w_pt, h_pt, error = None, None, None, None, None, str(exc)
-        if error:
+            page, x_pt, y_pt, w_pt, h_pt, message = (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            message_text = tr("SyncTeX 查询失败：{error}").format(error=exc)
+        else:
+            message_text = render_message_text(message)
+        if message_text:
             InfoBar.warning(
                 title=tr("SyncTeX 跳转失败"),
-                content=str(error),
+                content=message_text,
                 parent=self,
                 position=InfoBarPosition.TOP,
                 duration=3200,
@@ -1631,15 +1642,18 @@ class HandwritingDocumentPreviewWindow(QDialog):
         try:
             from rendering.latex import synctex_edit_from_pdf
 
-            source, line_no, error = synctex_edit_from_pdf(
+            source, line_no, message = synctex_edit_from_pdf(
                 pdf_file=pdf_path, page=page, x_pt=x_pt, y_pt=y_pt
             )
         except Exception as exc:
-            source, line_no, error = None, None, str(exc)
-        if error:
+            source, line_no, message = None, None, None
+            message_text = tr("SyncTeX 查询失败：{error}").format(error=exc)
+        else:
+            message_text = render_message_text(message)
+        if message_text:
             InfoBar.warning(
                 title=tr("SyncTeX 跳转失败"),
-                content=str(error),
+                content=message_text,
                 parent=self,
                 position=InfoBarPosition.TOP,
                 duration=3200,
@@ -1681,7 +1695,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
         )
 
     def _format_compile_result_log(self, result: object) -> str:
-        summary = str(getattr(result, "summary", "") or "").strip()
+        summary = render_message_text(getattr(result, "message", None)).strip()
         engine = str(getattr(result, "engine", "") or "").strip() or "unknown"
         return_code = getattr(result, "return_code", None)
         generated_pdf = bool(getattr(result, "generated_pdf", False))
@@ -1808,7 +1822,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _on_compile_finished(self, result: object) -> None:
         self._set_compile_log_text(self._format_compile_result_log(result))
         pdf_path = getattr(result, "pdf_path", None)
-        summary = str(getattr(result, "summary", "") or "").strip()
+        summary = render_message_text(getattr(result, "message", None)).strip()
         generated_pdf = bool(getattr(result, "generated_pdf", False))
         has_errors = bool(getattr(result, "errors", None))
         has_warnings = bool(getattr(result, "warnings", None))

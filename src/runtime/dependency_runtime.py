@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from shutil import which
 
@@ -15,6 +16,16 @@ SUPPORTED_SYSTEM_PYTHON_MAX_EXCLUSIVE = (3, 14)
 PREFERRED_SYSTEM_PYTHON_VERSIONS = ((3, 13), (3, 12), (3, 11), (3, 10))
 _active_site_packages: str | None = None
 _active_dll_directory_handle = None
+
+
+@dataclass(frozen=True)
+class SystemPythonUnavailable:
+    """Structured reason why no system Python can create the dependency venv."""
+
+    code: str
+    version_range: str
+    path: str = ""
+    version: str = ""
 
 
 def _version_label(version: tuple[int, int]) -> str:
@@ -295,8 +306,8 @@ def find_system_python3() -> Path | None:
     return None
 
 
-def system_python_unavailable_reason() -> str:
-    """Explain why no candidate can create the dependency environment."""
+def system_python_unavailable() -> SystemPythonUnavailable:
+    """Describe why no candidate can create the dependency environment."""
     supported_but_incomplete: list[tuple[Path, tuple[int, int, int]]] = []
     unsupported: list[tuple[Path, tuple[int, int, int]]] = []
     for candidate in _system_python_candidates():
@@ -312,17 +323,40 @@ def system_python_unavailable_reason() -> str:
     version_range = supported_system_python_range_label()
     if supported_but_incomplete:
         path, version = supported_but_incomplete[0]
-        return (
-            f"检测到系统 Python {_format_python_version(version)}（{path}），版本位于支持范围 "
-            f"{version_range} 内，但缺少 venv/ensurepip，无法创建依赖环境。"
+        return SystemPythonUnavailable(
+            code="missing_venv",
+            version_range=version_range,
+            path=str(path),
+            version=_format_python_version(version),
         )
     if unsupported:
         path, version = unsupported[0]
-        return (
-            f"检测到系统 Python {_format_python_version(version)}（{path}），但版本不在支持范围 "
-            f"{version_range} 内，无法创建依赖环境。"
+        return SystemPythonUnavailable(
+            code="unsupported_version",
+            version_range=version_range,
+            path=str(path),
+            version=_format_python_version(version),
         )
-    return f"未检测到可运行的系统 Python；需要 Python {version_range} 并提供 venv/ensurepip。"
+    return SystemPythonUnavailable(code="not_found", version_range=version_range)
+
+
+def system_python_unavailable_reason() -> str:
+    """Return a diagnostic log description for the unavailable system Python."""
+    issue = system_python_unavailable()
+    if issue.code == "missing_venv":
+        return (
+            f"System Python {issue.version} ({issue.path}) is supported by "
+            f"{issue.version_range}, but venv/ensurepip is unavailable."
+        )
+    if issue.code == "unsupported_version":
+        return (
+            f"System Python {issue.version} ({issue.path}) is outside the supported "
+            f"range {issue.version_range}."
+        )
+    return (
+        "No runnable system Python was found; Python "
+        f"{issue.version_range} with venv/ensurepip is required."
+    )
 
 
 def _is_windows_store_alias(pyexe: Path) -> bool:
