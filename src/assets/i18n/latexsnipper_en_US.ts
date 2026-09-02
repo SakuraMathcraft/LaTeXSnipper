@@ -259,7 +259,7 @@
       <translation>LaTeX Result</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="226" />
+      <location filename="../../../src/ui/main_window_setup.py" line="228" />
       <source>LaTeX 编辑器</source>
       <translation>LaTeX Editor</translation>
     </message>
@@ -274,7 +274,7 @@
       <translation>LaTeX path not configured</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="53" />
+      <location filename="../../../src/ui/main_window_setup.py" line="55" />
       <source>LaTeXSnipper</source>
       <translation>LaTeXSnipper</translation>
     </message>
@@ -508,9 +508,9 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>PDF Rendering Resolution</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="231" />
+      <location filename="../../../src/ui/main_window_setup.py" line="233" />
       <source>PDF 识别</source>
-      <translation>PDF Recognition</translation>
+      <translation>PDF</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="348" />
@@ -691,7 +691,7 @@ Current content:
       <translation>WebEngine is unavailable; the formula preview cannot be displayed.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="340" />
+      <location filename="../../../src/ui/main_window_setup.py" line="342" />
       <source>WebEngine 未加载，无法渲染公式预览。
 请确保已安装 PyQtWebEngine。</source>
       <translation>WebEngine is unavailable, so the formula preview cannot be rendered.
@@ -1366,7 +1366,7 @@ Restart and open Dependency Management now?
       <translation>Initialization failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="121" />
+      <location filename="../../../src/ui/main_window_setup.py" line="123" />
       <source>初始化识别与预览...</source>
       <translation>Initializing recognition and preview...</translation>
     </message>
@@ -1446,7 +1446,7 @@ Restart and open Dependency Management now?
       <translation>Removal Progress</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="176" />
+      <location filename="../../../src/ui/main_window_setup.py" line="178" />
       <source>历史记录</source>
       <translation>History</translation>
     </message>
@@ -1586,9 +1586,9 @@ Restart and open Dependency Management now?
       <translation>The image file exceeds the size limit.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="229" />
+      <location filename="../../../src/ui/main_window_setup.py" line="231" />
       <source>图片识别</source>
-      <translation>Image Recognition</translation>
+      <translation>Image</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="205" />
@@ -1597,7 +1597,7 @@ Restart and open Dependency Management now?
       <translation>Lasso Correction</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="263" />
+      <location filename="../../../src/ui/main_window_setup.py" line="265" />
       <source>在此输入 LaTeX 公式，下方将实时渲染...</source>
       <translation>Enter a LaTeX formula here for a live preview below...</translation>
     </message>
@@ -1620,7 +1620,7 @@ Restart and open Dependency Management now?
       <location filename="../../../src/ui/favorites_window.py" line="253" />
       <location filename="../../../src/ui/history_controller.py" line="38" />
       <location filename="../../../src/ui/history_panel.py" line="139" />
-      <location filename="../../../src/ui/main_window_setup.py" line="239" />
+      <location filename="../../../src/ui/main_window_setup.py" line="241" />
       <location filename="../../../src/ui/pdf_result_window.py" line="72" />
       <source>复制</source>
       <translation>Copy</translation>
@@ -1851,7 +1851,7 @@ Restart and open Dependency Management now?
       <translation>Definite integral</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="270" />
+      <location filename="../../../src/ui/main_window_setup.py" line="272" />
       <source>实时渲染预览</source>
       <translation>Live Preview</translation>
     </message>
@@ -1876,7 +1876,7 @@ Restart and open Dependency Management now?
       <translation>Key updated</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="241" />
+      <location filename="../../../src/ui/main_window_setup.py" line="243" />
       <location filename="../../../src/ui/predict_result_dialog.py" line="185" />
       <source>导出</source>
       <translation>Export</translation>
@@ -2689,7 +2689,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Quick Insert</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="203" />
+      <location filename="../../../src/ui/main_window_setup.py" line="205" />
       <source>快捷键</source>
       <translation>Shortcut</translation>
     </message>
@@ -2739,7 +2739,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Capture permission was denied</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="168" />
+      <location filename="../../../src/ui/main_window_setup.py" line="170" />
       <source>截图识别</source>
       <translation>Capture &amp; Recognize</translation>
     </message>
@@ -2762,7 +2762,7 @@ Select Download to initialize it before entering the main app.</translation>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="165" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="190" />
-      <location filename="../../../src/ui/main_window_setup.py" line="243" />
+      <location filename="../../../src/ui/main_window_setup.py" line="245" />
       <source>手写识别</source>
       <translation>Handwriting</translation>
     </message>
@@ -3023,12 +3023,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Supports Ollama, OpenAI-compatible services, and MinerU Local. For online services, verify authentication, model name, quota, and service terms.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="235" />
+      <location filename="../../../src/ui/main_window_setup.py" line="237" />
       <source>支持格式: </source>
       <translation>Supported formats: </translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="238" />
+      <location filename="../../../src/ui/main_window_setup.py" line="240" />
       <source>支持格式: PDF</source>
       <translation>Supported format: PDF</translation>
     </message>
@@ -3043,7 +3043,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Favorite</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="204" />
+      <location filename="../../../src/ui/main_window_setup.py" line="206" />
       <source>收藏夹</source>
       <translation>Favorites</translation>
     </message>
@@ -3065,7 +3065,7 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/editor/workbench_window.py" line="54" />
-      <location filename="../../../src/ui/main_window_setup.py" line="245" />
+      <location filename="../../../src/ui/main_window_setup.py" line="247" />
       <source>数学工作台</source>
       <translation>Math Workspace</translation>
     </message>
@@ -3323,13 +3323,13 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/history_panel.py" line="32" />
-      <location filename="../../../src/ui/main_window_setup.py" line="181" />
+      <location filename="../../../src/ui/main_window_setup.py" line="183" />
       <source>最新在前</source>
       <translation>Newest first</translation>
     </message>
     <message>
       <location filename="../../../src/ui/history_panel.py" line="35" />
-      <location filename="../../../src/ui/main_window_setup.py" line="181" />
+      <location filename="../../../src/ui/main_window_setup.py" line="183" />
       <source>最早在前</source>
       <translation>Oldest first</translation>
     </message>
@@ -3344,8 +3344,8 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No recognition task was created.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="59" />
-      <location filename="../../../src/ui/main_window_setup.py" line="135" />
+      <location filename="../../../src/ui/main_window_setup.py" line="61" />
+      <location filename="../../../src/ui/main_window_setup.py" line="137" />
       <source>未加载</source>
       <translation>Not loaded</translation>
     </message>
@@ -4052,7 +4052,7 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="206" />
-      <location filename="../../../src/ui/main_window_setup.py" line="202" />
+      <location filename="../../../src/ui/main_window_setup.py" line="204" />
       <source>清空</source>
       <translation>Clear</translation>
     </message>
@@ -4077,7 +4077,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Clear View</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="273" />
+      <location filename="../../../src/ui/main_window_setup.py" line="275" />
       <source>清空预览</source>
       <translation>Clear Preview</translation>
     </message>
@@ -4168,7 +4168,7 @@ Use the system Python to initialize this directory and continue installing depen
       <translation>Matrix  (matrix)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_dialog.py" line="131" />
+      <location filename="../../../src/ui/hotkey_dialog.py" line="135" />
       <location filename="../../../src/ui/predict_result_dialog.py" line="195" />
       <location filename="../../../src/ui/window_helpers.py" line="156" />
       <source>确定</source>
@@ -4602,7 +4602,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Evaluate</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="205" />
+      <location filename="../../../src/ui/main_window_setup.py" line="207" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="45" />
       <source>设置</source>
       <translation>Settings</translation>

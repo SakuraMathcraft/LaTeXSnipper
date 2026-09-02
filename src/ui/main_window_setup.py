@@ -38,6 +38,8 @@ from ui.window_helpers import (
 
 DEFAULT_HISTORY_NAME = "history.json"
 PLATFORM_DISABLE_GLOBAL_HOTKEY = False
+DEFAULT_MAIN_WINDOW_SIZE = (1180, 720)
+EDITOR_TOOLBAR_RIGHT_MARGIN = 8
 
 
 class MainWindowSetupMixin:
@@ -51,8 +53,8 @@ class MainWindowSetupMixin:
         self._pending_hotkey_seq = None
 
         self.setWindowTitle(tr("LaTeXSnipper"))
-        self.resize(1180, 720)
-        self.setMinimumSize(1180, 720)
+        self.resize(*DEFAULT_MAIN_WINDOW_SIZE)
+        self.setMinimumSize(*DEFAULT_MAIN_WINDOW_SIZE)
 
         self._force_exit = False
 
@@ -394,5 +396,38 @@ class MainWindowSetupMixin:
 
         self._apply_primary_buttons()
         self._apply_theme_styles(force=True)
+
+        for button in (
+            self.upload_image_btn,
+            self.upload_pdf_btn,
+            self.handwriting_btn,
+            self.copy_editor_btn,
+            self.export_btn,
+            self.workbench_btn,
+        ):
+            button.setMinimumWidth(button.sizeHint().width())
+        left_layout.activate()
+        editor_header.activate()
+        preview_header.activate()
+        right_layout.activate()
+        right_margins = right_layout.contentsMargins()
+        right_panel_width = (
+            max(
+                editor_header.minimumSize().width(),
+                preview_header.minimumSize().width(),
+            )
+            + right_margins.left()
+            + right_margins.right()
+            + EDITOR_TOOLBAR_RIGHT_MARGIN
+        )
+        required_width = max(
+            DEFAULT_MAIN_WINDOW_SIZE[0],
+            left_panel.minimumSizeHint().width()
+            + splitter.handleWidth()
+            + right_panel_width,
+        )
+        self.setMinimumSize(required_width, DEFAULT_MAIN_WINDOW_SIZE[1])
+        self.resize(required_width, DEFAULT_MAIN_WINDOW_SIZE[1])
+
         self.install_platform_lifecycle_hooks()
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)

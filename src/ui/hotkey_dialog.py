@@ -8,7 +8,7 @@ from collections.abc import Callable
 import sys
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QVBoxLayout
+from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QSizePolicy, QVBoxLayout
 from qfluentwidgets import FluentIcon, PushButton
 
 from preview.math_preview import dialog_theme_tokens, is_dark_ui
@@ -34,7 +34,7 @@ def create_hotkey_dialog(
     dlg = QDialog(parent)
     apply_close_only_window_flags(dlg)
     dlg.setWindowTitle(tr("设置快捷键"))
-    dlg.setFixedSize(300, 148)
+    dlg.setMinimumWidth(360)
     dlg.setModal(False)
     dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
     if on_destroyed is not None:
@@ -53,6 +53,10 @@ def create_hotkey_dialog(
         )
     )
     hint_label.setStyleSheet(f"color: {t['muted']};")
+    hint_label.setWordWrap(True)
+    hint_label.setSizePolicy(
+        QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+    )
     lay.addWidget(current_label)
     lay.addWidget(hint_label)
 
@@ -132,6 +136,12 @@ QLineEdit:focus {{
     btn.setFixedHeight(32)
     btn.clicked.connect(lambda: on_confirm(edit.text().strip(), dlg))
     lay.addWidget(btn)
+
+    preferred_width = min(max(dlg.sizeHint().width(), 360), 480)
+    margins = lay.contentsMargins()
+    content_width = preferred_width - margins.left() - margins.right()
+    hint_label.setMinimumHeight(hint_label.heightForWidth(content_width))
+    dlg.resize(preferred_width, max(148, dlg.sizeHint().height()))
 
     QTimer.singleShot(0, edit.setFocus)
     return dlg
