@@ -43,7 +43,6 @@ from update.installer_launch import (
     _read_signature_status,
     _schedule_windows_installer,
 )
-from update.markdown_rendering import _fix_relative_images
 from update.release_types import (
     CONNECT_TIMEOUT,
     DEBUG_LOG,
@@ -190,7 +189,6 @@ def check_update_dialog(parent=None):
         if not changelog:
             txt.start_new_html(f"<p>{html.escape(tr('(无变更日志)'))}</p>")
             return
-        md = _fix_relative_images(changelog)
         css = f"""
 body{{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:12px;line-height:1.55;color:{theme["text"]};}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;}}
@@ -200,7 +198,7 @@ table{{border-collapse:collapse;}}
 table,th,td{{border:1px solid {theme["border"]};padding:4px;}}
 a{{color:{theme["accent"]};}}
 """
-        txt.start_new_markdown(md, css)
+        txt.start_new_markdown(changelog, css)
 
     def on_result(info, err, diag):
         if DEBUG_LOG and diag:
