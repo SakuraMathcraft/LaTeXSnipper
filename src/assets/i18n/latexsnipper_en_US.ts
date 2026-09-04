@@ -284,7 +284,7 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="82" />
+      <location filename="../../../src/application/bootstrap.py" line="79" />
       <source>LaTeXSnipper 已在运行。</source>
       <translation>LaTeXSnipper is already running.</translation>
     </message>
@@ -838,14 +838,14 @@ Example: {path}
       <translation>── Pandoc Export ──</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="221" />
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="226" />
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="270" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="222" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="227" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="271" />
       <source>⚪ 计算模式未知</source>
       <translation>⚪ Compute mode unknown</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="290" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="291" />
       <source>⚪ 计算模式检测中...</source>
       <translation>⚪ Detecting compute mode...</translation>
     </message>
@@ -1325,8 +1325,8 @@ Restart and open Dependency Management now?
       <translation>Your preview will appear here after you write</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="176" />
-      <location filename="../../../src/application/bootstrap.py" line="266" />
+      <location filename="../../../src/application/bootstrap.py" line="173" />
+      <location filename="../../../src/application/bootstrap.py" line="262" />
       <source>准备运行环境...</source>
       <translation>Preparing runtime environment...</translation>
     </message>
@@ -3582,7 +3582,7 @@ Select Download to initialize it before entering the main app.</translation>
     <message>
       <location filename="../../../src/application/app_runner.py" line="75" />
       <location filename="../../../src/application/app_runner.py" line="58" />
-      <location filename="../../../src/application/bootstrap.py" line="238" />
+      <location filename="../../../src/application/bootstrap.py" line="235" />
       <source>检查依赖...</source>
       <translation>Checking dependencies...</translation>
     </message>
@@ -5478,22 +5478,22 @@ Continue?</translation>
       <translation>MiKTeX or TeX Live must be installed locally and pass validation before use</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="247" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="248" />
       <source>🟡 CPU 模式</source>
       <translation>🟡 CPU mode</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="244" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="245" />
       <source>🟡 CPU 模式: {device}</source>
       <translation>🟡 CPU mode: {device}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="240" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="241" />
       <source>🟢 GPU 模式</source>
       <translation>🟢 GPU mode</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="237" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="238" />
       <source>🟢 GPU 模式: {device}</source>
       <translation>🟢 GPU mode: {device}</translation>
     </message>

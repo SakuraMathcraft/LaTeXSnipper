@@ -18,6 +18,7 @@ from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
 from runtime.app_paths import app_config_path
 from runtime.dependency_python import clean_path_value, find_dependency_python
+from runtime.native_runtime import isolated_python_code
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from backend.mathcraft.process_environment import (
     _worker_code_roots,
@@ -274,7 +275,7 @@ class ModelWrapper(QObject):
             "from mathcraft_ocr.cli import main; "
             f"raise SystemExit(main(['worker', '--provider', {self._provider!r}]))"
         )
-        return [get_deps_python(), "-u", "-c", code]
+        return [get_deps_python(), "-u", "-c", isolated_python_code(code)]
 
     def _remember_worker_stderr(self, text: str) -> None:
         if not text:

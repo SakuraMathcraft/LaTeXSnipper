@@ -18,6 +18,7 @@ from bootstrap.deps_pip_runner import PipInstallRunner
 from runtime.dependency_runtime import site_packages_root as _site_packages_root
 from bootstrap.deps_layer_specs import _diagnose_install_failure, layer_display_name
 from runtime.app_paths import app_config_path
+from runtime.native_runtime import isolated_python_code
 
 
 RUNTIME_SUPPORT_SPECS = {
@@ -430,7 +431,7 @@ def _verify_layer_runtime(pyexe: str, layer: str, timeout: int = 60) -> tuple:
         env["PYTHONIOENCODING"] = "utf-8"
         env["LATEXSNIPPER_CONFIG_PATH"] = str(app_config_path())
         result = subprocess.run(
-            [pyexe, "-c", code],
+            [pyexe, "-c", isolated_python_code(code)],
             capture_output=True, text=True, timeout=timeout,
             encoding="utf-8", errors="replace",
             env=env,
@@ -547,7 +548,7 @@ def _verify_onnxruntime_runtime(pyexe: str, expect_gpu: bool = False, timeout: i
         env["PYTHONUTF8"] = "1"
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
-            [str(pyexe), "-c", code],
+            [str(pyexe), "-c", isolated_python_code(code)],
             capture_output=True,
             text=True,
             encoding="utf-8",

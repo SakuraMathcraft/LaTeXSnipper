@@ -15,10 +15,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from localization.manager import install_application_translators, translate as tr
 from preview.math_preview import configure_math_preview_runtime
 from runtime.app_paths import resource_path
-from runtime.native_runtime_preload import (
-    configure_native_runtime_environment,
-    preload_onnxruntime_before_qt,
-)
+from runtime.native_runtime import configure_native_runtime_environment
 from runtime.dependency_runtime import DEPENDENCY_PYTHON_DIRNAME, dependency_venv_python
 from application.python_runtime_resolver import (
     APP_DIR,
@@ -259,7 +256,6 @@ def bootstrap_application() -> BootstrapContext:
         return _BOOTSTRAP_CONTEXT
 
     configure_native_runtime_environment()
-    preload_onnxruntime_before_qt()
     app = _ensure_qt_application()
     install_application_translators(app)
     _ensure_single_instance(app)
@@ -286,7 +282,6 @@ def bootstrap_application() -> BootstrapContext:
         _maybe_redirect_to_private_python(install_base_dir)
         base_dir, target_py = _prepare_python_runtime(install_base_dir)
     _bootstrap_dependencies(base_dir, target_py)
-    preload_onnxruntime_before_qt()
 
     configure_math_preview_runtime(APP_DIR)
     os.makedirs(base_dir, exist_ok=True)
