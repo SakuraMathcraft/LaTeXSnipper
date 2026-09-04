@@ -2,157 +2,126 @@
 
 <div align="center">
 
-> A cross-platform math OCR workspace and automation service for **capture -> recognize -> handwrite -> edit -> integrate**
-<img width="1919" height="1021" alt="LaTeXSnipper v3.0.0" src="docs/latexsnipper-3.0.0.png" />
+Turn screenshots, images, PDFs, and handwriting into editable formulas and text.
 
+[![GitHub Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)
 ![Stars](https://img.shields.io/github/stars/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Stars&color=FFD700)
-![Forks](https://img.shields.io/github/forks/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Forks&color=1f6feb)
-![Issues](https://img.shields.io/github/issues/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Issues&color=d1481e)
-![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.11-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
 
-[![GitHub Release](https://img.shields.io/github/v/release/SakuraMathcraft/LaTeXSnipper?style=flat-square&include_prereleases)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/SakuraMathcraft/LaTeXSnipper?style=flat-square)](https://github.com/SakuraMathcraft/LaTeXSnipper/commits)
-[![Activity](https://img.shields.io/github/commit-activity/m/SakuraMathcraft/LaTeXSnipper?style=flat-square&label=Activity)](https://github.com/SakuraMathcraft/LaTeXSnipper/graphs/commit-activity)
-
-[FAQ](docs/faq.md) · [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) · [LINUX DO Community](https://linux.do/)
+**[Download](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)** · [User Manual (Chinese PDF)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf) · [FAQ](docs/faq.md) · [Demos](#demos)
 
 English · [简体中文](README.zh-CN.md)
 
+<img width="960" alt="LaTeXSnipper v3.0.0: recognition history, formula editor, and live preview" src="docs/latexsnipper-3.0.0.png" />
+
 </div>
 
----
+## What You Can Do
 
-## Core Features
+| Feature | What it offers |
+|---|---|
+| 📸 Recognize | Capture a region, open an image, select PDF pages, or write by hand; recognize formulas, text, and mixed content |
+| ⌨️ Edit and compute | Edit with MathLive and live preview; simplify, evaluate, and solve in the math workspace |
+| 🔄 Export | Copy formulas or export documents in 20 formats, including LaTeX, MathML, Word, PDF, and Typst |
+| 🧩 Integrate | Work in Word/PowerPoint or connect scripts and other tools through the Automation API |
+| 🔐 Choose your model | Run MathCraft OCR locally after downloading dependencies and weights, or configure a local/online external model |
+| 🌐 Make it yours | English/Chinese interface, light/dark themes, configurable shortcuts, history, and favorites |
 
-| Feature | Description |
-|------|------|
-| 📸 Formula recognition | MathCraft OCR or a configured local/online external model for formulas, text, and mixed content |
-| 📄 PDF recognition | Page-based PDF recognition with Markdown/LaTeX output and DPI control |
-| ✍️ Handwriting recognition | Dedicated handwriting window with auto-recognition and live preview |
-| 🔌 Automation API | Local scripts, batch jobs, editor tools, and securely authorized remote devices |
-| 🧩 Application integration | Official Word/PowerPoint client plus AutoKey, AutoHotkey, Hammerspoon, ShareX, and mobile workflows |
-| ⌨️ Formula editing | Integrated `MathLive math-field` with virtual math keyboard |
-| 🔄 Multi-format export | 20 export formats across LaTeX, Markdown, MathML, HTML, OMML, SVG, Word, ODT, PowerPoint, EPUB, PDF, Typst, and plain text |
-| 🧮 Math workbench | Separate workspace for editing, computation, and write-back |
-| 📐 Core computation | Compute, simplify, numeric evaluate, expand, factor, solve |
-| 🌙 Theme support | Light/Dark adaptation across windows and tools |
-| 🔐 Offline-first | Recognition and computation can run locally for privacy |
+MathCraft OCR: [benchmark results](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [reproduce the benchmarks](benchmarks/mathcraft_ocr/README.md)
 
-MathCraft OCR benchmark results: [tables and charts](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [reproduction suite](benchmarks/mathcraft_ocr/README.md)
+## Download and Get Started
 
----
+1. **Install the desktop app.** Choose the package for your system from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest).
+2. **Prepare recognition.** On first launch, use Dependency Management to install the required layers and a CPU or GPU backend for MathCraft OCR. Initial model setup requires downloading weights. If using only an external model, configure and test its connection in Settings instead.
+3. **Recognize and edit.** Use Capture Recognize, Image, PDF, or Handwriting, then review, copy, or export the result.
 
-## Automation API
+| Platform | Download | Before using recognition |
+|---|---|---|
+| Windows | `LaTeXSnipperSetup-<version>.exe` | Python runtime included; no separate system Python installation needed |
+| Linux (Debian/Ubuntu) | `.deb` for your architecture | Python `>=3.10,<3.14` with venv/pip; Wayland may restrict screenshots and global shortcuts |
+| macOS | `.dmg` or `.app.zip` for your architecture | Python `>=3.10,<3.14` with venv/pip; grant Screen Recording permission for screenshots |
 
-Automation API exposes both the resident MathCraft model and the desktop application's configured external model through controlled `mathcraft` and `external` backends. MathCraft and external calls use separate bounded, single-concurrency executors, so slow Ollama, MinerU, or online requests do not block MathCraft. Clients cannot read or override upstream URLs, model names, credentials, or prompts.
+Linux/macOS use system Python to create the managed dependency environment; Windows uses its bundled Python 3.11 template. The `.deb` declares `python3` and `python3-venv` dependencies. On macOS, install a supported Python version if one is not available.
 
-It accepts eight common image extensions—PNG, JPG, JPEG, BMP, GIF, TIF, TIFF, and WEBP—covering six actual encodings. The most useful real-world combinations are:
+For permissions, model downloads, environment paths, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese PDF)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf).
 
-- **Snipaste + AutoHotkey/AutoKey/Hammerspoon:** recognize a screenshot and write the result back to the clipboard.
-- **ShareX + Automation API:** upload and recognize automatically after a capture finishes.
-- **VS Code/TeXstudio/Obsidian plugins:** insert recognition output directly at the editing position.
-- **iOS Shortcuts/Android Tasker + Tailscale:** call the resident MathCraft runtime on a home computer from a phone.
-- **Python/curl + batch API:** batch-recognize an entire image directory with a custom workflow.
+## Demos
 
-The API is **disabled by default** and defaults to local-only `127.0.0.1:28765`. Local clients discover the actual address and per-session Bearer token in the private `automation-api.json` connection file. AutoKey, AutoHotkey, Hammerspoon, ShareX, editor plugins, and the official Office plugin can use this local flow. Upload decoding is serialized and normalized images remain inside a shared memory budget until recognition finishes, preventing concurrent large uploads from multiplying memory use.
+### Screenshot Recognition
 
-Remote access requires explicit user opt-in, a separate remote key, and either an encrypted Tailscale/WireGuard/SSH-style tunnel or HTTPS. Plain public-internet HTTP is not supported. Remote external-model access is disabled by default because it can consume third-party quota or local resources. Automation clients never open desktop capture UI; they submit existing images. The official Office client can locally wait for a copy of the next user-initiated desktop recognition result.
+![Screenshot recognition demo](docs/demos/screenshot-recognition.gif)
 
-Minimal local call after reading `base_url` and `token` from the connection file:
+<details>
+<summary>Image Recognition — view demo</summary>
 
-```bash
-curl "$BASE_URL/api/v1/recognition/jobs" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Prefer: wait=30" \
-  -F backend=mathcraft \
-  -F mode=formula \
-  -F "images=@formula.png"
-```
+![Image recognition demo](docs/demos/image-recognition.gif)
 
-Secure remote calls use the same route with an HTTPS or encrypted-tunnel `BASE_URL` and the independently generated remote key. See the [complete API reference](docs/automation_api.md) and [client examples](examples/automation/).
+</details>
 
----
+<details>
+<summary>PDF Recognition — view demo</summary>
+
+![PDF recognition demo](docs/demos/pdf-recognition.gif)
+
+</details>
 
 ## Microsoft Office Plugin
 
-LaTeXSnipper provides a released Windows plugin for desktop Microsoft Word and PowerPoint:
+Insert and edit formulas directly in Windows desktop Word and PowerPoint:
 
-- Word OLE and native OMML formula insertion
-- PowerPoint OLE and PNG formula insertion
-- Shared MathLive editor and extensive symbol/formula library
-- Formula loading, update, deletion, automatic numbering, and renumbering
-- Persisted complete LaTeX source, rendering options, numbering data, and formula identity
-- Local vector rendering for OLE formulas
-- Screenshot recognition as an official Automation API client
+- Word OLE/OMML and PowerPoint OLE/PNG insertion, with editable LaTeX source.
+- Formula editing, updates, and Word automatic numbering and references.
+- Local formula rendering and screenshot OCR through the desktop Automation API.
 
-Download `OfficePluginSetup-<version>.exe` from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases). The plugin supports 32-bit and 64-bit desktop Office 2019, 2021, 2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+Download `OfficePluginSetup-<version>.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
 
-See the [Office plugin documentation](office_plugin/README.md) for requirements and release build details.
+[Installation requirements and features](office_plugin/README.md) · [Formula workflows](docs/office_plugin_formula_workflows.md)
 
----
+## Automation API
 
-## Export Formats
+Use MathCraft or your configured external model from scripts, batch jobs, editor integrations, or authorized remote devices.
 
-LaTeXSnipper exposes a shared export menu in the main window and favorites window. The desktop app currently provides 20 export formats.
+- **Desktop shortcuts:** connect Snipaste, AutoHotkey, AutoKey, Hammerspoon, or ShareX to an image-recognition workflow.
+- **Batch and editor workflows:** submit images with Python/curl and insert results into your tools.
+- **Mobile access:** connect Shortcuts or Tasker to your running desktop app through a secure tunnel.
 
-Built-in formula export formats:
+The API is **disabled by default**. Local clients use the address and token in `automation-api.json`. Remote access requires explicit opt-in, a separate key, and HTTPS or an encrypted tunnel; do not expose it over plain public HTTP. Remote external-model access is separately controlled and may incur provider charges.
 
-- LaTeX inline, display, and equation
-- Markdown inline and block math
-- MathML standard, `.mml`, `<m>`, and attribute forms
-- HTML, Word OMML, and SVG code
+[API reference and connection setup](docs/automation_api.md) · [Ready-to-adapt client examples](examples/automation/README.md)
 
-Optional Pandoc export formats are enabled after installing the `PANDOC` layer in Dependency Management:
+## Export
 
-- Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`
-- PDF `.pdf` (requires Pandoc plus a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX)
-- Standalone HTML `.html`, Typst `.typ`, and plain text `.txt`
+Built-in exports cover LaTeX, Markdown math, MathML, HTML, Word OMML, and SVG code. Install the optional **Pandoc** layer in Dependency Management for document exports such as Word, PowerPoint, EPUB, PDF, and Typst. PDF export also requires a LaTeX PDF engine.
 
----
-
-## Platform Support
-
-| Platform | Status | Notes |
-|------|------|------|
-| Windows | Primary release target | Native global hotkey, Qt capture, GitHub/Inno packaging. |
-| Linux | Supported via provider layer | `pynput` global hotkey, Qt capture first, optional Wayland/X11 CLI or portal fallbacks. |
-| macOS | Supported via provider layer | Native global hotkey, Qt capture with `screencapture` fallback, Screen Recording permission may be required. |
-
-Linux and macOS both create optional runtime dependency environments in the
-user state directory, so they need a usable system Python `>=3.10,<3.14` with
-venv/pip support. Dependency Management prefers the newest supported interpreter;
-the packaged Windows runtime remains fixed at Python 3.11. Debian/Ubuntu `.deb` installs declare `python3` and
-`python3-venv`; macOS users should install Homebrew Python or an
-official python.org Python 3.10-3.13 installer when the system does not provide a
-usable supported `python3`.
-
----
+See the [user manual](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf) for the full format list and requirements.
 
 ## Supporters
 
-Thanks to everyone who supports LaTeXSnipper development, testing, documentation, and community maintenance.
+Thanks to everyone who helps with development, testing, documentation, and community support.
 
 | Supporter | Contribution |
 |---|---|
-| [strangelion](https://github.com/strangelion) | contributor |
-| [Galileo927](https://github.com/Galileo927) | contributor |
+| [strangelion](https://github.com/strangelion) | Contributor |
+| [Galileo927](https://github.com/Galileo927) | Contributor |
 | [ljygo](https://github.com/ljygo) | Sponsor |
 | [Yokie-D](https://github.com/Yokie-D) | Sponsor |
 
----
+## Support the Project
 
-## Support The Project
+LaTeXSnipper is a free, open-source, ad-free personal project with no in-app purchases. If it helps your work, consider starring the repository, sharing it, [reporting an issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues), or sponsoring maintenance.
 
-LaTeXSnipper is a free, open-source, ad-free personal project. If it helps with your writing, OCR, or formula workflow, small sponsorships and community feedback help keep maintenance moving.
+[LINUX DO Community](https://linux.do/)
 
-| 支付宝 | 微信 | 交流群 |
-|--------|------|--------|
-| <img width="300" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="300" alt="微信收款码" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="300" alt="LaTeXSnipper群聊" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+<details>
+<summary>Sponsorship and community QR codes</summary>
 
----
+| Alipay | WeChat Pay | Community chat (Chinese) |
+|---|---|---|
+| <img width="240" alt="Alipay donation QR code" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="240" alt="WeChat Pay donation QR code" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="240" alt="LaTeXSnipper community chat QR code" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
+
+</details>
 
 ## License
 
-This project is open-sourced under the [GNU General Public License v3](LICENSE).
+[GNU General Public License v3](LICENSE).
