@@ -43,7 +43,7 @@ from update.installer_launch import (
     _read_signature_status,
     _schedule_windows_installer,
 )
-from update.markdown_rendering import _prepare_release_markdown
+from update.markdown_rendering import _fix_relative_images
 from update.release_types import (
     CONNECT_TIMEOUT,
     DEBUG_LOG,
@@ -190,7 +190,7 @@ def check_update_dialog(parent=None):
         if not changelog:
             txt.start_new_html(f"<p>{html.escape(tr('(无变更日志)'))}</p>")
             return
-        md = _prepare_release_markdown(changelog)
+        md = _fix_relative_images(changelog)
         css = f"""
 body{{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:12px;line-height:1.55;color:{theme["text"]};}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;}}
