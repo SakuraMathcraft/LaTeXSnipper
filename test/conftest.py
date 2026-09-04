@@ -10,7 +10,3 @@ for source_path in (ROOT, SRC):
     if source in sys.path:
         sys.path.remove(source)
     sys.path.insert(0, source)
-
-from runtime.native_runtime_preload import preload_onnxruntime_before_qt  # noqa: E402
-
-preload_onnxruntime_before_qt()

@@ -10,12 +10,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 from mathcraft_ocr.manifest import load_manifest
 import mathcraft_ocr.hardware as hardware_mod
 import mathcraft_ocr.devices as devices_mod
+import mathcraft_ocr.doctor as doctor_mod
 import mathcraft_ocr.providers as providers_mod
 import mathcraft_ocr.runtime as runtime_mod
 import mathcraft_ocr.adapters.common as common_adapter_mod
@@ -53,6 +55,22 @@ from mathcraft_ocr.runtime import (
     TEXT_RECOGNIZER_ID,
 )
 from mathcraft_ocr.worker import MathCraftWorker
+
+
+@pytest.fixture(autouse=True)
+def stub_doctor_provider_discovery(monkeypatch):
+    # These pipeline tests stub model sessions; they must not load native ORT
+    # into the Qt test process. Provider selection is tested separately below.
+    monkeypatch.setattr(
+        doctor_mod, "detect_providers",
+        lambda **_kwargs: ProviderInfo(
+            available_providers=("CPUExecutionProvider",),
+            active_provider="CPUExecutionProvider",
+            device="cpu",
+            gpu_requested=False,
+            gpu_runtime_ok=False,
+        ),
+    )
 
 
 def _touch(path: Path, content: bytes = b"x") -> None:

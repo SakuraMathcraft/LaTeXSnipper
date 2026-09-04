@@ -7,6 +7,7 @@ from pathlib import Path
 from localization.manager import translate as tr
 from runtime.dependency_runtime import iter_python_candidates
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
+from runtime.native_runtime import isolated_python_code
 from ui.settings_dialog_helpers import (
     _existing_non_launcher_pyexe_from_env,
     _hidden_subprocess_kwargs,
@@ -36,7 +37,7 @@ class SettingsMathCraftMixin:
         )
         try:
             res = subprocess.run(
-                [pyexe, "-c", code],
+                [pyexe, "-c", isolated_python_code(code)],
                 capture_output=True,
                 text=True,
                 timeout=6,

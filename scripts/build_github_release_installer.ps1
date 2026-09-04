@@ -469,6 +469,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
+    & (Join-Path $root "scripts\normalize_windows_crt.ps1") -DistributionRoot $distAppDir
     $distPython = Join-Path $distAppDir "_internal\deps\python311\python.exe"
     Test-PythonHttpsRuntime -PythonExe $distPython
     Remove-PythonCache -Root (Join-Path $distAppDir "_internal\deps\python311")
