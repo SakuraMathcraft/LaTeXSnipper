@@ -9,7 +9,7 @@ Turn screenshots, images, PDFs, and handwriting into editable formulas and text.
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
 
-**[Download](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)** · [User Manual (Chinese PDF)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf) · [FAQ](docs/faq.md) · [Demos](#demos)
+**[Download](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)** · [User Manual (Chinese)](user_manual/user_manual.md) · [FAQ](docs/faq.md) · [Demos](#demos)
 
 English · [简体中文](README.zh-CN.md)
 
@@ -44,7 +44,7 @@ MathCraft OCR: [benchmark results](https://github.com/SakuraMathcraft/MathCraft-
 
 Linux/macOS use system Python to create the managed dependency environment; Windows uses its bundled Python 3.11 template. The `.deb` declares `python3` and `python3-venv` dependencies. On macOS, install a supported Python version if one is not available.
 
-For permissions, model downloads, environment paths, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese PDF)](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf).
+For permissions, model downloads, environment paths, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese)](user_manual/user_manual.md).
 
 ## Demos
 
@@ -52,19 +52,13 @@ For permissions, model downloads, environment paths, and troubleshooting, see th
 
 ![Screenshot recognition demo](docs/demos/screenshot-recognition.gif)
 
-<details>
-<summary>Image Recognition — view demo</summary>
+### Image Recognition
 
 ![Image recognition demo](docs/demos/image-recognition.gif)
 
-</details>
-
-<details>
-<summary>PDF Recognition — view demo</summary>
+### PDF Recognition
 
 ![PDF recognition demo](docs/demos/pdf-recognition.gif)
-
-</details>
 
 ## Microsoft Office Plugin
 
@@ -88,13 +82,13 @@ Use MathCraft or your configured external model from scripts, batch jobs, editor
 
 The API is **disabled by default**. Local clients use the address and token in `automation-api.json`. Remote access requires explicit opt-in, a separate key, and HTTPS or an encrypted tunnel; do not expose it over plain public HTTP. Remote external-model access is separately controlled and may incur provider charges.
 
-[API reference and connection setup](docs/automation_api.md) · [Ready-to-adapt client examples](examples/automation/README.md)
+[API reference and connection setup](docs/automation_api.md) · [Ready-to-adapt client examples](examples/automation/)
 
 ## Export
 
 Built-in exports cover LaTeX, Markdown math, MathML, HTML, Word OMML, and SVG code. Install the optional **Pandoc** layer in Dependency Management for document exports such as Word, PowerPoint, EPUB, PDF, and Typst. PDF export also requires a LaTeX PDF engine.
 
-See the [user manual](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf) for the full format list and requirements.
+See the [user manual](user_manual/user_manual.md) for the full format list and requirements.
 
 ## Supporters
 
@@ -111,10 +105,8 @@ Thanks to everyone who helps with development, testing, documentation, and commu
 
 LaTeXSnipper is a free, open-source, ad-free personal project with no in-app purchases. If it helps your work, consider starring the repository, sharing it, [reporting an issue](https://github.com/SakuraMathcraft/LaTeXSnipper/issues), or sponsoring maintenance.
 
-[LINUX DO Community](https://linux.do/)
-
 | Alipay | WeChat Pay | Community chat (Chinese) |
-|---|---|---|
+|:---:|:---:|:---:|
 | <img width="240" alt="Alipay donation QR code" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="240" alt="WeChat Pay donation QR code" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="240" alt="LaTeXSnipper community chat QR code" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
 
 ## License
