@@ -29,7 +29,7 @@
       <translation>% TODO: Complete the document body</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="191" />
+      <location filename="../../../src/update/update_dialog.py" line="190" />
       <source>(无变更日志)</source>
       <translation>(No changelog)</translation>
     </message>
@@ -158,7 +158,7 @@
       <translation>GPU not detected</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="229" />
+      <location filename="../../../src/update/update_dialog.py" line="227" />
       <source>GitHub API 本次返回了空发布列表，但这不代表项目没有发布版本。</source>
       <translation>The GitHub API returned an empty release list, but this does not mean the project has no releases.</translation>
     </message>
@@ -807,7 +807,7 @@ Example: {path}
       <translation>{message}; the previous PDF preview has been preserved.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="286" />
+      <location filename="../../../src/update/update_dialog.py" line="284" />
       <source>{message}；建议稍后重试或设置 GITHUB_TOKEN。</source>
       <translation>{message}; try again later or set GITHUB_TOKEN.</translation>
     </message>
@@ -905,48 +905,48 @@ Example: {path}
       <translation>Download</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="457" />
+      <location filename="../../../src/update/update_dialog.py" line="455" />
       <source>下载失败</source>
       <translation>Download failed</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="455" />
+      <location filename="../../../src/update/update_dialog.py" line="453" />
       <source>下载失败：{message}</source>
       <translation>Download failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="367" />
+      <location filename="../../../src/update/update_dialog.py" line="365" />
       <source>下载完成: {path}</source>
       <translation>Download complete: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="387" />
+      <location filename="../../../src/update/update_dialog.py" line="385" />
       <source>下载完成，正在退出程序并启动安装器...</source>
       <translation>Download completed. Exiting and launching the installer...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="440" />
+      <location filename="../../../src/update/update_dialog.py" line="438" />
       <source>下载已暂停</source>
       <translation>Download paused</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="438" />
+      <location filename="../../../src/update/update_dialog.py" line="436" />
       <source>下载已暂停，可稍后继续下载。</source>
       <translation>Download paused. You can resume it later.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="112" />
-      <location filename="../../../src/update/update_dialog.py" line="313" />
+      <location filename="../../../src/update/update_dialog.py" line="111" />
+      <location filename="../../../src/update/update_dialog.py" line="311" />
       <source>下载并安装</source>
       <translation>Download and Install</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="356" />
+      <location filename="../../../src/update/update_dialog.py" line="354" />
       <source>下载校验失败</source>
       <translation>Download verification failed</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="354" />
+      <location filename="../../../src/update/update_dialog.py" line="352" />
       <source>下载校验失败：安装包 SHA256 与线上发布信息不一致</source>
       <translation>Download verification failed: the package SHA256 does not match the online release information</translation>
     </message>
@@ -956,7 +956,7 @@ Example: {path}
       <translation>Download source:</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="526" />
+      <location filename="../../../src/update/update_dialog.py" line="524" />
       <source>下载链接已复制到剪贴板。</source>
       <translation>The download link has been copied to the clipboard.</translation>
     </message>
@@ -1236,7 +1236,7 @@ Restart and open Dependency Management now?
       <location filename="../../../src/ui/pdf_result_window.py" line="74" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="54" />
       <location filename="../../../src/ui/settings_external_help.py" line="104" />
-      <location filename="../../../src/update/update_dialog.py" line="116" />
+      <location filename="../../../src/update/update_dialog.py" line="115" />
       <source>关闭</source>
       <translation>Close</translation>
     </message>
@@ -1262,7 +1262,7 @@ Restart and open Dependency Management now?
       <translation>Close Editor</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="641" />
+      <location filename="../../../src/update/update_dialog.py" line="639" />
       <source>关闭该窗口会暂停下载，是否继续？</source>
       <translation>Closing this window will pause the download. Continue?</translation>
     </message>
@@ -1456,7 +1456,7 @@ Restart and open Dependency Management now?
       <translation>Raw log:</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="262" />
+      <location filename="../../../src/update/update_dialog.py" line="260" />
       <source>发现新版本: {latest} (当前 {current})</source>
       <translation>New version available: {latest} (current: {current})</translation>
     </message>
@@ -1470,7 +1470,7 @@ Restart and open Dependency Management now?
       <translation>Cancel</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="107" />
+      <location filename="../../../src/update/update_dialog.py" line="106" />
       <source>变更日志 / 诊断输出...</source>
       <translation>Changelog / diagnostic output...</translation>
     </message>
@@ -1505,7 +1505,7 @@ Restart and open Dependency Management now?
       <translation>Show the runtime log window after startup</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="404" />
+      <location filename="../../../src/update/update_dialog.py" line="402" />
       <source>启动安装器失败</source>
       <translation>Failed to start installer</translation>
     </message>
@@ -1652,7 +1652,7 @@ Restart and open Dependency Management now?
       <location filename="../../../src/ui/formula_export_menu.py" line="156" />
       <location filename="../../../src/ui/formula_export_menu.py" line="188" />
       <location filename="../../../src/ui/history_controller.py" line="202" />
-      <location filename="../../../src/update/update_dialog.py" line="533" />
+      <location filename="../../../src/update/update_dialog.py" line="531" />
       <source>复制失败</source>
       <translation>Copy Failed</translation>
     </message>
@@ -1672,7 +1672,7 @@ Restart and open Dependency Management now?
       <translation>Copy access key</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="114" />
+      <location filename="../../../src/update/update_dialog.py" line="113" />
       <source>复制链接</source>
       <translation>Copy Link</translation>
     </message>
@@ -1798,17 +1798,17 @@ Restart and open Dependency Management now?
       <translation>Secure tunnel (recommended)</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="357" />
+      <location filename="../../../src/update/update_dialog.py" line="355" />
       <source>安装包 SHA256 与线上发布信息不一致，请重新下载。</source>
       <translation>The installer SHA256 does not match the release metadata. Download it again.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="336" />
+      <location filename="../../../src/update/update_dialog.py" line="334" />
       <source>安装包不存在</source>
       <translation>Installer not found</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="561" />
+      <location filename="../../../src/update/update_dialog.py" line="559" />
       <source>安装包已存在</source>
       <translation>Installer already exists</translation>
     </message>
@@ -1818,12 +1818,12 @@ Restart and open Dependency Management now?
       <translation>Installation complete</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="311" />
+      <location filename="../../../src/update/update_dialog.py" line="309" />
       <source>安装已下载</source>
       <translation>Installer Downloaded</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="377" />
+      <location filename="../../../src/update/update_dialog.py" line="375" />
       <source>安装已取消，更新包保留在本地</source>
       <translation>Installation canceled; the update package remains on this device</translation>
     </message>
@@ -2005,12 +2005,12 @@ Restart and open Dependency Management now?
       <translation>Workflow</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="370" />
+      <location filename="../../../src/update/update_dialog.py" line="368" />
       <source>已下载到 {path}，SHA256 已生成</source>
       <translation>Downloaded to {path}; SHA256 generated</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="319" />
+      <location filename="../../../src/update/update_dialog.py" line="317" />
       <source>已下载更新包：{name}
 
 SHA256:
@@ -2132,7 +2132,7 @@ Launch the installer now?</translation>
       <translation>Canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="379" />
+      <location filename="../../../src/update/update_dialog.py" line="377" />
       <source>已取消安装</source>
       <translation>Installation canceled</translation>
     </message>
@@ -2172,7 +2172,7 @@ Launch the installer now?</translation>
       <location filename="../../../src/ui/history_controller.py" line="196" />
       <location filename="../../../src/ui/history_controller.py" line="200" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="110" />
-      <location filename="../../../src/update/update_dialog.py" line="525" />
+      <location filename="../../../src/update/update_dialog.py" line="523" />
       <source>已复制</source>
       <translation>Copied</translation>
     </message>
@@ -2263,7 +2263,7 @@ Launch the installer now?</translation>
       <translation>Undone</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="235" />
+      <location filename="../../../src/update/update_dialog.py" line="233" />
       <source>已改用本地缓存的发布信息。</source>
       <translation>Using cached release information.</translation>
     </message>
@@ -2346,7 +2346,7 @@ Launch the installer now?</translation>
       <translation>Confirmed and copied to clipboard</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="268" />
+      <location filename="../../../src/update/update_dialog.py" line="266" />
       <source>已经是最新版本: {version}</source>
       <translation>Already up to date: {version}</translation>
     </message>
@@ -2403,7 +2403,7 @@ Path: {path}</translation>
       <translation>Apply preset</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="249" />
+      <location filename="../../../src/update/update_dialog.py" line="247" />
       <source>建议：检查网络、代理或 DNS；也可以直接打开发布页。</source>
       <translation>Suggestion: check the network, proxy, or DNS, or open the releases page directly.</translation>
     </message>
@@ -2595,17 +2595,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Current source</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="97" />
+      <location filename="../../../src/update/update_dialog.py" line="96" />
       <source>当前版本: {version}</source>
       <translation>Current version: {version}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="548" />
+      <location filename="../../../src/update/update_dialog.py" line="546" />
       <source>当前版本仅提供网页链接，请手动下载。</source>
       <translation>This release only provides a web link. Download it manually.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="272" />
+      <location filename="../../../src/update/update_dialog.py" line="270" />
       <source>当前版本高于线上稳定版本: {latest} (当前 {current})</source>
       <translation>Current version is newer than the stable release: {latest} (current: {current})</translation>
     </message>
@@ -2829,7 +2829,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Open Editor</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="113" />
+      <location filename="../../../src/update/update_dialog.py" line="112" />
       <source>打开链接</source>
       <translation>Open Link</translation>
     </message>
@@ -3117,7 +3117,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No formula</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="547" />
+      <location filename="../../../src/update/update_dialog.py" line="545" />
       <source>无可下载资产</source>
       <translation>No downloadable asset</translation>
     </message>
@@ -3127,7 +3127,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No available backend</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="307" />
+      <location filename="../../../src/update/update_dialog.py" line="305" />
       <source>无安装包</source>
       <translation>No Installer</translation>
     </message>
@@ -3267,12 +3267,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Pause Download</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="217" />
+      <location filename="../../../src/update/update_dialog.py" line="215" />
       <source>暂时无法确认更新：{message}</source>
       <translation>Unable to check for updates: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="220" />
+      <location filename="../../../src/update/update_dialog.py" line="218" />
       <source>暂时无法获取更新信息。可稍后重试，或直接打开 GitHub Releases 页面查看。</source>
       <translation>Unable to retrieve update information. Try again later or open the GitHub Releases page directly.</translation>
     </message>
@@ -3292,22 +3292,22 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Updating; waiting for the current recognition task to finish...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="416" />
+      <location filename="../../../src/update/update_dialog.py" line="414" />
       <source>更新包</source>
       <translation>Update package</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="441" />
+      <location filename="../../../src/update/update_dialog.py" line="439" />
       <source>更新包已保留，下次打开可继续下载。</source>
       <translation>The update package was retained and can resume next time.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="380" />
+      <location filename="../../../src/update/update_dialog.py" line="378" />
       <source>更新包已保留：{path}</source>
       <translation>The update package was retained: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="369" />
+      <location filename="../../../src/update/update_dialog.py" line="367" />
       <source>更新已下载</source>
       <translation>Update downloaded</translation>
     </message>
@@ -3384,7 +3384,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The MathCraft OCR package was not found. Check that the app files are complete.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="337" />
+      <location filename="../../../src/update/update_dialog.py" line="335" />
       <source>未找到下载完成的安装包：{path}</source>
       <translation>The downloaded installer was not found: {path}</translation>
     </message>
@@ -3545,7 +3545,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Insufficient Permissions</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="245" />
+      <location filename="../../../src/update/update_dialog.py" line="243" />
       <source>来源</source>
       <translation>Source</translation>
     </message>
@@ -3588,7 +3588,7 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_layout_builder.py" line="309" />
-      <location filename="../../../src/update/update_dialog.py" line="69" />
+      <location filename="../../../src/update/update_dialog.py" line="68" />
       <source>检查更新</source>
       <translation>Check for Updates</translation>
     </message>
@@ -3613,7 +3613,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>MathCraft model weights are missing or incomplete. Completing them automatically.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="562" />
+      <location filename="../../../src/update/update_dialog.py" line="560" />
       <source>检测到已存在安装包，是否继续重新下载并覆盖？</source>
       <translation>An installer already exists. Download again and overwrite it?</translation>
     </message>
@@ -3736,17 +3736,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Eraser mode</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="420" />
+      <location filename="../../../src/update/update_dialog.py" line="418" />
       <source>正在下载 {name} ({percent}% , {current}/{total} 字节)</source>
       <translation>Downloading {name} ({percent}%, {current}/{total} bytes)</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="425" />
+      <location filename="../../../src/update/update_dialog.py" line="423" />
       <source>正在下载 {name}...</source>
       <translation>Downloading {name}...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="576" />
+      <location filename="../../../src/update/update_dialog.py" line="574" />
       <source>正在下载更新包...</source>
       <translation>Downloading update package...</translation>
     </message>
@@ -3818,13 +3818,13 @@ Select Download to initialize it before entering the main app.</translation>
 </translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="99" />
-      <location filename="../../../src/update/update_dialog.py" line="489" />
+      <location filename="../../../src/update/update_dialog.py" line="98" />
+      <location filename="../../../src/update/update_dialog.py" line="487" />
       <source>正在联网获取最新版本信息，请保持与 GitHub 的连接畅通...</source>
       <translation>Fetching the latest release information. Keep the connection to GitHub available...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="492" />
+      <location filename="../../../src/update/update_dialog.py" line="490" />
       <source>正在获取...</source>
       <translation>Fetching...</translation>
     </message>
@@ -4097,7 +4097,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Click to load into the editor and render</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="91" />
+      <location filename="../../../src/update/update_dialog.py" line="90" />
       <source>版本更新</source>
       <translation>Version Update</translation>
     </message>
@@ -4205,12 +4205,12 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Confirm</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="640" />
+      <location filename="../../../src/update/update_dialog.py" line="638" />
       <source>确认关闭</source>
       <translation>Confirm Close</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="326" />
+      <location filename="../../../src/update/update_dialog.py" line="324" />
       <source>确认安装更新</source>
       <translation>Confirm Update Installation</translation>
     </message>
@@ -4335,7 +4335,7 @@ The uninstall progress window will open after confirmation.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_entry.py" line="986" />
-      <location filename="../../../src/update/update_dialog.py" line="309" />
+      <location filename="../../../src/update/update_dialog.py" line="307" />
       <source>继续下载</source>
       <translation>Resume Download</translation>
     </message>
@@ -4572,7 +4572,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Erase only the stroke segments inside a freeform selection for local rewriting</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="173" />
+      <location filename="../../../src/update/update_dialog.py" line="172" />
       <source>获取超时，可重新检查。</source>
       <translation>The request timed out. Try checking again.</translation>
     </message>
@@ -4927,7 +4927,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>The first page cannot be greater than the last page.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="177" />
+      <location filename="../../../src/update/update_dialog.py" line="176" />
       <source>超出设定: connect={connect}s read={read}s
 可点“重新检查”再次发起。</source>
       <translation>Timed out: connect={connect}s read={read}s
@@ -5308,7 +5308,7 @@ Continue?</translation>
       <translation>Rename Formula</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="315" />
+      <location filename="../../../src/update/update_dialog.py" line="313" />
       <source>重新下载</source>
       <translation>Download Again</translation>
     </message>
@@ -5318,7 +5318,7 @@ Continue?</translation>
       <translation>Restart LaTeXSnipper to apply the language change.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="115" />
+      <location filename="../../../src/update/update_dialog.py" line="114" />
       <source>重新检查</source>
       <translation>Check Again</translation>
     </message>
@@ -5453,7 +5453,7 @@ Continue?</translation>
       <translation>Advanced settings:</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="281" />
+      <location filename="../../../src/update/update_dialog.py" line="279" />
       <source>（GitHub 限频）</source>
       <translation>(GitHub rate limit)</translation>
     </message>
