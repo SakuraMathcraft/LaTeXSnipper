@@ -9,7 +9,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-orange?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
 
-**[下载桌面端](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)** · [用户手册](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf) · [常见问题](docs/faq.md) · [功能演示](#功能演示)
+**[下载桌面端](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest)** · [用户手册](user_manual/user_manual.md) · [常见问题](docs/faq.md) · [功能演示](#功能演示)
 
 [English](readme.md) · 简体中文
 
@@ -44,7 +44,7 @@ MathCraft OCR：[基准测试结果](https://github.com/SakuraMathcraft/MathCraf
 
 Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用内置 Python 3.11 模板。`.deb` 声明了 `python3` 和 `python3-venv` 依赖；macOS 若没有可用 Python，请先安装受支持的版本。
 
-权限、模型下载、环境目录及故障排查见 [常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md) 和 [完整用户手册](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf)。
+权限、模型下载、环境目录及故障排查见 [常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md) 和 [完整用户手册](user_manual/user_manual.md)。
 
 ## 功能演示
 
@@ -52,19 +52,13 @@ Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用�
 
 ![截图识别演示](docs/demos/screenshot-recognition.gif)
 
-<details>
-<summary>图片识别 · 展开演示</summary>
+### 图片识别
 
 ![图片识别演示](docs/demos/image-recognition.gif)
 
-</details>
-
-<details>
-<summary>PDF 识别 · 展开演示</summary>
+### PDF 识别
 
 ![PDF 识别演示](docs/demos/pdf-recognition.gif)
-
-</details>
 
 ## Microsoft Office 插件
 
@@ -88,13 +82,13 @@ Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用�
 
 接口**默认关闭**。本机客户端从 `automation-api.json` 读取地址和 token；远程访问需显式开启、使用独立密钥，并通过 HTTPS 或加密隧道连接，不要以明文 HTTP 暴露到公网。远程外部模型调用单独授权，可能产生服务商费用。
 
-[API 文档与连接配置](docs/automation_api.md) · [客户端示例](examples/automation/README.md)
+[API 文档与连接配置](docs/automation_api.md) · [客户端示例](examples/automation/)
 
 ## 导出
 
 内置导出覆盖 LaTeX、Markdown 公式、MathML、HTML、Word OMML 和 SVG 代码。在依赖管理中安装可选的 **Pandoc** 层后，可导出 Word、PowerPoint、EPUB、PDF、Typst 等文档；PDF 导出还需要 LaTeX PDF 引擎。
 
-完整格式列表与要求见 [用户手册](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest/download/LaTeXSnipper_User_Manual.pdf)。
+完整格式列表与要求见 [用户手册](user_manual/user_manual.md)。
 
 ## 支持者名单
 
@@ -111,10 +105,8 @@ Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用�
 
 LaTeXSnipper 是免费开源、无广告、无内购的个人项目。如果它对你有帮助，欢迎点亮 Star、分享给有需要的人、[反馈问题](https://github.com/SakuraMathcraft/LaTeXSnipper/issues)，或赞助项目维护。
 
-[LINUX DO 社区](https://linux.do/)
-
 | 支付宝 | 微信 | 中文交流群 |
-|---|---|---|
+|:---:|:---:|:---:|
 | <img width="240" alt="支付宝收款码" src="https://github.com/user-attachments/assets/1efa46b7-07cb-4a3e-821d-f23b7a36ab34" /> | <img width="240" alt="微信收款码" src="https://github.com/user-attachments/assets/19065b1d-ac40-478e-8318-fabb75488c5c" /> | <img width="240" alt="LaTeXSnipper 交流群二维码" src="https://github.com/user-attachments/assets/91c30d59-a4a7-4118-b24b-dada0fe002bf" /> |
 
 ## 许可证
