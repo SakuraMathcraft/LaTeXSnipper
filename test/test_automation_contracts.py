@@ -246,7 +246,7 @@ def test_only_mathcraft_executor_applies_mathcraft_resize_limits() -> None:
         coordinator.stop()
 
 
-def test_mode_capability_and_partial_batch_failure_are_stable() -> None:
+def test_mode_capability_and_partial_batch_failure_are_stable(capsys) -> None:
     class Predictor:
         @staticmethod
         def supports_mode(mode: str) -> bool:
@@ -281,6 +281,10 @@ def test_mode_capability_and_partial_batch_failure_are_stable() -> None:
         assert snapshot["state"] == "completed"
         assert [item["state"] for item in snapshot["items"]] == ["completed", "failed", "completed"]
         assert snapshot["items"][1]["error"]["code"] == "internal_error"
+        diagnostics = capsys.readouterr().out
+        assert "识别执行异常 source=local_api backend=mathcraft mode=formula" in diagnostics
+        assert "image=2x1" in diagnostics
+        assert "RuntimeError: synthetic failure" in diagnostics
     finally:
         coordinator.stop()
 

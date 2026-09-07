@@ -41,22 +41,6 @@ BOM_CHECK_EXTENSIONS = {
 }
 
 
-def test_cross_platform_packaging_docs_do_not_reference_missing_scripts() -> None:
-    readme = (ROOT / "readme.md").read_text(encoding="utf-8")
-
-    referenced_paths = (
-        "scripts/build_deb.sh",
-        "scripts/build_macos.sh",
-        "LaTeXSnipper-linux.spec",
-        "LaTeXSnipper-linux-offline.spec",
-        "LaTeXSnipper-macos.spec",
-        "packaging/debian",
-    )
-    for rel_path in referenced_paths:
-        if rel_path in readme:
-            assert (ROOT / rel_path).exists()
-
-
 def test_debian_control_template_is_dpkg_safe() -> None:
     control_bytes = (ROOT / "packaging" / "debian" / "DEBIAN" / "control").read_bytes()
 

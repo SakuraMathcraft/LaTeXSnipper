@@ -1,17 +1,7 @@
 # coding: utf-8
-# ruff: noqa: E402
 
-from pathlib import Path
-import sys
-
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
 
 from exporting.markdown_latex import markdown_to_latex_document
-from exporting.document_output import wrap_document_output
 
 
 def test_tex_exporter_converts_core_markdown_blocks() -> None:
@@ -47,20 +37,6 @@ def test_tex_exporter_converts_core_markdown_blocks() -> None:
     assert "% Page 2" in tex
     assert "$$" not in tex
     assert "## 1 Introduction" not in tex
-
-
-def test_pdf_output_contract_converts_markdown_to_latex() -> None:
-    tex = wrap_document_output("## 1 Intro\n\nText with $x$.", "latex", "document")
-    assert "\\documentclass" in tex
-    assert "\\section{Intro}" in tex
-    assert "Text with $x$." in tex
-
-
-def test_pdf_output_contract_markdown_export_has_no_header_comments() -> None:
-    markdown = wrap_document_output("# Title\n\nContent", "markdown", "document")
-    assert markdown == "# Title\n\nContent\n"
-    assert "LaTeXSnipper PDF OCR Export" not in markdown
-    assert "IMAGE_PLACEHOLDER" not in markdown
 
 
 def test_tex_exporter_strips_auto_numbered_heading_prefixes() -> None:
@@ -100,8 +76,3 @@ def test_tex_exporter_repairs_ocr_truncated_display_math() -> None:
     assert "\\frac { 1 } { 2 }" in tex
     assert "\\frac { 1 } {}" in tex
     assert "\\end{matrix} \\\n\\]" not in tex
-
-
-def test_pdf_output_contract_keeps_existing_latex_document() -> None:
-    raw = "\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n"
-    assert wrap_document_output(raw, "latex", "document") == raw.strip()

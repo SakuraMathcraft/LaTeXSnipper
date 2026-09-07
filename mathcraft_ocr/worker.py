@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import json
 import sys
+import traceback
 from typing import TextIO
 
 from .runtime import FORMULA_MAX_NEW_TOKENS, MathCraftRuntime
@@ -36,6 +37,7 @@ class MathCraftWorker:
                 "error": {
                     "type": type(exc).__name__,
                     "message": str(exc),
+                    "traceback": traceback.format_exc(),
                 },
             }
 
@@ -102,6 +104,7 @@ def serve_jsonl(
                 "error": {
                     "type": type(exc).__name__,
                     "message": str(exc),
+                    "traceback": traceback.format_exc(),
                 },
             }
         else:

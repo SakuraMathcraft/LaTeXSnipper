@@ -1,0 +1,37 @@
+from platform_services.hotkeys import _select_provider
+from platform_services.hotkeys.qhotkey_macos import MacHotkey
+
+
+def test_macos_uses_native_provider_without_pynput_listener() -> None:
+    provider, global_hotkey = _select_provider("darwin")
+
+    assert provider.__name__ == "MacHotkey"
+    assert provider.__module__ == "platform_services.hotkeys.qhotkey_macos"
+    assert global_hotkey is None
+
+
+def test_macos_hotkey_parses_ctrl_shift_letter() -> None:
+    ctrl_mods, f_key = MacHotkey._parse("Ctrl+F")
+    shifted_mods, z_key = MacHotkey._parse("Ctrl+Shift+Z")
+
+    assert ctrl_mods == 0x1000
+    assert f_key == 0x03
+    assert shifted_mods == 0x1200
+    assert z_key == 0x06
+
+
+def test_macos_hotkey_parses_command_option_letter_aliases() -> None:
+    option_command_mods, s_key = MacHotkey._parse("Command+Option+S")
+    meta_alt_mods, l_key = MacHotkey._parse("Meta+Alt+L")
+
+    assert option_command_mods == 0x0900
+    assert s_key == 0x01
+    assert meta_alt_mods == 0x0900
+    assert l_key == 0x25
+
+
+def test_macos_hotkey_parses_command_letter() -> None:
+    mods, key = MacHotkey._parse("Command+S")
+
+    assert mods == 0x0100
+    assert key == 0x01

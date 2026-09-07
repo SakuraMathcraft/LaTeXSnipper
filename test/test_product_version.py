@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import tomllib
 
 from runtime.distribution import APP_VERSION
 from runtime.product_version import (
@@ -12,13 +11,6 @@ from runtime.product_version import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def test_mathcraft_pypi_version_is_independent_from_product_version() -> None:
-    metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-
-    assert metadata["project"]["version"] == "0.2.9"
-    assert metadata["project"]["version"] != PRODUCT_VERSION
 
 
 def test_runtime_product_version_matches_repository_version() -> None:

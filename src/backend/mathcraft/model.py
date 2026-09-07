@@ -44,6 +44,15 @@ EMPTY_IMAGE_STD_THRESHOLD = 2.5
 EMPTY_IMAGE_FOREGROUND_RATIO_THRESHOLD = 0.0015
 
 
+class _MathCraftWorkerError(RuntimeError):
+    """An OCR worker failure with its child-process traceback preserved for logs."""
+
+    def __init__(self, error_type: str, message: str, remote_traceback: str = "") -> None:
+        label = f"{error_type}: {message}" if error_type else message
+        super().__init__(label or "MathCraft OCR 运行错误")
+        self.remote_traceback = str(remote_traceback or "").strip()
+
+
 def _looks_like_empty_ocr_input(image: Image.Image) -> bool:
     """Return True for near-uniform images with no meaningful foreground."""
     if image.width <= 0 or image.height <= 0:
@@ -403,8 +412,13 @@ class ModelWrapper(QObject):
             raise RuntimeError(f"MathCraft OCR 返回了无效 JSON: {line[:300]}") from exc
         if not response.get("ok"):
             err = response.get("error", {})
-            message = err.get("message") if isinstance(err, dict) else str(err)
-            raise RuntimeError(str(message or "MathCraft OCR 运行错误"))
+            if isinstance(err, dict):
+                raise _MathCraftWorkerError(
+                    str(err.get("type") or "").strip(),
+                    str(err.get("message") or "").strip(),
+                    str(err.get("traceback") or "").strip(),
+                )
+            raise RuntimeError(str(err or "MathCraft OCR 运行错误"))
         result = response.get("result")
         return result if isinstance(result, dict) else {}
 
