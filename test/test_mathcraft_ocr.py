@@ -2151,3 +2151,4 @@ def test_worker_reports_unsupported_action() -> None:
     assert response["ok"] is False
     assert response["id"] == "bad"
     assert response["error"]["type"] == "ValueError"
+    assert "unsupported worker action: missing" in response["error"]["traceback"]

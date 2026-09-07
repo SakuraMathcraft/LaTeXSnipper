@@ -6,6 +6,7 @@ import queue
 import secrets
 import threading
 import time
+import traceback
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -394,10 +395,22 @@ class RecognitionJobCoordinator:
                 if not text:
                     raise RuntimeError("识别结果为空。")
             except Exception as exc:
+                elapsed_ms = round((self._clock() - started) * 1000)
+                if not isinstance(exc, RecognitionJobError):
+                    try:
+                        self._log_execution_failure(
+                            job,
+                            item_input,
+                            index=index,
+                            elapsed_ms=elapsed_ms,
+                            exc=exc,
+                        )
+                    except Exception:
+                        pass
                 with self._lock:
                     item = job.items[index]
                     item.state = "failed"
-                    item.elapsed_ms = round((self._clock() - started) * 1000)
+                    item.elapsed_ms = elapsed_ms
                     code, message = self._safe_execution_error(job.backend, exc)
                     item.error = {"code": code, "message": message}
                 continue
@@ -448,6 +461,42 @@ class RecognitionJobCoordinator:
             code, message = _EMPTY_RESULT_ERRORS[job.mode]
             raise RecognitionJobError(code, message)
         return text
+
+    def _log_execution_failure(
+        self,
+        job: RecognitionJob,
+        item_input: RecognitionItemInput,
+        *,
+        index: int,
+        elapsed_ms: int,
+        exc: Exception,
+    ) -> None:
+        image_size = "unknown"
+        try:
+            width, height = item_input.image.size
+            image_size = f"{int(width)}x{int(height)}"
+        except Exception:
+            pass
+        provider = ""
+        if job.backend == "mathcraft":
+            provider_info = getattr(self._predictor, "provider_info", None)
+            if isinstance(provider_info, dict):
+                provider = str(provider_info.get("active_provider") or "").strip()
+        context = (
+            f"source={job.source.value} backend={job.backend} mode={job.mode} "
+            f"input={job.input_type} item={index + 1}/{len(job.items)} "
+            f"image={image_size} elapsed={elapsed_ms}ms"
+        )
+        if provider:
+            context = f"{context} provider={provider}"
+        local_traceback = "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        ).rstrip()
+        remote_traceback = str(getattr(exc, "remote_traceback", "") or "").strip()
+        diagnostics = local_traceback
+        if remote_traceback:
+            diagnostics = f"{diagnostics}\nOCR worker traceback:\n{remote_traceback}"
+        print(f"[ERR] 识别执行异常 {context}\n{diagnostics}", flush=True)
 
     @staticmethod
     def _safe_execution_error(backend: str, exc: Exception) -> tuple[str, str]:
