@@ -25,8 +25,8 @@
 | ⌨️ 编辑与计算 | 使用 MathLive 和实时预览编辑公式，在数学工作台中化简、求值和求解 |
 | 🔄 导出 | 复制公式或导出文档，支持 LaTeX、MathML、Word、PDF、Typst 等 20 种格式 |
 | 🧩 集成 | 在 Word/PowerPoint 中使用，或通过 Automation API 连接脚本与其他工具 |
-| 🔐 模型选择 | 下载依赖和权重后在本地运行 MathCraft OCR，也可配置本地或线上外部模型 |
-| 🌐 个性化 | 中英文界面、亮暗主题、自定义快捷键、历史记录与收藏夹 |
+| 🧠 模型选择 | 下载依赖和权重后在本地运行 MathCraft OCR，也可配置本地或线上外部模型 |
+| 🎨 个性化 | 中英文界面、亮暗主题、自定义快捷键、历史记录与收藏夹 |
 
 MathCraft OCR：[基准测试结果](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [复现套件](benchmarks/mathcraft_ocr/README.md)
 

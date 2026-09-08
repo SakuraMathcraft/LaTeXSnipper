@@ -71,17 +71,12 @@ _MATHCRAFT_DIAGNOSTIC_TEXTS = (
     mark_for_translation("onnxruntime 依赖异常"),
     mark_for_translation("MathCraft 依赖不完整"),
     mark_for_translation(
-        "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE "
-        "和对应的 MATHCRAFT_CPU/GPU 层。"
+        "MathCraft OCR 运行依赖缺失或不完整，请通过依赖管理检查并修复当前环境。"
     ),
     mark_for_translation("模型缓存不完整"),
     mark_for_translation("MathCraft OCR 模型缓存不完整，请补齐模型权重后重试。"),
     mark_for_translation("模型权重下载失败"),
     mark_for_translation("MathCraft OCR 模型权重下载失败，请检查网络连接或稍后重试。"),
-    mark_for_translation("OCR 字典与模型不匹配"),
-    mark_for_translation(
-        "MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。"
-    ),
     mark_for_translation("CUDA 环境异常"),
     mark_for_translation("CUDA 环境异常，GPU 推理不可用。"),
     mark_for_translation("GPU 推理不可用"),

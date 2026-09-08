@@ -363,9 +363,35 @@ def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
             assert plan.ready is False
             assert download_calls == []
             assert plan.component_statuses[0].detail == cuda_detail
+            from mathcraft_ocr.serialization import warmup_plan_to_json
+
+            component = warmup_plan_to_json(plan)["component_statuses"][0]
+            assert component["error_type"] == "RuntimeError"
+            assert "_fail_with_cuda_runtime_error" in component["traceback"]
+            assert cuda_detail in component["traceback"]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
         runtime_mod.download_model_archive = old_download
+
+
+def test_failed_warmup_repair_preserves_both_exceptions(tmp_path, monkeypatch):
+    manifest = load_manifest()
+    _touch_model(tmp_path, manifest, FORMULA_RECOGNIZER_ID)
+    runtime = MathCraftRuntime(cache_dir=tmp_path, manifest=manifest, provider_preference="cpu")
+
+    def fail_handler(*args):
+        raise ValueError("original model failure")
+
+    def fail_repair(*args):
+        raise OSError("repair failure")
+
+    monkeypatch.setitem(runtime_mod.ONNX_WARMUP_HANDLERS, FORMULA_RECOGNIZER_ID, fail_handler)
+    monkeypatch.setattr(runtime, "_looks_like_broken_model_error", lambda exc: True)
+    monkeypatch.setattr(runtime, "_repair_model_cache", fail_repair)
+    component = runtime.warmup("formula").component_statuses[0]
+    assert component.error_type == "OSError"
+    assert "ValueError: original model failure" in component.traceback
+    assert "OSError: repair failure" in component.traceback
 
 
 def test_runtime_prefers_complete_bundled_models_over_empty_user_cache() -> None:

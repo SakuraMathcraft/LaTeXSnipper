@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import sys
+import traceback
 
 from rapidocr.utils.process_img import get_rotate_crop_image
 
@@ -66,6 +67,8 @@ class WarmupComponentStatus:
     model_id: str
     ready: bool
     detail: str = ""
+    error_type: str = ""
+    traceback: str = ""
 
 
 @dataclass(frozen=True)
@@ -621,7 +624,13 @@ class MathCraftRuntime:
                         continue
                     except Exception as repair_exc:
                         exc = repair_exc
-                component_statuses.append(WarmupComponentStatus(model_id=model_id, ready=False, detail=str(exc)))
+                component_statuses.append(WarmupComponentStatus(
+                    model_id=model_id,
+                    ready=False,
+                    detail=str(exc),
+                    error_type=type(exc).__name__,
+                    traceback="".join(traceback.format_exception(exc)),
+                ))
         provider_info = report.provider_info
         if any(item.ready for item in component_statuses):
             provider_info = confirm_provider_device(provider_info)
