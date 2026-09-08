@@ -189,6 +189,7 @@ class ModelRuntimeControllerMixin:
         def worker():
             ok = False
             err = ""
+            failure_info = {}
             try:
                 if getattr(self, "_model_warmup_cancelled", False) or getattr(
                     self, "_shutdown_done", False
@@ -196,6 +197,8 @@ class ModelRuntimeControllerMixin:
                     return
                 self._apply_mathcraft_env()
                 ok = bool(self.model._lazy_load_mathcraft())
+                if not ok:
+                    failure_info = self.model.get_failure_info()
                 if (not ok) and not err:
                     getter = getattr(self.model, "get_error", None)
                     if callable(getter):
@@ -213,6 +216,7 @@ class ModelRuntimeControllerMixin:
                 self._pending_model_warmup_result = {
                     "ok": ok,
                     "err": err,
+                    "failure_info": failure_info,
                     "announce_success": bool(announce_success),
                     "success_message": str(success_message or ""),
                     "on_ready": on_ready,
@@ -273,7 +277,7 @@ class ModelRuntimeControllerMixin:
             return
 
         self.set_model_status(tr("未就绪"))
-        fail_info = classify_mathcraft_failure(err)
+        fail_info = data.get("failure_info") or classify_mathcraft_failure(err)
         if announce_success:
             InfoBar.warning(
                 title=translate_mathcraft_diagnostic(

@@ -6,8 +6,8 @@ import queue
 import secrets
 import threading
 import time
-import traceback
 from collections import OrderedDict
+from runtime.exception_diagnostics import format_exception_diagnostics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -489,13 +489,7 @@ class RecognitionJobCoordinator:
         )
         if provider:
             context = f"{context} provider={provider}"
-        local_traceback = "".join(
-            traceback.format_exception(type(exc), exc, exc.__traceback__)
-        ).rstrip()
-        remote_traceback = str(getattr(exc, "remote_traceback", "") or "").strip()
-        diagnostics = local_traceback
-        if remote_traceback:
-            diagnostics = f"{diagnostics}\nOCR worker traceback:\n{remote_traceback}"
+        diagnostics = format_exception_diagnostics(exc)
         print(f"[ERR] 识别执行异常 {context}\n{diagnostics}", flush=True)
 
     @staticmethod

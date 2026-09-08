@@ -25,8 +25,8 @@ English · [简体中文](README.zh-CN.md)
 | ⌨️ Edit and compute | Edit with MathLive and live preview; simplify, evaluate, and solve in the math workspace |
 | 🔄 Export | Copy formulas or export documents in 20 formats, including LaTeX, MathML, Word, PDF, and Typst |
 | 🧩 Integrate | Work in Word/PowerPoint or connect scripts and other tools through the Automation API |
-| 🔐 Choose your model | Run MathCraft OCR locally after downloading dependencies and weights, or configure a local/online external model |
-| 🌐 Make it yours | English/Chinese interface, light/dark themes, configurable shortcuts, history, and favorites |
+| 🧠 Choose your model | Run MathCraft OCR locally after downloading dependencies and weights, or configure a local/online external model |
+| 🎨 Make it yours | English/Chinese interface, light/dark themes, configurable shortcuts, history, and favorites |
 
 MathCraft OCR: [benchmark results](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [reproduce the benchmarks](benchmarks/mathcraft_ocr/README.md)
 

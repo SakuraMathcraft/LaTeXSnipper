@@ -105,6 +105,8 @@ def warmup_plan_to_json(plan) -> dict:
                 "model_id": item.model_id,
                 "ready": item.ready,
                 "detail": item.detail,
+                "error_type": item.error_type,
+                "traceback": item.traceback,
             }
             for item in plan.component_statuses
         ],

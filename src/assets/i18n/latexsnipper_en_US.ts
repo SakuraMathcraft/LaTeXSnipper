@@ -112,12 +112,12 @@
       <translation>CPU inference backend</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="85" />
+      <location filename="../../../src/recognition/error_messages.py" line="80" />
       <source>CUDA 环境异常</source>
       <translation>CUDA environment error</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="86" />
+      <location filename="../../../src/recognition/error_messages.py" line="81" />
       <source>CUDA 环境异常，GPU 推理不可用。</source>
       <translation>CUDA environment error; GPU inference is unavailable.</translation>
     </message>
@@ -138,7 +138,7 @@
       <translation>Fitz (compatible)</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="87" />
+      <location filename="../../../src/recognition/error_messages.py" line="82" />
       <source>GPU 推理不可用</source>
       <translation>GPU inference unavailable</translation>
     </message>
@@ -341,7 +341,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Markdown inline</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="257" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="261" />
       <source>MathCraft OCR 已就绪</source>
       <translation>MathCraft OCR is ready</translation>
     </message>
@@ -356,12 +356,12 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>The MathCraft OCR model is not deployed or failed to load.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="80" />
+      <location filename="../../../src/recognition/error_messages.py" line="79" />
       <source>MathCraft OCR 模型权重下载失败，请检查网络连接或稍后重试。</source>
       <translation>Failed to download MathCraft OCR model weights. Check the network connection or retry later.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="78" />
+      <location filename="../../../src/recognition/error_messages.py" line="77" />
       <source>MathCraft OCR 模型缓存不完整，请补齐模型权重后重试。</source>
       <translation>The MathCraft OCR model cache is incomplete. Restore the model weights and retry.</translation>
     </message>
@@ -371,12 +371,17 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR is warming up</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="96" />
+      <location filename="../../../src/recognition/error_messages.py" line="73" />
+      <source>MathCraft OCR 运行依赖缺失或不完整，请通过依赖管理检查并修复当前环境。</source>
+      <translation>MathCraft OCR runtime dependencies are missing or incomplete. Check and repair the current environment in Dependency Management.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/recognition/error_messages.py" line="91" />
       <source>MathCraft OCR 运行异常，请打开运行日志查看具体原因。</source>
       <translation>MathCraft OCR encountered a runtime error. Open the runtime log for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="92" />
+      <location filename="../../../src/recognition/error_messages.py" line="87" />
       <source>MathCraft OCR 运行进程响应超时，请稍后重试或检查模型运行环境。</source>
       <translation>The MathCraft OCR worker timed out. Retry later or check the model runtime environment.</translation>
     </message>
@@ -401,22 +406,17 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Incomplete MathCraft dependencies</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="333" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="337" />
       <source>MathCraft 公式识别</source>
       <translation>MathCraft Formula Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="82" />
-      <source>MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。</source>
-      <translation>The MathCraft text model and vocabulary do not match. Update or redownload the model weights.</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="335" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="339" />
       <source>MathCraft 混合识别</source>
       <translation>MathCraft Mixed Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="334" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="338" />
       <source>MathCraft 纯文字识别</source>
       <translation>MathCraft Text Recognition</translation>
     </message>
@@ -451,14 +451,9 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MinerU health check passed: {endpoint}</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="161" />
+      <location filename="../../../src/recognition/error_messages.py" line="156" />
       <source>MinerU 解析任务失败，请检查模型配置和服务日志。</source>
       <translation>The MinerU parsing task failed. Check the model configuration and service log.</translation>
-    </message>
-    <message>
-      <location filename="../../../src/recognition/error_messages.py" line="81" />
-      <source>OCR 字典与模型不匹配</source>
-      <translation>OCR vocabulary and model mismatch</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="119" />
@@ -1682,7 +1677,7 @@ Restart and open Dependency Management now?
       <translation>Theme:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="336" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="340" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="82" />
       <source>外部模型</source>
       <translation>External model</translation>
@@ -1698,7 +1693,7 @@ Restart and open Dependency Management now?
       <translation>The external model timed out. Retry later or adjust the timeout.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="107" />
+      <location filename="../../../src/recognition/error_messages.py" line="102" />
       <source>外部模型地址为空，请先填写 Base URL。</source>
       <translation>The external model address is empty. Enter a Base URL first.</translation>
     </message>
@@ -1753,7 +1748,7 @@ Restart and open Dependency Management now?
       <translation>The external model request failed. Check the service status and model configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="162" />
+      <location filename="../../../src/recognition/error_messages.py" line="157" />
       <source>外部模型连接测试失败，请检查服务地址、协议和网络连接。</source>
       <translation>The external model connection test failed. Check the service address, protocol, and network connection.</translation>
     </message>
@@ -2060,7 +2055,7 @@ Launch the installer now?</translation>
       <translation>Switched to {backend}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="341" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="345" />
       <source>已切换到 {mode}</source>
       <translation>Switched to {mode}</translation>
     </message>
@@ -2098,10 +2093,10 @@ Launch the installer now?</translation>
     </message>
     <message>
       <location filename="../../../src/ui/model_runtime_controller.py" line="161" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="249" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="367" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="378" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="327" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="253" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="371" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="382" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="331" />
       <location filename="../../../src/ui/status_controller.py" line="48" />
       <source>已加载</source>
       <translation>Loaded</translation>
@@ -2423,12 +2418,12 @@ Path: {path}</translation>
       <translation>Current DPI: {value} ({zone})</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="88" />
+      <location filename="../../../src/recognition/error_messages.py" line="83" />
       <source>当前 GPU 推理后端不可用，请检查依赖层和显卡运行环境。</source>
       <translation>The GPU inference backend is unavailable. Check the dependency layer and GPU runtime environment.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="90" />
+      <location filename="../../../src/recognition/error_messages.py" line="85" />
       <source>当前 MathCraft OCR 版本不支持该识别模式。</source>
       <translation>The current MathCraft OCR version does not support this recognition mode.</translation>
     </message>
@@ -2451,11 +2446,6 @@ Path: {path}</translation>
       <location filename="../../../src/bootstrap/deps_entry.py" line="828" />
       <source>当前依赖环境无法初始化 pip：{error}</source>
       <translation>Unable to initialize pip in the current dependency environment: {error}</translation>
-    </message>
-    <message>
-      <location filename="../../../src/recognition/error_messages.py" line="73" />
-      <source>当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。</source>
-      <translation>The current dependency environment is missing MathCraft OCR runtime dependencies. Install BASIC, CORE, and the appropriate MATHCRAFT_CPU/GPU layer in Dependency Management.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_entry.py" line="814" />
@@ -2665,8 +2655,8 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The current preview does not support navigation to PDF coordinates.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="380" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="329" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="384" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="333" />
       <location filename="../../../src/ui/status_controller.py" line="45" />
       <location filename="../../../src/ui/status_controller.py" line="54" />
       <source>待识别时加载</source>
@@ -2844,7 +2834,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>LaTeX executable not found</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="113" />
+      <location filename="../../../src/recognition/error_messages.py" line="108" />
       <source>指定地址</source>
       <translation>the specified address</translation>
     </message>
@@ -2900,37 +2890,37 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The formatting result is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="141" />
+      <location filename="../../../src/recognition/error_messages.py" line="136" />
       <source>接口已连接，但未能读取到可用模型列表。</source>
       <translation>The API is reachable, but no available model list could be read.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="123" />
+      <location filename="../../../src/recognition/error_messages.py" line="118" />
       <source>接口认证失败，请检查 API Key。</source>
       <translation>API authentication failed. Check the API key.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="125" />
+      <location filename="../../../src/recognition/error_messages.py" line="120" />
       <source>接口访问被拒绝，请检查权限或鉴权配置。</source>
       <translation>API access was denied. Check the permissions or authentication settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="128" />
+      <location filename="../../../src/recognition/error_messages.py" line="123" />
       <source>接口路径不存在：{endpoint}，请检查 Base URL、协议类型或接口路径配置。</source>
       <translation>The API endpoint does not exist: {endpoint}. Check the Base URL, protocol, or endpoint settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="154" />
+      <location filename="../../../src/recognition/error_messages.py" line="149" />
       <source>接口返回 {status_code}。服务端信息：{detail}</source>
       <translation>The API returned {status_code}. Server response: {detail}</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="157" />
+      <location filename="../../../src/recognition/error_messages.py" line="152" />
       <source>接口返回 {status_code}，请检查服务配置。</source>
       <translation>The API returned {status_code}. Check the service configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="139" />
+      <location filename="../../../src/recognition/error_messages.py" line="134" />
       <source>接口返回的不是有效 JSON，请检查服务协议和响应内容。</source>
       <translation>The API response is not valid JSON. Check the service protocol and response.</translation>
     </message>
@@ -3190,12 +3180,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Unable to connect to GitHub. Check network, proxy, or DNS settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="116" />
+      <location filename="../../../src/recognition/error_messages.py" line="111" />
       <source>无法连接到 {target}，请确认 {service} 服务已启动，地址和端口填写正确。</source>
       <translation>Cannot connect to {target}. Make sure the {service} service is running and that the address and port are correct.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="119" />
+      <location filename="../../../src/recognition/error_messages.py" line="114" />
       <source>无法连接到 {target}，请确认服务已启动，地址和端口填写正确。</source>
       <translation>Cannot connect to {target}. Make sure the service is running and that the address and port are correct.</translation>
     </message>
@@ -3334,7 +3324,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Oldest first</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="135" />
+      <location filename="../../../src/recognition/error_messages.py" line="130" />
       <source>服务端返回 {status_code}，请稍后重试或检查服务日志。</source>
       <translation>The server returned {status_code}. Try again later or check the service log.</translation>
     </message>
@@ -3366,7 +3356,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Source location not found</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="275" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="279" />
       <source>未就绪</source>
       <translation>Not Ready</translation>
     </message>
@@ -3404,7 +3394,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No usable {engine} executable was found. Configure the LaTeX path in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="145" />
+      <location filename="../../../src/recognition/error_messages.py" line="140" />
       <source>未找到模型 {model_name}。当前可用模型：{available_models}</source>
       <translation>Model {model_name} was not found. Available models: {available_models}</translation>
     </message>
@@ -3662,7 +3652,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Detection successful</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="109" />
+      <location filename="../../../src/recognition/error_messages.py" line="104" />
       <source>模型名为空，请先填写本地服务中的模型名称。</source>
       <translation>The model name is empty. Enter the model name used by the local service.</translation>
     </message>
@@ -3676,7 +3666,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model is not initialized</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="79" />
+      <location filename="../../../src/recognition/error_messages.py" line="78" />
       <source>模型权重下载失败</source>
       <translation>Model weight download failed</translation>
     </message>
@@ -3686,7 +3676,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model Cache</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="77" />
+      <location filename="../../../src/recognition/error_messages.py" line="76" />
       <source>模型缓存不完整</source>
       <translation>Incomplete model cache</translation>
     </message>
@@ -3696,7 +3686,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model cache directory: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="95" />
+      <location filename="../../../src/recognition/error_messages.py" line="90" />
       <source>模型运行异常</source>
       <translation>Model runtime error</translation>
     </message>
@@ -3711,7 +3701,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model warm-up failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="256" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="260" />
       <source>模型预热完成</source>
       <translation>Model warm-up complete</translation>
     </message>
@@ -3721,7 +3711,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model warm-up incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="340" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="344" />
       <source>模式切换成功</source>
       <translation>Mode switched</translation>
     </message>
@@ -4708,7 +4698,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognition canceled.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="89" />
+      <location filename="../../../src/recognition/error_messages.py" line="84" />
       <source>识别模式不支持</source>
       <translation>Unsupported recognition mode</translation>
     </message>
@@ -4743,12 +4733,12 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognition timed out. Retry later.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="91" />
+      <location filename="../../../src/recognition/error_messages.py" line="86" />
       <source>识别进程超时</source>
       <translation>Recognition worker timed out</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="149" />
+      <location filename="../../../src/recognition/error_messages.py" line="144" />
       <source>该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。</source>
       <translation>This API or model does not support image input. Use a vision-capable model or service.</translation>
     </message>
@@ -4867,7 +4857,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Check that MathJax resources are packaged correctly</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="132" />
+      <location filename="../../../src/recognition/error_messages.py" line="127" />
       <source>请求过于频繁，请稍后重试。</source>
       <translation>Too many requests. Try again later.</translation>
     </message>
@@ -5131,7 +5121,7 @@ Continue?</translation>
       <translation>Connected successfully. Model {model_name} was found.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/error_messages.py" line="111" />
+      <location filename="../../../src/recognition/error_messages.py" line="106" />
       <source>连接测试超时，请检查服务状态或适当提高超时设置。</source>
       <translation>The connection test timed out. Check the service status or increase the timeout.</translation>
     </message>
@@ -5398,8 +5388,8 @@ Continue?</translation>
       <location filename="../../../src/ui/controllers/recognition.py" line="171" />
       <location filename="../../../src/ui/model_runtime_controller.py" line="185" />
       <location filename="../../../src/ui/model_runtime_controller.py" line="170" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="371" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="369" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="375" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="373" />
       <source>预热中</source>
       <translation>Warming up</translation>
     </message>

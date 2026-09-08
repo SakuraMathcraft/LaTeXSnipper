@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 
 from mathcraft_ocr.error_patterns import (
@@ -43,21 +44,24 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "MathCraft OCR 预热失败，请打开运行日志查看具体原因。",
             "未拿到明确异常文本，需要结合运行日志继续排查。",
         )
-    if "no module named" in lower and "mathcraft_ocr" in lower:
+    # Match the missing import itself, never incidental module names in stack paths.
+    missing_imports = re.findall(r"No module named ['\"]([^'\"]+)['\"]", raw, re.IGNORECASE)
+    missing_module = missing_imports[-1] if missing_imports else ""
+    if missing_module == "mathcraft_ocr":
         return _pack(
             "MATHCRAFT_MISSING",
             "缺少 MathCraft OCR",
             "未找到 MathCraft OCR 包，请检查程序文件是否完整。",
             "mathcraft_ocr 模块不可导入，当前内置识别链路不可用。",
         )
-    if "no module named" in lower and "onnxruntime" in lower:
+    if missing_module == "onnxruntime":
         return _pack(
             "ONNXRUNTIME_MISSING",
             "缺少 onnxruntime",
             "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
-    if looks_like_onnxruntime_install_error(raw):
+    if missing_module.startswith("onnxruntime.") or looks_like_onnxruntime_install_error(raw):
         runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖管理重装当前 MathCraft 后端。"
         if sys.platform == "win32":
             runtime_hint = (
@@ -67,24 +71,15 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "ONNXRUNTIME_BROKEN",
             "onnxruntime 依赖异常",
             runtime_hint,
-            f"onnxruntime 可导入但运行时接口不完整或 provider 查询失败: {raw[:300]}",
+            f"onnxruntime 安装不完整、原生库加载失败或 provider 查询失败: {raw[:300]}",
         )
-    mathcraft_runtime_modules = (
-        "rapidocr",
-        "cv2",
-        "opencv",
-        "numpy",
-        "pil",
-        "pillow",
-        "transformers",
-        "tokenizers",
-    )
-    if "no module named" in lower and any(module in lower for module in mathcraft_runtime_modules):
+    if missing_module:
         return _pack(
-            "MATHCRAFT_DEP_MISSING",
+            "MATHCRAFT_DEP_BROKEN" if "." in missing_module else "MATHCRAFT_DEP_MISSING",
             "MathCraft 依赖不完整",
-            "当前依赖环境缺少 MathCraft OCR 运行依赖，请通过依赖管理安装 BASIC、CORE 和对应的 MATHCRAFT_CPU/GPU 层。",
-            f"MathCraft worker 缺少运行依赖，通常是打包模板 Python 尚未部署完整依赖: {raw[:300]}",
+            "MathCraft OCR 运行依赖缺失或不完整，请通过依赖管理检查并修复当前环境。",
+            f"无法导入模块 {missing_module!r}。"
+            + ("请检查所属包的安装完整性与版本兼容性。" if "." in missing_module else "当前依赖解释器无法找到该模块。"),
         )
     if "not ready" in lower and "missing" in lower and "missing=[]" not in lower:
         return _pack(
@@ -99,13 +94,6 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "模型权重下载失败",
             "MathCraft OCR 模型权重下载失败，请检查网络连接或稍后重试。",
             f"MathCraft 模型权重下载失败: {raw[:300]}",
-        )
-    if "list index out of range" in lower or ("indexerror" in lower and "rapidocr" in lower):
-        return _pack(
-            "OCR_VOCAB_MISMATCH",
-            "OCR 字典与模型不匹配",
-            "MathCraft 文字识别模型与字典不匹配，请更新或重新下载 MathCraft 模型权重。",
-            f"RapidOCR 解码越界，通常是 PP-OCR 识别模型与字典文件不匹配: {raw[:300]}",
         )
     if looks_like_cuda_runtime_error(raw):
         user_hint, log_hint = _cuda_runtime_diagnostics()
@@ -136,7 +124,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "当前 MathCraft OCR 版本不支持该识别模式。",
             f"请求了 MathCraft v1 未支持的模式: {raw[:300]}",
         )
-    if "timeout" in lower:
+    if "timeout" in lower or "运行进程超时" in raw:
         return _pack(
             "WORKER_TIMEOUT",
             "识别进程超时",

@@ -19,6 +19,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from runtime.app_paths import app_config_path
 from runtime.dependency_python import clean_path_value, find_dependency_python
 from runtime.native_runtime import isolated_python_code
+from runtime.exception_diagnostics import format_exception_diagnostics
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from backend.mathcraft.process_environment import (
     _worker_code_roots,
@@ -217,11 +218,12 @@ class ModelWrapper(QObject):
         self._ready = False
         self._import_failed = False
         self._last_error = ""
-        self._last_error_code = ""
+        self._failure_info: dict[str, str] = {}
         self._provider = resolve_mathcraft_provider_preference()
         self._ready_modes: set[str] = set()
         self._stderr_lock = threading.Lock()
         self._worker_stderr_tail: deque[str] = deque(maxlen=80)
+        self._stderr_thread: threading.Thread | None = None
         self._cache_events_seen: set[str] = set()
 
         self._emit(f"[DEBUG] MathCraft OCR 后端偏好: {self._provider}")
@@ -245,6 +247,9 @@ class ModelWrapper(QObject):
             env.pop(key, None)
         pyexe = get_deps_python()
         env["PYTHONNOUSERSITE"] = "1"
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONFAULTHANDLER"] = "1"
         if os.name == "nt":
             env["PATH"] = _worker_path_value(pyexe, env.get("PATH"))
         env["ORT_DISABLE_AZURE"] = "1"
@@ -286,12 +291,6 @@ class ModelWrapper(QObject):
         )
         return [get_deps_python(), "-u", "-c", isolated_python_code(code)]
 
-    def _remember_worker_stderr(self, text: str) -> None:
-        if not text:
-            return
-        with self._stderr_lock:
-            self._worker_stderr_tail.append(text)
-
     def _worker_stderr_text(self, limit: int = 4000) -> str:
         with self._stderr_lock:
             text = "\n".join(self._worker_stderr_tail)
@@ -312,6 +311,7 @@ class ModelWrapper(QObject):
         stderr = proc.stderr
         if stderr is None:
             return
+        tail = self._worker_stderr_tail
 
         def _pump() -> None:
             try:
@@ -319,14 +319,34 @@ class ModelWrapper(QObject):
                     line = str(raw_line or "").strip()
                     if not line:
                         continue
-                    self._remember_worker_stderr(line)
+                    with self._stderr_lock:
+                        tail.append(line)
                     prefix = "[MATHCRAFT_CACHE]"
                     if line.startswith(prefix):
                         self._emit_cache_event_once(line[len(prefix):].strip())
-            except Exception:
-                return
+                    else:
+                        print(f"[INFO] MathCraft worker stderr pid={proc.pid}: {line}", flush=True)
+            except (OSError, ValueError) as exc:
+                print(f"[WARN] MathCraft worker stderr read failed: {exc}", flush=True)
 
-        threading.Thread(target=_pump, daemon=True).start()
+        self._stderr_thread = threading.Thread(target=_pump, daemon=True)
+        self._stderr_thread.start()
+
+    def _worker_transport_error(self, proc: subprocess.Popen, message: str) -> RuntimeError:
+        # Snapshot the natural exit code before cleanup can terminate a live process.
+        try:
+            exit_code = proc.wait(timeout=0.2)
+        except subprocess.TimeoutExpired:
+            exit_code = None
+        self._stop_mathcraft_worker()
+        status = "running before cleanup" if exit_code is None else str(exit_code)
+        if exit_code is not None:
+            status += f" (0x{exit_code & 0xFFFFFFFF:08X})"
+        detail = self._worker_stderr_text()
+        return RuntimeError(
+            f"{message}; pid={proc.pid}; exit_code={status}"
+            + (f"\nWorker stderr:\n{detail}" if detail else "")
+        )
 
     def _ensure_worker(self) -> bool:
         proc = self._worker
@@ -339,7 +359,7 @@ class ModelWrapper(QObject):
             try:
                 self._cache_events_seen.clear()
                 with self._stderr_lock:
-                    self._worker_stderr_tail.clear()
+                    self._worker_stderr_tail = deque(maxlen=80)
                 proc = subprocess.Popen(
                     self._worker_argv(),
                     stdin=subprocess.PIPE,
@@ -356,7 +376,7 @@ class ModelWrapper(QObject):
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
-                self._emit(f"[ERR] MathCraft OCR 运行进程启动失败: {exc}")
+                self._emit(f"[ERR] MathCraft OCR 运行进程启动失败:\n{format_exception_diagnostics(exc)}")
                 self._worker = None
                 return False
 
@@ -374,8 +394,7 @@ class ModelWrapper(QObject):
                 proc.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
                 proc.stdin.flush()
             except Exception as exc:
-                self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft OCR 请求发送失败: {exc}") from exc
+                raise self._worker_transport_error(proc, f"MathCraft OCR 请求发送失败: {exc}") from exc
             lines: queue.Queue[str | BaseException] = queue.Queue(maxsize=1)
 
             def _readline() -> None:
@@ -393,19 +412,13 @@ class ModelWrapper(QObject):
                     else lines.get(timeout=max(float(timeout_sec), 1.0))
                 )
             except queue.Empty as exc:
-                self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）") from exc
+                raise self._worker_transport_error(proc, f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）") from exc
             if isinstance(line_or_exc, BaseException):
-                self._stop_mathcraft_worker()
-                raise RuntimeError(f"MathCraft OCR 响应读取失败: {line_or_exc}") from line_or_exc
+                raise self._worker_transport_error(proc, f"MathCraft OCR 响应读取失败: {line_or_exc}") from line_or_exc
             line = line_or_exc
 
         if not line:
-            detail = self._worker_stderr_text()
-            self._stop_mathcraft_worker()
-            if detail:
-                raise RuntimeError(f"MathCraft OCR 运行进程已退出且没有返回结果: {detail}")
-            raise RuntimeError("MathCraft OCR 运行进程已退出且没有返回结果")
+            raise self._worker_transport_error(proc, "MathCraft OCR 运行进程没有返回结果")
         try:
             response = json.loads(line)
         except Exception as exc:
@@ -425,7 +438,7 @@ class ModelWrapper(QObject):
     def _set_error(self, detail: str) -> dict[str, str]:
         info = classify_mathcraft_failure(detail)
         self._last_error = str(info.get("user_message", "") or detail or "").strip()
-        self._last_error_code = str(info.get("code", "") or "").strip()
+        self._failure_info = info
         self._import_failed = True
         self._ready = False
         self.provider_info = {}
@@ -433,7 +446,7 @@ class ModelWrapper(QObject):
 
     def _clear_error(self) -> None:
         self._last_error = ""
-        self._last_error_code = ""
+        self._failure_info = {}
         self._import_failed = False
 
     def _stop_mathcraft_worker(self) -> None:
@@ -444,15 +457,20 @@ class ModelWrapper(QObject):
             self.provider_info = {}
             return
         try:
-            if proc.stdin and proc.poll() is None:
-                proc.stdin.write(json.dumps({"id": self._next_request_id(), "action": "shutdown"}) + "\n")
-                proc.stdin.flush()
-        except Exception:
-            pass
-        try:
-            proc.terminate()
-        except Exception:
-            pass
+            if proc.poll() is None:
+                proc.terminate()
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=1)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            self._emit(f"[WARN] MathCraft worker cleanup pid={proc.pid}: {exc}")
+        if self._stderr_thread is not None:
+            self._stderr_thread.join(timeout=1)
+            if self._stderr_thread.is_alive():
+                self._emit(f"[WARN] MathCraft worker stderr drain incomplete pid={proc.pid}")
+            self._stderr_thread = None
         self._ready = False
         self._ready_modes.clear()
         self.provider_info = {}
@@ -483,7 +501,12 @@ class ModelWrapper(QObject):
                 )
                 if failed_components:
                     detail = f"{detail}, failed_components={failed_components}"
-                raise RuntimeError(detail)
+                traces = [
+                    f"Component {status.get('model_id', 'unknown')}:\n{status['traceback']}"
+                    for status in result.get("component_statuses", [])
+                    if isinstance(status, dict) and status.get("traceback")
+                ]
+                raise _MathCraftWorkerError("WarmupFailed", detail, "\n".join(traces))
             provider = result.get("provider_info", {})
             if isinstance(provider, dict):
                 self.provider_info = dict(provider)
@@ -506,9 +529,10 @@ class ModelWrapper(QObject):
             return True
         except Exception as exc:
             info = self._set_error(str(exc))
-            self._emit(f"[WARN] MathCraft OCR 预热失败 code={info['code']}")
-            self._emit(f"[DEBUG] MathCraft OCR 预热异常: {exc}")
-            self._emit(f"[DEBUG] MathCraft OCR 预热诊断: {info['log_message']}")
+            self._emit(
+                f"[ERR] MathCraft OCR 预热失败 code={info['code']} profile={mode}\n"
+                f"{info['log_message']}\n{format_exception_diagnostics(exc)}"
+            )
             return False
 
     def is_ready(self) -> bool:
@@ -523,6 +547,9 @@ class ModelWrapper(QObject):
 
     def get_error(self) -> str | None:
         return self._last_error if self._import_failed else None
+
+    def get_failure_info(self) -> dict[str, str]:
+        return dict(self._failure_info)
 
     def get_status_text(self) -> str:
         if self._import_failed:
