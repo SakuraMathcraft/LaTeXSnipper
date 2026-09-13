@@ -9,6 +9,10 @@ $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $releaseRoot = Join-Path $pluginRoot "release"
 $stagingRoot = Join-Path $releaseRoot "InstallerAssets"
 
+$stagingRoot = [IO.Path]::GetFullPath($stagingRoot)
+if (-not $stagingRoot.StartsWith(([IO.Path]::GetFullPath($releaseRoot) + "\"), [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Installer staging path is outside the release directory."
+}
 if (Test-Path $stagingRoot) {
     Remove-Item -LiteralPath $stagingRoot -Recurse -Force
 }
@@ -45,15 +49,18 @@ function Copy-Directory {
     }
 }
 
-$mathJaxSource = Join-Path $pluginRoot "..\src\assets\MathJax-3.2.2"
+$mathJaxSource = Join-Path $pluginRoot "..\src\assets\MathJax"
 $sharedEditorSource = Join-Path $pluginRoot "src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets"
 $mathLiveVendorSource = Join-Path $pluginRoot "..\src\assets\mathlive\vendor"
 $wordEditorSource = Join-Path $pluginRoot "hosts\WordAddIn\EditorAssets"
 $powerPointEditorSource = Join-Path $pluginRoot "hosts\PowerPointAddIn\EditorAssets"
 
-Copy-Directory `
-    -Source $mathJaxSource `
-    -Destination (Join-Path $stagingRoot "MathJax-3.2.2")
+$mathJaxManifest = Get-Content -LiteralPath (Join-Path $mathJaxSource "resources.json") -Raw | ConvertFrom-Json
+foreach ($relative in $mathJaxManifest.profiles.office) {
+    $target = Join-Path (Join-Path $stagingRoot "MathJax") $relative
+    New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $mathJaxSource $relative) -Destination $target -Force
+}
 
 Copy-Directory `
     -Source $sharedEditorSource `

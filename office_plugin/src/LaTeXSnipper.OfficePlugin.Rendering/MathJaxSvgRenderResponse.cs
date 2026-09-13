@@ -46,11 +46,6 @@ internal sealed class MathJaxSvgRenderResponse
 #if NET48
         var serializer = new JavaScriptSerializer();
         object parsed = serializer.DeserializeObject(responseJson);
-        if (parsed is string nested)
-        {
-            parsed = serializer.DeserializeObject(nested);
-        }
-
         if (parsed is not Dictionary<string, object> root)
         {
             throw new InvalidOperationException("MathJax 返回了无效的渲染数据。");
@@ -60,13 +55,6 @@ internal sealed class MathJaxSvgRenderResponse
 #else
         using JsonDocument document = JsonDocument.Parse(responseJson);
         JsonElement root = document.RootElement;
-        if (root.ValueKind == JsonValueKind.String)
-        {
-            string nested = root.GetString() ?? "{}";
-            using JsonDocument nestedDocument = JsonDocument.Parse(nested);
-            return ParseObject(nestedDocument.RootElement);
-        }
-
         return ParseObject(root);
 #endif
     }

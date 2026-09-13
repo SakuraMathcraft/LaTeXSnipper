@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -41,8 +42,6 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
 
     public Task InitializeAsync(
         string mathJaxBundlePath,
-        string configurationScript,
-        string bootstrapScript,
         CancellationToken cancellationToken)
     {
         if (_initialized)
@@ -67,16 +66,15 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             await webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            string mathJaxRoot = Directory.GetParent(Directory.GetParent(mathJaxBundlePath)!.FullName)!.FullName;
+            string mathJaxRoot = Path.GetDirectoryName(mathJaxBundlePath)!;
             webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 MathJaxVirtualHostName,
                 mathJaxRoot,
                 CoreWebView2HostResourceAccessKind.DenyCors);
             string bundleRelativePath = GetVirtualBundlePath(mathJaxRoot, mathJaxBundlePath);
-            string html = BuildHostHtml(configurationScript, bundleRelativePath);
+            string html = BuildHostHtml(bundleRelativePath);
             await NavigateToStringAsync(webView, html).ConfigureAwait(true);
             await WaitForMathJaxStartupAsync(webView, cancellationToken).ConfigureAwait(true);
-            await webView.CoreWebView2.ExecuteScriptAsync(bootstrapScript).ConfigureAwait(true);
             _initialized = true;
         }, cancellationToken);
     }
@@ -88,7 +86,33 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             throw new InvalidOperationException("MathJax 运行环境尚未初始化。");
         }
 
-        return RunOnUiThreadAsync(webView => webView.CoreWebView2.ExecuteScriptAsync(script), cancellationToken);
+        return RunOnUiThreadAsync(async webView =>
+        {
+            string id = "'" + Guid.NewGuid().ToString("N") + "'";
+            try
+            {
+                await webView.CoreWebView2.ExecuteScriptAsync(
+                    "LaTeXSnipperMathJax.start(" + id + ", () => (" + script + "))").ConfigureAwait(true);
+                DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+                while (DateTime.UtcNow < deadline)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string response = await webView.CoreWebView2.ExecuteScriptAsync(
+                        "LaTeXSnipperMathJax.take(" + id + ")").ConfigureAwait(true);
+                    if (response != "null")
+                    {
+                        return new JavaScriptSerializer().Deserialize<string>(response);
+                    }
+                    await Task.Delay(25, cancellationToken).ConfigureAwait(true);
+                }
+                throw new TimeoutException("MathJax conversion timed out.");
+            }
+            finally
+            {
+                await webView.CoreWebView2.ExecuteScriptAsync(
+                    "LaTeXSnipperMathJax.cancel(" + id + ")").ConfigureAwait(true);
+            }
+        }, cancellationToken);
     }
 
     public void Dispose()
@@ -240,13 +264,16 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         return "https://" + MathJaxVirtualHostName + "/" + relativePath;
     }
 
-    private static string BuildHostHtml(string configurationScript, string bundleUri)
+    private static string BuildHostHtml(string bundleUri)
     {
-        return "<!doctype html><html><head><meta charset=\"utf-8\"><script>"
-            + configurationScript
-            + "</script><script id=\"MathJax-script\" src=\""
-            + bundleUri
-            + "\"></script></head><body></body></html>";
+        string root = bundleUri.Substring(0, bundleUri.LastIndexOf('/'));
+        return "<!doctype html><html><head><meta charset=\"utf-8\">"
+            + "<script src=\"" + root + "/config.js\"></script>"
+            + "<script src=\"" + root + "/runtime.js\"></script>"
+            + "<script src=\"" + root + "/office.js\"></script>"
+            + "<script>LaTeXSnipperMathJax.configure({root:'" + root
+            + "', output:'svg', typeset:false, localFonts:true});</script>"
+            + "<script src=\"" + bundleUri + "\"></script></head><body></body></html>";
     }
 
     private static async Task WaitForMathJaxStartupAsync(WebView2 webView, CancellationToken cancellationToken)
@@ -256,12 +283,18 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
         {
             cancellationToken.ThrowIfCancellationRequested();
             string ready = await webView.CoreWebView2.ExecuteScriptAsync(
-                "Boolean(window.LaTeXSnipperMathJaxStartupReady)").ConfigureAwait(true);
+                "Boolean(window.LaTeXSnipperMathJax && LaTeXSnipperMathJax.ready)").ConfigureAwait(true);
             if (string.Equals(ready, "true", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
+            string error = await webView.CoreWebView2.ExecuteScriptAsync(
+                "window.LaTeXSnipperMathJax && LaTeXSnipperMathJax.error").ConfigureAwait(true);
+            if (error != "null" && error != "\"\"")
+            {
+                throw new InvalidOperationException("MathJax startup failed: " + error);
+            }
             await Task.Delay(50, cancellationToken).ConfigureAwait(true);
         }
 

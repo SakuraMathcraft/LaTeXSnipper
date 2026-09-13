@@ -15,7 +15,7 @@ from exporting.formula_converters import (
 
 @pytest.fixture(autouse=True)
 def stub_mathjax_conversion(monkeypatch):
-    def convert(latex: str) -> dict[str, str]:
+    def convert(latex: str, **_kwargs) -> dict[str, str]:
         if "horizontalstrike" in latex:
             mathml = (
                 '<math xmlns="http://www.w3.org/1998/Math/MathML">'

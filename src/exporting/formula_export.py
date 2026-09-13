@@ -145,46 +145,4 @@ def build_formula_export(
     if fmt == "svgcode":
         return svg_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
 
-    # Pandoc formats
-    if fmt.startswith("pandoc_"):
-        return _build_pandoc_export(fmt, clean)
-
     return "", ""
-
-
-def _build_pandoc_export(format_key: str, latex: str) -> tuple[str, str]:
-    """Build export result using Pandoc backend.
-
-    Returns (export_text, display_name). For binary formats, returns a
-    placeholder string indicating binary data is available.
-    """
-    from exporting.pandoc_exporter import (
-        PANDOC_FORMAT_MAP,
-        PandocConversionError,
-        PandocNotAvailable,
-        convert_latex_to,
-        get_format_label,
-    )
-
-    fmt = PANDOC_FORMAT_MAP.get(format_key)
-    if fmt is None:
-        return "", ""
-
-    label = get_format_label(format_key)
-    if fmt.needs_file:
-        return f"[BINARY:{format_key}]", label
-
-    try:
-        result = convert_latex_to(format_key, latex, as_document=True)
-    except PandocNotAvailable as exc:
-        return f"[Pandoc 不可用] {exc}", label
-    except PandocConversionError as exc:
-        return f"[Pandoc 转换失败] {exc}", label
-    except Exception as exc:
-        return f"[Pandoc 转换失败] {exc}", label
-
-    if isinstance(result, bytes):
-        # Binary format: return a marker; caller should handle file saving
-        return f"[BINARY:{format_key}]", label
-
-    return result, label

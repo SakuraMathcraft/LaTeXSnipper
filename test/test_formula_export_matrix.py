@@ -21,67 +21,21 @@ SAMPLE_LATEX = (
 )
 
 
-@pytest.fixture(scope="module")
-def local_mathjax_result() -> dict[str, str]:
+def run_mathjax(inputs: list[dict], *, font: str = "mathjax-tex") -> dict:
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is unavailable for bundled MathJax verification")
-
-    mathjax = (
-        Path(__file__).parents[1]
-        / "src"
-        / "assets"
-        / "MathJax-3.2.2"
-        / "es5"
-        / "node-main.js"
-    )
-    script = r"""
-const mathjaxPath = process.argv[1];
-const source = process.argv[2];
-const loader = require(mathjaxPath);
-const texPackages = [
-  'action', 'amscd', 'bbox', 'boldsymbol',
-  'braket', 'bussproofs',
-  'cancel', 'cases', 'centernot', 'color',
-  'colortbl', 'configmacros', 'empheq', 'enclose',
-  'extpfeil', 'gensymb', 'html', 'mathtools',
-  'mhchem', 'physics', 'setoptions', 'tagformat',
-  'textcomp', 'textmacros', 'unicode', 'upgreek',
-  'verb'
-];
-loader.init({
-  loader: {
-    load: [
-      'input/tex',
-      'output/svg',
-      ...texPackages.map(packageName => `[tex]/${packageName}`)
-    ]
-  },
-  tex: {
-    packages: {
-      '[+]': texPackages
-    }
-  },
-  svg: {fontCache: 'none'}
-}).then(MathJax => {
-  const mathml = MathJax.tex2mml(source, {display: true});
-  const container = MathJax.tex2svg(source, {display: true});
-  const adaptor = MathJax.startup.adaptor;
-  const svg = adaptor.outerHTML(adaptor.firstChild(container));
-  process.stdout.write(JSON.stringify({mathml, svg}));
-}).catch(error => {
-  console.error(error);
-  process.exit(1);
-});
-"""
     completed = subprocess.run(
-        [node, "-e", script, str(mathjax), SAMPLE_LATEX],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
+        [node, str(Path(__file__).parents[1] / "tools/mathjax/probe.cjs"), json.dumps({"font": font})],
+        input=json.dumps(inputs), check=True, capture_output=True, text=True, encoding="utf-8", timeout=30,
     )
+    assert not completed.stderr, completed.stderr
     return json.loads(completed.stdout)
+
+
+@pytest.fixture(scope="module")
+def local_mathjax_result() -> dict[str, str]:
+    return run_mathjax([{"latex": SAMPLE_LATEX}])["results"][0]
 
 
 def test_export_registry_contains_exactly_formats() -> None:
@@ -131,137 +85,36 @@ def test_export_normalization_only_removes_unambiguous_outer_delimiter() -> None
     assert normalize_latex_for_export("$a$ and $b$") == "$a$ and $b$"
 
 
-def test_bundled_mathjax_renders_default_formula_font_wrappers() -> None:
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("Node.js is unavailable for bundled MathJax verification")
-
-    mathjax = (
-        Path(__file__).parents[1]
-        / "src"
-        / "assets"
-        / "MathJax-3.2.2"
-        / "es5"
-        / "node-main.js"
-    )
-    script = r"""
-const mathjaxPath = process.argv[1];
-const loader = require(mathjaxPath);
-const samples = [
-  String.raw`\mathcal{e^{i\pi}+1=0}`,
-  String.raw`\mathscr{e^{i\pi}+1=0}`,
-  String.raw`\mathfrak{e^{i\pi}+1=0}`,
-  String.raw`\mathbb{e^{i\pi}+1=0}`,
-];
-loader.init({
-  loader: {load: ['input/tex', 'output/svg']},
-  svg: {fontCache: 'none'}
-}).then(MathJax => {
-  const adaptor = MathJax.startup.adaptor;
-  const results = samples.map(source => {
-    const mathml = MathJax.tex2mml(source, {display: true});
-    const container = MathJax.tex2svg(source, {display: true});
-    const svg = adaptor.outerHTML(adaptor.firstChild(container));
-    return {
-      source,
-      ok: !/data-mjx-error|mjx-merror|Unknown|invalid|�|□/.test(svg + mathml),
-      mathml
-    };
-  });
-  process.stdout.write(JSON.stringify(results));
-}).catch(error => {
-  console.error(error);
-  process.exit(1);
-});
-"""
-    completed = subprocess.run(
-        [node, "-e", script, str(mathjax)],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    results = json.loads(completed.stdout)
-    assert all(result["ok"] for result in results)
-    assert 'mathvariant="script"' in results[0]["mathml"]
-    assert 'mathvariant="script"' in results[1]["mathml"]
-    assert 'mathvariant="fraktur"' in results[2]["mathml"]
-    assert 'mathvariant="double-struck"' in results[3]["mathml"]
-
-
-def test_bundled_mathjax_renders_office_and_client_package_boundary() -> None:
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("Node.js is unavailable for bundled MathJax verification")
-
-    mathjax = (
-        Path(__file__).parents[1]
-        / "src"
-        / "assets"
-        / "MathJax-3.2.2"
-        / "es5"
-        / "node-main.js"
-    )
-    script = r"""
-const mathjaxPath = process.argv[1];
-const loader = require(mathjaxPath);
-const texPackages = [
-  'action', 'amscd', 'bbox', 'boldsymbol',
-  'braket', 'bussproofs',
-  'cancel', 'cases', 'centernot', 'color',
-  'colortbl', 'configmacros', 'empheq', 'enclose',
-  'extpfeil', 'gensymb', 'html', 'mathtools',
-  'mhchem', 'physics', 'setoptions', 'tagformat',
-  'textcomp', 'textmacros', 'unicode', 'upgreek',
-  'verb'
-];
-const samples = [
-  String.raw`\qty(\frac{a}{b})+\dv{f}{x}+\vb{E}`,
-  String.raw`\braket{\psi|\phi}+\ketbra{0}{1}`,
-  String.raw`\cancel{x}+\bcancel{y}+\xcancel{z}`,
-  String.raw`\begin{cases}x^2,&x>0\\0,&x\le0\end{cases}`,
-  String.raw`A\xrightarrow[\beta]{\alpha}B+\ce{H2O}`,
-];
-loader.init({
-  loader: {
-    load: [
-      'input/tex',
-      'output/svg',
-      ...texPackages.map(packageName => `[tex]/${packageName}`)
+@pytest.mark.parametrize("font", ["mathjax-tex", "mathjax-stix2"])
+def test_bundled_mathjax_renders_shared_packages_and_dynamic_fonts(font: str) -> None:
+    samples = [
+        r"\mathcal{e^{i\pi}+1=0}", r"\mathscr{ABC}", r"\mathfrak{ABC}", r"\mathbb{ABC}",
+        r"\qty(\frac{a}{b})+\dv{f}{x}+\vb{E}", r"\braket{\psi|\phi}+\ketbra{0}{1}",
+        r"\cancel{x}+\bcancel{y}+\xcancel{z}",
+        r"\begin{cases}x^2,&x>0\\0,&x\le0\end{cases}",
+        r"A\xrightarrow[\beta]{\alpha}B+\ce{CO2 + C -> 2 CO}",
+        r"\begin{align}&\text{设 }A,B\text{ 为事件}\\&P(A\mid B)=\frac{P(A\cap B)}{P(B)}\end{align}",
+        r"\mathrm{\delta}", '<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>',
     ]
-  },
-  tex: {
-    packages: {
-      '[+]': texPackages
-    }
-  },
-  svg: {fontCache: 'none'}
-}).then(MathJax => {
-  const adaptor = MathJax.startup.adaptor;
-  const results = samples.map(source => {
-    const mathml = MathJax.tex2mml(source, {display: true});
-    const container = MathJax.tex2svg(source, {display: true});
-    const svg = adaptor.outerHTML(adaptor.firstChild(container));
-    return {
-      source,
-      ok: !/data-mjx-error|mjx-merror|Unknown|invalid|�|□/.test(svg + mathml)
-    };
-  });
-  process.stdout.write(JSON.stringify(results));
-}).catch(error => {
-  console.error(error);
-  process.exit(1);
-});
-"""
-    completed = subprocess.run(
-        [node, "-e", script, str(mathjax)],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    results = json.loads(completed.stdout)
-    assert all(result["ok"] for result in results)
+    data = run_mathjax([{"latex": sample} for sample in samples], font=font)
+    for result in data["results"]:
+        assert result["version"] == "4.1.3"
+        assert "data-mjx-error" not in result["svg"] and "merror" not in result["mathml"]
+        ET.fromstring(result["svg"])
+        ET.fromstring(result["mathml"])
+    assert any("mhchem-font-extension" in file for file in data["loaded"])
+    if font == "mathjax-stix2":
+        assert any("mathjax-stix2-font/svg/" in file for file in data["loaded"])
+
+
+def test_mathml_only_does_not_run_svg_and_office_normalization_is_explicit() -> None:
+    results = run_mathjax([
+        {"latex": "x", "outputs": ["mathml"]},
+        {"latex": r"\colorbox{red}{$x$}", "outputs": ["svg"], "officeInput": True},
+    ])["results"]
+    assert "svg" not in results[0]
+    assert "mathml" not in results[1]
+    assert "data-mjx-error" not in results[1]["svg"]
 
 
 def test_all_native_exports_use_real_bundled_mathjax(
@@ -271,7 +124,7 @@ def test_all_native_exports_use_real_bundled_mathjax(
     monkeypatch.setattr(
         formula_converters,
         "convert_latex_with_mathjax",
-        lambda _latex: dict(local_mathjax_result),
+        lambda _latex, **_kwargs: dict(local_mathjax_result),
     )
 
     converters = {

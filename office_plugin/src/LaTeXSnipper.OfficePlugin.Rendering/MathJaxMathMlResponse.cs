@@ -24,8 +24,7 @@ internal sealed class MathJaxMathMlResponse
     {
 #if NET48
         var serializer = new JavaScriptSerializer();
-        string decoded = serializer.Deserialize<string>(responseJson) ?? string.Empty;
-        var response = serializer.Deserialize<Dictionary<string, object>>(decoded)
+        var response = serializer.Deserialize<Dictionary<string, object>>(responseJson)
             ?? throw new InvalidOperationException("MathJax 返回了无效的 MathML 数据。");
         string error = ReadString(response, "error");
         if (!string.IsNullOrWhiteSpace(error))
@@ -41,8 +40,7 @@ internal sealed class MathJaxMathMlResponse
 
         return new MathJaxMathMlResponse(mathMl, ReadString(response, "version"));
 #else
-        string decoded = JsonSerializer.Deserialize<string>(responseJson) ?? string.Empty;
-        using JsonDocument document = JsonDocument.Parse(decoded);
+        using JsonDocument document = JsonDocument.Parse(responseJson);
         JsonElement root = document.RootElement;
         string error = root.TryGetProperty("error", out JsonElement errorElement)
             ? errorElement.GetString() ?? string.Empty

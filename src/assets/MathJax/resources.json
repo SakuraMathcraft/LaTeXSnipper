@@ -1,0 +1,1605 @@
+{
+  "version": "4.1.3",
+  "manifestSha256": "870b76e2c5a20f8fdc533dfd6fc9bd0d83c798b7b8e900d53fa54cef31f158b4",
+  "profiles": {
+    "desktop": [
+      "LICENSE",
+      "config.js",
+      "core.js",
+      "fonts/mathjax-mhchem-font-extension/chtml.js",
+      "fonts/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-m.woff2",
+      "fonts/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-n.woff2",
+      "fonts/mathjax-mhchem-font-extension/package.json",
+      "fonts/mathjax-mhchem-font-extension/svg.js",
+      "fonts/mathjax-stix2-font/chtml.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/accents-other.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/accents.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/arrows.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/calligraphic.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/cyrillic.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/dingbats.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/double-struck.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/enclosed.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/fraktur.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/greek.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/latin-b.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/latin-bi.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/latin-i.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/latin.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/math.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/monospace.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/phonetics.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/sans-serif.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/script.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/shapes.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/stretchy.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/symbols-other.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/symbols.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/upright.js",
+      "fonts/mathjax-stix2-font/chtml/dynamic/variants.js",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ac.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-acb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-acbi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-aci.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ar.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-b.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-bi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-brk.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-c.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cy.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cyb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cybi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cyi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-db.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ds.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-dsi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-e.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-en.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-f.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-fb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gk.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gkb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gkbi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gki.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-i.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lbi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-li.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lo.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lr.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-m.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-mi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-mm.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-n.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ob.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-os.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ph.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phbi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s10.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s11.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s12.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s3.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s4.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s5.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s6.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s7.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s8.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s9.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sh.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-so.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ss.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssbi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sy.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-syb.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sybi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-syi.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-u.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ud.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-v.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-vx.woff2",
+      "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-zero.woff2",
+      "fonts/mathjax-stix2-font/package.json",
+      "fonts/mathjax-stix2-font/svg.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/accents-other.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/accents.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/arrows.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/calligraphic.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/cyrillic.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/dingbats.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/double-struck.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/enclosed.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/fraktur.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/greek.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-b.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-bi.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-i.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/math.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/monospace.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/phonetics.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/sans-serif.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/script.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/shapes.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/stretchy.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/symbols-other.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/symbols.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/upright.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/variants.js",
+      "fonts/mathjax-tex-font/chtml.js",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-b.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-bi.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-brk.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-c.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-cb.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-f.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-fb.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-i.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-lo.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-m.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-mi.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-n.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ob.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-os.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-s3.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-s4.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-so.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ss.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ssb.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ssi.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-v.woff2",
+      "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-zero.woff2",
+      "fonts/mathjax-tex-font/package.json",
+      "fonts/mathjax-tex-font/svg.js",
+      "input/mml.js",
+      "input/mml/entities.js",
+      "input/mml/extensions/mml3.js",
+      "input/mml/extensions/mml3.sef.json",
+      "input/tex.js",
+      "input/tex/extensions/action.js",
+      "input/tex/extensions/ams.js",
+      "input/tex/extensions/amscd.js",
+      "input/tex/extensions/autoload.js",
+      "input/tex/extensions/bbm.js",
+      "input/tex/extensions/bboldx.js",
+      "input/tex/extensions/bbox.js",
+      "input/tex/extensions/begingroup.js",
+      "input/tex/extensions/boldsymbol.js",
+      "input/tex/extensions/braket.js",
+      "input/tex/extensions/bussproofs.js",
+      "input/tex/extensions/cancel.js",
+      "input/tex/extensions/cases.js",
+      "input/tex/extensions/centernot.js",
+      "input/tex/extensions/color.js",
+      "input/tex/extensions/colortbl.js",
+      "input/tex/extensions/colorv2.js",
+      "input/tex/extensions/configmacros.js",
+      "input/tex/extensions/dsfont.js",
+      "input/tex/extensions/empheq.js",
+      "input/tex/extensions/enclose.js",
+      "input/tex/extensions/extpfeil.js",
+      "input/tex/extensions/fontsizev3.js",
+      "input/tex/extensions/gensymb.js",
+      "input/tex/extensions/html.js",
+      "input/tex/extensions/mathtools.js",
+      "input/tex/extensions/mhchem.js",
+      "input/tex/extensions/newcommand.js",
+      "input/tex/extensions/noerrors.js",
+      "input/tex/extensions/noundefined.js",
+      "input/tex/extensions/physics.js",
+      "input/tex/extensions/require.js",
+      "input/tex/extensions/setoptions.js",
+      "input/tex/extensions/tagformat.js",
+      "input/tex/extensions/texhtml.js",
+      "input/tex/extensions/textcomp.js",
+      "input/tex/extensions/textmacros.js",
+      "input/tex/extensions/unicode.js",
+      "input/tex/extensions/units.js",
+      "input/tex/extensions/upgreek.js",
+      "input/tex/extensions/verb.js",
+      "office.js",
+      "output/chtml.js",
+      "output/svg.js",
+      "package.json",
+      "resources.json",
+      "runtime.js",
+      "startup.js"
+    ],
+    "office": [
+      "LICENSE",
+      "config.js",
+      "core.js",
+      "fonts/mathjax-mhchem-font-extension/package.json",
+      "fonts/mathjax-mhchem-font-extension/svg.js",
+      "fonts/mathjax-stix2-font/package.json",
+      "fonts/mathjax-stix2-font/svg.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/accents-other.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/accents.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/arrows.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/calligraphic.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/cyrillic.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/dingbats.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/double-struck.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/enclosed.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/fraktur.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/greek.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-b.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-bi.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin-i.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/latin.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/math.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/monospace.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/phonetics.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/sans-serif.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/script.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/shapes.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/stretchy.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/symbols-other.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/symbols.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/upright.js",
+      "fonts/mathjax-stix2-font/svg/dynamic/variants.js",
+      "fonts/mathjax-tex-font/package.json",
+      "fonts/mathjax-tex-font/svg.js",
+      "input/mml.js",
+      "input/mml/entities.js",
+      "input/mml/extensions/mml3.js",
+      "input/mml/extensions/mml3.sef.json",
+      "input/tex.js",
+      "input/tex/extensions/action.js",
+      "input/tex/extensions/ams.js",
+      "input/tex/extensions/amscd.js",
+      "input/tex/extensions/autoload.js",
+      "input/tex/extensions/bbm.js",
+      "input/tex/extensions/bboldx.js",
+      "input/tex/extensions/bbox.js",
+      "input/tex/extensions/begingroup.js",
+      "input/tex/extensions/boldsymbol.js",
+      "input/tex/extensions/braket.js",
+      "input/tex/extensions/bussproofs.js",
+      "input/tex/extensions/cancel.js",
+      "input/tex/extensions/cases.js",
+      "input/tex/extensions/centernot.js",
+      "input/tex/extensions/color.js",
+      "input/tex/extensions/colortbl.js",
+      "input/tex/extensions/colorv2.js",
+      "input/tex/extensions/configmacros.js",
+      "input/tex/extensions/dsfont.js",
+      "input/tex/extensions/empheq.js",
+      "input/tex/extensions/enclose.js",
+      "input/tex/extensions/extpfeil.js",
+      "input/tex/extensions/fontsizev3.js",
+      "input/tex/extensions/gensymb.js",
+      "input/tex/extensions/html.js",
+      "input/tex/extensions/mathtools.js",
+      "input/tex/extensions/mhchem.js",
+      "input/tex/extensions/newcommand.js",
+      "input/tex/extensions/noerrors.js",
+      "input/tex/extensions/noundefined.js",
+      "input/tex/extensions/physics.js",
+      "input/tex/extensions/require.js",
+      "input/tex/extensions/setoptions.js",
+      "input/tex/extensions/tagformat.js",
+      "input/tex/extensions/texhtml.js",
+      "input/tex/extensions/textcomp.js",
+      "input/tex/extensions/textmacros.js",
+      "input/tex/extensions/unicode.js",
+      "input/tex/extensions/units.js",
+      "input/tex/extensions/upgreek.js",
+      "input/tex/extensions/verb.js",
+      "office.js",
+      "output/svg.js",
+      "package.json",
+      "resources.json",
+      "runtime.js",
+      "startup.js"
+    ]
+  },
+  "files": {
+    "LICENSE": {
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/action.js": {
+      "sha256": "7c46fc1ef8118723bf2f386d704ab289e5dd683471e0ad4e1e717244959b565b",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/ams.js": {
+      "sha256": "6ff85ab489da04ec533a22b9b93d5d5d51f9f51ef02c723439734e65d9257d14",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/amscd.js": {
+      "sha256": "81d6115aa4358a98da5e6d477ac4198cbc11c2c2752745b3529a8b6e2761202f",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/autoload.js": {
+      "sha256": "8da941fdea660944fc6a4434823dce9cf369b88cb6c0ab50b00700b7a92dbf0c",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/bbm.js": {
+      "sha256": "fb780f6e8ca565439b3c6dc78f3e42b525905fd43c5e15471994a2a1da914ca8",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/bboldx.js": {
+      "sha256": "772503b34ac5b7c56e56c7698403bad6ff3ea3fd1882c22b4e1ef518e6ef86c5",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/bbox.js": {
+      "sha256": "9d9ff6d1c592d2a4fe728412d2d5ec29379f4721bfa3b8356ad2045eb939b848",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/begingroup.js": {
+      "sha256": "0f606d5a71301992e92d8697ccbf8318736110691d8a94303f3f254cd589421a",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/boldsymbol.js": {
+      "sha256": "baaabd9fb430fe4fdbfa9db74aa60b118dd650a68239280368abfd1bc30a0e10",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/braket.js": {
+      "sha256": "d401832d91ca89fc8f76cf1ea67ce25b21c4a2b1d9da0db605204f262c8d69ee",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/bussproofs.js": {
+      "sha256": "87451074cc17e2c8064d630b91cc56171182cc5a46c1313006014f56c498d8d4",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/cancel.js": {
+      "sha256": "9ff91ff84d9776606cdb66da62ffe9bb39cfdfabcf070f214d35e553689ffece",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/cases.js": {
+      "sha256": "6805d481aaee3f78d82bb9f0b6b9ac47b0804c30f10253394724459d95d41a8c",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/centernot.js": {
+      "sha256": "e3c08e96d11f020027a9b325e7b8661f08940babba218b786ac29d50d822dfba",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "output/chtml.js": {
+      "sha256": "9037308c64af4028845b36cde08019e311618cba40605483a4f0606a22f4ac69",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "input/tex/extensions/color.js": {
+      "sha256": "f569ebbf53726afeb3f7a7803500ac2088aada400a2000394879d0b503311b17",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/colortbl.js": {
+      "sha256": "dff289abcff30d0e109eb51a6f6be2d09e46b7e1db5bc881719f9f1bf483ab8f",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/colorv2.js": {
+      "sha256": "434397a8b307ee5e824b065ecf3145ce8ffae58f465e054b3d9b853f5f904baf",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/configmacros.js": {
+      "sha256": "5a7b6e7b7980f8d3425ddbcbbe21299da5b1254d5702e91bdbb9d04f487f4664",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "core.js": {
+      "sha256": "1a3cb32a18199355c67b8f78f57598dec8c253f7455ae42ac3f974b548d43a1b",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/dsfont.js": {
+      "sha256": "74a9961b43c43644c28c582fc14031b7f42bac0b771140a5d80af383415ea978",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/empheq.js": {
+      "sha256": "028e775eca9919375d3397a947d6086383ec99a501a5080b2833ffda5d578a14",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/enclose.js": {
+      "sha256": "5301d91e2e7d6f86a29c13c1b9726b7476b9de9b1745011886c914372fab4cf3",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/mml/entities.js": {
+      "sha256": "0027a9c7bef1a742868b00440d10d0be3648c3d570d722bb30206847b081d868",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/extpfeil.js": {
+      "sha256": "2d1f82bf22acefe6c358e3a3dca293cc2fda338f2db4fd147befc75122c41841",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/fontsizev3.js": {
+      "sha256": "0e8fe554424a274d5809efc11f3a48602713bb7d2b2280ae4fcac04181f128f2",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/gensymb.js": {
+      "sha256": "cd5cb8a68719acc0c215f4377e4d37eb35d4f49bab26c7e46efff5e4dbc7f6d3",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/html.js": {
+      "sha256": "a647d13d009d5ecee4239cfe681ef831f2bd0f2a91033b922ae6bf3481d156e0",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/mathtools.js": {
+      "sha256": "0a403d24ff0fbb698cb0efd1cfe8569bfb47e492165204170481e7e6619a1dcc",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/mhchem.js": {
+      "sha256": "7447710d9804aea68b4491e8fde752d69a905e0d27a8a39705c535f64cfa7fdc",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/mml.js": {
+      "sha256": "ccb777a3698f3d2619876d7fdfc8d307a54896c3e1812f37aac24252687251ea",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/mml/extensions/mml3.js": {
+      "sha256": "ed792479b3343529a2a9a1a813ebf3cea9fe5d381e9d135a07e155c81d036031",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/newcommand.js": {
+      "sha256": "27bc6df0fc8567eaff5153e679e5de53e9cf0918aae714d8dd72fd3a40ca2293",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/noerrors.js": {
+      "sha256": "479c00d274f7f38e25d44a13e407bf8adeb83b02dd05639a302ca7c0db3d4cc2",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/noundefined.js": {
+      "sha256": "d29d871d8d38802cc1581f6e4f5d673c357a8bf9802114ea57f51a53d0a0fef3",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/physics.js": {
+      "sha256": "3a1d1b0ab203b446a2c04d9f5a0bf59e6225c83a27aea0b2403f28293aadb79a",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/require.js": {
+      "sha256": "6ccbfb7f9a6e627fabdc39ce034f99355172b9778891cce33243844501098130",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/setoptions.js": {
+      "sha256": "756100054a264bcfd47c1b5c03b7e4dcdd7cca679b78b693a6926e887ab59c39",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "startup.js": {
+      "sha256": "13a303eae8790c5c79eddb2afdd3d22338be6fe59e0b526ebc92d00b88d98a1d",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "output/svg.js": {
+      "sha256": "6151d21b8205858c103642484f1ca272e3c9cbbde37d53235ac0572966ce613d",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/tagformat.js": {
+      "sha256": "9da0f12949eb209f8cfa06fd88ddce12bf6b8880d29c067a7ad08f42164a3a57",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex.js": {
+      "sha256": "0375844c0c9698b3c26bde0c78b5bc62dbfbe15e3794433dcf7e0b4b3ea2b69a",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/texhtml.js": {
+      "sha256": "6269dda09c28b4291cd4d95e880c9dc053cc95b41c644ce057bab5640cb83113",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/textcomp.js": {
+      "sha256": "d085215c2d77df0c8dbf460b991c59efa9e69cbd7e1f6e94bf5cbb363aa1c69c",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/textmacros.js": {
+      "sha256": "12a52659988472d8f160a96a774e970f89153a0f2e329d2a1d0e318d4ab9bdab",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/unicode.js": {
+      "sha256": "bf1ddc9fe506f782c0e9271c0c52c4b258f9e4eac3d2905274d0c5d239e2a2b3",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/units.js": {
+      "sha256": "25278814cbc050fcd4e8849c014c238cf6801e00405e0acaf5d98924fd1e26a7",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/upgreek.js": {
+      "sha256": "0f4c96104699aeada37446dfb3d50438efec4e11c58982abaa2ff781d42d3667",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/tex/extensions/verb.js": {
+      "sha256": "b2290ff1be4d33c57dd476d87d1753d4cde0a5991612b4a24db881a15c85a250",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "input/mml/extensions/mml3.sef.json": {
+      "sha256": "0f0eef793f3b97df3b10c386e23528938eb82f7d180affe694397e7346f03a87",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "package.json": {
+      "sha256": "440cfcbfb317456a774bc7186e857a1f135954105e32a4312d6cdd555f3a4257",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml.js": {
+      "sha256": "1ff6fa2f22384fa16c0575f09b98ee4d900a61d185f6fcee4e960c0d2190d0c9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/svg.js": {
+      "sha256": "ed5c78819c63883579fb8a4bcec97a2a2fe32e8a0a7f504273aeece0ca396a33",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-tex-font/package.json": {
+      "sha256": "86d89ab67ecdf67f642b0fc5fc249e7fcdf26ea6531ee8fa3eaba9a0378000a3",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-b.woff2": {
+      "sha256": "69e45ca329dd2fcc3671dc20884f2baf29348a43833104266be098eba544fda2",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-bi.woff2": {
+      "sha256": "d0c95edf7b3223c8e66fcb4b6faaf74fc3376eea59c20f23677f4d54905a356e",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-brk.woff2": {
+      "sha256": "4f03a0d86ff005f12cbb0ffd162bae0766415e48e07ed3fa5970e685594de15d",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-c.woff2": {
+      "sha256": "1faef92bbe440c459bcea0b7530044827749507e39bf49248c2203f9eb422bce",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-cb.woff2": {
+      "sha256": "03de6a3467f88e79425df3505a936e6b336efbc5c0421f40905d1d52fddbe4ed",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-f.woff2": {
+      "sha256": "6cb008e934883d1f4652562276469dfc1ade06ee4ceebd6979e79b1c98472b47",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-fb.woff2": {
+      "sha256": "303b28cdca9c064d93dc1672b843933ab20e28f777adb08b9eafa6f442f074d7",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-i.woff2": {
+      "sha256": "82c82a2e0c8bc89421ce9cbb4ecea806c8ceec4b4fd0269726b9439ca853b365",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-lo.woff2": {
+      "sha256": "98b20475232f47749126ae098177b5c71d3b6512e068efedb3a912c2c8f6ed0f",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-m.woff2": {
+      "sha256": "82e8abfaecf005f639e18b1e7dece8700c56df76eac8ea94e4b5915bedee7567",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-mi.woff2": {
+      "sha256": "4bd1e8cefc7cf1b9aa2f2c6beb01ecef7ebf5d1f81d82f954a9688360a399fc3",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-n.woff2": {
+      "sha256": "fad3b88ec7aac4959e3de19044931682bd4d1500c72a85d2d113b73b694c4133",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ob.woff2": {
+      "sha256": "62f1a8f7ced532d6ab1f6af3a5b3363eb6c774fe40d29092bbea27ac95a9f89e",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-os.woff2": {
+      "sha256": "01bc6e82013dca9c1cbb132c353a0f63add97325bb979bba5e619591525c2a6e",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-s3.woff2": {
+      "sha256": "07165a0e10ae4b6b24db34b28d0a8c46bd4ac53b4d1682098ee7a3e88d2f1c83",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-s4.woff2": {
+      "sha256": "b20a0e1b03043ae1a540857bdf1b220297ff0e78b110b1e15554addf91ad0937",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-so.woff2": {
+      "sha256": "0e9f0e5baa090d44c728e2ddaa39b4c465ff15d349e3547488503eb318628a45",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ss.woff2": {
+      "sha256": "e0d564a939fce2e4d0c09a86f0dc936c2a9cdb42e44eb264dbc5ef01d71e179c",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ssb.woff2": {
+      "sha256": "4a2e4827bad85a9ae5fe906f179ccfce154bfc29e19115ceb8d7f1f6e8ce31cd",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-ssi.woff2": {
+      "sha256": "b6dfb310dd7b5c059e9b748b4766fcdd6fa0005c17d9229f3bb1bd095acfae1a",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-v.woff2": {
+      "sha256": "bd9d7db0883dc1adca7ed1c20042609e4e3d1f07f106b6bc8eeeab49d560393b",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-tex-font/chtml/woff2/mjx-tex-zero.woff2": {
+      "sha256": "2c146f72c9a345aa282398a752d03af71d83a011f3d067297b533a31f0c5f5cb",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/accents-other.js": {
+      "sha256": "58653ec08115e4f54e7d89be74ff58ae7c2f30c13bb40127198185042d0adb87",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/accents-other.js": {
+      "sha256": "d0667a1e4c88a8bf76c894e02763cabae3831bbf47bb3964e91dbb94bb6dd926",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/accents.js": {
+      "sha256": "278f4ece2c2551cfe819f05dd56001050409caeb8166725aa0edfbc5ebf29353",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/accents.js": {
+      "sha256": "7c34c90b22c33ef00041f36c67614a1aceddfef47f4cfe695ef49b53d777a5f6",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/arrows.js": {
+      "sha256": "420ecc3928f438d38333988ffc304039cd7ef33d7aeb999ffb942020665ccd6f",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/arrows.js": {
+      "sha256": "e2f263bd44384345fe0bd644830f70d6fff64b47f92cb40b0f763b57586ae9b0",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/calligraphic.js": {
+      "sha256": "17fc9081fcb5ca73cc63d284b2dd59bf287eb27b8ce6f6c71c9f67e6af7c238d",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/calligraphic.js": {
+      "sha256": "9219e5e1bef6561d0dd62a54847c55b1d4c3fd230f665798aba2d16766f974f9",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml.js": {
+      "sha256": "5abb1593e36dc1b6471e5e377d0e2e8f17e96833d37bb361034365e87019c7c7",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/cyrillic.js": {
+      "sha256": "ccd63235b7fc01a1fa14389f6b465c6b4e4fe49f9b69ab3897d9dc0c76e87eb9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/cyrillic.js": {
+      "sha256": "02225ce59374c316445b6937afc70ed4b36e100f532fa237383ccbbdde83808d",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/dingbats.js": {
+      "sha256": "3b3626165f22eeef23abe6ce3d49281a974107ba23e6874a8ca0d165ca2abf40",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/dingbats.js": {
+      "sha256": "7b623ac81647cecada495b4a132427a18a70f3049c2c81266168744df398053c",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/double-struck.js": {
+      "sha256": "d5bbf211005a20e6b24c97e1ba4c646754c507b3b8469ff93bb36686ddfa2e64",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/double-struck.js": {
+      "sha256": "065d0bbf855df571a2ac33258d18301919a0ed06409aef2c4373daeb11ba0549",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/enclosed.js": {
+      "sha256": "a4fcc4d688cbe77702d0313e2d68c1cfcd344945370c3cd19c54661a7716d9c8",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/enclosed.js": {
+      "sha256": "bb72ffae1208953e9d642c3dff626758cd3d998ec1b435f5be678006faada7a0",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/fraktur.js": {
+      "sha256": "68b2a3dfd53165eca4cb80cac5c3fd8f198ba7de9c2e1aca739fd103f38c337c",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/fraktur.js": {
+      "sha256": "7d0ab8696323652129da0812f0210f421a6e09db5fd255063383930374b1ac6f",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/greek.js": {
+      "sha256": "53aa2411bd0ee4fa035419ef5630d6fac76dd28376af1126f78b7add500ab0d9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/greek.js": {
+      "sha256": "73b7193aa05b9edb724cc7fb061236468aa4b8c29aace9775825873d3df2fd5a",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/latin-b.js": {
+      "sha256": "40479cdd1e28c3c529f186bbb0fdf6e768341048b3e25588c3ec1f2577239b8d",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/latin-b.js": {
+      "sha256": "2987e7fcbc5b78f30a812d860cfb670bba47e43c5bb732a0105e1376ba27b2ee",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/latin-bi.js": {
+      "sha256": "87abadd0a7820a8e0430d1d83ea585ab93d0a868b0eb19aa22823eae2de163d2",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/latin-bi.js": {
+      "sha256": "bb83549d0467ba37b54039425c7ab468a0fab8a07b623f4be90537ca69c54e86",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/latin-i.js": {
+      "sha256": "5be46ee9ad4faee6476fedd07f0b00d6c53cc710f8dfb1512818d98892749891",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/latin-i.js": {
+      "sha256": "4dbf31b8678624c5c2a6927df7b6f653f89a0e2d4efbb62ecd53f33ab3cab13c",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/latin.js": {
+      "sha256": "3abdc332a4372e7989b38ce268b39392004752299160de6b1f53db396199b387",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/latin.js": {
+      "sha256": "305d8ab3305bd63d7211e8679085e7abd300ae881ffe4e162a990ebe4ead41f9",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/math.js": {
+      "sha256": "1884766b9699c68bcbb9def79c2a58582976b1ac834768eb4c1605a8e7e84b79",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/math.js": {
+      "sha256": "1797c3aa5ad00b0c2cfe9d37b46f100c08c702fad10c6c4b6a3069b081ede497",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/monospace.js": {
+      "sha256": "bd9906344b9b6f355aa09977846a31d0160b70559ed218d5003b30a3ca842f1a",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/monospace.js": {
+      "sha256": "07c2400122acf1ab7018c48072efb3124f68f4a36168eb0c6eb19b55a629e6a8",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/phonetics.js": {
+      "sha256": "af8222e4d2c003360cfb59b4637a49e75e2e44c9185867303f5fa60ee3d6338b",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/phonetics.js": {
+      "sha256": "301868d543d604494b88904b1c69a0e3942ed3de3c612d9e124e012da8fe3997",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/sans-serif.js": {
+      "sha256": "77f2252f5a5b671ae6a80f5a5204f3f3e3d067699bc327fb09f83c46747883e0",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/sans-serif.js": {
+      "sha256": "fc6b4956c800aaf4962ff8fc1a7047c5f2e3684ea850fe57296953c6f0b14b2b",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/script.js": {
+      "sha256": "88106ba98140c53aeaedb84709fdb7b57193a389e027cb2a97fdf148b4aa3f3b",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/script.js": {
+      "sha256": "ae8d25be76d770543f5c89a7ab99e454a193fb1c8a7e9ac1eeb0d0d7c33c6197",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/shapes.js": {
+      "sha256": "838297f5f996d4dd0367cd843405445e184132d348744c566c03be6505e98291",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/shapes.js": {
+      "sha256": "056d93d237c2594fe2d2020875c2e7a837894aa6b340b386876e0343504ddd6d",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/stretchy.js": {
+      "sha256": "617467fe9a8c392b18008af0b47893f0cde5a58988d01ec20baa7af889282d73",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/stretchy.js": {
+      "sha256": "e4e5b0113fddba9989424504fab7b557c1ec62d0e5684a9214289292e3d2490e",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg.js": {
+      "sha256": "80ac83bb3b2bd40d1a2593ad56805ac2efd34c2262260c9c8859594a76f5a466",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/symbols-other.js": {
+      "sha256": "560bf551e4fbd029c24a77a99fd266f009d85cc142f50f6270a030a87c6f4ed4",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/symbols-other.js": {
+      "sha256": "8cfb866f6d30330ce3ba6dc1cf25c8c93d41d5dbd7fc18e83f9a9b01c7d97401",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/symbols.js": {
+      "sha256": "07915723e8f4dffe7e00066b1f302781eca35ff30da4adb3ac139a9248c431da",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/symbols.js": {
+      "sha256": "c511a02c697f7f535bfc4c0daa4b08c120ecee9ebc06f3566323c9751086acc4",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/upright.js": {
+      "sha256": "21c4b7887c8e0b1858943742d6bc21648538d3b34f7001274620ae3e5eef33ca",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/upright.js": {
+      "sha256": "59bb6af6792f4c874fb1d68bd8b82242ec6e5a3c012d7c7e58b26ca1cd7347ad",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/dynamic/variants.js": {
+      "sha256": "ee57a5c34635e434cab1a2888e4e2daffa04d8ba3d41dba676ebaa197ae7e1ad",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/svg/dynamic/variants.js": {
+      "sha256": "29ab646c3a6371484304508058b641c5187138f1fbf4714d20932846e59a743b",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/package.json": {
+      "sha256": "1fa62a4b0725e34d9c6e8c91d86ca047e36b6b81bcf075a88f1961398afa9953",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ac.woff2": {
+      "sha256": "c4f6afdd6ff298070f3604cbdc6470f5878b10744bae4965c6e152ca6c2895e4",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-acb.woff2": {
+      "sha256": "a49cc4bdde0c784ee789d50e3a88714b8adab287bc199bd9b82209d5f0aaa3ba",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-acbi.woff2": {
+      "sha256": "438648e6fba5b7126448ff267c5e62db4d64cb59dc47a80e6c90de098dc63c08",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-aci.woff2": {
+      "sha256": "7b004285d62fabd72fe23c30b42fe274f17924eee197ec95fd3df4b253ad2ead",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ar.woff2": {
+      "sha256": "51ce9bac680e39b3b1ec2856939472fc1ccc7bf0271122a87d829d782ef343a5",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-b.woff2": {
+      "sha256": "041b0993c37d6c50d8281cbdf1d2966f5e2c56597314e8f0053df7b339854e92",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-bi.woff2": {
+      "sha256": "c75dc5537493461372323d2053f1a98ed0b86f666cdb3421a3fd7fcc9ba237b0",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-brk.woff2": {
+      "sha256": "eed7a4e90442cad3ea79e9d405ceda151c000ae21eb59dc08f5086f5d616b4bf",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-c.woff2": {
+      "sha256": "6dd89c5757319a2b0151d8fd6a5d0c3d1629682866655131ecb427dbe8b31821",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cb.woff2": {
+      "sha256": "1e810b55117c30e8cb3c4e4d7c16e06267f6329b81a08f3c970d0cd04f81a101",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cy.woff2": {
+      "sha256": "9b0298baf4dfa0760ab7fb1cb11b24fe79701eaaf7d85a6b8a4327e6f50259d3",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cyb.woff2": {
+      "sha256": "20a308dd3fed9c6e5908219f6e2cc255cfa80fca69e645f502df91bf35ddcba3",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cybi.woff2": {
+      "sha256": "56d0a2ac9281b38f1d4c6a89c685a4502f927f7b30bd84486959541ed41f5b66",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-cyi.woff2": {
+      "sha256": "56030fe28533d81c2894cce2c3c06a56b74f96769e906706612002b9802ace4b",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-db.woff2": {
+      "sha256": "edada5f2b7f5fd24a6ec1b13c520374c147a87bc86947d5654e6fb2ad22ecad7",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ds.woff2": {
+      "sha256": "ce225b64be8e57f7eb810d100b54a54e0aafb18a02367e9357455a58ae585ad4",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-dsi.woff2": {
+      "sha256": "28b026adab1e93c799ede348680850fda786b6031f3264cfff664ae8ccec92d0",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-e.woff2": {
+      "sha256": "3658808c801cad2ec997e08788600197034f454deed7ce9bedb041a396e92a31",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-en.woff2": {
+      "sha256": "637a3472efcabe9297b7ef0929ec903a72570d016c5f308707b6a4ce517fb2de",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-f.woff2": {
+      "sha256": "1d8c879bdde3699c54781d2631d8266b20c991f1ace96a7e2c83d61d33be43cb",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-fb.woff2": {
+      "sha256": "7d0ab08b17686875ef103e7332b9237d69be4b6aab2ef55416672c5e9beafc56",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gk.woff2": {
+      "sha256": "2ace1224a28e601fd9df6de716d6f70cba7ced6485f152a8e7c2c788cbb4a30d",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gkb.woff2": {
+      "sha256": "aba9c9a8e5dabb8ad9a60c4218b26e36e2bdca657eca27491e1cf06c4d4e934a",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gkbi.woff2": {
+      "sha256": "d2b10e04958e0b27f2fe5f2402ea3fa21565fb4dcd2fce7c8fce3c870984c9e6",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-gki.woff2": {
+      "sha256": "0c27bec5fb3dfb0d866609acd9380946a8cbcc640a5513fd40e24ecce8a51243",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-i.woff2": {
+      "sha256": "dce5612e076c43f17e9a6f1f68e890c0bf7039481aa629c04ed4a58a6bc43135",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lb.woff2": {
+      "sha256": "aaf1e4e5299baa8aff19468dc1bdec1641df522538601b75ed73759e50e7bfc0",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lbi.woff2": {
+      "sha256": "fdb221586e2364ebd68b499ed9f8e6056016699c829701883bd2745a6d715bfa",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-li.woff2": {
+      "sha256": "0a7206c0cada0711afc97980f9b26d14999f246641ca2905ddb53c89818d81a2",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lo.woff2": {
+      "sha256": "4be1c7c27c4070e0dd20eae70eb486614d279399a3aab2347fde579d7bc25f04",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-lr.woff2": {
+      "sha256": "17c22106eac96dcbb92cf079009b4cbb38392f78b42d5a0eb7cac665ac79c7d8",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-m.woff2": {
+      "sha256": "914651218197582a1e657b8392cbca9deb971455405a3b7b6bf08ccb77c2decd",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-mi.woff2": {
+      "sha256": "c867233b8cfa7b6368c3a776208c4855894c3d6cb4958735658762ed37788c3e",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-mm.woff2": {
+      "sha256": "324e5c9785b7f5ceebc8da6b170fb2a62eef3c08c234aed2dc937d075f70210d",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-n.woff2": {
+      "sha256": "c4be6085d527eef2a7db26a5c0820deb5a1280eee6e988e4fe56d94748192331",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ob.woff2": {
+      "sha256": "8074e0e1b8b8d0a3e43bc14a50bf59ba747adcb692707123f97e1e382b35c378",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-os.woff2": {
+      "sha256": "419dd047292e81d7bfca291e9d092a65e35d1f1545cab49c539c55877e383894",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ph.woff2": {
+      "sha256": "ebaba37ce1267f067da0b1ff6618701c4ba536cfcd097cc2037a6b3ee46c9c4e",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phb.woff2": {
+      "sha256": "86f2ba868743713fc93c9e9795d2611616529dfc8234461b820866c708581bee",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phbi.woff2": {
+      "sha256": "67ae71962c5ecbe9497e313b91256a23d079acd58e947d228256ad5306709817",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-phi.woff2": {
+      "sha256": "94f1c339ec1f86a7bd2f80eb0dbb675e839c3abfc9ee997033106057fb01d5ee",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s.woff2": {
+      "sha256": "3db028975155305c4545f1b422255f34d1781c4ae413eadd77d733c420821883",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s10.woff2": {
+      "sha256": "ba162c60eeb4d4a1b4497ccae8a348c4b6c25a80b81d5cf352dddd6c352dd018",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s11.woff2": {
+      "sha256": "9419b416e192e835f35b354f03a4dbe7d597448448f0fb80486e7969c420c0b9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s12.woff2": {
+      "sha256": "ab68074aeaf66071d4c44a5ffed5e09556b3ac04987b1ac867fcaef7114c0bfa",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s3.woff2": {
+      "sha256": "d2bd83acc471bfb79a6ced606f20c2081e4a74734ff3b7dec1162fe7d7966015",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s4.woff2": {
+      "sha256": "91e32106b9f27413e71bd586001d432381edda310b2826e01e5349776ef29a5a",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s5.woff2": {
+      "sha256": "3de78ddb66cb82953e91cf02627ba127b0c0a101f017340e3191470bee5299b7",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s6.woff2": {
+      "sha256": "dd9f52020b177acd06b53f6f61d6dc508861e9fcbaee5110871c4d2a85998621",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s7.woff2": {
+      "sha256": "3b5a7b9f87ee75ddc5236cc93d7eea760ff4b824935aa63738f957a43ec880f9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s8.woff2": {
+      "sha256": "82ee4b0340026431ad84d82bffd83aff8213ad951b66bcbf4aaa7a728966b844",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-s9.woff2": {
+      "sha256": "d09c5f2ce829cc34a9f243dd0b3d1e8687e97e0490e9f7dba99ced031077047c",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sb.woff2": {
+      "sha256": "4e0e45b42906b5587145ec9c4735310d63898f5e71cab5df827913a8f539beff",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sh.woff2": {
+      "sha256": "378731266d2f5ece66b9a68a66a28f5926791ba132ac0e6a78ca53ce58b118e9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-so.woff2": {
+      "sha256": "2b5bc0f8ecf487e1792a5b9915466f3557ba8becca43cc56e699cc0e1cc7b128",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ss.woff2": {
+      "sha256": "c1ce1b70aca2c18244b9f824718bf66d2deaf908db88d279709b50936603b199",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssb.woff2": {
+      "sha256": "bf57a5f3e06bcaa1d9aec6e243590c3b2127dfd85ef9b069ccc45baaaafa8b38",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssbi.woff2": {
+      "sha256": "bed52ef287282af7a9cc01e46544f0e76fa142ce79deafe7df2a69411756c3c6",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ssi.woff2": {
+      "sha256": "e4eab4a57c8dab12faa12cdc17ba90bcfc8ca3f39758d1df184e88ff619d43ab",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sy.woff2": {
+      "sha256": "539861d692fdc890bdf77214c9412834b1d3300830f912d987601961f71734fd",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-syb.woff2": {
+      "sha256": "e54f2b328eb6698629b8f5d34bf2cb39ff55c041af1284b74d2a1f865a302bf7",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-sybi.woff2": {
+      "sha256": "fc47ae1d16f8e05fc06ad8e83513d7f702b167ac26d5479eff92490c51a9c554",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-syi.woff2": {
+      "sha256": "639a439e84896440980cd5f610db23a40d4368cde8254702e84c9ffdb3fa9b8a",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-u.woff2": {
+      "sha256": "955db5c620d2fbb4aa31e062884fe9a1e8fdeb8060ada373fd3bcd294009d1af",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-ud.woff2": {
+      "sha256": "b1f68d7579947680f27edb934605924c3e5e377d2e77d509e0e6c4625d9de738",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-v.woff2": {
+      "sha256": "801db9044cbe5437070131a66891dabe507c482b6af6b6e5a3e14190af19954f",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-vx.woff2": {
+      "sha256": "917b61575f74c1f04b44d58cf5a540f1e1fbdcc9afdc3c0c06932c46a7793aa9",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-stix2-font/chtml/woff2/mjx-stx-zero.woff2": {
+      "sha256": "8108cb0feb52a1ff3bab858a4af6123c8c0cfcaaac3f1e101a9ca1cb8c341928",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-mhchem-font-extension/chtml.js": {
+      "sha256": "09dec3f1b8299aa81b5d4e45fa8ef4675f6a1907056f030a357fb9916bad8703",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-mhchem-font-extension/svg.js": {
+      "sha256": "59cbf08305ddd6bac14dbf2e2a6b3c2f3f6870107ad16d381870fdb0486eea73",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-mhchem-font-extension/package.json": {
+      "sha256": "c61057212d281a8fda24797a939460531417dbdf904b6f33976cde8ca313c6b7",
+      "profiles": [
+        "desktop",
+        "office"
+      ]
+    },
+    "fonts/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-m.woff2": {
+      "sha256": "2ea308c69f139e9ee7bc452e12a449c13e3b9ce4c08aebc4e86e15df232a26e0",
+      "profiles": [
+        "desktop"
+      ]
+    },
+    "fonts/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-n.woff2": {
+      "sha256": "f9054e3dd268155cb38c708ef7b7c7c03e83ac3723afcb65ae65a37bbb301f4e",
+      "profiles": [
+        "desktop"
+      ]
+    }
+  }
+}

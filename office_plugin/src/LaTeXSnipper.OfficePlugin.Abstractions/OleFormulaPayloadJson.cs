@@ -28,7 +28,7 @@ public static class OleFormulaPayloadJson
             ["numberText"] = metadata.NumberText,
             ["fontScale"] = metadata.FontScale.ToString(CultureInfo.InvariantCulture),
             ["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString(),
-            ["rendererVersion"] = "MathJax-3.2.2",
+            ["rendererVersion"] = presentation.RendererVersion,
             ["widthPoints"] = presentation.WidthPoints.ToString(CultureInfo.InvariantCulture),
             ["heightPoints"] = presentation.HeightPoints.ToString(CultureInfo.InvariantCulture),
             ["baselinePoints"] = presentation.BaselinePoints.ToString(CultureInfo.InvariantCulture),

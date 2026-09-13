@@ -29,7 +29,7 @@ def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     assert "京文子" in html
     assert "MathCraft" in html
     assert "$$\\int_0^1 x^2 dx$$" in html
-    assert "tex-mml-chtml.js" in html
-    assert MATHJAX_CDN_URL_BACKUP in html
-    assert "backupScript.src = cdnUrls[1];" in html
+    assert "startup.js" in html
+    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert "LaTeXSnipperMathJax.load" in html
     assert "::-webkit-scrollbar-thumb" in html

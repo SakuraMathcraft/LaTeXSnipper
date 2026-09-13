@@ -59,7 +59,7 @@ def test_pandoc_format_registry_is_complete() -> None:
     assert len(formats) == 8
     assert len(keys) == len(set(keys))
     assert set(keys) == set(pandoc_exporter.PANDOC_FORMAT_MAP)
-    assert {fmt.key for fmt in formats if fmt.needs_file} == {
+    assert {fmt.key for fmt in formats if fmt.requires_output_file} == {
         "pandoc_docx",
         "pandoc_odt",
         "pandoc_pptx",
@@ -85,7 +85,7 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
             as_document=True,
         )
         results[fmt.key] = result
-        if fmt.needs_file:
+        if fmt.requires_output_file:
             assert isinstance(result, bytes), fmt.key
             assert len(result) > 100, fmt.key
             if fmt.key == "pandoc_pdf":

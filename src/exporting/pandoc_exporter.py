@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exporting.formula_format_helpers import normalize_latex_for_export
+from rendering.mathjax_runtime import cdn_roots, loader_script
 from localization.manager import mark_for_translation
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
@@ -33,15 +35,17 @@ class PandocFormat:
     label: str
     pandoc_format: str
     extension: str
-    needs_file: bool = False
+    # Pandoc requires a temporary output path for binary writers.
+    # All formats are saved as files by the UI, including its text writers.
+    requires_output_file: bool = False
 
 
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
-    PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", needs_file=True),
-    PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", needs_file=True),
-    PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", needs_file=True),
-    PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", needs_file=True),
-    PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", needs_file=True),
+    PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", requires_output_file=True),
+    PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", requires_output_file=True),
+    PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", requires_output_file=True),
+    PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", requires_output_file=True),
+    PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", requires_output_file=True),
     PandocFormat(
         "pandoc_html_standalone",
         mark_for_translation("HTML 独立页(.html)"),
@@ -221,17 +225,16 @@ def _looks_like_latex_formula(text: str) -> bool:
 
 
 def _ensure_mathjax_script(html: str) -> str:
-    if "MathJax" in html or ("math inline" not in html and "math display" not in html):
+    # Pandoc preserves TeX in the page; replace its generated loader with our
+    # pinned configuration, retaining browser-side typesetting of that source.
+    entry = cdn_roots()[0] + "/startup.js"
+    pattern = r'<script\b[^>]*\bsrc=[\"\']' + re.escape(entry) + r'[\"\'][^>]*>\s*</script>'
+    html, count = re.subn(pattern, "", html, flags=re.IGNORECASE)
+    if not count and "math inline" not in html and "math display" not in html:
         return html
-    script = (
-        '  <script defer=""\n'
-        '  src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"\n'
-        '  type="text/javascript"></script>\n'
-    )
+    script = loader_script(root=cdn_roots()[0])
     head_end = html.lower().find("</head>")
-    if head_end >= 0:
-        return html[:head_end] + script + html[head_end:]
-    return script + html
+    return html[:head_end] + script + html[head_end:] if head_end >= 0 else script + html
 
 
 def _read_valid_file_output(path: str, target_key: str) -> bytes | None:
@@ -299,8 +302,8 @@ def convert_latex_to(
     if target_key == "pandoc_html_standalone":
         if "--standalone" not in args:
             args.append("--standalone")
-        if "--mathjax" not in args:
-            args.append("--mathjax")
+        args = [arg for arg in args if arg != "--mathjax" and not arg.startswith("--mathjax=")]
+        args.append("--mathjax=" + cdn_roots()[0] + "/startup.js")
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         engine = _find_pdf_engine()
@@ -313,7 +316,7 @@ def convert_latex_to(
         if is_text_content and "--pdf-engine" in args:
             args.extend(_pdf_text_font_args())
 
-    if fmt.needs_file:
+    if fmt.requires_output_file:
         with tempfile.NamedTemporaryFile(
             suffix=fmt.extension, delete=False
         ) as tmp:

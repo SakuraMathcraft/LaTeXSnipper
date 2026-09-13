@@ -16,6 +16,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
     private readonly ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult> _cache = new ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult>();
     private readonly SemaphoreSlim _initializeLock = new SemaphoreSlim(1, 1);
     private bool _initialized;
+    private string _version = string.Empty;
     private bool _disposed;
 
     public MathJaxSvgRenderer(IMathJaxJavaScriptRuntime runtime, MathJaxAssetResolver? assetResolver = null)
@@ -50,7 +51,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
 
         await EnsureInitializedAsync(token).ConfigureAwait(false);
 
-        var key = new MathJaxRenderCacheKey(request, "3.2.2");
+        var key = new MathJaxRenderCacheKey(request, _version);
         if (_cache.TryGetValue(key, out RenderResult? cached))
         {
             return cached;
@@ -107,12 +108,11 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
                 return;
             }
 
-            string bundle = _assetResolver.ResolveTexSvgBundle();
+            string bundle = _assetResolver.ResolveStartupScript();
             await _runtime.InitializeAsync(
                 bundle,
-                MathJaxRenderScriptBuilder.BuildConfigurationScript(),
-                MathJaxRenderScriptBuilder.BuildBootstrapScript(),
                 cancellationToken).ConfigureAwait(false);
+            _version = _assetResolver.Version;
             _initialized = true;
         }
         finally

@@ -1,0 +1,109 @@
+{
+  "version": "4.1.3",
+  "defaultFont": "mathjax-tex",
+  "fonts": [
+    "mathjax-tex",
+    "mathjax-stix2"
+  ],
+  "extensions": [
+    "action",
+    "amscd",
+    "bbox",
+    "boldsymbol",
+    "braket",
+    "bussproofs",
+    "cancel",
+    "cases",
+    "centernot",
+    "color",
+    "colortbl",
+    "configmacros",
+    "empheq",
+    "enclose",
+    "extpfeil",
+    "gensymb",
+    "html",
+    "mathtools",
+    "mhchem",
+    "physics",
+    "setoptions",
+    "tagformat",
+    "textcomp",
+    "textmacros",
+    "unicode",
+    "upgreek",
+    "verb"
+  ],
+  "packages": [
+    {
+      "name": "mathjax",
+      "version": "4.1.3",
+      "archive": "mathjax-4.1.3.tgz",
+      "integrity": "sha512-BN/8Pkgn7G1pIDYJqd9md+JHsE/jydSYbyOZnSdSA0WziuVO8mRxdYiWFumkVVly/8U+hm9DpIIoWuvySverzw==",
+      "destination": "",
+      "common": [
+        "LICENSE",
+        "package.json",
+        "startup.js",
+        "core.js",
+        "input/tex.js",
+        "input/mml.js",
+        "input/tex/extensions/**",
+        "input/mml/**",
+        "output/svg.js"
+      ],
+      "desktop": [
+        "output/chtml.js"
+      ],
+      "testAdaptorSha256": "9b774a1859fea3d8829cd008d61321c5eb24c9553c3f4e0aaa47d86d83058490"
+    },
+    {
+      "name": "@mathjax/mathjax-tex-font",
+      "version": "4.1.3",
+      "archive": "mathjax-mathjax-tex-font-4.1.3.tgz",
+      "integrity": "sha512-9B78brBEmmAwyumaREIyM1gF2HgDamDIXA36UyeXWxX7XrpLdmoSB5NLIf/c6tEA4L6xNrIdMxfgY6YX/kcSNw==",
+      "destination": "fonts/mathjax-tex-font",
+      "common": [
+        "package.json",
+        "svg.js",
+        "svg/**"
+      ],
+      "desktop": [
+        "chtml.js",
+        "chtml/**"
+      ]
+    },
+    {
+      "name": "@mathjax/mathjax-stix2-font",
+      "version": "4.1.3",
+      "archive": "mathjax-mathjax-stix2-font-4.1.3.tgz",
+      "integrity": "sha512-DjJh93JuKodoYmvWawiqa22y/dwP+hn6/DN/DepFRFaRbdndNcSD3iBsBunSrLPFIJBS83mn4iR015YRPWZWhg==",
+      "destination": "fonts/mathjax-stix2-font",
+      "common": [
+        "package.json",
+        "svg.js",
+        "svg/**"
+      ],
+      "desktop": [
+        "chtml.js",
+        "chtml/**"
+      ]
+    },
+    {
+      "name": "@mathjax/mathjax-mhchem-font-extension",
+      "version": "4.1.3",
+      "archive": "mathjax-mathjax-mhchem-font-extension-4.1.3.tgz",
+      "integrity": "sha512-WFx0IooitEJq1TXc9V941o8eaZdICSPn8FpsIBDdhkMhb0if61jCvk6vtQN84dlLnNEorK011NfpirMkHYygSQ==",
+      "destination": "fonts/mathjax-mhchem-font-extension",
+      "common": [
+        "package.json",
+        "svg.js",
+        "svg/**"
+      ],
+      "desktop": [
+        "chtml.js",
+        "chtml/**"
+      ]
+    }
+  ]
+}

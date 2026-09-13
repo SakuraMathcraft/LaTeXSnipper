@@ -16,12 +16,12 @@ from exporting.mathjax_converter import convert_latex_with_mathjax
 
 def latex_to_svg_code(latex: str) -> str:
     latex = normalize_latex_for_export(latex)
-    return convert_latex_with_mathjax(latex)["svg"]
+    return convert_latex_with_mathjax(latex, outputs=("svg",))["svg"]
 
 
 def latex_to_mathml(latex: str) -> str:
     latex = normalize_latex_for_export(latex)
-    mathml = convert_latex_with_mathjax(latex)["mathml"]
+    mathml = convert_latex_with_mathjax(latex, outputs=("mathml",))["mathml"]
     return mathml_standardize(mathml)
 
 
@@ -34,7 +34,7 @@ def latex_to_omml(latex: str) -> str:
     latex = normalize_latex_for_export(latex)
     from lxml import etree
 
-    mathml = mathml_standardize(convert_latex_with_mathjax(latex)["mathml"])
+    mathml = mathml_standardize(convert_latex_with_mathjax(latex, outputs=("mathml",))["mathml"])
     mathml_doc = etree.fromstring(mathml.encode("utf-8"))
     omml_doc = _cached_mml2omml_transform()(mathml_doc)
     result = etree.tostring(omml_doc, encoding="unicode")
