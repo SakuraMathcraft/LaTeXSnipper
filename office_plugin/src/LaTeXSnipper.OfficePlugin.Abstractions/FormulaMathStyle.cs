@@ -1,20 +1,21 @@
 namespace LaTeXSnipper.OfficePlugin.Abstractions;
 
-public enum FormulaFontStyle
+/// <summary>Mathematical glyph style, independent of the selected font family.</summary>
+public enum FormulaMathStyle
 {
-    TeX,
-    RomanUpright,
+    Automatic,
+    Upright,
     Bold,
-    BoldUpright,
-    BoldItalic,
     Italic,
+    BoldItalic,
     SansSerif,
     SansSerifBold,
     SansSerifItalic,
     SansSerifBoldItalic,
-    Typewriter,
+    Monospace,
     Calligraphic,
     Script,
     Fraktur,
+    BoldFraktur,
     Blackboard
 }

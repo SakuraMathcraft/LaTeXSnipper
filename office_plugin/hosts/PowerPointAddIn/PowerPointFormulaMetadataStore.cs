@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.Text;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
@@ -14,7 +16,7 @@ public static class PowerPointFormulaMetadataStore
     public const string DisplayModeTag = "LaTeXSnipperDisplayMode";
     public const string SchemaVersionTag = "LaTeXSnipperSchemaVersion";
     public const string RenderEngineTag = "LaTeXSnipperRenderEngine";
-    public const string FontScaleTag = "LaTeXSnipperFontScale";
+    private const string TypographyPrefix = "LaTeXSnipperTypography";
     public const string NaturalWidthPointsTag = "LaTeXSnipperNaturalWidthPoints";
     public const string NaturalHeightPointsTag = "LaTeXSnipperNaturalHeightPoints";
     public const string ImagePathTag = "LaTeXSnipperImagePath";
@@ -53,10 +55,20 @@ public static class PowerPointFormulaMetadataStore
         shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
         shape.Tags.Add(SchemaVersionTag, metadata.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(RenderEngineTag, metadata.RenderEngine.ToString());
-        shape.Tags.Add(FontScaleTag, metadata.FontScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        WriteEncodedText(shape, new JavaScriptSerializer().Serialize(FormulaTypographyFields.Write(metadata.Typography)), TypographyPrefix);
     }
 
     public static FormulaMetadata LoadFromShape(dynamic shape)
+    {
+        try { return LoadFromShapeCore(shape); }
+        catch (Exception error) when (error is ArgumentException || error is FormatException
+            || error is InvalidCastException || error is KeyNotFoundException || error is NullReferenceException)
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaMetadataMissing"), error);
+        }
+    }
+
+    private static FormulaMetadata LoadFromShapeCore(dynamic shape)
     {
         string equationId = ReadRequiredTag(shape, EquationIdTag);
         int schemaVersion = ReadRequiredIntTag(shape, SchemaVersionTag);
@@ -73,10 +85,10 @@ public static class PowerPointFormulaMetadataStore
             string.Empty,
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
             FormulaMetadata.CurrentSchemaVersion,
-            ReadRequiredDoubleTag(shape, FontScaleTag));
+            FormulaTypographyFields.Read(new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(ReadEncodedText(shape, TypographyPrefix))));
     }
 
-    private static void WriteEncodedText(dynamic shape, string value)
+    private static void WriteEncodedText(dynamic shape, string value, string prefix = LatexChunkTagPrefix)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
         var encoded = new StringBuilder(bytes.Length * 2);
@@ -87,20 +99,20 @@ public static class PowerPointFormulaMetadataStore
 
         string payload = encoded.Length == 0 ? "0" : encoded.ToString();
         int chunkCount = (payload.Length + TagChunkLength - 1) / TagChunkLength;
-        shape.Tags.Add(LatexByteLengthTag, bytes.Length.ToString(CultureInfo.InvariantCulture));
-        shape.Tags.Add(LatexChunkCountTag, chunkCount.ToString(CultureInfo.InvariantCulture));
+        shape.Tags.Add(prefix + "Bytes", bytes.Length.ToString(CultureInfo.InvariantCulture));
+        shape.Tags.Add(prefix + "Chunks", chunkCount.ToString(CultureInfo.InvariantCulture));
         for (int index = 0; index < chunkCount; index++)
         {
             int start = index * TagChunkLength;
             int length = Math.Min(TagChunkLength, payload.Length - start);
-            shape.Tags.Add(BuildLatexChunkTag(index), payload.Substring(start, length));
+            shape.Tags.Add(BuildChunkTag(prefix, index), payload.Substring(start, length));
         }
     }
 
-    private static string ReadEncodedText(dynamic shape)
+    private static string ReadEncodedText(dynamic shape, string prefix = LatexChunkTagPrefix)
     {
-        int byteLength = ReadRequiredIntTag(shape, LatexByteLengthTag);
-        int chunkCount = ReadRequiredIntTag(shape, LatexChunkCountTag);
+        int byteLength = ReadRequiredIntTag(shape, prefix + "Bytes");
+        int chunkCount = ReadRequiredIntTag(shape, prefix + "Chunks");
         if (byteLength < 0 || chunkCount <= 0 || chunkCount > MaxLatexChunkCount)
         {
             throw MetadataMissing();
@@ -109,7 +121,7 @@ public static class PowerPointFormulaMetadataStore
         var encoded = new StringBuilder(chunkCount * TagChunkLength);
         for (int index = 0; index < chunkCount; index++)
         {
-            encoded.Append(ReadRequiredTag(shape, BuildLatexChunkTag(index)));
+            encoded.Append(ReadRequiredTag(shape, BuildChunkTag(prefix, index)));
         }
 
         if (byteLength == 0)
@@ -142,9 +154,9 @@ public static class PowerPointFormulaMetadataStore
         return Encoding.UTF8.GetString(bytes);
     }
 
-    private static string BuildLatexChunkTag(int index)
+    private static string BuildChunkTag(string prefix, int index)
     {
-        return LatexChunkTagPrefix + index.ToString("D4", CultureInfo.InvariantCulture);
+        return prefix + index.ToString("D4", CultureInfo.InvariantCulture);
     }
 
     private static string ReadRequiredTag(dynamic shape, string name)
@@ -167,21 +179,6 @@ public static class PowerPointFormulaMetadataStore
     private static int ReadRequiredIntTag(dynamic shape, string name)
     {
         if (int.TryParse(ReadRequiredTag(shape, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
-        {
-            return value;
-        }
-
-        throw MetadataMissing();
-    }
-
-    private static double ReadRequiredDoubleTag(dynamic shape, string name)
-    {
-        if (double.TryParse(
-                ReadRequiredTag(shape, name),
-                NumberStyles.Float,
-                CultureInfo.InvariantCulture,
-                out double value) &&
-            value > 0)
         {
             return value;
         }

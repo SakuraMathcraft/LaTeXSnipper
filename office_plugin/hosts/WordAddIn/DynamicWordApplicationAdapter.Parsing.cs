@@ -41,7 +41,9 @@ public sealed partial class DynamicWordApplicationAdapter
                         safe.Start + match.Offset + match.Length,
                         match.OriginalText,
                         match.Latex,
-                        match.DisplayMode));
+                        match.DisplayMode,
+                        ReadPointSize(CreateDocumentRange(safe.Start + match.Offset,
+                            safe.Start + match.Offset + match.Length).Font.Size)));
                 }
             }
         }
@@ -96,7 +98,6 @@ public sealed partial class DynamicWordApplicationAdapter
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             dynamic sourceRange = GetCurrentParsedSourceRange(candidate);
-            double fontSizePoints = ReadPointSize(sourceRange.Font.Size);
             ParsedFormulaTarget target = PrepareParsedFormulaTarget(
                 sourceRange,
                 candidate,
@@ -111,13 +112,9 @@ public sealed partial class DynamicWordApplicationAdapter
                 {
                     RemoveParsedInlineParagraphBreak(equationControl);
                 }
-                double naturalFontSize = ScaleFontSize(fontSizePoints, metadata.FontScale);
+                double naturalFontSize = metadata.Typography.FontSizePoints;
                 ApplyManagedEquationFontSize(equationControl, naturalFontSize);
                 ShowContentControlChrome((dynamic)equationControl);
-                WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                    CurrentDocument,
-                    metadata.Identity.EquationId,
-                    naturalFontSize);
                 ApplyManagedEquationStyle(equationControl, metadata);
                 if (metadata.DisplayMode == FormulaDisplayMode.Inline)
                 {

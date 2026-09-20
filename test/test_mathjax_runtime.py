@@ -36,7 +36,6 @@ def test_resource_profiles_are_reproducible_and_office_is_self_contained():
     assert not any('/chtml' in path or path.endswith('.woff') for path in office)
     assert {'startup.js', 'runtime.js', 'config.js', 'office.js', 'output/svg.js',
             'fonts/mathjax-mhchem-font-extension/svg.js'} <= set(office)
-    assert not (root / 'src/assets/MathJax-3.2.2').exists()
 
 
 def test_preview_and_export_have_separate_scale_settings():

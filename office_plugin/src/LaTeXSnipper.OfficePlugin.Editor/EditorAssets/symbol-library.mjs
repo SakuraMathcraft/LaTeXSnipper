@@ -1,13 +1,11 @@
 // Shared MathLive editor symbol library.
-const STRINGS = {
+export const STRINGS = {
   en: {
     acceptInsert: "Insert",
     acceptUpdate: "Update",
     cancel: "Cancel",
     ready: "Ready",
     latexRequired: "Enter a LaTeX formula first.",
-    rows: "Rows",
-    columns: "Columns",
     tabs: {
       greek: "Greek",
       structures: "Structures",
@@ -35,8 +33,6 @@ const STRINGS = {
     cancel: "取消",
     ready: "就绪",
     latexRequired: "请先输入 LaTeX 公式。",
-    rows: "行数",
-    columns: "列数",
     tabs: {
       greek: "希腊",
       structures: "结构",
@@ -60,19 +56,19 @@ const STRINGS = {
   },
 };
 
-const GROUPS = [
+export const GROUPS = [
   {
     id: "greek",
     items: [
-      ["α", "\\alpha"], ["β", "\\beta"], ["γ", "\\gamma"], ["δ", "\\delta"],
-      ["ε", "\\epsilon"], ["θ", "\\theta"], ["λ", "\\lambda"], ["μ", "\\mu"],
-      ["π", "\\pi"], ["σ", "\\sigma"], ["φ", "\\phi"], ["ω", "\\omega"],
-      ["ρ", "\\rho"], ["τ", "\\tau"], ["κ", "\\kappa"], ["ν", "\\nu"],
-      ["ξ", "\\xi"], ["η", "\\eta"], ["ζ", "\\zeta"], ["χ", "\\chi"],
-      ["ψ", "\\psi"], ["ι", "\\iota"], ["υ", "\\upsilon"], ["ο", "\\omicron"],
-      ["Γ", "\\Gamma"], ["Δ", "\\Delta"], ["Θ", "\\Theta"], ["Λ", "\\Lambda"],
-      ["Ξ", "\\Xi"], ["Π", "\\Pi"], ["Σ", "\\Sigma"], ["Υ", "\\Upsilon"],
-      ["Φ", "\\Phi"], ["Ψ", "\\Psi"], ["Ω", "\\Omega"], ["ϑ", "\\vartheta"],
+      ["α", "\\alpha", "alpha", "阿尔法"], ["β", "\\beta", "beta", "贝塔"], ["γ", "\\gamma", "gamma", "伽马"], ["δ", "\\delta", "delta", "德尔塔"],
+      ["ε", "\\epsilon", "epsilon", "艾普西隆"], ["θ", "\\theta", "theta", "西塔"], ["λ", "\\lambda", "lambda", "兰姆达"], ["μ", "\\mu", "mu", "缪"],
+      ["π", "\\pi", "pi", "派 圆周率"], ["σ", "\\sigma", "sigma", "西格玛"], ["φ", "\\phi", "phi", "斐"], ["ω", "\\omega", "omega", "欧米伽"],
+      ["ρ", "\\rho", "rho", "柔"], ["τ", "\\tau", "tau", "陶"], ["κ", "\\kappa", "kappa", "卡帕"], ["ν", "\\nu", "nu", "纽"],
+      ["ξ", "\\xi", "xi", "克西"], ["η", "\\eta", "eta", "伊塔"], ["ζ", "\\zeta", "zeta", "泽塔"], ["χ", "\\chi", "chi", "希"],
+      ["ψ", "\\psi", "psi", "普西"], ["ι", "\\iota", "iota", "约塔"], ["υ", "\\upsilon", "upsilon", "宇普西隆"], ["ο", "\\omicron", "omicron", "奥密克戎"],
+      ["Γ", "\\Gamma", "Gamma", "伽马"], ["Δ", "\\Delta", "Delta", "德尔塔"], ["Θ", "\\Theta", "Theta", "西塔"], ["Λ", "\\Lambda", "Lambda", "兰姆达"],
+      ["Ξ", "\\Xi", "Xi", "克西"], ["Π", "\\Pi", "Pi", "派 圆周率"], ["Σ", "\\Sigma", "Sigma", "西格玛"], ["Υ", "\\Upsilon", "Upsilon", "宇普西隆"],
+      ["Φ", "\\Phi", "Phi", "斐"], ["Ψ", "\\Psi", "Psi", "普西"], ["Ω", "\\Omega", "Omega", "欧米伽"], ["ϑ", "\\vartheta"],
       ["ϕ", "\\varphi"], ["ϵ", "\\varepsilon"], ["ϰ", "\\varkappa"], ["ϖ", "\\varpi"],
       ["ϱ", "\\varrho"], ["ς", "\\varsigma"], ["ϝ", "\\digamma"], ["ϴ", "\\varTheta"],
       ["∆", "\\varDelta"],
@@ -84,10 +80,10 @@ const GROUPS = [
     id: "structures",
     structures: true,
     items: [
-      ["分数", "\\frac{#?}{#?}", "Fraction"],
-      ["上标", "^{#?}", "Superscript"],
-      ["下标", "_{#?}", "Subscript"],
-      ["上下标", "_{#?}^{#?}", "Subscript and superscript"],
+      ["分数", "\\frac{#0}{#?}", "Fraction"],
+      ["上标", "{#0}^{#?}", "Superscript"],
+      ["下标", "{#0}_{#?}", "Subscript"],
+      ["上下标", "{#0}_{#?}^{#?}", "Subscript and superscript"],
       ["上置", "\\overset{#?}{#@}", "Overset"],
       ["下置", "\\underset{#?}{#@}", "Underset"],
       ["向量", "\\vec{#@}", "Vector accent"],
@@ -109,6 +105,7 @@ const GROUPS = [
       ["划除", "\\cancel{#@}", "Cancel"],
       ["删除线", "\\enclose{horizontalstrike}{#@}", "Strikethrough"],
       ["根号", "\\sqrt{#@}", "Square root"],
+      ["文本", "\\text{#0}", "Text"],
       ["n 次根", "\\sqrt[#?]{#@}", "Nth root"],
       ["求和", "\\sum_{#?}^{#?} #?", "Summation"],
       ["积分", "\\int_{#?}^{#?} #?\\,d#?", "Integral"],
@@ -2082,4 +2079,4 @@ const GROUPS = [
   },
 ];
 
-window.LaTeXSnipperEditorSymbols = { STRINGS, GROUPS };
+

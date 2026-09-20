@@ -1,11 +1,5 @@
 // Office input normalization. Desktop exports intentionally do not use this adapter.
 globalThis.LaTeXSnipperOfficeMath = {
-  convert(input) {
-    const source = String(input.latex || '');
-    const isMathMl = /^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(source.trim());
-    return LaTeXSnipperMathJax.convert({...input,
-      latex: isMathMl ? source : this.preprocessTexSource(source)});
-  },
   readGroup: function(source, start) {
     if (source[start] !== '{') {
       return null;

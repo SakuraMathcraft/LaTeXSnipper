@@ -17,10 +17,8 @@ public sealed class WordPluginSettings
     private const string NumberSeparatorValue = "NumberSeparator";
     private const string FormulaColorValue = "FormulaColor";
     private const string UseSystemFormulaColorValue = "UseSystemFormulaColor";
-    private const string FormulaFontStyleValue = "FormulaFontStyle";
-    private const string FormulaFontScaleValue = "FormulaFontScale";
-    private const double MinimumFormulaFontScale = 1.0;
-    private const double MaximumFormulaFontScale = 1.5;
+    private const string FormulaMathStyleValue = "FormulaMathStyle";
+    private const string FormulaFontSizePointsValue = "FormulaFontSizePoints";
 
     public WordPluginSettings(
         WordNumberPlacement numberPlacement,
@@ -33,11 +31,12 @@ public sealed class WordPluginSettings
         string numberSeparator,
         string formulaColor,
         bool useSystemFormulaColor,
-        FormulaFontStyle formulaFontStyle,
-        double formulaFontScale)
+        FormulaMathStyle formulaMathStyle,
+        double formulaFontSizePoints, bool followHostFontSize = false)
     {
         NumberPlacement = numberPlacement;
         InsertionBackend = insertionBackend;
+        FollowHostFontSize = followHostFontSize;
         NumberEnclosure = numberEnclosure;
         IncludeChapter = includeChapter;
         IncludeSection = includeSection;
@@ -48,8 +47,9 @@ public sealed class WordPluginSettings
         FormulaColor = useSystemFormulaColor
             ? WordFormulaColorDefaults.Current
             : string.IsNullOrWhiteSpace(formulaColor) ? WordFormulaColorDefaults.Current : formulaColor;
-        FormulaFontStyle = formulaFontStyle;
-        FormulaFontScale = ClampFormulaFontScale(formulaFontScale);
+        FormulaTypography defaults = FormulaTypography.Default;
+        Typography = new FormulaTypography(defaults.SymbolFontId, defaults.NumberFontFamily, defaults.CjkFontFamily,
+            formulaMathStyle, formulaFontSizePoints, FormulaColor);
     }
 
     public WordNumberPlacement NumberPlacement { get; }
@@ -72,9 +72,15 @@ public sealed class WordPluginSettings
 
     public bool UseSystemFormulaColor { get; }
 
-    public FormulaFontStyle FormulaFontStyle { get; }
+    public FormulaMathStyle FormulaMathStyle => Typography.DefaultMathStyle;
 
-    public double FormulaFontScale { get; }
+    public double FormulaFontSizePoints => Typography.FontSizePoints;
+
+    public bool FollowHostFontSize { get; }
+
+    public FormulaTypographyDefaults TypographyDefaults => new FormulaTypographyDefaults(Typography, FollowHostFontSize);
+
+    public FormulaTypography Typography { get; }
 
     public static WordPluginSettings Load()
     {
@@ -95,8 +101,9 @@ public sealed class WordPluginSettings
             key?.GetValue(NumberSeparatorValue) as string ?? "-",
             key?.GetValue(FormulaColorValue) as string ?? WordFormulaColorDefaults.Current,
             ReadBoolean(key, UseSystemFormulaColorValue, defaultValue: true),
-            ReadEnum(key, FormulaFontStyleValue, FormulaFontStyle.TeX),
-            ReadDouble(key, FormulaFontScaleValue, defaultValue: 1));
+            ReadEnum(key, FormulaMathStyleValue, FormulaMathStyle.Automatic),
+            ReadDouble(key, FormulaFontSizePointsValue, defaultValue: 12),
+            ReadBoolean(key, "WordFollowHostFontSize"));
     }
 
     public void Save()
@@ -104,6 +111,7 @@ public sealed class WordPluginSettings
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath)
             ?? throw new InvalidOperationException("无法打开 LaTeXSnipper Office 插件设置。");
         key.SetValue(NumberPlacementValue, NumberPlacement.ToString(), RegistryValueKind.String);
+        key.SetValue("WordFollowHostFontSize", FollowHostFontSize ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
         key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);
         key.SetValue(IncludeChapterValue, IncludeChapter ? 1 : 0, RegistryValueKind.DWord);
@@ -113,10 +121,10 @@ public sealed class WordPluginSettings
         key.SetValue(NumberSeparatorValue, NumberSeparator, RegistryValueKind.String);
         key.SetValue(FormulaColorValue, FormulaColor, RegistryValueKind.String);
         key.SetValue(UseSystemFormulaColorValue, UseSystemFormulaColor ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(FormulaFontStyleValue, FormulaFontStyle.ToString(), RegistryValueKind.String);
+        key.SetValue(FormulaMathStyleValue, FormulaMathStyle.ToString(), RegistryValueKind.String);
         key.SetValue(
-            FormulaFontScaleValue,
-            FormulaFontScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            FormulaFontSizePointsValue,
+            FormulaFontSizePoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
             RegistryValueKind.String);
     }
 
@@ -144,16 +152,6 @@ public sealed class WordPluginSettings
                 out double parsed)
             ? parsed
             : defaultValue;
-    }
-
-    private static double ClampFormulaFontScale(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            return MinimumFormulaFontScale;
-        }
-
-        return Math.Max(MinimumFormulaFontScale, Math.Min(MaximumFormulaFontScale, value));
     }
 
     private static string NormalizeNumberSeparator(string value)

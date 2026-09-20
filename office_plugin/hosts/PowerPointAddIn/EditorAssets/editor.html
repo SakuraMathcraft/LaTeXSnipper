@@ -4,30 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaTeXSnipper</title>
-  <link rel="stylesheet" href="./editor.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/editor.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/source-editor.css">
 </head>
 <body>
-  <main class="shell">
-    <section class="workspace">
-      <div id="mathfieldHost" class="mathfield-host"></div>
-      <div id="sourceResizeHandle" class="source-resize-handle" role="separator" aria-orientation="horizontal" aria-controls="latexSource" aria-label="Resize LaTeX source pane" aria-valuemin="118" aria-valuenow="118" tabindex="0"></div>
-      <textarea id="latexSource" spellcheck="false" aria-label="LaTeX source"></textarea>
-    </section>
-    <aside class="library">
-      <div class="library-search"><input type="text" id="globalSearch" class="global-search" placeholder="全局搜索符号或 LaTeX..."></div>
-      <div class="library-tabs" id="libraryTabs"></div>
-      <div class="library-title"><span id="libraryTitleText"></span><input type="text" id="symbolSearch" class="symbol-search" placeholder="搜索符号或 LaTeX..."></div>
-      <div class="symbol-grid" id="symbolGrid"></div>
-    </aside>
-  </main>
-  <footer class="footer">
-    <span class="status" id="statusText"></span>
-    <button type="button" id="cancelButton"></button>
-    <button type="button" id="acceptButton"></button>
-  </footer>
-  <script src="https://latexsnipper-editor-shared.officeplugin.local/symbol-library.js"></script>
-  <script src="https://latexsnipper-editor-shared.officeplugin.local/matrix-templates.js"></script>
-  <script src="https://latexsnipper-editor-shared.officeplugin.local/mathfield-input.js"></script>
   <script type="module" src="https://latexsnipper-editor-shared.officeplugin.local/editor.js"></script>
 </body>
 </html>

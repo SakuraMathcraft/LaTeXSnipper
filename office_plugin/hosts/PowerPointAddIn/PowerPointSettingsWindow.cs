@@ -119,8 +119,9 @@ internal sealed class PowerPointSettingsWindow : Form
             ["platform"] = "powerpoint",
             ["insertionBackend"] = settings.InsertionBackend.ToString(),
             ["formulaColor"] = settings.FormulaColor,
-            ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
-            ["formulaFontScale"] = settings.FormulaFontScale,
+            ["formulaMathStyle"] = settings.FormulaMathStyle.ToString(),
+            ["formulaFontSizePoints"] = settings.FormulaFontSizePoints,
+            ["followHostFontSize"] = settings.FollowHostFontSize,
         });
         string script =
             "(function(payload){" +
@@ -159,21 +160,22 @@ internal sealed class PowerPointSettingsWindow : Form
         string formulaColor = message.TryGetValue("formulaColor", out object rawColor)
             ? Convert.ToString(rawColor, CultureInfo.InvariantCulture) ?? "#000000"
             : "#000000";
-        string fontStyleText = message.TryGetValue("formulaFontStyle", out object rawStyle)
-            ? Convert.ToString(rawStyle, CultureInfo.InvariantCulture) ?? FormulaFontStyle.TeX.ToString()
-            : FormulaFontStyle.TeX.ToString();
-        FormulaFontStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaFontStyle parsedStyle)
+        string fontStyleText = message.TryGetValue("formulaMathStyle", out object rawStyle)
+            ? Convert.ToString(rawStyle, CultureInfo.InvariantCulture) ?? FormulaMathStyle.Automatic.ToString()
+            : FormulaMathStyle.Automatic.ToString();
+        FormulaMathStyle fontStyle = Enum.TryParse(fontStyleText, out FormulaMathStyle parsedStyle)
             ? parsedStyle
-            : FormulaFontStyle.TeX;
-        double formulaFontScale = message.TryGetValue("formulaFontScale", out object rawScale) &&
+            : FormulaMathStyle.Automatic;
+        double formulaFontSizePoints = message.TryGetValue("formulaFontSizePoints", out object rawScale) &&
             double.TryParse(
                 Convert.ToString(rawScale, CultureInfo.InvariantCulture),
                 NumberStyles.Float,
                 CultureInfo.InvariantCulture,
                 out double parsedScale)
             ? parsedScale
-            : 1;
-        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle, formulaFontScale).Save();
+            : 12;
+        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle, formulaFontSizePoints,
+            message.TryGetValue("followHostFontSize", out object follow) && Convert.ToBoolean(follow)).Save();
         _ = SendSettingsAsync();
     }
 

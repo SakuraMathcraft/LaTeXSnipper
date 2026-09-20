@@ -43,12 +43,15 @@
 & E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
 & E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 tools/mathjax/smoke_qt.py --cdn
 dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke
+dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke -- --typography
 dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests
 ```
 
 真实浏览器测试需允许 WebEngine/WebView2 子进程；`--cdn` 还需网络。单独运行 Qt 验证时省略此参数即可只验证离线链路。
 
-本次未制作或安装正式发行包，未做真实 Word/PowerPoint 文档插入和跨平台运行测试。字体语义差异（包括 `\mathrm{\delta}`）、字号和预设属于第二阶段，升级成功不等于这些问题已经修复。公式协议仍为当前 schema 2，第二阶段才按方案统一更换。
+`--typography` 直接回归共享字体渲染服务，要求 Windows 已安装 Times New Roman、宋体、微软雅黑及 Office 的 MathML→OMML 转换资源。它在真实 WebView2 中验证两套数学字体、局部样式、混排与布局，检查 SVG / EMF 轮廓、不同 DPI 的 PNG、缓存和 OMML 属性映射；当前 61 组矢量样例与 122 个 PNG 通过。支持范围与下一阶段边界见[重构方案第 11.6 节](../../docs/office_plugin_typography_refactor.md#116-第-3-步实施记录2026-09-13)。
+
+以上第一阶段记录仅对应运行时升级。后续插件字体重构已接入 schema 3、统一字体渲染和绝对字号；当前实现、宿主验证结果与剩余验收项以[重构方案第 11 节](../../docs/office_plugin_typography_refactor.md#11-按顺序落地与验收)为准。正式发行包与安装验收另行执行。
 
 ## tools 目录的用途
 

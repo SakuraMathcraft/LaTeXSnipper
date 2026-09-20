@@ -7,9 +7,16 @@ using LaTeXSnipper.OfficePlugin.Rendering;
 
 internal static class Program
 {
-    private static int Main()
+    private static int Main(string[] args)
     {
-        try { RunAsync().GetAwaiter().GetResult(); return 0; }
+        try
+        {
+            if (args.Length == 1 && args[0] == "--typography")
+                TypographySmoke.RunAsync().GetAwaiter().GetResult();
+            else
+                RunAsync().GetAwaiter().GetResult();
+            return 0;
+        }
         catch (Exception error)
         {
             Console.Error.WriteLine(error.GetType().FullName + ": " + error.Message);
@@ -32,7 +39,7 @@ internal static class Program
         };
         foreach (string source in sources)
         {
-            var request = new RenderRequest(source, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg);
+            var request = new RenderRequest(source, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg, FormulaTypography.Default);
             RenderResult svg = await renderer.RenderAsync(request, CancellationToken.None);
             string svgText = Encoding.UTF8.GetString(svg.Payload);
             if (!svgText.StartsWith("<svg", StringComparison.Ordinal) || svgText.Contains("data-mjx-error"))
@@ -42,7 +49,7 @@ internal static class Program
             if (emf.Payload.Length == 0 || emf.WidthPoints <= 0 || emf.HeightPoints <= 0
                 || emf.RendererVersion != svg.RendererVersion)
                 throw new InvalidOperationException("Invalid EMF: " + source);
-            string mathml = await renderer.ConvertToMathMlAsync(source, FormulaDisplayMode.Display, CancellationToken.None);
+            string mathml = await renderer.ConvertTypographyToMathMlAsync(source, FormulaDisplayMode.Display, FormulaTypography.Default, CancellationToken.None);
             if (!mathml.StartsWith("<math", StringComparison.Ordinal) || mathml.Contains("<merror"))
                 throw new InvalidOperationException("Invalid MathML: " + source);
             if (!ReferenceEquals(svg, await renderer.RenderAsync(request, CancellationToken.None)))

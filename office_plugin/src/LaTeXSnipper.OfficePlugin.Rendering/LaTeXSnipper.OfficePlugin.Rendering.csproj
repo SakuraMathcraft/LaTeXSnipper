@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <EmbeddedResource Include="MathJaxTypographyAdapter.js" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">

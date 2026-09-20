@@ -19,6 +19,9 @@ public static class OleFormulaPayloadJson
             throw new ArgumentNullException(nameof(presentation));
         }
 
+        if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
+            throw new InvalidOperationException("不支持的公式协议版本。");
+
         var dto = new Dictionary<string, object?>
         {
             ["schemaVersion"] = FormulaMetadata.CurrentSchemaVersion,
@@ -26,7 +29,6 @@ public static class OleFormulaPayloadJson
             ["displayMode"] = metadata.DisplayMode.ToString(),
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
-            ["fontScale"] = metadata.FontScale.ToString(CultureInfo.InvariantCulture),
             ["renderEngine"] = RenderEngineKind.MathJaxSvg.ToString(),
             ["rendererVersion"] = presentation.RendererVersion,
             ["widthPoints"] = presentation.WidthPoints.ToString(CultureInfo.InvariantCulture),
@@ -36,6 +38,7 @@ public static class OleFormulaPayloadJson
             ["presentationMimeType"] = presentation.MimeType,
             ["presentationPayloadBase64"] = Convert.ToBase64String(presentation.Payload)
         };
+        foreach (var field in FormulaTypographyFields.Write(metadata.Typography)) dto.Add(field.Key, field.Value);
         var builder = new StringBuilder();
         builder.Append('{');
         bool first = true;

@@ -5,7 +5,7 @@ namespace LaTeXSnipper.OfficePlugin.Abstractions;
 /// </summary>
 public sealed class FormulaMetadata
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public FormulaMetadata(
         FormulaIdentity identity,
@@ -15,7 +15,7 @@ public sealed class FormulaMetadata
         string numberText,
         RenderEngineKind renderEngine,
         int schemaVersion,
-        double fontScale = 1)
+        FormulaTypography? typography = null)
     {
         Identity = identity;
         Latex = latex ?? string.Empty;
@@ -24,7 +24,7 @@ public sealed class FormulaMetadata
         NumberText = numberText ?? string.Empty;
         RenderEngine = renderEngine;
         SchemaVersion = schemaVersion;
-        FontScale = fontScale > 0 ? fontScale : 1;
+        Typography = typography ?? FormulaTypography.Default;
     }
 
     public FormulaIdentity Identity { get; }
@@ -41,5 +41,5 @@ public sealed class FormulaMetadata
 
     public int SchemaVersion { get; }
 
-    public double FontScale { get; }
+    public FormulaTypography Typography { get; }
 }

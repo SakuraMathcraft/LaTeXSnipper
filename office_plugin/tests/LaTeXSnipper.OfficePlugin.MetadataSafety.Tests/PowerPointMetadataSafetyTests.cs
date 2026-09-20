@@ -9,11 +9,11 @@ namespace LaTeXSnipper.OfficePlugin.MetadataSafety.Tests;
 public sealed class PowerPointMetadataSafetyTests
 {
     [TestMethod]
-    public void Schema2RoundTripPreservesLongUnicodeMetadataAndNaturalSize()
+    public void Schema3RoundTripPreservesLongUnicodeMetadataAndNaturalSize()
     {
         var shape = new FakePowerPointShape();
         string latex = string.Concat(new string('数', 300), @"\frac{\partial f}{\partial x_i}");
-        FormulaMetadata expected = CreateMetadata("presentation", "ppt-schema2", latex);
+        FormulaMetadata expected = CreateMetadata("presentation", "ppt-schema3", latex);
 
         PowerPointFormulaMetadataStore.ApplyToShape(shape, expected, 120, 40);
         FormulaMetadata actual =
@@ -38,7 +38,7 @@ public sealed class PowerPointMetadataSafetyTests
     }
 
     [TestMethod]
-    public void Schema2CopiedToAnotherPresentationRetainsSourceIdentityForReconciliation()
+    public void Schema3CopiedToAnotherPresentationRetainsSourceIdentityForReconciliation()
     {
         var shape = new FakePowerPointShape();
         FormulaMetadata expected = CreateMetadata("source-presentation", "copied-equation", "x");
@@ -101,6 +101,6 @@ public sealed class PowerPointMetadataSafetyTests
             string.Empty,
             RenderEngineKind.Image,
             schemaVersion,
-            1.35);
+            new FormulaTypography("mathjax-stix2", "Times New Roman", "宋体", FormulaMathStyle.BoldItalic, 15.5, "#123ABC"));
     }
 }

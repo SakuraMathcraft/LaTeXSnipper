@@ -47,10 +47,13 @@ internal sealed class WordParsingE2ERunner
                 ?? throw new InvalidOperationException("Microsoft Word is not installed.");
             word = Activator.CreateInstance(wordType)
                 ?? throw new InvalidOperationException("Microsoft Word could not be started.");
+            Console.WriteLine("STAGE|Word started");
             word.Visible = false;
             word.DisplayAlerts = 0;
             document = word.Documents.Add();
+            Console.WriteLine("STAGE|Document created");
             WordParsingFixtureBuilder.Build(document, _options.Backend);
+            Console.WriteLine("STAGE|Fixture created");
 
             var adapter = new DynamicWordApplicationAdapter(word);
             IReadOnlyList<WordLatexParseCandidate> initialCandidates =
@@ -98,6 +101,17 @@ internal sealed class WordParsingE2ERunner
                 formulaCountAfterRetry,
                 "Retry changed the managed formula count");
 
+            var sources = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None).ConfigureAwait(true))
+                .ToDictionary(entry => entry.Metadata!.Identity.EquationId, entry => entry.Metadata!.Latex);
+            settings = CreateSettings(_options.Backend, FormulaMathStyle.BoldItalic, 15.5);
+            await controller.FormatAllAsync(CancellationToken.None).ConfigureAwait(true);
+            await VerifyTypographyAsync(adapter, settings.Typography, sources).ConfigureAwait(true);
+
+            if (_options.Backend == FormulaInsertionBackend.Ole)
+            {
+                await WordOleRoundTrip.VerifyAsync((object)document, adapter, controller, sources).ConfigureAwait(true);
+            }
+
             if (File.Exists(_options.OutputPath))
             {
                 File.Delete(_options.OutputPath);
@@ -114,6 +128,7 @@ internal sealed class WordParsingE2ERunner
             document = null;
             document = word.Documents.Open(_options.OutputPath, false, true);
             await VerifyFinalDocumentAsync(document, adapter).ConfigureAwait(true);
+            await VerifyTypographyAsync(adapter, settings.Typography, sources).ConfigureAwait(true);
 
             Console.WriteLine("PASS|BACKEND=" + _options.Backend);
             Console.WriteLine("DOCX|" + _options.OutputPath);
@@ -142,7 +157,8 @@ internal sealed class WordParsingE2ERunner
         }
     }
 
-    private static WordPluginSettings CreateSettings(FormulaInsertionBackend backend)
+    private static WordPluginSettings CreateSettings(FormulaInsertionBackend backend,
+        FormulaMathStyle style = FormulaMathStyle.Automatic, double points = 12)
     {
         return new WordPluginSettings(
             WordNumberPlacement.Right,
@@ -155,8 +171,21 @@ internal sealed class WordParsingE2ERunner
             numberSeparator: "-",
             formulaColor: "#000000",
             useSystemFormulaColor: false,
-            FormulaFontStyle.TeX,
-            formulaFontScale: 1);
+            style,
+            formulaFontSizePoints: points);
+    }
+
+    private static async Task VerifyTypographyAsync(DynamicWordApplicationAdapter adapter,
+        FormulaTypography expected, IReadOnlyDictionary<string, string> sources)
+    {
+        var entries = await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None).ConfigureAwait(true);
+        E2EAssert.Equal(sources.Count, entries.Count, "Formatting changed the formula count");
+        foreach (var entry in entries)
+        {
+            FormulaMetadata metadata = entry.Metadata!;
+            E2EAssert.Equal(expected, metadata.Typography, "Typography snapshot");
+            E2EAssert.Equal(sources[metadata.Identity.EquationId], metadata.Latex, "Formatting changed formula source");
+        }
     }
 
     private async Task VerifyFinalDocumentAsync(
@@ -299,6 +328,6 @@ internal sealed class WordParsingE2ERunner
     {
         dynamic application = document.Application;
         application.Selection.SetRange(document.Content.Start, document.Content.End);
-        return await adapter.LoadSelectedFormulaEntriesAsync(CancellationToken.None).ConfigureAwait(true);
+        return await adapter.LoadFormulaEntriesAsync(false, CancellationToken.None).ConfigureAwait(true);
     }
 }

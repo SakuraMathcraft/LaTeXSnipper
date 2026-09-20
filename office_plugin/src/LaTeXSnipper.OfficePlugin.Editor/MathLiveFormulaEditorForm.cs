@@ -200,7 +200,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
         _initializing = true;
         string assetsRoot = MathLiveAssetResolver.FindAssetRoot(_options, "editor.html");
-        string sharedAssetsRoot = MathLiveAssetResolver.FindSharedAssetRoot(_options, "symbol-library.js");
+        string sharedAssetsRoot = MathLiveAssetResolver.FindSharedAssetRoot(_options, "editor.js");
         string userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LaTeXSnipper",

@@ -15,6 +15,6 @@ internal static class MetadataAssert
         Assert.AreEqual(expected.NumberText, actual.NumberText);
         Assert.AreEqual(expected.RenderEngine, actual.RenderEngine);
         Assert.AreEqual(expected.SchemaVersion, actual.SchemaVersion);
-        Assert.AreEqual(expected.FontScale, actual.FontScale, 0.000001);
+        Assert.AreEqual(expected.Typography, actual.Typography);
     }
 }

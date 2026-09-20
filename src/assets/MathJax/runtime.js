@@ -12,6 +12,7 @@
       const root = settings.root.replace(/\/$/, '');
       const remote = /^https?:/.test(root) && !settings.localFonts;
       const output = settings.output || 'chtml';
+      const font = settings.font || config.defaultFont;
       const fontRoot = remote
         ? (root.includes('/npm/') ? root.split('/npm/')[0] + '/npm/@mathjax' : new URL(root).origin + '/@mathjax')
         : root + '/fonts';
@@ -21,14 +22,18 @@
       global.MathJax = {
         loader: {
           paths: {mathjax: root, fonts: fontRoot,
+            [font]: fontRoot + '/' + font + '-font' + fontVersion,
             'mathjax-mhchem-extension': fontRoot + '/mathjax-mhchem-font-extension' + fontVersion},
+          dependencies: {
+            ['[mathjax-mhchem-extension]/' + output]: ['[' + font + ']/' + output]
+          },
           load: ['core', 'input/tex', 'input/mml', 'output/' + output,
             ...config.extensions.filter(name => !['configmacros', 'textmacros'].includes(name))
               .map(name => '[tex]/' + name)],
           failed(error) { api.error = String(error.message || error); }
         },
         output: {
-          font: settings.font || config.defaultFont,
+          font,
           fontPath: '[fonts]/%%FONT%%-font' + fontVersion,
           scale: settings.scale || 1
         },
@@ -70,8 +75,9 @@
     convert(input) {
       const run = async () => {
         await MathJax.startup.promise;
-        const source = String(input.latex || '');
-        const isMathMl = /^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(source.trim());
+        let source = String(input.latex || '');
+        const isMathMl = api.isMathMl(source);
+        if (isMathMl) source = api.mathMlElement(source);
         const display = input.displayMode !== 'Inline';
         const outputs = input.outputs || ['svg', 'mathml'];
         const result = {version: MathJax.version};
@@ -93,7 +99,17 @@
         }
         return result;
       };
-      const pending = queue.then(run);
+      return api.enqueue(run);
+    },
+    isMathMl(source) {
+      return /^(<\?xml[\s\S]*?\?>\s*)?<([a-z_][\w.-]*:)?math(\s|>)/i.test(String(source).trim());
+    },
+    mathMlElement(source) {
+      // MathJax's HTML adaptor expects one element, not an XML processing instruction.
+      return String(source).trim().replace(/^<\?xml[\s\S]*?\?>\s*/i, '');
+    },
+    enqueue(operation) {
+      const pending = queue.then(operation);
       queue = pending.catch(() => {});
       return pending;
     },

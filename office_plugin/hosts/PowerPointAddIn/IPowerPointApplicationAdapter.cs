@@ -9,6 +9,8 @@ public interface IPowerPointApplicationAdapter
 {
     string GetCurrentDocumentId();
 
+    double GetCurrentFontSizePoints();
+
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
     Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);
@@ -25,11 +27,10 @@ public interface IPowerPointApplicationAdapter
 
     Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<PowerPointFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken);
 
     bool ContainsFormula(string equationId);
 
-    Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken);
 
     Task DeleteFormulaByIdAsync(string equationId, CancellationToken cancellationToken);
 
