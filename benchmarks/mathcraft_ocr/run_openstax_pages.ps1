@@ -1,6 +1,6 @@
 param(
-    [string]$RepoRoot = "E:\LaTexSnipper",
-    [string]$DataRoot = "E:\MathCraftBenchData",
+    [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
+    [string]$DataRoot = (Join-Path (Split-Path $RepoRoot -Parent) "MathCraftBenchData"),
     [ValidateSet("gpu", "cpu", "auto")]
     [string]$Provider = "gpu",
     [string]$Pages = "calculus_v1:40-89+120-169,college_algebra:60-109+180-229",

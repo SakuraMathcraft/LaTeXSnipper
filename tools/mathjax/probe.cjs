@@ -21,8 +21,12 @@ require(root + '/startup.js');
 (async () => {
   await MathJax.startup.promise;
   const inputs = JSON.parse(fs.readFileSync(0, 'utf8'));
-  const results = await Promise.all(inputs.map(input =>
-    (input.officeInput ? LaTeXSnipperOfficeMath : api).convert(input)));
+  const results = await Promise.all(inputs.map(input => {
+    const latex = input.officeInput && !api.isMathMl(input.latex)
+      ? LaTeXSnipperOfficeMath.preprocessTexSource(input.latex)
+      : input.latex;
+    return api.convert({...input, latex});
+  }));
   if (api.error) throw new Error(api.error);
   process.stdout.write(JSON.stringify({results, loaded}));
 })().catch(error => { console.error(error); process.exit(1); });

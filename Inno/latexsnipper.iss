@@ -8,7 +8,7 @@
 #if GetEnv("LATEXSNIPPER_REPO_ROOT") != ""
 #define MyRepoRoot GetEnv("LATEXSNIPPER_REPO_ROOT")
 #else
-#define MyRepoRoot "E:\LaTexSnipper"
+#define MyRepoRoot AddBackslash(SourcePath) + ".."
 #endif
 #define MyBuildDir MyRepoRoot + "\dist\LaTeXSnipper"
 #define MyOutputDir MyRepoRoot + "\dist\installer"

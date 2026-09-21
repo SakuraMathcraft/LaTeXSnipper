@@ -21,8 +21,8 @@
 从 npm 获取清单指定的四个精确版本包（`mathjax`、`@mathjax/mathjax-tex-font`、`@mathjax/mathjax-stix2-font`、`@mathjax/mathjax-mhchem-font-extension`，均为 4.1.3），将 `.tgz` 放入临时目录，然后执行：
 
 ```powershell
-& E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 E:\LaTexSnipper\tools\mathjax\prepare.py --archives <压缩包目录>
-& E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 E:\LaTexSnipper\tools\mathjax\prepare.py --verify
+& .\tools\deps\python311\python.exe -X utf8 .\tools\mathjax\prepare.py --archives <压缩包目录>
+& .\tools\deps\python311\python.exe -X utf8 .\tools\mathjax\prepare.py --verify
 ```
 
 升级时修改清单及完整性校验值，再重建生成文件。验证会拒绝清单漂移、被修改的上游文件和多余资源；有意移除的旧资源须同步删除，不保留版本回退目录。Git 属性保留上游文件和生成清单的字节，避免 Windows 换行转换破坏校验。
@@ -40,8 +40,8 @@
 复验入口：
 
 ```powershell
-& E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
-& E:\LaTexSnipper\tools\deps\python311\python.exe -X utf8 tools/mathjax/smoke_qt.py --cdn
+& .\tools\deps\python311\python.exe -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
+& .\tools\deps\python311\python.exe -X utf8 tools/mathjax/smoke_qt.py --cdn
 dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke
 dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke -- --typography
 dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests

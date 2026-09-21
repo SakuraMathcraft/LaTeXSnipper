@@ -198,7 +198,7 @@ The actual provider is available on recognition results through the `provider` f
 Run tests from the repository root:
 
 ```powershell
-cd E:\LaTexSnipper
+# Run from the repository root
 python .\test\test_mathcraft_ocr.py
 python .\test\test_mathcraft_document_engine.py
 ```
@@ -206,7 +206,7 @@ python .\test\test_mathcraft_document_engine.py
 Build package artifacts:
 
 ```powershell
-cd E:\LaTexSnipper
+# Run from the repository root
 python -m build --no-isolation --outdir .\release_assets\mathcraft-ocr-package\dist .
 ```
 

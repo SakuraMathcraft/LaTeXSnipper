@@ -1,6 +1,6 @@
 param(
-    [string]$RepoRoot = "E:\LaTexSnipper",
-    [string]$DataRoot = "E:\MathCraftBenchData",
+    [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
+    [string]$DataRoot = (Join-Path (Split-Path $RepoRoot -Parent) "MathCraftBenchData"),
     [ValidateSet("gpu")]
     [string]$Provider = "gpu",
     [int]$ShardSize = 100,

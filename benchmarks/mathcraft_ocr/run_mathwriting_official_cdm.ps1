@@ -1,10 +1,11 @@
 param(
-    [string]$RepoRoot = "E:\LaTexSnipper",
-    [string]$DataRoot = "E:\MathCraftBenchData",
-    [string]$CdmDir = "E:\MathCraftBenchData\sources\UniMERNet_official\cdm",
-    [string]$Python = "D:\Python312\python.exe",
-    [string]$InputPath = "E:\MathCraftBenchData\runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json",
-    [string]$OutputDir = "E:\MathCraftBenchData\runs\cdm_official_mathwriting_test",
+    [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
+    [string]$DataRoot = (Join-Path (Split-Path $RepoRoot -Parent) "MathCraftBenchData"),
+    [string]$CdmDir = (Join-Path $DataRoot "sources\UniMERNet_official\cdm"),
+    [string]$Python = (Join-Path $RepoRoot "tools\deps\python311\python.exe"),
+    [string]$InputPath = (Join-Path $DataRoot "runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json"),
+    [string]$OutputDir = (Join-Path $DataRoot "runs\cdm_official_mathwriting_test"),
+    [string]$PathPrepend = (Join-Path $DataRoot "tools\unix_shims"),
     [int]$ShardSize = 100,
     [int]$Pools = 8,
     [int]$StartOffset = 0,
@@ -17,7 +18,6 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $runner = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\reports\run_official_cdm.py"
-$pathPrepend = "E:\MathCraftBenchData\tools\unix_shims;E:\MathCraftBenchData\tools\Ghostscript\gs10.07.1\bin;C:\Program Files\ImageMagick-7.1.2-Q16"
 
 foreach ($path in @($runner, $CdmDir, $Python, $InputPath)) {
     if (-not (Test-Path -LiteralPath $path)) {
