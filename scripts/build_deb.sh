@@ -31,8 +31,8 @@ command -v python3 >/dev/null 2>&1 || die "python3 is required"
 [[ -f "$SPEC_FILE" ]] || die "missing spec file: $SPEC_FILE"
 clear_debian_package_outputs "$DEB_PATH" "$DEB_OUTPUT_DIR/SHA256SUMS-linux.txt"
 
-log_step "1/5" "Preparing isolated Python runtime"
-BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
+log_step "1/5" "Using the runner Python environment"
+BUILD_PYTHON="$(resolve_build_python)"
 install_python_requirements \
     "$BUILD_PYTHON" \
     "$PROJECT_ROOT/requirements-linux.txt" \
@@ -50,7 +50,7 @@ cd "$PROJECT_ROOT"
 [[ -d "$DIST_DIR" ]] || die "PyInstaller output was not created: $DIST_DIR"
 
 PYINSTALLER_BIN="$DIST_DIR/LaTeXSnipper"
-PYINSTALLER_ARCHIVE_VIEWER="$(dirname "$BUILD_PYTHON")/pyi-archive_viewer"
+PYINSTALLER_ARCHIVE_VIEWER="$("$BUILD_PYTHON" -c 'import sysconfig; print(sysconfig.get_path("scripts"))')/pyi-archive_viewer"
 HOTKEY_ARCHIVE_VERIFIER="$PROJECT_ROOT/scripts/verify_linux_hotkey_archive.py"
 [[ -f "$PYINSTALLER_BIN" ]] || die "PyInstaller executable was not created: $PYINSTALLER_BIN"
 [[ -x "$PYINSTALLER_ARCHIVE_VIEWER" ]] || die "PyInstaller archive viewer was not found: $PYINSTALLER_ARCHIVE_VIEWER"

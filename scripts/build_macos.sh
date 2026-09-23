@@ -57,8 +57,8 @@ if [[ ! -f "$ICON_SOURCE" && ! -f "$PROJECT_ROOT/src/assets/icon.icns" ]]; then
     echo "warning: no application icon source was found; the app will use the default icon"
 fi
 
-log_step "1/6" "Preparing isolated Python runtime"
-BUILD_PYTHON="$(prepare_python_runtime "$PROJECT_ROOT")"
+log_step "1/6" "Using the runner Python environment"
+BUILD_PYTHON="$(resolve_build_python)"
 install_python_requirements \
     "$BUILD_PYTHON" \
     "$PROJECT_ROOT/requirements-macos.txt" \

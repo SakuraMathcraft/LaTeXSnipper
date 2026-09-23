@@ -1,6 +1,6 @@
 [MASTER]
 jobs=0
-ignore-patterns=^\.?#,.*__pycache__.*,.*\.venv.*,.*python311.*,.*build.*
+ignore-patterns=^\.?#,.*__pycache__.*,.*\.venv.*,.*build.*
 
 [MESSAGES CONTROL]
 disable=all

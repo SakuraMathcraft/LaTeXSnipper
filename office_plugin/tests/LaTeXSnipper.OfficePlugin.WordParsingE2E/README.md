@@ -19,7 +19,7 @@
 运行前必须关闭所有 Word 窗口，且测试完成前不要再次启动 Word，以确保测试实例与日常文档隔离：
 
 ```powershell
-E:\LaTexSnipper\office_plugin\tools\Test-WordFormulaParsingE2E.ps1
+.\office_plugin\tools\Test-WordFormulaParsingE2E.ps1
 ```
 
 通过后，测试项目的 `artifacts` 目录会生成 OMML/OLE 两份 DOCX 和 Word 导出的同名 PDF。该目录已被 Git 忽略，只用于本地结构与视觉复核；可通过脚本的 `-OutputDirectory` 参数改写输出位置。

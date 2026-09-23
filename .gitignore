@@ -28,19 +28,8 @@ office_plugin/release/InstallerAssets/
 *.tar
 *.gz
 
-# Embedded runtime (do not version)
-tools/deps/python311/
-tools/deps/python311-*/
-
-# Local runtime components (do not version)
-/python311/
-python-*.exe
-
 # Logs
 *.log
-
-# Local app state
-tools/deps/.deps_state.json
 
 # Local OCR/PDF regression outputs
 test_pdf/outputs/**

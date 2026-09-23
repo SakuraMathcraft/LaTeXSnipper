@@ -26,7 +26,6 @@ sys.path.insert(0, str(SRC))
 from runtime.product_version import PRODUCT_VERSION, write_windows_version_info
 
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
-BUNDLED_DEPS_DIR_ENV = os.environ.get("LATEXSNIPPER_BUNDLED_DEPS_DIR", "").strip()
 VERSION_INFO_PATH = ROOT / "build" / "version_info.txt"
 write_windows_version_info(VERSION_INFO_PATH, PRODUCT_VERSION)
 
@@ -337,20 +336,15 @@ def _prune_qt_webengine_payload(dist_root: Path):
         _remove_optional_qt_plugins(plugins_dir, removable_plugins)
 
 
-def _resolve_bundled_deps_root() -> Path:
-    if BUNDLED_DEPS_DIR_ENV:
-        return Path(BUNDLED_DEPS_DIR_ENV).expanduser()
-    return ROOT
+# The release workflow prepares a clean seed outside the checkout.
+bundled_python = os.environ.get("LATEXSNIPPER_BUNDLED_PYTHON", "").strip()
+if not bundled_python:
+    raise RuntimeError("LATEXSNIPPER_BUNDLED_PYTHON must identify the CI Python seed")
+bundled_python = Path(bundled_python).resolve()
+if not (bundled_python / "python.exe").is_file():
+    raise RuntimeError(f"Bundled Python seed is missing python.exe: {bundled_python}")
+extra_datas += _collect_tree_as_datas(bundled_python, "deps/python311")
 
-
-# Bundle dependency runtime.
-BUNDLED_DEPS_ROOT = _resolve_bundled_deps_root()
-BUNDLED_PY311 = BUNDLED_DEPS_ROOT / "python311"
-if BUNDLED_PY311.exists():
-    extra_datas += _collect_tree_as_datas(BUNDLED_PY311, "deps/python311")
-    print(f"[SPEC] include bundled python311: {BUNDLED_PY311}")
-else:
-    print(f"[SPEC] bundled python311 not found, skip: {BUNDLED_PY311}")
 
 a = Analysis(
     [str(SRC / "main.py")],
