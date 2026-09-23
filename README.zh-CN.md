@@ -14,7 +14,7 @@
 
 [English](readme.md) · 简体中文
 
-<img width="960" alt="LaTeXSnipper v3.0.0：识别历史、公式编辑器与实时预览" src="docs/latexsnipper-3.0.0.png" />
+<img width="960" alt="LaTeXSnipper：识别历史、公式编辑器与实时预览" src="docs/latexsnipper.png" />
 
 </div>
 

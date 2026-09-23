@@ -14,7 +14,7 @@
 
 English · [简体中文](README.zh-CN.md)
 
-<img width="960" alt="LaTeXSnipper v3.0.0: recognition history, formula editor, and live preview" src="docs/latexsnipper-3.0.0.png" />
+<img width="960" alt="LaTeXSnipper: recognition history, formula editor, and live preview" src="docs/latexsnipper.png" />
 
 </div>
 

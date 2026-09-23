@@ -11,7 +11,7 @@
 
 ---
 
-<img src="../docs/latexsnipper-3.0.0.png" width="100%" alt="LaTeXSnipper v3.0.0 封面图">
+<img src="../docs/latexsnipper.png" width="100%" alt="LaTeXSnipper 封面图">
 
 </div>
 

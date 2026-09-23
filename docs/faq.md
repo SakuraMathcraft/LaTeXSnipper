@@ -209,5 +209,3 @@ Issues without logs are usually not actionable.
 ## Which Python environment should contributors use?
 
 Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Client installers are built by `.github/workflows/release.yml`; Windows runtime preparation happens in the runner temporary directory, independently of developer environments.
-
-See [client development and release builds](client_development.md) for the environment and CI contracts.

@@ -112,7 +112,7 @@
 
 // ── 封面图 ──
 #align(center)[
-  #image("../docs/latexsnipper-3.0.0.png", width: 100%)
+  #image("../docs/latexsnipper.png", width: 100%)
   #v(1em)
 ]
 
