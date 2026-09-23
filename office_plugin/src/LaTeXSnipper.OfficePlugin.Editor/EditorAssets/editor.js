@@ -8,7 +8,14 @@ import {SymbolPanel} from './symbol-panel.mjs';
 import {TemplateInsertion} from './template-insertion.mjs';
 import {configureMathfield} from './mathfield-input.mjs';
 
+import {DraftPreview} from './draft-preview.mjs';
+import {TypographyPanel} from './typography-panel.mjs';
+
 mountEditor();
+let session = null;
+let display = true;
+let typographyPanel = null;
+let preview = null;
 let mathfield = null;
 let locale = "zh";
 let mode = "insert";
@@ -53,6 +60,8 @@ function setSubmitting(value) {
   acceptButton.disabled = submitting;
   cancelButton.disabled = submitting;
   sourceSync?.setLocked(submitting);
+  typographyPanel?.setLocked(submitting);
+  preview?.setLocked(submitting);
   document.getElementById('undoButton').disabled = submitting;
   document.getElementById('redoButton').disabled = submitting;
 }
@@ -198,7 +207,14 @@ function accept() {
     return;
   }
 
-  send({ type: "accept", latex, display: true });
+  const typography = typographyPanel.snapshot();
+  if (!typography) {
+    document.getElementById('fontSizePoints').reportValidity();
+    setStatus(locale.startsWith('zh') ? '请检查字体和字号设置。' : 'Check typography settings.');
+    return;
+  }
+  setSubmitting(true);
+  send({ type: "accept", session, revision: preview.revision, latex, display, typography });
 }
 
 function hideVirtualKeyboard() {
@@ -218,6 +234,10 @@ function configureText() {
 function applyInit(payload) {
   locale = String(payload?.locale || "zh").toLowerCase();
   mode = payload?.mode === "update" ? "update" : "insert";
+  session = payload.session;
+  display = payload.display !== false;
+  preview.configure(session);
+  typographyPanel.configure(payload);
   setSubmitting(false);
   configureText();
   setLatex(payload?.latex || "");
@@ -237,12 +257,40 @@ async function bootstrap() {
   sourceEditor = new SourceEditor(latexSource, {
     commands: COMMANDS,
     completeTemplate: (entry, range) => insertion.insert(entry, {range}),
-    onChange: (_value, change) => sourceSync?.sourceChanged(change),
-    onComposition: active => sourceSync?.composition(active)
+    onChange: (_value, change) => { sourceSync?.sourceChanged(change); preview?.update(); },
+    onComposition: active => { sourceSync?.composition(active); preview?.setComposing(active || sourceSync.visualComposing); }
   });
   sourceSync = new SourceSync({source: sourceEditor, mathfield, readVisual: mathfieldLatex, onMode: setSourceMode});
   insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource, onInsert: scheduleCaretVisibility});
   symbolPanel = new SymbolPanel(insertion);
+  const image = document.getElementById('previewImage');
+  const previewStatus = document.getElementById('previewStatus');
+  preview = new DraftPreview({send,
+    snapshot: () => {
+      const typography = typographyPanel.snapshot();
+      if (!typography || !currentLatex().trim()) {
+        previewStatus.textContent = locale.startsWith('zh') ? '请输入公式及有效字号。' : 'Enter a formula and valid size.';
+        return null;
+      }
+      return {latex: currentLatex(), display, typography};
+    },
+    changed: () => {
+      image.hidden = true; image.removeAttribute('src');
+      previewStatus.textContent = locale.startsWith('zh') ? '正在更新预览…' : 'Updating preview…';
+    },
+    result: response => {
+      previewStatus.textContent = response.error || (response.warnings || []).join(' ');
+      if (response.error) return;
+      image.style.width = `${response.widthPoints}pt`;
+      image.style.height = `${response.heightPoints}pt`;
+      image.src = response.image; image.hidden = false;
+    }
+  });
+  typographyPanel = new TypographyPanel({onChange: () => preview.update(),
+    blocked: () => insertion.blocked,
+    onMode: active => {
+      sourceSync.visualInput(); insertion.reset(); sourceEditor.focus(); preview.setActive(active);
+    }});
   const shortcuts = new Map(CATALOG.filter(entry => entry.shortcut).map(entry => [entry.shortcut, entry]));
   configureMathfield(mathfield, {onAccept: accept, insert: entry => insertion.insert(entry), shortcuts,
     performEdit: action => sourceSync.performVisual(action)});
@@ -254,8 +302,8 @@ async function bootstrap() {
   }
   mathfield.addEventListener("beforeinput", event => sourceSync.beforeVisualInput(event));
   mathfield.addEventListener("input", () => { sourceSync.visualInput(); scheduleCaretVisibility(); });
-  mathfield.addEventListener("compositionstart", () => sourceSync.visualComposition(true));
-  mathfield.addEventListener("compositionend", () => sourceSync.visualComposition(false));
+  mathfield.addEventListener("compositionstart", () => { sourceSync.visualComposition(true); preview.setComposing(true); });
+  mathfield.addEventListener("compositionend", () => { sourceSync.visualComposition(false); preview.setComposing(sourceEditor.composing); });
   mathfield.addEventListener("keydown", event => {
     if (!submitting && (event.ctrlKey || event.metaKey) && !event.altKey && !event.isComposing
         && (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y")) {
@@ -263,10 +311,11 @@ async function bootstrap() {
       sourceSync.history(event.shiftKey || event.key.toLowerCase() === "y");
     }
   }, true);
-  cancelButton.addEventListener("click", () => send({ type: "cancel" }));
+  cancelButton.addEventListener("click", () => { preview.stop(); send({ type: "cancel", session }); });
+  window.addEventListener("pagehide", () => preview.stop());
   acceptButton.addEventListener("click", accept);
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       hideVirtualKeyboard();
       return;
@@ -296,6 +345,7 @@ window.LaTeXSnipperEditor = {
   },
   setStatus,
   setSubmitting,
+  previewResult: response => preview?.receive(response),
 };
 
 bootstrap().catch((error) => setStatus(String(error)));

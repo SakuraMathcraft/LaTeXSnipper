@@ -203,6 +203,8 @@ public sealed partial class WordPluginController : IDisposable
             ? CreateMetadataFromDraft(identity, accepted.Latex, previous)
             : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
 
+        metadata = metadata.WithTypography(accepted.Typography);
+
         if (accepted.UpdateMode)
         {
             if (IsSameRenderedFormula(accepted.InitialFormula, metadata))
@@ -762,7 +764,7 @@ public sealed partial class WordPluginController : IDisposable
             displayMode,
             numberingMode,
             options.ManualNumber.Trim(),
-            RenderEngineKind.Omml,
+            settings.InsertionBackend == FormulaInsertionBackend.Ole ? RenderEngineKind.MathJaxSvg : RenderEngineKind.Omml,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
             ResolveNewTypography(settings));
     }

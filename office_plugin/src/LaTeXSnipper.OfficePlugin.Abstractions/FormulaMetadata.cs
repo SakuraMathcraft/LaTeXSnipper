@@ -42,4 +42,8 @@ public sealed class FormulaMetadata
     public int SchemaVersion { get; }
 
     public FormulaTypography Typography { get; }
+
+    public FormulaMetadata WithTypography(FormulaTypography typography) =>
+        new FormulaMetadata(Identity, Latex, DisplayMode, NumberingMode, NumberText,
+            RenderEngine, SchemaVersion, typography ?? throw new System.ArgumentNullException(nameof(typography)));
 }

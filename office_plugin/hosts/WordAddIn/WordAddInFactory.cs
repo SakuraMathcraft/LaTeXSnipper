@@ -17,12 +17,13 @@ public static class WordAddInFactory
         string? mathJaxHostName = null)
     {
         statusSink ??= NullWordStatusSink.Instance;
-        var editor = new MathLiveFormulaEditor(CreateEditorOptions());
+        var oleIntermediateRenderer = new MathJaxSvgRenderer(
+            new WebView2MathJaxJavaScriptRuntime(mathJaxHostName ?? "WordAddIn"));
+        var editor = new MathLiveFormulaEditor(CreateEditorOptions(oleIntermediateRenderer));
         var editorSession = new FormulaEditorSession(editor);
         var automationClient = new AutomationApiClient(new AutomationApiOptions());
         var wordAdapter = new DynamicWordApplicationAdapter(wordApplication);
-        var oleIntermediateRenderer = new MathJaxSvgRenderer(
-            new WebView2MathJaxJavaScriptRuntime(mathJaxHostName ?? "WordAddIn"));
+
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new WordPluginController(
             editorSession,
@@ -43,7 +44,7 @@ public static class WordAddInFactory
         return controller;
     }
 
-    private static MathLiveFormulaEditorOptions CreateEditorOptions()
+    private static MathLiveFormulaEditorOptions CreateEditorOptions(IFormulaRenderer renderer)
     {
         return new MathLiveFormulaEditorOptions(
             "latexsnipper-word.officeplugin.local",
@@ -57,7 +58,7 @@ public static class WordAddInFactory
                 @"Software\Microsoft\Office\16.0\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",
                 @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",
                 @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\16.0\Word\Addins\LaTeXSnipper.OfficePlugin.WordVstoAddIn",
-            })
+            }, renderer, new MathJaxAssetResolver().SymbolFonts)
         {
             Icon = WordPluginIcon.Load()
         };

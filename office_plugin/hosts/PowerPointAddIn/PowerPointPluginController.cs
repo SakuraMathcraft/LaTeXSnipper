@@ -154,7 +154,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         PowerPointFormulaEditTarget? target = accepted.UpdateMode
             ? GetEditorTarget(accepted)
             : null;
-        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
+        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous).WithTypography(accepted.Typography);
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
             CompleteEditorSession(accepted.SessionGeneration, target);

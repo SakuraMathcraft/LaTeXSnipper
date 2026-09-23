@@ -43,6 +43,32 @@ public sealed class MathJaxAssetResolver
         }
     }
 
+    /// <summary>Uses the packaged renderer configuration as the single symbol-font catalog.</summary>
+    public System.Collections.Generic.IReadOnlyList<string> SymbolFonts
+    {
+        get
+        {
+            string config = File.ReadAllText(Path.Combine(ResolveRoot(), "config.js"));
+            int start = config.IndexOf('{');
+            int end = config.LastIndexOf('}');
+            if (start < 0 || end <= start) throw new FormatException("Invalid MathJax font configuration.");
+            string json = config.Substring(start, end - start + 1);
+            var fonts = new System.Collections.Generic.List<string>();
+#if NET48
+            var data = new System.Web.Script.Serialization.JavaScriptSerializer()
+                .Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+            foreach (object font in (System.Collections.IEnumerable)data["fonts"])
+                fonts.Add((string)font);
+#else
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var font in document.RootElement.GetProperty("fonts").EnumerateArray())
+                fonts.Add(font.GetString()!);
+#endif
+            if (fonts.Count == 0) throw new FormatException("MathJax font catalog is empty.");
+            return fonts.AsReadOnly();
+        }
+    }
+
     public string ResolveRoot()
     {
         foreach (string candidate in GetCandidateRoots())

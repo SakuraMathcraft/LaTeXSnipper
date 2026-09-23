@@ -21,7 +21,10 @@ async function open(page, latex = 'x+1', host = 'word') {
     await route.fulfill({body: await readFile(path), contentType: types[extname(path)] || 'application/octet-stream'});
   });
   await page.addInitScript(latex => {
-    window.__latexSnipperPendingInit = {latex, locale: 'zh', mode: 'update'};
+    window.editorInit = {latex, locale: 'zh', mode: 'update', session: 1, display: true, referencePreview: false,
+      typography: {typographyVersion: 1, symbolFontId: 'mathjax-tex', numberFontFamily: '', cjkFontFamily: 'Microsoft YaHei', defaultMathStyle: 'Automatic', fontSizePoints: 12, color: '#000000'},
+      catalog: {symbolFonts: ['mathjax-tex', 'mathjax-stix2'], systemFonts: ['Microsoft YaHei', 'SimSun', 'Arial'], mathStyles: ['Automatic', 'Upright', 'Bold'], namedSizes: {'小四': 12, '五号': 10.5}, minimumPoints: 1, maximumPoints: 1638}};
+    window.__latexSnipperPendingInit = window.editorInit;
     window.posted = [];
     window.chrome = {webview: {postMessage: message => window.posted.push(message)}};
   }, latex);
@@ -33,7 +36,11 @@ async function open(page, latex = 'x+1', host = 'word') {
 }
 async function submitted(page) {
   await page.locator('#acceptButton').click();
-  return page.evaluate(() => window.posted.at(-1)?.latex);
+  return page.evaluate(() => {
+    const latex = window.posted.findLast(message => message.type === 'accept')?.latex;
+    window.LaTeXSnipperEditor.setSubmitting(false);
+    return latex;
+  });
 }
 
 test('complex source survives load, reference focus, source editing, undo and submission', async ({page}) => {
@@ -72,7 +79,7 @@ test('IME composition keeps source editable, blocks submission and updates after
   await source(page).dispatchEvent('compositionstart');
   await source(page).fill('\\text{中文}');
   await page.locator('#acceptButton').click();
-  expect(await page.evaluate(() => window.posted.length)).toBe(0);
+  expect(await page.evaluate(() => window.posted.filter(message => message.type === 'accept').length)).toBe(0);
   await source(page).dispatchEvent('compositionend');
   await expect.poll(() => page.locator('#mathfieldHost math-field').evaluate(el => el.getValue('latex'))).toContain('中文');
   expect(await submitted(page)).toBe('\\text{中文}');
@@ -126,7 +133,7 @@ test('find/replace, source symbol insertion, session reset and submission lockin
   await source(page).press('End');
   await page.locator('#symbolGrid button').filter({hasText: /^α$/}).click();
   expect(await submitted(page)).toBe('y+y\\alpha');
-  await page.evaluate(() => window.LaTeXSnipperEditor.init({latex: 'new', locale: 'zh'}));
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: 'new', locale: 'zh'}));
   await source(page).press('Control+z');
   expect(await submitted(page)).toBe('new');
   await page.evaluate(() => window.LaTeXSnipperEditor.setSubmitting(true));
@@ -157,7 +164,7 @@ for (const host of ['word', 'powerpoint']) {
     await expect(source(page)).toHaveText('x+1');
     await source(page).press('Control+y');
     await expect(source(page)).toHaveText('\\frac{x+1}{}');
-    await page.evaluate(() => window.LaTeXSnipperEditor.init({latex: '', locale: 'zh'}));
+    await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: '', locale: 'zh'}));
     await searchTile(page, 'Fraction');
     await tile(page, '分数').click();
     expect(errors).toEqual([]);
@@ -183,7 +190,7 @@ for (const host of ['word', 'powerpoint']) {
     await expect(source(page)).toHaveText('x+1');
     await page.locator('#redoButton').click();
     await expect(source(page)).toContainText('\\frac{x+1}');
-    await page.evaluate(() => window.LaTeXSnipperEditor.init({latex: 'z', locale: 'zh'}));
+    await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: 'z', locale: 'zh'}));
     await source(page).press('Control+a');
     await searchTile(page, 'Bracketed matrix');
     await page.locator('#matrixRows').selectOption('3');
@@ -313,10 +320,105 @@ test('escaped source wraps literally; keyboard navigation, cached tiles and resi
   await page.locator('#libraryPrevious').click();
   await expect.poll(() => page.locator('#symbolGrid').evaluate(el => el.scrollLeft)).toBe(0);
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-6a-structures.png')});
-  await page.evaluate(() => window.LaTeXSnipperEditor.init({latex: 'x', locale: 'en'}));
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: 'x', locale: 'en'}));
   await searchTile(page, '分数');
   await expect(tile(page, 'Fraction')).toBeVisible();
   await page.locator('#symbolSearch').press('Escape');
   await expect(source(page)).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+const latestPreview = page => page.evaluate(() => window.posted.findLast(message => message.type === 'preview'));
+async function deliverPreview(page, request, overrides = {}) {
+  await page.evaluate(({request, overrides}) => window.LaTeXSnipperEditor.previewResult({session: request.session,
+    revision: request.revision, image: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="30"><text y="20">x+1</text></svg>'),
+    widthPoints: 60, heightPoints: 22.5, warnings: [], ...overrides}), {request, overrides});
+}
+
+test('typography and current source share one preview and submission snapshot in both hosts', async ({page}) => {
+  for (const host of ['word', 'powerpoint']) {
+    await open(page, 'x+1', host);
+    await page.locator('#typographyToggle').click();
+    await page.locator('#symbolFontId').selectOption('mathjax-stix2');
+    await page.locator('#numberFontFamily').selectOption('Arial');
+    await page.locator('#cjkFontFamily').selectOption('SimSun');
+    await page.locator('#defaultMathStyle').selectOption('Upright');
+    await page.locator('#fontSizePoints').fill('五号');
+    await page.locator('#color').fill('#cc2200');
+    await page.locator('#previewToggle').click();
+    await expect.poll(() => latestPreview(page)).toBeTruthy();
+    const request = await latestPreview(page);
+    expect(request.typography).toEqual({typographyVersion: 1, symbolFontId: 'mathjax-stix2', numberFontFamily: 'Arial',
+      cjkFontFamily: 'SimSun', defaultMathStyle: 'Upright', fontSizePoints: 10.5, color: '#cc2200'});
+    await deliverPreview(page, request);
+    await expect(page.locator('#previewImage')).toBeVisible();
+    expect(await page.locator('#previewImage').evaluate(image => image.getBoundingClientRect().width)).toBe(80);
+    await page.locator('#acceptButton').click();
+    const accepted = await page.evaluate(() => window.posted.findLast(message => message.type === 'accept'));
+    expect(accepted.typography).toEqual(request.typography);
+    expect(accepted.latex).toBe(request.latex);
+    await expect(page.locator('#fontSizePoints')).toBeDisabled();
+    await page.evaluate(() => window.LaTeXSnipperEditor.setSubmitting(false));
+    await expect.poll(async () => (await latestPreview(page)).revision).toBeGreaterThan(request.revision);
+  }
+});
+
+test('invalid sizes, stale results, composition and new sessions cannot show an old preview', async ({page}) => {
+  await open(page);
+  await page.locator('#previewToggle').click();
+  await expect.poll(() => latestPreview(page)).toBeTruthy();
+  const old = await latestPreview(page);
+  await source(page).fill('y+2');
+  await deliverPreview(page, old);
+  await expect(page.locator('#previewImage')).toBeHidden();
+  await expect.poll(async () => (await latestPreview(page)).latex).toBe('y+2');
+  const current = await latestPreview(page);
+  await deliverPreview(page, current);
+  await expect(page.locator('#previewImage')).toBeVisible();
+  await page.locator('#fontSizePoints').fill('1e2');
+  await page.locator('#acceptButton').click();
+  await expect(page.locator('#fontSizePoints')).toHaveAttribute('aria-invalid', 'true');
+  expect(await page.evaluate(() => window.posted.some(message => message.type === 'accept'))).toBe(false);
+  await deliverPreview(page, current);
+  await expect(page.locator('#previewImage')).toBeHidden();
+  await page.locator('#fontSizePoints').fill('14.5');
+  await source(page).dispatchEvent('compositionstart');
+  await deliverPreview(page, current);
+  await expect(page.locator('#previewImage')).toBeHidden();
+  await source(page).dispatchEvent('compositionend');
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, session: 2, display: false, referencePreview: true}));
+  await deliverPreview(page, current);
+  await expect(page.locator('#finalPreview')).toBeHidden();
+  await expect(page.locator('#fontSizePoints')).toHaveValue('12');
+  await page.locator('#previewToggle').click();
+  await expect(page.locator('#previewNote')).toContainText('Word');
+  await expect.poll(async () => (await latestPreview(page)).session).toBe(2);
+  const fresh = await latestPreview(page);
+  expect(fresh.display).toBe(false);
+  await deliverPreview(page, fresh, {error: 'Render failed'});
+  await expect(page.locator('#previewStatus')).toHaveText('Render failed');
+  await expect(page.locator('#previewImage')).toBeHidden();
+  await page.locator('#cancelButton').click();
+  expect(await page.evaluate(() => window.posted.at(-1))).toEqual({type: 'cancel', session: 2});
+  await deliverPreview(page, fresh);
+  await expect(page.locator('#previewImage')).toBeHidden();
+});
+
+
+test('typography panel and preview remain usable in small light and dark windows', async ({page}) => {
+  const errors = await open(page);
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({colorScheme});
+    await page.setViewportSize({width: 640, height: 480});
+    await page.locator('#typographyToggle').click();
+    const panel = await page.locator('#typographyPanel').boundingBox();
+    expect(panel.x).toBeGreaterThanOrEqual(0); expect(panel.x + panel.width).toBeLessThanOrEqual(640);
+    await page.locator('#cjkFontFamily').selectOption('SimSun');
+    await page.screenshot({path: join(tmpdir(), `latexsnipper-6b-${colorScheme}.png`)});
+    await page.locator('#cjkFontFamily').press('Escape');
+    await expect(page.locator('#typographyToggle')).toBeFocused();
+    await expect(page.locator('#typographyPanel')).toBeHidden();
+    await expect(page.locator('#acceptButton')).toBeInViewport();
+  }
   expect(errors).toEqual([]);
 });

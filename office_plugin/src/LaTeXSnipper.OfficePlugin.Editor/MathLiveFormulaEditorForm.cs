@@ -13,11 +13,11 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace LaTeXSnipper.OfficePlugin.Editor;
 
-internal sealed class MathLiveFormulaEditorForm : Form
+internal sealed partial class MathLiveFormulaEditorForm : Form
 {
     private readonly MathLiveFormulaEditorOptions _options;
     private readonly WebView2 _webView;
-    private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
+    private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
     private FormulaMetadata? _currentInitialFormula;
     private bool _currentUpdateMode;
     private long _currentSessionGeneration;
@@ -145,6 +145,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     public void Configure(FormulaMetadata initialFormula, bool updateMode, long sessionGeneration)
     {
+        CancelPreview();
+        _submitting = false;
         _currentInitialFormula = initialFormula ?? throw new ArgumentNullException(nameof(initialFormula));
         _currentUpdateMode = updateMode;
         _currentSessionGeneration = sessionGeneration;
@@ -250,6 +252,10 @@ internal sealed class MathLiveFormulaEditorForm : Form
         string payload = _serializer.Serialize(new Dictionary<string, object>
         {
             ["type"] = "init",
+            ["session"] = _currentSessionGeneration,
+            ["typography"] = FormulaTypographyFields.Write(initialFormula.Typography),
+            ["catalog"] = CreateTypographyCatalog(),
+            ["referencePreview"] = initialFormula.RenderEngine == RenderEngineKind.Omml,
             ["latex"] = initialFormula.Latex,
             ["display"] = _options.ForceDisplayMode || initialFormula.DisplayMode != FormulaDisplayMode.Inline,
             ["mode"] = _currentUpdateMode ? "update" : "insert",
@@ -265,6 +271,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        long generation = _currentSessionGeneration;
         try
         {
             Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
@@ -273,7 +280,12 @@ internal sealed class MathLiveFormulaEditorForm : Form
                 return;
             }
 
+            if (!message.TryGetValue("session", out object session)
+                || Convert.ToInt64(session, CultureInfo.InvariantCulture) != _currentSessionGeneration
+                || _committed || _submitting) return;
             string type = Convert.ToString(rawType) ?? string.Empty;
+            if (type == "cancelPreview") { CancelPreview(); return; }
+            if (type == "preview") { await RenderPreviewAsync(message).ConfigureAwait(true); return; }
             if (type == "cancel")
             {
                 NotifyEditorCancelled();
@@ -291,7 +303,8 @@ internal sealed class MathLiveFormulaEditorForm : Form
         catch (Exception exc)
         {
             EditorError?.Invoke(this, exc.Message);
-            await TrySetSubmittingAsync(false).ConfigureAwait(true);
+            if (generation == _currentSessionGeneration)
+                await TrySetSubmittingAsync(false).ConfigureAwait(true);
         }
     }
 
@@ -312,9 +325,11 @@ internal sealed class MathLiveFormulaEditorForm : Form
         var accepted = new FormulaEditorAcceptedEventArgs(
             initialFormula,
             _currentUpdateMode,
-            latex.Trim(),
+            latex,
             display,
-            sessionGeneration);
+            sessionGeneration,
+            ReadTypography(message));
+        CancelPreview();
         await SetSubmittingAsync(true).ConfigureAwait(true);
         FormulaEditorSubmissionResult result = await SubmitFormulaAsync(accepted).ConfigureAwait(true);
         if (_currentSessionGeneration != sessionGeneration)
@@ -342,6 +357,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private async Task SetSubmittingAsync(bool submitting)
     {
+        _submitting = submitting;
         if (!_webViewReady)
         {
             return;
@@ -419,6 +435,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        CancelPreview();
         if (!_shutdownDisposing)
         {
             if (!_committed)
@@ -440,6 +457,7 @@ internal sealed class MathLiveFormulaEditorForm : Form
 
     private void NotifyEditorCancelled()
     {
+        CancelPreview();
         if (_currentSessionGeneration <= 0 || _restoredDraftForCurrentConfiguration)
         {
             return;
