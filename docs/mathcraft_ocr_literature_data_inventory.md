@@ -8,19 +8,19 @@ This inventory records the paper evidence that is already reproducible, the
 public datasets still worth adding, and the claims each source can support. The
 benchmark repository should contain scripts, schemas, reports, and compact
 tables. Downloaded PDFs, rendered pages, large JSONL files, and generated figure
-assets stay under `..\MathCraftBenchData`.
+assets stay under `./benchmark-data`.
 
 ## Current Evidence Status
 
 | Evidence line | Status | Local artifact | Paper use |
 | --- | --- | --- | --- |
-| UniMER-Test formula OCR | Formal run complete | `..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl` | Main formula-recognition benchmark |
-| UniMER-Test render consistency | Formal auxiliary complete | `..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated` | Show exact-match underestimation cases |
-| OpenStax mixed pages | Formal run complete | `..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi` | Main mixed-document evidence |
-| OpenStax block visualizations | Regenerable figure assets complete | `..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\figures\block_gallery` | Qualitative structure-recovery figures |
-| MathWriting | Formal run complete | `..\MathCraftBenchData\runs\mathwriting_test_gpu` | Independent handwritten benchmark and exact-match stress evidence |
+| UniMER-Test formula OCR | Formal run complete | `./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl` | Main formula-recognition benchmark |
+| UniMER-Test render consistency | Formal auxiliary complete | `./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated` | Show exact-match underestimation cases |
+| OpenStax mixed pages | Formal run complete | `./benchmark-data\runs\openstax_mixed_gpu_144dpi` | Main mixed-document evidence |
+| OpenStax block visualizations | Regenerable figure assets complete | `./benchmark-data\runs\openstax_mixed_gpu_144dpi\figures\block_gallery` | Qualitative structure-recovery figures |
+| MathWriting | Formal run complete | `./benchmark-data\runs\mathwriting_test_gpu` | Independent handwritten benchmark and exact-match stress evidence |
 | CROHME | Candidate only | Not downloaded as formal benchmark | Standard HME comparison if data access is cleared |
-| CDM | Official full run complete | `..\MathCraftBenchData\runs\cdm_official_unimer_full` | Full UniMER-Test render-aware evidence: mean CDM 0.929, ExpRate@CDM 0.648 |
+| CDM | Official full run complete | `./benchmark-data\runs\cdm_official_unimer_full` | Full UniMER-Test render-aware evidence: mean CDM 0.929, ExpRate@CDM 0.648 |
 
 ## Formal Public Benchmarks
 
@@ -32,7 +32,7 @@ Source: [UniMERNet paper](https://arxiv.org/abs/2404.15254),
 Local manifest:
 
 ```text
-..\MathCraftBenchData\manifests\unimer_test_full.jsonl
+./benchmark-data\manifests\unimer_test_full.jsonl
 ```
 
 Scale:
@@ -79,7 +79,7 @@ Local protocol:
 Local manifest:
 
 ```text
-..\MathCraftBenchData\manifests\mathwriting_test.jsonl
+./benchmark-data\manifests\mathwriting_test.jsonl
 ```
 
 Run entry:
@@ -137,7 +137,7 @@ Source pages are rendered from public OpenStax PDFs:
 Local formal run:
 
 ```text
-..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi
+./benchmark-data\runs\openstax_mixed_gpu_144dpi
 ```
 
 Default protocol:
@@ -163,10 +163,10 @@ Source-control evidence:
 Figure-generation entry:
 
 ```powershell
-.\tools\deps\python311\python.exe `
+python `
   .\benchmarks\mathcraft_ocr\visualization\make_openstax_block_gallery.py `
-  --results ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
+  --results ./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
+  --output-dir ./benchmark-data\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
   --limit 6
 ```
 
@@ -216,7 +216,7 @@ Status: complete.
 Implementation:
 
 - Uses the official UniMERNet CDM implementation from the local clone under
-  `..\MathCraftBenchData\sources\UniMERNet_official\cdm`.
+  `./benchmark-data\sources\UniMERNet_official\cdm`.
 - Converts MathCraft outputs into the official `img_id` / `gt` / `pred` batch
   format before running the official CDM scorer.
 - Keeps the current render-consistency fallback under a different name; it is
@@ -265,9 +265,9 @@ models are rerun under the same local protocol.
 
 | Source | Repository policy |
 | --- | --- |
-| UniMER-Test | Keep generated compact reports in repo; keep full data/results under `..\MathCraftBenchData` |
+| UniMER-Test | Keep generated compact reports in repo; keep full data/results under `./benchmark-data` |
 | OpenStax | Keep scripts and compact metrics in repo; keep rendered page images and overlays local unless publication license review is complete |
-| MathWriting | Keep scripts and compact metrics in repo; keep parquet, images, full results, and CDM render artifacts under `..\MathCraftBenchData` |
+| MathWriting | Keep scripts and compact metrics in repo; keep parquet, images, full results, and CDM render artifacts under `./benchmark-data` |
 | CROHME/HME100K | Do not add to formal benchmark until license/access is recorded |
 | Project `test_pdf` assets | Internal regression only unless the original PDF source is public and attributable |
 

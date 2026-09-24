@@ -1,5 +1,0 @@
-{
-    "git.ignoreLimitWarning": true,
-    "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python.defaultInterpreterPath": "${workspaceFolder}\\tools\\deps\\python311\\python.exe"
-}

@@ -86,9 +86,6 @@ class RuntimeLogDialog(QDialog):
             pass
 
     def _ensure_file(self):
-        self._log_file.parent.mkdir(parents=True, exist_ok=True)
-        if not self._log_file.exists():
-            self._log_file.write_text("", encoding="utf-8")
         self._pos = 0
 
     def _open_dir(self):

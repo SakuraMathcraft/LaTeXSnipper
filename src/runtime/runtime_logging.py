@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import builtins
 import io
 import logging
@@ -222,7 +223,10 @@ def init_app_logging() -> Path:
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
-    _RUNTIME_SESSION_HANDLER = None
+    hook_runtime_log_streams(tee=not getattr(sys, "frozen", False))
+    _RUNTIME_SESSION_HANDLER = logging.StreamHandler(_RUNTIME_LOG_FH_OUT)
+    _RUNTIME_SESSION_HANDLER.setFormatter(fmt)
+    root.addHandler(_RUNTIME_SESSION_HANDLER)
 
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
     if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
@@ -274,9 +278,9 @@ def runtime_log_path() -> Path:
 def cleanup_runtime_log_session():
     global _RUNTIME_LOG_FH_OUT, _RUNTIME_LOG_FH_ERR, _RUNTIME_SESSION_HANDLER
     try:
-        if isinstance(sys.stdout, TeeWriter):
+        if isinstance(sys.stdout, TeeWriter) or sys.stdout is _RUNTIME_LOG_FH_OUT:
             sys.stdout = sys.__stdout__
-        if isinstance(sys.stderr, TeeWriter):
+        if isinstance(sys.stderr, TeeWriter) or sys.stderr is _RUNTIME_LOG_FH_ERR:
             sys.stderr = sys.__stderr__
     except Exception:
         pass
@@ -310,29 +314,13 @@ def cleanup_runtime_log_session():
     except Exception:
         pass
     _RUNTIME_SESSION_HANDLER = None
-    try:
-        p = runtime_log_path()
-        if p.exists():
-            p.unlink()
-    except Exception:
-        pass
-    _RUNTIME_LOG_WINDOW_READY = False
 
 
 def ensure_runtime_log_cleanup_hook():
     global _RUNTIME_LOG_CLEANUP_HOOKED
-    if _RUNTIME_LOG_CLEANUP_HOOKED:
-        return
-    try:
-        from PyQt6.QtWidgets import QApplication
-
-        app = QApplication.instance()
-        if app is None:
-            return
-        app.aboutToQuit.connect(cleanup_runtime_log_session)
+    if not _RUNTIME_LOG_CLEANUP_HOOKED:
+        atexit.register(cleanup_runtime_log_session)
         _RUNTIME_LOG_CLEANUP_HOOKED = True
-    except Exception:
-        pass
 
 
 def hook_runtime_log_streams(tee: bool = True):

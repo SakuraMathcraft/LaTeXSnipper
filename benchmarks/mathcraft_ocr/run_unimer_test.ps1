@@ -1,6 +1,8 @@
 param(
-    [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
-    [string]$DataRoot = (Join-Path (Split-Path $RepoRoot -Parent) "MathCraftBenchData"),
+    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [string]$PythonPath = "python",
+    [Parameter(Mandatory = $true)]
+    [string]$DataRoot,
     [ValidateSet("gpu", "cpu", "auto")]
     [string]$Provider = "gpu",
     [int]$ShardSize = 250,
@@ -22,7 +24,7 @@ if ($Limit -lt 0) {
     throw "Limit must be non-negative."
 }
 
-$python = Join-Path $RepoRoot "tools\deps\python311\python.exe"
+$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop).Source
 $manifestScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\datasets\create_unimer_manifest.py"
 $runnerScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\runners\run_mathcraft.py"
 $combineScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\reports\combine_jsonl.py"

@@ -38,3 +38,19 @@ def test_existing_dependency_python_does_not_require_ensurepip(monkeypatch, tmp_
     assert resolver._find_full_python(tmp_path) == str(pyexe)
     assert commands
     assert all("ensurepip" not in code and "venv" not in code for code in commands)
+
+
+def test_private_interpreter_relaunches_application(monkeypatch):
+    import pytest
+    from types import SimpleNamespace
+    from application import python_runtime_resolver as resolver
+
+    calls = []
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kwargs: calls.append((argv, kwargs)) or SimpleNamespace(pid=123))
+    monkeypatch.setattr(sys, "argv", [str(SRC / "main.py"), "--example"])
+    with pytest.raises(SystemExit) as result:
+        resolver._relaunch_with(sys.executable)
+    assert result.value.code == 0
+    argv, kwargs = calls[0]
+    assert argv == [sys.executable, str(SRC / "main.py"), "--example"]
+    assert kwargs["env"]["LATEXSNIPPER_RESTART"] == "1"

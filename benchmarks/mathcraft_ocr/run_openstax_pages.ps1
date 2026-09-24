@@ -1,6 +1,8 @@
 param(
-    [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
-    [string]$DataRoot = (Join-Path (Split-Path $RepoRoot -Parent) "MathCraftBenchData"),
+    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [string]$PythonPath = "python",
+    [Parameter(Mandatory = $true)]
+    [string]$DataRoot,
     [ValidateSet("gpu", "cpu", "auto")]
     [string]$Provider = "gpu",
     [string]$Pages = "calculus_v1:40-89+120-169,college_algebra:60-109+180-229",
@@ -29,7 +31,7 @@ if ($Dpi -le 0) {
     throw "Dpi must be positive."
 }
 
-$python = Join-Path $RepoRoot "tools\deps\python311\python.exe"
+$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop).Source
 $manifestScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\datasets\create_openstax_manifest.py"
 $runnerScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\runners\run_mathcraft.py"
 $combineScript = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\reports\combine_jsonl.py"

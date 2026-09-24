@@ -9,7 +9,7 @@ evidence. They do not provide formula-level ground truth labels.
 ## Default Systematic Run
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1 -DataRoot ./benchmark-data
 ```
 
 Default settings:
@@ -27,11 +27,11 @@ command.
 ## Outputs
 
 ```text
-..\MathCraftBenchData\manifests\openstax_mixed_gpu_144dpi.jsonl
-..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl
-..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_report.md
-..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_summary.csv
-..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_page_metrics.csv
+./benchmark-data\manifests\openstax_mixed_gpu_144dpi.jsonl
+./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl
+./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_report.md
+./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_summary.csv
+./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_page_metrics.csv
 ```
 
 Small source-control evidence tables are mirrored to:
@@ -54,20 +54,20 @@ Current formal run summary:
 Generate paper-oriented block overlay panels from the formal run:
 
 ```powershell
-.\tools\deps\python311\python.exe `
+python `
   .\benchmarks\mathcraft_ocr\visualization\make_openstax_block_gallery.py `
-  --results ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
+  --results ./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
+  --output-dir ./benchmark-data\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
   --limit 6
 ```
 
-The generated PNG panels and HTML gallery remain in `..\MathCraftBenchData`
+The generated PNG panels and HTML gallery remain in `./benchmark-data`
 because the page images are rendered from OpenStax PDFs.
 
 ## Smaller Trial
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1 `
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1 -DataRoot ./benchmark-data `
   -Pages "calculus_v1:120-124,college_algebra:80-84" `
   -RunId "openstax_trial_gpu_144dpi"
 ```
@@ -77,10 +77,10 @@ powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax
 Use explicit page ranges and keep `-ShardSize 1` for best resume behavior:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1 `
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_openstax_pages.ps1 -DataRoot ./benchmark-data `
   -Pages "calculus_v1:20-219,college_algebra:20-219" `
   -RunId "openstax_400pages_gpu_144dpi"
 ```
 
 Large JSONL outputs, rendered page images, and downloaded PDFs remain under
-`..\MathCraftBenchData` and should not be committed.
+`./benchmark-data` and should not be committed.

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from bootstrap.deps_context import was_last_ensure_deps_force_enter
 from ui.startup_splash import (
     hide_startup_splash_for_modal,
@@ -11,13 +9,21 @@ from ui.startup_splash import (
 )
 
 
+_dependencies_ready = False
+
+
+def dependencies_ready() -> bool:
+    return _dependencies_ready
+
+
 def deps_force_entered() -> bool:
     return was_last_ensure_deps_force_enter()
 
 
 def ensure_deps(*args, **kwargs):
+    global _dependencies_ready
     from_settings = bool(kwargs.get("from_settings", False))
-    if os.environ.get("LATEXSNIPPER_DEPS_OK") == "1" and not from_settings:
+    if dependencies_ready() and not from_settings:
         return True
 
     from bootstrap.deps_entry import ensure_deps as run_dependency_bootstrap
@@ -28,7 +34,7 @@ def ensure_deps(*args, **kwargs):
         kwargs.setdefault("after_force_enter", mark_startup_force_entered)
     ok = run_dependency_bootstrap(*args, **kwargs)
     if ok:
-        os.environ["LATEXSNIPPER_DEPS_OK"] = "1"
+        _dependencies_ready = True
         if deps_force_entered():
             mark_startup_force_entered()
     return ok

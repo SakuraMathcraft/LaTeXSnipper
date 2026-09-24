@@ -9,10 +9,9 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from runtime.app_paths import app_config_path
-from runtime.runtime_logging import hook_runtime_log_streams, runtime_log_path
+from runtime.runtime_logging import runtime_log_path
 from ui.runtime_log_dialog import RuntimeLogDialog
 
-_RUNTIME_LOG_WINDOW_READY = False
 _RUNTIME_LOG_DIALOG: RuntimeLogDialog | None = None
 
 def show_runtime_log_window(parent=None):
@@ -32,6 +31,8 @@ def show_runtime_log_window(parent=None):
     except Exception:
         pass
 
+    return _RUNTIME_LOG_DIALOG
+
 
 def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
     try:
@@ -41,13 +42,8 @@ def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
         pass
 
 
-def apply_runtime_log_window_preference(force: bool = False, tee: bool = True):
+def apply_runtime_log_window_preference(force: bool = False):
     """Apply the preference for the scrollable GUI runtime-log window."""
-    global _RUNTIME_LOG_WINDOW_READY
-
-    if getattr(sys, "frozen", False):
-        tee = False
-
     def _read_runtime_log_window_pref(default: bool = False) -> bool:
         try:
             cfg = app_config_path()
@@ -83,19 +79,4 @@ def apply_runtime_log_window_preference(force: bool = False, tee: bool = True):
             pass
         return
 
-    try:
-        if _RUNTIME_LOG_WINDOW_READY:
-            show_runtime_log_window()
-            return
-        hook_runtime_log_streams(tee=tee)
-        show_runtime_log_window()
-        _RUNTIME_LOG_WINDOW_READY = True
-        print("[DEBUG] 运行日志窗口已打开")
-    except Exception:
-        try:
-            if sys.__stdout__ and not getattr(sys.__stdout__, "closed", False):
-                sys.stdout = sys.__stdout__
-            if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
-                sys.stderr = sys.__stderr__
-        except Exception:
-            pass
+    show_runtime_log_window()

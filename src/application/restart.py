@@ -14,7 +14,6 @@ def build_restart_with_dependency_management_launch(
     env = dict(base_env or os.environ.copy())
     env["LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT"] = "1"
     env["LATEXSNIPPER_RESTART"] = "1"
-    env.pop("LATEXSNIPPER_DEPS_OK", None)
 
     script_path = os.path.abspath(argv0)
     if script_path.lower().endswith(".py"):

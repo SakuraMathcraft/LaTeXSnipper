@@ -98,9 +98,9 @@ mathcraft warmup --profile mixed --provider auto
 Recognize an image:
 
 ```powershell
-mathcraft ocr "C:\path\to\page.png" --profile mixed --provider auto --output result.md
-mathcraft ocr "C:\path\to\page.png" --profile mixed --provider auto --output-dir "D:\MathCraft\outputs"
-mathcraft ocr "C:\path\to\formula.png" --profile formula --provider auto --json
+mathcraft ocr "./examples/page.png" --profile mixed --provider auto --output result.md
+mathcraft ocr "./examples/page.png" --profile mixed --provider auto --output-dir "./outputs"
+mathcraft ocr "./examples/formula.png" --profile formula --provider auto --json
 ```
 
 Run JSONL worker mode:
@@ -122,14 +122,14 @@ Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 or from a custom root:
 
 ```powershell
-$env:MATHCRAFT_HOME="D:\MathCraft\models"
+$env:MATHCRAFT_HOME="./models"
 mathcraft doctor --provider auto
 ```
 
 Persist the custom root for future PowerShell sessions:
 
 ```powershell
-setx MATHCRAFT_HOME "D:\MathCraft\models"
+setx MATHCRAFT_HOME "./models"
 ```
 
 Restore the default user cache root:

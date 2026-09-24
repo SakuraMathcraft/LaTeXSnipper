@@ -9,14 +9,14 @@ paper tables. Large datasets and run outputs are kept outside the repository.
 
 - Windows 11
 - TeX Live 2024 for render checks
-- Python runtime: `tools\deps\python311\python.exe`
+- Python runtime: the developer-selected Python interpreter
 - ONNX provider requested: `gpu`
 - Observed active provider: `CUDAExecutionProvider`
 
 Install benchmark-only metric dependencies into the development runtime:
 
 ```powershell
-.\tools\deps\python311\python.exe -m pip install rapidfuzz evaluate
+python -m pip install rapidfuzz evaluate
 ```
 
 ## Data Root
@@ -24,7 +24,7 @@ Install benchmark-only metric dependencies into the development runtime:
 Use a local data root:
 
 ```text
-..\MathCraftBenchData
+./benchmark-data
 ```
 
 The scripts download `UniMER-Test.zip` from the public Hugging Face dataset
@@ -33,7 +33,7 @@ The scripts download `UniMER-Test.zip` from the public Hugging Face dataset
 ## Run MathCraft OCR
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_unimer_test.ps1
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_unimer_test.ps1 -DataRoot ./benchmark-data
 ```
 
 The runner is sharded and resumable. Completed shard files are skipped; partial
@@ -42,16 +42,16 @@ shards are rerun.
 Main output:
 
 ```text
-..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl
+./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl
 ```
 
 ## Text Metrics
 
 ```powershell
-.\tools\deps\python311\python.exe benchmarks\mathcraft_ocr\reports\analyze_unimer_results.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\unimer_test_gpu
+python benchmarks\mathcraft_ocr\reports\analyze_unimer_results.py `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output-dir ./benchmark-data\runs\unimer_test_gpu
 ```
 
 This generates BLEU-4, normalized edit distance, exact-match, similarity, and
@@ -62,10 +62,10 @@ latency tables.
 This is a local render-consistency fallback for paper analysis, not CDM.
 
 ```powershell
-.\tools\deps\python311\python.exe benchmarks\mathcraft_ocr\reports\render_unimer_samples.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated `
+python benchmarks\mathcraft_ocr\reports\render_unimer_samples.py `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output-dir ./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated `
   --per-subset 20 `
   --min-similarity 0.95 `
   --keep-images
@@ -74,10 +74,10 @@ This is a local render-consistency fallback for paper analysis, not CDM.
 Create an HTML gallery:
 
 ```powershell
-.\tools\deps\python311\python.exe benchmarks\mathcraft_ocr\visualization\make_render_gallery.py `
-  --rows ..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated\unimer_render_consistency_rows.csv `
-  --image-dir ..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated\rendered_pairs `
-  --output ..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated\render_gallery.html `
+python benchmarks\mathcraft_ocr\visualization\make_render_gallery.py `
+  --rows ./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated\unimer_render_consistency_rows.csv `
+  --image-dir ./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated\rendered_pairs `
+  --output ./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated\render_gallery.html `
   --limit 40
 ```
 
@@ -87,20 +87,20 @@ CDM expects a batch JSON file with `img_id`, `gt`, and `pred` fields. Convert th
 full MathCraft UniMER-Test run to that schema:
 
 ```powershell
-.\tools\deps\python311\python.exe benchmarks\mathcraft_ocr\reports\prepare_cdm_input.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
+python benchmarks\mathcraft_ocr\reports\prepare_cdm_input.py `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
   --subset all
 ```
 
 Subset conversion is also supported:
 
 ```powershell
-.\tools\deps\python311\python.exe benchmarks\mathcraft_ocr\reports\prepare_cdm_input.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_cpe_cdm.json `
+python benchmarks\mathcraft_ocr\reports\prepare_cdm_input.py `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_cpe_cdm.json `
   --subset cpe
 ```
 
@@ -113,31 +113,30 @@ dependencies; do not label local fallback metrics as CDM.
 Run the official UniMERNet CDM evaluator through the resumable benchmark entry:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_official_cdm.ps1
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_official_cdm.ps1 -DataRoot ./benchmark-data
 ```
 
 Defaults:
 
 ```text
-Input:     ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json
-Output:    ..\MathCraftBenchData\runs\cdm_official_unimer_full
-CDM code:  ..\MathCraftBenchData\sources\UniMERNet_official\cdm
-Python:    .\tools\deps\python311\python.exe
+Input:     ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json
+Output:    ./benchmark-data\runs\cdm_official_unimer_full
+CDM code:  ./benchmark-data\sources\UniMERNet_official\cdm
+Python:    python
 Pools:     8
 ShardSize: 100
 ```
 
-`tools\deps\python311` is the MathCraft development/runtime environment. The
-official CDM clone is evaluated with the system Python above because the
-isolated `tools\deps` runtime does not expose the official CDM source tree on
-`sys.path`.
+MathCraft inference uses the selected development environment. The official CDM
+runner can use a separate environment with its own dependencies and source tree.
+Pass -PythonPath to select an interpreter for the benchmark runners.
 
 The runner is resumable. A shard is skipped only when it has a local completion
 marker from a successful official CDM process. It writes:
 
 ```text
-..\MathCraftBenchData\runs\cdm_official_unimer_full\metrics_res.json
-..\MathCraftBenchData\runs\cdm_official_unimer_full\cdm_shard_summary.csv
+./benchmark-data\runs\cdm_official_unimer_full\metrics_res.json
+./benchmark-data\runs\cdm_official_unimer_full\cdm_shard_summary.csv
 ```
 
 The runner also writes `.mathcraft_cdm_complete.json` for each shard after the
@@ -148,9 +147,9 @@ the shard CSV records `expected_rows`, `evaluated_rows`, and `skipped_rows`.
 For a bounded check:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_official_cdm.ps1 `
-  -InputPath ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_all_20_cdm.json `
-  -OutputDir ..\MathCraftBenchData\runs\cdm_official_unimer_20_runner `
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_official_cdm.ps1 -DataRoot ./benchmark-data `
+  -InputPath ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_all_20_cdm.json `
+  -OutputDir ./benchmark-data\runs\cdm_official_unimer_20_runner `
   -ShardSize 10 `
   -Limit 20
 ```
@@ -184,7 +183,7 @@ prints `extract bbox` progress during the rendering/bbox stage.
 Full official CDM run:
 
 ```text
-Run:        ..\MathCraftBenchData\runs\cdm_official_unimer_full
+Run:        ./benchmark-data\runs\cdm_official_unimer_full
 Mean CDM:   0.929
 ExpRate:    0.648
 Expected:   23757
@@ -196,11 +195,11 @@ Shards:     238 / 238 complete
 Generate compact source-controlled CDM tables:
 
 ```powershell
-.\tools\deps\python311\python.exe .\benchmarks\mathcraft_ocr\reports\analyze_cdm_results.py `
-  --metrics ..\MathCraftBenchData\runs\cdm_official_unimer_full\metrics_res.json `
-  --input ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --shards ..\MathCraftBenchData\runs\cdm_official_unimer_full\cdm_shard_summary.csv `
+python .\benchmarks\mathcraft_ocr\reports\analyze_cdm_results.py `
+  --metrics ./benchmark-data\runs\cdm_official_unimer_full\metrics_res.json `
+  --input ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --shards ./benchmark-data\runs\cdm_official_unimer_full\cdm_shard_summary.csv `
   --output-dir .\benchmarks\mathcraft_ocr\results\unimer_test_gpu
 ```
 
@@ -212,7 +211,7 @@ Small result tables are copied into:
 benchmarks/mathcraft_ocr/results/unimer_test_gpu
 ```
 
-Do not commit `..\MathCraftBenchData`, full JSONL outputs, downloaded datasets,
+Do not commit `./benchmark-data`, full JSONL outputs, downloaded datasets,
 or rendered PNG pairs into the repository.
 
 ## Related Page-Level Data

@@ -46,10 +46,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
 
-    input_path = Path(args.input)
-    output_dir = Path(args.output_dir)
-    cdm_dir = Path(args.cdm_dir)
-    python_path = Path(args.python)
+    input_path = Path(args.input).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    cdm_dir = Path(args.cdm_dir).resolve()
+    python_path = Path(args.python).resolve()
 
     validate_args(input_path, output_dir, cdm_dir, python_path, args.shard_size, args.pools)
 

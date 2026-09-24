@@ -11,7 +11,7 @@
 
 ---
 
-<img src="../docs/latexsnipper-3.0.0.png" width="100%" alt="LaTeXSnipper v3.0.0 封面图">
+<img src="../docs/latexsnipper.png" width="100%" alt="LaTeXSnipper 封面图">
 
 </div>
 
@@ -123,6 +123,8 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会打开“依赖管�
 ---
 
 ## 主窗口功能入口与识别流程
+
+首次进入主窗口会显示六步快速入门，介绍截图、导出、快捷键、模型准备与支持入口。完成或确认退出引导后不再自动显示；直接关闭应用不修改偏好。随时可点击“快速入门”重新查看。模型在后台准备，引导无需等待模型就绪。
 
 ### 主窗口按钮分别做什么
 
@@ -506,7 +508,7 @@ Windows 安装包默认使用内置依赖根：
 <安装目录>\_internal\deps
 ```
 
-Linux/macOS 安装包不会把构建机的 `tools/deps/python311` 或任意虚拟环境打进安装包。默认依赖根是用户可写目录：
+Linux/macOS 安装包不会把构建机的虚拟环境打进安装包。默认依赖根是用户可写目录：
 
 ```text
 Linux:  ~/.latexsnipper/deps
@@ -1007,65 +1009,34 @@ README 中提供了三种平台的源码运行步骤，经验证均正确可行�
 > - **macOS：** `python3 -m venv .venv` → `pip install -r requirements-macos.txt` → `python src/main.py`
 > - `requirements-linux.txt` 和 `requirements-macos.txt` 通过 `-r requirements.txt` 自动包含公共依赖；Linux 额外使用 `pynput` 支持全局快捷键，macOS 使用原生全局快捷键实现。
 
-### 开发环境路径不要混用
+### 开发环境与发布构建
 
-**现象：** 本地存在 `python311/` 和 `tools/deps/python311/` 两套 Python，不确定应该用哪一个。
+开发者可以自行选择 venv、Conda、uv 等环境及存放位置。激活环境后，运行、检查和 IDE 使用同一解释器即可；项目不要求固定的环境目录。
 
-**规则：**
-
-- `python311/` 是 Windows 安装包的内置 Python 模板，只用于打包复制，不要安装开发依赖，不要执行 ruff/pyright/pytest。
-- `tools/deps/python311/` 是 IDE、开发检查和 Actions 打包使用的项目环境，可以安装 `requirements*.txt`、`ruff`、`pytest`、`pyright`。
-- Linux/macOS 安装包运行时不会携带 `tools/deps/python311`。Linux 默认依赖根是 `~/.latexsnipper/deps`，macOS 默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`；用户切换依赖目录后，以配置中的 `install_base_dir` 为准。
-
-**Windows 开发者初始化示例：**
+Windows 示例（`.venv` 仅为示例，可替换为自己的路径）：
 
 ```powershell
-py -3.11 -m venv tools\deps\python311
-.\tools\deps\python311\python.exe -m pip install --upgrade pip wheel setuptools
-.\tools\deps\python311\python.exe -m pip install -r requirements.txt
-.\tools\deps\python311\python.exe -m pip install -r requirements-build.txt
-.\tools\deps\python311\python.exe -m pip install ruff pytest pyright
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m pip install ruff pytest pyright
+python src/main.py
 ```
 
-> [!NOTE]
-> **路径速查**
->
-> - 仓库根目录 `python311/` — Windows 模板环境，不要污染。
-> - `tools/deps/python311/` — 开发、检查、构建环境。
-> - `~/.latexsnipper/deps` — Linux 默认运行时依赖根。
-> - `~/Library/Application Support/LaTeXSnipper/deps` — macOS 默认运行时依赖根。
-> - `<依赖根>/python` — 程序创建的主 Python 依赖环境。
-> - `<应用状态目录>/tools/pandoc` — 程序创建的共享工具目录，切换依赖根后继续复用。
+Linux/macOS 使用各自的 requirements 文件，并激活所选环境。客户端安装包统一由 GitHub Actions 的 `release.yml` 工作流构建；Windows 内置运行时在 runner 临时目录准备，不收集开发者的 Python 环境。
 
-### 开发者验证命令注意事项
+### 开发者验证命令
 
-常用验证命令：
+在已激活并安装检查工具的环境中执行：
 
 ```bash
-.\tools\deps\python311\python.exe -m ruff check .
-.\tools\deps\python311\python.exe -m pytest test
-.\tools\deps\python311\python.exe -m pyright
-.\tools\deps\python311\python.exe -m compileall -q src mathcraft_ocr test
+python -m ruff check .
+python -m pytest test
+python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')"
+python -m compileall -q src mathcraft_ocr test
 ```
 
-> [!WARNING]
-> **运行前必做**
->
-> `ruff`、`pytest`、`pyright` 不在任何 `requirements*.txt` 中。
-> 首次运行验证前需要手动安装：
->
-> ```bash
-> .\tools\deps\python311\python.exe -m pip install ruff pytest pyright
-> ```
-
-### `pyrightconfig.json` 中的路径
-
-类型检查应使用 `tools/deps/python311` 的第三方包解析环境，根目录 `python311/` 只作为 Windows 模板排除在检查外。不要为了让 pyright 通过而向根目录模板安装开发包。
-
-> [!TIP]
-> **提示**
->
-> 如果 `tools/deps/python311` 不存在，先创建开发环境；不要改用根目录 `python311` 作为替代。
+IDE 中选择相同的解释器；类型检查通过 `--pythonpath` 指定所选解释器，无需在项目配置中硬编码第三方包目录。
 
 ---
 

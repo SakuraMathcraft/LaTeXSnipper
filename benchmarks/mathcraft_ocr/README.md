@@ -27,7 +27,7 @@ Third-party systems may appear only in related work or public-result context, wi
 Keep external datasets and large run artifacts outside the repository:
 
 ```text
-..\MathCraftBenchData
+./benchmark-data
 ```
 
 Manifest files live under:
@@ -47,16 +47,16 @@ images, and dataset-provided normalized LaTeX labels as ground truth.
 Run MathCraft GPU:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_mathwriting_test.ps1
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_mathwriting_test.ps1 -DataRoot ./benchmark-data
 ```
 
 The runner creates:
 
 ```text
-..\MathCraftBenchData\manifests\mathwriting_test.jsonl
-..\MathCraftBenchData\raw\mathwriting\test_images
-..\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl
-..\MathCraftBenchData\runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json
+./benchmark-data\manifests\mathwriting_test.jsonl
+./benchmark-data\raw\mathwriting\test_images
+./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl
+./benchmark-data\runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json
 ```
 
 It also writes exact, BLEU-4, normalized edit distance, and latency summaries
@@ -64,15 +64,15 @@ after the full JSONL is combined. Render success is computed separately:
 
 ```powershell
 python benchmarks\mathcraft_ocr\reports\render_formula_success.py `
-  --results ..\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\mathwriting_test.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\mathwriting_test_gpu\render_success
+  --results ./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\mathwriting_test.jsonl `
+  --output-dir ./benchmark-data\runs\mathwriting_test_gpu\render_success
 ```
 
 Run official CDM on MathWriting predictions:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1 -DataRoot ./benchmark-data
 ```
 
 Baseline comparisons must be restricted to the same split, normalized label, and
@@ -81,7 +81,7 @@ offline rasterization protocol.
 ## UniMER-Test
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_unimer_test.ps1
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_unimer_test.ps1 -DataRoot ./benchmark-data
 ```
 
 The script downloads UniMER-Test from Hugging Face when needed, creates the manifest,
@@ -92,18 +92,18 @@ Analyze text metrics:
 
 ```powershell
 python benchmarks\mathcraft_ocr\reports\analyze_unimer_results.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\unimer_test_gpu
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output-dir ./benchmark-data\runs\unimer_test_gpu
 ```
 
 Analyze render-consistency fallback samples:
 
 ```powershell
 python benchmarks\mathcraft_ocr\reports\render_unimer_samples.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\unimer_test_gpu\render_exact_underestimated `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output-dir ./benchmark-data\runs\unimer_test_gpu\render_exact_underestimated `
   --per-subset 20 `
   --min-similarity 0.95 `
   --keep-images
@@ -113,9 +113,9 @@ Prepare official CDM batch JSON input:
 
 ```powershell
 python benchmarks\mathcraft_ocr\reports\prepare_cdm_input.py `
-  --results ..\MathCraftBenchData\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
-  --manifest ..\MathCraftBenchData\manifests\unimer_test_full.jsonl `
-  --output ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
+  --results ./benchmark-data\runs\unimer_test_gpu\unimer_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\unimer_test_full.jsonl `
+  --output ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json `
   --subset all
 ```
 
@@ -125,21 +125,21 @@ The generated JSON follows the official CDM batch fields `img_id`, `gt`, and
 Run the official UniMERNet CDM runtime with resumable shards:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_official_cdm.ps1
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_official_cdm.ps1 -DataRoot ./benchmark-data
 ```
 
 The CDM runner uses the official `evaluation.py` from the local UniMERNet clone
-under `..\MathCraftBenchData\sources\UniMERNet_official\cdm`. It intentionally
+under `./benchmark-data\sources\UniMERNet_official\cdm`. It intentionally
 uses the system Python configured for that official runtime; MathCraft OCR
-inference remains on `tools\deps\python311\python.exe`. The default official
+inference remains on the developer-selected Python interpreter. The default official
 CDM pool count is 8 on the local Windows evaluation host.
 
 For a quick validation run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_official_cdm.ps1 `
-  -InputPath ..\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_all_20_cdm.json `
-  -OutputDir ..\MathCraftBenchData\runs\cdm_official_unimer_20_runner `
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_official_cdm.ps1 -DataRoot ./benchmark-data `
+  -InputPath ./benchmark-data\runs\unimer_test_gpu\cdm_input\unimer_test_all_20_cdm.json `
+  -OutputDir ./benchmark-data\runs\cdm_official_unimer_20_runner `
   -ShardSize 10 `
   -Limit 20 `
   -Pools 8
@@ -157,7 +157,7 @@ render skips are not confused with interrupted runs.
 The full official CDM UniMER-Test run is complete:
 
 ```text
-Run:        ..\MathCraftBenchData\runs\cdm_official_unimer_full
+Run:        ./benchmark-data\runs\cdm_official_unimer_full
 Mean CDM:   0.929
 ExpRate:    0.648
 Expected:   23757
@@ -172,7 +172,7 @@ benchmarks/mathcraft_ocr/results/unimer_test_gpu
 ```
 
 Large JSONL files, downloaded data, and rendered PNG pairs remain under
-`..\MathCraftBenchData`.
+`./benchmark-data`.
 
 ## OpenStax Page Images
 
@@ -183,7 +183,7 @@ for exact-match formula accuracy because no page-level ground truth is included.
 Run the default systematic mixed-page benchmark:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_openstax_pages.ps1
+powershell -ExecutionPolicy Bypass -File benchmarks\mathcraft_ocr\run_openstax_pages.ps1 -DataRoot ./benchmark-data
 ```
 
 The runner creates a manifest, renders selected OpenStax PDF pages, runs mixed
@@ -207,10 +207,14 @@ Generate OpenStax block-overlay figure assets from the formal run:
 
 ```powershell
 python benchmarks\mathcraft_ocr\visualization\make_openstax_block_gallery.py `
-  --results ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
-  --output-dir ..\MathCraftBenchData\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
+  --results ./benchmark-data\runs\openstax_mixed_gpu_144dpi\openstax_mixed_gpu_144dpi_full.jsonl `
+  --output-dir ./benchmark-data\runs\openstax_mixed_gpu_144dpi\figures\block_gallery `
   --limit 6
 ```
 
-Generated OpenStax page images and overlays remain under `..\MathCraftBenchData`
+Generated OpenStax page images and overlays remain under `./benchmark-data`
 because they are derived from licensed OpenStax PDF content.
+
+## Portable benchmark environment
+
+Run examples from the repository root. `./benchmark-data` is an example external-data directory; use `-DataRoot` to choose its location. The PowerShell runners resolve the checkout from the script location and use the active `python`; inference runners accept `-PythonPath`, and CDM runners accept `-Python`. Install CDM tools on PATH or pass `-PathPrepend` with your own tool directories. No drive letter or developer environment is required.
